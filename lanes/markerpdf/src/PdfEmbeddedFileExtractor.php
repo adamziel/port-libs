@@ -85,6 +85,7 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
+        $encryptionPolicy = $this->embeddedFileEncryptionPolicy($pdfBytes, $objects);
         $portfolioMetadata = $this->collectionMetadata($this->dictionaryRawValue($catalog, 'Collection'), $objects);
         $catalogPieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($catalog, 'PieceInfo'), $objects);
         $files = [];
@@ -92,12 +93,12 @@ final class PdfEmbeddedFileExtractor
         if ($names !== null) {
             $embeddedFiles = $this->resolveDictionaryFromValue($this->dictionaryRawValue($names['body'], 'EmbeddedFiles'), $objects);
             if ($embeddedFiles !== null) {
-                $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo);
+                $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
             }
         }
 
-        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo);
-        $this->collectPageAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files);
+        $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
+        $this->collectPageAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files, $encryptionPolicy);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -107,6 +108,7 @@ final class PdfEmbeddedFileExtractor
      * @param list<array<string, mixed>> $files
      * @param array<string, mixed> $portfolioMetadata
      * @param array<string, mixed> $catalogPieceInfo
+     * @param array<string, mixed>|null $encryptionPolicy
      * @param array<int, true> $seen
      * @param array{lower: string, upper: string}|null $inheritedLimits
      */
@@ -116,6 +118,7 @@ final class PdfEmbeddedFileExtractor
         array &$files,
         array $portfolioMetadata = [],
         array $catalogPieceInfo = [],
+        ?array $encryptionPolicy = null,
         array $seen = [],
         ?array $inheritedLimits = null,
         int $depth = 0
@@ -146,7 +149,8 @@ final class PdfEmbeddedFileExtractor
                     $objects,
                     'catalog_names_embedded_files',
                     $portfolioMetadata,
-                    $catalogPieceInfo
+                    $catalogPieceInfo,
+                    $encryptionPolicy
                 );
                 if ($file !== null) {
                     $files[] = $file;
@@ -170,7 +174,7 @@ final class PdfEmbeddedFileExtractor
 
             $kid = $this->resolveDictionaryFromValue($kidValue, $objects);
             if ($kid !== null) {
-                $this->collectNameTreeFiles($kid['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo, $seen, $childLimits, $depth + 1);
+                $this->collectNameTreeFiles($kid['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy, $seen, $childLimits, $depth + 1);
             }
         }
     }
@@ -268,13 +272,15 @@ final class PdfEmbeddedFileExtractor
      * @param list<array<string, mixed>> $files
      * @param array<string, mixed> $portfolioMetadata
      * @param array<string, mixed> $catalogPieceInfo
+     * @param array<string, mixed>|null $encryptionPolicy
      */
     private function collectAssociatedFiles(
         ?string $arrayValue,
         array $objects,
         array &$files,
         array $portfolioMetadata = [],
-        array $catalogPieceInfo = []
+        array $catalogPieceInfo = [],
+        ?array $encryptionPolicy = null
     ): void
     {
         if ($arrayValue === null) {
@@ -288,7 +294,8 @@ final class PdfEmbeddedFileExtractor
                 $objects,
                 'catalog_associated_files',
                 $portfolioMetadata,
-                $catalogPieceInfo
+                $catalogPieceInfo,
+                $encryptionPolicy
             );
             if ($file === null) {
                 continue;
@@ -307,8 +314,9 @@ final class PdfEmbeddedFileExtractor
      *
      * @param array<int, string> $objects
      * @param list<array<string, mixed>> $files
+     * @param array<string, mixed>|null $encryptionPolicy
      */
-    private function collectPageAssociatedFiles(?string $pagesValue, array $objects, array &$files): void
+    private function collectPageAssociatedFiles(?string $pagesValue, array $objects, array &$files, ?array $encryptionPolicy = null): void
     {
         if ($pagesValue === null) {
             return;
@@ -319,7 +327,10 @@ final class PdfEmbeddedFileExtractor
                 $entry['fileSpecValue'],
                 null,
                 $objects,
-                'page_associated_files'
+                'page_associated_files',
+                [],
+                [],
+                $encryptionPolicy
             );
             if ($file === null) {
                 continue;
@@ -436,6 +447,7 @@ final class PdfEmbeddedFileExtractor
      * @return array<string, mixed>|null
      * @param array<string, mixed> $portfolioMetadata
      * @param array<string, mixed> $catalogPieceInfo
+     * @param array<string, mixed>|null $encryptionPolicy
      */
     private function embeddedFileFromFileSpecValue(
         string $value,
@@ -443,7 +455,8 @@ final class PdfEmbeddedFileExtractor
         array $objects,
         string $source,
         array $portfolioMetadata = [],
-        array $catalogPieceInfo = []
+        array $catalogPieceInfo = [],
+        ?array $encryptionPolicy = null
     ): ?array
     {
         $fileSpec = $this->resolveDictionaryFromValue($value, $objects);
@@ -470,6 +483,7 @@ final class PdfEmbeddedFileExtractor
         [$filename, $filenameSource] = $this->fileSpecFilenameWithSource($body, $objects, $name);
         $attachmentName = ($name !== null && $name !== '') ? $name : $filename;
         $filenameReview = $this->filenamePathReview($filename);
+        $payloadEncrypted = $this->embeddedFilePolicySuppressesPayload($encryptionPolicy);
 
         foreach ($this->embeddedFileKeys($filenameSource) as $efKey) {
             $streamValue = $this->dictionaryRawValue($ef['body'], $efKey);
@@ -477,7 +491,9 @@ final class PdfEmbeddedFileExtractor
                 continue;
             }
 
-            $stream = $this->embeddedFileStreamFromValue($streamValue, $objects);
+            $stream = $payloadEncrypted
+                ? $this->embeddedFileStreamReviewFromValue($streamValue, $objects)
+                : $this->embeddedFileStreamFromValue($streamValue, $objects);
             if ($stream === null) {
                 continue;
             }
@@ -487,13 +503,27 @@ final class PdfEmbeddedFileExtractor
                 'name' => $attachmentName,
                 'filename' => $filename,
                 'filename_source' => $filenameSource,
-                'content' => $stream['content'],
-                'size' => strlen($stream['content']),
-                'content_sha256' => hash('sha256', $stream['content']),
                 'ef_key' => $efKey,
                 'file_spec_object' => $fileSpec['object'],
                 'embedded_file_object' => $stream['object'],
             ];
+            if ($payloadEncrypted) {
+                $file['encrypted_payload_suppressed'] = true;
+                $file['encryption_policy'] = $encryptionPolicy;
+                $file['raw_encrypted_bytes_exposed'] = false;
+                $file['executes_decryption'] = false;
+            } else {
+                $content = is_string($stream['content'] ?? null) ? $stream['content'] : '';
+                $file['content'] = $content;
+                $file['size'] = strlen($content);
+                $file['content_sha256'] = hash('sha256', $content);
+                if ($encryptionPolicy !== null) {
+                    $file['encrypted_payload_suppressed'] = false;
+                    $file['encryption_policy'] = $encryptionPolicy;
+                    $file['raw_encrypted_bytes_exposed'] = false;
+                    $file['executes_decryption'] = false;
+                }
+            }
             foreach ($filenameReview as $key => $metadataValue) {
                 $file[$key] = $metadataValue;
             }
@@ -505,10 +535,15 @@ final class PdfEmbeddedFileExtractor
             foreach ([
                 'description' => $this->dictionaryStringValue($body, 'Desc', $objects),
                 'relationship' => $this->dictionaryNameValue($body, 'AFRelationship', $objects),
-                'mime_type' => $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects),
             ] as $key => $metadataValue) {
                 if (is_string($metadataValue) && $metadataValue !== '') {
                     $file[$key] = $metadataValue;
+                }
+            }
+            if (!$payloadEncrypted) {
+                $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+                if (is_string($mimeType) && $mimeType !== '') {
+                    $file['mime_type'] = $mimeType;
                 }
             }
 
@@ -516,16 +551,18 @@ final class PdfEmbeddedFileExtractor
                 $file[$key] = $metadataValue;
             }
 
-            if ($stream['filters'] !== []) {
+            if (!$payloadEncrypted && $stream['filters'] !== []) {
                 $file['filters'] = $stream['filters'];
             }
 
-            foreach ($this->embeddedFileStreamMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
-                $file[$key] = $metadataValue;
-            }
+            if (!$payloadEncrypted) {
+                foreach ($this->embeddedFileStreamMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+                    $file[$key] = $metadataValue;
+                }
 
-            foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
-                $file[$key] = $metadataValue;
+                foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+                    $file[$key] = $metadataValue;
+                }
             }
 
             if ($portfolioMetadata !== []) {
@@ -557,15 +594,23 @@ final class PdfEmbeddedFileExtractor
                 $file['output_intents_review'] = $outputIntentsReview;
             }
 
-            $relatedFiles = $this->relatedFileReviewRows($this->dictionaryRawValue($body, 'RF'), $objects);
+            $relatedFiles = $this->relatedFileReviewRows($this->dictionaryRawValue($body, 'RF'), $objects, $encryptionPolicy);
             if ($relatedFiles !== []) {
                 $file['related_file_count'] = count($relatedFiles);
                 $file['related_files'] = $relatedFiles;
             }
 
+            if ($this->embeddedFilePolicySuppressesStrings($encryptionPolicy)) {
+                $this->redactEncryptedFileSpecStringMetadata($file);
+            }
+
             $portfolioFieldValues = $this->collectionFieldValueReview($portfolioMetadata, $portfolioItemValue, $objects, $file);
             if ($portfolioFieldValues !== []) {
                 $file['portfolio_field_values'] = $portfolioFieldValues;
+            }
+
+            if ($this->embeddedFilePolicySuppressesStrings($encryptionPolicy)) {
+                $this->redactEncryptedFileSpecStringMetadata($file);
             }
 
             $provenance = $this->portfolioFileSpecProvenanceReview(
@@ -754,9 +799,10 @@ final class PdfEmbeddedFileExtractor
      * metadata payloads.
      *
      * @param array<int, string> $objects
+     * @param array<string, mixed>|null $encryptionPolicy
      * @return list<array<string, mixed>>
      */
-    private function relatedFileReviewRows(?string $relatedFilesValue, array $objects): array
+    private function relatedFileReviewRows(?string $relatedFilesValue, array $objects, ?array $encryptionPolicy = null): array
     {
         $relatedFiles = $this->resolveDictionaryFromValue($relatedFilesValue, $objects);
         if ($relatedFiles === null) {
@@ -764,6 +810,8 @@ final class PdfEmbeddedFileExtractor
         }
 
         $rows = [];
+        $payloadEncrypted = $this->embeddedFilePolicySuppressesPayload($encryptionPolicy);
+        $stringsEncrypted = $this->embeddedFilePolicySuppressesStrings($encryptionPolicy);
         foreach ($this->dictionaryEntries($relatedFiles['body']) as $rfKey => $streamValues) {
             if (!in_array($rfKey, ['F', 'UF', 'DOS', 'Unix', 'Mac'], true)) {
                 continue;
@@ -778,32 +826,105 @@ final class PdfEmbeddedFileExtractor
             for ($index = 0, $count = count($items); $index < $count; $index++) {
                 $relatedFilename = $this->stringValueFromRaw($items[$index], $objects);
                 if ($relatedFilename !== null && $relatedFilename !== '' && $index + 1 < $count) {
-                    $stream = $this->embeddedFileStreamFromValue($items[$index + 1], $objects);
+                    $stream = $payloadEncrypted
+                        ? $this->embeddedFileStreamReviewFromValue($items[$index + 1], $objects)
+                        : $this->embeddedFileStreamFromValue($items[$index + 1], $objects);
                     if ($stream !== null) {
-                        $rows[] = $this->relatedFileReviewRow(
-                            $rfKey,
-                            $relatedFileIndex,
-                            $stream,
-                            $objects,
-                            $relatedFilename
-                        );
+                        $row = $payloadEncrypted
+                            ? $this->encryptedRelatedFileReviewRow(
+                                $rfKey,
+                                $relatedFileIndex,
+                                $stream,
+                                $encryptionPolicy,
+                                $relatedFilename
+                            )
+                            : $this->relatedFileReviewRow(
+                                $rfKey,
+                                $relatedFileIndex,
+                                $stream,
+                                $objects,
+                                $relatedFilename
+                            );
+                        if ($stringsEncrypted) {
+                            $this->redactEncryptedRelatedFileStringMetadata($row);
+                        }
+                        $rows[] = $row;
                         $relatedFileIndex++;
                         $index++;
                         continue;
                     }
                 }
 
-                $stream = $this->embeddedFileStreamFromValue($items[$index], $objects);
+                $stream = $payloadEncrypted
+                    ? $this->embeddedFileStreamReviewFromValue($items[$index], $objects)
+                    : $this->embeddedFileStreamFromValue($items[$index], $objects);
                 if ($stream === null) {
                     continue;
                 }
 
-                $rows[] = $this->relatedFileReviewRow($rfKey, $relatedFileIndex, $stream, $objects);
+                $row = $payloadEncrypted
+                    ? $this->encryptedRelatedFileReviewRow($rfKey, $relatedFileIndex, $stream, $encryptionPolicy)
+                    : $this->relatedFileReviewRow($rfKey, $relatedFileIndex, $stream, $objects);
+                if ($stringsEncrypted) {
+                    $this->redactEncryptedRelatedFileStringMetadata($row);
+                }
+                $rows[] = $row;
                 $relatedFileIndex++;
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     */
+    private function redactEncryptedFileSpecStringMetadata(array &$file): void
+    {
+        foreach ([
+            'name',
+            'filename',
+            'unicode_filename',
+            'filename_source',
+            'filename_leaf',
+            'filename_storage_name',
+            'filename_path_status',
+            'filename_has_path_segments',
+            'filename_contains_parent_segment',
+            'filename_absolute_path',
+            'filename_url_scheme',
+            'description',
+            'portfolio',
+            'portfolio_item',
+            'portfolio_field_values',
+            'piece_info',
+            'catalog_piece_info',
+            'metadata_review',
+            'output_intents_review',
+            'file_identifier',
+        ] as $key) {
+            unset($file[$key]);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function redactEncryptedRelatedFileStringMetadata(array &$row): void
+    {
+        foreach ([
+            'related_filename',
+            'related_filename_source',
+            'related_filename_leaf',
+            'related_filename_storage_name',
+            'related_filename_path_status',
+            'related_filename_has_path_segments',
+            'related_filename_contains_parent_segment',
+            'related_filename_absolute_path',
+            'related_filename_url_scheme',
+        ] as $key) {
+            unset($row[$key]);
+        }
     }
 
     /**
@@ -852,6 +973,42 @@ final class PdfEmbeddedFileExtractor
 
         foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
             $row[$key] = $metadataValue;
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array{object: int|null, dictionary: string} $stream
+     * @param array<string, mixed> $policy
+     * @return array<string, mixed>
+     */
+    private function encryptedRelatedFileReviewRow(
+        string $rfKey,
+        int $relatedFileIndex,
+        array $stream,
+        array $policy,
+        ?string $relatedFilename = null
+    ): array
+    {
+        $row = [
+            'source' => 'filespec_related_files',
+            'rf_key' => $rfKey,
+            'related_file_index' => $relatedFileIndex,
+            'embedded_file_object' => $stream['object'],
+            'payload_included' => false,
+            'encrypted_payload_suppressed' => true,
+            'encryption_policy' => $policy,
+            'raw_encrypted_bytes_exposed' => false,
+            'executes_decryption' => false,
+        ];
+
+        if ($relatedFilename !== null && $relatedFilename !== '') {
+            $row['related_filename'] = $relatedFilename;
+            $row['related_filename_source'] = 'rf_name_pair';
+            foreach ($this->relatedFilenamePathReview($relatedFilename) as $key => $metadataValue) {
+                $row[$key] = $metadataValue;
+            }
         }
 
         return $row;
@@ -1599,6 +1756,270 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Attachment extraction is a review path. If the trailer /Encrypt
+     * dictionary routes embedded-file streams through an encrypted crypt
+     * filter, keep FileSpec identity but do not decode or hash stream bytes.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function embeddedFileEncryptionPolicy(string $pdfBytes, array $objects): ?array
+    {
+        $dictionary = $this->selectedEncryptionDictionaryBody($pdfBytes, $objects);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $version = $this->dictionaryIntegerValue($dictionary, 'V', $objects);
+        $cryptFilters = $this->embeddedFileCryptFilterMetadata(
+            $this->dictionaryRawValue($dictionary, 'CF'),
+            $objects
+        );
+        $streamFilter = $this->dictionaryNameValue($dictionary, 'StmF', $objects);
+        $stringFilter = $this->dictionaryNameValue($dictionary, 'StrF', $objects);
+        $embeddedFileFilter = $this->dictionaryNameValue($dictionary, 'EFF', $objects);
+        $streamRoleMalformed = $this->embeddedFileCryptFilterRoleMalformed($dictionary, 'StmF', $objects);
+        $stringRoleMalformed = $this->embeddedFileCryptFilterRoleMalformed($dictionary, 'StrF', $objects);
+        $embeddedFileRoleMalformed = $this->embeddedFileCryptFilterRoleMalformed($dictionary, 'EFF', $objects);
+        $streamFilterDefaulted = false;
+        $stringFilterDefaulted = false;
+        $embeddedFileFilterDefaulted = false;
+
+        if (in_array($version, [4, 5], true)) {
+            if ($streamFilter === null || $streamFilter === '') {
+                $streamFilter = 'Identity';
+                $streamFilterDefaulted = true;
+            }
+            if ($stringFilter === null || $stringFilter === '') {
+                $stringFilter = 'Identity';
+                $stringFilterDefaulted = true;
+            }
+            if ($embeddedFileFilter === null || $embeddedFileFilter === '') {
+                $embeddedFileFilter = $streamFilter;
+                $embeddedFileFilterDefaulted = true;
+            }
+        } else {
+            $streamFilter ??= 'Standard';
+            $stringFilter ??= 'Standard';
+            $embeddedFileFilter ??= $streamFilter;
+        }
+
+        $streamFilterStatus = $this->embeddedFileCryptFilterStatus($streamFilter, $cryptFilters, $version);
+        $stringFilterStatus = $this->embeddedFileCryptFilterStatus($stringFilter, $cryptFilters, $version);
+        $embeddedFileFilterStatus = $this->embeddedFileCryptFilterStatus($embeddedFileFilter, $cryptFilters, $version);
+        $embeddedFileRoleFailClosed = $embeddedFileRoleMalformed || ($embeddedFileFilterDefaulted && $streamRoleMalformed);
+        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter' || $stringRoleMalformed;
+        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter' || $embeddedFileRoleFailClosed;
+        $roleFailClosedNames = [];
+        $roleFailClosedPdfNames = [];
+        foreach ([
+            'document_streams' => ['malformed' => $streamRoleMalformed, 'pdf_name' => 'StmF'],
+            'document_strings' => ['malformed' => $stringRoleMalformed, 'pdf_name' => 'StrF'],
+            'embedded_file_streams' => ['malformed' => $embeddedFileRoleFailClosed, 'pdf_name' => 'EFF'],
+        ] as $role => $review) {
+            if (($review['malformed'] ?? false) !== true) {
+                continue;
+            }
+            $roleFailClosedNames[] = $role;
+            $roleFailClosedPdfNames[] = $review['pdf_name'];
+        }
+
+        $policy = [
+            'source' => 'encrypted_attachment_preflight',
+            'encrypted_document' => true,
+            'decryption_performed' => false,
+            'stream_filter' => $streamFilter,
+            'stream_filter_status' => $streamFilterStatus,
+            'string_filter' => $stringFilter,
+            'string_filter_status' => $stringFilterStatus,
+            'embedded_file_filter' => $embeddedFileFilter,
+            'embedded_file_filter_status' => $embeddedFileFilterStatus,
+            'file_spec_strings_policy' => $stringsEncrypted
+                ? 'suppressed_encrypted_strings'
+                : 'preserved_identity_crypt_filter',
+            'embedded_file_stream_policy' => $embeddedStreamsEncrypted
+                ? 'suppressed_encrypted_embedded_file_streams'
+                : 'preserved_identity_crypt_filter',
+            'payload_hash_available' => !$embeddedStreamsEncrypted,
+            'payload_content_included' => false,
+            'raw_encrypted_bytes_exposed' => false,
+            'executes_decryption' => false,
+        ];
+
+        if ($roleFailClosedNames !== []) {
+            $policy['crypt_filter_role_declaration_status'] = 'malformed_crypt_filter_role_entry_review';
+            $policy['crypt_filter_role_fail_closed_role_names'] = $roleFailClosedNames;
+            $policy['crypt_filter_role_fail_closed_pdf_names'] = $roleFailClosedPdfNames;
+            $policy['crypt_filter_role_policy'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($stringRoleMalformed) {
+            $policy['file_spec_strings_policy_reason'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($embeddedFileRoleFailClosed) {
+            $policy['embedded_file_stream_policy_reason'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($version !== null) {
+            $policy['version'] = $version;
+        }
+        if ($streamFilterDefaulted) {
+            $policy['stream_filter_defaulted'] = true;
+        }
+        if ($stringFilterDefaulted) {
+            $policy['string_filter_defaulted'] = true;
+        }
+        if ($embeddedFileFilterDefaulted) {
+            $policy['embedded_file_filter_defaulted_from_stream_filter'] = true;
+        }
+        if ($cryptFilters !== []) {
+            $policy['crypt_filters'] = $cryptFilters;
+        }
+
+        return $policy;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function selectedEncryptionDictionaryBody(string $pdfBytes, array $objects): ?string
+    {
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        if ($trailer === null) {
+            return null;
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($this->dictionaryRawValue($trailer, 'Encrypt'), $objects);
+        return $dictionary['body'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function embeddedFileCryptFilterMetadata(?string $cryptFiltersValue, array $objects): array
+    {
+        $cryptFilters = $this->resolveDictionaryFromValue($cryptFiltersValue, $objects);
+        if ($cryptFilters === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($this->dictionaryEntries($cryptFilters['body']) as $name => $value) {
+            $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $entry = [];
+            $method = $this->dictionaryNameValue($dictionary['body'], 'CFM', $objects);
+            if ($method !== null && $method !== '') {
+                $entry['method'] = $method;
+            }
+
+            $authEvent = $this->dictionaryNameValue($dictionary['body'], 'AuthEvent', $objects);
+            if ($authEvent !== null && $authEvent !== '') {
+                $entry['auth_event'] = $authEvent;
+            }
+
+            $length = $this->dictionaryIntegerValue($dictionary['body'], 'Length', $objects);
+            if ($length !== null) {
+                $entry['length'] = $length;
+            }
+
+            $metadata[$name] = $entry;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function embeddedFileCryptFilterRoleMalformed(string $dictionary, string $pdfName, array $objects): bool
+    {
+        $value = $this->dictionaryRawValue($dictionary, $pdfName);
+        if ($value === null) {
+            return false;
+        }
+
+        $resolved = trim($this->resolveRawValue($value, $objects) ?? $value);
+        return preg_match('/^\/[^\s\[\]()<>{}\/%]+$/', $resolved) !== 1;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $cryptFilters
+     */
+    private function embeddedFileCryptFilterStatus(?string $filterName, array $cryptFilters, ?int $version): string
+    {
+        if ($filterName === 'Identity') {
+            return 'identity_crypt_filter';
+        }
+
+        if ($filterName === null || $filterName === '') {
+            return in_array($version, [4, 5], true)
+                ? 'undeclared_crypt_filter_fail_closed'
+                : 'legacy_standard_encryption';
+        }
+
+        $filter = is_array($cryptFilters[$filterName] ?? null) ? $cryptFilters[$filterName] : null;
+        if ($filter === null) {
+            return $filterName === 'Standard'
+                ? 'legacy_standard_encryption'
+                : 'missing_declared_crypt_filter';
+        }
+
+        $method = is_string($filter['method'] ?? null) ? $filter['method'] : null;
+        if ($method === 'Identity' || $method === 'None') {
+            return 'identity_crypt_filter';
+        }
+
+        if (in_array($method, ['V2', 'AESV2', 'AESV3'], true)) {
+            return 'encrypted_crypt_filter';
+        }
+
+        return ($method === null || $method === '')
+            ? 'unknown_crypt_filter_method_fail_closed'
+            : 'unsupported_crypt_filter_method_fail_closed';
+    }
+
+    /**
+     * @param array<string, mixed>|null $policy
+     */
+    private function embeddedFilePolicySuppressesPayload(?array $policy): bool
+    {
+        return ($policy['embedded_file_stream_policy'] ?? null) === 'suppressed_encrypted_embedded_file_streams';
+    }
+
+    /**
+     * @param array<string, mixed>|null $policy
+     */
+    private function embeddedFilePolicySuppressesStrings(?array $policy): bool
+    {
+        return ($policy['file_spec_strings_policy'] ?? null) === 'suppressed_encrypted_strings';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{object: int|null, dictionary: string}|null
+     */
+    private function embeddedFileStreamReviewFromValue(string $value, array $objects): ?array
+    {
+        $objectNumber = $this->objectNumberFromReference($value);
+        $body = $objectNumber !== null ? $this->objectBodyFromReferenceValue($value, $objects) : trim($value);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        if (preg_match('/<<(.*?)>>\s*stream\b/s', $body, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => $objectNumber,
+            'dictionary' => $match[1],
+        ];
     }
 
     /**
