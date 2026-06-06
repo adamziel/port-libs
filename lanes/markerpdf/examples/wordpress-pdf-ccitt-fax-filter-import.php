@@ -203,6 +203,29 @@ $softMaskPrefixReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
     ]
 );
 $softMaskPrefixBoundary = $softMaskPrefixReview['soft_mask_filter_boundary'] ?? [];
+$surplusPrefixBefore = 'BT /F1 12 Tf 72 720 Td (Before surplus CCITT import) Tj ET';
+$surplusPrefixAfter = 'BT /F1 12 Tf 72 680 Td (After surplus CCITT import) Tj ET';
+$surplusPrefixFaxBytes = "\x00\x10\x01";
+$surplusPrefixPayload = $zlibStored($surplusPrefixFaxBytes)
+    . "\nBT /F1 12 Tf 72 700 Td (WordPress surplus CCITT prefix leak) Tj ET";
+$surplusPrefixPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /SurplusFax 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($surplusPrefixBefore) . " >>\nstream\n{$surplusPrefixBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/FlateDecode /CCITTFaxDecode] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length " . strlen($surplusPrefixPayload) . " >>\nstream\n{$surplusPrefixPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($surplusPrefixAfter) . " >>\nstream\n{$surplusPrefixAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$surplusPrefixLines = $boundaryExtractor->extractTextLines($surplusPrefixPdf);
+$surplusPrefixReview = $boundaryExtractor->extractImageXObjectBoundaryReview($surplusPrefixPdf);
+$surplusPrefixEntry = $surplusPrefixReview['entries'][0] ?? [];
+$surplusSoftMaskReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
+    '<< /Subtype /Image /Width 16 /Height 0 /ColorSpace /DeviceGray /BitsPerComponent 8 /SMask 42 0 R >>',
+    [
+        42 => "<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/FlateDecode /CCF] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length " . strlen($surplusPrefixPayload) . " >>\nstream\n{$surplusPrefixPayload}\nendstream",
+    ]
+);
+$surplusSoftMaskBoundary = $surplusSoftMaskReview['soft_mask_filter_boundary'] ?? [];
 $unresolvedXobjectBefore = 'BT /F1 12 Tf 72 720 Td (Before unresolved CCITT import) Tj ET';
 $unresolvedXobjectAfter = 'BT /F1 12 Tf 72 680 Td (After unresolved CCITT import) Tj ET';
 $unresolvedXobjectPayload = 'BT /F1 12 Tf 72 700 Td (WordPress unresolved CCITT DecodeParms leak) Tj ET';
@@ -490,6 +513,18 @@ if (
     throw new RuntimeException('Soft-mask CCITT native-prefix boundary smoke failed.');
 }
 if (
+    $surplusPrefixLines !== ['Before surplus CCITT import', 'After surplus CCITT import']
+    || str_contains($boundaryExtractor->extractPlainText($surplusPrefixPdf), 'WordPress surplus CCITT prefix leak')
+    || (($surplusPrefixEntry['raw_length'] ?? null) !== strlen($surplusPrefixPayload))
+    || array_key_exists('native_prefix_decoded', $surplusPrefixEntry)
+    || array_key_exists('native_prefix_decoded', $surplusSoftMaskBoundary)
+    || (($surplusSoftMaskBoundary['decoded_with_current_filters'] ?? null) !== false)
+    || str_contains(json_encode($surplusPrefixReview, JSON_UNESCAPED_SLASHES) ?: '', 'WordPress surplus CCITT prefix leak')
+    || str_contains(json_encode($surplusSoftMaskReview, JSON_UNESCAPED_SLASHES) ?: '', 'WordPress surplus CCITT prefix leak')
+) {
+    throw new RuntimeException('Surplus Flate-prefix CCITT native handoff smoke failed.');
+}
+if (
     ($unresolvedXobjectParms['valid_decode_parms'] ?? null) !== false
     || ($unresolvedXobjectParms['decode_parms_review'] ?? null) !== 'unresolved_ccitt_decodeparms_fail_closed'
     || ($unresolvedXobjectBoundary['invalid_decode_parms'] ?? null) !== true
@@ -651,6 +686,14 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'soft_mask_prefix_native_decoded_length' => $softMaskPrefixBoundary['native_prefix_decoded_length'] ?? null,
     'soft_mask_prefix_stopped_before_filter' => $softMaskPrefixBoundary['stopped_before_filter'] ?? null,
     'soft_mask_prefix_payload_excluded_from_review' => !str_contains(json_encode($softMaskPrefixReview, JSON_UNESCAPED_SLASHES) ?: '', $softMaskPrefixPayload),
+    'surplus_prefix_filters' => $surplusPrefixEntry['filters'] ?? [],
+    'surplus_prefix_raw_length' => $surplusPrefixEntry['raw_length'] ?? null,
+    'surplus_prefix_native_decoded' => $surplusPrefixEntry['native_prefix_decoded'] ?? false,
+    'surplus_prefix_native_handoff_rejected' => !array_key_exists('native_prefix_decoded', $surplusPrefixEntry),
+    'surplus_prefix_payload_excluded_from_review' => !str_contains(json_encode($surplusPrefixReview, JSON_UNESCAPED_SLASHES) ?: '', 'WordPress surplus CCITT prefix leak'),
+    'surplus_prefix_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($surplusPrefixPdf), 'WordPress surplus CCITT prefix leak'),
+    'soft_mask_surplus_prefix_native_handoff_rejected' => !array_key_exists('native_prefix_decoded', $surplusSoftMaskBoundary),
+    'soft_mask_surplus_prefix_decoded_with_current_filters' => $surplusSoftMaskBoundary['decoded_with_current_filters'] ?? null,
     'xobject_compact_imagemask_polarity' => [
         'black_sample_value' => $compactXobjectPolarityBoundary['black_sample_value'] ?? null,
         'white_sample_value' => $compactXobjectPolarityBoundary['white_sample_value'] ?? null,

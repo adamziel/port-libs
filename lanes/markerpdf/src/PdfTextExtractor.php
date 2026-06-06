@@ -8254,6 +8254,7 @@ final class PdfTextExtractor
             $objects,
             $filters,
             $ccittFilterIndex,
+            true,
             true
         );
         if ($decodedPrefix === null) {
@@ -15178,7 +15179,8 @@ final class PdfTextExtractor
         array $objects,
         array $filters,
         int $stopBeforeIndex,
-        bool $ignoreNullFilterDecodeParms = false
+        bool $ignoreNullFilterDecodeParms = false,
+        bool $requireBoundedFilterInputs = false
     ): ?string {
         $decodeParms = $ignoreNullFilterDecodeParms
             ? $this->streamDecodeParmsForFilters($dict, $objects, $filters)
@@ -15199,6 +15201,12 @@ final class PdfTextExtractor
             }
 
             if (!$this->streamFilterInputHasExplicitEndMarker($filter, $stream)) {
+                return null;
+            }
+            if (
+                $requireBoundedFilterInputs
+                && !$this->streamFilterInputHasBoundedEndMarker($filter, $stream, $filterDecodeParms, $objects)
+            ) {
                 return null;
             }
 

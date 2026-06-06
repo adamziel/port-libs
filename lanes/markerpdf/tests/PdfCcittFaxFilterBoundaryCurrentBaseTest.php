@@ -2562,6 +2562,61 @@ return [
         $t->true(!str_contains($encodedReview, $compressedFaxBytes));
         $t->true(!str_contains($encodedReview, 'Before primary prefix CCITT'));
     },
+    'rejects CCITT native-prefix handoff when Flate member has non-whitespace surplus' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryZlibStored): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before surplus prefix CCITT) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After surplus prefix CCITT) Tj ET';
+        $faxBytes = "\x00\x10\x01";
+        $surplus = "\nBT /F1 12 Tf 72 700 Td (Flate surplus CCITT prefix leak) Tj ET";
+        $stream = $ccittFaxFilterBoundaryZlibStored($faxBytes) . $surplus;
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /SurplusFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/FlateDecode /CCITTFaxDecode] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length " . strlen($stream) . " >>\nstream\n{$stream}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before surplus prefix CCITT', 'After surplus prefix CCITT'], $extractor->extractTextLines($pdf));
+        $t->same("Before surplus prefix CCITT\nAfter surplus prefix CCITT", $plainText);
+        $t->true(!str_contains($plainText, 'Flate surplus CCITT prefix leak'));
+        $t->same(['FlateDecode', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(['FlateDecode'], $entry['ccitt_fax_filter_boundary']['native_prefix_filters'] ?? null);
+        $t->same(strlen($stream), $entry['raw_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, array_key_exists('native_prefix_decoded', $entry));
+        $t->same(null, $entry['native_prefix_decoded_length'] ?? null);
+        $t->same(null, $entry['stopped_before_filter'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, 'Flate surplus CCITT prefix leak'));
+        $t->true(!str_contains($encodedReview, $stream));
+
+        $renderer = new PdfImageRenderer();
+        $softMaskPlan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 16 /Height 0 /ColorSpace /DeviceGray /BitsPerComponent 8 /SMask 20 0 R >>',
+            [
+                20 => "<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/FlateDecode /CCF] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length " . strlen($stream) . " >>\nstream\n{$stream}\nendstream",
+            ]
+        );
+        $softMaskBoundary = $softMaskPlan['soft_mask_filter_boundary'] ?? [];
+
+        $t->same(['FlateDecode', 'CCF'], $softMaskBoundary['filters'] ?? null);
+        $t->same(['CCF'], $softMaskBoundary['preview_only_filters'] ?? null);
+        $t->same(false, array_key_exists('native_prefix_decoded', $softMaskBoundary));
+        $t->same(null, $softMaskBoundary['native_prefix_decoded_length'] ?? null);
+        $t->same(null, $softMaskBoundary['stopped_before_filter'] ?? null);
+        $t->same(false, $softMaskBoundary['decoded_with_current_filters'] ?? null);
+        $t->true(!str_contains(json_encode($softMaskPlan, JSON_UNESCAPED_SLASHES) ?: '', 'Flate surplus CCITT prefix leak'));
+    },
     'classifies escaped ImageMask CCITT XObjects without Subtype before WordPress review' => static function (TestRunner $t): void {
         $extractor = new PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before escaped ImageMask CCITT) Tj ET';

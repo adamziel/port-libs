@@ -7099,7 +7099,10 @@ final class PdfImageRenderer
             }
 
             if (
-                $requireExplicitFilterEndMarkers
+                (
+                    $requireExplicitFilterEndMarkers
+                    || ($recordPreviewOnlyPrefix && $this->nativeFilterPrefixStopsBeforeCcitt($filters, $index))
+                )
                 && !$this->streamFilterInputHasExplicitEndMarker($filter, $stream, $resolvedDecodeParms, $objects)
             ) {
                 $unsupportedFilters[] = $filter;
@@ -7145,6 +7148,30 @@ final class PdfImageRenderer
             'unsupported_filters' => [],
             'decode_failed' => false,
         ];
+    }
+
+    /**
+     * @param array<int, string|null> $filters
+     */
+    private function nativeFilterPrefixStopsBeforeCcitt(array $filters, int $index): bool
+    {
+        $count = count($filters);
+        for ($next = $index + 1; $next < $count; $next++) {
+            $filter = $filters[$next];
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                return true;
+            }
+
+            if ($this->isPreviewOnlyStreamFilter($filter)) {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     /**
