@@ -463,6 +463,27 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $wrappedTypstFallback = (new DocTemplate())->renderResource('templates/wrapper', [
+        'templates/wrapper.typst' => <<<'TYPST'
+#let wrapped-review = [
+${ default() }
+]
+TYPST,
+    ], [
+        'title' => 'Wrapped Typst Review',
+        'body' => '#heading[Wrapped review body]',
+    ], null, 'typst');
+    foreach ([
+        '#let conf(',
+        'title: [Wrapped Typst Review],',
+        '#heading[Wrapped review body]',
+    ] as $needle) {
+        if (!str_contains($wrappedTypstFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate nested default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $filesystemRoot = sys_get_temp_dir() . '/pandoc-doctemplate-example-' . bin2hex(random_bytes(6));
     $writeFilesystemTemplate = static function (string $relativePath, string $contents) use ($filesystemRoot): void {
         $path = $filesystemRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);

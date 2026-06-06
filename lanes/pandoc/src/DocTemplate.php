@@ -359,17 +359,50 @@ final class DocTemplate
 
     private function defaultTemplateResource(string $path): ?string
     {
-        return match ($path) {
-            'templates/default.html5' => $this->defaultHtml5Template(),
-            'templates/default.markdown', 'templates/default.commonmark' => $this->defaultMarkdownTemplate(),
-            'templates/default.latex' => $this->defaultLatexTemplate(),
-            'templates/default.beamer' => $this->defaultBeamerTemplate(),
-            'templates/default.openxml' => $this->defaultOpenXmlTemplate(),
-            'templates/default.opendocument' => $this->defaultOpenDocumentTemplate(),
-            'templates/default.epub3' => $this->defaultEpub3Template(),
-            'templates/default.typst' => $this->defaultTypstTemplate(),
+        if (!str_starts_with($path, 'templates/')) {
+            return null;
+        }
+
+        return $this->defaultTemplateResourceForBasename($this->templateResourceBasename($path));
+    }
+
+    private function defaultTemplateResourceForBasename(string $basename): ?string
+    {
+        return match ($basename) {
+            'default.html5' => $this->defaultHtml5Template(),
+            'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
+            'default.latex' => $this->defaultLatexTemplate(),
+            'default.beamer' => $this->defaultBeamerTemplate(),
+            'default.openxml' => $this->defaultOpenXmlTemplate(),
+            'default.opendocument' => $this->defaultOpenDocumentTemplate(),
+            'default.epub3' => $this->defaultEpub3Template(),
+            'default.typst' => $this->defaultTypstTemplate(),
+            'styles.html' => $this->defaultHtmlStylesTemplate(),
+            'styles.citations.html' => $this->defaultHtmlCitationStylesTemplate(),
+            'template.typst' => $this->defaultTypstConfTemplate(),
             default => null,
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function defaultTemplateResourceBasenames(): array
+    {
+        return [
+            'default.html5',
+            'default.markdown',
+            'default.commonmark',
+            'default.latex',
+            'default.beamer',
+            'default.openxml',
+            'default.opendocument',
+            'default.epub3',
+            'default.typst',
+            'styles.html',
+            'styles.citations.html',
+            'template.typst',
+        ];
     }
 
     private function defaultMarkdownTemplate(): string
@@ -1405,6 +1438,8 @@ CSS;
             );
         }
 
+        $resources = $this->withDefaultPartialResourceFallbacks($resources, $searchDirectories);
+
         $partials = [];
         $sources = [];
         foreach ($searchDirectories as $directory) {
@@ -1431,6 +1466,30 @@ CSS;
             'partials' => $partials,
             'sources' => $sources,
         ];
+    }
+
+    /**
+     * @param array<string, string> $resources
+     * @param list<string> $searchDirectories
+     * @return array<string, string>
+     */
+    private function withDefaultPartialResourceFallbacks(array $resources, array $searchDirectories): array
+    {
+        foreach ($searchDirectories as $directory) {
+            foreach ($this->defaultTemplateResourceBasenames() as $basename) {
+                $resourcePath = $this->joinTemplateResourcePath($directory, $basename);
+                if (array_key_exists($resourcePath, $resources)) {
+                    continue;
+                }
+
+                $default = $this->defaultTemplateResourceForBasename($basename);
+                if ($default !== null) {
+                    $resources[$resourcePath] = $default;
+                }
+            }
+        }
+
+        return $resources;
     }
 
     private function isAbsoluteTemplateResourcePath(string $path): bool

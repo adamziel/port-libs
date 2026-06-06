@@ -1719,6 +1719,58 @@ HTML,
         ], null, 'typst'));
     },
 
+    'renders pandoc default resources as partial fallbacks inside custom templates' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $typst = $renderer->renderResource('templates/wrapper', [
+            'templates/wrapper.typst' => <<<'TYPST'
+#let review = [
+${ default() }
+]
+TYPST,
+        ], [
+            'title' => 'Wrapped Typst Review',
+            'body' => '#heading[Wrapped Typst body]',
+        ], null, 'typst');
+
+        $t->contains('#let conf(', $typst);
+        $t->contains('title: [Wrapped Typst Review],', $typst);
+        $t->contains('#heading[Wrapped Typst body]', $typst);
+        $t->contains('doc,', $typst);
+        $t->same(false, str_contains($typst, 'Missing doctemplate partial'));
+
+        $html = $renderer->renderResource('templates/review', [
+            'templates/review.html' => <<<'HTML'
+<article>
+<style>
+${ styles.html() }
+</style>
+${ default.html5() }
+</article>
+HTML,
+        ], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Wrapped HTML Review',
+            'body' => '<p>Wrapped HTML body.</p>',
+            'document-css' => true,
+            'csl-css' => true,
+            'csl-entry-spacing' => '0.25em',
+        ], null, 'html');
+
+        $t->contains('/* Default styles provided by pandoc.', $html);
+        $t->contains('/* CSS for citations */', $html);
+        $t->contains('margin-bottom: 0.25em;', $html);
+        $t->contains('<title>Wrapped HTML Review</title>', $html);
+        $t->contains('<p>Wrapped HTML body.</p>', $html);
+
+        $custom = $renderer->renderResource('templates/review', [
+            'templates/review.html' => '${ styles.html() }',
+            'templates/styles.html' => '/* custom local style */',
+        ], [], null, 'html');
+
+        $t->same('/* custom local style */', $custom);
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'
