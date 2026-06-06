@@ -9767,6 +9767,9 @@ final class PdfAcroFormExtractor
                 if (!$this->widgetAnnotationBelongsToPage($annotationBody, $objects, $pageObjectNumber)) {
                     continue;
                 }
+                if (isset($widgets[$annotationRef])) {
+                    continue;
+                }
 
                 $widgets[$annotationRef] = [
                     'page_index' => $pageIndex,
