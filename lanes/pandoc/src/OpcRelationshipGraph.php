@@ -1394,6 +1394,9 @@ final class OpcRelationshipGraph
 
                 $referenceUriPolicy = self::relationshipTransformReferenceUriPolicy($referenceUri);
                 $issues = array_merge($issues, $referenceUriPolicy['issues']);
+                if ($parseError === null && $referenceUriPolicy['parseError'] !== null) {
+                    $parseError = $referenceUriPolicy['parseError'];
+                }
                 if ($referenceUriPolicy['resolvable']) {
                     try {
                         $resolvedReference = OpcPackagePath::resolveInternalTarget($signaturePartName, $referenceUri);
@@ -1743,7 +1746,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{resolvable:bool, issues:list<string>}
+     * @return array{resolvable:bool, issues:list<string>, parseError:?string}
      */
     private static function relationshipTransformReferenceUriPolicy(string $referenceUri): array
     {
@@ -1751,10 +1754,12 @@ final class OpcRelationshipGraph
             return [
                 'resolvable' => false,
                 'issues' => ['missing-reference-uri'],
+                'parseError' => null,
             ];
         }
 
         $issues = [];
+        $parseError = null;
         $resolvable = true;
         if (str_starts_with($referenceUri, '#')) {
             $issues[] = 'relationship-transform-reference-same-document';
@@ -1767,10 +1772,41 @@ final class OpcRelationshipGraph
             $resolvable = false;
         }
 
+        if ($resolvable && str_starts_with($referenceUri, '/')) {
+            try {
+                self::assertRelationshipTransformAbsolutePartUriShape($referenceUri);
+            } catch (\InvalidArgumentException $exception) {
+                $issues[] = 'relationship-transform-reference-invalid-part-name';
+                $parseError = $exception->getMessage();
+                $resolvable = false;
+            }
+        }
+
         return [
             'resolvable' => $resolvable,
             'issues' => $issues,
+            'parseError' => $parseError,
         ];
+    }
+
+    private static function assertRelationshipTransformAbsolutePartUriShape(string $referenceUri): void
+    {
+        $path = substr($referenceUri, 0, strcspn($referenceUri, '?#'));
+        if ($path === '/') {
+            throw new \InvalidArgumentException('OPC relationship transform reference URI must identify a package part');
+        }
+
+        $segments = explode('/', $path);
+        array_shift($segments);
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('OPC relationship transform reference URI must not contain empty or dot path segments');
+            }
+
+            if (str_ends_with($segment, '.')) {
+                throw new \InvalidArgumentException('OPC relationship transform reference URI segments must not end with a dot');
+            }
+        }
     }
 
     /**

@@ -90,6 +90,7 @@ final class OpcRelationships
 
     public static function sourcePartNameForRelationshipPart(string $relationshipPartName): string
     {
+        self::assertRelationshipPartNameRawSegments($relationshipPartName);
         $relationshipPartName = OpcPackagePath::canonicalPartName($relationshipPartName);
         if ($relationshipPartName === '/_rels/.rels') {
             return '/';
@@ -116,7 +117,12 @@ final class OpcRelationships
 
     public static function isRelationshipPartName(string $partName): bool
     {
-        $partName = OpcPackagePath::canonicalPartName($partName);
+        try {
+            self::assertRelationshipPartNameRawSegments($partName);
+            $partName = OpcPackagePath::canonicalPartName($partName);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
 
         return $partName === '/_rels/.rels'
             || (str_ends_with($partName, '.rels') && str_contains($partName, '/_rels/'));
@@ -322,6 +328,19 @@ final class OpcRelationships
     {
         if ($sourcePartName !== '/' && self::isRelationshipPartName($sourcePartName)) {
             throw new \InvalidArgumentException('OPC relationship parts must not be relationship sources');
+        }
+    }
+
+    private static function assertRelationshipPartNameRawSegments(string $relationshipPartName): void
+    {
+        $path = str_starts_with($relationshipPartName, '/') ? $relationshipPartName : '/' . $relationshipPartName;
+        $segments = explode('/', $path);
+        array_shift($segments);
+
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('OPC relationship part names must not contain empty or dot path segments');
+            }
         }
     }
 

@@ -2442,6 +2442,116 @@ XML;
         $t->same(['rIdCustomImage'], $transforms[4]['relationshipIds']);
         $t->contains('malformed percent escape', $transforms[4]['parseError'] ?? '');
     },
+    'rejects dot-segment OPC relationship part name references' => static function (TestRunner $t): void {
+        $t->same('/word/document.xml', OpcRelationships::sourcePartNameForRelationshipPart('/word/_rels/document.xml.rels'));
+        $t->true(OpcRelationships::isRelationshipPartName('/word/_rels/document.xml.rels'));
+
+        foreach ([
+            '/word/./_rels/document.xml.rels',
+            '/word/_rels/./document.xml.rels',
+            '/word/_rels/sub/../document.xml.rels',
+            '/word//_rels/document.xml.rels',
+            '/word/_rels/document.xml.rels/',
+        ] as $relationshipPartName) {
+            $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName));
+            $t->same(false, OpcRelationships::isRelationshipPartName($relationshipPartName));
+        }
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-dot-segments.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/./_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word//_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/document.xml.rels/">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-dot-segments.xml', 'data' => $signatureXml],
+        ]));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-dot-segments.xml');
+
+        $t->same(4, count($transforms));
+        $t->same('/word/_rels/document.xml.rels', $transforms[0]['relationshipPartName']);
+        $t->same('/word/document.xml', $transforms[0]['source']);
+        $t->same(['rIdHero'], $transforms[0]['relationshipIds']);
+        $t->same(1, $transforms[0]['relationshipCount']);
+        $t->same(true, $transforms[0]['valid']);
+        $t->same([], $transforms[0]['issues']);
+
+        foreach ([1, 2, 3] as $index) {
+            $t->same(null, $transforms[$index]['relationshipPartName']);
+            $t->same(null, $transforms[$index]['referenceRelationshipPartExists']);
+            $t->same(null, $transforms[$index]['source']);
+            $t->same(['rIdHero'], $transforms[$index]['sourceIds']);
+            $t->same([], $transforms[$index]['relationshipIds']);
+            $t->same(0, $transforms[$index]['relationshipCount']);
+            $t->same(null, $transforms[$index]['selectorValid']);
+            $t->same(null, $transforms[$index]['relationshipTargetsValid']);
+            $t->same(false, $transforms[$index]['valid']);
+            $t->same(['relationship-transform-reference-invalid-part-name'], $transforms[$index]['issues']);
+            $t->same(null, $transforms[$index]['relationshipXml']);
+            $t->contains('must not contain empty or dot path segments', $transforms[$index]['parseError'] ?? '');
+        }
+    },
     'preflights missing OPC signature relationship transform reference parts' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 16:45:16 UTC",
-    "sourceCommit": "beefb9c61faa06047be0268dd66c6d5afebefc6c",
-    "sourceCommitShort": "beefb9c61faa",
+    "generated": "2026-06-06 16:45:35 UTC",
+    "sourceCommit": "638b9d1020a4b311637391632e876fdfe28f4982",
+    "sourceCommitShort": "638b9d1020a4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "beefb9c61faa06047be0268dd66c6d5afebefc6c",
-    "dashboardCommitShort": "beefb9c61faa",
+    "dashboardCommit": "638b9d1020a4b311637391632e876fdfe28f4982",
+    "dashboardCommitShort": "638b9d1020a4",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1779",
-            "coverage": "1,779 / 2,276 (78.2%)",
+            "mapped": "1780",
+            "coverage": "1,780 / 2,276 (78.2%)",
             "mapPercent": "78.2%",
-            "unmapped": "497",
-            "php": "1,366 pass / 0 fail",
+            "unmapped": "496",
+            "php": "1,367 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-06 UTC Charset/Unicode current-base ISO-8859-3 Latin-3 slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Continue bounded charset/Unicode support with non-overlapping...",
+            "nextTarget": "Continue bounded OPC/DOCX package support with non-overlappin...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",
