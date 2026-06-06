@@ -201,6 +201,8 @@ $identityCryptJpxBytes = "\xFF\x4F\xFF\xD9";
 $identityCryptJpxPostEocSurplusPayload = $identityCryptJpxBytes
     . 'ZZ EI BT /F1 12 Tf 72 494 Td (Identity Crypt JPX Inline Noise) Tj ET rawtail';
 $identityCryptJpxDictionary = '/W 1 /H 1 /CS /RGB /BPC 8 /F [/Crypt /JPXDecode] /DP [<< /Name /Identity >> null] /D [0 1 0 1 0 1] /Mask [0 0 0 0 0 0]';
+$duplicateInlineDecodePayload = "\x00BT /F1 12 Tf 72 478 Td (Duplicate Inline Decode Noise) Tj ET";
+$duplicateInlineDecodeDictionary = '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3] /Decode [0 1 0 1]';
 $directNullFilterSamples = 'A EI BT Z';
 $directNullFilterDictionary = '/W ' . strlen($directNullFilterSamples) . ' /H 1 /CS /G /BPC 8 /F null /DP << /Predictor 12 /Columns 0 >> /D [0 1]';
 $indirectGeometryInlinePayload = 'abc EI BT /F1 12 Tf 72 506 Td (Indirect Geometry Inline Noise) Tj ET rawtail';
@@ -395,7 +397,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 508 Td (Before Identity Crypt Flate Inline) Tj ET\n"
     . "BI {$identityCryptFlateDictionary} ID "
     . $identityCryptFlatePostStreamSurplusPayload . "\nEI\n"
-    . "BT /F1 12 Tf 72 500 Td (After Identity Crypt Flate Inline) Tj ET";
+    . "BT /F1 12 Tf 72 500 Td (After Identity Crypt Flate Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 498 Td (Before Duplicate Inline Decode) Tj ET\n"
+    . "BI {$duplicateInlineDecodeDictionary} ID\n"
+    . $duplicateInlineDecodePayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 496 Td (After Duplicate Inline Decode) Tj ET";
 
 foreach ($noFloorNativeInlineCases as $case) {
     $payload = $case['payload_prefix']
@@ -736,6 +742,11 @@ $unresolvedInlineDecodeReview = $renderer->inlineImageReviewPlan(
     "\x00",
     $inlineReviewObjects
 );
+$duplicateInlineDecodeReview = $renderer->inlineImageReviewPlan(
+    $duplicateInlineDecodeDictionary,
+    "\x00",
+    $inlineReviewObjects
+);
 $malformedInlineDecodeRejected = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -757,6 +768,17 @@ try {
     );
 } catch (InvalidArgumentException) {
     $unresolvedInlineDecodeRejected = true;
+}
+$duplicateInlineDecodeRejected = false;
+try {
+    $renderer->inlineIndexedImageStreamPreviewRows(
+        $duplicateInlineDecodeDictionary,
+        "\x00",
+        $inlineReviewObjects,
+        1
+    );
+} catch (InvalidArgumentException) {
+    $duplicateInlineDecodeRejected = true;
 }
 $unsupportedCryptFilterReview = $renderer->inlineImageReviewPlan(
     $unsupportedCryptFilterDictionary,
@@ -970,6 +992,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Identity Crypt Inline',
         'Before Identity Crypt Flate Inline',
         'After Identity Crypt Flate Inline',
+        'Before Duplicate Inline Decode',
+        'After Duplicate Inline Decode',
         'Before A85 No Floor Inline Image',
         'After A85 No Floor Inline Image',
         'Before AHx No Floor Inline Image',
@@ -1182,6 +1206,13 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'malformed_inline_decode_review_only' => $malformedInlineDecodeReview['inline_image_review_only'] ?? null,
     'malformed_inline_decode_native_raster_decode' => $malformedInlineDecodeReview['inline_image']['native_raster_decode'] ?? null,
     'malformed_inline_decode_preview_rejected' => $malformedInlineDecodeRejected,
+    'duplicate_inline_decode_source' => $duplicateInlineDecodeReview['image_decode']['source'] ?? null,
+    'duplicate_inline_decode_component_mismatch' => $duplicateInlineDecodeReview['image_decode_component_mismatch'] ?? null,
+    'duplicate_inline_decode_review_only' => $duplicateInlineDecodeReview['inline_image_review_only'] ?? null,
+    'duplicate_inline_decode_native_raster_decode' => $duplicateInlineDecodeReview['inline_image']['native_raster_decode'] ?? null,
+    'duplicate_inline_decode_preview_rejected' => $duplicateInlineDecodeRejected,
+    'duplicate_inline_decode_payload_excluded' => in_array('After Duplicate Inline Decode', $lines, true)
+        && !str_contains($plainText, 'Duplicate Inline Decode Noise'),
     'unresolved_inline_decode_review_only' => $unresolvedInlineDecodeReview['inline_image_review_only'] ?? null,
     'unresolved_inline_decode_native_raster_decode' => $unresolvedInlineDecodeReview['inline_image']['native_raster_decode'] ?? null,
     'unresolved_inline_decode_preview_rejected' => $unresolvedInlineDecodeRejected,
@@ -1226,6 +1257,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Identity Crypt Inline Noise')
         && !str_contains($plainText, 'Identity Crypt Flate Inline Noise')
         && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
+        && !str_contains($plainText, 'Duplicate Inline Decode Noise')
         && !str_contains($plainText, 'A85 No Floor Inline Noise')
         && !str_contains($plainText, 'AHx No Floor Inline Noise')
         && !str_contains($plainText, 'Flate No Floor Inline Noise')

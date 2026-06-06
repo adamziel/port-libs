@@ -5274,6 +5274,10 @@ final class PdfImageRenderer
      */
     private function imageDecodeDetails(string $dictionary, array $objects, ?int $expectedComponents, bool $defaultIfMissing = false): ?array
     {
+        if ($this->duplicatePdfNameDeclarationCount($dictionary, 'Decode') > 0) {
+            return $this->buildImageDecodeDetails([], $expectedComponents, 'duplicate');
+        }
+
         $value = $this->extractPdfNameValue($dictionary, 'Decode');
         if ($value === null) {
             if (!$defaultIfMissing) {

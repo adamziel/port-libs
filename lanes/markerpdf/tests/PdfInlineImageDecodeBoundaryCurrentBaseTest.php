@@ -1852,6 +1852,61 @@ return [
             )
         );
     },
+    'fails closed on duplicate inline image Decode operands before RGB preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+        $payload = "\x00BT /F1 12 Tf 72 690 Td (Duplicate Inline Decode Payload Noise) Tj ET";
+        $dictionary = '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3] /Decode [0 1 0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Duplicate Inline Decode) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Duplicate Inline Decode) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan(
+            $dictionary,
+            "\x00",
+            $objects
+        );
+        $duplicateMaskReview = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /IM true /D [1 0] /D [0 1]',
+            "\x80"
+        );
+
+        $t->same("Before Duplicate Inline Decode\nAfter Duplicate Inline Decode", $plainText);
+        $t->true(!str_contains($plainText, 'Duplicate Inline Decode Payload Noise'));
+        $t->same(true, $review['image_decode_component_mismatch']);
+        $t->same('duplicate', $review['image_decode']['source']);
+        $t->same(0, $review['image_decode']['component_count']);
+        $t->same(1, $review['image_decode']['expected_components']);
+        $t->same(false, $review['image_decode']['valid_for_components']);
+        $t->same(true, $review['inline_image_review_only']);
+        $t->same(false, $review['inline_image']['native_raster_decode']);
+        $t->contains('inline_image_decode_operand_review_only', implode(',', $review['notes']));
+        $t->same('duplicate', $duplicateMaskReview['image_mask']['decode']['source']);
+        $t->same(false, $duplicateMaskReview['image_mask']['decode']['valid_for_components']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows(
+                $dictionary,
+                "\x00",
+                $objects,
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageMaskPreviewRows(
+                '/W 1 /H 1 /IM true /D [1 0] /D [0 1]',
+                "\x80",
+                [],
+                1
+            )
+        );
+    },
     'marks invalid inline image Decode operands as review-only before native raster metadata' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $objects = [
