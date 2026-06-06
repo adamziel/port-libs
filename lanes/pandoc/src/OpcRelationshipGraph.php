@@ -885,6 +885,145 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, packagePartValid:bool, packagePartIssues:list<string>, directReferenceCount:int, reachableReferenceCount:int, directReferences:list<array{source:string, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, reachableReferences:list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, valid:bool, issues:list<string>}>
+     */
+    public function packagePartReferenceInventory(string $reachableSourcePartName = '/', ?string $reachableRelationshipType = null): array
+    {
+        $inventory = [];
+
+        foreach ($this->preflightPackageParts() as $part) {
+            $partName = $part['partName'];
+            $inventory[$partName] = [
+                'partName' => $partName,
+                'exists' => true,
+                'contentType' => $part['contentType'],
+                'relationshipPart' => $part['relationshipPart'],
+                'relationshipSource' => $part['relationshipSource'],
+                'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
+                'relationshipSourceLoaded' => $part['relationshipSourceLoaded'],
+                'sourceExists' => $part['sourceExists'],
+                'packagePartValid' => $part['valid'],
+                'packagePartIssues' => $part['issues'],
+                'directReferenceCount' => 0,
+                'reachableReferenceCount' => 0,
+                'directReferences' => [],
+                'reachableReferences' => [],
+                'valid' => $part['valid'],
+                'issues' => $part['issues'],
+            ];
+        }
+
+        foreach ($this->preflightAllRelationshipTargets() as $target) {
+            if ($target['external'] || $target['targetPart'] === null) {
+                continue;
+            }
+
+            $entry =& self::packagePartReferenceInventoryEntry(
+                $inventory,
+                $target['targetPart'],
+                $target['contentType'],
+                $target['exists'] === true,
+                $target['relationshipPartTarget'],
+            );
+
+            $entry['directReferences'][] = [
+                'source' => $target['source'],
+                'id' => $target['id'],
+                'type' => $target['type'],
+                'target' => $target['target'],
+                'targetPart' => $target['targetPart'],
+                'contentType' => $target['contentType'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                'valid' => $target['valid'],
+                'issues' => $target['issues'],
+            ];
+
+            foreach ($target['issues'] as $issue) {
+                self::appendUniqueString($entry['issues'], $issue);
+            }
+            if (!$target['valid']) {
+                $entry['valid'] = false;
+            }
+            unset($entry);
+        }
+
+        foreach ($this->reachableTargetsForSource($reachableSourcePartName, $reachableRelationshipType) as $target) {
+            if ($target['external'] || $target['targetPart'] === null) {
+                continue;
+            }
+
+            $entry =& self::packagePartReferenceInventoryEntry(
+                $inventory,
+                $target['targetPart'],
+                $target['contentType'],
+                $target['exists'] === true,
+                $target['relationshipPartTarget'],
+            );
+
+            $entry['reachableReferences'][] = [
+                'source' => $target['source'],
+                'depth' => $target['depth'],
+                'id' => $target['id'],
+                'type' => $target['type'],
+                'target' => $target['target'],
+                'targetPart' => $target['targetPart'],
+                'contentType' => $target['contentType'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                'valid' => $target['valid'],
+                'issues' => $target['issues'],
+            ];
+
+            foreach ($target['issues'] as $issue) {
+                self::appendUniqueString($entry['issues'], $issue);
+            }
+            if (!$target['valid']) {
+                $entry['valid'] = false;
+            }
+            unset($entry);
+        }
+
+        ksort($inventory, SORT_STRING);
+        foreach ($inventory as &$entry) {
+            usort(
+                $entry['directReferences'],
+                static fn (array $left, array $right): int => [
+                    $left['source'],
+                    $left['id'],
+                    $left['targetPart'],
+                ] <=> [
+                    $right['source'],
+                    $right['id'],
+                    $right['targetPart'],
+                ]
+            );
+            usort(
+                $entry['reachableReferences'],
+                static fn (array $left, array $right): int => [
+                    $left['depth'],
+                    $left['source'],
+                    $left['id'],
+                    $left['targetPart'],
+                ] <=> [
+                    $right['depth'],
+                    $right['source'],
+                    $right['id'],
+                    $right['targetPart'],
+                ]
+            );
+            sort($entry['issues'], SORT_STRING);
+            sort($entry['packagePartIssues'], SORT_STRING);
+            $entry['directReferenceCount'] = count($entry['directReferences']);
+            $entry['reachableReferenceCount'] = count($entry['reachableReferences']);
+            $entry['valid'] = $entry['valid'] && $entry['exists'];
+        }
+        unset($entry);
+
+        return array_values($inventory);
+    }
+
+    /**
      * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightPackageConsistency(): array
@@ -2151,6 +2290,47 @@ final class OpcRelationshipGraph
         }
 
         return $inventory[$contentType];
+    }
+
+    /**
+     * @return array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, packagePartValid:bool, packagePartIssues:list<string>, directReferenceCount:int, reachableReferenceCount:int, directReferences:list<array<string, mixed>>, reachableReferences:list<array<string, mixed>>, valid:bool, issues:list<string>}
+     */
+    private static function &packagePartReferenceInventoryEntry(
+        array &$inventory,
+        string $partName,
+        ?string $contentType,
+        bool $exists,
+        bool $relationshipPart,
+    ): array {
+        if (!isset($inventory[$partName])) {
+            $issues = $exists ? [] : ['missing-in-package'];
+            $inventory[$partName] = [
+                'partName' => $partName,
+                'exists' => $exists,
+                'contentType' => $contentType,
+                'relationshipPart' => $relationshipPart,
+                'relationshipSource' => $relationshipPart
+                    ? OpcRelationships::sourcePartNameForRelationshipPart($partName)
+                    : null,
+                'relationshipSourceIsRelationshipPart' => $relationshipPart
+                    ? OpcRelationships::isRelationshipPartName(OpcRelationships::sourcePartNameForRelationshipPart($partName))
+                    : null,
+                'relationshipSourceLoaded' => null,
+                'sourceExists' => null,
+                'packagePartValid' => $exists,
+                'packagePartIssues' => [],
+                'directReferenceCount' => 0,
+                'reachableReferenceCount' => 0,
+                'directReferences' => [],
+                'reachableReferences' => [],
+                'valid' => $exists,
+                'issues' => $issues,
+            ];
+        } elseif ($inventory[$partName]['contentType'] === null && $contentType !== null) {
+            $inventory[$partName]['contentType'] = $contentType;
+        }
+
+        return $inventory[$partName];
     }
 
     /**

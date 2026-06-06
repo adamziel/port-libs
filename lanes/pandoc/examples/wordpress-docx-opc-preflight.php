@@ -793,6 +793,10 @@ $contentTypeInventory = [];
 foreach ($graph->contentTypeInventory() as $contentType) {
     $contentTypeInventory[$contentType['contentType']] = $contentType;
 }
+$packagePartReferences = [];
+foreach ($graph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $part) {
+    $packagePartReferences[$part['partName']] = $part;
+}
 
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
@@ -1163,6 +1167,7 @@ $summary = [
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
     'relationshipTypeInventory' => $relationshipTypeInventory,
+    'packagePartReferences' => $packagePartReferences,
     'relationships' => $relationshipSummaries,
     'relationshipSelector' => $relationshipSelectorSummary,
     'relationshipTransform' => [
@@ -1265,6 +1270,32 @@ $summary = [
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === false
                 && $target['targetPart'] === $documentPart
                 && $target['target'] !== $documentPart)
+        )),
+        'mediaReferenceProvenance' => array_values(array_map(
+            static fn (array $part): array => [
+                'partName' => $part['partName'],
+                'contentType' => $part['contentType'],
+                'directReferenceCount' => $part['directReferenceCount'],
+                'reachableReferenceCount' => $part['reachableReferenceCount'],
+                'directReferences' => array_values(array_map(
+                    static fn (array $reference): array => [
+                        'source' => $reference['source'],
+                        'id' => $reference['id'],
+                        'type' => $reference['type'],
+                        'valid' => $reference['valid'],
+                        'issues' => $reference['issues'],
+                    ],
+                    $part['directReferences']
+                )),
+            ],
+            array_filter($packagePartReferences, static fn (array $part): bool => str_starts_with($part['partName'], '/word/media/')
+                && $part['directReferenceCount'] > 0)
+        )),
+        'unreferencedMediaParts' => array_values(array_map(
+            static fn (array $part): string => $part['partName'],
+            array_filter($packagePartReferences, static fn (array $part): bool => str_starts_with($part['partName'], '/word/media/')
+                && $part['exists'] === true
+                && $part['directReferenceCount'] === 0)
         )),
         'hasReviewerEditLink' => ($relationshipSummaries['rIdReviewer']['external'] ?? false) === true,
     ],
@@ -1593,6 +1624,25 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['contentTypeInventory']['application/xml']['relationshipParts'] ?? null) !== ['/word/_rels/draft.xml.rels']
         || ($summary['contentTypeInventory']['application/xml']['relationshipSources'] ?? null) !== ['/word/draft.xml']
         || ($summary['contentTypeInventory']['application/xml']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['packagePartReferences']['/_rels/.rels']['relationshipPart'] ?? null) !== true
+        || ($summary['packagePartReferences']['/_rels/.rels']['relationshipSource'] ?? null) !== '/'
+        || ($summary['packagePartReferences']['/_rels/.rels']['directReferenceCount'] ?? null) !== 0
+        || ($summary['packagePartReferences']['/docProps/core.xml']['directReferences'][0]['source'] ?? null) !== '/'
+        || ($summary['packagePartReferences']['/docProps/core.xml']['directReferences'][0]['id'] ?? null) !== 'rIdCore'
+        || ($summary['packagePartReferences']['/docProps/core.xml']['reachableReferenceCount'] ?? null) !== 0
+        || ($summary['packagePartReferences']['/word/document.xml']['directReferences'][0]['id'] ?? null) !== 'rIdDocument'
+        || ($summary['packagePartReferences']['/word/document.xml']['reachableReferences'][0]['depth'] ?? null) !== 0
+        || ($summary['packagePartReferences']['/word/media/hero image.PNG']['directReferences'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['packagePartReferences']['/word/media/hero image.PNG']['directReferences'][0]['id'] ?? null) !== 'rIdHero'
+        || ($summary['packagePartReferences']['/word/media/hero image.PNG']['reachableReferences'][0]['depth'] ?? null) !== 1
+        || ($summary['packagePartReferences']['/word/media/review source.png']['directReferences'][0]['source'] ?? null) !== '/word/review source.xml'
+        || ($summary['packagePartReferences']['/word/media/review source.png']['reachableReferences'][0]['depth'] ?? null) !== 2
+        || ($summary['packagePartReferences']['/word/media/draft-hidden.png']['directReferenceCount'] ?? null) !== 0
+        || ($summary['packagePartReferences']['/word/media/draft-hidden.png']['reachableReferenceCount'] ?? null) !== 0
+        || ($summary['wordpressImport']['unreferencedMediaParts'] ?? null) !== ['/word/media/draft-hidden.png']
+        || count($summary['wordpressImport']['mediaReferenceProvenance'] ?? []) !== 4
+        || ($summary['wordpressImport']['mediaReferenceProvenance'][1]['partName'] ?? null) !== '/word/media/hero image.PNG'
+        || ($summary['wordpressImport']['mediaReferenceProvenance'][1]['directReferences'][0]['id'] ?? null) !== 'rIdHero'
         || ($summary['relationshipSelector']['source'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipSelector']['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer', 'rIdMissingSelector']
         || ($summary['relationshipSelector']['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
