@@ -29965,6 +29965,15 @@ final class PdfTextExtractor
                 if ($targets === []) {
                     continue;
                 }
+                $mappedSourceCount = $this->cMapMappedSourceCountForRange(
+                    $source,
+                    $last,
+                    $sourceWidth,
+                    $sameWidthCodeSpaceRanges
+                );
+                if ($mappedSourceCount === null || count($targets) < $mappedSourceCount) {
+                    continue;
+                }
                 $this->removeToUnicodeMappingsInSourceRange($map, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
                 if ($unicodeRanges !== null) {
                     $unicodeRange = [
@@ -30043,6 +30052,28 @@ final class PdfTextExtractor
                 $targetHex = $this->incrementFixedWidthHex($targetHex);
             }
         }
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function cMapMappedSourceCountForRange(
+        int $source,
+        int $last,
+        int $sourceWidth,
+        array $codeSpaceRanges
+    ): ?int {
+        if ($sourceWidth <= 0 || $last < $source) {
+            return null;
+        }
+
+        if ($codeSpaceRanges === []) {
+            return $last - $source + 1;
+        }
+
+        $offset = $this->codeSpaceSequenceOffsetInCidRange($source, $last, $sourceWidth, $codeSpaceRanges);
+
+        return $offset === null ? null : $offset + 1;
     }
 
     /**
