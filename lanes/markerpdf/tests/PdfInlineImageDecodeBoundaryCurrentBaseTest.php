@@ -138,6 +138,24 @@ $tiffPredictorEncode = static function (string $bytes, int $columns): string {
     return $encoded;
 };
 
+$pngSubPredictorEncode = static function (string $bytes, int $columns): string {
+    if ($columns < 1 || strlen($bytes) % $columns !== 0) {
+        throw new RuntimeException('Focused inline PNG predictor rows must be fixed-width.');
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
+        $row = substr($bytes, $offset, $columns);
+        $encoded .= "\x01";
+        for ($index = 0; $index < $columns; $index++) {
+            $left = $index > 0 ? ord($row[$index - 1]) : 0;
+            $encoded .= chr((ord($row[$index]) - $left) & 0xff);
+        }
+    }
+
+    return $encoded;
+};
+
 $runLengthLiteralEncode = static function (string $bytes, bool $includeEod = true): string {
     if ($bytes === '') {
         return $includeEod ? chr(128) : '';
@@ -579,6 +597,85 @@ return [
         $t->same([65 / 255, 66 / 255, 67 / 255], array_column($preview['pixels'], 'decoded_gray'));
         $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
         $t->contains('image_decode_applied_before_rgb', implode(',', $preview['notes']));
+    },
+    'fails closed on Flate EarlyChange inline DecodeParms while preserving PNG predictor boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $pngSubPredictorEncode): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $decodedImageBytes = 'ABC';
+        $validPayload = gzcompress($pngSubPredictorEncode($decodedImageBytes, 3), 0);
+        $invalidPayload = gzcompress($decodedImageBytes, 0);
+        if (!is_string($validPayload) || !is_string($invalidPayload)) {
+            throw new RuntimeException('Unable to build inline Flate EarlyChange DecodeParms fixture.');
+        }
+
+        $validDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 /EarlyChange 1 >> /D [0 1]';
+        $invalidDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Columns 3 /Colors 1 /BitsPerComponent 8 /EarlyChange 0 >> /D [0 1]';
+        $invalidSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Flate EarlyChange Inline Noise) Tj ET rawtail';
+        $validSurplus = 'ZZ EI BT /F1 12 Tf 72 674 Td (PNG Predictor Sub Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Flate EarlyChange Inline) Tj ET\n"
+            . "BI {$invalidDictionary} ID {$invalidPayload}{$invalidSurplus}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Flate EarlyChange Inline) Tj ET\n"
+            . "BI {$validDictionary} ID {$validPayload}{$validSurplus}\nEI\n"
+            . "BT /F1 12 Tf 72 688 Td (After PNG Predictor Sub Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $validDecodeParms = [
+            'type' => 'FlateDecode',
+            'predictor' => 12,
+            'columns' => 3,
+            'colors' => 1,
+            'bits_per_component' => 8,
+            'early_change' => 1,
+            'valid_decode_parms' => true,
+        ];
+        $invalidDecodeParms = [
+            'type' => 'FlateDecode',
+            'predictor' => null,
+            'columns' => 3,
+            'colors' => 1,
+            'bits_per_component' => 8,
+            'early_change' => 0,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['early_change'],
+            'decode_parms_review' => 'invalid_native_decodeparms_fail_closed',
+        ];
+
+        $t->true(str_contains($invalidSurplus, ' EI '));
+        $t->true(str_contains($validSurplus, ' EI '));
+        $t->same([
+            'Before Flate EarlyChange Inline',
+            'After Flate EarlyChange Inline',
+            'After PNG Predictor Sub Inline',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Flate EarlyChange Inline\nAfter Flate EarlyChange Inline\nAfter PNG Predictor Sub Inline", $plainText);
+        $t->true(!str_contains($plainText, 'Flate EarlyChange Inline Noise'));
+        $t->true(!str_contains($plainText, 'PNG Predictor Sub Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+
+        $invalidReview = $renderer->inlineImageReviewPlan($invalidDictionary, $invalidPayload);
+        $t->same(['FlateDecode'], $invalidReview['image_filters']);
+        $t->same(['FlateDecode'], $invalidReview['inline_image']['unsupported_filters']);
+        $t->same(false, $invalidReview['inline_image']['native_raster_decode']);
+        $t->same($invalidDecodeParms, $invalidReview['image_filter_details'][0]['decode_parms'] ?? null);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($invalidDictionary, $invalidPayload, [], 3)
+        );
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($validDictionary, $validPayload, [], 3);
+        $t->same(['FlateDecode'], $preview['image_stream']['filters']);
+        $t->same($validDecodeParms, $preview['image_filter_details'][0]['decode_parms'] ?? null);
+        $t->same($validDecodeParms, $preview['image_stream']['filter_details'][0]['decode_parms'] ?? null);
+        $t->same(3, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $decodedImageBytes), $preview['image_stream']['decoded_sha256']);
+        $t->same('414243', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same([[65.0], [66.0], [67.0]], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([65 / 255, 66 / 255, 67 / 255], array_column($preview['pixels'], 'decoded_gray'));
+        $t->same(0, $preview['image_sample_boundary']['surplus_byte_count']);
+        $t->same(false, $preview['image_sample_boundary']['truncated_to_declared_samples']);
+        $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
     },
     'treats direct null inline Filter operands as absent before raw sample boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();

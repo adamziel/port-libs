@@ -1877,6 +1877,7 @@ final class PdfImageRenderer
                 'complete_image_sample_data' => false,
                 'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
                 'image_filter_boundary' => $plan['image_filter_boundary'],
+                'image_filter_details' => $plan['image_filter_details'],
                 'image_stream' => $imageStreamMeta,
                 'soft_mask_stream' => $softMaskStreamMeta,
                 'soft_mask' => $softMask,
@@ -1961,6 +1962,7 @@ final class PdfImageRenderer
             'image_sample_boundary' => $imageSampleBoundary,
             'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
             'image_filter_boundary' => $plan['image_filter_boundary'],
+            'image_filter_details' => $plan['image_filter_details'],
             'image_stream' => $imageStreamMeta,
             'soft_mask_stream' => $softMaskStreamMeta,
             'soft_mask' => $softMask,
@@ -4582,7 +4584,85 @@ final class PdfImageRenderer
             ];
         }
 
+        $nativeDecodeParms = $this->nativeImageDecodeParmsReview($filter, $resolved, $objects);
+        if ($nativeDecodeParms !== null) {
+            return $nativeDecodeParms;
+        }
+
         return ['type' => $filter];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function nativeImageDecodeParmsReview(string $filter, string $decodeParms, array $objects): ?array
+    {
+        if (!in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)) {
+            return null;
+        }
+
+        $fields = [
+            'Predictor' => 'predictor',
+            'Columns' => 'columns',
+            'Colors' => 'colors',
+            'BitsPerComponent' => 'bits_per_component',
+            'EarlyChange' => 'early_change',
+        ];
+        $hasNativeDecodeParms = false;
+        $review = ['type' => $filter];
+        $invalidFields = [];
+
+        foreach ($fields as $name => $key) {
+            $hasField = $this->decodeParmsHasName($decodeParms, $name);
+            $hasNativeDecodeParms = $hasNativeDecodeParms || $hasField;
+            $value = $this->decodeParmsInt($decodeParms, $name, $objects);
+            $review[$key] = $value;
+            if ($hasField && $value === null) {
+                $invalidFields[] = $key;
+            }
+        }
+
+        if (!$hasNativeDecodeParms) {
+            return null;
+        }
+
+        $predictor = $review['predictor'];
+        if (
+            is_int($predictor)
+            && $predictor !== 1
+            && $predictor !== 2
+            && ($predictor < 10 || $predictor > 15)
+        ) {
+            $invalidFields[] = 'predictor';
+        }
+
+        foreach (['columns', 'colors', 'bits_per_component'] as $key) {
+            $value = $review[$key];
+            if (is_int($value) && $value < 1) {
+                $invalidFields[] = $key;
+            }
+        }
+
+        $earlyChange = $review['early_change'];
+        if (
+            is_int($earlyChange)
+            && (
+                !in_array($earlyChange, [0, 1], true)
+                || ($earlyChange !== 1 && !in_array($filter, ['LZWDecode', 'LZW'], true))
+            )
+        ) {
+            $invalidFields[] = 'early_change';
+        }
+
+        $invalidFields = array_values(array_unique($invalidFields));
+        $review['valid_decode_parms'] = $invalidFields === [];
+        if ($invalidFields !== []) {
+            $review['invalid_decode_parms_fields'] = $invalidFields;
+            $review['decode_parms_review'] = 'invalid_native_decodeparms_fail_closed';
+        }
+
+        return $review;
     }
 
     /**
@@ -6622,6 +6702,7 @@ final class PdfImageRenderer
 
         $boundary = [
             'filters' => $filters,
+            'filter_details' => $this->imageFilterDetails($dictionary, $objects),
             'preview_only_filters' => $previewOnlyFilters,
             'unsupported_filters' => array_values($unsupportedFilters),
             'raw_length' => $stream === null ? null : strlen($stream),
@@ -6678,6 +6759,10 @@ final class PdfImageRenderer
             'decoded_with_current_filters' => $boundary['decoded_with_current_filters'],
             'decode_failed' => $boundary['decode_failed'],
         ];
+
+        if (is_array($boundary['filter_details'] ?? null)) {
+            $metadata['filter_details'] = $boundary['filter_details'];
+        }
 
         if (($boundary['raw_dct_preview_boundary'] ?? false) === true) {
             $metadata['raw_dct_preview_boundary'] = true;
@@ -7175,6 +7260,14 @@ final class PdfImageRenderer
         if (
             $predictor !== null
             && $predictor !== 1
+            && $predictor !== 2
+            && ($predictor < 10 || $predictor > 15)
+        ) {
+            return false;
+        }
+        if (
+            $predictor !== null
+            && $predictor !== 1
             && !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)
         ) {
             return false;
@@ -7189,9 +7282,11 @@ final class PdfImageRenderer
 
         $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
         if (
-            in_array($filter, ['LZWDecode', 'LZW'], true)
-            && $earlyChange !== null
-            && !in_array($earlyChange, [0, 1], true)
+            $earlyChange !== null
+            && (
+                !in_array($earlyChange, [0, 1], true)
+                || ($earlyChange !== 1 && !in_array($filter, ['LZWDecode', 'LZW'], true))
+            )
         ) {
             return false;
         }

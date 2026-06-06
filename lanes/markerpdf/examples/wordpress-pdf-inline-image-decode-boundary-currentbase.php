@@ -130,6 +130,24 @@ $tiffPredictorEncode = static function (string $bytes, int $columns): string {
     return $encoded;
 };
 
+$pngSubPredictorEncode = static function (string $bytes, int $columns): string {
+    if ($columns < 1 || strlen($bytes) % $columns !== 0) {
+        throw new RuntimeException('Focused inline PNG predictor smoke rows must be fixed-width.');
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
+        $row = substr($bytes, $offset, $columns);
+        $encoded .= "\x01";
+        for ($index = 0; $index < $columns; $index++) {
+            $left = $index > 0 ? ord($row[$index - 1]) : 0;
+            $encoded .= chr((ord($row[$index]) - $left) & 0xff);
+        }
+    }
+
+    return $encoded;
+};
+
 $runLengthLiteralEncode = static function (string $bytes, bool $includeEod = true): string {
     if ($bytes === '') {
         return $includeEod ? chr(128) : '';
@@ -162,6 +180,21 @@ if (!is_string($predictorShortRowCompressed)) {
 $predictorShortRowSurplusPayload = $predictorShortRowCompressed
     . 'ZZ EI BT /F1 12 Tf 72 642 Td (Predictor Short Row Inline Noise) Tj ET rawtail';
 $predictorShortRowDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 >> /D [0 1]';
+$pngPredictorSubDecodedSamples = 'ABC';
+$pngPredictorSubCompressed = gzcompress($pngSubPredictorEncode($pngPredictorSubDecodedSamples, 3), 0);
+if (!is_string($pngPredictorSubCompressed)) {
+    throw new RuntimeException('Unable to build PNG predictor Sub inline image fixture.');
+}
+$pngPredictorSubSurplusPayload = $pngPredictorSubCompressed
+    . 'ZZ EI BT /F1 12 Tf 72 641 Td (PNG Predictor Sub Inline Noise) Tj ET rawtail';
+$pngPredictorSubDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 /EarlyChange 1 >> /D [0 1]';
+$invalidFlateEarlyChangeCompressed = gzcompress($pngPredictorSubDecodedSamples, 0);
+if (!is_string($invalidFlateEarlyChangeCompressed)) {
+    throw new RuntimeException('Unable to build invalid Flate EarlyChange inline image fixture.');
+}
+$invalidFlateEarlyChangeSurplusPayload = $invalidFlateEarlyChangeCompressed
+    . 'ZZ EI BT /F1 12 Tf 72 639 Td (Flate EarlyChange Inline Noise) Tj ET rawtail';
+$invalidFlateEarlyChangeDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Columns 3 /Colors 1 /BitsPerComponent 8 /EarlyChange 0 >> /D [0 1]';
 $shortFlateDecodedSamples = 'AB';
 $shortFlateCompressed = gzcompress($shortFlateDecodedSamples, 0);
 if (!is_string($shortFlateCompressed)) {
@@ -328,6 +361,14 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI {$predictorShortRowDictionary} ID "
     . $predictorShortRowSurplusPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 641 Td (After Predictor Short Row Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 641 Td (Before Flate EarlyChange Inline) Tj ET\n"
+    . "BI {$invalidFlateEarlyChangeDictionary} ID "
+    . $invalidFlateEarlyChangeSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 640 Td (After Flate EarlyChange Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 640 Td (Before PNG Predictor Sub Inline) Tj ET\n"
+    . "BI {$pngPredictorSubDictionary} ID "
+    . $pngPredictorSubSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 639 Td (After PNG Predictor Sub Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 640 Td (Before Flate Short Sample Inline) Tj ET\n"
     . "BI {$shortFlateDictionary} ID "
     . $shortFlatePostStreamSurplusPayload . "\nEI\n"
@@ -520,6 +561,27 @@ if (!is_string($nullFilterPredictorPayload)) {
 $nullFilterPredictorReview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
     '/W 3 /H 1 /CS /G /BPC 8 /F [null /Fl] /DP [null << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 >>] /D [0 1]',
     $nullFilterPredictorPayload,
+    [],
+    3
+);
+$invalidFlateEarlyChangeReview = $renderer->inlineImageReviewPlan(
+    $invalidFlateEarlyChangeDictionary,
+    $invalidFlateEarlyChangeCompressed
+);
+$invalidFlateEarlyChangePreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $invalidFlateEarlyChangeDictionary,
+        $invalidFlateEarlyChangeCompressed,
+        [],
+        3
+    );
+} catch (InvalidArgumentException) {
+    $invalidFlateEarlyChangePreviewRejected = true;
+}
+$pngPredictorSubPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $pngPredictorSubDictionary,
+    $pngPredictorSubCompressed,
     [],
     3
 );
@@ -986,6 +1048,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_ascii85_payload' => true,
     'fake_ei_inside_oversized_filtered_payload' => str_contains($oversizedCompressedImage, ' EI '),
     'fake_ei_inside_predictor_short_row_surplus_payload' => str_contains($predictorShortRowSurplusPayload, ' EI '),
+    'fake_ei_inside_invalid_flate_earlychange_surplus_payload' => str_contains($invalidFlateEarlyChangeSurplusPayload, ' EI '),
+    'fake_ei_inside_png_predictor_sub_surplus_payload' => str_contains($pngPredictorSubSurplusPayload, ' EI '),
     'fake_ei_inside_short_flate_post_stream_surplus_payload' => str_contains($shortFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_ascii85_post_eod_surplus_payload' => str_contains($ascii85PostEodSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
@@ -1027,6 +1091,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Oversized Inline Image',
         'Before Predictor Short Row Inline',
         'After Predictor Short Row Inline',
+        'Before Flate EarlyChange Inline',
+        'After Flate EarlyChange Inline',
+        'Before PNG Predictor Sub Inline',
+        'After PNG Predictor Sub Inline',
         'Before Flate Short Sample Inline',
         'After Flate Short Sample Inline',
         'Before AHx Surplus Inline Image',
@@ -1153,6 +1221,23 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'rawtail'),
     'predictor_short_row_preview_rejected' => $predictorShortRowPreviewRejected,
     'predictor_short_row_surplus_preview_rejected' => $predictorShortRowSurplusPreviewRejected,
+    'invalid_flate_earlychange_payload_excluded_until_real_ei' => in_array('After Flate EarlyChange Inline', $lines, true)
+        && !str_contains($plainText, 'Flate EarlyChange Inline Noise')
+        && !str_contains($plainText, 'ZZ EI')
+        && !str_contains($plainText, 'rawtail'),
+    'invalid_flate_earlychange_review_only' => ($invalidFlateEarlyChangeReview['inline_image']['native_raster_decode'] ?? true) === false
+        && ($invalidFlateEarlyChangeReview['inline_image']['unsupported_filters'] ?? []) === ['FlateDecode'],
+    'invalid_flate_earlychange_decode_parms' => $invalidFlateEarlyChangeReview['image_filter_details'][0]['decode_parms'] ?? null,
+    'invalid_flate_earlychange_preview_rejected' => $invalidFlateEarlyChangePreviewRejected,
+    'png_predictor_sub_payload_excluded_until_real_ei' => in_array('After PNG Predictor Sub Inline', $lines, true)
+        && !str_contains($plainText, 'PNG Predictor Sub Inline Noise')
+        && !str_contains($plainText, 'ZZ EI')
+        && !str_contains($plainText, 'rawtail'),
+    'png_predictor_sub_preview_decoded' => ($pngPredictorSubPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($pngPredictorSubPreview['image_stream']['decoded_preview_hex'] ?? null) === '414243'
+        && array_column($pngPredictorSubPreview['pixels'] ?? [], 'decoded_gray') === [65 / 255, 66 / 255, 67 / 255],
+    'png_predictor_sub_decode_parms' => $pngPredictorSubPreview['image_filter_details'][0]['decode_parms'] ?? null,
+    'png_predictor_sub_stream_decode_parms' => $pngPredictorSubPreview['image_stream']['filter_details'][0]['decode_parms'] ?? null,
     'short_flate_decoded_byte_count' => strlen($shortFlateDecodedSamples),
     'short_flate_post_stream_payload_excluded_until_real_ei' => in_array('After Flate Short Sample Inline', $lines, true)
         && !str_contains($plainText, 'Flate Short Sample Inline Noise')
@@ -1351,6 +1436,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Oversized Flate Inline Noise')
         && !str_contains($plainText, 'X EI')
         && !str_contains($plainText, 'Predictor Short Row Inline Noise')
+        && !str_contains($plainText, 'Flate EarlyChange Inline Noise')
+        && !str_contains($plainText, 'PNG Predictor Sub Inline Noise')
         && !str_contains($plainText, 'Flate Short Sample Inline Noise')
         && !str_contains($plainText, 'ASCIIHex Surplus Inline Noise')
         && !str_contains($plainText, '414243 EI')
