@@ -11391,11 +11391,7 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
-            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
-                continue;
-            }
-
+        foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
             foreach ($rdf->childNodes as $child) {
                 if (!$child instanceof DOMElement || !$this->xmpElementMatchesResourceId($child, $id)) {
                     continue;
@@ -11415,11 +11411,7 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
-            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
-                continue;
-            }
-
+        foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
             foreach ($rdf->childNodes as $child) {
                 if (!$child instanceof DOMElement || !$this->xmpElementMatchesNodeId($child, $id)) {
                     continue;
@@ -11469,11 +11461,7 @@ final class PdfMetadataExtractor
     private function xmpTopLevelDescriptions(DOMDocument $document): array
     {
         $nodes = [];
-        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
-            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
-                continue;
-            }
-
+        foreach ($this->xmpDocumentLevelRdfElements($document) as $rdf) {
             foreach ($rdf->childNodes as $child) {
                 if (!$child instanceof DOMElement) {
                     continue;
@@ -11501,6 +11489,26 @@ final class PdfMetadataExtractor
         }
 
         return $nodes;
+    }
+
+    /**
+     * XMP packets expose one document-level rdf:RDF root. Ignore later sibling
+     * RDF roots so stale repaired metadata cannot fill fields the current root
+     * intentionally omits.
+     *
+     * @return list<DOMElement>
+     */
+    private function xmpDocumentLevelRdfElements(DOMDocument $document): array
+    {
+        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
+            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
+                continue;
+            }
+
+            return [$rdf];
+        }
+
+        return [];
     }
 
     private function isDocumentLevelXmpRdfElement(DOMElement $rdf): bool
@@ -11603,6 +11611,13 @@ final class PdfMetadataExtractor
         foreach ($this->xmpPacketContentCandidates($xml) as $packetXml) {
             $packetDeclaredEncoding = $this->declaredXmlEncoding($packetXml);
             if ($packetDeclaredEncoding === null || $this->isUtf8EncodingName($packetDeclaredEncoding)) {
+                $this->addXmpPacketXmlCandidate(
+                    $candidates,
+                    $packetXml,
+                    $packetDeclaredEncoding ?? 'UTF-8',
+                    false,
+                    false
+                );
                 continue;
             }
 
