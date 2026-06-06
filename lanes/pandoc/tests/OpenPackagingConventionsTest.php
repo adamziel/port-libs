@@ -186,6 +186,112 @@ XML;
             });
         }
     },
+    'matches OPC package role content types case insensitively' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="Application/Vnd.Openxmlformats-Package.Relationships+Xml"/>
+  <Default Extension="xml" ContentType="Application/Xml"/>
+  <Default Extension="png" ContentType="Image/Png"/>
+  <Override PartName="/word/document.xml" ContentType="Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="Application/Vnd.Openxmlformats-Package.Core-Properties+Xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin"/>
+  <Override PartName="/_xmlsignatures/sig-case.xml" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/Hero.PNG"/>
+</Relationships>
+XML;
+
+        $originRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignatureCase" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-case.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=Application/Vnd.OpenXMLFormats-Package.Relationships+XML">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/Hero.PNG', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $originRelationshipsXml],
+            ['name' => '_xmlsignatures/sig-case.xml', 'data' => $signatureXml],
+        ]);
+
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+        $t->same('Application/Vnd.Openxmlformats-Package.Relationships+Xml', $types->contentTypeForPart('/word/_rels/document.xml.rels'));
+        $t->same('Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml', $types->contentTypeForPart('/word/document.xml'));
+
+        $loads = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $loads[$part['partName']] = $part;
+        }
+
+        $t->same(true, $loads['/_rels/.rels']['loaded']);
+        $t->same(true, $loads['/word/_rels/document.xml.rels']['loaded']);
+        $t->same(true, $loads['/_xmlsignatures/_rels/origin.sigs.rels']['loaded']);
+        $t->same([], $loads['/word/_rels/document.xml.rels']['issues']);
+
+        $graph = OpcRelationshipGraph::fromPackage($package);
+        $t->same(['/', '/_xmlsignatures/origin.sigs', '/word/document.xml'], $graph->sourcePartNames());
+
+        $officeDocument = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(true, $officeDocument['valid']);
+        $t->same('Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml', $officeDocument['relationships'][0]['contentType']);
+        $t->same([], $officeDocument['relationships'][0]['issues']);
+
+        $coreProperties = $graph->preflightCoreProperties();
+        $t->same(true, $coreProperties['valid']);
+        $t->same('Application/Vnd.Openxmlformats-Package.Core-Properties+Xml', $coreProperties['relationships'][0]['contentType']);
+
+        $documentTargets = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $documentTargets[$target['id']] = $target;
+        }
+        $t->same('Image/Png', $documentTargets['rIdHero']['contentType']);
+        $t->same(true, $documentTargets['rIdHero']['valid']);
+
+        $digitalSignatures = $graph->preflightDigitalSignatures();
+        $t->same(true, $digitalSignatures[0]['valid']);
+        $t->same('Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin', $digitalSignatures[0]['contentType']);
+        $t->same('Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml', $digitalSignatures[0]['signatures'][0]['contentType']);
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-case.xml');
+        $t->same('Application/Vnd.Openxmlformats-Package.Relationships+Xml', $transforms[0]['referenceTargetContentType']);
+        $t->same('Application/Vnd.OpenXMLFormats-Package.Relationships+XML', $transforms[0]['referenceContentType']);
+        $t->same(true, $transforms[0]['referenceContentTypeMatches']);
+        $t->same(true, $transforms[0]['valid']);
+        $t->same(['rIdHero'], $transforms[0]['relationshipIds']);
+        $t->same([], $transforms[0]['issues']);
+    },
     'rejects malformed OPC content types XML and unsafe part names' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="urn:bad"/>'));
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml"/></Types>'));

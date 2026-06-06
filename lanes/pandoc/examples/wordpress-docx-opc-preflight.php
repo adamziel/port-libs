@@ -427,6 +427,92 @@ foreach ($caseEquivalentTargetGraph->preflightSignatureRelationshipTransforms('/
     ];
 }
 
+$roleCaseContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="Application/Vnd.Openxmlformats-Package.Relationships+Xml"/>
+  <Default Extension="xml" ContentType="Application/Xml"/>
+  <Default Extension="png" ContentType="Image/Png"/>
+  <Override PartName="/word/document.xml" ContentType="Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="Application/Vnd.Openxmlformats-Package.Core-Properties+Xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin"/>
+  <Override PartName="/_xmlsignatures/sig-case.xml" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml"/>
+</Types>
+XML;
+
+$roleCasePackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+$roleCaseDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/Hero.PNG"/>
+</Relationships>
+XML;
+
+$roleCaseOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignatureCase" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-case.xml"/>
+</Relationships>
+XML;
+
+$roleCaseSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=Application/Vnd.OpenXMLFormats-Package.Relationships+XML">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+$roleCasePackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $roleCaseContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $roleCasePackageRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $roleCaseDocumentRelationshipsXml],
+    ['name' => 'word/media/Hero.PNG', 'data' => 'PNG'],
+    ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+    ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+    ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $roleCaseOriginRelationshipsXml],
+    ['name' => '_xmlsignatures/sig-case.xml', 'data' => $roleCaseSignatureXml],
+]);
+$roleCaseLoads = [];
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($roleCasePackage) as $part) {
+    $roleCaseLoads[$part['partName']] = $part;
+}
+$roleCaseGraph = OpcRelationshipGraph::fromPackage($roleCasePackage);
+$roleCaseOfficeDocumentRoot = $roleCaseGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+$roleCaseCoreProperties = $roleCaseGraph->preflightCoreProperties();
+$roleCaseDigitalSignatures = $roleCaseGraph->preflightDigitalSignatures();
+$roleCaseSignatureTransform = $roleCaseGraph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-case.xml')[0] ?? null;
+$roleCaseContentTypeMatch = [
+    'sourceParts' => $roleCaseGraph->sourcePartNames(),
+    'rootRelationshipPartLoaded' => $roleCaseLoads['/_rels/.rels']['loaded'] ?? null,
+    'documentRelationshipPartLoaded' => $roleCaseLoads['/word/_rels/document.xml.rels']['loaded'] ?? null,
+    'signatureOriginRelationshipPartLoaded' => $roleCaseLoads['/_xmlsignatures/_rels/origin.sigs.rels']['loaded'] ?? null,
+    'officeDocumentValid' => $roleCaseOfficeDocumentRoot['valid'],
+    'officeDocumentContentType' => $roleCaseOfficeDocumentRoot['relationships'][0]['contentType'] ?? null,
+    'corePropertiesValid' => $roleCaseCoreProperties['valid'],
+    'corePropertiesContentType' => $roleCaseCoreProperties['relationships'][0]['contentType'] ?? null,
+    'digitalSignatureValid' => $roleCaseDigitalSignatures[0]['valid'] ?? null,
+    'digitalSignatureOriginContentType' => $roleCaseDigitalSignatures[0]['contentType'] ?? null,
+    'digitalSignatureContentType' => $roleCaseDigitalSignatures[0]['signatures'][0]['contentType'] ?? null,
+    'signatureReferenceTargetContentType' => $roleCaseSignatureTransform['referenceTargetContentType'] ?? null,
+    'signatureReferenceContentType' => $roleCaseSignatureTransform['referenceContentType'] ?? null,
+    'signatureReferenceContentTypeMatches' => $roleCaseSignatureTransform['referenceContentTypeMatches'] ?? null,
+    'signatureTransformValid' => $roleCaseSignatureTransform['valid'] ?? null,
+    'signatureTransformRelationshipIds' => $roleCaseSignatureTransform['relationshipIds'] ?? null,
+];
+
 $internalTargetDiagnosticsContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -977,6 +1063,7 @@ $summary = [
         'contentTypeOverrideDuplicateRejected' => $caseEquivalentOverrideDuplicateRejected,
         'caseEquivalentTargets' => $caseEquivalentTargets,
         'caseEquivalentSignatureTransforms' => $caseEquivalentSignatureTransforms,
+        'caseInsensitiveRoleContentTypes' => $roleCaseContentTypeMatch,
         'internalTargetDiagnostics' => $internalTargetDiagnostics,
         'emptySignatureOriginGuard' => $emptySignatureOriginGuard,
     ],
@@ -1178,6 +1265,22 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['relationshipIds'] ?? null) !== ['rIdStyles']
         || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['valid'] ?? null) !== false
         || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['issues'] ?? null) !== ['multiple-relationship-transforms-for-part']
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['sourceParts'] ?? null) !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml']
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['rootRelationshipPartLoaded'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['documentRelationshipPartLoaded'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureOriginRelationshipPartLoaded'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['officeDocumentValid'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['officeDocumentContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['corePropertiesValid'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['corePropertiesContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Core-Properties+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureValid'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureOriginContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceTargetContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Relationships+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceContentType'] ?? null) !== 'Application/Vnd.OpenXMLFormats-Package.Relationships+XML'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceContentTypeMatches'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureTransformValid'] ?? null) !== true
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureTransformRelationshipIds'] ?? null) !== ['rIdHero']
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['targetPart'] ?? null) !== null
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['valid'] ?? null) !== false
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['issues'] ?? null) !== ['invalid-target', 'internal-target-absolute-uri']

@@ -73,7 +73,7 @@ final class OpcRelationshipGraph
             }
 
             $relationshipPartName = OpcPackagePath::canonicalPartName($name);
-            if ($contentTypes->contentTypeForPart($relationshipPartName) !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+            if (!self::contentTypeMatches($contentTypes->contentTypeForPart($relationshipPartName), self::RELATIONSHIP_PART_CONTENT_TYPE)) {
                 continue;
             }
 
@@ -187,7 +187,7 @@ final class OpcRelationshipGraph
 
             if ($contentType === null) {
                 $issues[] = 'missing-content-type';
-            } elseif ($contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+            } elseif (!self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
                 $issues[] = 'invalid-relationship-content-type';
             }
 
@@ -509,7 +509,7 @@ final class OpcRelationshipGraph
                     || $this->packagePartNameForEquivalent($relationshipSource) !== null;
                 $relationshipSourceLoaded = $this->hasRelationshipsForSource($relationshipSource);
 
-                if ($contentType !== null && $contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+                if ($contentType !== null && !self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
                     $issues[] = 'invalid-relationship-content-type';
                 }
 
@@ -565,7 +565,7 @@ final class OpcRelationshipGraph
                     || $this->packagePartNameForEquivalent($relationshipSource) !== null;
                 $relationshipSourceLoaded = $this->hasRelationshipsForSource($relationshipSource);
 
-                if ($contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+                if (!self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
                     $issues[] = 'invalid-relationship-content-type';
                 }
 
@@ -902,7 +902,7 @@ final class OpcRelationshipGraph
                 $expectedContentTypes !== []
                 && !$target['external']
                 && $target['contentType'] !== null
-                && !in_array($target['contentType'], $expectedContentTypes, true)
+                && !self::contentTypeMatchesAny($target['contentType'], $expectedContentTypes)
             ) {
                 $targetIssues[] = 'invalid-office-document-content-type';
             }
@@ -968,7 +968,7 @@ final class OpcRelationshipGraph
             if (
                 !$target['external']
                 && $target['contentType'] !== null
-                && $target['contentType'] !== self::CORE_PROPERTIES_CONTENT_TYPE
+                && !self::contentTypeMatches($target['contentType'], self::CORE_PROPERTIES_CONTENT_TYPE)
             ) {
                 $targetIssues[] = 'invalid-core-properties-content-type';
             }
@@ -1034,7 +1034,7 @@ final class OpcRelationshipGraph
                 $issues[] = 'external-digital-signature-origin';
             }
 
-            if ($origin['contentType'] !== null && $origin['contentType'] !== self::DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE) {
+            if ($origin['contentType'] !== null && !self::contentTypeMatches($origin['contentType'], self::DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE)) {
                 $issues[] = 'invalid-digital-signature-origin-content-type';
             }
 
@@ -1052,7 +1052,7 @@ final class OpcRelationshipGraph
                             $signatureIssues[] = 'external-digital-signature-target';
                         }
 
-                        if ($signature['contentType'] !== null && $signature['contentType'] !== self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE) {
+                        if ($signature['contentType'] !== null && !self::contentTypeMatches($signature['contentType'], self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE)) {
                             $signatureIssues[] = 'invalid-digital-signature-content-type';
                         }
 
@@ -1127,7 +1127,7 @@ final class OpcRelationshipGraph
             }
 
             $issues = $target['issues'];
-            if (!$target['external'] && $target['contentType'] !== null && $target['contentType'] !== $expectedContentType) {
+            if (!$target['external'] && $target['contentType'] !== null && !self::contentTypeMatches($target['contentType'], $expectedContentType)) {
                 $issues[] = $invalidContentTypeIssue;
             }
             $issues = array_values(array_unique($issues));
@@ -1399,7 +1399,7 @@ final class OpcRelationshipGraph
                 }
 
                 if ($referenceContentType !== null) {
-                    $referenceContentTypeMatches = $referenceTargetContentType === $referenceContentType;
+                    $referenceContentTypeMatches = self::contentTypeMatches($referenceTargetContentType, $referenceContentType);
                     if (!$referenceContentTypeMatches) {
                         $issues[] = 'reference-content-type-mismatch';
                     }
@@ -1875,6 +1875,45 @@ final class OpcRelationshipGraph
     private static function partNameEquivalenceKey(string $partName): string
     {
         return strtolower($partName);
+    }
+
+    private static function contentTypeMatches(?string $actual, string $expected): bool
+    {
+        if ($actual === null) {
+            return false;
+        }
+
+        return self::contentTypeComparisonKey($actual) === self::contentTypeComparisonKey($expected);
+    }
+
+    /**
+     * @param list<string> $expectedContentTypes
+     */
+    private static function contentTypeMatchesAny(?string $actual, array $expectedContentTypes): bool
+    {
+        foreach ($expectedContentTypes as $expectedContentType) {
+            if (self::contentTypeMatches($actual, $expectedContentType)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function contentTypeComparisonKey(string $contentType): string
+    {
+        $segments = explode(';', $contentType);
+        $mediaType = strtolower(trim((string) array_shift($segments)));
+        $parameters = array_values(array_filter(
+            array_map(static fn (string $parameter): string => trim($parameter), $segments),
+            static fn (string $parameter): bool => $parameter !== '',
+        ));
+
+        if ($parameters === []) {
+            return $mediaType;
+        }
+
+        return $mediaType . ';' . implode(';', $parameters);
     }
 
     /**
