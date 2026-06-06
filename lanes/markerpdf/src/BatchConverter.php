@@ -2391,26 +2391,33 @@ final class BatchConverter
     }
 
     /**
-     * @return array{output_path_exists: bool, output_path_type: string, output_folder_exists: bool, output_folder_parent_path: string, output_folder_parent_path_exists: bool, output_folder_parent_path_type: string, output_folder_parent_conflict_path: string|null, output_folder_parent_conflict_type: string|null, output_folder_parent_creation_blocked: bool, upstream_creates_output_folder: true, native_plan_creates_output_folder: false, output_folder_creation_required: bool, output_folder_creation_call: string, output_folder_creation_order: string, output_folder_creation_blocked: bool, output_folder_creation_error_boundary: string|null, output_folder_creation_error_class: string|null, output_folder_creation_error_message: string|null}
+     * @return array{output_path_exists: bool, output_path_type: string, output_folder_exists: bool, output_folder_is_symlink: bool, output_folder_makedirs_follows_symlink: bool, output_folder_symlink_target_exists: bool, output_folder_symlink_target_type: string|null, output_folder_broken_symlink: bool, output_folder_symlink_target_blocked: bool, output_folder_parent_path: string, output_folder_parent_path_exists: bool, output_folder_parent_path_type: string, output_folder_parent_conflict_path: string|null, output_folder_parent_conflict_type: string|null, output_folder_parent_creation_blocked: bool, upstream_creates_output_folder: true, native_plan_creates_output_folder: false, output_folder_creation_required: bool, output_folder_creation_call: string, output_folder_creation_order: string, output_folder_creation_blocked: bool, output_folder_creation_error_boundary: string|null, output_folder_creation_error_class: string|null, output_folder_creation_error_message: string|null}
      */
     private function outputFolderCreationPlan(string $absoluteOutputFolder): array
     {
         $exists = file_exists($absoluteOutputFolder);
         $isDirectory = is_dir($absoluteOutputFolder);
+        $isSymlink = is_link($absoluteOutputFolder);
         $pathType = 'missing';
         if ($isDirectory) {
             $pathType = 'directory';
         } elseif (is_file($absoluteOutputFolder)) {
             $pathType = 'file';
+        } elseif ($isSymlink && !$exists) {
+            $pathType = 'broken-symlink';
         } elseif ($exists) {
             $pathType = 'other';
         }
 
         $parentPath = dirname($absoluteOutputFolder);
         $parentConflict = $this->outputFolderParentConflict($absoluteOutputFolder);
-        $targetBlocked = $exists && !$isDirectory;
+        $targetBlocked = ($exists && !$isDirectory) || ($isSymlink && !$isDirectory);
         $parentBlocked = $parentConflict !== null;
         $blocked = $targetBlocked || $parentBlocked;
+        $symlinkTargetExists = $isSymlink && $exists;
+        $symlinkTargetType = $isSymlink
+            ? ($symlinkTargetExists ? $this->filesystemPathType($absoluteOutputFolder) : 'missing')
+            : null;
         $errorBoundary = null;
         $errorClass = null;
         $errorMessage = null;
@@ -2428,6 +2435,12 @@ final class BatchConverter
             'output_path_exists' => $exists,
             'output_path_type' => $pathType,
             'output_folder_exists' => $isDirectory,
+            'output_folder_is_symlink' => $isSymlink,
+            'output_folder_makedirs_follows_symlink' => $isSymlink && $isDirectory,
+            'output_folder_symlink_target_exists' => $symlinkTargetExists,
+            'output_folder_symlink_target_type' => $symlinkTargetType,
+            'output_folder_broken_symlink' => $isSymlink && !$symlinkTargetExists,
+            'output_folder_symlink_target_blocked' => $isSymlink && !$isDirectory,
             'output_folder_parent_path' => $parentPath,
             'output_folder_parent_path_exists' => file_exists($parentPath),
             'output_folder_parent_path_type' => $this->filesystemPathType($parentPath),
