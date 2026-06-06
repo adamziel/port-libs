@@ -11679,7 +11679,19 @@ final class PdfMetadataExtractor
             return $values;
         }
 
-        return $this->xmpRdfAttributeMembershipValues($element);
+        $values = $this->xmpRdfAttributeMembershipValues($element);
+        if ($values !== []) {
+            return $values;
+        }
+
+        foreach ($this->xmpChildElements($element, self::NS_RDF, 'Description') as $description) {
+            $values = $this->xmpRdfAttributeMembershipValues($description);
+            if ($values !== []) {
+                return $values;
+            }
+        }
+
+        return [];
     }
 
     /**
