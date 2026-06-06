@@ -264,11 +264,7 @@ final class CompoundFileBinary
             throw new \RuntimeException('CFB stream exceeds the configured size limit: ' . $entry['name']);
         }
 
-        if (
-            $entry['size'] < $this->miniStreamCutoff
-            && self::isRegularSector($this->firstMiniFatSector)
-            && $this->miniFatSectorCount > 0
-        ) {
+        if ($this->streamUsesMiniStream($entry)) {
             return $this->readMiniSectorChain($entry['startSector'], $entry['size'], $entry['name']);
         }
 
@@ -473,10 +469,7 @@ final class CompoundFileBinary
                 continue;
             }
 
-            $usesMiniStream = $size < $this->miniStreamCutoff
-                && self::isRegularSector($this->firstMiniFatSector)
-                && $this->miniFatSectorCount > 0;
-            if ($usesMiniStream) {
+            if ($this->streamUsesMiniStream($entry)) {
                 foreach ($this->miniSectorChainIds((int) $entry['startSector'], $size, $name) as $miniSectorId) {
                     if (isset($miniStreamSectors[$miniSectorId])) {
                         throw new \RuntimeException('CFB mini-sector is shared by multiple streams: ' . $name);
@@ -496,6 +489,24 @@ final class CompoundFileBinary
                 $regularStreamSectors[$sectorId] = $name;
             }
         }
+    }
+
+    /**
+     * @param array<string,mixed> $entry
+     */
+    private function streamUsesMiniStream(array $entry): bool
+    {
+        $size = (int) ($entry['size'] ?? 0);
+        if ($size === 0 || $size >= $this->miniStreamCutoff) {
+            return false;
+        }
+
+        if (!self::isRegularSector($this->firstMiniFatSector) || $this->miniFatSectorCount <= 0) {
+            $name = (string) ($entry['path'] ?? $entry['name'] ?? 'stream');
+            throw new \RuntimeException('CFB stream below the mini stream cutoff requires MiniFAT metadata: ' . $name);
+        }
+
+        return true;
     }
 
     /**

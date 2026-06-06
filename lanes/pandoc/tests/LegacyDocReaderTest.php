@@ -1582,6 +1582,13 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects small CFB streams when MiniFAT metadata is absent before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Small regular stream must stay guarded\r"),
+        ], false);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($docBytes));
+    },
     'reads CFB packages whose FAT sector is listed from a DIFAT overflow sector' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $moveFatListingToDifatSector): void {
         $wordDocument = $buildSimpleWordDocument("DIFAT overflow import packet\r");
         $fixture = $moveFatListingToDifatSector($buildCfb([
@@ -2937,7 +2944,7 @@ return [
         $t->same($styles[2]['cbStd'], $styles[2]['bchUpe']);
     },
     'reports legacy DOC paragraph and character formatting table FKP ranges for review' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams): void {
-        $result = (new LegacyDocReader())->readBytes($buildCfb($buildFormattingTableDocStreams(), false));
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildFormattingTableDocStreams()));
         $document = $result['document'];
         $runs = $result['formattingRuns'];
         $metadata = $result['metadata'];
@@ -2983,18 +2990,18 @@ return [
 
         $badLength = $buildFormattingTableDocStreams();
         $badLength['WordDocument'] = substr_replace($badLength['WordDocument'], $u32(8), 0x0106, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badLength, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badLength)));
 
         $unsortedFc = $buildFormattingTableDocStreams();
         $unsortedFc['0Table'] = substr_replace($unsortedFc['0Table'], $u32(512), 4, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($unsortedFc, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($unsortedFc)));
 
         $badFkpPage = $buildFormattingTableDocStreams();
         $badFkpPage['0Table'] = substr_replace($badFkpPage['0Table'], $u32(9999), 8, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badFkpPage, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badFkpPage)));
     },
     'extracts legacy DOC list table formats and overrides as numbering review metadata' => static function (TestRunner $t) use ($buildCfb, $buildListTableDocStreams): void {
-        $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams(), false));
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams()));
         $document = $result['document'];
         $formats = $result['listFormats'];
         $overrides = $result['listOverrides'];
@@ -3056,21 +3063,21 @@ return [
 
         $badLength = $buildListTableDocStreams();
         $badLength['WordDocument'] = substr_replace($badLength['WordDocument'], $u32(3), 0x02e6, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badLength, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badLength)));
 
         $duplicateLsid = $buildListTableDocStreams();
         $duplicateLsid['0Table'] = substr_replace($duplicateLsid['0Table'], $u32(1001), 2 + 28, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($duplicateLsid, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($duplicateLsid)));
 
         $unknownOverride = $buildListTableDocStreams();
         $fcPlfLfo = unpack('Vvalue', substr($unknownOverride['WordDocument'], 0x02ea, 4))['value'];
         $unknownOverride['0Table'] = substr_replace($unknownOverride['0Table'], $u32(9999), (int) $fcPlfLfo + 4, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($unknownOverride, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($unknownOverride)));
 
         $badPlaceholder = $buildListTableDocStreams();
         $levelOffset = 2 + (2 * 28);
         $badPlaceholder['0Table'] = substr_replace($badPlaceholder['0Table'], "\x02", $levelOffset + 6, 1);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badPlaceholder, false)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badPlaceholder)));
     },
     'rejects malformed legacy DOC stylesheet records before exposing style metadata' => static function (TestRunner $t) use ($buildCfb, $buildStyleSheetDocStreams, $styleDefinition, $u16, $u32): void {
         $reader = new LegacyDocReader();

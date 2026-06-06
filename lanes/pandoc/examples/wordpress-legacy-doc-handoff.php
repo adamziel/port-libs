@@ -122,6 +122,7 @@ $directoryEntry = static function (
         . $u32($startSector)
         . $u64($size);
 };
+$makeDirectoryEntry = $directoryEntry;
 
 $typedLpstr = static function (string $value): string {
     $bytes = $value . "\0";
@@ -1620,6 +1621,38 @@ if (($argv[1] ?? '') === '--self-test') {
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 68), 4);
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 72), 4);
     $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 67), 1);
+    $smallRegularWordDocument = str_repeat("\0", 512) . "Small regular stream must stay guarded\r";
+    $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u16(0xa5ec), 0, 2);
+    $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u16(0x00c1), 2, 2);
+    $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u32(512), 24, 4);
+    $smallRegularWordDocument = substr_replace($smallRegularWordDocument, $u32(strlen($smallRegularWordDocument)), 28, 4);
+    $smallRegularDirectory = $makeDirectoryEntry('Root Entry', 5, $end, 0, $free, $free, 1)
+        . $makeDirectoryEntry('WordDocument', 2, 2, strlen($smallRegularWordDocument), $free, $free, $free);
+    $smallRegularFat = $u32($fatSector) . $u32($end) . $u32($end) . str_repeat($u32($free), 125);
+    $smallRegularHeader = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+        . str_repeat("\0", 16)
+        . $u16(0x003e)
+        . $u16(3)
+        . $u16(0xfffe)
+        . $u16(9)
+        . $u16(6)
+        . str_repeat("\0", 6)
+        . $u32(0)
+        . $u32(1)
+        . $u32(1)
+        . $u32(0)
+        . $u32(4096)
+        . $u32($end)
+        . $u32(0)
+        . $u32($end)
+        . $u32(0)
+        . $u32(0)
+        . $u32(0)
+        . str_repeat($u32($free), 108);
+    $smallRegularStreamWithoutMiniFat = str_pad($smallRegularHeader, 512, "\0")
+        . $smallRegularFat
+        . $padTo($smallRegularDirectory, $sectorSize)
+        . $padTo($smallRegularWordDocument, $sectorSize);
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -1639,6 +1672,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
         'CFB orphaned active directory entry' => $orphanedActiveDirectoryEntry,
+        'small CFB stream without MiniFAT metadata' => $smallRegularStreamWithoutMiniFat,
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", $directoryFieldOffset(0, 0), 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentMiniStreamOffset + 0x01a6, 4),
     ] as $label => $corruptDocBytes) {
