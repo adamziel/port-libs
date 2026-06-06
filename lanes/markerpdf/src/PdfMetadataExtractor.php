@@ -4066,6 +4066,8 @@ final class PdfMetadataExtractor
         if ($objectNumber === null) {
             return $base + [
                 'status' => 'rejected_non_indirect_metadata_reference',
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+                'indirect_reference_required' => true,
             ];
         }
 
@@ -4074,6 +4076,9 @@ final class PdfMetadataExtractor
             return $base + [
                 'status' => 'unresolved_metadata_reference',
                 'object_number' => $objectNumber,
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+                'indirect_reference_required' => true,
+                'metadata_reference_resolved' => false,
             ];
         }
 
@@ -4190,6 +4195,48 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    private function outlineMetadataReferenceOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+
+        if (preg_match('/^(?:true|false|null)\b/s', $trimmed) === 1) {
+            return 'keyword';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)\b/s', $trimmed) === 1) {
+            return 'number';
+        }
+
+        return 'token';
     }
 
     /**
