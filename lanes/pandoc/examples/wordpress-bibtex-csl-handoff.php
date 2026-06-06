@@ -35,6 +35,8 @@ Patent and legal sources @import-patent and @review-act preserve legal review me
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
 
+Timestamped source @timestamped-source preserves imported date-part time metadata for review.
+
 Approximate date source @circa-manual preserves review date markers.
 
 Title metadata sources @title-review and @chapter-title-review keep reviewer subtitles attached.
@@ -289,6 +291,24 @@ $bibtex = <<<'BIB'
   organization = {Migration Board},
   date         = {2024/2025},
   eventdate    = {2025-01-01/2025-01-31}
+}
+
+@online{timestamped-source,
+  author       = {{Timeline Desk}},
+  title        = {Timestamped Source Capture},
+  date         = {2026-06-05},
+  hour         = {9},
+  minute       = {15},
+  second       = {30},
+  timezone     = {+0200},
+  origdate     = {2020},
+  orighour     = {8},
+  origminute   = {0},
+  url          = {https://example.test/timestamped-source},
+  urldate      = {2026-06-06},
+  urlhour      = {14},
+  urlminute    = {5},
+  urltimezone  = {Z}
 }
 
 @book{circa-manual,
@@ -812,6 +832,19 @@ if (($argv[1] ?? '') === '--self-test') {
     $rangeRule = $processor->item('range-rule');
     if (($rangeRule['eventDate']['display'] ?? null) !== '2025-01-01/2025-01-31') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legal event date range metadata');
+    }
+    $timestampedSource = $processor->item('timestamped-source');
+    if (($timestampedSource['issuedDate']['time'] ?? null) !== '09:15:30+02:00') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve issued date time metadata');
+    }
+    if (($timestampedSource['accessedDate']['time'] ?? null) !== '14:05Z') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve accessed date time metadata');
+    }
+    if (($timestampedSource['originalDate']['time'] ?? null) !== '08:00') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original date time metadata');
+    }
+    if (($timestampedSource['dateTimeSummary'] ?? null) !== 'Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize date time metadata');
     }
     $circaManual = $processor->item('circa-manual');
     if (($circaManual['issuedDate']['circa'] ?? null) !== true) {
@@ -1460,6 +1493,8 @@ XML);
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',
         '<dt>Import Review Rule 2024/2025</dt><dd>Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.</dd>',
+        '<p>Timestamped source Timeline Desk (2026) preserves imported date-part time metadata for review.</p>',
+        '<dt>Timeline Desk 2026</dt><dd>Timeline Desk. Timestamped Source Capture. 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.</dd>',
         '<p>Approximate date source Smith (2026) preserves review date markers.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Approximate Source Date. Review Press, 2026. Date markers: issued circa (2026~); accessed circa (2026-06-05~); original-date uncertain (2020?). Original work published 2020. https://example.test/circa-manual. Accessed 2026-06-05.</dd>',
         '<p>Title metadata sources Curator (2026) and Ng (2025) keep reviewer subtitles attached.</p>',

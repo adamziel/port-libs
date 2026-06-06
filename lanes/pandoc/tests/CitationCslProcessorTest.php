@@ -1133,6 +1133,113 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'maps bounded biblatex date time parts into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{timestamped-source,
+  author       = {Ng, Nia},
+  title        = {Timestamped Source Capture},
+  date         = {2026-06-05},
+  hour         = {9},
+  minute       = {15},
+  second       = {30},
+  timezone     = {+0200},
+  origdate     = {2020},
+  orighour     = {8},
+  origminute   = {0},
+  publisher    = {Review Press},
+  url          = {https://example.test/timestamped-source},
+  urldate      = {2026-06-06},
+  urlhour      = {14},
+  urlminute    = {5},
+  urltimezone  = {Z}
+}
+
+@proceedings{timed-event,
+  editor           = {Curator, Eli},
+  title            = {Timed Event Proceedings},
+  eventtitle       = {Import Review Clinic},
+  eventdate        = {2026-06-04/2026-06-05},
+  eventhour        = {10},
+  eventminute      = {0},
+  eventtimezone    = {-0700},
+  eventendhour     = {16},
+  eventendminute   = {30},
+  eventendtimezone = {-0700},
+  date             = {2026},
+  publisher        = {Migration Desk}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('09:15:30+02:00', $items[0]['issued']['time'] ?? null);
+        $t->same('08:00', $items[0]['original-date']['time'] ?? null);
+        $t->same('14:05Z', $items[0]['accessed']['time'] ?? null);
+        $t->same('10:00-07:00', $items[1]['event-date']['time'] ?? null);
+        $t->same('16:30-07:00', $items[1]['event-date']['end-time'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('timestamped-source');
+        $event = $processor->item('timed-event');
+        $t->same('09:15:30+02:00', $source['issuedDate']['time'] ?? null);
+        $t->same('14:05Z', $source['accessedDate']['time'] ?? null);
+        $t->same('08:00', $source['originalDate']['time'] ?? null);
+        $t->same('10:00-07:00', $event['eventDate']['time'] ?? null);
+        $t->same('16:30-07:00', $event['eventDate']['endTime'] ?? null);
+        $t->same('Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00', $source['dateTimeSummary'] ?? null);
+        $t->same('Date times: event-date 10:00-07:00/16:30-07:00', $event['dateTimeSummary'] ?? null);
+        $t->same('(Ng 2026; Curator 2026)', $processor->renderCitationCluster([
+            $citation('timestamped-source', '[@timestamped-source]'),
+            $citation('timed-event', '[@timed-event]'),
+        ]));
+        $t->same('Ng, Nia. Timestamped Source Capture. Review Press, 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.', $processor->renderBibliographyEntry('timestamped-source'));
+        $t->same('Curator, Eli. Timed Event Proceedings. Event: Import Review Clinic. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. Date times: event-date 10:00-07:00/16:30-07:00.', $processor->renderBibliographyEntry('timed-event'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="issued-time"/>
+        <text variable="accessed-time"/>
+        <text variable="event-time"/>
+        <text variable="event-end-time"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="date-time-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Timestamped Source Capture | 09:15:30+02:00 | 14:05Z; Timed Event Proceedings | 10:00-07:00 | 16:30-07:00]', $styled->renderCitationCluster([
+            $citation('timestamped-source', '[@timestamped-source]'),
+            $citation('timed-event', '[@timed-event]'),
+        ]));
+        $t->same('Timed Event Proceedings :: Date times: event-date 10:00-07:00/16:30-07:00', $styled->renderBibliographyEntry('timed-event'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-time',
+            'title' => 'Manual Time Packet',
+            'issued' => ['date-parts' => [[2026, 6, 5]], 'time' => '11:00', 'end-time' => '12:30'],
+        ]]);
+        $directItem = $direct->item('manual-time');
+        $t->same('11:00', $directItem['issuedDate']['time'] ?? null);
+        $t->same('12:30', $directItem['issuedDate']['endTime'] ?? null);
+        $t->same('Manual Time Packet. 2026. Date times: issued 11:00/12:30.', $direct->renderBibliographyEntry('manual-time'));
+
+        $document = (new MarkdownReader())->read('Timestamped source @timestamped-source and event [@timed-event] keep imported time metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Timestamped source Ng (2026) and event (Curator 2026) keep imported time metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Timestamped Source Capture. Review Press, 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@online{bad,date={2026},hour={24},title={Bad Time}}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-direct-time', 'issued' => ['date-parts' => [[2026]], 'time' => '9:00']]]));
+    },
     'preserves bounded biblatex uncertain and approximate date markers in csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{circa-manual,

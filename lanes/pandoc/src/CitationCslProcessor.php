@@ -692,6 +692,12 @@ final class CitationCslProcessor
             'original-date' => $originalDate,
             'event-date' => $eventDate,
         ]);
+        $dateTimeSummary = self::dateTimeSummary([
+            'issued' => $issuedDate,
+            'accessed' => $accessedDate,
+            'original-date' => $originalDate,
+            'event-date' => $eventDate,
+        ]);
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
 
         return [
@@ -789,6 +795,7 @@ final class CitationCslProcessor
             'originalDate' => $originalDate,
             'eventDate' => $eventDate,
             'dateMarkerSummary' => $dateMarkerSummary,
+            'dateTimeSummary' => $dateTimeSummary,
             'biblatexCustomFields' => $biblatexCustomFields,
             'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
             'issuedYear' => $issuedDate['year'],
@@ -1422,6 +1429,8 @@ final class CitationCslProcessor
 
         $literal = self::stringField($date, 'literal');
         $raw = self::stringField($date, 'raw');
+        $time = self::dateTimeField($date, 'time', $id, $field);
+        $endTime = self::firstDateTimeField($date, ['end-time', 'endTime'], $id, $field);
         $circa = self::boolField($date, 'circa', false);
         $uncertain = self::boolField($date, 'uncertain', false);
         $dateParts = $date['date-parts'] ?? null;
@@ -1434,6 +1443,14 @@ final class CitationCslProcessor
             ];
             if ($raw !== '') {
                 $normalized['raw'] = $raw;
+            }
+
+            if ($time !== '') {
+                $normalized['time'] = $time;
+            }
+
+            if ($endTime !== '') {
+                $normalized['endTime'] = $endTime;
             }
 
             if ($circa) {
@@ -1473,6 +1490,14 @@ final class CitationCslProcessor
 
         if ($raw !== '') {
             $normalized['raw'] = $raw;
+        }
+
+        if ($time !== '') {
+            $normalized['time'] = $time;
+        }
+
+        if ($endTime !== '') {
+            $normalized['endTime'] = $endTime;
         }
 
         if ($circa) {
@@ -1521,6 +1546,67 @@ final class CitationCslProcessor
         }
 
         return $uncertain ? 'uncertain' : '';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $dates
+     */
+    private static function dateTimeSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            $time = trim((string) ($date['time'] ?? ''));
+            $endTime = trim((string) ($date['endTime'] ?? ''));
+            if ($time === '' && $endTime === '') {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . ($time !== '' ? $time : '?') . ($endTime === '' ? '' : '/' . $endTime);
+        }
+
+        return $parts === [] ? '' : 'Date times: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function firstDateTimeField(array $date, array $keys, string $id, string $field): string
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $date)) {
+                continue;
+            }
+
+            return self::dateTimeField($date, $key, $id, $field);
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function dateTimeField(array $date, string $key, string $id, string $field): string
+    {
+        $value = $date[$key] ?? '';
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (!is_scalar($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . '.' . $key . ' must be scalar');
+        }
+
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d{2}(?::\d{2}(?::\d{2})?)?(?:Z|[+-]\d{2}:\d{2})?$/', $value) !== 1) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . '.' . $key . ' must be a normalized time string');
+        }
+
+        return $value;
     }
 
     /**
@@ -4154,6 +4240,11 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($dateMarkerSummary);
         }
 
+        $dateTimeSummary = trim((string) ($item['dateTimeSummary'] ?? ''));
+        if ($dateTimeSummary !== '') {
+            $parts[] = $this->withTerminalPunctuation($dateTimeSummary);
+        }
+
         $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
         if ($customFieldSummary !== '') {
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
@@ -5597,6 +5688,15 @@ final class CitationCslProcessor
             'name-addon' => (string) $item['nameAddon'],
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
             'date-marker-summary', 'date-status', 'date-status-summary' => (string) ($item['dateMarkerSummary'] ?? ''),
+            'date-time-summary', 'time-summary' => (string) ($item['dateTimeSummary'] ?? ''),
+            'issued-time', 'date-time' => $this->dateTimeForVariable($item, 'issued'),
+            'issued-end-time', 'date-end-time' => $this->dateEndTimeForVariable($item, 'issued'),
+            'accessed-time' => $this->dateTimeForVariable($item, 'accessed'),
+            'accessed-end-time' => $this->dateEndTimeForVariable($item, 'accessed'),
+            'event-time' => $this->dateTimeForVariable($item, 'event-date'),
+            'event-end-time' => $this->dateEndTimeForVariable($item, 'event-date'),
+            'original-time' => $this->dateTimeForVariable($item, 'original-date'),
+            'original-end-time' => $this->dateEndTimeForVariable($item, 'original-date'),
             'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),
             'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
             'issued-status', 'issued-date-status' => $this->dateMarkerStatusForVariable($item, 'issued'),
@@ -5830,7 +5930,33 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, circa?:bool, uncertain?:bool, rangeParts?:list<list<int>>}|null
+     */
+    private function dateTimeForVariable(array $item, string $variable): string
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+        if (!is_array($date)) {
+            return '';
+        }
+
+        return trim((string) ($date['time'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function dateEndTimeForVariable(array $item, string $variable): string
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+        if (!is_array($date)) {
+            return '';
+        }
+
+        return trim((string) ($date['endTime'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, rangeParts?:list<list<int>>}|null
      */
     private function dateVariableForRendering(array $item, string $variable): ?array
     {

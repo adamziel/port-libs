@@ -786,22 +786,58 @@ final class BibtexCslParser
             $item['editorial-roles'] = $editorialRoles;
         }
 
-        $issued = self::dateFromFields($fields, ['date'], ['year', 'month', 'day']);
+        $issued = self::dateFromFields($fields, ['date'], ['year', 'month', 'day'], [
+            'hour' => 'hour',
+            'minute' => 'minute',
+            'second' => 'second',
+            'timezone' => 'timezone',
+            'endhour' => 'endhour',
+            'endminute' => 'endminute',
+            'endsecond' => 'endsecond',
+            'endtimezone' => 'endtimezone',
+        ]);
         if ($issued !== null) {
             $item['issued'] = $issued;
         }
 
-        $originalDate = self::dateFromFields($fields, ['origdate'], ['origyear', 'origmonth', 'origday']);
+        $originalDate = self::dateFromFields($fields, ['origdate'], ['origyear', 'origmonth', 'origday'], [
+            'hour' => 'orighour',
+            'minute' => 'origminute',
+            'second' => 'origsecond',
+            'timezone' => 'origtimezone',
+            'endhour' => 'origendhour',
+            'endminute' => 'origendminute',
+            'endsecond' => 'origendsecond',
+            'endtimezone' => 'origendtimezone',
+        ]);
         if ($originalDate !== null) {
             $item['original-date'] = $originalDate;
         }
 
-        $eventDate = self::dateFromFields($fields, ['eventdate'], ['eventyear', 'eventmonth', 'eventday']);
+        $eventDate = self::dateFromFields($fields, ['eventdate'], ['eventyear', 'eventmonth', 'eventday'], [
+            'hour' => 'eventhour',
+            'minute' => 'eventminute',
+            'second' => 'eventsecond',
+            'timezone' => 'eventtimezone',
+            'endhour' => 'eventendhour',
+            'endminute' => 'eventendminute',
+            'endsecond' => 'eventendsecond',
+            'endtimezone' => 'eventendtimezone',
+        ]);
         if ($eventDate !== null) {
             $item['event-date'] = $eventDate;
         }
 
-        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday']);
+        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'], [
+            'hour' => 'urlhour',
+            'minute' => 'urlminute',
+            'second' => 'urlsecond',
+            'timezone' => 'urltimezone',
+            'endhour' => 'urlendhour',
+            'endminute' => 'urlendminute',
+            'endsecond' => 'urlendsecond',
+            'endtimezone' => 'urlendtimezone',
+        ]);
         if ($accessed !== null) {
             $item['accessed'] = $accessed;
         }
@@ -1693,13 +1729,19 @@ final class BibtexCslParser
      * @param array<string, string> $fields
      * @param list<string> $dateFields
      * @param list<string> $partFields
+     * @param array<string, string> $timeFields
      * @return array<string, mixed>|null
      */
-    private static function dateFromFields(array $fields, array $dateFields, array $partFields): ?array
+    private static function dateFromFields(array $fields, array $dateFields, array $partFields, array $timeFields = []): ?array
     {
         foreach ($dateFields as $field) {
             if (isset($fields[$field]) && trim($fields[$field]) !== '') {
-                return self::dateFromText(self::cleanBibtexDateText($fields[$field]), $field);
+                return self::dateWithTimeParts(
+                    self::dateFromText(self::cleanBibtexDateText($fields[$field]), $field),
+                    $fields,
+                    $timeFields,
+                    $field
+                );
             }
         }
 
@@ -1709,7 +1751,7 @@ final class BibtexCslParser
 
         $year = self::cleanBibtexText($fields[$partFields[0]]);
         if (!preg_match('/^-?\d+$/', $year)) {
-            return ['literal' => $year];
+            return self::dateWithTimeParts(['literal' => $year], $fields, $timeFields, $partFields[0]);
         }
 
         $parts = [(int) $year];
@@ -1726,7 +1768,106 @@ final class BibtexCslParser
             $parts[] = (int) $day;
         }
 
-        return ['date-parts' => [$parts]];
+        return self::dateWithTimeParts(['date-parts' => [$parts]], $fields, $timeFields, $partFields[0]);
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     * @param array<string, string> $fields
+     * @param array<string, string> $timeFields
+     * @return array<string, mixed>
+     */
+    private static function dateWithTimeParts(array $date, array $fields, array $timeFields, string $field): array
+    {
+        if ($timeFields === []) {
+            return $date;
+        }
+
+        $time = self::timeFromDatePartFields($fields, $timeFields, '', $field);
+        if ($time !== '') {
+            $date['time'] = $time;
+        }
+
+        $endTime = self::timeFromDatePartFields($fields, $timeFields, 'end', $field);
+        if ($endTime !== '') {
+            $date['end-time'] = $endTime;
+        }
+
+        return $date;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param array<string, string> $timeFields
+     */
+    private static function timeFromDatePartFields(array $fields, array $timeFields, string $prefix, string $field): string
+    {
+        $hourKey = $timeFields[$prefix . 'hour'] ?? null;
+        $minuteKey = $timeFields[$prefix . 'minute'] ?? null;
+        $secondKey = $timeFields[$prefix . 'second'] ?? null;
+        $timezoneKey = $timeFields[$prefix . 'timezone'] ?? null;
+
+        $hour = $hourKey === null ? '' : self::cleanBibtexText($fields[$hourKey] ?? '');
+        $minute = $minuteKey === null ? '' : self::cleanBibtexText($fields[$minuteKey] ?? '');
+        $second = $secondKey === null ? '' : self::cleanBibtexText($fields[$secondKey] ?? '');
+        $timezone = $timezoneKey === null ? '' : self::cleanBibtexText($fields[$timezoneKey] ?? '');
+
+        if ($hour === '' && $minute === '' && $second === '' && $timezone === '') {
+            return '';
+        }
+
+        if ($hour === '') {
+            throw new \InvalidArgumentException('BibTeX ' . $field . ' time requires an hour field');
+        }
+
+        $display = self::twoDigitDateTimePart($hour, $hourKey ?? 'hour', 0, 23);
+        if ($minute !== '' || $second !== '') {
+            $display .= ':' . self::twoDigitDateTimePart($minute === '' ? '0' : $minute, $minuteKey ?? 'minute', 0, 59);
+        }
+
+        if ($second !== '') {
+            $display .= ':' . self::twoDigitDateTimePart($second, $secondKey ?? 'second', 0, 59);
+        }
+
+        if ($timezone !== '') {
+            $display .= self::normalizedDateTimeZone($timezone, $timezoneKey ?? 'timezone');
+        }
+
+        return $display;
+    }
+
+    private static function twoDigitDateTimePart(string $value, string $field, int $min, int $max): string
+    {
+        if (!preg_match('/^\d{1,2}$/', $value)) {
+            throw new \InvalidArgumentException('BibTeX ' . $field . ' field must be numeric');
+        }
+
+        $number = (int) $value;
+        if ($number < $min || $number > $max) {
+            throw new \InvalidArgumentException('BibTeX ' . $field . ' field must be between ' . $min . ' and ' . $max);
+        }
+
+        return str_pad((string) $number, 2, '0', STR_PAD_LEFT);
+    }
+
+    private static function normalizedDateTimeZone(string $value, string $field): string
+    {
+        $value = strtoupper(trim($value));
+        if ($value === 'Z') {
+            return 'Z';
+        }
+
+        if (preg_match('/^([+-])(\d{2})(?::?(\d{2}))?$/', $value, $matches) !== 1) {
+            throw new \InvalidArgumentException('BibTeX ' . $field . ' field must be Z or a numeric timezone offset');
+        }
+
+        $hour = (int) $matches[2];
+        $minute = isset($matches[3]) && $matches[3] !== '' ? (int) $matches[3] : 0;
+        if ($hour > 23 || $minute > 59) {
+            throw new \InvalidArgumentException('BibTeX ' . $field . ' timezone offset is out of range');
+        }
+
+        return $matches[1] . str_pad((string) $hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad((string) $minute, 2, '0', STR_PAD_LEFT);
     }
 
     /**
