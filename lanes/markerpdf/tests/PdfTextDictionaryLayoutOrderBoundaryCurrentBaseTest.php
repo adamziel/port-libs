@@ -3402,4 +3402,240 @@ return [
         $t->true(!str_contains($encoded, 'typed direct-envelope order payload'));
         $t->true(!str_contains($encoded, 'typed direct-envelope order envelope payload'));
     },
+    'unwraps explicit pdftext artifact envelopes before selected layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5200, [
+                    ['text' => 'Explicit pdftext artifact cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5201, [
+                    ['text' => 'Second explicit pdftext artifact column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First explicit pdftext artifact column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(5202, [
+                    ['text' => 'Explicit pdftext artifact appendix should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['source' => 'cached order pdftext envelope'],
+                    'pdftext' => [
+                        'pages' => [
+                            [
+                                'page' => 5200,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ],
+                                'raw_payload' => 'explicit pdftext cover order payload must stay hidden',
+                            ],
+                            [
+                                'page' => 5201,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ],
+                                'raw_payload' => 'explicit pdftext selected order payload must stay hidden',
+                            ],
+                            [
+                                'page' => 5202,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ],
+                                'raw_payload' => 'explicit pdftext appendix order payload must stay hidden',
+                            ],
+                        ],
+                    ],
+                    'raw_payload' => 'explicit pdftext order envelope payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                [
+                    'pdftext' => [
+                        'pages' => [
+                            ['page' => 5200, 'image' => 'explicit-pdftext-cover-order-render'],
+                            ['page' => 5201, 'image' => 'explicit-pdftext-selected-order-render'],
+                            ['page' => 5202, 'image' => 'explicit-pdftext-appendix-order-render'],
+                        ],
+                    ],
+                    'raw_payload' => 'explicit pdftext order image envelope payload must stay hidden',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5201, $result['pages'][0]['pnum']);
+        $t->same(['First explicit pdftext artifact column', 'Second explicit pdftext artifact column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First explicit pdftext artifact column Second explicit pdftext artifact column', $blocks[0]['text']);
+        $t->same(5201, $order['page'] ?? null);
+        $t->true(!array_key_exists('pdftext', $order));
+        $t->true(!str_contains($encoded, 'Explicit pdftext artifact cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'Explicit pdftext artifact appendix should stay skipped'));
+        $t->true(!str_contains($encoded, 'explicit pdftext cover order payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext selected order payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext appendix order payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext order envelope payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext order image envelope payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'unwraps explicit pdftext layout and order artifact envelopes for WordPress imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-explicit-pdftext-artifact-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% explicit pdftext artifact envelope layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5210, [
+                        ['text' => 'Explicit pdftext converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5211, [
+                        ['text' => 'Second converter explicit pdftext body.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter explicit pdftext heading.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(5212, [
+                        ['text' => 'Explicit pdftext converter appendix should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [[
+                        'pdftext' => [
+                            'pages' => [
+                                ['page' => 5210, 'image' => 'explicit-pdftext-cover-layout-render'],
+                                ['page' => 5211, 'image' => 'explicit-pdftext-selected-layout-render'],
+                                ['page' => 5212, 'image' => 'explicit-pdftext-appendix-layout-render'],
+                            ],
+                        ],
+                        'raw_payload' => 'explicit pdftext layout image envelope payload must stay hidden',
+                    ]],
+                    'layout_results' => [[
+                        'metadata' => ['source' => 'cached layout pdftext envelope'],
+                        'pdftext' => [
+                            'pages' => [
+                                [
+                                    'page' => 5210,
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                    ],
+                                    'raw_payload' => 'explicit pdftext cover layout payload must stay hidden',
+                                ],
+                                [
+                                    'page' => 5211,
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                    ],
+                                    'raw_payload' => 'explicit pdftext selected layout payload must stay hidden',
+                                ],
+                                [
+                                    'page' => 5212,
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                    ],
+                                    'raw_payload' => 'explicit pdftext appendix layout payload must stay hidden',
+                                ],
+                            ],
+                        ],
+                        'raw_payload' => 'explicit pdftext layout envelope payload must stay hidden',
+                    ]],
+                    'order_images' => [[
+                        'pdftext' => [
+                            'pages' => [
+                                ['page' => 5210, 'image' => 'explicit-pdftext-cover-order-render'],
+                                ['page' => 5211, 'image' => 'explicit-pdftext-selected-order-render'],
+                                ['page' => 5212, 'image' => 'explicit-pdftext-appendix-order-render'],
+                            ],
+                        ],
+                        'raw_payload' => 'explicit pdftext order image envelope payload must stay hidden',
+                    ]],
+                    'order_results' => [[
+                        'metadata' => ['source' => 'cached order pdftext envelope'],
+                        'pdftext' => [
+                            'pages' => [
+                                [
+                                    'page' => 5210,
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ],
+                                    'raw_payload' => 'explicit pdftext cover order payload must stay hidden',
+                                ],
+                                [
+                                    'page' => 5211,
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                    ],
+                                    'raw_payload' => 'explicit pdftext selected order payload must stay hidden',
+                                ],
+                                [
+                                    'page' => 5212,
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ],
+                                    'raw_payload' => 'explicit pdftext appendix order payload must stay hidden',
+                                ],
+                            ],
+                        ],
+                        'raw_payload' => 'explicit pdftext order envelope payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# First Converter Explicit Pdftext Heading.', $text);
+        $t->contains('Second converter explicit pdftext body.', $text);
+        $t->true(strpos($text, '# First Converter Explicit Pdftext Heading.') < strpos($text, 'Second converter explicit pdftext body.'));
+        $t->true(!str_contains($text, 'Explicit pdftext converter cover should stay skipped.'));
+        $t->true(!str_contains($text, 'Explicit pdftext converter appendix should stay skipped.'));
+        $t->true(!str_contains($encoded, 'explicit pdftext cover layout payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext selected layout payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext appendix layout payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext layout envelope payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext layout image envelope payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext cover order payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext selected order payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext appendix order payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext order envelope payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext order image envelope payload'));
+    },
 ];

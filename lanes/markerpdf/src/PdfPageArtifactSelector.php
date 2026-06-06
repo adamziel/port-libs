@@ -184,10 +184,10 @@ final class PdfPageArtifactSelector
      * Supplied marker/pdftext adapters are commonly JSON-decoded without the
      * associative-array flag. Normalize plain JSON objects before page-marker
      * matching while leaving non-data objects and scalar payloads untouched.
-     * Some caches wrap selected layout/order artifacts in the same
-     * dictionary_output/pages envelope used by pdftext page dictionaries; unwrap
-     * those page-list envelopes before marker selection so stale cover rows do
-     * not remain a single positional artifact.
+     * Some caches wrap selected layout/order artifacts in the same pdftext,
+     * dictionary_output, or pages envelope used by pdftext page dictionaries;
+     * unwrap those page-list envelopes before marker selection so stale cover
+     * rows do not remain a single positional artifact.
      *
      * @param list<mixed> $artifacts
      * @return list<mixed>
@@ -244,7 +244,7 @@ final class PdfPageArtifactSelector
             return null;
         }
 
-        foreach (['pages', 'dictionary_output'] as $pageListKey) {
+        foreach (['pages', 'dictionary_output', 'pdftext'] as $pageListKey) {
             if (!array_key_exists($pageListKey, $value)) {
                 continue;
             }
