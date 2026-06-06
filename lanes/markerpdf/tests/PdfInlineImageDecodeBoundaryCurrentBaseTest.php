@@ -627,6 +627,33 @@ return [
         $t->same(0, $preview['image_sample_boundary']['surplus_byte_count']);
         $t->same(false, $preview['image_sample_boundary']['truncated_to_declared_samples']);
     },
+    'keeps unfiltered inline image indirect geometry operands closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Indirect Geometry Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Indirect Geometry Inline) Tj ET\n"
+            . "BI /W 101 0 R /H 102 0 R /CS /G /BPC 8 ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Indirect Geometry Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before Indirect Geometry Inline',
+            'After Indirect Geometry Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($payload, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Indirect Geometry Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'abc EI'));
+        $t->true(!str_contains($plainText, '101 0 R'));
+    },
     'accepts filtered inline image EI after decoded sample floor is reached' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payloadText = "X EI BT /F1 12 Tf 72 690 Td (Oversized Flate Inline Noise) Tj ET";

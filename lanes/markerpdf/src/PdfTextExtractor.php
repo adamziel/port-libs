@@ -32675,7 +32675,12 @@ final class PdfTextExtractor
                 return strlen($candidate) >= $expectedLength;
             }
 
-            return $this->inlineImageMinimumUnfilteredLength($dictionary) === null;
+            $minimumLength = $this->inlineImageMinimumUnfilteredLength($dictionary);
+            if ($minimumLength !== null) {
+                return false;
+            }
+
+            return !$this->inlineImageHasUnresolvedUnfilteredSampleFloor($dictionary);
         }
 
         if (!$this->hasVerifiableInlineImageFilter($filters, $dictionary)) {
@@ -33485,7 +33490,13 @@ final class PdfTextExtractor
             return rtrim($candidate, "\x00\t\n\f\r ") !== '';
         }
 
-        if ($filters === [] && $this->inlineImageMinimumUnfilteredLength($dictionary) !== null) {
+        if (
+            $filters === []
+            && (
+                $this->inlineImageMinimumUnfilteredLength($dictionary) !== null
+                || $this->inlineImageHasUnresolvedUnfilteredSampleFloor($dictionary)
+            )
+        ) {
             return rtrim($candidate, "\x00\t\n\f\r ") !== '';
         }
 
@@ -33580,11 +33591,15 @@ final class PdfTextExtractor
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         if ($expectedLength === null) {
             $minimumLength = $this->inlineImageMinimumUnfilteredLength($dictionary);
+            $filters = $this->streamFilters($dictionary, []);
+            if ($filters === [] && $this->inlineImageHasUnresolvedUnfilteredSampleFloor($dictionary)) {
+                return rtrim($candidate, "\x00\t\n\f\r ") !== '';
+            }
+
             if ($minimumLength === null) {
                 return false;
             }
 
-            $filters = $this->streamFilters($dictionary, []);
             return $filters === [] && strlen($candidate) >= $minimumLength;
         }
 
@@ -33624,6 +33639,28 @@ final class PdfTextExtractor
     {
         foreach ($filters as $filter) {
             if ($filter === 'JPXDecode') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function inlineImageHasUnresolvedUnfilteredSampleFloor(string $dictionary): bool
+    {
+        if ($this->streamFilters($dictionary, []) !== []) {
+            return false;
+        }
+
+        if (
+            $this->inlineImageExpectedDecodedLength($dictionary) !== null
+            || $this->inlineImageMinimumUnfilteredLength($dictionary) !== null
+        ) {
+            return false;
+        }
+
+        foreach (['Width', 'Height', 'ColorSpace', 'BitsPerComponent', 'ImageMask'] as $name) {
+            if ($this->topLevelNameValueOffset($dictionary, $name) !== null) {
                 return true;
             }
         }
@@ -33983,7 +34020,7 @@ final class PdfTextExtractor
             $bytes,
             $filterDecodeParms,
             [],
-            $this->pdfIntegerValueAfterName($dictionary, 'Height')
+            $this->inlineImageDirectIntegerValueAfterName($dictionary, 'Height')
         );
     }
 
@@ -34097,8 +34134,8 @@ final class PdfTextExtractor
 
     private function inlineImageExpectedDecodedLength(string $dictionary): ?int
     {
-        $width = $this->pdfIntegerValueAfterName($dictionary, 'Width');
-        $height = $this->pdfIntegerValueAfterName($dictionary, 'Height');
+        $width = $this->inlineImageDirectIntegerValueAfterName($dictionary, 'Width');
+        $height = $this->inlineImageDirectIntegerValueAfterName($dictionary, 'Height');
         if ($width === null || $height === null || $width < 1 || $height < 1) {
             return null;
         }
@@ -34111,7 +34148,7 @@ final class PdfTextExtractor
 
         $bitsPerComponent = $imageMask
             ? 1
-            : ($this->pdfIntegerValueAfterName($dictionary, 'BitsPerComponent') ?? null);
+            : ($this->inlineImageDirectIntegerValueAfterName($dictionary, 'BitsPerComponent') ?? null);
         if ($bitsPerComponent === null || $bitsPerComponent < 1) {
             return null;
         }
@@ -34121,8 +34158,8 @@ final class PdfTextExtractor
 
     private function inlineImageMinimumUnfilteredLength(string $dictionary): ?int
     {
-        $width = $this->pdfIntegerValueAfterName($dictionary, 'Width');
-        $height = $this->pdfIntegerValueAfterName($dictionary, 'Height');
+        $width = $this->inlineImageDirectIntegerValueAfterName($dictionary, 'Width');
+        $height = $this->inlineImageDirectIntegerValueAfterName($dictionary, 'Height');
         if ($width === null || $height === null || $width < 1 || $height < 1) {
             return null;
         }
@@ -34131,7 +34168,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $bitsPerComponent = $this->pdfIntegerValueAfterName($dictionary, 'BitsPerComponent');
+        $bitsPerComponent = $this->inlineImageDirectIntegerValueAfterName($dictionary, 'BitsPerComponent');
         if ($bitsPerComponent === null || $bitsPerComponent < 1) {
             return null;
         }
@@ -34142,6 +34179,22 @@ final class PdfTextExtractor
         }
 
         return intdiv(($width * $height * $bitsPerComponent) + 7, 8);
+    }
+
+    private function inlineImageDirectIntegerValueAfterName(string $dictionary, string $name): ?int
+    {
+        $offset = $this->nameValueOffset($dictionary, $name);
+        if ($offset === null || preg_match('/\G([+-]?\d+)/s', $dictionary, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $afterInteger = $offset + strlen($match[0]);
+        $next = $this->skipPdfWhitespace($dictionary, $afterInteger);
+        if (preg_match('/\G[+-]?\d+\s+R\b/s', $dictionary, $referenceTail, 0, $next) === 1) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     private function inlineImageColorComponents(string $dictionary): ?int

@@ -203,6 +203,8 @@ $identityCryptJpxPostEocSurplusPayload = $identityCryptJpxBytes
 $identityCryptJpxDictionary = '/W 1 /H 1 /CS /RGB /BPC 8 /F [/Crypt /JPXDecode] /DP [<< /Name /Identity >> null] /D [0 1 0 1 0 1] /Mask [0 0 0 0 0 0]';
 $directNullFilterSamples = 'A EI BT Z';
 $directNullFilterDictionary = '/W ' . strlen($directNullFilterSamples) . ' /H 1 /CS /G /BPC 8 /F null /DP << /Predictor 12 /Columns 0 >> /D [0 1]';
+$indirectGeometryInlinePayload = 'abc EI BT /F1 12 Tf 72 506 Td (Indirect Geometry Inline Noise) Tj ET rawtail';
+$indirectGeometryInlineDictionary = '/W 101 0 R /H 102 0 R /CS /G /BPC 8';
 $deviceNArrayColorSpacePayload = "\x01EI BT /F1 12 Tf 72 506 Td (DeviceN Array Inline Noise) Tj ET \x02";
 $calRgbArrayColorSpacePayload = "\x10EI BT /F1 12 Tf 72 498 Td (CalRGB Array Inline Noise) Tj ET \x20\x30";
 $wrappedJpxPrefixBytes = "\xFF\x4FWordPress wrapped JPX prefix bytes with EI and BT inside\xFF\xD9";
@@ -358,6 +360,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 594 Td (Before Direct Null Filter Inline) Tj ET\n"
     . "BI {$directNullFilterDictionary} ID {$directNullFilterSamples}\nEI\n"
     . "BT /F1 12 Tf 72 593 Td (After Direct Null Filter Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 592 Td (Before Indirect Geometry Inline) Tj ET\n"
+    . "BI {$indirectGeometryInlineDictionary} ID\n"
+    . $indirectGeometryInlinePayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 591 Td (After Indirect Geometry Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 608 Td (Before RunLength Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
@@ -892,6 +898,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_identity_crypt_flate_post_stream_surplus_payload' => str_contains($identityCryptFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_identity_crypt_jpx_post_eoc_surplus_payload' => str_contains($identityCryptJpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_direct_null_filter_samples' => str_contains($directNullFilterSamples, ' EI '),
+    'fake_ei_inside_indirect_geometry_inline_payload' => str_contains($indirectGeometryInlinePayload, ' EI '),
     'fake_ei_inside_no_floor_native_filter_payloads' => $noFloorNativePayloadsHaveFakeEi,
     'fake_ei_inside_wrapped_no_floor_terminal_flate_decoded_surplus_payload' => str_contains($wrappedNoFloorTerminalFlateDecodedSurplus, ' EI '),
     'wrapped_no_floor_terminal_flate_raw_payload_has_no_fake_ei' => !str_contains($wrappedNoFloorTerminalFlatePayload, ' EI ')
@@ -945,6 +952,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Identity Crypt Wrapped Terminal Flate Inline',
         'Before Direct Null Filter Inline',
         'After Direct Null Filter Inline',
+        'Before Indirect Geometry Inline',
+        'After Indirect Geometry Inline',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
         'Before RunLength Post EOD Inline Image',
@@ -1063,6 +1072,11 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && ($directNullFilterReview['image_stream']['decoded_preview_hex'] ?? null) === strtoupper(bin2hex($directNullFilterSamples))
         && ($directNullFilterReview['image_stream']['decode_failed'] ?? null) === false
         && ($directNullFilterReview['image_sample_boundary']['surplus_byte_count'] ?? null) === 0,
+    'indirect_geometry_inline_payload_excluded_until_real_ei' => in_array('After Indirect Geometry Inline', $lines, true)
+        && !str_contains($plainText, 'Indirect Geometry Inline Noise')
+        && !str_contains($plainText, 'abc EI')
+        && !str_contains($plainText, '101 0 R')
+        && !str_contains($plainText, 'rawtail'),
     'wrapped_jpx_prefix_payload_has_eod' => str_ends_with($wrappedJpxPrefixPayload, '>'),
     'wrapped_jpx_prefix_payload_excluded_from_text' => in_array('After Wrapped JPX Prefix Inline', $lines, true)
         && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes'),
@@ -1199,6 +1213,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Stacked Native Inline Noise')
         && !str_contains($plainText, 'Wrapped Terminal Flate Inline Noise')
         && !str_contains($plainText, $directNullFilterSamples)
+        && !str_contains($plainText, 'Indirect Geometry Inline Noise')
+        && !str_contains($plainText, 'abc EI')
+        && !str_contains($plainText, '101 0 R')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
         && !str_contains($plainText, 'RunLength Post EOD Inline Noise')
