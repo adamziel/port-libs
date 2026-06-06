@@ -3794,8 +3794,10 @@ final class PdfTextExtractor
             foreach ($matches as $match) {
                 $objectNumber = (int) $match[2];
                 $generation = (int) $match[3];
-                $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-                $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
+                $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+                $dictionary = $resolved === null || $this->objectBodyIsStreamObject($resolved['body'])
+                    ? null
+                    : $this->dictionaryObjectBody($resolved['body']);
                 if ($dictionary !== null) {
                     $properties[$this->decodePdfName($match[1])] = $dictionary;
                 }
