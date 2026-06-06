@@ -13143,11 +13143,9 @@ final class PdfMetadataExtractor
         $before = substr($pdfBytes, 0, $offset);
         $lastEndObject = strrpos($before, 'endobj');
         $lastEof = strrpos($before, '%%EOF');
-        $lastStartxref = strrpos($before, 'startxref');
         $tailStart = max(
             $lastEndObject === false ? 0 : $lastEndObject + strlen('endobj'),
-            $lastEof === false ? 0 : $lastEof + strlen('%%EOF'),
-            $lastStartxref === false ? 0 : $lastStartxref + strlen('startxref')
+            $lastEof === false ? 0 : $lastEof + strlen('%%EOF')
         );
         $tail = substr($pdfBytes, $tailStart, $offset - $tailStart);
 
