@@ -1241,6 +1241,55 @@ $cMapSparseCodespaceSourceWidthCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$cMapBytewiseCodespaceBoundarySourceWidthCurrentBasePdf = static function (): string {
+    $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /BytewiseCodespaceBoundarySourceWidth-H def\n"
+        . "1 begincodespacerange\n"
+        . "<3030> <3232>\n"
+        . "endcodespacerange\n"
+        . "1 begincidrange\n"
+        . "<3030> <3232> 100\n"
+        . "endcidrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<3030> <3232>\n"
+        . "endcodespacerange\n"
+        . "9 beginbfchar\n"
+        . "<3030> <0041>\n"
+        . "<3031> <0042>\n"
+        . "<3032> <0043>\n"
+        . "<3130> <0044>\n"
+        . "<3131> <0045>\n"
+        . "<3132> <0046>\n"
+        . "<3230> <0047>\n"
+        . "<3231> <0048>\n"
+        . "<3232> <0049>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf 1 0 0 1 72 720 Tm <30333030> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /BytewiseCodespaceBoundarySourceWidth /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /BytewiseCodespaceBoundarySourceWidth /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [48 51 250 100 108 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+};
+
 return [
     'uses zero-padded CMap source widths before CID fallback text gaps on current base' => static function (TestRunner $t) use ($cMapSourceWidthFallbackCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1863,6 +1912,25 @@ return [
         $t->same([48.0, 0.0, 60.0, 12.0], $spans[1]['bbox'] ?? null);
         $t->same([0.0, 0.0, 60.0, 12.0], $line['bbox'] ?? null);
         $t->true(!str_contains($plainText, 'ABCD EFGH'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses bytewise CMap codespace membership before source-width fallback on current base' => static function (TestRunner $t) use ($cMapBytewiseCodespaceBoundarySourceWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapBytewiseCodespaceBoundarySourceWidthCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $runs = $extractor->extractTextRuns($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['03A'], $extractor->extractTextLines($pdf));
+        $t->same(['03A'], $runs);
+        $t->same('03A', $plainText);
+        $t->same("03A\n", $extractor->naiveGetText($pdf));
+        $t->same(['03A'], array_column($spans, 'text'));
+        $t->same([0.0, 0.0, 18.0, 12.0], $spans[0]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 18.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, "\u{3033}"));
         $t->true(!str_contains($plainText, "\0"));
     },
 ];

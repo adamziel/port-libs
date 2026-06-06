@@ -35828,8 +35828,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $source = hexdec(substr($normalized, $offset, $width));
-            if ($source >= $range['start'] && $source <= $range['end']) {
+            if ($this->sourceKeyMatchesCodeSpaceRange(substr($normalized, $offset, $width), $range)) {
                 $codeSpaceLength = $width;
                 break;
             }
@@ -35857,6 +35856,9 @@ final class PdfTextExtractor
         }
         if ($codeSpaceLength !== null) {
             return $codeSpaceLength;
+        }
+        if ($codeSpaceRanges !== []) {
+            return min(2, max(1, $remainingHexLength));
         }
 
         $usableLengths = array_values(array_filter(
