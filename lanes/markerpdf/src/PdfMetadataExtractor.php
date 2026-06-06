@@ -3306,6 +3306,21 @@ final class PdfMetadataExtractor
                 $maxLevel = max($maxLevel, $item['level']);
             }
         }
+        $actualVisibleItemCount = 0;
+        $collapsedAncestorLevels = [];
+        foreach ($items as $item) {
+            $level = is_int($item['level'] ?? null) ? max(1, $item['level']) : 1;
+            $collapsedAncestorLevels = array_values(array_filter(
+                $collapsedAncestorLevels,
+                static fn (int $collapsedLevel): bool => $collapsedLevel < $level
+            ));
+            if ($collapsedAncestorLevels === []) {
+                $actualVisibleItemCount++;
+            }
+            if (($item['is_collapsed'] ?? false) === true) {
+                $collapsedAncestorLevels[] = $level;
+            }
+        }
 
         $metadata = [
             'source' => 'catalog_outlines',
@@ -3330,6 +3345,15 @@ final class PdfMetadataExtractor
             'titles' => array_values(array_map(static fn (array $item): string => $item['title'], $items)),
             'items' => $items,
         ];
+        $declaredItemCount = $declaredCount === null ? null : abs($declaredCount);
+        if ($declaredItemCount !== null && $declaredItemCount !== $actualVisibleItemCount) {
+            $metadata['declared_count_mismatch_review_only'] = true;
+            $metadata['declared_count_mismatch_payload_included'] = false;
+            $metadata['declared_count_expected_visible_item_count'] = $declaredItemCount;
+            $metadata['declared_count_actual_visible_item_count'] = $actualVisibleItemCount;
+            $metadata['declared_count_actual_item_count'] = count($items);
+            $metadata['declared_count_visible_item_count_delta'] = $actualVisibleItemCount - $declaredItemCount;
+        }
         $outlinePageLabels = array_values(array_filter(
             array_map(
                 static fn (array $item): ?string => is_string($item['page_label'] ?? null) ? $item['page_label'] : null,
