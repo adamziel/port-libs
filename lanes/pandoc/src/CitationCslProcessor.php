@@ -457,6 +457,11 @@ final class CitationCslProcessor
             $parts[] = 'Original title: ' . $originalTitle . '.';
         }
 
+        $originalTitleAddon = (string) ($item['originalTitleAddon'] ?? '');
+        if ($originalTitleAddon !== '') {
+            $parts[] = 'Original title addendum: ' . $originalTitleAddon . '.';
+        }
+
         $originalDate = $item['originalDate'] ?? null;
         if (is_array($originalDate) && (string) ($originalDate['display'] ?? '') !== '') {
             $parts[] = 'Original work published ' . (string) $originalDate['display'] . '.';
@@ -786,7 +791,8 @@ final class CitationCslProcessor
             'missingXrefKeys' => self::stringListFromFirstField($item, ['missingXrefKeys', 'missing-xref-keys']),
             'issuedDate' => $issuedDate,
             'accessedDate' => $accessedDate,
-            'originalTitle' => self::stringField($item, 'original-title'),
+            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'origtitle']),
+            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'origtitleaddon']),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
@@ -5629,6 +5635,8 @@ final class CitationCslProcessor
             'title-addon' => (string) $item['titleAddon'],
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
+            'original-title', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
+            'original-title-addon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'container-title' => (string) $item['containerTitle'],
             'container-title-short' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation' => (string) $item['journalAbbreviation'],

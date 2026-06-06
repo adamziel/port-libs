@@ -947,6 +947,82 @@ BIB;
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'maps bounded biblatex original subtitle and title addendum metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{original-subtitle-manual,
+  author         = {Garc{\'i}a, Gia},
+  translator     = {Curator, Eli},
+  title          = {Migration Manual},
+  origtitle      = {Manual de Migraci{\'o}n},
+  origsubtitle   = {Archivo de Fuentes},
+  origtitleaddon = {Edici{\'o}n revisada},
+  date           = {2026},
+  origdate       = {2020-05},
+  publisher      = {Review Press},
+  origpublisher  = {Archivo Press},
+  origlocation   = {Madrid},
+  language       = {english},
+  origlanguage   = {spanish}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Manual de Migración: Archivo de Fuentes', $items[0]['original-title'] ?? null);
+        $t->same('Edición revisada', $items[0]['original-title-addon'] ?? null);
+        $t->same('Archivo de Fuentes', $items[0]['rawBibtex']['fields']['origsubtitle'] ?? null);
+        $t->same("Edici{\\'o}n revisada", $items[0]['rawBibtex']['fields']['origtitleaddon'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('original-subtitle-manual');
+        $t->same('Manual de Migración: Archivo de Fuentes', $item['originalTitle'] ?? null);
+        $t->same('Edición revisada', $item['originalTitleAddon'] ?? null);
+        $t->same('(García 2026)', $processor->renderCitationCluster([$citation('original-subtitle-manual', '[@original-subtitle-manual]')]));
+        $t->same(
+            'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
+            $processor->renderBibliographyEntry('original-subtitle-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-title"/>
+        <text variable="original-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <text variable="original-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[García | Manual de Migración: Archivo de Fuentes | Edición revisada]', $styled->renderCitationCluster([$citation('original-subtitle-manual', '[@original-subtitle-manual]')]));
+        $t->same('Migration Manual :: Manual de Migración: Archivo de Fuentes :: Edición revisada', $styled->renderBibliographyEntry('original-subtitle-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-original-title',
+            'title' => 'Manual Original Packet',
+            'original-title' => 'Original Manual: Archive',
+            'original-title-addon' => 'Direct addendum',
+        ]]);
+        $directItem = $direct->item('manual-original-title');
+        $t->same('Original Manual: Archive', $directItem['originalTitle'] ?? null);
+        $t->same('Direct addendum', $directItem['originalTitleAddon'] ?? null);
+        $t->same('Manual Original Packet. Original title: Original Manual: Archive. Original title addendum: Direct addendum.', $direct->renderBibliographyEntry('manual-original-title'));
+
+        $document = (new MarkdownReader())->read('Original subtitle source @original-subtitle-manual keeps original-title review metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original subtitle source García (2026) keeps original-title review metadata.</p>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,

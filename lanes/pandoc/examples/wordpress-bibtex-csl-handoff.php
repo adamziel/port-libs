@@ -31,6 +31,8 @@ A review note source @review-note-source keeps import audit notes and publicatio
 
 A translated source @translated-manual preserves original publication metadata for source review.
 
+Original subtitle source @original-subtitle-manual keeps original-title addenda visible for source review.
+
 Patent and legal sources @import-patent and @review-act preserve legal review metadata.
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
@@ -249,6 +251,22 @@ $bibtex = <<<'BIB'
   origlocation  = {Madrid},
   language      = {english},
   origlanguage  = {spanish}
+}
+
+@book{original-subtitle-manual,
+  author         = {Garc{\'i}a, Gia},
+  translator     = {Curator, Eli},
+  title          = {Migration Manual},
+  origtitle      = {Manual de Migraci{\'o}n},
+  origsubtitle   = {Archivo de Fuentes},
+  origtitleaddon = {Edici{\'o}n revisada},
+  date           = {2026},
+  origdate       = {2020-05},
+  publisher      = {Review Press},
+  origpublisher  = {Archivo Press},
+  origlocation   = {Madrid},
+  language       = {english},
+  origlanguage   = {spanish}
 }
 
 @patent{import-patent,
@@ -801,6 +819,13 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($translatedManual['translators'][1]['nonDroppingParticle'] ?? null) !== 'de la') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve translated manual translator particles');
+    }
+    $originalSubtitleManual = $processor->item('original-subtitle-manual');
+    if (($originalSubtitleManual['originalTitle'] ?? null) !== 'Manual de Migración: Archivo de Fuentes') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not compose original subtitle metadata');
+    }
+    if (($originalSubtitleManual['originalTitleAddon'] ?? null) !== 'Edición revisada') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original title addendum metadata');
     }
     $importPatent = $processor->item('import-patent');
     if (($importPatent['number'] ?? null) !== 'US-123456') {
@@ -1489,6 +1514,8 @@ XML);
         '<p>A review note source Ng (2026) keeps import audit notes and publication medium attached.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
+        '<p>Original subtitle source García (2026) keeps original-title addenda visible for source review.</p>',
+        '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>',
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',
