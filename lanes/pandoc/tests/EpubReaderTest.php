@@ -1266,6 +1266,86 @@ XML;
         $t->same('/OEBPS/text/chapter2.xhtml#page-2', $nav['pageList'][1]['target']);
         $t->same($nav['items'], $nav['sections'][0]['items']);
     },
+    'preserves EPUB3 auxiliary navigation sections for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithAuxiliary = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol><li><a href="text/chapter1.xhtml#intro">Imported packet</a></li></ol>
+    </nav>
+    <nav id="figures-nav" class="review-list figures" epub:type="loi list-of-illustrations" xml:lang="en">
+      <h2>Figures</h2>
+      <ol>
+        <li id="figure-cover"><a id="figure-cover-link" href="text/chapter1.xhtml#cover-figure">Cover figure</a></li>
+        <li id="figure-remote"><a href="https://cdn.example.test/figures/source.svg">Remote figure source</a></li>
+      </ol>
+    </nav>
+    <nav id="tables-nav" epub:type="lot" hidden="hidden">
+      <h2>Tables</h2>
+      <ol><li><a href="text/chapter2.xhtml#table-1">Table 1</a></li></ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol><li><a href="text/chapter1.xhtml#page-1">1</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithAuxiliary,
+        ));
+
+        $nav = $result['nav'];
+        $auxiliary = $nav['auxiliaryNavigation'];
+        $t->same(true, $auxiliary['present']);
+        $t->same(2, $auxiliary['sectionCount']);
+        $t->same(3, $auxiliary['itemCount']);
+        $t->same(['loi', 'list-of-illustrations', 'lot'], $auxiliary['types']);
+        $t->same($auxiliary['sections'], $nav['auxiliarySections']);
+        $t->same($auxiliary['items'], $nav['auxiliaryItems']);
+
+        $figures = $auxiliary['sections'][0];
+        $t->same(1, $figures['sectionIndex']);
+        $t->same('figures-nav', $figures['id']);
+        $t->same('review-list figures', $figures['class']);
+        $t->same(['review-list', 'figures'], $figures['classes']);
+        $t->same('en', $figures['language']);
+        $t->same(false, $figures['hidden']);
+        $t->same('loi', $figures['type']);
+        $t->same(['loi', 'list-of-illustrations'], $figures['auxiliaryTypes']);
+        $t->same('Figures', $figures['title']);
+        $t->same(2, $figures['itemCount']);
+
+        $firstFigure = $auxiliary['items'][0];
+        $t->same('figures-nav', $firstFigure['sectionId']);
+        $t->same('loi', $firstFigure['sectionType']);
+        $t->same(['loi', 'list-of-illustrations'], $firstFigure['sectionTypes']);
+        $t->same('figure-cover-link', $firstFigure['id']);
+        $t->same('figure-cover', $firstFigure['itemId']);
+        $t->same('Cover figure', $firstFigure['title']);
+        $t->same('/OEBPS/text/chapter1.xhtml#cover-figure', $firstFigure['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $firstFigure['part']);
+        $t->same(false, $firstFigure['external']);
+        $t->same(true, $firstFigure['exists']);
+        $t->same([], $firstFigure['diagnostics']);
+
+        $remoteFigure = $auxiliary['items'][1];
+        $t->same('Remote figure source', $remoteFigure['title']);
+        $t->same(true, $remoteFigure['external']);
+        $t->same(null, $remoteFigure['part']);
+        $t->same('external-nav-reference', $remoteFigure['diagnostics'][0]['type']);
+
+        $tableSection = $auxiliary['sectionsByType']['lot'][0];
+        $t->same('tables-nav', $tableSection['id']);
+        $t->same(true, $tableSection['hidden']);
+        $t->same('Tables', $tableSection['title']);
+        $t->same('lot', $auxiliary['items'][2]['sectionType']);
+        $t->same('/OEBPS/text/chapter2.xhtml#table-1', $auxiliary['items'][2]['target']);
+
+        $t->same(false, isset($auxiliary['sectionsByType']['toc']));
+        $t->same(false, isset($auxiliary['sectionsByType']['page-list']));
+        $t->same($auxiliary, $result['importReport']['nav']['auxiliaryNavigation']);
+    },
     'builds EPUB page-break report from page-list navigation for WordPress handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $pageListNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

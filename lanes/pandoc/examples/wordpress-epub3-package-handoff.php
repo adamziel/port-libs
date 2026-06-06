@@ -152,6 +152,13 @@ $navXhtml = <<<'XML'
         <li><a epub:type="bodymatter" href="text/chapter.xhtml#source">Begin source</a></li>
       </ol>
     </nav>
+    <nav id="review-figures" epub:type="loi list-of-illustrations">
+      <h2>Reviewer figures</h2>
+      <ol>
+        <li><a href="text/chapter.xhtml#cover-figure">Cover figure</a></li>
+        <li><a href="https://cdn.example.test/figures/source.svg">Remote figure source</a></li>
+      </ol>
+    </nav>
     <nav epub:type="page-list">
       <ol>
         <li><a epub:type="pagebreak" href="text/chapter.xhtml#page-1">1</a></li>
@@ -566,6 +573,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['nav']['pageList'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
         throw new RuntimeException('Expected EPUB page-list target to resolve to the source page marker');
     }
+    if (($result['nav']['auxiliaryNavigation']['sectionCount'] ?? null) !== 1 || ($result['nav']['auxiliaryNavigation']['types'] ?? []) !== ['loi', 'list-of-illustrations']) {
+        throw new RuntimeException('Expected EPUB auxiliary nav sections to be summarized for review handoff');
+    }
+    if (($result['nav']['auxiliaryNavigation']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#cover-figure') {
+        throw new RuntimeException('Expected EPUB auxiliary nav local target to resolve relative to the package');
+    }
+    if (($result['nav']['auxiliaryNavigation']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'external-nav-reference') {
+        throw new RuntimeException('Expected EPUB auxiliary nav remote targets to stay unfetched for review');
+    }
+    if (($result['importReport']['nav']['auxiliaryNavigation']['itemCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB import report to expose auxiliary nav item count');
+    }
     if (($result['pageBreaks']['count'] ?? null) !== 1 || ($result['pageBreaks']['items'][0]['fragment'] ?? null) !== 'page-1') {
         throw new RuntimeException('Expected EPUB page-list entries to be summarized as page-break metadata');
     }
@@ -744,7 +763,7 @@ XML;
     if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
     }
-    if (($result['xhtmlResourceReport']['externalReferenceCount'] ?? null) !== 2) {
+    if (($result['xhtmlResourceReport']['externalReferenceCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB XHTML content scan to keep remote references unfetched for review');
     }
     if (($result['xhtmlResourceReport']['mathmlAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['svgAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['switchAssetCount'] ?? null) !== 1) {
@@ -778,7 +797,7 @@ XML;
     if (($result['remoteResources']['declaredCount'] ?? null) !== 1 || ($result['remoteResources']['observedAssetCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB remote-resources declarations to reconcile with observed XHTML resource references');
     }
-    if (($result['remoteResources']['remoteReferenceCount'] ?? null) !== 1 || ($result['remoteResources']['xhtmlExternalReferenceCount'] ?? null) !== 2) {
+    if (($result['remoteResources']['remoteReferenceCount'] ?? null) !== 1 || ($result['remoteResources']['xhtmlExternalReferenceCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB remote resource report to separate resource loads from external navigation links');
     }
     if (($result['remoteResources']['undeclaredAssetCount'] ?? null) !== 0 || ($result['remoteResources']['declaredButUnobservedCount'] ?? null) !== 0) {

@@ -4704,7 +4704,10 @@ final class EpubReader
      *     items:list<array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
      *     landmarks:list<array<string, mixed>>,
-     *     pageList:list<array<string, mixed>>
+     *     pageList:list<array<string, mixed>>,
+     *     auxiliaryNavigation:array<string, mixed>,
+     *     auxiliarySections:list<array<string, mixed>>,
+     *     auxiliaryItems:list<array<string, mixed>>
      * }
      */
     private function readNavDocument(ZipPackage $package, array $item): array
@@ -4720,6 +4723,9 @@ final class EpubReader
                 'hiddenItemCount' => 0,
                 'landmarks' => [],
                 'pageList' => [],
+                'auxiliaryNavigation' => self::auxiliaryNavReport([]),
+                'auxiliarySections' => [],
+                'auxiliaryItems' => [],
                 'encrypted' => true,
                 'encryption' => $item['encryption'] ?? null,
             ];
@@ -4779,8 +4785,13 @@ final class EpubReader
                 'hiddenItemCount' => 0,
                 'landmarks' => [],
                 'pageList' => [],
+                'auxiliaryNavigation' => self::auxiliaryNavReport([]),
+                'auxiliarySections' => [],
+                'auxiliaryItems' => [],
             ];
         }
+
+        $auxiliaryNavigation = self::auxiliaryNavReport($sections);
 
         return [
             'part' => (string) $item['part'],
@@ -4792,6 +4803,9 @@ final class EpubReader
             'hiddenItemCount' => $hiddenItemCount,
             'landmarks' => self::navItemsForType($sections, 'landmarks'),
             'pageList' => self::navItemsForType($sections, 'page-list'),
+            'auxiliaryNavigation' => $auxiliaryNavigation,
+            'auxiliarySections' => $auxiliaryNavigation['sections'],
+            'auxiliaryItems' => $auxiliaryNavigation['items'],
         ];
     }
 
@@ -4825,6 +4839,100 @@ final class EpubReader
         }
 
         return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     *
+     * @return array{
+     *     present:bool,
+     *     sectionCount:int,
+     *     itemCount:int,
+     *     types:list<string>,
+     *     sections:list<array<string, mixed>>,
+     *     sectionsByType:array<string, list<array<string, mixed>>>,
+     *     items:list<array<string, mixed>>
+     * }
+     */
+    private static function auxiliaryNavReport(array $sections): array
+    {
+        $primaryTypes = [
+            'toc' => true,
+            'landmarks' => true,
+            'page-list' => true,
+        ];
+        $reportedSections = [];
+        $sectionsByType = [];
+        $items = [];
+        $types = [];
+
+        foreach ($sections as $sectionIndex => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionTypes = array_values(array_filter(
+                is_array($section['types'] ?? null) ? $section['types'] : [],
+                static fn (mixed $type): bool => is_string($type) && $type !== '',
+            ));
+            $auxiliaryTypes = array_values(array_filter(
+                $sectionTypes,
+                static fn (string $type): bool => !isset($primaryTypes[$type]),
+            ));
+            if ($auxiliaryTypes === []) {
+                continue;
+            }
+
+            $sectionItems = is_array($section['items'] ?? null) ? array_values($section['items']) : [];
+            $flatItems = self::flattenNavigationItems($sectionItems);
+            $summary = [
+                'sectionIndex' => $sectionIndex,
+                'id' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                'class' => is_string($section['class'] ?? null) ? $section['class'] : null,
+                'classes' => is_array($section['classes'] ?? null) ? array_values($section['classes']) : [],
+                'language' => is_string($section['language'] ?? null) ? $section['language'] : null,
+                'direction' => is_string($section['direction'] ?? null) ? $section['direction'] : null,
+                'hidden' => (bool) ($section['hidden'] ?? false),
+                'type' => $auxiliaryTypes[0],
+                'types' => $sectionTypes,
+                'auxiliaryTypes' => $auxiliaryTypes,
+                'title' => is_string($section['title'] ?? null) ? $section['title'] : '',
+                'itemCount' => count($flatItems),
+                'items' => $sectionItems,
+            ];
+
+            $reportedSections[] = $summary;
+            foreach ($auxiliaryTypes as $type) {
+                $types[$type] = true;
+                $sectionsByType[$type][] = $summary;
+            }
+
+            foreach ($flatItems as $flat) {
+                $navItem = $flat['item'];
+                if (!is_array($navItem)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $summary['id'],
+                    'sectionType' => $summary['type'],
+                    'sectionTypes' => $auxiliaryTypes,
+                    'sectionTitle' => $summary['title'],
+                    'depth' => (int) $flat['depth'],
+                ] + $navItem;
+            }
+        }
+
+        return [
+            'present' => $reportedSections !== [],
+            'sectionCount' => count($reportedSections),
+            'itemCount' => count($items),
+            'types' => array_keys($types),
+            'sections' => $reportedSections,
+            'sectionsByType' => $sectionsByType,
+            'items' => $items,
+        ];
     }
 
     /**
