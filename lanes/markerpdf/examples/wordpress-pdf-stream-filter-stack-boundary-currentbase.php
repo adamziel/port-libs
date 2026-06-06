@@ -518,6 +518,23 @@ $malformedIndirectFilterPdf = "%PDF-1.4\n"
     . "12 0 obj\n[ /ASCII85Decode /FlateDecode ]\nendobj\n"
     . "%%EOF";
 
+$verticalTabAsciiHexLeak = 'BT /F1 12 Tf 72 720 Td (Vertical Tab ASCIIHex Leak) Tj ET';
+$verticalTabAsciiHexEncoded = strtoupper(bin2hex($verticalTabAsciiHexLeak));
+$verticalTabAsciiHexEncoded = substr($verticalTabAsciiHexEncoded, 0, 12) . "\x0b" . substr($verticalTabAsciiHexEncoded, 12) . '>';
+$verticalTabAscii85Leak = 'BT /F1 12 Tf 72 700 Td (Vertical Tab ASCII85 Leak) Tj ET';
+$verticalTabAscii85Encoded = $ascii85Encode($verticalTabAscii85Leak);
+$verticalTabAscii85Encoded = substr($verticalTabAscii85Encoded, 0, 8) . "\x0b" . substr($verticalTabAscii85Encoded, 8) . '~>';
+$verticalTabVisibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Vertical Tab Filter Whitespace) Tj ET';
+$verticalTabFilterWhitespacePdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter /ASCIIHexDecode /Length " . strlen($verticalTabAsciiHexEncoded) . " >>\nstream\n{$verticalTabAsciiHexEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter /ASCII85Decode /Length " . strlen($verticalTabAscii85Encoded) . " >>\nstream\n{$verticalTabAscii85Encoded}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Length " . strlen($verticalTabVisibleAfter) . " >>\nstream\n{$verticalTabVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $duplicateFilterLeak = 'BT /F1 12 Tf 72 720 Td (Duplicate Filter Key Leak) Tj ET';
 $duplicateFilterCompressed = $zlibStored($duplicateFilterLeak);
 $duplicateDecodeParmsLeak = 'BT /F1 12 Tf 72 700 Td (Duplicate DecodeParms Key Leak) Tj ET';
@@ -556,6 +573,7 @@ $defaultCryptLines = $extractor->extractTextLines($defaultCryptPdf);
 $commentSplitLines = $extractor->extractTextLines($commentSplitPdf);
 $commentSplitLengthLines = $extractor->extractTextLines($commentSplitLengthPdf);
 $malformedIndirectFilterLines = $extractor->extractTextLines($malformedIndirectFilterPdf);
+$verticalTabFilterWhitespaceLines = $extractor->extractTextLines($verticalTabFilterWhitespacePdf);
 $duplicateStreamKeysLines = $extractor->extractTextLines($duplicateStreamKeysPdf);
 $allLines = [
     ...$lines,
@@ -580,6 +598,7 @@ $allLines = [
     ...$commentSplitLines,
     ...$commentSplitLengthLines,
     ...$malformedIndirectFilterLines,
+    ...$verticalTabFilterWhitespaceLines,
     ...$duplicateStreamKeysLines,
 ];
 $joined = implode("\n", $allLines);
@@ -618,6 +637,8 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['ASCII85Decode', 'FlateDecode'],
         'malformed_indirect_multi_name_filter_object',
         ['ASCII85Decode', 'FlateDecode'],
+        'vertical_tab_asciihex_filter_data_rejected',
+        'vertical_tab_ascii85_filter_data_rejected',
         'duplicate_top_level_filter_key_rejected',
         'duplicate_top_level_decodeparms_key_rejected',
     ],
@@ -706,6 +727,15 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'valid_indirect_filter_array_preserved' => str_contains($joined, 'Indirect Array Filter Preserved'),
     'malformed_indirect_multi_filter_payload_excluded' => !str_contains($joined, 'Malformed Indirect Multi Filter Leak')
         && !str_contains($joined, 'ASCII85Decode /FlateDecode'),
+    'vertical_tab_asciihex_filter_data_rejected' => $verticalTabFilterWhitespaceLines === [
+        'Visible After Vertical Tab Filter Whitespace',
+    ],
+    'vertical_tab_ascii85_filter_data_rejected' => $verticalTabFilterWhitespaceLines === [
+        'Visible After Vertical Tab Filter Whitespace',
+    ],
+    'non_pdf_filter_whitespace_payload_excluded' => !str_contains($joined, 'Vertical Tab ASCIIHex Leak')
+        && !str_contains($joined, 'Vertical Tab ASCII85 Leak')
+        && !str_contains($joined, "\x0b"),
     'duplicate_top_level_filter_key_rejected' => $duplicateStreamKeysLines === [
         'Visible After Duplicate Stream Keys',
     ],

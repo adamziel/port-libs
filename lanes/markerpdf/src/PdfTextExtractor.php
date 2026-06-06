@@ -15336,6 +15336,13 @@ final class PdfTextExtractor
     {
         $offset = $this->streamFilterInputEndByteOffset($filter, $stream, $decodeParms, $objects);
         if ($offset === null) {
+            if (
+                in_array($filter, ['ASCIIHexDecode', 'AHx'], true)
+                && $this->asciiHexStreamHasOnlyLengthBoundedData($stream)
+            ) {
+                return true;
+            }
+
             if ($allowMissingExplicitEndMarker && $this->streamFilterRequiresExplicitEndMarker($filter)) {
                 return true;
             }
@@ -15374,6 +15381,22 @@ final class PdfTextExtractor
             'LZWDecode', 'LZW' => $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects),
             default => null,
         };
+    }
+
+    private function asciiHexStreamHasOnlyLengthBoundedData(string $stream): bool
+    {
+        for ($index = 0, $length = strlen($stream); $index < $length; $index++) {
+            $char = $stream[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if (!ctype_xdigit($char)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
@@ -16642,9 +16665,18 @@ final class PdfTextExtractor
             $body = $stream;
         }
 
-        $hex = preg_replace('/[\x00\s]+/', '', $body);
-        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
-            return null;
+        $hex = '';
+        for ($index = 0, $length = strlen($body); $index < $length; $index++) {
+            $char = $body[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if (!ctype_xdigit($char)) {
+                return null;
+            }
+
+            $hex .= $char;
         }
 
         if (strlen($hex) % 2 === 1) {
@@ -16672,7 +16704,7 @@ final class PdfTextExtractor
         $length = strlen($body);
         for ($index = 0; $index < $length; $index++) {
             $char = $body[$index];
-            if ($this->isPdfWhitespace($char)) {
+            if ($this->isPdfFilterWhitespace($char)) {
                 continue;
             }
 
@@ -36059,6 +36091,16 @@ final class PdfTextExtractor
     private function isPdfWhitespace(string $char): bool
     {
         return $char === "\0" || ctype_space($char);
+    }
+
+    private function isPdfFilterWhitespace(string $char): bool
+    {
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     /**
