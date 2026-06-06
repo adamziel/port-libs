@@ -647,7 +647,86 @@ final class OdfReader
             }
         }
 
-        return $blocks;
+        return $this->postProcessBlocks($blocks);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function postProcessBlocks(array $blocks): array
+    {
+        $processed = [];
+        for ($index = 0, $count = count($blocks); $index < $count; $index++) {
+            $block = $blocks[$index];
+            $next = $blocks[$index + 1] ?? null;
+            if ($block->type === 'table' && $next instanceof AstNode && $this->nodeHasClass($next, 'odf-table-caption')) {
+                $processed[] = $this->tableWithFollowingCaption($block, $next);
+                $index++;
+                continue;
+            }
+
+            $processed[] = $block;
+        }
+
+        return $processed;
+    }
+
+    private function tableWithFollowingCaption(AstNode $table, AstNode $caption): AstNode
+    {
+        $captionText = trim((string) $caption->attr('text', ''));
+        if ($captionText === '') {
+            $captionText = trim($this->plainBlockText($caption->children));
+        }
+        if ($captionText === '') {
+            return $table;
+        }
+
+        $captionBlocks = $caption->children;
+        $captionInlines = [];
+        foreach ($captionBlocks as $block) {
+            if ($block instanceof AstNode && $block->type === 'paragraph') {
+                $captionInlines = $block->children;
+                break;
+            }
+        }
+
+        $sourceAttributes = [
+            'classes' => ['odf-table-caption'],
+            'attributes' => [
+                'data-odf-table-caption-source' => 'following-paragraph',
+            ],
+        ];
+        $styleName = (string) $caption->attr('styleName', '');
+        if ($styleName !== '') {
+            $sourceAttributes['attributes']['data-odf-table-caption-style-name'] = $styleName;
+        }
+
+        $attrs = $table->attrs;
+        $attrs['caption'] = $captionText;
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+        if ($captionBlocks !== []) {
+            $attrs['captionBlocks'] = $captionBlocks;
+        }
+        $attrs['captionSource'] = [
+            'source' => 'odf-table-caption-paragraph',
+            'element' => 'text:p',
+            'sourceElement' => 'text:p',
+            'position' => 'following-table',
+            'sourcePosition' => 'following-table',
+            'styleName' => $styleName === '' ? null : $styleName,
+            'sourceAttributes' => $sourceAttributes,
+        ];
+        $attrs['odfCaptionParagraph'] = true;
+
+        $tableName = trim((string) ($attrs['tableName'] ?? ''));
+
+        return TableGeometry::withReviewPacket(
+            new AstNode('table', $attrs, $table->children),
+            ['idPrefix' => $tableName === '' ? 'odf-table' : $tableName]
+        );
     }
 
     /**
@@ -4587,6 +4666,9 @@ final class OdfReader
                 $stats['generatedIndexCount']++;
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-caption')) {
+                $stats['tableCaptionCount']++;
+            }
+            if ($node->type === 'table' && $node->attr('odfCaptionParagraph') === true) {
                 $stats['tableCaptionCount']++;
             }
             if ($node->type === 'code_block' && $node->attr('odfPreformatted') === true) {

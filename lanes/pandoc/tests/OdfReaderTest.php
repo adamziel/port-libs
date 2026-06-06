@@ -2402,6 +2402,65 @@ XML;
         $t->contains('Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
         $t->contains('<div class="caption odf-table-caption" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></div>', $blocksHtml);
     },
+    'attaches following ODT table caption paragraphs to table nodes like upstream post process' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFollowingTableCaption = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:automatic-styles>
+    <style:style style:name="CaptionStrong" style:family="text">
+      <style:text-properties fo:font-weight="bold"/>
+    </style:style>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <table:table table:name="Source review">
+        <table:table-row>
+          <table:table-cell><text:p>Asset</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Hero image</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+      <text:p text:style-name="Table">Table <text:span text:style-name="CaptionStrong">1</text:span>: Source media audit</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFollowingTableCaption));
+        $blocks = $result['document']->children;
+
+        $t->same(1, count($blocks));
+        $table = $blocks[0];
+        $t->same('table', $table->type);
+        $t->same('Source review', $table->attr('tableName'));
+        $t->same('Table 1: Source media audit', $table->attr('caption'));
+        $t->same(true, $table->attr('odfCaptionParagraph'));
+        $t->same('odf-table-caption-paragraph', $table->attr('captionSource')['source']);
+        $t->same('following-table', $table->attr('captionSource')['sourcePosition']);
+        $t->same('Table', $table->attr('captionSource')['styleName']);
+        $t->same('Table', $table->attr('captionSource')['sourceAttributes']['attributes']['data-odf-table-caption-style-name']);
+        $t->same('following-paragraph', $table->attr('captionSource')['sourceAttributes']['attributes']['data-odf-table-caption-source']);
+        $t->same('Table 1: Source media audit', $table->attr('captionBlocks')[0]->attr('text'));
+        $t->same('strong', $table->attr('captionInlines')[1]->type);
+        $t->same('Table 1: Source media audit', $table->attr('tableGeometry')['caption']);
+        $t->same('captionBlocks', $table->attr('tableGeometry')['captions']['long']['source']);
+        $t->same('text:p', $table->attr('tableGeometry')['captions']['long']['sourceElement']);
+        $t->same('following-table', $table->attr('tableGeometry')['captions']['long']['sourcePosition']);
+        $t->same(1, $result['importReport']['content']['tableCaptionCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains(': Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
+        $t->contains('<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></figcaption>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, '<div class="caption odf-table-caption"'), 'Following ODT table captions should not remain standalone divs after a table');
+    },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedSections = <<<'XML'
 <office:document-content

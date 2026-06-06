@@ -203,6 +203,7 @@ $contentXml = <<<'XML'
           <table:covered-table-cell/>
         </table:table-row>
       </table:table>
+      <text:p text:style-name="Table">Table 2: Source package review grid</text:p>
     </office:text>
   </office:body>
 </office:document-content>
@@ -329,8 +330,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<a href="#source-hero-seq">Figure 1</a>')) {
         throw new RuntimeException('Expected ODT generated index body links to render in WordPress blocks');
     }
-    if (($result['importReport']['content']['tableCaptionCount'] ?? 0) !== 1) {
-        throw new RuntimeException('Expected ODT table caption style paragraphs to be counted in the import report');
+    if (($result['importReport']['content']['tableCaptionCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT standalone and following table caption style paragraphs to be counted in the import report');
     }
     if (!str_contains($blocks, '<div class="caption odf-table-caption" data-odf-table-caption-style-name="Table"><p>Table 1: Review matrix caption</p></div>')) {
         throw new RuntimeException('Expected ODT table caption style paragraphs to render as WordPress caption divs');
@@ -603,8 +604,12 @@ if (($argv[1] ?? '') === '--self-test') {
             break;
         }
     }
-    if (!$reviewTable instanceof \PortLibs\Pandoc\AstNode || ($reviewTable->attr('tableGeometry')['caption'] ?? '') !== 'Review') {
-        throw new RuntimeException('Expected ODT table name to survive table geometry review packets');
+    if (!$reviewTable instanceof \PortLibs\Pandoc\AstNode || ($reviewTable->attr('tableGeometry')['caption'] ?? '') !== 'Table 2: Source package review grid') {
+        throw new RuntimeException('Expected following ODT table-caption paragraph to survive table geometry review packets');
+    }
+    $captionSource = $reviewTable->attr('captionSource') ?? [];
+    if (($captionSource['source'] ?? '') !== 'odf-table-caption-paragraph' || ($captionSource['sourceElement'] ?? '') !== 'text:p' || ($captionSource['sourcePosition'] ?? '') !== 'following-table') {
+        throw new RuntimeException('Expected following ODT table-caption paragraph provenance on table geometry review packets');
     }
     $reviewCoverage = $reviewTable->attr('tableGeometry')['coverage'] ?? [];
     $calculatedCellAttributes = $reviewCoverage[2]['sourceAttributes']['htmlAttributes'] ?? [];
@@ -614,8 +619,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<table class="odf-table-template" data-odf-table-name="Review" data-odf-table-style-name="ReviewTable" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
         throw new RuntimeException('Expected ODT named protected table metadata to render in WordPress blocks');
     }
-    if (!str_contains($blocks, '<figcaption class="wp-element-caption">Review</figcaption>')) {
-        throw new RuntimeException('Expected ODT table name to render as the review table caption');
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table 2: Source package review grid</p></figcaption>')) {
+        throw new RuntimeException('Expected following ODT table-caption paragraph to render as the review table caption');
     }
 
     echo "odf open document handoff self-test ok\n";
