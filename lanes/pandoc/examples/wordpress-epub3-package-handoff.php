@@ -234,9 +234,9 @@ $ncxXml = <<<'XML'
     <text>Migration Desk</text>
   </docAuthor>
   <navMap>
-    <navPoint id="source" playOrder="1">
-      <navLabel><text>Source chapter</text></navLabel>
-      <content src="text/chapter.xhtml#source"/>
+    <navPoint id="source" class="source-toc-point" playOrder="1" xml:lang="en" dir="ltr">
+      <navLabel id="source-label" class="source-label"><text>Source chapter</text></navLabel>
+      <content id="source-content" src="text/chapter.xhtml#source" data-review="chapter"/>
     </navPoint>
     <navPoint id="remote-note" playOrder="2">
       <navLabel><text>Remote source note</text></navLabel>
@@ -527,6 +527,25 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['ncx']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected NCX content src to resolve to the chapter fragment');
+    }
+    if (($result['ncx']['items'][0]['class'] ?? null) !== 'source-toc-point' || ($result['ncx']['items'][0]['classes'] ?? []) !== ['source-toc-point']) {
+        throw new RuntimeException('Expected NCX navPoint class provenance to remain visible for review');
+    }
+    if (($result['ncx']['items'][0]['language'] ?? null) !== 'en' || ($result['ncx']['items'][0]['direction'] ?? null) !== 'ltr') {
+        throw new RuntimeException('Expected NCX navPoint language and direction provenance');
+    }
+    if (($result['ncx']['items'][0]['labelAttributes']['id'] ?? null) !== 'source-label' || ($result['ncx']['items'][0]['contentAttributes']['data-review'] ?? null) !== 'chapter') {
+        throw new RuntimeException('Expected NCX navLabel/content attributes to remain visible for review');
+    }
+    $firstNcxNavigationItem = null;
+    foreach ($result['navigation']['items'] as $navigationItem) {
+        if (($navigationItem['source'] ?? null) === 'ncx') {
+            $firstNcxNavigationItem = $navigationItem;
+            break;
+        }
+    }
+    if (($firstNcxNavigationItem['source'] ?? null) !== 'ncx' || ($firstNcxNavigationItem['class'] ?? null) !== 'source-toc-point') {
+        throw new RuntimeException('Expected EPUB navigation report to preserve NCX navPoint provenance');
     }
     if (($result['ncx']['docTitle'] ?? null) !== 'WordPress EPUB source packet') {
         throw new RuntimeException('Expected NCX docTitle metadata to remain visible for review');

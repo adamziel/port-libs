@@ -862,6 +862,69 @@ XML;
         $t->same('Media audit', $ncx['items'][1]['children'][0]['title']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $ncx['items'][1]['children'][0]['target']);
     },
+    'preserves NCX navPoint provenance for legacy package review' => static function (TestRunner $t) use ($buildEpubPackage, $chapter1Xhtml, $chapter2Xhtml): void {
+        $ncxWithNavPointMetadata = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+  <navMap>
+    <navPoint id="chapter-source" class="frontmatter source-point" playOrder="1" xml:lang="fr" dir="rtl">
+      <navLabel id="chapter-label" class="label source-label" xml:lang="en" dir="ltr"><text>Imported packet</text></navLabel>
+      <content id="chapter-content" src="text/chapter1.xhtml#intro" data-review="source"/>
+      <navPoint id="media-audit" class="appendix-point" playOrder="2">
+        <navLabel><text>Media audit</text></navLabel>
+        <content src="text/chapter2.xhtml#media"/>
+      </navPoint>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNcxXml: $ncxWithNavPointMetadata,
+        ));
+
+        $ncx = $result['ncx'];
+        $first = $ncx['items'][0];
+        $t->same('chapter-source', $first['id']);
+        $t->same('frontmatter source-point', $first['class']);
+        $t->same(['frontmatter', 'source-point'], $first['classes']);
+        $t->same('fr', $first['language']);
+        $t->same('rtl', $first['direction']);
+        $t->same('Imported packet', $first['title']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $first['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $first['part']);
+        $t->same(strlen($chapter1Xhtml), $first['byteLength']);
+        $t->same(hash('crc32b', $chapter1Xhtml), $first['crc32']);
+        $t->same('chapter-source', $first['attributes']['id']);
+        $t->same('frontmatter source-point', $first['attributes']['class']);
+        $t->same('chapter-label', $first['labelAttributes']['id']);
+        $t->same('label source-label', $first['labelAttributes']['class']);
+        $t->same('chapter-content', $first['contentAttributes']['id']);
+        $t->same('source', $first['contentAttributes']['data-review']);
+        $t->same([], $first['diagnostics']);
+
+        $child = $first['children'][0];
+        $t->same('media-audit', $child['id']);
+        $t->same('appendix-point', $child['class']);
+        $t->same(['appendix-point'], $child['classes']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $child['target']);
+        $t->same(hash('crc32b', $chapter2Xhtml), $child['crc32']);
+
+        $navigationNcx = null;
+        foreach ($result['navigation']['items'] as $navigationItem) {
+            if (($navigationItem['source'] ?? null) === 'ncx') {
+                $navigationNcx = $navigationItem;
+                break;
+            }
+        }
+        $t->same(true, is_array($navigationNcx));
+        $t->same('chapter-source', $navigationNcx['id']);
+        $t->same('frontmatter source-point', $navigationNcx['class']);
+        $t->same(['frontmatter', 'source-point'], $navigationNcx['classes']);
+        $t->same('fr', $navigationNcx['language']);
+        $t->same('rtl', $navigationNcx['direction']);
+        $t->same('chapter-label', $navigationNcx['labelAttributes']['id']);
+        $t->same($ncx, $result['importReport']['ncx']);
+    },
     'reports NCX head title and author metadata for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $ncxWithMetadata = <<<'XML'
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">

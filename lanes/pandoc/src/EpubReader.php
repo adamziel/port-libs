@@ -5625,10 +5625,15 @@ final class EpubReader
             $reference = $src === ''
                 ? self::emptyPackageReference()
                 : $this->packageReference($package, $ncxPart, $src, [], 'ncx');
+            $classes = self::spaceDelimited($point->getAttribute('class'));
 
             $items[] = [
                 'id' => self::nullableAttribute($point, 'id'),
                 'playOrder' => self::nullableAttribute($point, 'playOrder'),
+                'class' => self::nullableAttribute($point, 'class'),
+                'classes' => $classes,
+                'language' => self::xmlLang($point),
+                'direction' => self::direction($point),
                 'title' => $label instanceof \DOMElement ? self::normalizedText($label) : '',
                 'href' => $src === '' ? null : $src,
                 'target' => $reference['target'],
@@ -5638,6 +5643,12 @@ final class EpubReader
                 'epubCfi' => $reference['epubCfi'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'attributes' => self::elementAttributes($point),
+                'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
+                'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+                'contentAttributes' => $content instanceof \DOMElement ? self::elementAttributes($content) : [],
                 'diagnostics' => $reference['diagnostics'],
                 'children' => $this->readNcxPoints($package, $point, $ncxPart),
             ];
