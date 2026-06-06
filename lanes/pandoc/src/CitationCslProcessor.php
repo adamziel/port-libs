@@ -127,7 +127,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -5477,9 +5477,18 @@ final class CitationCslProcessor
 
         return match ($form) {
             'numeric-leading-zeros' => sprintf('%02d', $day),
-            'ordinal' => $day . $this->ordinalSuffix($day),
+            'ordinal' => $this->formatCslDayOrdinal($day),
             default => (string) $day,
         };
+    }
+
+    private function formatCslDayOrdinal(int $day): string
+    {
+        if ($this->style->limitDayOrdinalsToDay1() && $day !== 1) {
+            return (string) $day;
+        }
+
+        return $day . $this->ordinalSuffix($day);
     }
 
     /**

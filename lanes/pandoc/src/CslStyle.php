@@ -9,9 +9,10 @@ final class CslStyle
     private const CSL_NS = 'http://purl.org/net/xbiblio/csl';
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 
-    /** @var array{punctuationInQuote:bool} */
+    /** @var array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool} */
     private const DEFAULT_LOCALE_OPTIONS = [
         'punctuationInQuote' => false,
+        'limitDayOrdinalsToDay1' => false,
     ];
 
     /** @var array<string, array{single:string, multiple:string}> */
@@ -168,7 +169,7 @@ final class CslStyle
      * @param array<string, list<array<string, mixed>>> $macros
      * @param array{citation:array<string, mixed>, bibliography:array<string, mixed>} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
-     * @param array{punctuationInQuote:bool} $localeOptions
+     * @param array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool} $localeOptions
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
      */
     private function __construct(
@@ -453,8 +454,13 @@ final class CslStyle
         return $this->localeOptions['punctuationInQuote'];
     }
 
+    public function limitDayOrdinalsToDay1(): bool
+    {
+        return $this->localeOptions['limitDayOrdinalsToDay1'];
+    }
+
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool}, terms:array<string, string>}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
      */
     public function summary(): array
     {
@@ -1736,30 +1742,38 @@ final class CslStyle
     }
 
     /**
-     * @param array{punctuationInQuote:bool} $options
-     * @return array{punctuationInQuote:bool}
+     * @param array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool} $options
+     * @return array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}
      */
     private static function applyLocaleElementOptions(\DOMElement $locale, array $options): array
     {
         $styleOptions = self::directChild($locale, 'style-options');
-        if (!$styleOptions instanceof \DOMElement || !$styleOptions->hasAttribute('punctuation-in-quote')) {
+        if (!$styleOptions instanceof \DOMElement) {
             return $options;
         }
 
-        $value = strtolower(trim($styleOptions->getAttribute('punctuation-in-quote')));
-        if ($value === 'true') {
-            $options['punctuationInQuote'] = true;
+        if ($styleOptions->hasAttribute('punctuation-in-quote')) {
+            $options['punctuationInQuote'] = self::styleOptionBooleanAttribute($styleOptions, 'punctuation-in-quote');
+        }
+        if ($styleOptions->hasAttribute('limit-day-ordinals-to-day-1')) {
+            $options['limitDayOrdinalsToDay1'] = self::styleOptionBooleanAttribute($styleOptions, 'limit-day-ordinals-to-day-1');
+        }
 
-            return $options;
+        return $options;
+    }
+
+    private static function styleOptionBooleanAttribute(\DOMElement $styleOptions, string $name): bool
+    {
+        $value = strtolower(trim($styleOptions->getAttribute($name)));
+        if ($value === 'true') {
+            return true;
         }
 
         if ($value === 'false') {
-            $options['punctuationInQuote'] = false;
-
-            return $options;
+            return false;
         }
 
-        throw new \InvalidArgumentException('CSL locale style-options attribute punctuation-in-quote must be true or false');
+        throw new \InvalidArgumentException('CSL locale style-options attribute ' . $name . ' must be true or false');
     }
 
     private static function isOrdinalSuffixTerm(string $name): bool

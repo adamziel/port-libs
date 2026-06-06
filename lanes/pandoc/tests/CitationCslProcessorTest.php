@@ -1358,6 +1358,105 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl locale limit day ordinals option' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'first-day-source',
+                'type' => 'report',
+                'title' => 'First Day Packet',
+                'author' => [
+                    ['literal' => 'Date Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 1]]],
+            ],
+            [
+                'id' => 'second-day-source',
+                'type' => 'report',
+                'title' => 'Second Day Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 2]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Day Ordinal Locale Review Style</title>
+    <id>https://example.test/styles/bounded-day-ordinal-locale-review</id>
+    <updated>2026-06-06T07:30:18+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <style-options limit-day-ordinals-to-day-1="true"/>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued" delimiter=" ">
+          <date-part name="month" form="long"/>
+          <date-part name="day" form="ordinal"/>
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued" delimiter=" ">
+        <date-part name="month" form="short"/>
+        <date-part name="day" form="ordinal"/>
+        <date-part name="year"/>
+      </date>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Day Ordinal Locale Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['localeOptions']['limitDayOrdinalsToDay1'] ?? null);
+        $t->same('ordinal', $summary['citationRendering'][0]['children'][1]['dateParts'][1]['form'] ?? null);
+
+        $t->same('(Date Desk June 1st 2026; Ng June 2 2026)', $processor->renderCitationCluster([
+            $citation('first-day-source', '[@first-day-source]'),
+            $citation('second-day-source', '[@second-day-source]'),
+        ]));
+        $t->same('First Day Packet :: Jun. 1st 2026', $processor->renderBibliographyEntry('first-day-source'));
+        $t->same('Second Day Packet :: Jun. 2 2026', $processor->renderBibliographyEntry('second-day-source'));
+
+        $document = (new MarkdownReader())->read('Ordinal date source [@first-day-source] and numeric-limited source [@second-day-source] keep localized day ordinals.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Ordinal date source (Date Desk June 1st 2026) and numeric-limited source (Ng June 2 2026) keep localized day ordinals.</p>', $blocks);
+        $t->contains('<dt>Date Desk 2026</dt><dd>First Day Packet :: Jun. 1st 2026</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Second Day Packet :: Jun. 2 2026</dd>', $blocks);
+
+        $unlimited = CitationCslProcessor::fromItems([[
+            'id' => 'unlimited-day-source',
+            'title' => 'Unlimited Day Packet',
+            'issued' => ['date-parts' => [[2026, 6, 2]]],
+        ]])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <citation>
+    <layout><date variable="issued"><date-part name="day" form="ordinal"/></date></layout>
+  </citation>
+</style>
+XML);
+        $t->same('2nd', $unlimited->renderCitationCluster([$citation('unlimited-day-source', '[@unlimited-day-source]')]));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <locale>
+    <style-options limit-day-ordinals-to-day-1="sometimes"/>
+  </locale>
+  <citation><layout><date variable="issued"><date-part name="day" form="ordinal"/></date></layout></citation>
+</style>
+XML));
+    },
     'maps bounded biblatex subtitle short title and title addon metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{title-review,
