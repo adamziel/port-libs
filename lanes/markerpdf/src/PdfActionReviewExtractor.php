@@ -2152,7 +2152,7 @@ final class PdfActionReviewExtractor
             return;
         }
 
-        foreach ($kids as $kid) {
+        foreach ($this->nameTreeKidsSortedByLimits($kids, $limits) as $kid) {
             $reference = $this->referenceObject($kid);
             if ($reference === null) {
                 continue;
@@ -2169,6 +2169,52 @@ final class PdfActionReviewExtractor
                 $this->collectNameTreeDestinations($child, $destinations, $seen, $limits, $depth + 1);
             }
         }
+    }
+
+    /**
+     * @param list<mixed> $kids
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     * @return list<mixed>
+     */
+    private function nameTreeKidsSortedByLimits(array $kids, ?array $inheritedLimits): array
+    {
+        if (count($kids) < 2) {
+            return $kids;
+        }
+
+        $kidNodes = [];
+        foreach ($kids as $order => $kid) {
+            if ($this->referenceObject($kid) === null) {
+                return $kids;
+            }
+
+            $child = $this->resolveDictionary($kid);
+            if ($child === null) {
+                return $kids;
+            }
+
+            $localLimits = $this->nameTreeNodeLimits($child);
+            $limits = $this->nameTreeEffectiveLimits($child, $inheritedLimits);
+            if ($localLimits === null || $limits === null) {
+                return $kids;
+            }
+
+            $kidNodes[] = [
+                'kid' => $kid,
+                'limits' => $limits,
+                'order' => $order,
+            ];
+        }
+
+        usort(
+            $kidNodes,
+            static function (array $left, array $right): int {
+                return strcmp($left['limits']['lower_bytes'], $right['limits']['lower_bytes'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        return array_values(array_map(static fn (array $node): mixed => $node['kid'], $kidNodes));
     }
 
     /**
