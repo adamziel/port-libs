@@ -374,6 +374,12 @@ $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . ' and '
     . $fieldBegin . ' HYPERLINK \l "legacy_anchor" '
     . $fieldSeparator . 'opening bookmark' . $fieldEnd
+    . ' with cross-reference '
+    . $fieldBegin . ' REF "legacy_anchor" \h '
+    . $fieldSeparator . 'Legacy DOC import' . $fieldEnd
+    . ' on referenced page '
+    . $fieldBegin . ' PAGEREF legacy_anchor \p '
+    . $fieldSeparator . '7' . $fieldEnd
     . ' on page '
     . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
     . ' with form value '
@@ -1302,11 +1308,18 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-bookmark-tag="8258" data-legacy-doc-comment-has-body="true" data-legacy-doc-comment-body-character-count="24"><sup>MR</sup></span>',
         '<a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a>',
         '<a href="#legacy_anchor">opening bookmark</a>',
+        '<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-ref" data-legacy-doc-field="ref" data-legacy-doc-field-instruction="REF &quot;legacy_anchor&quot; \h" data-legacy-doc-cross-reference-type="bookmark" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="h" data-legacy-doc-cross-reference-hyperlink="true">Legacy DOC import</span>',
+        '<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-pageref" data-legacy-doc-field="pageref" data-legacy-doc-field-instruction="PAGEREF legacy_anchor \p" data-legacy-doc-cross-reference-type="bookmark-page" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="p" data-legacy-doc-cross-reference-relative="true">7</span>',
         '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',
         '<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formtext" data-legacy-doc-field="formtext" data-legacy-doc-field-instruction="FORMTEXT \* MERGEFORMAT" data-legacy-doc-form-field-type="text" data-legacy-doc-field-format="MERGEFORMAT">pending review</span>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
+        }
+    }
+    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'FORMTEXT'] as $instruction) {
+        if (str_contains(strip_tags($blocks), $instruction)) {
+            throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instruction: ' . $instruction);
         }
     }
     if (str_contains($blocks, 'HYPERLINK')) {

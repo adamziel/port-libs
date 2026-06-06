@@ -1008,6 +1008,11 @@ final class LegacyDocReader
             ];
         }
 
+        $crossReferenceAttrs = $this->crossReferenceFieldAttrs($fieldName, $tokens, $instruction);
+        if ($crossReferenceAttrs !== null) {
+            return $crossReferenceAttrs;
+        }
+
         $fieldNames = [
             'PAGE' => 'page',
             'NUMPAGES' => 'numpages',
@@ -1036,6 +1041,70 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function crossReferenceFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        $fieldTypes = [
+            'REF' => 'bookmark',
+            'PAGEREF' => 'bookmark-page',
+            'NOTEREF' => 'note',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $target = null;
+        $switches = [];
+        foreach ($tokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if ($switch !== '' && $switch !== '*' && $switch !== '@') {
+                    $switches[] = $switch;
+                }
+                continue;
+            }
+
+            $target ??= $token;
+        }
+        if ($target === null || $target === '') {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-cross-reference-type' => $fieldTypes[$fieldName],
+            'data-legacy-doc-cross-reference-target' => $target,
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-cross-reference-switches'] = implode(' ', $switches);
+            if (in_array('h', $switches, true)) {
+                $attributes['data-legacy-doc-cross-reference-hyperlink'] = 'true';
+            }
+            if (in_array('p', $switches, true)) {
+                $attributes['data-legacy-doc-cross-reference-relative'] = 'true';
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-cross-reference', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }

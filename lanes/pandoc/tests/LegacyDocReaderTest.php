@@ -2750,6 +2750,67 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC form field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC cross-reference field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'See '
+                . $fieldBegin . ' REF "legacy_anchor" \h ' . $fieldSeparator . 'Legacy DOC import' . $fieldEnd
+                . ' on page '
+                . $fieldBegin . ' PAGEREF legacy_anchor \p ' . $fieldSeparator . '7' . $fieldEnd
+                . ' and note '
+                . $fieldBegin . ' NOTEREF "_RefNote" \f \h ' . $fieldSeparator . '1' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $reference = $paragraph->children[1];
+        $t->same('span', $reference->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-cross-reference', 'legacy-doc-field-ref'], $reference->attr('classes'));
+        $t->same('ref', $reference->attr('attributes')['data-legacy-doc-field']);
+        $t->same('REF "legacy_anchor" \h', $reference->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('bookmark', $reference->attr('attributes')['data-legacy-doc-cross-reference-type']);
+        $t->same('legacy_anchor', $reference->attr('attributes')['data-legacy-doc-cross-reference-target']);
+        $t->same('h', $reference->attr('attributes')['data-legacy-doc-cross-reference-switches']);
+        $t->same('true', $reference->attr('attributes')['data-legacy-doc-cross-reference-hyperlink']);
+        $t->same('Legacy DOC import', $reference->children[0]->attr('text'));
+
+        $pageReference = $paragraph->children[3];
+        $t->same(['legacy-doc-field', 'legacy-doc-cross-reference', 'legacy-doc-field-pageref'], $pageReference->attr('classes'));
+        $t->same('pageref', $pageReference->attr('attributes')['data-legacy-doc-field']);
+        $t->same('bookmark-page', $pageReference->attr('attributes')['data-legacy-doc-cross-reference-type']);
+        $t->same('legacy_anchor', $pageReference->attr('attributes')['data-legacy-doc-cross-reference-target']);
+        $t->same('p', $pageReference->attr('attributes')['data-legacy-doc-cross-reference-switches']);
+        $t->same('true', $pageReference->attr('attributes')['data-legacy-doc-cross-reference-relative']);
+        $t->same('7', $pageReference->children[0]->attr('text'));
+
+        $noteReference = $paragraph->children[5];
+        $t->same(['legacy-doc-field', 'legacy-doc-cross-reference', 'legacy-doc-field-noteref'], $noteReference->attr('classes'));
+        $t->same('noteref', $noteReference->attr('attributes')['data-legacy-doc-field']);
+        $t->same('NOTEREF "_RefNote" \f \h', $noteReference->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('note', $noteReference->attr('attributes')['data-legacy-doc-cross-reference-type']);
+        $t->same('_RefNote', $noteReference->attr('attributes')['data-legacy-doc-cross-reference-target']);
+        $t->same('f h', $noteReference->attr('attributes')['data-legacy-doc-cross-reference-switches']);
+        $t->same('true', $noteReference->attr('attributes')['data-legacy-doc-cross-reference-hyperlink']);
+        $t->same('1', $noteReference->children[0]->attr('text'));
+
+        $t->contains('[Legacy DOC import]{.legacy-doc-field .legacy-doc-cross-reference .legacy-doc-field-ref data-legacy-doc-field="ref"', $markdown);
+        $t->contains('[7]{.legacy-doc-field .legacy-doc-cross-reference .legacy-doc-field-pageref data-legacy-doc-field="pageref"', $markdown);
+        $t->contains('[1]{.legacy-doc-field .legacy-doc-cross-reference .legacy-doc-field-noteref data-legacy-doc-field="noteref"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-ref" data-legacy-doc-field="ref" data-legacy-doc-field-instruction="REF &quot;legacy_anchor&quot; \h" data-legacy-doc-cross-reference-type="bookmark" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="h" data-legacy-doc-cross-reference-hyperlink="true">Legacy DOC import</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-pageref" data-legacy-doc-field="pageref" data-legacy-doc-field-instruction="PAGEREF legacy_anchor \p" data-legacy-doc-cross-reference-type="bookmark-page" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="p" data-legacy-doc-cross-reference-relative="true">7</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-noteref" data-legacy-doc-field="noteref" data-legacy-doc-field-instruction="NOTEREF &quot;_RefNote&quot; \f \h" data-legacy-doc-cross-reference-type="note" data-legacy-doc-cross-reference-target="_RefNote" data-legacy-doc-cross-reference-switches="f h" data-legacy-doc-cross-reference-hyperlink="true">1</span>', $blocks);
+        foreach (['REF', 'PAGEREF', 'NOTEREF'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC cross-reference instructions should not render as visible text');
+        }
+    },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 
