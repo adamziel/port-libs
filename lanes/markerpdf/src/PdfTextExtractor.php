@@ -15144,6 +15144,7 @@ final class PdfTextExtractor
         if ($this->decodeParmsHasName($decodeParms, 'K') && $this->decodeParmsInt($decodeParms, 'K', $objects) === null) {
             return true;
         }
+        $k = $this->decodeParmsInt($decodeParms, 'K', $objects) ?? 0;
 
         if (
             $this->decodeParmsHasName($decodeParms, 'EndOfLine')
@@ -15170,6 +15171,15 @@ final class PdfTextExtractor
             if ($rows === null || $rows <= 0) {
                 return true;
             }
+        }
+
+        if (
+            $k >= 0
+            && $this->decodeParmsHasName($decodeParms, 'EndOfLine')
+            && $this->decodeParmsBool($decodeParms, 'EndOfLine', $objects) === true
+            && ($imageHeight === null || $imageHeight <= 0)
+        ) {
+            return true;
         }
 
         return false;
