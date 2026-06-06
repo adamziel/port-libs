@@ -1532,6 +1532,63 @@ return [
         $t->same("Unicode media attachment placeholder\n", $package->read('/' . $unicodeName));
     },
 
+    'rejects contradictory utf8 flagged unicode zip metadata before media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => "word/media/review-\xff.bin",
+                'data' => 'invalid utf8 raw name should not be masked by Unicode path metadata',
+                'method' => 0,
+                'flags' => 0x0800,
+                'centralExtra' => $buildUnicodeExtra(0x7075, "word/media/review-\xff.bin", 'word/media/review.png'),
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review.png',
+                'data' => 'conflicting Unicode path metadata should not rename UTF-8 header text',
+                'method' => 0,
+                'flags' => 0x0800,
+                'centralExtra' => $buildUnicodeExtra(0x7075, 'word/media/review.png', "word/media/review-\u{2603}.png"),
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/review-comment.png',
+                'data' => 'invalid utf8 raw comment should not be masked by Unicode comment metadata',
+                'method' => 0,
+                'flags' => 0x0800,
+                'comment' => "review-\xff-comment",
+                'centralExtra' => $buildUnicodeExtra(0x6375, "review-\xff-comment", 'review-comment'),
+            ],
+        ])));
+
+        $safeName = "word/media/review-\u{2603}.png";
+        $safeComment = "review \u{2603} comment";
+        $safePackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $safeName,
+                'data' => "matching UTF-8 metadata stays readable\n",
+                'method' => 0,
+                'flags' => 0x0800,
+                'comment' => $safeComment,
+                'centralExtra' => $buildUnicodeExtra(0x7075, $safeName, $safeName)
+                    . $buildUnicodeExtra(0x6375, $safeComment, $safeComment),
+            ],
+        ]));
+        $entry = $safePackage->entry('/' . $safeName);
+
+        $t->same([$safeName], $safePackage->names());
+        $t->same($safeName, $entry->rawName);
+        $t->same($safeName, $entry->name);
+        $t->same($safeComment, $entry->rawComment);
+        $t->same($safeComment, $entry->comment);
+        $t->same('info-zip-unicode-path', $entry->nameEncoding);
+        $t->same('info-zip-unicode-comment', $entry->commentEncoding);
+        $t->same("matching UTF-8 metadata stays readable\n", $safePackage->read('/' . $safeName));
+    },
+
     'preflights package and entry comments for reviewer provenance' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $rawName = 'word/media/review-image.bin';
         $unicodeName = "word/media/review-\u{2603}.png";

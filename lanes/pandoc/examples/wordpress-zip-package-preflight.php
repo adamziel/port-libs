@@ -426,6 +426,105 @@ $buildUnicodePathBackedPackage = static function () use (
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUtf8UnicodePathMismatchBackedPackage = static function () use ($crc32, $buildUnicodeExtra): string {
+    $name = 'word/media/review.png';
+    $unicodeName = "word/media/review-\u{2603}.png";
+    $data = "Conflicting UTF-8 path metadata should stay blocked\n";
+    $crc = $crc32($data);
+    $unicodePathExtra = $buildUnicodeExtra(0x7075, $name, $unicodeName);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($unicodePathExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $unicodePathExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
+$buildUtf8UnicodeCommentMismatchBackedPackage = static function () use ($crc32, $buildUnicodeExtra): string {
+    $name = 'word/media/review-comment.png';
+    $rawComment = 'review comment';
+    $unicodeComment = "review \u{2603} comment";
+    $data = "Conflicting UTF-8 comment metadata should stay blocked\n";
+    $crc = $crc32($data);
+    $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, $unicodeComment);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($unicodeCommentExtra),
+        strlen($rawComment),
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $unicodeCommentExtra . $rawComment;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildZip64ExtraBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/oversized-review.bin';
     $data = "ZIP64 media placeholder should stay blocked\n";
@@ -1668,6 +1767,18 @@ try {
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
+$utf8UnicodePathMismatchRejected = false;
+try {
+    ZipPackage::fromString($buildUtf8UnicodePathMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $utf8UnicodePathMismatchRejected = str_contains($exception->getMessage(), 'does not match UTF-8 header text');
+}
+$utf8UnicodeCommentMismatchRejected = false;
+try {
+    ZipPackage::fromString($buildUtf8UnicodeCommentMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $utf8UnicodeCommentMismatchRejected = str_contains($exception->getMessage(), 'does not match UTF-8 header text');
+}
 $oversizedMediaPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -3292,6 +3403,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected Unicode path media attachment bytes to round-trip');
     }
 
+    if (!$utf8UnicodePathMismatchRejected) {
+        throw new RuntimeException('Expected contradictory UTF-8 ZIP path metadata to be rejected before media import');
+    }
+
+    if (!$utf8UnicodeCommentMismatchRejected) {
+        throw new RuntimeException('Expected contradictory UTF-8 ZIP comment metadata to be rejected before media import');
+    }
+
     echo "zip package writer preflight self-test passed\n";
     exit(0);
 }
@@ -3417,6 +3536,8 @@ echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
 echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
+echo 'zipUtf8UnicodePathMismatchPolicy=' . ($utf8UnicodePathMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUtf8UnicodeCommentMismatchPolicy=' . ($utf8UnicodeCommentMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.zipDetectedFormat=' . $compressedPackageDetectedFormat . "\n";

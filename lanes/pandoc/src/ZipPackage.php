@@ -2511,17 +2511,24 @@ final class ZipPackage
         string $unicodeEncodingLabel,
         string $label
     ): array {
+        $isUtf8Flagged = ($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0;
+        if ($isUtf8Flagged) {
+            self::assertUtf8($raw, "ZIP {$label}");
+        }
+
         $unicodeText = self::unicodeTextFromExtraFieldData($extraFieldData, $unicodeExtraFieldId, $raw, $label);
         if ($unicodeText !== null) {
+            if ($isUtf8Flagged && $unicodeText !== $raw) {
+                throw new \RuntimeException("ZIP Unicode extra field does not match UTF-8 header text for {$label}");
+            }
+
             return [
                 'text' => $unicodeText,
                 'encoding' => $unicodeEncodingLabel,
             ];
         }
 
-        if (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0) {
-            self::assertUtf8($raw, "ZIP {$label}");
-
+        if ($isUtf8Flagged) {
             return [
                 'text' => $raw,
                 'encoding' => 'utf-8',
