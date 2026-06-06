@@ -1821,7 +1821,9 @@ final class PdfTextExtractor
         $outlineRootReference = $this->readPdfIndirectReferenceToken($outlineRootValue, $referenceOffset);
         if ($outlineRootReference !== null && isset($objects[$outlineRootReference['objectNumber']])) {
             $outlineRootNumber = $outlineRootReference['objectNumber'];
-            $outlineRootBody = $objects[$outlineRootNumber];
+            $outlineRootBody = $this->objectBodyIsStreamObject($objects[$outlineRootNumber])
+                ? null
+                : $objects[$outlineRootNumber];
         } else {
             $trimmedOutlineRoot = trim($outlineRootValue);
             if (str_starts_with($trimmedOutlineRoot, '<<')) {
@@ -1873,7 +1875,12 @@ final class PdfTextExtractor
 
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
-            $body = $objects[$objectNumber];
+            $body = $this->objectBodyIsStreamObject($objects[$objectNumber])
+                ? null
+                : $objects[$objectNumber];
+            if ($body === null) {
+                break;
+            }
             if (!$this->lightweightOutlineItemAllowsTraversalByType($body, $objects)) {
                 break;
             }
@@ -1987,9 +1994,15 @@ final class PdfTextExtractor
      */
     private function lightweightOutlineRootObjectIsValid(?int $objectNumber, array $objects): bool
     {
-        return $objectNumber !== null
-            && isset($objects[$objectNumber])
-            && $this->lightweightOutlineRootBodyIsValid($objects[$objectNumber], $objects);
+        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return false;
+        }
+
+        $body = $this->objectBodyIsStreamObject($objects[$objectNumber])
+            ? null
+            : $objects[$objectNumber];
+
+        return $body !== null && $this->lightweightOutlineRootBodyIsValid($body, $objects);
     }
 
     /**

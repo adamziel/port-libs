@@ -3146,7 +3146,7 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineMetadata(string $pdfBytes, string $catalog, array $objects): array
     {
-        $outlineRoot = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Outlines'), $objects);
+        $outlineRoot = $this->documentOutlineRootFromCatalog($catalog, $objects);
         if ($outlineRoot === null || !$this->isDocumentOutlineRootDictionary($outlineRoot['body'], $objects)) {
             return [];
         }
@@ -3228,6 +3228,28 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function documentOutlineRootFromCatalog(string $catalog, array $objects): ?array
+    {
+        $value = $this->dictionaryTopLevelRawValue($catalog, 'Outlines');
+        if ($value === null) {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($objectBody === null || $this->streamObjectHasStreamKeyword($objectBody)) {
+                return null;
+            }
+        }
+
+        return $this->resolveDictionaryFromValue($value, $objects);
     }
 
     /**
@@ -3512,7 +3534,10 @@ final class PdfMetadataExtractor
         $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
-            $dictionary = isset($objects[$current]) ? $this->dictionaryObjectBody($objects[$current]) : null;
+            $objectBody = $objects[$current] ?? null;
+            $dictionary = $objectBody === null || $this->streamObjectHasStreamKeyword($objectBody)
+                ? null
+                : $this->dictionaryObjectBody($objectBody);
             if ($dictionary === null) {
                 break;
             }

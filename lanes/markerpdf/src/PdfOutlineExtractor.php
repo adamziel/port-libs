@@ -120,8 +120,8 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
+        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
             return [];
         }
         if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
@@ -157,8 +157,8 @@ final class PdfOutlineExtractor
             return [];
         }
 
-        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
+        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
             return [];
         }
         if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
@@ -272,8 +272,8 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
+        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
             return [];
         }
         if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
@@ -320,8 +320,8 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
+        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot === null) {
             return [];
         }
         if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
@@ -548,8 +548,8 @@ final class PdfOutlineExtractor
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
         $outlineStructureByObject = $this->outlineItemStructureMetadataByObject($pdfBytes);
 
-        $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot !== null && $this->isOutlineRootDictionary($outlineRoot, $objects)) {
+        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        if ($outlineRoot !== null) {
             if ($this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
                     $outlineRoot['First'] ?? null,
@@ -1249,6 +1249,9 @@ final class PdfOutlineExtractor
         $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
+            if (!$this->outlineObjectCanOwnDictionary($current)) {
+                break;
+            }
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
                 break;
@@ -1528,6 +1531,33 @@ final class PdfOutlineExtractor
         }
 
         return $this->isOutlineRootDictionary($dict, $objects);
+    }
+
+    /**
+     * PDF outline roots are dictionaries. A stream object's leading dictionary
+     * can carry `/Type /Outlines`, but its stream payload must not own the
+     * document bookmark tree.
+     *
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>|null
+     */
+    private function outlineRootDictionary(mixed $value, array $objects): ?array
+    {
+        if ($this->isReferenceValue($value) && !$this->referenceTargetsSingleTopLevelValue($value, $objects)) {
+            return null;
+        }
+
+        $dict = $this->resolveDictionary($value, $objects);
+        if ($dict === null || !$this->isOutlineRootDictionary($dict, $objects)) {
+            return null;
+        }
+
+        return $dict;
+    }
+
+    private function outlineObjectCanOwnDictionary(int $objectNumber): bool
+    {
+        return $this->objectSingleTopLevelValues[$objectNumber] ?? false;
     }
 
     /**
@@ -3586,6 +3616,9 @@ final class PdfOutlineExtractor
         $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
+            if (!$this->outlineObjectCanOwnDictionary($current)) {
+                break;
+            }
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
                 break;
@@ -3674,6 +3707,9 @@ final class PdfOutlineExtractor
         $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
+            if (!$this->outlineObjectCanOwnDictionary($current)) {
+                break;
+            }
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
                 break;
@@ -3777,6 +3813,9 @@ final class PdfOutlineExtractor
         $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
+            if (!$this->outlineObjectCanOwnDictionary($current)) {
+                break;
+            }
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
                 break;
@@ -4212,6 +4251,9 @@ final class PdfOutlineExtractor
         $previousSiblingObject = null;
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
+            if (!$this->outlineObjectCanOwnDictionary($current)) {
+                break;
+            }
             $dict = $this->resolveDictionary($this->refValue($current), $objects);
             if ($dict === null) {
                 break;
