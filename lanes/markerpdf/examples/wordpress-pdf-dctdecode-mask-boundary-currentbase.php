@@ -32,6 +32,9 @@ $review = $extractor->extractImageXObjectBoundaryReview($pdf);
 $entry = $review['entries'][0] ?? [];
 $softMask = is_array($entry) ? ($entry['soft_mask_review'] ?? []) : [];
 $explicitMask = is_array($entry) ? ($entry['mask_review'] ?? []) : [];
+$softMaskBoundary = is_array($softMask) && is_array($softMask['dctdecode_stream_boundary'] ?? null)
+    ? $softMask['dctdecode_stream_boundary']
+    : [];
 
 $expected = ['Before DCT Mask Import', 'After DCT Mask Import'];
 $surplusExcluded = !str_contains($plainText, 'WordPress DCT soft mask leak')
@@ -51,6 +54,9 @@ if (
     || ($explicitMask['preview_only_filters'] ?? []) !== ['DCTDecode']
     || ($softMask['decoded_with_current_filters'] ?? true) !== false
     || ($explicitMask['decoded_with_current_filters'] ?? true) !== false
+    || ($softMaskBoundary['source'] ?? null) !== 'dctdecode_jpeg_marker_boundary'
+    || ($softMaskBoundary['jpeg_marker_framing_used'] ?? null) !== true
+    || ($softMaskBoundary['payload_in_visible_text'] ?? true) !== false
 ) {
     throw new RuntimeException('DCTDecode nested mask boundary smoke failed before WordPress import.');
 }
@@ -64,6 +70,9 @@ echo '<!-- markerpdf:pdf-dctdecode-mask-boundary-currentbase ' . htmlspecialchar
     'explicit_mask_declared_payload_length' => strlen($explicitMaskPayload),
     'explicit_mask_jpeg_eoi_payload_length' => strlen($explicitMaskJpeg),
     'soft_mask_post_eoi_surplus_clipped' => $softMaskClipped,
+    'soft_mask_dctdecode_stream_boundary' => $softMaskBoundary['source'] ?? null,
+    'soft_mask_dctdecode_marker_framing_used' => $softMaskBoundary['jpeg_marker_framing_used'] ?? false,
+    'soft_mask_payload_in_visible_text' => $softMaskBoundary['payload_in_visible_text'] ?? true,
     'explicit_mask_post_eoi_surplus_clipped' => $explicitMaskClipped,
     'nested_mask_surplus_excluded_from_text' => $surplusExcluded,
     'executes_python_or_models' => false,

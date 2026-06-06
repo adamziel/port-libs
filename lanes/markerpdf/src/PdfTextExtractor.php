@@ -7578,6 +7578,14 @@ final class PdfTextExtractor
         );
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
+        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReviewForFilters(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $filters,
+            $resolvedFilters,
+            $reviewStream
+        );
         $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
             $stream['dict'],
             $stream['stream'],
@@ -7609,6 +7617,7 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             ...$dctFilterReview,
+            'dctdecode_stream_boundary' => $dctStreamBoundary,
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $decoded !== null && $previewOnlyFilters === [],
             'raw_length' => strlen($reviewStream),
