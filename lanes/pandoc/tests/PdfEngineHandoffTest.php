@@ -1055,6 +1055,95 @@ MARKDOWN);
         $t->same([1 => 90, 2 => 270], $sequence['finalPdfPageRotations']);
     },
 
+    'fake runner extracts bounded pdf page display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/display.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /UserUnit 2 /Tabs /S /Group << /S /Transparency /CS /DeviceRGB /I true /K false >> /Thumb 5 0 R /LastModified (D:20260606093000Z) >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Tabs /R /Group 6 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            '6 0 obj',
+            '<< /S /Transparency /CS [/ICCBased 7 0 R] /I false /K true >>',
+            'endobj',
+            '7 0 obj',
+            '<< /N 3 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/display.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/display.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'userUnit' => 2.0,
+                'tabOrder' => 'S',
+                'groupSubtype' => 'Transparency',
+                'groupColorSpace' => 'DeviceRGB',
+                'groupIsolated' => true,
+                'groupKnockout' => false,
+                'thumbnailObject' => '5 0 R',
+                'lastModified' => 'D:20260606093000Z',
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'userUnit' => null,
+                'tabOrder' => 'R',
+                'groupSubtype' => 'Transparency',
+                'groupColorSpace' => 'ICCBased',
+                'groupIsolated' => false,
+                'groupKnockout' => true,
+                'thumbnailObject' => null,
+                'lastModified' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageDisplayMetadata']);
+        $t->contains('pdf-byte-page-display-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-user-units:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-tab-orders:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-tab-order:R:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-tab-order:S:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-groups:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnails:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-last-modified:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageDisplayMetadata']);
+    },
+
     'fake runner extracts bounded pdf page durations and transitions from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/slides.pdf']);

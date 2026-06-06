@@ -269,6 +269,7 @@ final class PdfEngineHandoff
      *     pdfPageCount: int|null,
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
+     *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
@@ -687,6 +688,7 @@ final class PdfEngineHandoff
         $pdfPageCount = null;
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
+        $pdfPageDisplayMetadata = [];
         $pdfPageLabels = [];
         $pdfPageTimings = [];
         $pdfPageViewports = [];
@@ -763,6 +765,7 @@ final class PdfEngineHandoff
                 $pdfPageCount = $pdfInspection['pageCount'];
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
+                $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
@@ -840,6 +843,49 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageRotations !== []) {
                     $diagnostics[] = 'pdf-byte-page-rotations:' . count($pdfPageRotations);
+                }
+                if ($pdfPageDisplayMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-page-display-metadata:' . count($pdfPageDisplayMetadata);
+                    $pageUserUnitCount = 0;
+                    $pageTabOrderCount = 0;
+                    $pageGroupCount = 0;
+                    $pageThumbnailCount = 0;
+                    $pageLastModifiedCount = 0;
+                    foreach ($pdfPageDisplayMetadata as $pageDisplay) {
+                        if (($pageDisplay['userUnit'] ?? null) !== null) {
+                            $pageUserUnitCount++;
+                        }
+                        if (($pageDisplay['tabOrder'] ?? null) !== null) {
+                            $pageTabOrderCount++;
+                        }
+                        if (($pageDisplay['groupSubtype'] ?? null) !== null) {
+                            $pageGroupCount++;
+                        }
+                        if (($pageDisplay['thumbnailObject'] ?? null) !== null) {
+                            $pageThumbnailCount++;
+                        }
+                        if (($pageDisplay['lastModified'] ?? null) !== null) {
+                            $pageLastModifiedCount++;
+                        }
+                    }
+                    if ($pageUserUnitCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-user-units:' . $pageUserUnitCount;
+                    }
+                    if ($pageTabOrderCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-tab-orders:' . $pageTabOrderCount;
+                    }
+                    foreach ($this->summarizePdfPageTabOrders($pdfPageDisplayMetadata) as $tabOrder => $tabOrderCount) {
+                        $diagnostics[] = 'pdf-byte-page-tab-order:' . $tabOrder . ':' . $tabOrderCount;
+                    }
+                    if ($pageGroupCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-groups:' . $pageGroupCount;
+                    }
+                    if ($pageThumbnailCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-thumbnails:' . $pageThumbnailCount;
+                    }
+                    if ($pageLastModifiedCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-last-modified:' . $pageLastModifiedCount;
+                    }
                 }
                 if ($pdfPageLabels !== []) {
                     $diagnostics[] = 'pdf-byte-page-labels:' . count($pdfPageLabels);
@@ -1685,6 +1731,7 @@ final class PdfEngineHandoff
             'pdfPageCount' => $pdfPageCount,
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
+            'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageTimings' => $pdfPageTimings,
             'pdfPageViewports' => $pdfPageViewports,
@@ -1774,6 +1821,7 @@ final class PdfEngineHandoff
      *     finalPdfPageCount: int|null,
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
+     *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
@@ -1985,6 +2033,7 @@ final class PdfEngineHandoff
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
+            'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
@@ -3093,6 +3142,7 @@ final class PdfEngineHandoff
      *     pageCount:int|null,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
+     *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
@@ -3160,6 +3210,7 @@ final class PdfEngineHandoff
         $xrefStreams = $this->extractPdfXrefStreams($pdfBytes);
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
+        $pageDisplayMetadata = $this->extractPdfPageDisplayMetadata($pdfBytes, $catalog);
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
         $pageViewports = $this->extractPdfPageViewports($pdfBytes, $catalog);
         $pageContentStreams = $this->extractPdfPageContentStreams($pdfBytes, $catalog);
@@ -3195,6 +3246,7 @@ final class PdfEngineHandoff
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
+            'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
             'pageViewports' => $pageViewports,
@@ -7940,6 +7992,144 @@ final class PdfEngineHandoff
         }
 
         return $rotations;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>
+     */
+    private function extractPdfPageDisplayMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $metadata = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageDisplayMetadataFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $metadata,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($metadata === []) {
+            uksort($objects, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a . ' R') <=> $this->pdfReferenceSortKey($b . ' R'));
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $summary = $this->summarizePdfPageDisplayMetadata($body, $reference, $objects, $pageNumber);
+                if ($this->pdfPageDisplayMetadataHasValues($summary)) {
+                    $metadata[] = $summary;
+                }
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
+     */
+    private function collectPdfPageDisplayMetadataFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$metadata,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $summary = $this->summarizePdfPageDisplayMetadata($body, $reference, $objects, $pageNumber);
+            if ($this->pdfPageDisplayMetadataHasValues($summary)) {
+                $metadata[] = $summary;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageDisplayMetadataFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $metadata,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}
+     */
+    private function summarizePdfPageDisplayMetadata(string $dictionary, ?string $reference, array $objects, int $pageNumber): array
+    {
+        $group = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'Group', $objects);
+
+        return [
+            'page' => $pageNumber,
+            'pageObject' => $reference === null ? null : $reference . ' R',
+            'userUnit' => $this->extractPdfNumberToken($dictionary, 'UserUnit'),
+            'tabOrder' => $this->extractPdfNameToken($dictionary, 'Tabs'),
+            'groupSubtype' => $group === null ? null : $this->extractPdfNameToken($group, 'S'),
+            'groupColorSpace' => $group === null ? null : $this->extractPdfColorSpaceNameValue($group, 'CS', $objects),
+            'groupIsolated' => $group === null ? null : $this->extractPdfBooleanToken($group, 'I'),
+            'groupKnockout' => $group === null ? null : $this->extractPdfBooleanToken($group, 'K'),
+            'thumbnailObject' => $this->extractPdfReferenceToken($dictionary, 'Thumb'),
+            'lastModified' => $this->extractPdfStringOrNameValue($dictionary, 'LastModified'),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function pdfPageDisplayMetadataHasValues(array $metadata): bool
+    {
+        foreach (['userUnit', 'tabOrder', 'groupSubtype', 'groupColorSpace', 'groupIsolated', 'groupKnockout', 'thumbnailObject', 'lastModified'] as $key) {
+            if (($metadata[$key] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
+     * @return array<string, int>
+     */
+    private function summarizePdfPageTabOrders(array $metadata): array
+    {
+        $orders = [];
+        foreach ($metadata as $pageDisplay) {
+            $tabOrder = $pageDisplay['tabOrder'] ?? null;
+            if (!is_string($tabOrder) || $tabOrder === '') {
+                continue;
+            }
+
+            $orders[$tabOrder] = ($orders[$tabOrder] ?? 0) + 1;
+        }
+        ksort($orders);
+
+        return $orders;
     }
 
     /**
