@@ -14655,7 +14655,11 @@ final class PdfTextExtractor
 
             $valueOffset = $this->skipPdfWhitespace($dict, $nameEnd);
             if ($valueOffset >= $length || substr($dict, $valueOffset, 2) === '>>' || ($dict[$valueOffset] ?? '') === ']') {
-                return null;
+                return [
+                    'type' => 'name',
+                    'preview' => substr($dict, $index, $nameEnd - $index),
+                    'name' => $name,
+                ];
             }
 
             $nextOffset = $this->skipPdfValueAt($dict, $valueOffset);
