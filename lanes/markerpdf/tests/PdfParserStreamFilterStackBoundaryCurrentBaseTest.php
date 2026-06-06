@@ -737,6 +737,24 @@ $parserStreamFilterStackBoundaryCurrentBaseCommentSplitReferencePdf = static fun
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseCommentSplitLengthPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Comment Split Length Imports) Tj ET';
+    $compressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($content);
+    $visibleAfter = 'BT /F1 12 Tf 72 700 Td (Visible After Comment Length) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "10 0 obj\n" . strlen($compressed) . "\nendobj\n"
+        . "4 0 obj\n<< /Length 10 % split stream length object number from generation\n 0 R /Filter /FlateDecode >>\nstream\n{$compressed}\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseAscii85,
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
@@ -1283,6 +1301,26 @@ return [
         $t->true(!str_contains($text, 'Predictor'));
         $t->true(!str_contains($text, '10 0 obj'));
         $t->true(!str_contains($text, '13 0 obj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'resolves parser-comment split indirect Length references before damaged stream terminator fallback' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseCommentSplitLengthPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseCommentSplitLengthPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Comment Split Length Imports',
+            'Visible After Comment Length',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, '10 0 obj'));
+        $t->true(!str_contains($text, 'endobj'));
         $t->true(!str_contains($text, "\0"));
     },
     'rejects indirect filter objects with multiple bare top-level names before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf): void {

@@ -12948,9 +12948,10 @@ final class PdfTextExtractor
     private function streamLengthValueAt(string $value, int $offset, array $objects, array $seen = []): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $objectKey = $objectNumber . ':' . $generation;
             if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;

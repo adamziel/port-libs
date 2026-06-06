@@ -473,6 +473,19 @@ $commentSplitPdf = "%PDF-1.4\n"
     . "99 0 obj\n{$commentSplitStaleLeak}\nendobj\n"
     . "%%EOF";
 
+$commentSplitLengthContent = 'BT /F1 12 Tf 72 720 Td (Comment Split Length Imports) Tj ET';
+$commentSplitLengthCompressed = $zlibStored($commentSplitLengthContent);
+$commentSplitLengthVisibleAfter = 'BT /F1 12 Tf 72 700 Td (Visible After Comment Length) Tj ET';
+$commentSplitLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($commentSplitLengthVisibleAfter) . " >>\nstream\n{$commentSplitLengthVisibleAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n" . strlen($commentSplitLengthCompressed) . "\nendobj\n"
+    . "4 0 obj\n<< /Length 10 % split stream length object number from generation\n 0 R /Filter /FlateDecode >>\nstream\n{$commentSplitLengthCompressed}\nendobj\n"
+    . "%%EOF";
+
 $malformedIndirectFilterLeak = 'BT /F1 12 Tf 72 720 Td (Malformed Indirect Multi Filter Leak) Tj ET';
 $malformedIndirectFilterEncoded = $ascii85Encode($zlibStored($malformedIndirectFilterLeak)) . '~>';
 $indirectArrayFilterContent = 'BT /F1 12 Tf 72 700 Td (Indirect Array Filter Preserved) Tj ET';
@@ -525,6 +538,7 @@ $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
 $defaultCryptLines = $extractor->extractTextLines($defaultCryptPdf);
 $commentSplitLines = $extractor->extractTextLines($commentSplitPdf);
+$commentSplitLengthLines = $extractor->extractTextLines($commentSplitLengthPdf);
 $malformedIndirectFilterLines = $extractor->extractTextLines($malformedIndirectFilterPdf);
 $duplicateStreamKeysLines = $extractor->extractTextLines($duplicateStreamKeysPdf);
 $allLines = [
@@ -547,6 +561,7 @@ $allLines = [
     ...$indirectCryptNameLines,
     ...$defaultCryptLines,
     ...$commentSplitLines,
+    ...$commentSplitLengthLines,
     ...$malformedIndirectFilterLines,
     ...$duplicateStreamKeysLines,
 ];
@@ -581,6 +596,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['FlateDecode', 'Crypt'],
         ['Crypt', 'FlateDecode'],
         ['ASCII85Decode', null, 'FlateDecode'],
+        ['FlateDecode'],
         ['ASCII85Decode', 'FlateDecode'],
         'malformed_indirect_multi_name_filter_object',
         ['ASCII85Decode', 'FlateDecode'],
@@ -654,6 +670,12 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'parser_comment_split_helper_excluded' => !str_contains($joined, 'Comment Split Helper Leak')
         && !str_contains($joined, '10 0 obj')
         && !str_contains($joined, '13 0 obj'),
+    'parser_comment_split_length_reference_resolved' => $commentSplitLengthLines === [
+        'Comment Split Length Imports',
+        'Visible After Comment Length',
+    ],
+    'parser_comment_split_length_damaged_terminator_bounded' => str_contains($joined, 'Comment Split Length Imports')
+        && !str_contains($joined, 'endobj'),
     'malformed_indirect_multi_name_filter_rejected' => $malformedIndirectFilterLines === [
         'Indirect Array Filter Preserved',
         'Visible After Malformed Filter Object',
