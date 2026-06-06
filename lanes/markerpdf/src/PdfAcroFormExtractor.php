@@ -10875,11 +10875,14 @@ final class PdfAcroFormExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
-        $objects = [];
+        $fallbackObjects = [];
+        $fallbackGenerations = [];
+        $definitions = [];
         $this->objectGenerations = [];
 
         $offset = 0;
         while (preg_match('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $objectOffset = $match[0][1];
             $bodyStart = $match[0][1] + strlen($match[0][0]);
             $bodyEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
             if ($bodyEnd === null) {
@@ -10888,18 +10891,196 @@ final class PdfAcroFormExtractor
 
             $objectNumber = (int) $match[1][0];
             $generation = (int) $match[2][0];
-            $selectedGeneration = $this->objectGenerations[$objectNumber] ?? null;
+            $body = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
+            $definitions[$objectNumber][$generation][] = [
+                'offset' => $objectOffset,
+                'body' => $body,
+            ];
+
+            $selectedGeneration = $fallbackGenerations[$objectNumber] ?? null;
             if ($selectedGeneration !== null && $generation < $selectedGeneration) {
                 $offset = $bodyEnd + strlen('endobj');
                 continue;
             }
 
-            $objects[$objectNumber] = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
-            $this->objectGenerations[$objectNumber] = $generation;
+            $fallbackObjects[$objectNumber] = $body;
+            $fallbackGenerations[$objectNumber] = $generation;
             $offset = $bodyEnd + strlen('endobj');
         }
 
-        return $objects;
+        $selected = $this->classicXrefSelectedObjects($pdfBytes, $definitions);
+        if ($selected !== null) {
+            $objects = $selected['objects'];
+            $this->objectGenerations = $selected['generations'];
+            foreach ($fallbackObjects as $objectNumber => $body) {
+                if (isset($objects[$objectNumber])) {
+                    continue;
+                }
+
+                $objects[$objectNumber] = $body;
+                $this->objectGenerations[$objectNumber] = $fallbackGenerations[$objectNumber] ?? 0;
+            }
+
+            ksort($objects, SORT_NUMERIC);
+            return $objects;
+        }
+
+        $this->objectGenerations = $fallbackGenerations;
+        return $fallbackObjects;
+    }
+
+    /**
+     * Classic xref rows identify the current generation for an object number.
+     * Prefer that source when available so stale higher-generation direct
+     * objects cannot replace the trailer-selected AcroForm catalog.
+     *
+     * @param array<int, array<int, list<array{offset: int, body: string}>>> $definitions
+     * @return array{objects: array<int, string>, generations: array<int, int>}|null
+     */
+    private function classicXrefSelectedObjects(string $pdfBytes, array $definitions): ?array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return null;
+        }
+
+        $seenOffsets = [];
+        $entries = $this->classicXrefEntriesFromOffsetChain($pdfBytes, $offset, $seenOffsets);
+        if ($entries === []) {
+            return null;
+        }
+
+        $objects = [];
+        $generations = [];
+        foreach ($entries as $objectNumber => $entry) {
+            if (!$entry['in_use'] || $entry['offset'] <= 0) {
+                continue;
+            }
+
+            $body = $this->directObjectBodyAtXrefOffset(
+                $definitions,
+                $objectNumber,
+                $entry['generation'],
+                $entry['offset']
+            );
+            if ($body === null) {
+                continue;
+            }
+
+            $objects[$objectNumber] = $body;
+            $generations[$objectNumber] = $entry['generation'];
+        }
+
+        if ($objects === []) {
+            return null;
+        }
+
+        ksort($objects, SORT_NUMERIC);
+        return [
+            'objects' => $objects,
+            'generations' => $generations,
+        ];
+    }
+
+    private function latestStartxrefOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+            return null;
+        }
+
+        $latest = end($matches);
+        return is_array($latest) ? (int) $latest[1] : null;
+    }
+
+    /**
+     * @param array<int, true> $seenOffsets
+     * @return array<int, array{offset: int, generation: int, in_use: bool}>
+     */
+    private function classicXrefEntriesFromOffsetChain(string $pdfBytes, int $offset, array &$seenOffsets): array
+    {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+
+        $seenOffsets[$offset] = true;
+        $cursor = $offset;
+        $this->skipWhitespace($pdfBytes, $cursor);
+        if (substr($pdfBytes, $cursor, 4) !== 'xref') {
+            return [];
+        }
+
+        $currentEntries = $this->classicXrefEntriesAtOffset($pdfBytes, $cursor);
+        $trailer = $this->classicXrefTrailerDictionaryBody($pdfBytes, $cursor);
+        if ($trailer === null) {
+            return $currentEntries;
+        }
+
+        $previousOffset = $this->numberValueAfterName($trailer, 'Prev');
+        if ($previousOffset === null) {
+            return $currentEntries;
+        }
+
+        $previousEntries = $this->classicXrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $seenOffsets);
+        foreach ($currentEntries as $objectNumber => $entry) {
+            $previousEntries[$objectNumber] = $entry;
+        }
+
+        return $previousEntries;
+    }
+
+    /**
+     * @return array<int, array{offset: int, generation: int, in_use: bool}>
+     */
+    private function classicXrefEntriesAtOffset(string $pdfBytes, int $offset): array
+    {
+        $entries = [];
+        $cursor = $offset + 4;
+        $length = strlen($pdfBytes);
+
+        while ($cursor < $length) {
+            $this->skipWhitespace($pdfBytes, $cursor);
+            if (substr($pdfBytes, $cursor, 7) === 'trailer') {
+                break;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)/s', $pdfBytes, $section, 0, $cursor) !== 1) {
+                break;
+            }
+
+            $firstObject = (int) $section[1];
+            $count = (int) $section[2];
+            $cursor += strlen($section[0]);
+
+            for ($index = 0; $index < $count && $cursor < $length; $index++) {
+                $this->skipWhitespace($pdfBytes, $cursor);
+                if (preg_match('/\G(\d{10})\s+(\d{5})\s+([nf])\b/s', $pdfBytes, $row, 0, $cursor) !== 1) {
+                    break 2;
+                }
+
+                $entries[$firstObject + $index] = [
+                    'offset' => (int) $row[1],
+                    'generation' => (int) $row[2],
+                    'in_use' => $row[3] === 'n',
+                ];
+                $cursor += strlen($row[0]);
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array<int, list<array{offset: int, body: string}>>> $definitions
+     */
+    private function directObjectBodyAtXrefOffset(array $definitions, int $objectNumber, int $generation, int $offset): ?string
+    {
+        foreach ($definitions[$objectNumber][$generation] ?? [] as $definition) {
+            if ($definition['offset'] === $offset) {
+                return $definition['body'];
+            }
+        }
+
+        return null;
     }
 
     /**
