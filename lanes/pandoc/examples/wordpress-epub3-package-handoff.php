@@ -249,6 +249,15 @@ $metadataXml = <<<'XML'
 </metadata>
 XML;
 
+$ocfManifestXml = sprintf(<<<XML
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/epub+zip"/>
+  <manifest:file-entry manifest:full-path="EPUB/package.opf" manifest:media-type="application/oebps-package+xml"/>
+  <manifest:file-entry manifest:full-path="EPUB/text/chapter.xhtml" manifest:media-type="application/xhtml+xml" manifest:size="%d"/>
+  <manifest:file-entry manifest:full-path="EPUB/images/unmanifested-review.png" manifest:media-type="image/png" manifest:size="16"/>
+</manifest:manifest>
+XML, strlen($chapterXhtml));
+
 $signaturesXml = <<<'XML'
 <signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
   <ds:Signature Id="package-signature">
@@ -273,6 +282,7 @@ $packageParts = [
     ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
     ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+    ['name' => 'META-INF/manifest.xml', 'data' => $ocfManifestXml],
     ['name' => 'META-INF/metadata.xml', 'data' => $metadataXml],
     ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
     ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
@@ -711,8 +721,17 @@ XML;
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
-    if (($result['ocf']['sidecarCount'] ?? null) !== 3 || ($result['ocf']['externalReferenceCount'] ?? null) !== 3) {
-        throw new RuntimeException('Expected EPUB OCF metadata/rights/signatures sidecars to report remote references without fetching');
+    if (($result['ocf']['sidecarCount'] ?? null) !== 4 || ($result['ocf']['externalReferenceCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected EPUB OCF manifest/metadata/rights/signatures sidecars to report review references without fetching remote resources');
+    }
+    if (($result['ocf']['manifest']['format'] ?? null) !== 'odf-manifest' || ($result['ocf']['manifest']['itemCount'] ?? null) !== 4) {
+        throw new RuntimeException('Expected EPUB OCF manifest sidecar entries to be reported for review');
+    }
+    if (($result['ocf']['manifest']['itemsByPart']['/EPUB/text/chapter.xhtml']['byteSha256'] ?? null) !== hash('sha256', $chapterXhtml)) {
+        throw new RuntimeException('Expected EPUB OCF manifest sidecar to hash local chapter bytes');
+    }
+    if (($result['document']->attr('ocf')['manifest']['itemCount'] ?? null) !== 4) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose OCF manifest sidecar metadata');
     }
     if (($result['ocf']['metadata']['items'][0]['reference']['target'] ?? null) !== '/META-INF/review/container-source.json') {
         throw new RuntimeException('Expected EPUB OCF metadata sidecar to resolve local source metadata');
@@ -916,6 +935,8 @@ echo 'bindingHandler=' . ($result['bindings']['items'][0]['handlerId'] ?? '') . 
 echo 'bindingDiagnostics=' . count($result['bindings']['diagnostics'] ?? []) . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'ocfSidecars=' . ($result['ocf']['sidecarCount'] ?? 0) . "\n";
+echo 'ocfManifestItems=' . ($result['ocf']['manifest']['itemCount'] ?? 0) . "\n";
+echo 'ocfManifestDeclaredParts=' . ($result['ocf']['manifest']['declaredPartCount'] ?? 0) . "\n";
 echo 'ocfMetadataItems=' . ($result['ocf']['metadata']['itemCount'] ?? 0) . "\n";
 echo 'ocfRightsItems=' . ($result['ocf']['rights']['itemCount'] ?? 0) . "\n";
 echo 'ocfSignatureReferences=' . ($result['ocf']['signatures']['referenceCount'] ?? 0) . "\n";

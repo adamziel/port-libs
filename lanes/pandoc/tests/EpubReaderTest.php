@@ -186,6 +186,19 @@ $metadataXml = <<<'XML'
 </metadata>
 XML;
 
+$ocfManifestXml = sprintf(<<<XML
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/epub+zip"/>
+  <manifest:file-entry manifest:full-path="OEBPS/package.opf" manifest:media-type="application/oebps-package+xml"/>
+  <manifest:file-entry manifest:full-path="OEBPS/text/chapter1.xhtml" manifest:media-type="application/xhtml+xml" manifest:size="%d"/>
+  <manifest:file-entry manifest:full-path="OEBPS/styles/book.css" manifest:media-type="text/css" manifest:size="4"/>
+  <manifest:file-entry manifest:full-path="OEBPS/images/unmanifested-review.png" manifest:media-type="image/png" manifest:size="16"/>
+  <manifest:file-entry manifest:full-path="OEBPS/images/missing-review.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="../outside.txt" manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:media-type="text/plain"/>
+</manifest:manifest>
+XML, strlen($chapter1Xhtml));
+
 $signaturesXml = <<<'XML'
 <signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
   <ds:Signature Id="package-signature">
@@ -2306,6 +2319,95 @@ XML;
 
         $t->same($metadata, $result['importReport']['ocf']['metadata']);
         $t->same($ocf, $result['document']->attr('ocf'));
+    },
+    'reports OCF manifest sidecar entries without using them as OPF assets' => static function (TestRunner $t) use ($buildEpubPackage, $ocfManifestXml, $chapter1Xhtml): void {
+        $unmanifestedBytes = 'UNMANIFESTED-PNG';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/manifest.xml', 'data' => $ocfManifestXml],
+                ['name' => 'OEBPS/images/unmanifested-review.png', 'data' => $unmanifestedBytes, 'compressionMethod' => 0],
+            ]
+        ));
+
+        $ocf = $result['ocf'];
+        $manifest = $ocf['manifest'];
+
+        $t->same(true, $ocf['present']);
+        $t->same(1, $ocf['sidecarCount']);
+        $t->same(7, $ocf['referenceCount']);
+        $t->same(5, $ocf['localReferenceCount']);
+        $t->same(2, $ocf['missingReferenceCount']);
+        $t->same(['ocf-manifest-size-mismatch', 'ocf-manifest-missing-reference', 'ocf-manifest-invalid-reference', 'missing-ocf-manifest-full-path'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $ocf['diagnostics']));
+
+        $t->same(true, $manifest['present']);
+        $t->same('/META-INF/manifest.xml', $manifest['part']);
+        $t->same('manifest', $manifest['rootName']);
+        $t->same(EpubReader::ODF_MANIFEST_NS, $manifest['rootNamespace']);
+        $t->same('odf-manifest', $manifest['format']);
+        $t->same(true, $manifest['odfCompatible']);
+        $t->same('1.3', $manifest['version']);
+        $t->same(strlen($ocfManifestXml), $manifest['byteLength']);
+        $t->same(hash('sha256', $ocfManifestXml), $manifest['byteSha256']);
+        $t->same(8, $manifest['itemCount']);
+        $t->same(5, $manifest['declaredPartCount']);
+        $t->same(3, $manifest['missingItemCount']);
+        $t->same(1, $manifest['sizeMismatchCount']);
+
+        $root = $manifest['items'][0];
+        $t->same('/', $root['fullPath']);
+        $t->same('/', $root['target']);
+        $t->same(null, $root['part']);
+        $t->same(true, $root['root']);
+        $t->same(true, $root['directory']);
+        $t->same(true, $root['exists']);
+        $t->same('application/epub+zip', $root['mediaType']);
+        $t->same(false, $root['canExposeBytes']);
+
+        $chapter = $manifest['itemsByPart']['/OEBPS/text/chapter1.xhtml'];
+        $t->same('OEBPS/text/chapter1.xhtml', $chapter['fullPath']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $chapter['target']);
+        $t->same('application/xhtml+xml', $chapter['mediaType']);
+        $t->same(strlen($chapter1Xhtml), $chapter['declaredSize']);
+        $t->same(strlen($chapter1Xhtml), $chapter['byteLength']);
+        $t->same(true, $chapter['sizeMatches']);
+        $t->same(hash('sha256', $chapter1Xhtml), $chapter['byteSha256']);
+        $t->same(true, $chapter['canExposeBytes']);
+        $t->same([], $chapter['diagnostics']);
+
+        $style = $manifest['itemsByPart']['/OEBPS/styles/book.css'];
+        $t->same(4, $style['declaredSize']);
+        $t->same(false, $style['sizeMatches']);
+        $t->same('ocf-manifest-size-mismatch', $style['diagnostics'][0]['type']);
+
+        $unmanifested = $manifest['itemsByPart']['/OEBPS/images/unmanifested-review.png'];
+        $t->same(true, $unmanifested['exists']);
+        $t->same(16, $unmanifested['declaredSize']);
+        $t->same(hash('sha256', $unmanifestedBytes), $unmanifested['byteSha256']);
+
+        $missing = $manifest['items'][5];
+        $t->same('/OEBPS/images/missing-review.png', $missing['part']);
+        $t->same(false, $missing['exists']);
+        $t->same('ocf-manifest-missing-reference', $missing['diagnostics'][0]['type']);
+
+        $invalid = $manifest['items'][6];
+        $t->same('../outside.txt', $invalid['fullPath']);
+        $t->same(null, $invalid['part']);
+        $t->same('ocf-manifest-invalid-reference', $invalid['diagnostics'][0]['type']);
+
+        $missingFullPath = $manifest['items'][7];
+        $t->same(null, $missingFullPath['fullPath']);
+        $t->same('missing-ocf-manifest-full-path', $missingFullPath['diagnostics'][0]['type']);
+
+        $assetUnmanifestedParts = array_map(
+            static fn (array $item): ?string => $item['part'] ?? null,
+            $result['importReport']['assets']['unmanifestedItems']
+        );
+        $t->same(true, in_array('/OEBPS/images/unmanifested-review.png', $assetUnmanifestedParts, true));
+        $t->same($manifest, $result['importReport']['ocf']['manifest']);
+        $t->same($ocf, $result['document']->attr('ocf'));
+        $t->same(2, count($result['document']->children));
     },
     'reports OCF rights and signatures sidecars without validating cryptography' => static function (TestRunner $t) use ($buildEpubPackage, $rightsXml, $signaturesXml): void {
         $licenseBytes = '<license source="wordpress-import">review required</license>';
