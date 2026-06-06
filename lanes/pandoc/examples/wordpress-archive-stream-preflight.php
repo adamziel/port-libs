@@ -104,6 +104,7 @@ $sparsePolicyTypePayload = 'gnu sparse payload fragment';
 $sparsePolicyPaxPayload = 'schily sparse payload fragment';
 $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
 $charsetContentBytes = "# PAX charset source packet\n\nReady for WordPress archive charset review.\n";
+$duplicatePaxContentBytes = "# Duplicate PAX source packet\n\nReady for WordPress archive duplicate-key review.\n";
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 
@@ -311,6 +312,30 @@ try {
 } catch (RuntimeException) {
     $invalidCharsetBlocked = true;
 }
+$duplicatePaxArchiveBytes = $rawTarHeader('PaxHeaders/duplicate-review', 'x', $paxPayload([
+    'path' => 'packet/duplicate-pax.md',
+    'org.wordpress.import.review' => 'first review state',
+]) . $paxPayload([
+    'org.wordpress.import.review' => 'second review state',
+    'comment' => 'duplicate review metadata',
+]), 0, false)
+    . $rawTarHeader('packet/duplicate-pax.md', '0', $duplicatePaxContentBytes, 1780479085, false)
+    . str_repeat("\0", 1024);
+$duplicatePaxGzip = GzipStream::build($duplicatePaxArchiveBytes, [
+    'filename' => 'wordpress-duplicate-pax.tar',
+    'comment' => 'TAR duplicate PAX keyword preflight',
+]);
+$duplicatePaxInspection = ArchiveCompressionStream::inspectTarPaxDuplicateKeywordPolicy(
+    $duplicatePaxGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($duplicatePaxArchiveBytes)
+);
+$duplicatePaxExtractionBlocked = false;
+try {
+    TarArchive::fromString($duplicatePaxArchiveBytes);
+} catch (RuntimeException) {
+    $duplicatePaxExtractionBlocked = true;
+}
 $nestedZipPackage = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -417,6 +442,11 @@ if (in_array('--self-test', $argv, true)) {
         'charsetName' => "packet/charset-\u{2603}.md",
         'charsetGlobalHdrcharset' => 'ISO-IR 10646 2000 UTF-8',
         'charsetLocalHdrcharset' => 'BINARY',
+        'duplicatePaxFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'duplicatePaxExtractionPolicy' => 'duplicate-pax-keywords-blocked',
+        'duplicatePaxEntryCount' => 1,
+        'duplicatePaxKeyword' => 'org.wordpress.import.review',
+        'duplicatePaxValues' => ['first review state', 'second review state'],
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'nestedCandidateCount' => 4,
@@ -502,6 +532,13 @@ if (in_array('--self-test', $argv, true)) {
         || ($charsetInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-pax-hdrcharset.tar'
         || $charsetInspection['archive']->read('/' . $expected['charsetName']) !== $charsetContentBytes
         || !$invalidCharsetBlocked
+        || $duplicatePaxInspection['format'] !== $expected['duplicatePaxFormat']
+        || $duplicatePaxInspection['extractionPolicy'] !== $expected['duplicatePaxExtractionPolicy']
+        || $duplicatePaxInspection['duplicatePaxEntryCount'] !== $expected['duplicatePaxEntryCount']
+        || !$duplicatePaxExtractionBlocked
+        || ($duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] ?? null) !== $expected['duplicatePaxKeyword']
+        || ($duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values'] ?? []) !== $expected['duplicatePaxValues']
+        || ($duplicatePaxInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-duplicate-pax.tar'
         || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
@@ -574,6 +611,12 @@ echo 'charset.entry=' . $charsetInspection['entryNames'][0] . "\n";
 echo 'charset.globalHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->globalPaxHeaders['hdrcharset'] . "\n";
 echo 'charset.localHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->localPaxHeaders['hdrcharset'] . "\n";
 echo 'charset.invalidBlocked=' . ($invalidCharsetBlocked ? 'yes' : 'no') . "\n";
+echo 'duplicatePax.format=' . $duplicatePaxInspection['format'] . "\n";
+echo 'duplicatePax.extractionPolicy=' . $duplicatePaxInspection['extractionPolicy'] . "\n";
+echo 'duplicatePax.duplicateEntryCount=' . $duplicatePaxInspection['duplicatePaxEntryCount'] . "\n";
+echo 'duplicatePax.keyword=' . $duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] . "\n";
+echo 'duplicatePax.values=' . implode('|', $duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values']) . "\n";
+echo 'duplicatePax.extractionBlocked=' . ($duplicatePaxExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
 echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";

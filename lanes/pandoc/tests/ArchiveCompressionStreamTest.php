@@ -448,6 +448,89 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($duplicateGlobalComment));
     },
 
+    'preflights duplicate pax keyword policy without exposing package bytes' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $globalDocumentBytes = "# Global duplicate PAX packet\n\nReady for WordPress archive review.\n";
+        $localDocumentBytes = "# Local duplicate PAX packet\n\nReady for WordPress archive review.\n";
+        $archiveBytes = $rawTarHeader('GlobalHead/duplicate-review', 'g', $paxPayload([
+            'comment' => 'first global review comment',
+            'hdrcharset' => 'BINARY',
+        ]) . $paxPayload([
+            'comment' => 'second global review comment',
+        ]), 0, false)
+            . $rawTarHeader('packet/global-duplicate.md', '0', $globalDocumentBytes, 1780479085, false)
+            . $rawTarHeader('PaxHeaders/duplicate-local', 'x', $paxPayload([
+                'path' => 'packet/local-duplicate.md',
+                'org.wordpress.import.review' => 'first local review state',
+            ]) . $paxPayload([
+                'org.wordpress.import.review' => 'second local review state',
+                'size' => (string) strlen($localDocumentBytes),
+            ]), 0, false)
+            . $rawTarHeader('placeholder-local.md', '0', $localDocumentBytes, 1780479086, false, 0)
+            . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-duplicate-pax.tar',
+            'comment' => 'duplicate PAX keywords stay blocked for extraction',
+        ]);
+        $cleanPolicy = TarArchive::paxDuplicateKeywordPreflight(TarArchive::build([
+            ['name' => 'packet/clean.md', 'data' => 'single PAX metadata'],
+        ], [
+            'globalPaxHeaders' => [
+                'comment' => 'single archive review comment',
+            ],
+        ]));
+
+        $policy = TarArchive::paxDuplicateKeywordPreflight($archiveBytes);
+        $streamPolicy = ArchiveCompressionStream::inspectTarPaxDuplicateKeywordPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+
+        $t->same('no-duplicate-pax-keywords', $cleanPolicy['extractionPolicy']);
+        $t->same(0, $cleanPolicy['duplicateKeywordCount']);
+        $t->same(2, $policy['entryCount']);
+        $t->same(2, $policy['paxEntryCount']);
+        $t->same(2, $policy['duplicatePaxEntryCount']);
+        $t->same(2, $policy['duplicateKeywordCount']);
+        $t->same(2, $policy['duplicateRecordCount']);
+        $t->same('duplicate-pax-keywords-blocked', $policy['extractionPolicy']);
+        $t->same('GlobalHead/duplicate-review', $policy['entries'][0]['paxEntryName']);
+        $t->same('global', $policy['entries'][0]['paxType']);
+        $t->same(['comment'], $policy['entries'][0]['duplicateKeywords']);
+        $t->same(3, $policy['entries'][0]['recordCount']);
+        $t->same([
+            'keyword' => 'comment',
+            'occurrences' => 2,
+            'values' => ['first global review comment', 'second global review comment'],
+            'firstValue' => 'first global review comment',
+            'duplicateValues' => ['second global review comment'],
+        ], $policy['entries'][0]['duplicateRecords'][0]);
+        $t->same('PaxHeaders/duplicate-local', $policy['entries'][1]['paxEntryName']);
+        $t->same('local', $policy['entries'][1]['paxType']);
+        $t->same(['org.wordpress.import.review'], $policy['entries'][1]['duplicateKeywords']);
+        $t->same(4, $policy['entries'][1]['recordCount']);
+        $t->same([
+            'keyword' => 'org.wordpress.import.review',
+            'occurrences' => 2,
+            'values' => ['first local review state', 'second local review state'],
+            'firstValue' => 'first local review state',
+            'duplicateValues' => ['second local review state'],
+        ], $policy['entries'][1]['duplicateRecords'][0]);
+        $t->same(['tar-pax-duplicate-keyword-not-extracted'], $policy['entries'][1]['diagnostics']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(strlen($archiveBytes), $streamPolicy['uncompressedSize']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-duplicate-pax.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same('duplicate PAX keywords stay blocked for extraction', $streamPolicy['stream']['members'][0]['comment']);
+        $t->same($policy['entries'], $streamPolicy['entries']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarPaxDuplicateKeywordPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes) - 1
+        ));
+    },
+
     'builds and reads global pax metadata for tar review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

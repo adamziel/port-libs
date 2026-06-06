@@ -624,6 +624,212 @@ final class TarArchive
     }
 
     /**
+     * @return array{
+     *     entryCount:int,
+     *     paxEntryCount:int,
+     *     duplicatePaxEntryCount:int,
+     *     duplicateKeywordCount:int,
+     *     duplicateRecordCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         paxEntryName:string,
+     *         paxType:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         payloadSize:int,
+     *         recordCount:int,
+     *         duplicateKeywordCount:int,
+     *         duplicateRecordCount:int,
+     *         duplicateKeywords:list<string>,
+     *         duplicateRecords:list<array{keyword:string, occurrences:int, values:list<string>, firstValue:string, duplicateValues:list<string>}>,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function paxDuplicateKeywordPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entryCount = 0;
+        $paxEntryCount = 0;
+        $duplicateEntries = [];
+        $duplicateKeywordCount = 0;
+        $duplicateRecordCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+
+                $parsed = self::parsePaxHeadersWithDuplicateReport(substr($bytes, $dataOffset, $headerSize));
+                $headers = $parsed['headers'];
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLinkPolicyLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+
+                $paxEntryCount++;
+                if ($parsed['duplicateRecords'] !== []) {
+                    $entryDuplicateRecordCount = 0;
+                    foreach ($parsed['duplicateRecords'] as $record) {
+                        $entryDuplicateRecordCount += $record['occurrences'] - 1;
+                    }
+
+                    $duplicateKeywordCount += count($parsed['duplicateRecords']);
+                    $duplicateRecordCount += $entryDuplicateRecordCount;
+                    $duplicateEntries[] = [
+                        'paxEntryName' => self::resolvedNameFromHeader($header, [], null),
+                        'paxType' => $typeFlag === self::TYPE_PAX_EXTENDED ? 'local' : 'global',
+                        'headerOffset' => $headerOffset,
+                        'dataOffset' => $dataOffset,
+                        'payloadSize' => $headerSize,
+                        'recordCount' => count($parsed['records']),
+                        'duplicateKeywordCount' => count($parsed['duplicateRecords']),
+                        'duplicateRecordCount' => $entryDuplicateRecordCount,
+                        'duplicateKeywords' => array_map(
+                            static fn (array $record): string => $record['keyword'],
+                            $parsed['duplicateRecords']
+                        ),
+                        'duplicateRecords' => $parsed['duplicateRecords'],
+                        'policy' => 'blocked',
+                        'diagnostics' => ['tar-pax-duplicate-keyword-not-extracted'],
+                    ];
+                }
+
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                self::assertSafePath(
+                    self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink),
+                    'TAR link target'
+                );
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'paxEntryCount' => $paxEntryCount,
+            'duplicatePaxEntryCount' => count($duplicateEntries),
+            'duplicateKeywordCount' => $duplicateKeywordCount,
+            'duplicateRecordCount' => $duplicateRecordCount,
+            'extractionPolicy' => $duplicateEntries === [] ? 'no-duplicate-pax-keywords' : 'duplicate-pax-keywords-blocked',
+            'entries' => $duplicateEntries,
+        ];
+    }
+
+    /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
@@ -1150,6 +1356,88 @@ final class TarArchive
         }
 
         return $headers;
+    }
+
+    /**
+     * @return array{
+     *     headers:array<string, string>,
+     *     records:list<array{keyword:string, value:string}>,
+     *     duplicateRecords:list<array{keyword:string, occurrences:int, values:list<string>, firstValue:string, duplicateValues:list<string>}>
+     * }
+     */
+    private static function parsePaxHeadersWithDuplicateReport(string $bytes): array
+    {
+        $headers = [];
+        $records = [];
+        $valuesByKey = [];
+        $cursor = 0;
+        $length = strlen($bytes);
+
+        while ($cursor < $length) {
+            $space = strpos($bytes, ' ', $cursor);
+            if ($space === false) {
+                throw new \RuntimeException('TAR PAX header record is missing a length separator');
+            }
+
+            $lengthText = substr($bytes, $cursor, $space - $cursor);
+            if ($lengthText === '' || !ctype_digit($lengthText)) {
+                throw new \RuntimeException('TAR PAX header record length is invalid');
+            }
+
+            $recordLength = (int) $lengthText;
+            if ($recordLength <= 0 || $cursor + $recordLength > $length) {
+                throw new \RuntimeException('TAR PAX header record extends beyond payload bytes');
+            }
+
+            $record = substr($bytes, $cursor, $recordLength);
+            if (!str_ends_with($record, "\n")) {
+                throw new \RuntimeException('TAR PAX header record must end with a newline');
+            }
+
+            $recordBody = substr($record, strlen($lengthText) + 1, -1);
+            $equals = strpos($recordBody, '=');
+            if ($equals === false || $equals === 0) {
+                throw new \RuntimeException('TAR PAX header record is missing a key/value separator');
+            }
+
+            $key = substr($recordBody, 0, $equals);
+            $value = substr($recordBody, $equals + 1);
+            if (str_contains($key, "\0") || str_contains($value, "\0")) {
+                throw new \RuntimeException('TAR PAX header records must not contain NUL bytes');
+            }
+            self::assertUtf8($key, 'TAR PAX header key metadata');
+            self::assertUtf8($value, "TAR PAX {$key} metadata");
+
+            $headers[$key] = $value;
+            $records[] = [
+                'keyword' => $key,
+                'value' => $value,
+            ];
+            $valuesByKey[$key] ??= [];
+            $valuesByKey[$key][] = $value;
+            $cursor += $recordLength;
+        }
+
+        $duplicateRecords = [];
+        foreach ($valuesByKey as $keyword => $values) {
+            if (count($values) <= 1) {
+                continue;
+            }
+
+            $duplicateRecords[] = [
+                'keyword' => $keyword,
+                'occurrences' => count($values),
+                'values' => $values,
+                'firstValue' => $values[0],
+                'duplicateValues' => array_slice($values, 1),
+            ];
+        }
+
+        return [
+            'headers' => $headers,
+            'records' => $records,
+            'duplicateRecords' => $duplicateRecords,
+        ];
     }
 
     private static function parseGnuLongName(string $bytes): string
