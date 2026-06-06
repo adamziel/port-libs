@@ -2458,6 +2458,18 @@ final class LegacyDocReader
             0x0003 => $valueOffset + 4 <= strlen($bytes)
                 ? ['value' => self::signed32(self::u32($bytes, $valueOffset)), 'bytes' => 8]
                 : null,
+            0x0004 => $valueOffset + 4 <= strlen($bytes)
+                ? ['value' => self::readFloat32($bytes, $valueOffset), 'bytes' => 8]
+                : null,
+            0x0005 => $valueOffset + 8 <= strlen($bytes)
+                ? ['value' => self::readFloat64($bytes, $valueOffset), 'bytes' => 12]
+                : null,
+            0x0006 => $valueOffset + 8 <= strlen($bytes)
+                ? ['value' => self::formatCurrencyScaledInteger(self::signed64($bytes, $valueOffset)), 'bytes' => 12]
+                : null,
+            0x0007 => $valueOffset + 8 <= strlen($bytes)
+                ? ['value' => self::oleAutomationDateIso8601($bytes, $valueOffset), 'bytes' => 12]
+                : null,
             0x000b => $valueOffset + 2 <= strlen($bytes)
                 ? ['value' => $this->readVariantBool($bytes, $valueOffset), 'bytes' => 8]
                 : null,
@@ -4545,6 +4557,55 @@ final class LegacyDocReader
     private static function signed32(int $value): int
     {
         return $value >= 0x80000000 ? $value - 0x100000000 : $value;
+    }
+
+    private static function readFloat32(string $bytes, int $offset): float
+    {
+        if ($offset < 0 || $offset + 4 > strlen($bytes)) {
+            throw new \RuntimeException('Unexpected end of legacy DOC data');
+        }
+        $values = unpack('gvalue', substr($bytes, $offset, 4));
+
+        return (float) $values['value'];
+    }
+
+    private static function readFloat64(string $bytes, int $offset): float
+    {
+        if ($offset < 0 || $offset + 8 > strlen($bytes)) {
+            throw new \RuntimeException('Unexpected end of legacy DOC data');
+        }
+        $values = unpack('evalue', substr($bytes, $offset, 8));
+
+        return (float) $values['value'];
+    }
+
+    private static function formatCurrencyScaledInteger(int $scaledValue): string
+    {
+        if ($scaledValue === -PHP_INT_MAX - 1) {
+            return '-922337203685477.5808';
+        }
+
+        $negative = $scaledValue < 0;
+        if ($negative) {
+            $scaledValue = -$scaledValue;
+        }
+
+        $whole = intdiv($scaledValue, 10000);
+        $fraction = $scaledValue % 10000;
+
+        return ($negative ? '-' : '') . (string) $whole . '.' . str_pad((string) $fraction, 4, '0', STR_PAD_LEFT);
+    }
+
+    private static function oleAutomationDateIso8601(string $bytes, int $offset): ?string
+    {
+        $days = self::readFloat64($bytes, $offset);
+        if (!is_finite($days)) {
+            return null;
+        }
+
+        $seconds = (int) round(($days - 25569.0) * 86400);
+
+        return gmdate('Y-m-d\TH:i:s\Z', $seconds);
     }
 
     private static function signed64(string $bytes, int $offset): int

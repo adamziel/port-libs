@@ -434,6 +434,10 @@ $typedUi2 = static fn (int $value): string => pack('v', 0x0012) . "\0\0" . pack(
 $typedUi4 = static fn (int $value): string => pack('v', 0x0013) . "\0\0" . pack('V', $value);
 $typedI8Parts = static fn (int $low, int $high): string => pack('v', 0x0014) . "\0\0" . pack('V2', $low, $high);
 $typedUi8Parts = static fn (int $low, int $high): string => pack('v', 0x0015) . "\0\0" . pack('V2', $low, $high);
+$typedR4 = static fn (float $value): string => pack('v', 0x0004) . "\0\0" . pack('g', $value);
+$typedR8 = static fn (float $value): string => pack('v', 0x0005) . "\0\0" . pack('e', $value);
+$typedCurrency = static fn (int $scaledValue): string => pack('v', 0x0006) . "\0\0" . pack('V2', $scaledValue & 0xffffffff, intdiv($scaledValue, 4294967296));
+$typedOleDate = static fn (float $serialDate): string => pack('v', 0x0007) . "\0\0" . pack('e', $serialDate);
 $typedFiletime = static function (string $iso8601) use ($u64): string {
     $seconds = strtotime($iso8601);
     if ($seconds === false) {
@@ -1836,6 +1840,45 @@ return [
             'Source Guid' => $sourceGuid,
             'Max Unsigned' => '18446744073709551615',
         ], $metadata['customProperties']);
+        $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+    },
+    'extracts legacy DOC floating currency and automation-date OLE property scalars' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedI2, $typedR4, $typedR8, $typedCurrency, $typedOleDate): void {
+        $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+        if (!is_string($userDefinedFmtid)) {
+            throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+        }
+
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Floating custom metadata review packet\r"),
+            "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+                [
+                    'fmtid' => $userDefinedFmtid,
+                    'properties' => [
+                        0 => $typedDictionary([
+                            2 => 'Review Weight',
+                            3 => 'Confidence Score',
+                            4 => 'Invoice Total',
+                            5 => 'Review Date',
+                        ]),
+                        1 => $typedI2(1252),
+                        2 => $typedR4(1.25),
+                        3 => $typedR8(0.875),
+                        4 => $typedCurrency(12345678),
+                        5 => $typedOleDate(45309.5),
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same([
+            'Review Weight' => 1.25,
+            'Confidence Score' => 0.875,
+            'Invoice Total' => '1234.5678',
+            'Review Date' => '2024-01-18T12:00:00Z',
+        ], $metadata['customProperties'] ?? null);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
     'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream, $compObjStream): void {

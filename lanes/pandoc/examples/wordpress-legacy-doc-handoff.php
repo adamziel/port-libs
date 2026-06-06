@@ -133,6 +133,10 @@ $typedI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('
 $typedBool = static fn (bool $value): string => pack('v', 0x000b) . "\0\0" . pack('v', $value ? 0xffff : 0) . "\0\0";
 $typedUi4 = static fn (int $value): string => pack('v', 0x0013) . "\0\0" . pack('V', $value);
 $typedUi8Parts = static fn (int $low, int $high): string => pack('v', 0x0015) . "\0\0" . pack('V2', $low, $high);
+$typedR4 = static fn (float $value): string => pack('v', 0x0004) . "\0\0" . pack('g', $value);
+$typedR8 = static fn (float $value): string => pack('v', 0x0005) . "\0\0" . pack('e', $value);
+$typedCurrency = static fn (int $scaledValue): string => pack('v', 0x0006) . "\0\0" . pack('V2', $scaledValue & 0xffffffff, intdiv($scaledValue, 4294967296));
+$typedOleDate = static fn (float $serialDate): string => pack('v', 0x0007) . "\0\0" . pack('e', $serialDate);
 $typedFiletime = static function (string $iso8601) use ($u64): string {
     $seconds = strtotime($iso8601);
     if ($seconds === false) {
@@ -660,6 +664,10 @@ $streams = [
                     4 => 'Source Id',
                     5 => 'Archive Bytes',
                     6 => 'Source Guid',
+                    7 => 'Review Weight',
+                    8 => 'Confidence Score',
+                    9 => 'Invoice Total',
+                    10 => 'Review Date',
                 ]),
                 1 => $typedI2(1252),
                 2 => $typedLpstr('legacy-doc-42'),
@@ -667,6 +675,10 @@ $streams = [
                 4 => $typedI4(4242),
                 5 => $typedUi8Parts(1705032704, 1),
                 6 => $typedClsid($sourceGuid),
+                7 => $typedR4(1.25),
+                8 => $typedR8(0.875),
+                9 => $typedCurrency(12345678),
+                10 => $typedOleDate(45309.5),
             ],
         ],
     ]),
@@ -1164,6 +1176,10 @@ if (($argv[1] ?? '') === '--self-test') {
         'Source Id' => 4242,
         'Archive Bytes' => $archiveBytes,
         'Source Guid' => $sourceGuid,
+        'Review Weight' => 1.25,
+        'Confidence Score' => 0.875,
+        'Invoice Total' => '1234.5678',
+        'Review Date' => '2024-01-18T12:00:00Z',
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
     }
