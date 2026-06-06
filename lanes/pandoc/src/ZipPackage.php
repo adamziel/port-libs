@@ -516,6 +516,92 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     firstLocalEntryName:?string,
+     *     centralDirectoryOffset:int,
+     *     entries:list<array{
+     *         name:string,
+     *         localHeaderOffset:int,
+     *         localHeaderLength:int,
+     *         localNameLength:int,
+     *         localExtraFieldLength:int,
+     *         dataStart:int,
+     *         compressedSize:int,
+     *         compressedDataEnd:int,
+     *         usesDataDescriptor:bool,
+     *         descriptorOffset:?int,
+     *         descriptorLength:?int,
+     *         recordEnd:int,
+     *         nextOffset:int,
+     *         isContiguousWithNext:bool,
+     *         compressionMethod:int,
+     *         generalPurposeFlags:int,
+     *         localHeaderCrc32:int,
+     *         localHeaderCompressedSize:int,
+     *         localHeaderUncompressedSize:int,
+     *         hasZeroLocalHeaderPlaceholders:?bool
+     *     }>
+     * }
+     */
+    public function localHeaderPreflight(): array
+    {
+        $entries = [];
+        $localEntries = $this->localEntries();
+
+        foreach ($localEntries as $entry) {
+            $localHeader = $this->readLocalHeader($entry);
+            $compressedDataEnd = $localHeader['dataStart'] + $entry->compressedSize;
+            $recordEnd = $compressedDataEnd;
+            $nextOffset = $this->nextEntryOrCentralDirectoryOffset($entry);
+            $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
+            $descriptorOffset = null;
+            $descriptorLength = null;
+            $hasZeroLocalHeaderPlaceholders = null;
+
+            if ($usesDataDescriptor) {
+                $descriptor = $this->dataDescriptorMetadata($entry, $compressedDataEnd, $nextOffset);
+                $descriptorOffset = $descriptor['descriptorOffset'];
+                $descriptorLength = $descriptor['descriptorLength'];
+                $recordEnd += $descriptorLength;
+                $hasZeroLocalHeaderPlaceholders = $localHeader['crc32'] === 0
+                    && $localHeader['compressedSize'] === 0
+                    && $localHeader['uncompressedSize'] === 0;
+            }
+
+            $entries[] = [
+                'name' => $entry->name,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'localHeaderLength' => $localHeader['localHeaderLength'],
+                'localNameLength' => $localHeader['nameLength'],
+                'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'dataStart' => $localHeader['dataStart'],
+                'compressedSize' => $entry->compressedSize,
+                'compressedDataEnd' => $compressedDataEnd,
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'descriptorOffset' => $descriptorOffset,
+                'descriptorLength' => $descriptorLength,
+                'recordEnd' => $recordEnd,
+                'nextOffset' => $nextOffset,
+                'isContiguousWithNext' => $recordEnd === $nextOffset,
+                'compressionMethod' => $entry->compressionMethod,
+                'generalPurposeFlags' => $entry->generalPurposeFlags,
+                'localHeaderCrc32' => $localHeader['crc32'],
+                'localHeaderCompressedSize' => $localHeader['compressedSize'],
+                'localHeaderUncompressedSize' => $localHeader['uncompressedSize'],
+                'hasZeroLocalHeaderPlaceholders' => $hasZeroLocalHeaderPlaceholders,
+            ];
+        }
+
+        return [
+            'entryCount' => count($localEntries),
+            'firstLocalEntryName' => $localEntries[0]->name ?? null,
+            'centralDirectoryOffset' => $this->centralDirectoryOffset,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     entryName:string,
      *     exists:bool,
      *     firstLocalEntryName:?string,
@@ -1798,6 +1884,7 @@ final class ZipPackage
      *     caseInsensitiveNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
+     *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
      *     readIntegrity:array<string, mixed>
      * }
@@ -1826,6 +1913,7 @@ final class ZipPackage
         $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
         $permissions = $this->permissionPreflight();
         $creatorHostSystems = $this->creatorHostSystemPreflight();
+        $localHeaders = $this->localHeaderPreflight();
         $dataDescriptors = $this->dataDescriptorPreflight();
         $readIntegrity = $this->readIntegrityPreflight($maxEntryUncompressedBytes);
         $diagnostics = [];
@@ -1911,6 +1999,7 @@ final class ZipPackage
             'caseInsensitiveNames' => $caseInsensitiveNames,
             'permissions' => $permissions,
             'creatorHostSystems' => $creatorHostSystems,
+            'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
             'readIntegrity' => $readIntegrity,
         ];
@@ -1933,6 +2022,7 @@ final class ZipPackage
      *     caseInsensitiveNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
+     *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
      *     readIntegrity:array<string, mixed>
      * }
@@ -2503,7 +2593,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{extraFieldData:string, dataStart:int, crc32:int, compressedSize:int, uncompressedSize:int}
+     * @return array{extraFieldData:string, dataStart:int, crc32:int, compressedSize:int, uncompressedSize:int, nameLength:int, extraFieldLength:int, localHeaderLength:int}
      */
     private function readLocalHeader(ZipPackageEntry $entry): array
     {
@@ -2606,6 +2696,9 @@ final class ZipPackage
             'crc32' => $localCrc32,
             'compressedSize' => $localCompressedSize,
             'uncompressedSize' => $localUncompressedSize,
+            'nameLength' => $nameLength,
+            'extraFieldLength' => $extraLength,
+            'localHeaderLength' => 30 + $nameLength + $extraLength,
         ];
     }
 

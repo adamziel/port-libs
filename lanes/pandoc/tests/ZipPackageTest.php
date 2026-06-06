@@ -536,6 +536,84 @@ return [
         $t->same('<container/>', $package->read('/META-INF/container.xml'));
     },
 
+    'preflights zip local header spans for stored and streamed package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $documentXml = '<w:document><w:p>local header span inventory</w:p></w:document>';
+        $commentsXml = '<w:comments><w:comment>descriptor span</w:comment></w:comments>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'method' => 0,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'centralIndex' => 1,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderPreflight();
+        $entries = $summary['entries'];
+
+        $t->same(3, $summary['entryCount']);
+        $t->same('mimetype', $summary['firstLocalEntryName']);
+        $t->same('mimetype', $entries[0]['name']);
+        $t->same('word/document.xml', $entries[1]['name']);
+        $t->same('word/comments.xml', $entries[2]['name']);
+        $t->same(0, $entries[0]['localHeaderOffset']);
+        $t->same(30 + strlen('mimetype'), $entries[0]['localHeaderLength']);
+        $t->same(strlen('mimetype'), $entries[0]['localNameLength']);
+        $t->same(0, $entries[0]['localExtraFieldLength']);
+        $t->same($entries[0]['localHeaderLength'], $entries[0]['dataStart']);
+        $t->same(strlen($mimetype), $entries[0]['compressedSize']);
+        $t->same($entries[0]['dataStart'] + strlen($mimetype), $entries[0]['compressedDataEnd']);
+        $t->same(false, $entries[0]['usesDataDescriptor']);
+        $t->same(null, $entries[0]['descriptorOffset']);
+        $t->same(null, $entries[0]['descriptorLength']);
+        $t->same($entries[0]['compressedDataEnd'], $entries[0]['recordEnd']);
+        $t->same($entries[1]['localHeaderOffset'], $entries[0]['nextOffset']);
+        $t->same(true, $entries[0]['isContiguousWithNext']);
+        $t->same(0, $entries[0]['compressionMethod']);
+        $t->same(0x0800, $entries[0]['generalPurposeFlags']);
+        $t->same(null, $entries[0]['hasZeroLocalHeaderPlaceholders']);
+
+        $t->same(8, $entries[1]['compressionMethod']);
+        $t->same(0x0800, $entries[1]['generalPurposeFlags']);
+        $t->same(strlen(gzdeflate($documentXml)), $entries[1]['compressedSize']);
+        $t->same(false, $entries[1]['usesDataDescriptor']);
+        $t->same($entries[2]['localHeaderOffset'], $entries[1]['nextOffset']);
+        $t->same(true, $entries[1]['isContiguousWithNext']);
+        $t->same($entries[1]['dataStart'] + $entries[1]['compressedSize'], $entries[1]['recordEnd']);
+
+        $t->same(8, $entries[2]['compressionMethod']);
+        $t->same(0x0808, $entries[2]['generalPurposeFlags']);
+        $t->same(0, $entries[2]['localHeaderCrc32']);
+        $t->same(0, $entries[2]['localHeaderCompressedSize']);
+        $t->same(0, $entries[2]['localHeaderUncompressedSize']);
+        $t->same(true, $entries[2]['usesDataDescriptor']);
+        $t->same(true, $entries[2]['hasZeroLocalHeaderPlaceholders']);
+        $t->same($entries[2]['compressedDataEnd'], $entries[2]['descriptorOffset']);
+        $t->same(16, $entries[2]['descriptorLength']);
+        $t->same($entries[2]['compressedDataEnd'] + 16, $entries[2]['recordEnd']);
+        $t->same($summary['centralDirectoryOffset'], $entries[2]['nextOffset']);
+        $t->same(true, $entries[2]['isContiguousWithNext']);
+        $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaders']);
+        $t->same($mimetype, $package->read('/mimetype'));
+        $t->same($documentXml, $package->read('/word/document.xml'));
+        $t->same($commentsXml, $package->read('/word/comments.xml'));
+    },
+
     'preflights stored first mimetype entries for ODT and EPUB containers' => static function (TestRunner $t) use ($buildZipPackage): void {
         $odtMimetype = 'application/vnd.oasis.opendocument.text';
         $package = ZipPackage::fromString($buildZipPackage([

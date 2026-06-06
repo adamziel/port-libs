@@ -1685,6 +1685,7 @@ $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
 $packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
 $packageCaseInsensitiveNamePreflight = $package->caseInsensitiveNamePreflight();
+$packageLocalHeaderPreflight = $package->localHeaderPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
 $strictImportPackage = ZipPackage::fromParts([
     [
@@ -3098,6 +3099,20 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected first local ZIP entry to start at package offset zero');
     }
 
+    if (
+        ($packageLocalHeaderPreflight['entryCount'] ?? null) !== 3
+        || ($packageLocalHeaderPreflight['firstLocalEntryName'] ?? null) !== '[Content_Types].xml'
+        || ($packageLocalHeaderPreflight['entries'][0]['localHeaderOffset'] ?? null) !== 0
+        || ($packageLocalHeaderPreflight['entries'][0]['isContiguousWithNext'] ?? null) !== true
+        || ($packageLocalHeaderPreflight['entries'][2]['recordEnd'] ?? null) !== ($packageLocalHeaderPreflight['centralDirectoryOffset'] ?? null)
+    ) {
+        throw new RuntimeException('Expected ZIP local header spans to be inspectable for package preflight');
+    }
+
+    if (($strictImportPreflight['localHeaders']['entryCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected strict ZIP import preflight to include local header spans');
+    }
+
     $documentEntry = $package->entry('/word/document.xml');
     if ($documentEntry->lastModifiedTimestamp() !== $documentModifiedAt) {
         throw new RuntimeException('Expected document part ZIP timestamp metadata to round-trip');
@@ -3733,6 +3748,9 @@ echo 'localOrder=' . implode(',', $package->localNames()) . "\n";
 echo 'odtMimetypeStoredFirst=' . ($odtMimetypePreflight['isValid'] ? 'yes' : 'no') . "\n";
 echo 'odtMimetypeLocalFirst=' . ($odtMimetypePreflight['firstLocalEntryName'] ?? 'none') . "\n";
 echo 'zipStoredFirstMimetypeExtraFieldPolicy=' . ($odtMimetypeExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'packageLocalHeaders.entryCount=' . $packageLocalHeaderPreflight['entryCount'] . "\n";
+echo 'packageLocalHeaders.firstLocalEntry=' . ($packageLocalHeaderPreflight['firstLocalEntryName'] ?? 'none') . "\n";
+echo 'packageLocalHeaders.lastRecordEnd=' . ($packageLocalHeaderPreflight['entries'][2]['recordEnd'] ?? 'none') . "\n";
 foreach ($package->entries() as $entry) {
     $modifiedAt = $entry->lastModifiedTimestamp();
     echo '- ' . $entry->name
