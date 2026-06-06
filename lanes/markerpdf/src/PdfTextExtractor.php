@@ -8,6 +8,7 @@ final class PdfTextExtractor
 {
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
+    private const MAX_FONT_ADVANCE_METRIC = 100000.0;
     private const MAX_CMAP_RANGE_ENTRIES = 4096;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
@@ -17845,12 +17846,12 @@ final class PdfTextExtractor
 
     private function finiteFontAdvanceMetric(?float $value): ?float
     {
-        return $value !== null && is_finite($value) ? $value : null;
+        return $value !== null && is_finite($value) && abs($value) <= self::MAX_FONT_ADVANCE_METRIC ? $value : null;
     }
 
     private function finiteHorizontalFontAdvanceMetric(?float $value): ?float
     {
-        return $value !== null && is_finite($value) && $value >= 0.0 ? $value : null;
+        return $value !== null && is_finite($value) && $value >= 0.0 && $value <= self::MAX_FONT_ADVANCE_METRIC ? $value : null;
     }
 
     private function simpleFontWidthRangeCode(?float $value): ?int

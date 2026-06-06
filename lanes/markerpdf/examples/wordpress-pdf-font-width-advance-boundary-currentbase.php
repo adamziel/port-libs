@@ -246,6 +246,14 @@ $nonFiniteWidthPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($nonFiniteWidthContent) . " >>\nstream\n{$nonFiniteWidthContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$hugeFiniteWidth = '1' . str_repeat('0', 308);
+$hugeFiniteWidthContent = 'BT /Fhuge 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 48 0 Td <4344> Tj ET';
+$hugeFiniteWidthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fhuge 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+HugeFiniteAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [{$hugeFiniteWidth} {$hugeFiniteWidth} 1000 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($hugeFiniteWidthContent) . " >>\nstream\n{$hugeFiniteWidthContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $negativeWidthMetricContent = 'BT /Fnegw 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj ET';
 $negativeWidthMetricPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fnegw 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -704,6 +712,24 @@ foreach ($nonFiniteWidthSpanBboxes as $bbox) {
             && is_finite($number);
     }
 }
+$hugeFiniteWidthLines = $extractor->extractTextLines($hugeFiniteWidthPdf);
+$hugeFiniteWidthPlainText = implode("\n", $hugeFiniteWidthLines);
+$hugeFiniteWidthPages = $extractor->extractStyledTextPages($hugeFiniteWidthPdf);
+$hugeFiniteWidthLine = $hugeFiniteWidthPages[0]['blocks'][0]['lines'][0] ?? [];
+$hugeFiniteWidthSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $hugeFiniteWidthLine['spans'] ?? []
+);
+$hugeFiniteWidthBboxesAreFinite = true;
+$hugeFiniteWidthMaxBboxMagnitude = 0.0;
+foreach (array_merge($hugeFiniteWidthSpanBboxes, [$hugeFiniteWidthLine['bbox'] ?? []]) as $bbox) {
+    foreach ($bbox as $number) {
+        $hugeFiniteWidthBboxesAreFinite = $hugeFiniteWidthBboxesAreFinite
+            && is_float($number)
+            && is_finite($number);
+        $hugeFiniteWidthMaxBboxMagnitude = max($hugeFiniteWidthMaxBboxMagnitude, abs((float) $number));
+    }
+}
 $negativeWidthMetricLines = $extractor->extractTextLines($negativeWidthMetricPdf);
 $negativeWidthMetricPlainText = implode("\n", $negativeWidthMetricLines);
 $negativeWidthMetricPages = $extractor->extractStyledTextPages($negativeWidthMetricPdf);
@@ -824,7 +850,7 @@ $type3CharProcMatrixVectorSecondBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -924,6 +950,11 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'nonfinite_width_infinite_bbox_excluded' => $nonFiniteWidthBboxesAreFinite,
     'nonfinite_width_styled_bboxes_preserved' => $nonFiniteWidthSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]],
     'nonfinite_width_joined_text_excluded' => !str_contains($nonFiniteWidthPlainText, 'ABCD'),
+    'huge_finite_width_current_gap_preserved' => $hugeFiniteWidthLines === ['AB CD'],
+    'huge_finite_width_plain_text_preserved' => $hugeFiniteWidthPlainText === 'AB CD',
+    'huge_finite_width_bbox_overflow_excluded' => $hugeFiniteWidthBboxesAreFinite && $hugeFiniteWidthMaxBboxMagnitude < 1000.0,
+    'huge_finite_width_styled_bboxes_preserved' => $hugeFiniteWidthSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]],
+    'huge_finite_width_joined_text_excluded' => !str_contains($hugeFiniteWidthPlainText, 'ABCD'),
     'negative_width_metric_rejected' => $negativeWidthMetricLines === ['ABCD'],
     'negative_width_metric_plain_text_preserved' => $negativeWidthMetricPlainText === 'ABCD',
     'negative_width_metric_false_gap_excluded' => !str_contains($negativeWidthMetricPlainText, 'AB CD'),
@@ -1036,6 +1067,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'nonfinite_width_lines' => $nonFiniteWidthLines,
     'nonfinite_width_span_bboxes' => $nonFiniteWidthSpanBboxes,
     'nonfinite_width_bboxes_are_finite' => $nonFiniteWidthBboxesAreFinite,
+    'huge_finite_width_lines' => $hugeFiniteWidthLines,
+    'huge_finite_width_span_bboxes' => $hugeFiniteWidthSpanBboxes,
+    'huge_finite_width_bboxes_are_finite' => $hugeFiniteWidthBboxesAreFinite,
+    'huge_finite_width_max_bbox_magnitude' => $hugeFiniteWidthMaxBboxMagnitude,
     'negative_width_metric_lines' => $negativeWidthMetricLines,
     'negative_width_metric_span_bboxes' => $negativeWidthMetricSpanBboxes,
     'rotated_text_matrix_lines' => $rotatedTextMatrixLines,
@@ -1064,7 +1099,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
