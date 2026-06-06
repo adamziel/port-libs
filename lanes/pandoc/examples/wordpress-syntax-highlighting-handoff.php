@@ -292,6 +292,12 @@ if (!$mermaidCodeBlock instanceof PortLibs\Pandoc\AstNode || $mermaidCodeBlock->
 }
 $mermaid = $highlighter->highlightCodeBlock($mermaidCodeBlock, 'tango');
 $mermaidWordpressBlock = $highlighter->wordpressHtmlBlock($mermaidCodeBlock, 'tango');
+$htmlEmbeddedCodeBlock = $document->children[42] ?? null;
+if (!$htmlEmbeddedCodeBlock instanceof PortLibs\Pandoc\AstNode || $htmlEmbeddedCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an embedded HTML asset code block');
+}
+$htmlEmbedded = $highlighter->highlightCodeBlock($htmlEmbeddedCodeBlock, 'pygments');
+$htmlEmbeddedWordpressBlock = $highlighter->wordpressHtmlBlock($htmlEmbeddedCodeBlock, 'pygments');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1229,6 +1235,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($mermaidWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Mermaid WordPress style metadata');
     }
+    if (($htmlEmbedded['language'] ?? '') !== 'html') {
+        throw new RuntimeException('Expected embedded HTML fixture to normalize to HTML highlighting');
+    }
+    if (($htmlEmbedded['lineNumbering']['start'] ?? null) !== 470) {
+        throw new RuntimeException('Expected embedded HTML source startFrom line-number handoff');
+    }
+    if (!str_contains($htmlEmbedded['html'], '<span class="kw">&lt;style</span><span class="op">&gt;</span>')) {
+        throw new RuntimeException('Expected embedded HTML style tag token handoff');
+    }
+    if (!str_contains($htmlEmbedded['html'], '<span class="dt">.wp-block-import-card</span> <span class="op">{</span> <span class="ot">color</span><span class="op">:</span> <span class="fu">var</span>')) {
+        throw new RuntimeException('Expected embedded CSS selector/property/function token handoff');
+    }
+    if (!str_contains($htmlEmbedded['html'], '<span class="kw">@media</span> <span class="op">(</span><span class="ot">min-width</span><span class="op">:</span> <span class="dv">48rem</span>')) {
+        throw new RuntimeException('Expected embedded CSS media-query token handoff');
+    }
+    if (!str_contains($htmlEmbedded['html'], '<span class="kw">const</span> <span class="va">block</span> <span class="op">=</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>')) {
+        throw new RuntimeException('Expected embedded JavaScript const/function token handoff');
+    }
+    if (!str_contains($htmlEmbedded['html'], '<span class="dt">console</span><span class="op">.</span><span class="fu">log</span><span class="op">(</span><span class="dt">JSON</span><span class="op">.</span><span class="fu">stringify</span>')) {
+        throw new RuntimeException('Expected embedded JavaScript builtin token handoff');
+    }
+    if (!str_contains($htmlEmbeddedWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
+        throw new RuntimeException('Expected embedded HTML WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1295,6 +1325,7 @@ echo "nginxHighlightedHtml:\n" . $nginx['html'] . "\n";
 echo "twigHighlightedHtml:\n" . $twig['html'] . "\n";
 echo "handlebarsHighlightedHtml:\n" . $handlebars['html'] . "\n";
 echo "mermaidHighlightedHtml:\n" . $mermaid['html'] . "\n";
+echo "htmlEmbeddedHighlightedHtml:\n" . $htmlEmbedded['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1332,4 +1363,5 @@ echo "nginxWordpressBlock:\n" . $nginxWordpressBlock . "\n";
 echo "twigWordpressBlock:\n" . $twigWordpressBlock . "\n";
 echo "handlebarsWordpressBlock:\n" . $handlebarsWordpressBlock . "\n";
 echo "mermaidWordpressBlock:\n" . $mermaidWordpressBlock . "\n";
+echo "htmlEmbeddedWordpressBlock:\n" . $htmlEmbeddedWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

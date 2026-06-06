@@ -650,3 +650,19 @@ flowchart LR
   classDef warning fill:#fff4ce,stroke:#d29922,color:#24292f;
   class normalize warning;
 ```
+
+``` {.html #html-embedded-review .numberLines startFrom=470}
+<!-- WordPress embedded asset review -->
+<div class="wp-block-import-card" data-source="legacy-42">
+  <style>
+    .wp-block-import-card { color: var(--accent-color); }
+    @media (min-width: 48rem) { .wp-block-import-card { margin-block: 1rem; } }
+  </style>
+  <script type="module">
+    const block = wp.element.createElement("p", null, "Imported");
+    if (window.wp?.data) {
+      console.log(JSON.stringify({ ok: true, source: "legacy-42" }));
+    }
+  </script>
+</div>
+```

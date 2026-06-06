@@ -946,6 +946,49 @@ return [
         $t->contains('<span class="kw">participant</span> <span class="va">Editor</span>', $directMermaid['html']);
         $t->contains('<span class="va">Editor</span><span class="op">-&gt;&gt;</span><span class="ot">Queue</span><span class="op">:</span> <span class="va">approve</span>', $directMermaid['html']);
     },
+    'highlights embedded css and javascript inside html review snippets' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[42] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an embedded HTML asset code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'pygments');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'pygments');
+        $directHtml = $highlighter->highlight(
+            '<style>.wp-block { color: var(--accent-color); }</style>' . "\n"
+            . '<script>const block = wp.element.createElement("p", null, "ok");</script>',
+            'html'
+        );
+
+        $t->same('html', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('html', $highlighted['language']);
+        $t->same('html', $highlighted['requestedLanguage']);
+        $t->same('pygments', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(470, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource html numberLines"><code class="sourceCode html" style="counter-reset: source-line 469;">', $highlighted['html']);
+        $t->contains('<span id="html-embedded-review-470"><a href="#html-embedded-review-470"></a><span class="co">&lt;!-- WordPress embedded asset review --&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;style</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.wp-block-import-card</span> <span class="op">{</span> <span class="ot">color</span><span class="op">:</span> <span class="fu">var</span><span class="op">(</span><span class="ot">--accent-color</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@media</span> <span class="op">(</span><span class="ot">min-width</span><span class="op">:</span> <span class="dv">48rem</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">margin-block</span><span class="op">:</span> <span class="dv">1rem</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;script</span> <span class="ot">type</span><span class="op">=</span><span class="st">&quot;module&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">const</span> <span class="va">block</span> <span class="op">=</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="dt">window</span><span class="op">.</span><span class="va">wp</span><span class="op">?.</span><span class="va">data</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="dt">console</span><span class="op">.</span><span class="fu">log</span><span class="op">(</span><span class="dt">JSON</span><span class="op">.</span><span class="fu">stringify</span><span class="op">({</span> <span class="ot">ok</span><span class="op">:</span> <span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="pygments">', $wordpressBlock);
+        $t->contains('<span class="fu">createElement</span><span class="op">(</span><span class="st">&quot;p&quot;</span>', $wordpressBlock);
+        $t->same('html', $directHtml['language']);
+        $t->contains('<span class="dt">.wp-block</span> <span class="op">{</span> <span class="ot">color</span><span class="op">:</span> <span class="fu">var</span><span class="op">(</span><span class="ot">--accent-color</span><span class="op">);</span>', $directHtml['html']);
+        $t->contains('<span class="kw">const</span> <span class="va">block</span> <span class="op">=</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>', $directHtml['html']);
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');

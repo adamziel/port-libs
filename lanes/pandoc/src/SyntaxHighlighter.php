@@ -1299,14 +1299,119 @@ final class SyntaxHighlighter
      */
     private function tokenizeHtml(string $code): array
     {
-        return $this->scan($code, [
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $match = self::nextHtmlRawTextTag($code, $offset);
+            if ($match === null) {
+                $this->scanHtmlFragment(substr($code, $offset), $tokens);
+                break;
+            }
+
+            [$tag, $tagOffset] = $match;
+            if ($tagOffset > $offset) {
+                $this->scanHtmlFragment(substr($code, $offset, $tagOffset - $offset), $tokens);
+            }
+
+            $openingEnd = self::htmlTagEndOffset($code, $tagOffset);
+            if ($openingEnd === null) {
+                $this->scanHtmlFragment(substr($code, $tagOffset), $tokens);
+                break;
+            }
+
+            $this->scanHtmlFragment(substr($code, $tagOffset, $openingEnd - $tagOffset + 1), $tokens);
+            $contentOffset = $openingEnd + 1;
+            $closing = self::htmlClosingRawTextTag($code, $tag, $contentOffset);
+            if ($closing === null) {
+                $this->appendEmbeddedHtmlTokens($tag, substr($code, $contentOffset), $tokens);
+                break;
+            }
+
+            [$closingOffset, $closingLength] = $closing;
+            $this->appendEmbeddedHtmlTokens($tag, substr($code, $contentOffset, $closingOffset - $contentOffset), $tokens);
+            $this->scanHtmlFragment(substr($code, $closingOffset, $closingLength), $tokens);
+            $offset = $closingOffset + $closingLength;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function scanHtmlFragment(string $code, array &$tokens): void
+    {
+        $this->scanInto($code, [
             ['comment', '/^<!--[\\s\\S]*?-->/'],
             ['keyword', '/^<\\/?[A-Za-z][A-Za-z0-9:-]*/'],
             ['attribute', '/^[A-Za-z_:][A-Za-z0-9_.:-]*(?=\\s*=)/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
             ['operator', '/^\\/?>|^=/'],
-        ]);
+        ], $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendEmbeddedHtmlTokens(string $tag, string $code, array &$tokens): void
+    {
+        $embedded = $tag === 'style' ? $this->tokenizeCss($code) : $this->tokenizeJavaScript($code);
+        foreach ($embedded as $token) {
+            $this->appendToken($tokens, $token['type'], $token['text']);
+        }
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private static function nextHtmlRawTextTag(string $code, int $offset): ?array
+    {
+        if (preg_match('/<(script|style)\\b/i', $code, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+            return null;
+        }
+
+        return [strtolower($matches[1][0]), $matches[0][1]];
+    }
+
+    private static function htmlTagEndOffset(string $code, int $offset): ?int
+    {
+        $quote = '';
+        $length = strlen($code);
+        for ($index = $offset; $index < $length; $index++) {
+            $char = $code[$index];
+            if ($quote !== '') {
+                if ($char === $quote) {
+                    $quote = '';
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0:int, 1:int}|null
+     */
+    private static function htmlClosingRawTextTag(string $code, string $tag, int $offset): ?array
+    {
+        if (preg_match('/<\\/\\s*' . preg_quote($tag, '/') . '\\s*>/i', $code, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+            return null;
+        }
+
+        return [$matches[0][1], strlen($matches[0][0])];
     }
 
     /**
