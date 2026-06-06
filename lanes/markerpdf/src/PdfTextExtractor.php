@@ -18990,8 +18990,17 @@ final class PdfTextExtractor
             $dictionaryReference['objectNumber'],
             $dictionaryReference['generation']
         );
-        if ($objectBody === null || !$this->objectBodyIsStreamObject($objectBody)) {
+        if ($objectBody === null) {
             return $references;
+        }
+
+        if (!$this->objectBodyIsStreamObject($objectBody)) {
+            if ($references !== []) {
+                return $references;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            return $dictionary === null ? [] : $this->charProcObjectReferencesFromDictionary($dictionary, [], false);
         }
 
         $streamDictionary = $this->dictionaryObjectBody($objectBody);
@@ -19016,7 +19025,7 @@ final class PdfTextExtractor
 
         return array_replace(
             $references,
-            $this->charProcObjectReferencesFromDictionary($streamDictionary, $streamDictionaryNames)
+            $this->charProcObjectReferencesFromDictionary($streamDictionary, $streamDictionaryNames, false)
         );
     }
 
@@ -19037,15 +19046,18 @@ final class PdfTextExtractor
 
         $dictionaryOffset = 0;
         $dictionary = $this->readPdfDictionaryAt($value, $dictionaryOffset);
-        return $dictionary === null ? [] : $this->charProcObjectReferencesFromDictionary($dictionary);
+        return $dictionary === null ? [] : $this->charProcObjectReferencesFromDictionary($dictionary, [], false);
     }
 
     /**
      * @return array<string, array{objectNumber: int, generation: int}>
      * @param array<string, true> $excludedNames
      */
-    private function charProcObjectReferencesFromDictionary(string $dictionary, array $excludedNames = []): array
-    {
+    private function charProcObjectReferencesFromDictionary(
+        string $dictionary,
+        array $excludedNames = [],
+        bool $rejectMalformedReferenceTail = true
+    ): array {
         $references = [];
         $offset = 0;
         $length = strlen($dictionary);
@@ -19082,6 +19094,13 @@ final class PdfTextExtractor
             $referenceOffset = $valueOffset;
             $reference = $this->readPdfIndirectReferenceToken($dictionary, $referenceOffset);
             if ($reference !== null) {
+                if (
+                    $rejectMalformedReferenceTail
+                    && $this->charProcReferenceHasMalformedTail($dictionary, $referenceOffset)
+                ) {
+                    return [];
+                }
+
                 if (!isset($excludedNames[$glyphName])) {
                     $references[$glyphName] = [
                         'objectNumber' => $reference['objectNumber'],
@@ -19097,6 +19116,14 @@ final class PdfTextExtractor
         }
 
         return $references;
+    }
+
+    private function charProcReferenceHasMalformedTail(string $dictionary, int $offset): bool
+    {
+        $tailOffset = $offset;
+        $this->skipContentWhitespaceAndComments($dictionary, $tailOffset);
+
+        return $tailOffset < strlen($dictionary) && ($dictionary[$tailOffset] ?? '') !== '/';
     }
 
     /**
