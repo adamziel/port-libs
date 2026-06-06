@@ -1762,6 +1762,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB storage stream-data bytes' => substr_replace($docBytes, $u64(64), $directoryFieldOffset($objectPoolDirectoryId, 120), 8),
+        'CFB storage start-sector reference' => substr_replace($docBytes, $u32($rootMiniStart), $directoryFieldOffset($objectPoolDirectoryId, 116), 4),
+        'CFB zero-length stream start-sector reference' => substr_replace($docBytes, $u64(0), $directoryFieldOffset($wordDocumentDirectoryId, 120), 8),
         'red CFB sibling-tree root' => substr_replace($docBytes, "\0", $directoryFieldOffset((int) ($childIds[0] ?? $wordDocumentDirectoryId), 67), 1),
         'unequal CFB sibling-tree black height' => substr_replace($docBytes, "\x01", $directoryFieldOffset($redDirectoryId, 67), 1),
         'duplicate CFB FAT sector' => substr_replace(substr_replace($docBytes, $u32(2), 44, 4), $u32(0), 80, 4),

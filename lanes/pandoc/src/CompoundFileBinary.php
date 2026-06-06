@@ -652,14 +652,25 @@ final class CompoundFileBinary
     {
         $type = (int) $entry['type'];
         $name = (string) $entry['name'];
+        $startSector = (int) $entry['startSector'];
+        $size = (int) $entry['size'];
         if ($type === 2 && (int) $entry['childId'] !== self::FREESECT) {
             throw new \RuntimeException('CFB stream directory entry must not reference child entries: ' . $name);
         }
-        if ($type === 1 && (int) $entry['size'] !== 0) {
+        if ($type === 2 && $size === 0 && self::isRegularSector($startSector)) {
+            throw new \RuntimeException('CFB zero-length stream directory entry must not reference stream sectors: ' . $name);
+        }
+        if ($type === 1 && $size !== 0) {
             throw new \RuntimeException('CFB storage directory entry must not declare stream bytes: ' . $name);
+        }
+        if ($type === 1 && self::isRegularSector($startSector)) {
+            throw new \RuntimeException('CFB storage directory entry must not reference stream sectors: ' . $name);
         }
         if ($type === 5 && ((int) $entry['leftSiblingId'] !== self::FREESECT || (int) $entry['rightSiblingId'] !== self::FREESECT)) {
             throw new \RuntimeException('CFB root directory entry must not reference sibling entries');
+        }
+        if ($type === 5 && $size === 0 && self::isRegularSector($startSector)) {
+            throw new \RuntimeException('CFB root directory entry must not reference a mini stream when its size is zero');
         }
     }
 

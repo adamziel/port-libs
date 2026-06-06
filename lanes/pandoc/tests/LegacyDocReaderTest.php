@@ -1667,6 +1667,25 @@ return [
         $objectPoolSize = substr_replace($bytes, $u64(64), $directorySectorOffset + (2 * 128) + 120, 8);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($objectPoolSize));
     },
+    'rejects CFB directory start-sector mismatches before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            'ObjectPool/_42/Native' => 'nested native bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+
+        $objectPoolStartSector = substr_replace($bytes, $u32(2), $directorySectorOffset + (2 * 128) + 116, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($objectPoolStartSector));
+
+        $zeroLengthStreamWithStartSector = substr_replace($bytes, $u64(0), $directorySectorOffset + 128 + 120, 8);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($zeroLengthStreamWithStartSector));
+
+        $rootWithoutMiniStreamBytes = $buildCfb([
+            'WordDocument' => str_repeat('W', 5000),
+        ], false);
+        $rootStartSector = substr_replace($rootWithoutMiniStreamBytes, $u32(2), $directorySectorOffset + 116, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($rootStartSector));
+    },
     'rejects red CFB directory sibling-tree roots before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
             'A' => 'a',
