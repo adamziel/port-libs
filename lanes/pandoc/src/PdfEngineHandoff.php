@@ -293,6 +293,7 @@ final class PdfEngineHandoff
      *     pdfViewerPreferences: array<string, bool|int|string>,
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
@@ -704,6 +705,7 @@ final class PdfEngineHandoff
         $pdfViewerPreferences = [];
         $pdfTaggingMetadata = [];
         $pdfStructureElements = [];
+        $pdfMarkedContentProperties = [];
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
         $pdfCollectionMetadata = [];
@@ -773,6 +775,7 @@ final class PdfEngineHandoff
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
+                $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
@@ -1167,6 +1170,25 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-structure-languages:' . $languageCount;
                     }
                 }
+                if ($pdfMarkedContentProperties !== []) {
+                    $diagnostics[] = 'pdf-byte-marked-content-properties:' . count($pdfMarkedContentProperties);
+                    $markedContentAssociatedFileCount = 0;
+                    $markedContentInheritedCount = 0;
+                    foreach ($pdfMarkedContentProperties as $property) {
+                        if (isset($property['associatedFiles']) && is_array($property['associatedFiles'])) {
+                            $markedContentAssociatedFileCount += count($property['associatedFiles']);
+                        }
+                        if (($property['inherited'] ?? false) === true) {
+                            $markedContentInheritedCount++;
+                        }
+                    }
+                    if ($markedContentAssociatedFileCount > 0) {
+                        $diagnostics[] = 'pdf-byte-marked-content-associated-files:' . $markedContentAssociatedFileCount;
+                    }
+                    if ($markedContentInheritedCount > 0) {
+                        $diagnostics[] = 'pdf-byte-marked-content-inherited:' . $markedContentInheritedCount;
+                    }
+                }
                 if ($pdfOptionalContentGroups !== []) {
                     $diagnostics[] = 'pdf-byte-optional-content-groups:' . count($pdfOptionalContentGroups);
                     $intentCount = 0;
@@ -1558,6 +1580,7 @@ final class PdfEngineHandoff
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureElements' => $pdfStructureElements,
+            'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
@@ -1648,6 +1671,7 @@ final class PdfEngineHandoff
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
@@ -1852,6 +1876,7 @@ final class PdfEngineHandoff
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
+            'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
@@ -2943,6 +2968,7 @@ final class PdfEngineHandoff
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
@@ -3039,6 +3065,7 @@ final class PdfEngineHandoff
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
+            'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
             'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
@@ -5437,6 +5464,185 @@ final class PdfEngineHandoff
             'language' => $this->extractPdfStringOrNameValue($dictionary, 'Lang'),
             'title' => $this->extractPdfStringOrNameValue($dictionary, 'T'),
             'childCount' => $children,
+        ];
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>
+     */
+    private function extractPdfMarkedContentProperties(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $properties = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfMarkedContentPropertiesFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                null,
+                $visited,
+                $properties,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($properties === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $pageProperties = $this->summarizePdfPageMarkedContentProperties($body, $reference, null, $objects);
+                foreach ($pageProperties as &$property) {
+                    $property['page'] = $pageNumber;
+                }
+                unset($property);
+                array_push($properties, ...$pageProperties);
+            }
+        }
+
+        $properties = array_values($properties);
+        usort(
+            $properties,
+            static fn (array $a, array $b): int => [
+                $a['page'],
+                $a['propertyName'],
+                $a['propertyObject'] ?? '',
+            ] <=> [
+                $b['page'],
+                $b['propertyName'],
+                $b['propertyObject'] ?? '',
+            ]
+        );
+
+        return $properties;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}> $properties
+     */
+    private function collectPdfMarkedContentPropertiesFromPageTree(
+        array $objects,
+        string $reference,
+        ?string $inheritedResources,
+        array &$visited,
+        array &$properties,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($body, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $pageProperties = $this->summarizePdfPageMarkedContentProperties($body, $reference, $ownResources === null ? $inheritedResources : null, $objects);
+            foreach ($pageProperties as &$property) {
+                $property['page'] = $pageNumber;
+            }
+            unset($property);
+            array_push($properties, ...$pageProperties);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfMarkedContentPropertiesFromPageTree(
+                $objects,
+                $kidReference,
+                $resources,
+                $visited,
+                $properties,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>
+     */
+    private function summarizePdfPageMarkedContentProperties(string $pageDictionary, string $pageReference, ?string $inheritedResources, array $objects): array
+    {
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        if ($resources === null) {
+            return [];
+        }
+
+        $propertyDictionary = $this->extractPdfDictionaryOrReferenceValue($resources, 'Properties', $objects);
+        if ($propertyDictionary === null) {
+            return [];
+        }
+
+        $properties = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($propertyDictionary) as $entry) {
+            $property = $this->summarizePdfMarkedContentProperty(
+                $entry['key'],
+                $entry['value'],
+                $objects,
+                $pageReference,
+                $ownResources === null
+            );
+            if ($property !== null) {
+                $properties[] = $property;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}|null
+     */
+    private function summarizePdfMarkedContentProperty(string $propertyName, array $value, array $objects, string $pageReference, bool $inherited): ?array
+    {
+        $dictionary = null;
+        $propertyObject = null;
+        if ($value['kind'] === 'reference') {
+            $propertyObject = $value['value'];
+            $dictionary = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        } elseif ($value['kind'] === 'dictionary') {
+            $propertyObject = 'inline';
+            $dictionary = $value['value'];
+        }
+
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $associatedFiles = [];
+        foreach ($this->extractPdfReferenceArray($dictionary, 'AF') as $reference) {
+            $associatedFiles[] = $reference . ' R';
+        }
+
+        return [
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'propertyName' => $propertyName,
+            'propertyObject' => $propertyObject,
+            'inherited' => $inherited,
+            'mcid' => $this->extractPdfIntegerToken($dictionary, 'MCID'),
+            'language' => $this->extractPdfStringOrNameValue($dictionary, 'Lang'),
+            'alt' => $this->extractPdfStringOrNameValue($dictionary, 'Alt'),
+            'actualText' => $this->extractPdfStringOrNameValue($dictionary, 'ActualText'),
+            'expanded' => $this->extractPdfStringOrNameValue($dictionary, 'E'),
+            'associatedFiles' => $associatedFiles,
         ];
     }
 
@@ -9004,6 +9210,27 @@ final class PdfEngineHandoff
                 $this->addPdfEmbeddedFileEntry(
                     $files,
                     $this->summarizePdfFileSpec($objects[$reference], $objects, 'catalog.AF', $reference . ' R', null)
+                );
+            }
+        }
+
+        foreach ($this->extractPdfMarkedContentProperties($pdfBytes, $catalog) as $property) {
+            $pageObject = isset($property['pageObject']) && is_string($property['pageObject']) ? $property['pageObject'] : 'page';
+            $propertyName = isset($property['propertyName']) && is_string($property['propertyName']) ? $property['propertyName'] : 'unnamed';
+            $source = 'marked-content:' . $pageObject . '.Properties.' . $propertyName . '.AF';
+            foreach ($property['associatedFiles'] as $associatedFileReference) {
+                if (preg_match('/\A(\d+)\s+(\d+)\s+R\z/', $associatedFileReference, $matches) !== 1) {
+                    continue;
+                }
+
+                $reference = $matches[1] . ' ' . $matches[2];
+                if (!isset($objects[$reference])) {
+                    continue;
+                }
+
+                $this->addPdfEmbeddedFileEntry(
+                    $files,
+                    $this->summarizePdfFileSpec($objects[$reference], $objects, $source, $associatedFileReference, null)
                 );
             }
         }

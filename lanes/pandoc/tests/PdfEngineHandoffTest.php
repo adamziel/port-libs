@@ -2807,6 +2807,136 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner extracts bounded pdf marked content property associated files from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/marked-content.pdf']);
+        $figureSourceBytes = '{"series":[1,2,3]}';
+        $inlineNoteBytes = "inline reviewer note\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /Properties << /MCFigure 6 0 R /MCInline << /MCID 8 /Lang (fr-FR) /Alt (Inline note) /AF [14 0 R] >> >> >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /MCID 7 /Lang (en-US) /Alt (Review chart source data) /ActualText (Chart source) /E (Expanded chart source) /AF [10 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Filespec /F (figure-source.json) /Desc (Figure source data) /AFRelationship /Source /EF << /F 11 0 R >> >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size ' . strlen($figureSourceBytes) . ' >> /Length ' . strlen($figureSourceBytes) . ' >>',
+            'stream',
+            $figureSourceBytes,
+            'endstream',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /Filespec /F (inline-note.txt) /Desc (Inline marked-content note) /AFRelationship /Supplement /EF << /F 15 0 R >> >>',
+            'endobj',
+            '15 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size ' . strlen($inlineNoteBytes) . ' >> /Length ' . strlen($inlineNoteBytes) . ' >>',
+            'stream',
+            $inlineNoteBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/marked-content.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/marked-content.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedProperties = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'propertyName' => 'MCFigure',
+                'propertyObject' => '6 0 R',
+                'inherited' => false,
+                'mcid' => 7,
+                'language' => 'en-US',
+                'alt' => 'Review chart source data',
+                'actualText' => 'Chart source',
+                'expanded' => 'Expanded chart source',
+                'associatedFiles' => ['10 0 R'],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'propertyName' => 'MCInline',
+                'propertyObject' => 'inline',
+                'inherited' => false,
+                'mcid' => 8,
+                'language' => 'fr-FR',
+                'alt' => 'Inline note',
+                'actualText' => null,
+                'expanded' => null,
+                'associatedFiles' => ['14 0 R'],
+            ],
+        ];
+        $expectedFiles = [
+            [
+                'name' => 'figure-source.json',
+                'unicodeName' => null,
+                'description' => 'Figure source data',
+                'afRelationship' => 'Source',
+                'filespec' => '10 0 R',
+                'embeddedFile' => '11 0 R',
+                'subtype' => 'application/json',
+                'size' => strlen($figureSourceBytes),
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => strlen($figureSourceBytes),
+                'streamSha256' => hash('sha256', $figureSourceBytes),
+                'streamSkipped' => null,
+                'source' => 'marked-content:3 0 R.Properties.MCFigure.AF',
+            ],
+            [
+                'name' => 'inline-note.txt',
+                'unicodeName' => null,
+                'description' => 'Inline marked-content note',
+                'afRelationship' => 'Supplement',
+                'filespec' => '14 0 R',
+                'embeddedFile' => '15 0 R',
+                'subtype' => 'text/plain',
+                'size' => strlen($inlineNoteBytes),
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => strlen($inlineNoteBytes),
+                'streamSha256' => hash('sha256', $inlineNoteBytes),
+                'streamSkipped' => null,
+                'source' => 'marked-content:3 0 R.Properties.MCInline.AF',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedProperties, $result['pdfMarkedContentProperties'] ?? null);
+        $t->same(['figure-source.json', 'inline-note.txt'], $result['pdfEmbeddedFileNames']);
+        $t->same($expectedFiles, $result['pdfEmbeddedFiles']);
+        $t->contains('pdf-byte-marked-content-properties:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-marked-content-associated-files:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedProperties, $sequence['finalPdfMarkedContentProperties'] ?? null);
+        $t->same($expectedFiles, $sequence['finalPdfEmbeddedFiles']);
+    },
+
     'fake runner extracts bounded pdf collection portfolio metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio.pdf']);
