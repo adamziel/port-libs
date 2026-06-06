@@ -6554,7 +6554,7 @@ final class PdfTextExtractor
             && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
         $softMaskReview = $jpxEmbeddedSoftMaskPresent
             ? null
-            : $this->imageXObjectSoftMaskReview($stream['dict'], $objects);
+            : $this->imageXObjectSoftMaskReview($stream['dict'], $objects, $colorSpace);
         $softMaskObject = is_array($softMaskReview) && isset($softMaskReview['object_number']) && is_int($softMaskReview['object_number'])
             ? $softMaskReview['object_number']
             : null;
@@ -6915,7 +6915,7 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function imageXObjectSoftMaskReview(string $imageDictionary, array $objects): ?array
+    private function imageXObjectSoftMaskReview(string $imageDictionary, array $objects, ?string $parentColorSpace = null): ?array
     {
         $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'SMask');
         if ($value === null) {
@@ -6951,7 +6951,8 @@ final class PdfTextExtractor
             $reference['objectNumber'],
             $reference['generation'],
             $objectBody,
-            $objects
+            $objects,
+            $parentColorSpace
         );
     }
 
@@ -6963,7 +6964,8 @@ final class PdfTextExtractor
         int $objectNumber,
         int $objectGeneration,
         string $objectBody,
-        array $objects
+        array $objects,
+        ?string $parentColorSpace = null
     ): ?array {
         $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
@@ -7003,6 +7005,7 @@ final class PdfTextExtractor
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
         $maxSample = (2 ** min($effectiveBits ?? 1, 30)) - 1;
+        $matteReview = $this->imageXObjectSoftMaskMatteReview($stream['dict'], $objects, $parentColorSpace);
 
         return [
             'type' => 'soft_mask_stream',
@@ -7018,6 +7021,11 @@ final class PdfTextExtractor
             'decode' => $decode,
             'opacity_for_zero' => $decode !== null ? $this->imageXObjectDecodedSampleValue(0, $decode, $effectiveBits ?? 1) : null,
             'opacity_for_max' => $decode !== null ? $this->imageXObjectDecodedSampleValue($maxSample, $decode, $effectiveBits ?? 1) : null,
+            ...($matteReview === null ? [] : [
+                'matte' => $matteReview['components'],
+                'matte_review' => $matteReview,
+                'matte_unblending_required' => ($matteReview['matches_image_components'] ?? false) === true,
+            ]),
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             ...$dctFilterReview,
@@ -7028,6 +7036,34 @@ final class PdfTextExtractor
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
             'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{components: list<float>, component_count: int, expected_components: int|null, matches_image_components: bool, source: string, review_only: true}|null
+     */
+    private function imageXObjectSoftMaskMatteReview(string $softMaskDictionary, array $objects, ?string $parentColorSpace): ?array
+    {
+        $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($softMaskDictionary, 'Matte', $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $components = $this->normalizedPdfReviewNumbers($this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects));
+        if ($components === []) {
+            return null;
+        }
+
+        $expectedComponents = $this->imageXObjectColorSpaceComponentCount($parentColorSpace);
+
+        return [
+            'components' => $components,
+            'component_count' => count($components),
+            'expected_components' => $expectedComponents,
+            'matches_image_components' => is_int($expectedComponents) && count($components) === $expectedComponents,
+            'source' => 'SMask.Matte',
             'review_only' => true,
         ];
     }

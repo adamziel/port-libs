@@ -1321,6 +1321,94 @@ return [
         $t->true(str_contains($encoded, hash('sha256', $currentSoftMaskPayload)));
         $t->true(!str_contains($encoded, hash('sha256', $staleSoftMaskPayload)));
     },
+    'records soft mask Matte components before RGB preview without leaking alpha payloads' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before matte soft masks) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Matte#20Logo Do Q\n"
+            . "q 24 0 0 12 108 690 cm /Mismatch#20Logo Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After matte soft masks) Tj ET';
+        $matteImagePayload = 'BT /F1 12 Tf 72 720 Td (Matte Image Payload Noise) Tj ET';
+        $matteSoftMaskPayload = 'BT /F1 12 Tf 72 720 Td (Matte Soft Mask Payload Noise) Tj ET';
+        $mismatchImagePayload = 'BT /F1 12 Tf 72 720 Td (Mismatch Matte Image Payload Noise) Tj ET';
+        $mismatchSoftMaskPayload = 'BT /F1 12 Tf 72 720 Td (Mismatch Matte Soft Mask Payload Noise) Tj ET';
+        $matteImageCompressed = gzcompress($matteImagePayload);
+        $matteSoftMaskCompressed = gzcompress($matteSoftMaskPayload);
+        $mismatchImageCompressed = gzcompress($mismatchImagePayload);
+        $mismatchSoftMaskCompressed = gzcompress($mismatchSoftMaskPayload);
+        if (
+            !is_string($matteImageCompressed)
+            || !is_string($matteSoftMaskCompressed)
+            || !is_string($mismatchImageCompressed)
+            || !is_string($mismatchSoftMaskCompressed)
+        ) {
+            throw new RuntimeException('Unable to compress soft-mask Matte fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Matte#20Logo 5 0 R /Mismatch#20Logo 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /SMask 6 0 R /Length " . strlen($matteImageCompressed) . " >>\nstream\n{$matteImageCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [0 1] /Matte [20 0 R 21 0 R 22 0 R] /Length " . strlen($matteSoftMaskCompressed) . " >>\nstream\n{$matteSoftMaskCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /SMask 8 0 R /Length " . strlen($mismatchImageCompressed) . " >>\nstream\n{$mismatchImageCompressed}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Decode [1 0] /Matte 24 0 R /Length " . strlen($mismatchSoftMaskCompressed) . " >>\nstream\n{$mismatchSoftMaskCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n0.25\nendobj\n"
+            . "21 0 obj\n0.5\nendobj\n"
+            . "22 0 obj\n0.75\nendobj\n"
+            . "24 0 obj\n[0.1 0.2 0.3]\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+
+        $matte = $entriesByName['Matte Logo']['soft_mask_review'];
+        $t->same([0.25, 0.5, 0.75], $matte['matte']);
+        $t->same([
+            'components' => [0.25, 0.5, 0.75],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'matches_image_components' => true,
+            'source' => 'SMask.Matte',
+            'review_only' => true,
+        ], $matte['matte_review']);
+        $t->same(true, $matte['matte_unblending_required']);
+        $t->same(hash('sha256', $matteSoftMaskPayload), $matte['decoded_sha256']);
+
+        $mismatch = $entriesByName['Mismatch Logo']['soft_mask_review'];
+        $t->same([0.1, 0.2, 0.3], $mismatch['matte']);
+        $t->same([
+            'components' => [0.1, 0.2, 0.3],
+            'component_count' => 3,
+            'expected_components' => 4,
+            'matches_image_components' => false,
+            'source' => 'SMask.Matte',
+            'review_only' => true,
+        ], $mismatch['matte_review']);
+        $t->same(false, $mismatch['matte_unblending_required']);
+        $t->same(hash('sha256', $mismatchSoftMaskPayload), $mismatch['decoded_sha256']);
+
+        $t->same(['Before matte soft masks', 'After matte soft masks'], $extractor->extractTextLines($pdf));
+        $t->same("Before matte soft masks\nAfter matte soft masks", $plainText);
+        $t->true(!str_contains($plainText, 'Matte Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Matte Soft Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Mismatch Matte Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Mismatch Matte Soft Mask Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $matteImagePayload));
+        $t->true(!str_contains($encoded, $matteSoftMaskPayload));
+        $t->true(!str_contains($encoded, $mismatchImagePayload));
+        $t->true(!str_contains($encoded, $mismatchSoftMaskPayload));
+    },
     'resolves image XObject auxiliary streams by exact object generation' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before auxiliary generation image) Tj ET\n"
             . "q 28 0 0 14 72 690 cm /Aux#20Image Do Q\n"
