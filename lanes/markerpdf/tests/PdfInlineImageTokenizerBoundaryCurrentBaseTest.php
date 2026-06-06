@@ -917,6 +917,26 @@ $inlineImageTokenizerOuterCompatibilityClosePdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerOuterCompatibilityUnknownOperatorPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Outer Compatibility Unknown) Tj ET\n"
+        . "BX\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Outer Compatibility Unknown Payload Noise) Tj ET rawtail\n"
+        . "EI (future compatibility operand) FutureOp\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible Compatibility Unknown Before Stray) Tj ET\n"
+        . "EX\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Compatibility Unknown Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerOpenScopeCloseAfterStrayEiPdf = static function (
     string $scopeOpen,
     string $scopeClose,
@@ -2008,6 +2028,31 @@ return [
         $t->true(str_contains($plainText, 'Visible After Outer Compatibility Inline'));
         $t->true(str_contains($plainText, 'Visible After Outer Compatibility Stray'));
         $t->true(!str_contains($plainText, 'Outer Compatibility Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'BX'));
+        $t->true(!str_contains($plainText, 'EX'));
+    },
+    'closes preview-only fallback inside outer compatibility section before unknown operator text and stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerOuterCompatibilityUnknownOperatorPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerOuterCompatibilityUnknownOperatorPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Outer Compatibility Unknown',
+            'Visible Compatibility Unknown Before Stray',
+            'Visible After Compatibility Unknown Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Compatibility Unknown Before Stray'));
+        $t->true(str_contains($plainText, 'Visible After Compatibility Unknown Stray'));
+        $t->true(!str_contains($plainText, 'Outer Compatibility Unknown Payload Noise'));
+        $t->true(!str_contains($plainText, 'future compatibility operand'));
+        $t->true(!str_contains($plainText, 'FutureOp'));
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'BX'));
         $t->true(!str_contains($plainText, 'EX'));

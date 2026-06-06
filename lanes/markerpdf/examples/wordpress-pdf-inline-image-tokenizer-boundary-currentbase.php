@@ -312,6 +312,15 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BT /F1 12 Tf 72 578 Td (Visible After Outer Compatibility Inline) Tj ET\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 577 Td (Visible After Outer Compatibility Stray) Tj ET\n"
+    . "BT /F1 12 Tf 72 576.5 Td (Before Outer Compatibility Unknown) Tj ET\n"
+    . "BX\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 576 Td (Outer Compatibility Unknown Payload Noise) Tj ET rawtail\n"
+    . "EI (future compatibility operand) FutureOp\n"
+    . "BT /F1 12 Tf 72 575.5 Td (Visible Compatibility Unknown Before Stray) Tj ET\n"
+    . "EX\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 575 Td (Visible After Compatibility Unknown Stray) Tj ET\n"
     . "BT /F1 12 Tf 72 576.75 Td (Before Open Graphics Stray) Tj ET\n"
     . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x80 EI q\n"
@@ -399,7 +408,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, vertical-tab non-whitespace malformed BI boundaries, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, open Q/BMC/BX scopes whose close operator follows a later stray EI, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, vertical-tab non-whitespace malformed BI boundaries, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, outer BX compatibility sections with unknown post-image operators, open Q/BMC/BX scopes whose close operator follows a later stray EI, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -604,6 +613,13 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'Visible After Outer Compatibility Inline')
         && str_contains($plainText, 'Visible After Outer Compatibility Stray')
         && !str_contains($plainText, 'Outer Compatibility Payload Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'preview_only_outer_compatibility_unknown_operator_preserves_following_text' => str_contains($plainText, 'Before Outer Compatibility Unknown')
+        && str_contains($plainText, 'Visible Compatibility Unknown Before Stray')
+        && str_contains($plainText, 'Visible After Compatibility Unknown Stray')
+        && !str_contains($plainText, 'Outer Compatibility Unknown Payload Noise')
+        && !str_contains($plainText, 'future compatibility operand')
+        && !str_contains($plainText, 'FutureOp')
         && !str_contains($plainText, 'rawtail'),
     'preview_only_open_graphics_scope_closes_after_stray_ei_text_preserved' => str_contains($plainText, 'Before Open Graphics Stray')
         && str_contains($plainText, 'Visible Open Graphics Before Stray')

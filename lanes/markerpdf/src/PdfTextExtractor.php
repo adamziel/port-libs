@@ -16066,6 +16066,7 @@ final class PdfTextExtractor
 
         $index = $streamStart;
         $length = strlen($value);
+        $compatibilityDepth = 0;
         while ($index < $length) {
             $char = $value[$index];
             if ($this->isPdfWhitespace($char)) {
@@ -16115,11 +16116,19 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (substr($value, $start, $index - $start) === 'BI') {
+            $token = substr($value, $start, $index - $start);
+            if ($token === 'BI') {
                 $inlineImageEnd = $index;
-                if ($this->skipInlineImage($value, $inlineImageEnd)) {
+                if ($this->skipInlineImage($value, $inlineImageEnd, $compatibilityDepth)) {
                     $index = $inlineImageEnd;
+                    continue;
                 }
+            }
+
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+            } elseif ($token === 'EX' && $compatibilityDepth > 0) {
+                $compatibilityDepth--;
             }
         }
 
@@ -34246,6 +34255,7 @@ final class PdfTextExtractor
         $length = strlen($stream);
         $index = 0;
         $insideTextObject = false;
+        $compatibilityDepth = 0;
 
         while ($index < $length) {
             $char = $stream[$index];
@@ -34297,7 +34307,7 @@ final class PdfTextExtractor
             $token = substr($stream, $start, $index - $start);
             if ($token === 'BI' && !$insideTextObject) {
                 $inlineImageEnd = $index;
-                if ($this->skipInlineImage($stream, $inlineImageEnd)) {
+                if ($this->skipInlineImage($stream, $inlineImageEnd, $compatibilityDepth)) {
                     if ($preserveInlineImageOperator) {
                         $tokens[] = $token;
                     }
@@ -34307,6 +34317,12 @@ final class PdfTextExtractor
             }
 
             $tokens[] = $token;
+            if (!$insideTextObject && $token === 'BX') {
+                $compatibilityDepth++;
+            } elseif (!$insideTextObject && $token === 'EX' && $compatibilityDepth > 0) {
+                $compatibilityDepth--;
+            }
+
             if ($token === 'BT') {
                 $insideTextObject = true;
             } elseif ($token === 'ET') {
@@ -34317,7 +34333,7 @@ final class PdfTextExtractor
         return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
     }
 
-    private function skipInlineImage(string $stream, int &$index): bool
+    private function skipInlineImage(string $stream, int &$index, int $outerCompatibilityDepth = 0): bool
     {
         $length = strlen($stream);
         $consumeDataPrefixWhitespace = true;
@@ -34367,7 +34383,12 @@ final class PdfTextExtractor
                     $openScopes = null;
                     $closedTextObjectBeforeCandidateEi = $this->contentSegmentIsLineSeparatedClosedTextObject(
                         $segmentAfterFallback,
-                        $openScopes
+                        $openScopes,
+                        $outerCompatibilityDepth > 0 ? [
+                            'graphics_state' => 0,
+                            'marked_content' => 0,
+                            'compatibility' => $outerCompatibilityDepth,
+                        ] : []
                     );
                     if (
                         $closedTextObjectBeforeCandidateEi
@@ -34417,7 +34438,11 @@ final class PdfTextExtractor
     /**
      * @param array{graphics_state: int, marked_content: int, compatibility: int}|null $openScopes
      */
-    private function contentSegmentIsLineSeparatedClosedTextObject(string $segment, ?array &$openScopes = null): bool
+    private function contentSegmentIsLineSeparatedClosedTextObject(
+        string $segment,
+        ?array &$openScopes = null,
+        array $initialOpenScopes = []
+    ): bool
     {
         $openScopes = null;
         $index = 0;
@@ -34426,9 +34451,9 @@ final class PdfTextExtractor
         $insideTextObject = false;
         $textObjectHasText = false;
         $closedTextObject = false;
-        $graphicsStateDepth = 0;
-        $markedContentDepth = 0;
-        $compatibilityDepth = 0;
+        $graphicsStateDepth = max(0, (int) ($initialOpenScopes['graphics_state'] ?? 0));
+        $markedContentDepth = max(0, (int) ($initialOpenScopes['marked_content'] ?? 0));
+        $compatibilityDepth = max(0, (int) ($initialOpenScopes['compatibility'] ?? 0));
         $outsideTextOperands = [];
 
         while ($index < $length) {
