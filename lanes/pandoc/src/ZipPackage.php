@@ -72,6 +72,28 @@ final class ZipPackage
         "\u{2261}", "\u{00b1}", "\u{2265}", "\u{2264}", "\u{2320}", "\u{2321}", "\u{00f7}", "\u{2248}",
         "\u{00b0}", "\u{2219}", "\u{00b7}", "\u{221a}", "\u{207f}", "\u{00b2}", "\u{25a0}", "\u{00a0}",
     ];
+    private const BOUNDED_UNICODE_CASE_FOLD_FALLBACKS = [
+        'À' => 'à', 'Á' => 'á', 'Â' => 'â', 'Ã' => 'ã', 'Ä' => 'ä', 'Å' => 'å',
+        'Ç' => 'ç',
+        'È' => 'è', 'É' => 'é', 'Ê' => 'ê', 'Ë' => 'ë',
+        'Ì' => 'ì', 'Í' => 'í', 'Î' => 'î', 'Ï' => 'ï',
+        'Ñ' => 'ñ',
+        'Ò' => 'ò', 'Ó' => 'ó', 'Ô' => 'ô', 'Õ' => 'õ', 'Ö' => 'ö',
+        'Ù' => 'ù', 'Ú' => 'ú', 'Û' => 'û', 'Ü' => 'ü',
+        'Ý' => 'ý', 'Ÿ' => 'ÿ',
+    ];
+    private const BOUNDED_LATIN_COMPOSITION_FALLBACKS = [
+        "a\u{0300}" => 'à', "a\u{0301}" => 'á', "a\u{0302}" => 'â', "a\u{0303}" => 'ã',
+        "a\u{0308}" => 'ä', "a\u{030a}" => 'å',
+        "c\u{0327}" => 'ç',
+        "e\u{0300}" => 'è', "e\u{0301}" => 'é', "e\u{0302}" => 'ê', "e\u{0308}" => 'ë',
+        "i\u{0300}" => 'ì', "i\u{0301}" => 'í', "i\u{0302}" => 'î', "i\u{0308}" => 'ï',
+        "n\u{0303}" => 'ñ',
+        "o\u{0300}" => 'ò', "o\u{0301}" => 'ó', "o\u{0302}" => 'ô', "o\u{0303}" => 'õ',
+        "o\u{0308}" => 'ö',
+        "u\u{0300}" => 'ù', "u\u{0301}" => 'ú', "u\u{0302}" => 'û', "u\u{0308}" => 'ü',
+        "y\u{0301}" => 'ý', "y\u{0308}" => 'ÿ',
+    ];
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -2840,7 +2862,26 @@ final class ZipPackage
 
     private static function caseFoldZipEntryName(string $name): string
     {
-        return strtolower($name);
+        $name = self::normalizeZipEntryNameForCollisionKey($name);
+        if (function_exists('mb_strtolower')) {
+            $name = mb_strtolower($name, 'UTF-8');
+        } else {
+            $name = strtr(strtolower($name), self::BOUNDED_UNICODE_CASE_FOLD_FALLBACKS);
+        }
+
+        return self::normalizeZipEntryNameForCollisionKey($name);
+    }
+
+    private static function normalizeZipEntryNameForCollisionKey(string $name): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($name, \Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                return $normalized;
+            }
+        }
+
+        return strtr($name, self::BOUNDED_LATIN_COMPOSITION_FALLBACKS);
     }
 
     /**

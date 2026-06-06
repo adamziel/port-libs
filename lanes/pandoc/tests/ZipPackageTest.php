@@ -1378,6 +1378,72 @@ return [
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
+    'preflights unicode-normalized zip entry name collisions before media handoff' => static function (TestRunner $t): void {
+        $precomposedName = "word/media/Caf\u{00e9}.PNG";
+        $decomposedName = "word/media/cafe\u{0301}.png";
+        $collisionPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>unicode name collision preflight</w:p></w:document>',
+            ],
+            [
+                'name' => $precomposedName,
+                'data' => "precomposed reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => $decomposedName,
+                'data' => "decomposed reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $collisionPackage->caseInsensitiveNamePreflight();
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(1, $summary['collisionGroupCount']);
+        $t->same(2, $summary['collisionEntryCount']);
+        $t->same("word/media/caf\u{00e9}.png", $summary['collisionGroups'][0]['caseFoldKey']);
+        $t->same([$precomposedName, $decomposedName], $summary['collisionGroups'][0]['entryNames']);
+        $t->same($precomposedName, $summary['entries'][1]['name']);
+        $t->same("word/media/caf\u{00e9}.png", $summary['entries'][1]['caseFoldKey']);
+        $t->same([$precomposedName, $decomposedName], $summary['entries'][1]['equivalentEntryNames']);
+        $t->same(true, $summary['entries'][1]['hasCaseInsensitiveNameCollision']);
+        $t->same(['case-insensitive-name-collision'], $summary['entries'][1]['issues']);
+        $t->same($decomposedName, $summary['entries'][2]['name']);
+        $t->same(['case-insensitive-name-collision'], $summary['entries'][2]['issues']);
+        $t->same("precomposed reviewer attachment placeholder\n", $collisionPackage->read('/' . $precomposedName));
+        $t->same("decomposed reviewer attachment placeholder\n", $collisionPackage->read('/' . $decomposedName));
+
+        $strictSummary = $collisionPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->contains('case-insensitive-name-collisions', implode(',', $strictSummary['diagnostics']));
+        $t->same(2, $strictSummary['caseInsensitiveNames']['collisionEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertNoCaseInsensitiveNameCollisions());
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe unicode names</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/cafe.png',
+                'data' => "ascii reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => "word/media/caf\u{00e9}.png",
+                'data' => "accented reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoCaseInsensitiveNameCollisions();
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['collisionGroupCount']);
+        $t->same(0, $safeSummary['collisionEntryCount']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([

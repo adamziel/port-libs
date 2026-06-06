@@ -1880,6 +1880,38 @@ try {
 } catch (RuntimeException $exception) {
     $caseInsensitiveNameCollisionStrictRejected = str_contains($exception->getMessage(), 'case-insensitive-name-collisions');
 }
+$unicodeNameCollisionPrecomposedName = "word/media/Caf\u{00e9}.PNG";
+$unicodeNameCollisionDecomposedName = "word/media/cafe\u{0301}.png";
+$unicodeNameCollisionPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Unicode-normalized media collision review</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => $unicodeNameCollisionPrecomposedName,
+        'data' => "precomposed reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => $unicodeNameCollisionDecomposedName,
+        'data' => "decomposed reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+]);
+$unicodeNameCollisionPreflight = $unicodeNameCollisionPackage->caseInsensitiveNamePreflight();
+$unicodeNameCollisionStrictPreflight = $unicodeNameCollisionPackage->strictImportPreflight(4096, 100.0, 4096);
+$unicodeNameCollisionRejected = false;
+try {
+    $unicodeNameCollisionPackage->assertNoCaseInsensitiveNameCollisions();
+} catch (RuntimeException $exception) {
+    $unicodeNameCollisionRejected = str_contains($exception->getMessage(), 'case-insensitive entry name collisions');
+}
+$unicodeNameCollisionStrictRejected = false;
+try {
+    $unicodeNameCollisionPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $unicodeNameCollisionStrictRejected = str_contains($exception->getMessage(), 'case-insensitive-name-collisions');
+}
 $deflateOptionFlagsRejected = false;
 try {
     ZipPackage::fromString($buildStoredDeflateOptionFlagBackedPackage());
@@ -2963,6 +2995,23 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected exact-case ZIP media path to remain readable before case-insensitive handoff rejection');
     }
 
+    if (
+        !$unicodeNameCollisionRejected
+        || !$unicodeNameCollisionStrictRejected
+        || ($unicodeNameCollisionPreflight['collisionGroupCount'] ?? null) !== 1
+        || ($unicodeNameCollisionPreflight['collisionEntryCount'] ?? null) !== 2
+        || ($unicodeNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? null) !== "word/media/caf\u{00e9}.png"
+        || ($unicodeNameCollisionPreflight['collisionEntries'][0]['name'] ?? null) !== $unicodeNameCollisionPrecomposedName
+        || ($unicodeNameCollisionPreflight['collisionEntries'][1]['name'] ?? null) !== $unicodeNameCollisionDecomposedName
+        || ($unicodeNameCollisionStrictPreflight['diagnostics'] ?? null) !== ['case-insensitive-name-collisions']
+    ) {
+        throw new RuntimeException('Expected Unicode-normalized ZIP entry name collisions to stay blocked for strict media import');
+    }
+
+    if ($unicodeNameCollisionPackage->read('/' . $unicodeNameCollisionDecomposedName) !== "decomposed reviewer attachment placeholder\n") {
+        throw new RuntimeException('Expected exact Unicode ZIP media path to remain readable before normalized handoff rejection');
+    }
+
     if (!$packageSizeRejected) {
         throw new RuntimeException('Expected aggregate ZIP package size limits to reject oversized packages before import');
     }
@@ -3780,6 +3829,10 @@ echo 'zipCaseInsensitiveNameCollisionPolicy=' . ($caseInsensitiveNameCollisionRe
 echo 'zipCaseInsensitiveNameStrictPolicy=' . ($caseInsensitiveNameCollisionStrictRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipCaseInsensitiveNameCollisionEntry=' . ($caseInsensitiveNameCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipCaseInsensitiveNameCollisionKey=' . ($caseInsensitiveNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? 'none') . "\n";
+echo 'zipUnicodeNameCollisionPolicy=' . ($unicodeNameCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnicodeNameCollisionStrictPolicy=' . ($unicodeNameCollisionStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnicodeNameCollisionEntry=' . ($unicodeNameCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipUnicodeNameCollisionKey=' . ($unicodeNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
