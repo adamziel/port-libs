@@ -134,10 +134,10 @@ XML;
 $navXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
-    <nav epub:type="toc">
+    <nav id="source-toc" class="source-navigation" epub:type="toc" xml:lang="en" dir="ltr">
       <ol>
         <li>
-          <a href="text/chapter.xhtml#source">Source chapter</a>
+          <a id="source-toc-link" class="source-link" xml:lang="en" href="text/chapter.xhtml#source">Source chapter</a>
           <ol>
             <li><a href="text/chapter.xhtml#epubcfi(/6/2[source]!/4/2/1:12)">CFI review offset</a></li>
           </ol>
@@ -454,6 +454,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['nav']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB nav href to resolve to the chapter fragment');
+    }
+    if (($result['nav']['sections'][0]['id'] ?? null) !== 'source-toc' || ($result['nav']['sections'][0]['class'] ?? null) !== 'source-navigation') {
+        throw new RuntimeException('Expected EPUB nav section source attributes to remain visible for review');
+    }
+    if (($result['nav']['sections'][0]['language'] ?? null) !== 'en' || ($result['nav']['sections'][0]['direction'] ?? null) !== 'ltr') {
+        throw new RuntimeException('Expected EPUB nav section language and direction metadata');
+    }
+    if (($result['nav']['hiddenSectionCount'] ?? null) !== 0 || ($result['nav']['hiddenItemCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected visible EPUB nav entries not to be marked hidden');
+    }
+    if (($result['nav']['items'][0]['id'] ?? null) !== 'source-toc-link' || ($result['nav']['items'][0]['class'] ?? null) !== 'source-link') {
+        throw new RuntimeException('Expected EPUB nav item source id and class to remain visible for review');
+    }
+    if (($result['navigation']['items'][0]['id'] ?? null) !== 'source-toc-link' || ($result['navigation']['items'][0]['classes'] ?? []) !== ['source-link']) {
+        throw new RuntimeException('Expected EPUB navigation report to preserve nav item provenance');
     }
     if (($result['nav']['items'][0]['children'][0]['fragmentKind'] ?? null) !== 'epub-cfi') {
         throw new RuntimeException('Expected EPUB nav CFI fragment to be classified for review');
@@ -879,6 +894,10 @@ echo 'spineLinearDiagnostics=' . count($result['spineProperties']['itemDiagnosti
 echo 'fallbackPageSpread=' . ($result['spine'][1]['pageSpread'] ?? '') . "\n";
 echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
+echo 'navSectionId=' . ($result['nav']['sections'][0]['id'] ?? '') . "\n";
+echo 'navSectionClass=' . ($result['nav']['sections'][0]['class'] ?? '') . "\n";
+echo 'navItemId=' . ($result['nav']['items'][0]['id'] ?? '') . "\n";
+echo 'navItemClass=' . ($result['nav']['items'][0]['class'] ?? '') . "\n";
 echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'navCfiPath=' . ($result['nav']['items'][0]['children'][0]['epubCfi']['path'] ?? '') . "\n";
 echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";

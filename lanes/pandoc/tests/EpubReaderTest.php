@@ -818,6 +818,102 @@ XML;
         $t->same('Media audit', $ncx['items'][1]['children'][0]['title']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $ncx['items'][1]['children'][0]['target']);
     },
+    'preserves EPUB3 nav section and item provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithProvenance = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="source-toc" class="review-toc primary" epub:type="toc" xml:lang="en" dir="ltr" hidden="hidden">
+      <h1>Source navigation</h1>
+      <ol>
+        <li id="toc-entry-1" class="chapter current">
+          <a id="toc-link-1" class="nav-link cfi" xml:lang="fr" dir="rtl" href="text/chapter1.xhtml#intro">Paquet importé</a>
+        </li>
+        <li id="toc-entry-2" class="appendix" hidden="hidden">
+          <span id="toc-label-2" class="group-label">Appendices</span>
+          <ol>
+            <li id="toc-entry-2-1" aria-hidden="true">
+              <a id="toc-link-2-1" class="child-link" href="text/chapter2.xhtml#media">Media audit</a>
+            </li>
+          </ol>
+        </li>
+      </ol>
+    </nav>
+    <nav id="page-nav" class="print-pages" epub:type="page-list" xml:lang="en">
+      <ol>
+        <li id="page-entry-1"><a id="page-link-1" class="page-ref" epub:type="pagebreak" href="text/chapter1.xhtml#page-1">1</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithProvenance,
+        ));
+
+        $nav = $result['nav'];
+        $t->same(2, $nav['sectionCount']);
+        $t->same(1, $nav['hiddenSectionCount']);
+        $t->same(2, $nav['hiddenItemCount']);
+        $t->same('source-toc', $nav['sections'][0]['id']);
+        $t->same('review-toc primary', $nav['sections'][0]['class']);
+        $t->same(['review-toc', 'primary'], $nav['sections'][0]['classes']);
+        $t->same('en', $nav['sections'][0]['language']);
+        $t->same('ltr', $nav['sections'][0]['direction']);
+        $t->same(true, $nav['sections'][0]['hidden']);
+        $t->same('hidden', $nav['sections'][0]['attributes']['hidden']);
+        $t->same('source-toc', $nav['sectionsByType']['toc'][0]['id']);
+
+        $first = $nav['items'][0];
+        $t->same('toc-link-1', $first['id']);
+        $t->same('toc-entry-1', $first['itemId']);
+        $t->same('toc-link-1', $first['labelId']);
+        $t->same('a', $first['labelElement']);
+        $t->same('chapter current nav-link cfi', $first['class']);
+        $t->same(['chapter', 'current', 'nav-link', 'cfi'], $first['classes']);
+        $t->same(['chapter', 'current'], $first['itemClasses']);
+        $t->same(['nav-link', 'cfi'], $first['labelClasses']);
+        $t->same('fr', $first['language']);
+        $t->same('rtl', $first['direction']);
+        $t->same(false, $first['hidden']);
+        $t->same('text/chapter1.xhtml#intro', $first['labelAttributes']['href']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $first['target']);
+
+        $spanItem = $nav['items'][1];
+        $t->same('toc-label-2', $spanItem['id']);
+        $t->same('toc-entry-2', $spanItem['itemId']);
+        $t->same('span', $spanItem['labelElement']);
+        $t->same(true, $spanItem['hidden']);
+        $t->same(null, $spanItem['target']);
+        $t->same('toc-link-2-1', $spanItem['children'][0]['id']);
+        $t->same(true, $spanItem['children'][0]['hidden']);
+        $t->same('child-link', $spanItem['children'][0]['class']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $spanItem['children'][0]['target']);
+
+        $navigation = $result['navigation'];
+        $t->same('toc-link-1', $navigation['items'][0]['id']);
+        $t->same('toc-entry-1', $navigation['items'][0]['itemId']);
+        $t->same(['chapter', 'current', 'nav-link', 'cfi'], $navigation['items'][0]['classes']);
+        $t->same('fr', $navigation['items'][0]['language']);
+        $t->same('rtl', $navigation['items'][0]['direction']);
+        $t->same('toc-label-2', $navigation['items'][1]['id']);
+        $t->same(true, $navigation['items'][1]['hidden']);
+        $t->same('missing-navigation-target', $navigation['items'][1]['diagnostics'][0]['type']);
+        $t->same(true, $navigation['items'][2]['hidden']);
+        $t->same('toc-link-2-1', $navigation['items'][2]['labelId']);
+
+        $pageBreak = $result['pageBreaks']['items'][0];
+        $t->same('page-link-1', $pageBreak['id']);
+        $t->same('page-entry-1', $pageBreak['itemId']);
+        $t->same('page-ref', $pageBreak['class']);
+        $t->same(['page-ref'], $pageBreak['classes']);
+        $t->same('a', $pageBreak['labelElement']);
+        $t->same(false, $pageBreak['hidden']);
+        $t->same('pagebreak', $pageBreak['type']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $pageBreak['target']);
+        $t->same($nav, $result['importReport']['nav']);
+        $t->same($navigation, $result['document']->attr('navigation'));
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

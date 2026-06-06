@@ -4058,6 +4058,10 @@ final class EpubReader
                 'part' => (string) $item['part'],
                 'items' => [],
                 'sections' => [],
+                'sectionsByType' => [],
+                'sectionCount' => 0,
+                'hiddenSectionCount' => 0,
+                'hiddenItemCount' => 0,
                 'landmarks' => [],
                 'pageList' => [],
                 'encrypted' => true,
@@ -4067,6 +4071,9 @@ final class EpubReader
 
         $dom = self::loadXml($package->read((string) $item['part']), 'EPUB navigation XHTML');
         $sections = [];
+        $sectionsByType = [];
+        $hiddenSectionCount = 0;
+        $hiddenItemCount = 0;
         $tocItems = null;
         $fallbackItems = null;
         foreach (self::navigationElements($dom) as $nav) {
@@ -4074,6 +4081,13 @@ final class EpubReader
             $list = self::firstChildElement($nav, 'ol', self::XHTML_NS);
             $items = $list instanceof \DOMElement ? $this->readNavList($package, $list, (string) $item['part']) : [];
             $section = [
+                'id' => self::nullableAttribute($nav, 'id'),
+                'class' => self::nullableAttribute($nav, 'class'),
+                'classes' => self::spaceDelimited($nav->getAttribute('class')),
+                'language' => self::xmlLang($nav),
+                'direction' => self::direction($nav),
+                'hidden' => self::elementHidden($nav),
+                'attributes' => self::elementAttributes($nav),
                 'type' => $types[0] ?? null,
                 'types' => $types,
                 'title' => self::navHeading($nav),
@@ -4081,6 +4095,17 @@ final class EpubReader
             ];
 
             $sections[] = $section;
+            foreach ($types as $type) {
+                $sectionsByType[$type][] = $section;
+            }
+            if ($section['hidden']) {
+                ++$hiddenSectionCount;
+            }
+            foreach (self::flattenNavigationItems($items) as $flat) {
+                if (($flat['item']['hidden'] ?? false) === true) {
+                    ++$hiddenItemCount;
+                }
+            }
             $fallbackItems ??= $items;
             if (in_array('toc', $types, true) && $tocItems === null) {
                 $tocItems = $items;
@@ -4092,6 +4117,10 @@ final class EpubReader
                 'part' => (string) $item['part'],
                 'items' => [],
                 'sections' => [],
+                'sectionsByType' => [],
+                'sectionCount' => 0,
+                'hiddenSectionCount' => 0,
+                'hiddenItemCount' => 0,
                 'landmarks' => [],
                 'pageList' => [],
             ];
@@ -4101,6 +4130,10 @@ final class EpubReader
             'part' => (string) $item['part'],
             'items' => $tocItems ?? $fallbackItems ?? [],
             'sections' => $sections,
+            'sectionsByType' => $sectionsByType,
+            'sectionCount' => count($sections),
+            'hiddenSectionCount' => $hiddenSectionCount,
+            'hiddenItemCount' => $hiddenItemCount,
             'landmarks' => self::navItemsForType($sections, 'landmarks'),
             'pageList' => self::navItemsForType($sections, 'page-list'),
         ];
@@ -4250,6 +4283,15 @@ final class EpubReader
                 'exists' => (bool) ($navItem['exists'] ?? false),
                 'type' => is_string($navItem['type'] ?? null) ? $navItem['type'] : null,
                 'types' => is_array($navItem['types'] ?? null) ? array_values($navItem['types']) : [],
+                'itemId' => is_string($navItem['itemId'] ?? null) ? $navItem['itemId'] : null,
+                'labelId' => is_string($navItem['labelId'] ?? null) ? $navItem['labelId'] : null,
+                'labelElement' => is_string($navItem['labelElement'] ?? null) ? $navItem['labelElement'] : null,
+                'classes' => is_array($navItem['classes'] ?? null) ? array_values($navItem['classes']) : [],
+                'language' => is_string($navItem['language'] ?? null) ? $navItem['language'] : null,
+                'direction' => is_string($navItem['direction'] ?? null) ? $navItem['direction'] : null,
+                'hidden' => (bool) ($navItem['hidden'] ?? false),
+                'attributes' => is_array($navItem['attributes'] ?? null) ? $navItem['attributes'] : [],
+                'labelAttributes' => is_array($navItem['labelAttributes'] ?? null) ? $navItem['labelAttributes'] : [],
                 'value' => is_string($navItem['value'] ?? null) ? $navItem['value'] : null,
                 'playOrder' => is_string($navItem['playOrder'] ?? null) ? $navItem['playOrder'] : null,
                 'class' => is_string($navItem['class'] ?? null) ? $navItem['class'] : null,
@@ -4424,8 +4466,28 @@ final class EpubReader
             $reference = $href === ''
                 ? self::emptyPackageReference()
                 : $this->packageReference($package, $navPart, $href, [], 'nav');
+            $itemClasses = self::spaceDelimited($li->getAttribute('class'));
+            $labelClasses = $label instanceof \DOMElement ? self::spaceDelimited($label->getAttribute('class')) : [];
+            $classes = array_values(array_unique(array_merge($itemClasses, $labelClasses)));
 
             $items[] = [
+                'id' => $label instanceof \DOMElement
+                    ? (self::nullableAttribute($label, 'id') ?? self::nullableAttribute($li, 'id'))
+                    : self::nullableAttribute($li, 'id'),
+                'itemId' => self::nullableAttribute($li, 'id'),
+                'labelId' => $label instanceof \DOMElement ? self::nullableAttribute($label, 'id') : null,
+                'labelElement' => $label instanceof \DOMElement ? $label->localName : null,
+                'class' => $classes === [] ? null : implode(' ', $classes),
+                'classes' => $classes,
+                'itemClass' => self::nullableAttribute($li, 'class'),
+                'itemClasses' => $itemClasses,
+                'labelClass' => $label instanceof \DOMElement ? self::nullableAttribute($label, 'class') : null,
+                'labelClasses' => $labelClasses,
+                'language' => $label instanceof \DOMElement ? (self::xmlLang($label) ?? self::xmlLang($li)) : self::xmlLang($li),
+                'direction' => $label instanceof \DOMElement ? (self::direction($label) ?? self::direction($li)) : self::direction($li),
+                'hidden' => self::elementHidden($li) || ($label instanceof \DOMElement && self::elementHidden($label)),
+                'attributes' => self::elementAttributes($li),
+                'labelAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
                 'title' => $label instanceof \DOMElement ? self::normalizedText($label) : self::normalizedText($li),
                 'href' => $href === '' ? null : $href,
                 'target' => $reference['target'],
@@ -4792,6 +4854,16 @@ final class EpubReader
             'exists' => (bool) ($item['exists'] ?? false),
             'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
             'types' => is_array($item['types'] ?? null) ? array_values($item['types']) : [],
+            'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
+            'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
+            'labelElement' => is_string($item['labelElement'] ?? null) ? $item['labelElement'] : null,
+            'class' => is_string($item['class'] ?? null) ? $item['class'] : null,
+            'classes' => is_array($item['classes'] ?? null) ? array_values($item['classes']) : [],
+            'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+            'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+            'hidden' => (bool) ($item['hidden'] ?? false),
+            'attributes' => is_array($item['attributes'] ?? null) ? $item['attributes'] : [],
+            'labelAttributes' => is_array($item['labelAttributes'] ?? null) ? $item['labelAttributes'] : [],
             'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
             'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
             'spineItemId' => is_array($spineItem) && is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
@@ -6987,6 +7059,15 @@ final class EpubReader
         ksort($attributes);
 
         return $attributes;
+    }
+
+    private static function elementHidden(\DOMElement $element): bool
+    {
+        if ($element->hasAttribute('hidden')) {
+            return true;
+        }
+
+        return strtolower(trim($element->getAttribute('aria-hidden'))) === 'true';
     }
 
     private static function nullableAttribute(\DOMElement $element, string $name): ?string
