@@ -171,6 +171,23 @@ return [
         $t->same("A\u{FFFD}B", $malformed['text']);
         $t->same(1, $malformed['repairs']);
     },
+    'decodes koi8 r cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xE9\xCD\xD0\xCF\xD2\xD4\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xD0\xD2\xC9\xD7\xC5\xD4; \xB3\xCC\xCB\xC1; \x82\x80\x83.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'koi8-r');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cskoi8r');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('koi8-r', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Импорт\n\nРедактор привет; Ёлка; ┌─┐.", $decoded['text']);
+        $t->same(['encoding' => 'koi8-r', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Импорт', $document->children[0]->attr('text'));
+        $t->same('Редактор привет; Ёлка; ┌─┐.', $document->children[1]->attr('text'));
+        $t->same(27, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(48, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
+        $t->contains('<p>Редактор привет; Ёлка; ┌─┐.</p>', $blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');

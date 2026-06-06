@@ -35,6 +35,9 @@ $latin2Text = (string) $latin2Source->children[1]->attr('text');
 $windows1251Bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
 $windows1251Source = (new MarkdownReader())->readBytes($windows1251Bytes, 'cp1251');
 $windows1251Text = (string) $windows1251Source->children[1]->attr('text');
+$koi8RBytes = "# \xE9\xCD\xD0\xCF\xD2\xD4\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xD0\xD2\xC9\xD7\xC5\xD4; \xB3\xCC\xCB\xC1; \x82\x80\x83.";
+$koi8RSource = (new MarkdownReader())->readBytes($koi8RBytes, 'cskoi8r');
+$koi8RText = (string) $koi8RSource->children[1]->attr('text');
 $shiftJisBytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
 $shiftJisSource = (new MarkdownReader())->readBytes($shiftJisBytes, 'windows-31j');
 $shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
@@ -330,6 +333,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1251Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1251Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'KOI8-R source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $koi8RText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8RSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8RText) . '/' . UnicodeText::displayWidth($koi8RText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Shift_JIS source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $shiftJisText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($shiftJisText) . '/' . UnicodeText::displayWidth($shiftJisText, 'wide')])]),
@@ -528,6 +536,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Windows-1251 source</td><td>Редактор “привет” — €10; Ёлка № 7.</td><td>windows-1251:34</td>')) {
         throw new RuntimeException('charset handoff self-test missing Windows-1251 decode audit row');
+    }
+    if (($koi8RSource->attr('sourceEncoding')['encoding'] ?? '') !== 'koi8-r') {
+        throw new RuntimeException('charset handoff self-test missing KOI8-R source encoding');
+    }
+    if (!str_contains($blocks, '<td>KOI8-R source</td><td>Редактор привет; Ёлка; ┌─┐.</td><td>koi8-r:27/48</td>')) {
+        throw new RuntimeException('charset handoff self-test missing KOI8-R decode audit row');
     }
     if (($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') !== 'shift_jis') {
         throw new RuntimeException('charset handoff self-test missing Shift_JIS source encoding');
