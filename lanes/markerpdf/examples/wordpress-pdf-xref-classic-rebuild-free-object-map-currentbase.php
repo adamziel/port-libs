@@ -58,7 +58,22 @@ $pdf .= "xref\n"
     . $xrefRow($currentContentOffset)
     . "7 1\n"
     . $xrefRow(0, 1, 'f')
-    . "trailer\n<< /Size 8 /Root 1 0 R /Prev {$previousXrefOffset} >>\n"
+    . "trailer\n<< /Size 8 /Root 1 0 R /Prev {$previousXrefOffset} >>\n";
+
+$literalDecoyOffset = strlen($pdf);
+$pdf .= "(\n"
+    . "xref\n"
+    . "0 8\n"
+    . $xrefRow(0, 65535, 'f')
+    . $xrefRow($offsets['1:0:0'])
+    . $xrefRow($offsets['2:0:1'])
+    . $xrefRow($currentPageOffset)
+    . $xrefRow($currentContentOffset)
+    . $xrefRow($offsets['5:0:4'])
+    . $xrefRow(0, 0, 'f')
+    . $xrefRow($offsets['7:0:5'])
+    . "trailer\n<< /Size 8 /Root 1 0 R >>\n"
+    . ")\n"
     . "startxref\n999999\n%%EOF";
 
 $linkExtractor = new PdfLinkAnnotationExtractor();
@@ -90,7 +105,9 @@ $smoke = [
     'native_boundary' => 'classic xref rebuild repairs damaged startxref before free annotation filtering',
     'damaged_startxref_operand' => 999999,
     'current_xref_after_previous' => $currentXrefOffset > $previousXrefOffset,
+    'literal_xref_decoy_after_current' => $literalDecoyOffset > $currentXrefOffset,
     'free_object_map_rebuilt_to_current_classic_xref' => isset($freeObjects[7]),
+    'literal_xref_decoy_ignored_for_free_map' => isset($freeObjects[7]),
     'suppresses_stale_link_annotation' => $links === [] && !isset($span['link_uri']),
     'suppresses_stale_review_annotation' => $annotations === [] && !isset($span['link_annotation_object']),
     'excludes_stale_annotation_uri' => !str_contains($encodedReview, 'stale.example.com'),
@@ -100,6 +117,8 @@ $smoke = [
 
 if (
     !$smoke['free_object_map_rebuilt_to_current_classic_xref']
+    || !$smoke['literal_xref_decoy_after_current']
+    || !$smoke['literal_xref_decoy_ignored_for_free_map']
     || !$smoke['suppresses_stale_link_annotation']
     || !$smoke['suppresses_stale_review_annotation']
     || !$smoke['excludes_stale_annotation_uri']

@@ -37,7 +37,12 @@ final class PdfXrefFreeObjectMap
 
         for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
             $tokenOffset = $matches[0][$index][1] ?? null;
-            if (!is_int($tokenOffset) || self::tokenStartsInCommentLine($pdfBytes, $tokenOffset)) {
+            if (
+                !is_int($tokenOffset)
+                || !self::keywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || self::tokenStartsInCommentLine($pdfBytes, $tokenOffset)
+                || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)
+            ) {
                 continue;
             }
 
@@ -124,24 +129,178 @@ final class PdfXrefFreeObjectMap
 
     private static function latestClassicXrefTableOffsetBefore(string $pdfBytes, int $beforeOffset): ?int
     {
-        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
-            return null;
-        }
-
-        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
-            $offset = $matches[0][$index][1] ?? null;
-            if (
-                !is_int($offset)
-                || $offset >= $beforeOffset
-                || self::tokenStartsInCommentLine($pdfBytes, $offset)
-                || !self::keywordAt($pdfBytes, $offset, 'xref')
-            ) {
+        $offsets = self::xrefTableKeywordOffsets($pdfBytes);
+        for ($index = count($offsets) - 1; $index >= 0; $index--) {
+            $offset = $offsets[$index];
+            if ($offset >= $beforeOffset) {
                 continue;
             }
 
             if (self::xrefTableSectionAt($pdfBytes, $offset) !== null) {
                 return $offset;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function xrefTableKeywordOffsets(string $pdfBytes): array
+    {
+        $offsets = [];
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $length) {
+            $objectEnd = self::directObjectTokenEndAt($pdfBytes, $offset);
+            if ($objectEnd !== null) {
+                $offset = $objectEnd;
+                continue;
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '%') {
+                self::skipComment($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                self::skipLiteralString($pdfBytes, $offset);
+                continue;
+            }
+
+            $compositeEnd = self::skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $hexEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                if ($hexEnd !== null) {
+                    $offset = $hexEnd;
+                    continue;
+                }
+            }
+
+            if (self::keywordAt($pdfBytes, $offset, 'xref')) {
+                $offsets[] = $offset;
+                $offset += strlen('xref');
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $offsets;
+    }
+
+    private static function tokenStartsInsidePdfCompositeToken(string $pdfBytes, int $tokenOffset): bool
+    {
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $tokenOffset && $offset < $length) {
+            $objectEnd = self::directObjectTokenEndAt($pdfBytes, $offset);
+            if ($objectEnd !== null) {
+                if ($tokenOffset > $offset && $tokenOffset < $objectEnd) {
+                    return true;
+                }
+                $offset = $objectEnd;
+                continue;
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '%') {
+                $start = $offset;
+                self::skipComment($pdfBytes, $offset);
+                if ($tokenOffset > $start && $tokenOffset < $offset) {
+                    return true;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                $start = $offset;
+                self::skipLiteralString($pdfBytes, $offset);
+                if ($tokenOffset > $start && $tokenOffset < $offset) {
+                    return true;
+                }
+                continue;
+            }
+
+            $compositeEnd = self::skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                if ($tokenOffset > $offset && $tokenOffset < $compositeEnd) {
+                    return true;
+                }
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $hexEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                if ($hexEnd !== null) {
+                    if ($tokenOffset > $offset && $tokenOffset < $hexEnd) {
+                        return true;
+                    }
+                    $offset = $hexEnd;
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        return false;
+    }
+
+    private static function directObjectTokenEndAt(string $pdfBytes, int $offset): ?int
+    {
+        if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $pdfBytes, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $bodyStart = $offset + strlen($match[0]);
+        $bodyEnd = strpos($pdfBytes, 'endobj', $bodyStart);
+
+        return $bodyEnd === false ? null : $bodyEnd + strlen('endobj');
+    }
+
+    private static function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') === '[') {
+            $array = self::readArrayAt($pdfBytes, $offset);
+
+            return $array === null ? null : $offset + strlen($array);
+        }
+
+        if (substr($pdfBytes, $offset, 2) === '<<') {
+            $dictionary = self::readDictionaryAt($pdfBytes, $offset);
+
+            return $dictionary === null ? null : $offset + strlen($dictionary);
+        }
+
+        return null;
+    }
+
+    private static function skipPdfHexStringTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '<' || ($pdfBytes[$offset + 1] ?? '') === '<') {
+            return null;
+        }
+
+        for ($index = $offset + 1, $length = strlen($pdfBytes); $index < $length; $index++) {
+            $char = $pdfBytes[$index];
+            if ($char === '>') {
+                return $index + 1;
+            }
+
+            if (ctype_xdigit($char) || self::isPdfWhitespace($char)) {
+                continue;
+            }
+
+            return null;
         }
 
         return null;
@@ -194,7 +353,10 @@ final class PdfXrefFreeObjectMap
      */
     private static function xrefTableSectionAt(string $pdfBytes, int $offset): ?array
     {
-        if (!self::keywordAt($pdfBytes, $offset, 'xref')) {
+        if (
+            !self::keywordAt($pdfBytes, $offset, 'xref')
+            || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $offset)
+        ) {
             return null;
         }
 
@@ -879,16 +1041,13 @@ final class PdfXrefFreeObjectMap
     private static function latestXrefSectionOffsetBefore(string $pdfBytes, int $beforeOffset): ?int
     {
         $offsets = [];
-        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
-            foreach ($matches[0] as $match) {
-                $offset = $match[1] ?? null;
-                if (!is_int($offset) || $offset >= $beforeOffset) {
-                    continue;
-                }
+        foreach (self::xrefTableKeywordOffsets($pdfBytes) as $offset) {
+            if ($offset >= $beforeOffset) {
+                continue;
+            }
 
-                if (self::xrefTableSectionAt($pdfBytes, $offset) !== null) {
-                    $offsets[] = $offset;
-                }
+            if (self::xrefTableSectionAt($pdfBytes, $offset) !== null) {
+                $offsets[] = $offset;
             }
         }
 
@@ -935,15 +1094,20 @@ final class PdfXrefFreeObjectMap
             return false;
         }
 
-        $before = $offset > 0 ? $pdfBytes[$offset - 1] : '';
-        $after = $pdfBytes[$offset + $length] ?? '';
+        if ($offset > 0) {
+            $before = $pdfBytes[$offset - 1];
+            if ($before === '/' || (!self::isPdfWhitespace($before) && !str_contains('[]()<>{}%', $before))) {
+                return false;
+            }
+        }
 
-        return !self::isPdfNameChar($before) && !self::isPdfNameChar($after);
-    }
+        $afterOffset = $offset + $length;
+        if ($afterOffset >= strlen($pdfBytes)) {
+            return true;
+        }
 
-    private static function isPdfNameChar(string $char): bool
-    {
-        return $char !== '' && preg_match('/[A-Za-z0-9_]/', $char) === 1;
+        $after = $pdfBytes[$afterOffset];
+        return self::isPdfWhitespace($after) || str_contains('[]()<>{}/%', $after);
     }
 
     /**
