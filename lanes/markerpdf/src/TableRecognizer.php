@@ -2058,7 +2058,7 @@ final class TableRecognizer
             return [
                 'bbox' => $this->bboxFromGeometryValue($table['bbox']),
                 'source' => is_array($table['bbox'])
-                ? ($this->bboxNamedFieldSource($table['bbox']) ?? 'bbox_array')
+                ? ($this->bboxNamedFieldSource($table['bbox']) ?? $this->bboxWrappedFieldSource($table['bbox']) ?? 'bbox_array')
                 : 'bbox_array',
             ];
         }
@@ -6044,7 +6044,36 @@ final class TableRecognizer
         }
 
         return $this->bboxFromNamedFields($bbox)
+            ?? $this->bboxFromWrappedValue($bbox)
             ?? $this->nullableBbox($bbox);
+    }
+
+    /**
+     * Upstream tabled/Surya Pydantic dumps can preserve geometry as
+     * {"bbox": [...]} or {"box": [...]} instead of a bare list.
+     *
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromWrappedValue(array $record): ?array
+    {
+        foreach (['bbox', 'box'] as $key) {
+            $value = $record[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $bbox = $this->bboxFromNamedFields($value)
+                ?? $this->nullableBbox($value)
+                ?? $this->polygonBboxFromRecord($value)
+                ?? $this->polygonBbox($value)
+                ?? $this->sourceBboxFromRecord($value);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -6139,7 +6168,9 @@ final class TableRecognizer
     {
         $bbox = $record['bbox'] ?? null;
         if (is_array($bbox)) {
-            return $this->bboxNamedFieldSource($bbox) ?? 'bbox_array';
+            return $this->bboxNamedFieldSource($bbox)
+                ?? $this->bboxWrappedFieldSource($bbox)
+                ?? 'bbox_array';
         }
 
         return $this->bboxNamedFieldSource($record)
@@ -6250,6 +6281,40 @@ final class TableRecognizer
     }
 
     /**
+     * @param array<string|int, mixed> $record
+     */
+    private function bboxWrappedFieldSource(array $record): ?string
+    {
+        foreach (['bbox', 'box'] as $key) {
+            $value = $record[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $source = $this->bboxNamedFieldSource($value);
+            if ($source !== null) {
+                return $key . '.' . $source;
+            }
+
+            if ($this->nullableBbox($value) !== null) {
+                return $key . '.bbox_array';
+            }
+
+            $source = $this->polygonCoordinateSourceFromRecord($value);
+            if ($source !== null) {
+                return $key . '.' . $source;
+            }
+
+            $source = $this->sourceBboxCoordinateSourceFromRecord($value);
+            if ($source !== null) {
+                return $key . '.' . $source;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param mixed $bbox
      * @return list<float>|null
      */
@@ -6260,7 +6325,30 @@ final class TableRecognizer
         }
 
         return $this->rawBboxCoordinatesFromNamedFields($bbox)
+            ?? $this->rawBboxCoordinatesFromWrappedValue($bbox)
             ?? $this->rawBboxCoordinates(array_values($bbox));
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromWrappedValue(array $record): ?array
+    {
+        foreach (['bbox', 'box'] as $key) {
+            $value = $record[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $raw = $this->rawBboxCoordinatesFromNamedFields($value)
+                ?? $this->rawBboxCoordinates(array_values($value));
+            if ($raw !== null) {
+                return $raw;
+            }
+        }
+
+        return null;
     }
 
     /**
