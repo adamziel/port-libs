@@ -12910,91 +12910,99 @@ final class PdfTextExtractor
 
         $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
 
-        $kidNodes = [];
-        $kidOrder = 0;
+        foreach ($this->pageLabelKidDictionaryNodeGroups($dictionary, $objects, $seen) as $kidDictionaryNodes) {
+            $kidNodes = [];
+            $kidOrder = 0;
 
-        foreach ($this->pageLabelKidDictionaryNodes($dictionary, $objects, $seen) as $kidDictionaryNode) {
-            $kidDictionary = $kidDictionaryNode['dictionary'];
-            if ($this->pageLabelLimitsMalformed($kidDictionary, $objects)) {
-                continue;
-            }
-
-            if ($this->pageLabelLimitsInvalidRange($kidDictionary, $objects)) {
-                continue;
-            }
-
-            $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
-            if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidDictionary, $objects)) {
-                continue;
-            }
-
-            $kidMergedLimits = $this->pageLabelMergedLimits($limits, $kidLocalLimits);
-            if ($kidLocalLimits !== null && $kidMergedLimits === null) {
-                continue;
-            }
-
-            $kidNodes[] = [
-                'dictionary' => $kidDictionary,
-                'seen' => $kidDictionaryNode['seen'],
-                'limits' => $kidMergedLimits,
-                'local_limits' => $kidLocalLimits,
-                'order' => $kidOrder++,
-            ];
-        }
-
-        $sortableKidLimits = true;
-        foreach ($kidNodes as $kidNode) {
-            if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
-                $sortableKidLimits = false;
-                break;
-            }
-        }
-
-        if ($sortableKidLimits) {
-            usort(
-                $kidNodes,
-                static function (array $left, array $right): int {
-                    $leftLimits = $left['limits'];
-                    $rightLimits = $right['limits'];
-
-                    return $leftLimits[0] <=> $rightLimits[0]
-                        ?: $left['order'] <=> $right['order'];
+            foreach ($kidDictionaryNodes as $kidDictionaryNode) {
+                $kidDictionary = $kidDictionaryNode['dictionary'];
+                if ($this->pageLabelLimitsMalformed($kidDictionary, $objects)) {
+                    continue;
                 }
-            );
-        }
 
-        $claimedKidLimits = [];
-        foreach ($kidNodes as $kidNode) {
-            $kidLimits = $kidNode['limits'];
-            $claimableLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
-            $kidContributed = false;
-            foreach ($this->pageLabelNumberTreeEntries($kidNode['dictionary'], $objects, $pageCount, $kidNode['seen'], $limits) as $pageIndex => $section) {
-                if ($claimableLimits !== null) {
-                    foreach ($claimedKidLimits as $claimedLimits) {
-                        if (
-                            (
-                                $claimableLimits[0] === $claimedLimits[0]
-                                || (
-                                    $claimableLimits[0] > $claimedLimits[0]
-                                    && $claimableLimits[0] < $claimedLimits[1]
+                if ($this->pageLabelLimitsInvalidRange($kidDictionary, $objects)) {
+                    continue;
+                }
+
+                $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
+                if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidDictionary, $objects)) {
+                    continue;
+                }
+
+                $kidMergedLimits = $this->pageLabelMergedLimits($limits, $kidLocalLimits);
+                if ($kidLocalLimits !== null && $kidMergedLimits === null) {
+                    continue;
+                }
+
+                $kidNodes[] = [
+                    'dictionary' => $kidDictionary,
+                    'seen' => $kidDictionaryNode['seen'],
+                    'limits' => $kidMergedLimits,
+                    'local_limits' => $kidLocalLimits,
+                    'order' => $kidOrder++,
+                ];
+            }
+
+            $sortableKidLimits = true;
+            foreach ($kidNodes as $kidNode) {
+                if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
+                    $sortableKidLimits = false;
+                    break;
+                }
+            }
+
+            if ($sortableKidLimits) {
+                usort(
+                    $kidNodes,
+                    static function (array $left, array $right): int {
+                        $leftLimits = $left['limits'];
+                        $rightLimits = $right['limits'];
+
+                        return $leftLimits[0] <=> $rightLimits[0]
+                            ?: $left['order'] <=> $right['order'];
+                    }
+                );
+            }
+
+            $groupContributed = false;
+            $claimedKidLimits = [];
+            foreach ($kidNodes as $kidNode) {
+                $kidLimits = $kidNode['limits'];
+                $claimableLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
+                $kidContributed = false;
+                foreach ($this->pageLabelNumberTreeEntries($kidNode['dictionary'], $objects, $pageCount, $kidNode['seen'], $limits) as $pageIndex => $section) {
+                    if ($claimableLimits !== null) {
+                        foreach ($claimedKidLimits as $claimedLimits) {
+                            if (
+                                (
+                                    $claimableLimits[0] === $claimedLimits[0]
+                                    || (
+                                        $claimableLimits[0] > $claimedLimits[0]
+                                        && $claimableLimits[0] < $claimedLimits[1]
+                                    )
                                 )
-                            )
-                            && $pageIndex >= $claimedLimits[0]
-                            && $pageIndex <= $claimedLimits[1]
-                        ) {
-                            continue 2;
+                                && $pageIndex >= $claimedLimits[0]
+                                && $pageIndex <= $claimedLimits[1]
+                            ) {
+                                continue 2;
+                            }
                         }
+                    }
+
+                    if (!array_key_exists($pageIndex, $entries)) {
+                        $entries[$pageIndex] = $section;
+                        $kidContributed = true;
+                        $groupContributed = true;
                     }
                 }
 
-                if (!array_key_exists($pageIndex, $entries)) {
-                    $entries[$pageIndex] = $section;
-                    $kidContributed = true;
+                if ($claimableLimits !== null && $kidContributed) {
+                    $claimedKidLimits[] = $claimableLimits;
                 }
             }
 
-            if ($claimableLimits !== null && $kidContributed) {
-                $claimedKidLimits[] = $claimableLimits;
+            if ($groupContributed) {
+                break;
             }
         }
 
@@ -13004,10 +13012,11 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<string, true> $seen
-     * @return list<array{dictionary: string, seen: array<string, true>}>
+     * @return list<list<array{dictionary: string, seen: array<string, true>}>>
      */
-    private function pageLabelKidDictionaryNodes(string $dictionary, array $objects, array $seen): array
+    private function pageLabelKidDictionaryNodeGroups(string $dictionary, array $objects, array $seen): array
     {
+        $groups = [];
         foreach ($this->pageLabelArrayValuesAfterNameResolved($dictionary, 'Kids', $objects) as $arrayBody) {
             $nodes = [];
             foreach ($this->pdfArrayItems($arrayBody) as $item) {
@@ -13051,11 +13060,11 @@ final class PdfTextExtractor
             }
 
             if ($nodes !== []) {
-                return $nodes;
+                $groups[] = $nodes;
             }
         }
 
-        return [];
+        return $groups;
     }
 
     /**

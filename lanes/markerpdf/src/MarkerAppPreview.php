@@ -1674,7 +1674,7 @@ final class MarkerAppPreview
             break;
         }
 
-        $kidNodes = [];
+        $kidNodeGroups = [];
         foreach ($this->valuesAfterName($value, 'Kids') as $kids) {
             $candidateKidNodes = [];
             $kidOrder = 0;
@@ -1757,12 +1757,11 @@ final class MarkerAppPreview
             }
 
             if ($candidateKidNodes !== []) {
-                $kidNodes = $candidateKidNodes;
-                break;
+                $kidNodeGroups[] = $candidateKidNodes;
             }
         }
 
-        if ($kidNodes !== []) {
+        foreach ($kidNodeGroups as $kidNodes) {
             $sortableKidLimits = true;
             foreach ($kidNodes as $kidNode) {
                 if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
@@ -1784,6 +1783,7 @@ final class MarkerAppPreview
                 );
             }
 
+            $groupContributed = false;
             $claimedKidLimits = [];
             foreach ($kidNodes as $kidNode) {
                 $kidLimits = $kidNode['limits'];
@@ -1821,11 +1821,16 @@ final class MarkerAppPreview
                     $seenPageIndexes[$pageIndex] = true;
                     $sections[] = $section;
                     $kidContributed = true;
+                    $groupContributed = true;
                 }
 
                 if ($claimableLimits !== null && $kidContributed) {
                     $claimedKidLimits[] = $claimableLimits;
                 }
+            }
+
+            if ($groupContributed) {
+                break;
             }
         }
 
