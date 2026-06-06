@@ -5611,6 +5611,7 @@ final class PdfMetadataExtractor
         $version = $this->dictionaryIntegerValue($dictionary, 'V', $objects);
         $revision = $this->dictionaryIntegerValue($dictionary, 'R', $objects);
         $keyLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
+        $keyLengthExplicit = $this->dictionaryTopLevelRawValues($dictionary, 'Length') !== [];
         $encryptMetadataReview = $this->encryptMetadataDeclarationReview($dictionary, $objects);
 
         $metadata = [
@@ -5667,7 +5668,13 @@ final class PdfMetadataExtractor
         }
 
         if ($keyLength !== null || $version === 1) {
+            $keyLengthDefaulted = $keyLength === null && $version === 1;
             $metadata['key_length_bits'] = $keyLength ?? 40;
+            $metadata['key_length_explicit'] = $keyLengthExplicit;
+            $metadata['key_length_defaulted'] = $keyLengthDefaulted;
+            $metadata['key_length_source'] = $keyLengthDefaulted
+                ? 'standard_security_handler_v1_implicit_40_bit'
+                : 'encryption_dictionary_length_entry';
         }
 
         $metadata['encrypt_metadata'] = (bool) $encryptMetadataReview['effective_value'];
@@ -6647,6 +6654,11 @@ final class PdfMetadataExtractor
         $version = is_int($metadata['version'] ?? null) ? $metadata['version'] : null;
         $revision = is_int($metadata['revision'] ?? null) ? $metadata['revision'] : null;
         $keyLengthBits = is_int($metadata['key_length_bits'] ?? null) ? $metadata['key_length_bits'] : null;
+        $keyLengthExplicit = (bool) ($metadata['key_length_explicit'] ?? array_key_exists('key_length_bits', $metadata));
+        $keyLengthDefaulted = (bool) ($metadata['key_length_defaulted'] ?? false);
+        $keyLengthSource = is_string($metadata['key_length_source'] ?? null)
+            ? $metadata['key_length_source']
+            : null;
         $supportedVersions = [1, 2, 4, 5];
         $supportedRevisions = [2, 3, 4, 5, 6];
         $versionSupported = $version === null ? null : in_array($version, $supportedVersions, true);
@@ -6654,7 +6666,7 @@ final class PdfMetadataExtractor
         $compatible = $versionSupported === true && $revisionSupported === true
             ? $this->standardSecurityHandlerVersionRevisionCompatible($version, $revision)
             : null;
-        $keyLength = $this->standardSecurityHandlerKeyLengthReview($version, $keyLengthBits);
+        $keyLength = $this->standardSecurityHandlerKeyLengthReview($version, $keyLengthBits, $keyLengthDefaulted);
         $permissionWordReview = is_array($metadata['standard_permission_word_review'] ?? null)
             ? $metadata['standard_permission_word_review']
             : [];
@@ -6704,7 +6716,10 @@ final class PdfMetadataExtractor
             'key_length_bits' => $keyLengthBits,
             'version_present' => $version !== null,
             'revision_present' => $revision !== null,
-            'key_length_present' => array_key_exists('key_length_bits', $metadata),
+            'key_length_present' => $keyLengthExplicit,
+            'key_length_explicit' => $keyLengthExplicit,
+            'key_length_defaulted' => $keyLengthDefaulted,
+            'key_length_source' => $keyLengthSource,
             'permission_word_present' => $permissionWordPresent,
             'permission_word_declared_entry_count' => $permissionWordDeclaredEntryCount,
             'version_supported' => $versionSupported,
@@ -6854,7 +6869,7 @@ final class PdfMetadataExtractor
     /**
      * @return array{valid: bool|null, status: string, minimum_key_length_bits: int|null, maximum_key_length_bits: int|null}
      */
-    private function standardSecurityHandlerKeyLengthReview(?int $version, ?int $keyLengthBits): array
+    private function standardSecurityHandlerKeyLengthReview(?int $version, ?int $keyLengthBits, bool $keyLengthDefaulted = false): array
     {
         $range = match ($version) {
             1 => ['minimum' => 40, 'maximum' => 40],
@@ -6895,12 +6910,16 @@ final class PdfMetadataExtractor
         $valid = $keyLengthBits >= $range['minimum']
             && $keyLengthBits <= $range['maximum']
             && $keyLengthBits % 8 === 0;
+        $status = $valid
+            ? 'standard_security_handler_key_length_supported'
+            : 'invalid_standard_security_handler_key_length_review';
+        if ($valid && $keyLengthDefaulted && $version === 1 && $keyLengthBits === 40) {
+            $status = 'standard_security_handler_key_length_implicit_40_bit';
+        }
 
         return [
             'valid' => $valid,
-            'status' => $valid
-                ? 'standard_security_handler_key_length_supported'
-                : 'invalid_standard_security_handler_key_length_review',
+            'status' => $status,
             'minimum_key_length_bits' => $range['minimum'],
             'maximum_key_length_bits' => $range['maximum'],
         ];

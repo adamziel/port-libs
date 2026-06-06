@@ -309,6 +309,9 @@ final class PdfSecurityPreflight
             'standard_security_handler_revision_supported' => $standardParameterReview['revision_supported'] ?? null,
             'standard_security_handler_version_revision_compatible' => $standardParameterReview['version_revision_compatible'] ?? null,
             'standard_security_handler_key_length_status' => $standardParameterReview['key_length_status'] ?? null,
+            'standard_security_handler_key_length_explicit' => $standardParameterReview['key_length_explicit'] ?? null,
+            'standard_security_handler_key_length_defaulted' => $standardParameterReview['key_length_defaulted'] ?? null,
+            'standard_security_handler_key_length_source' => $standardParameterReview['key_length_source'] ?? null,
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
@@ -1822,6 +1825,9 @@ final class PdfSecurityPreflight
             'standard_security_handler_revision_supported' => $standardParameterReview['revision_supported'] ?? null,
             'standard_security_handler_version_revision_compatible' => $standardParameterReview['version_revision_compatible'] ?? null,
             'standard_security_handler_key_length_status' => $standardParameterReview['key_length_status'] ?? null,
+            'standard_security_handler_key_length_explicit' => $standardParameterReview['key_length_explicit'] ?? null,
+            'standard_security_handler_key_length_defaulted' => $standardParameterReview['key_length_defaulted'] ?? null,
+            'standard_security_handler_key_length_source' => $standardParameterReview['key_length_source'] ?? null,
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
@@ -5474,6 +5480,9 @@ final class PdfSecurityPreflight
             'algorithm' => $encryption['algorithm'] ?? null,
             'revision_label' => $encryption['revision_label'] ?? null,
             'key_length_bits' => $encryption['key_length_bits'] ?? null,
+            'key_length_explicit' => $encryption['key_length_explicit'] ?? null,
+            'key_length_defaulted' => $encryption['key_length_defaulted'] ?? null,
+            'key_length_source' => $encryption['key_length_source'] ?? null,
             'encrypt_metadata' => $encryption['encrypt_metadata'] ?? null,
             'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
             'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
@@ -5506,6 +5515,9 @@ final class PdfSecurityPreflight
             'standard_security_handler_revision_supported' => $standardParameterReview['revision_supported'] ?? null,
             'standard_security_handler_version_revision_compatible' => $standardParameterReview['version_revision_compatible'] ?? null,
             'standard_security_handler_key_length_status' => $standardParameterReview['key_length_status'] ?? null,
+            'standard_security_handler_key_length_explicit' => $standardParameterReview['key_length_explicit'] ?? null,
+            'standard_security_handler_key_length_defaulted' => $standardParameterReview['key_length_defaulted'] ?? null,
+            'standard_security_handler_key_length_source' => $standardParameterReview['key_length_source'] ?? null,
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
