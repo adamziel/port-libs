@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 02:04:23 UTC",
-    "sourceCommit": "28ce1248504d246cd7ef6530c0bb360adf7265f0",
-    "sourceCommitShort": "28ce1248504d",
+    "generated": "2026-06-06 02:04:43 UTC",
+    "sourceCommit": "f2175c381ccec277587bd90b2c96697f8f4361f4",
+    "sourceCommitShort": "f2175c381cce",
     "sourceBranch": "unknown",
-    "dashboardCommit": "28ce1248504d246cd7ef6530c0bb360adf7265f0",
-    "dashboardCommitShort": "28ce1248504d",
+    "dashboardCommit": "f2175c381ccec277587bd90b2c96697f8f4361f4",
+    "dashboardCommitShort": "f2175c381cce",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "1,600 / 2,276 (70.3%)",
             "mapPercent": "70.3%",
             "unmapped": "676",
-            "php": "1,149 pass / 0 fail",
+            "php": "1,150 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC ODF/OpenDocument placeholder slice on accepted base 57...",
+            "audit": "2026-06-06 UTC Citation/CSL is-uncertain-date slice on accepted base...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For ODF/OpenDocument follow-up, keep broader placeholder-fiel...",
+            "nextTarget": "For table geometry follow-up, keep full HTML5 table algorithm...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },

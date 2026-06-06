@@ -2154,4 +2154,98 @@ return [
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports caption writer requirements for short and block captions' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Fallback caption text',
+            'captionBlocks' => [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Block ']),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'caption'])]),
+                    new AstNode('text', ['text' => ' for reviewer']),
+                ]),
+                new AstNode('bullet_list', [], [
+                    new AstNode('list_item', [], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Queue note'])]),
+                    ]),
+                ]),
+            ],
+            'shortCaption' => 'Queue short',
+            'shortCaptionInlines' => [
+                new AstNode('text', ['text' => 'Queue ']),
+                new AstNode('strong', [], [new AstNode('text', ['text' => 'short'])]),
+            ],
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Metric', 'header' => true], [new AstNode('text', ['text' => 'Metric'])]),
+                    new AstNode('table_cell', ['text' => 'State', 'header' => true], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Caption handoff'], [new AstNode('text', ['text' => 'Caption handoff'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same(
+            ['markdown-short-caption-prefix-required', 'markdown-caption-blocks-flattened'],
+            array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics)
+        );
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('short-caption', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('pandoc-short-caption-prefix', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('Queue short', $markdownDiagnostics[0]['shortCaption'] ?? null);
+        $t->same('shortCaptionInlines', $markdownDiagnostics[0]['shortCaptionSource'] ?? null);
+        $t->same(['text', 'strong'], $markdownDiagnostics[0]['shortCaptionInlineTypes'] ?? null);
+        $t->same(true, $markdownDiagnostics[0]['hasShortCaptionFormatting'] ?? null);
+        $t->same('Block caption for reviewer' . "\n" . 'Queue note', $markdownDiagnostics[1]['captionText'] ?? null);
+        $t->same('captionBlocks', $markdownDiagnostics[1]['captionSource'] ?? null);
+        $t->same(2, $markdownDiagnostics[1]['blockCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $markdownDiagnostics[1]['blockTypes'] ?? null);
+        $t->same('Fallback caption text', $markdownDiagnostics[1]['rawCaption'] ?? null);
+
+        $t->same(
+            ['asciidoc-short-caption-review-required', 'asciidoc-caption-blocks-flattened'],
+            array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics)
+        );
+        $t->same('table-short-title-review', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('plain-caption-text', $asciidocDiagnostics[1]['requiredFeature'] ?? null);
+
+        $t->same(
+            ['latex-short-caption-optional-argument-required', 'latex-caption-blocks-flattened'],
+            array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics)
+        );
+        $t->same('caption-optional-argument', $latexDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('caption-text', $latexDiagnostics[1]['requiredFeature'] ?? null);
+
+        $t->same(6, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-short-caption-prefix-required',
+            'markdown-caption-blocks-flattened',
+            'asciidoc-short-caption-review-required',
+            'asciidoc-caption-blocks-flattened',
+            'latex-short-caption-optional-argument-required',
+            'latex-caption-blocks-flattened',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->contains(': [Queue **short**] Fallback caption text', $markdown);
+        $t->contains('data-pandoc-short-caption="Queue short"', $blocks);
+        $t->contains('<strong>caption</strong>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+    },
 ];

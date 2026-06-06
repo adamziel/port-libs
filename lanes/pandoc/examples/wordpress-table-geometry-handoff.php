@@ -1328,6 +1328,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($captionPacket['captions']['long']['inlines'][3]['url'] ?? null) !== 'https://example.test/review') {
         throw new RuntimeException('Table geometry self-test missing caption inline link metadata');
     }
+    if (
+        ($captionPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-short-caption-prefix-required']
+        || ($captionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'pandoc-short-caption-prefix'
+        || ($captionPacket['writerDowngrades']['markdown'][0]['shortCaptionInlineTypes'] ?? null) !== ['text', 'strong']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing short caption writer handoff diagnostics');
+    }
     if (!str_contains($blocks, '<figure class="wp-block-table" data-pandoc-short-caption="Queue short"><table><thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">State</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr></tbody></table><figcaption class="wp-element-caption">Long <em>caption</em> for <a href="https://example.test/review" title="Review">reviewer</a></figcaption></figure>')) {
         throw new RuntimeException('Table geometry self-test missing WordPress output for caption metadata handoff');
     }
@@ -1341,6 +1348,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($blockCaptionPacket['summary']['captionBlockCount'] ?? null) !== 2
     ) {
         throw new RuntimeException('Table geometry self-test missing block-level caption review-packet metadata');
+    }
+    if (
+        ($blockCaptionPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-caption-blocks-flattened']
+        || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'plain-caption-text'
+        || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['blockTypes'] ?? null) !== ['paragraph', 'bullet_list']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing block-level caption writer handoff diagnostics');
     }
     if (!str_contains($blocks, '<figcaption class="wp-element-caption"><p>Block <strong>caption</strong> for reviewer</p><ul><li>Queue note</li></ul></figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing WordPress output for block-level table caption');

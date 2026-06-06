@@ -2337,7 +2337,10 @@ final class TableGeometry
         $writer = self::normalizeWriterName($writer);
         if ($writer !== 'markdown') {
             if ($writer === 'latex') {
-                $diagnostics = $table instanceof AstNode ? self::latexLongtableFooterRequirements($table, $writer) : [];
+                $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
+                if ($table instanceof AstNode) {
+                    array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
+                }
                 foreach ($coverage as $record) {
                     $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
                     $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
@@ -2396,7 +2399,10 @@ final class TableGeometry
             }
 
             if ($writer === 'asciidoc') {
-                $diagnostics = $table instanceof AstNode ? self::tableFootSectionWriterDiagnostics($table, $writer) : [];
+                $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
+                if ($table instanceof AstNode) {
+                    array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
+                }
                 foreach ($coverage as $record) {
                     $node = $record['node'] ?? null;
                     if (!$node instanceof AstNode) {
@@ -2454,7 +2460,10 @@ final class TableGeometry
             return $diagnostics;
         }
 
-        $diagnostics = $table instanceof AstNode ? self::tableFootSectionWriterDiagnostics($table, $writer) : [];
+        $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
+        if ($table instanceof AstNode) {
+            array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
+        }
         foreach ($coverage as $record) {
             $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
             $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
@@ -2490,6 +2499,76 @@ final class TableGeometry
                     $content,
                     'multiline-or-grid-table-cell'
                 );
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function captionWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $captions = self::captionMetadata($table);
+        $long = $captions['long'] ?? [];
+        $short = $captions['short'] ?? [];
+        $diagnostics = [];
+
+        $shortCaption = trim((string) ($short['text'] ?? ''));
+        if ($shortCaption !== '') {
+            $shortCaptionRequirements = [
+                'markdown' => ['markdown-short-caption-prefix-required', 'pandoc-short-caption-prefix'],
+                'asciidoc' => ['asciidoc-short-caption-review-required', 'table-short-title-review'],
+                'latex' => ['latex-short-caption-optional-argument-required', 'caption-optional-argument'],
+            ];
+            if (isset($shortCaptionRequirements[$writer])) {
+                [$code, $requiredFeature] = $shortCaptionRequirements[$writer];
+                $diagnostics[] = [
+                    'code' => $code,
+                    'writer' => $writer,
+                    'reason' => 'short-caption',
+                    'requiredFeature' => $requiredFeature,
+                    'caption' => (string) ($long['text'] ?? ''),
+                    'captionSource' => (string) ($long['source'] ?? 'none'),
+                    'hasCaption' => trim((string) ($long['text'] ?? '')) !== '',
+                    'shortCaption' => $shortCaption,
+                    'shortCaptionSource' => (string) ($short['source'] ?? 'none'),
+                    'shortCaptionInlineTypes' => self::stringList($short['inlineTypes'] ?? []),
+                    'shortCaptionBlockTypes' => self::stringList($short['blockTypes'] ?? []),
+                    'hasShortCaptionFormatting' => (bool) ($short['hasInlineFormatting'] ?? false)
+                        || (int) ($short['blockCount'] ?? 0) > 0,
+                ];
+            }
+        }
+
+        $blockCount = (int) ($long['blockCount'] ?? 0);
+        if ($blockCount > 0) {
+            $blockCaptionRequirements = [
+                'markdown' => ['markdown-caption-blocks-flattened', 'plain-caption-text'],
+                'asciidoc' => ['asciidoc-caption-blocks-flattened', 'plain-caption-text'],
+                'latex' => ['latex-caption-blocks-flattened', 'caption-text'],
+            ];
+            if (isset($blockCaptionRequirements[$writer])) {
+                [$code, $requiredFeature] = $blockCaptionRequirements[$writer];
+                $diagnostic = [
+                    'code' => $code,
+                    'writer' => $writer,
+                    'reason' => 'caption-blocks',
+                    'requiredFeature' => $requiredFeature,
+                    'captionText' => (string) ($long['text'] ?? ''),
+                    'captionSource' => (string) ($long['source'] ?? 'none'),
+                    'hasCaption' => trim((string) ($long['text'] ?? '')) !== '',
+                    'blockCount' => $blockCount,
+                    'blockTypes' => self::stringList($long['blockTypes'] ?? []),
+                    'shortCaption' => $shortCaption,
+                    'hasShortCaption' => $shortCaption !== '',
+                ];
+                if (array_key_exists('rawText', $long)) {
+                    $diagnostic['rawCaption'] = (string) $long['rawText'];
+                }
+
+                $diagnostics[] = $diagnostic;
             }
         }
 
