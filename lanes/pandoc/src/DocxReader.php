@@ -7141,6 +7141,7 @@ final class DocxReader
             $this->isWordElement($element, 't')
             || $this->isWordElement($element, 'delText')
             || $this->isWordElement($element, 'delInstrText')
+            || $this->isMathElement($element, 't')
         ) {
             return $element->textContent;
         }

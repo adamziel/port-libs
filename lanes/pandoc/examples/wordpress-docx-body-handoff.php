@@ -377,6 +377,11 @@ XML],
       <w:del w:id="28" w:author="Source Editor" w:date="2026-06-05T12:15:00Z">
         <w:r><w:delInstrText xml:space="preserve"> HYPERLINK "https://legacy.example.test/source" \o "Legacy source" </w:delInstrText></w:r>
       </w:del>
+      <w:del w:id="29" w:author="Equation Reviewer" w:date="2026-06-05T12:30:00Z">
+        <m:oMath>
+          <m:r><m:t>x + y = z</m:t></m:r>
+        </m:oMath>
+      </w:del>
       <w:ins w:id="8" w:author="Migration Editor" w:date="2026-06-04T17:50:00Z">
         <w:r><w:t xml:space="preserve"> Approved tracked wording.</w:t></w:r>
       </w:ins>
@@ -822,7 +827,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][2]['id'] ?? '') !== 'rIdVmlBadge' || ($summary['importReport']['media']['items'][2]['usedCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing VML image media handoff');
     }
-    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 3 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 4) {
+    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 3 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 5) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
     if (($summary['importReport']['revisions']['formattingCount'] ?? 0) !== 2) {
@@ -836,6 +841,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($revisionItemsById['28']['text'] ?? '') !== 'HYPERLINK "https://legacy.example.test/source" \\o "Legacy source"') {
         throw new RuntimeException('DOCX body handoff self-test missing deleted field instruction audit text');
+    }
+    if (($revisionItemsById['29']['text'] ?? '') !== 'x + y = z') {
+        throw new RuntimeException('DOCX body handoff self-test missing deleted math revision audit text');
     }
     if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing section property report');
@@ -961,6 +969,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'legacy.example.test')) {
         throw new RuntimeException('DOCX body handoff self-test rendered deleted field instruction');
+    }
+    if (str_contains($blocks, 'x + y = z')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered deleted math revision text');
     }
     if (str_contains($blocks, 'moved from an obsolete review section')) {
         throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change text');

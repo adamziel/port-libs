@@ -945,6 +945,26 @@ $deletedFieldInstructionDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$deletedMathRevisionDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Deleted math audit keeps </w:t></w:r>
+      <w:del w:id="33" w:author="Equation Reviewer" w:date="2026-06-05T12:30:00Z">
+        <m:oMath>
+          <m:r><m:t>x + y = z</m:t></m:r>
+        </m:oMath>
+      </w:del>
+      <w:ins w:id="34" w:author="Migration Editor" w:date="2026-06-05T12:35:00Z">
+        <w:r><w:t>approved equation summary</w:t></w:r>
+      </w:ins>
+      <w:r><w:t xml:space="preserve"> for reviewer handoff.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $moveTrackedChangesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2201,6 +2221,14 @@ $buildDeletedFieldInstructionPackage = static function () use ($contentTypesXml,
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $deletedFieldInstructionDocumentXml],
+    ]);
+};
+
+$buildDeletedMathRevisionPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $deletedMathRevisionDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $deletedMathRevisionDocumentXml],
     ]);
 };
 
@@ -3585,6 +3613,47 @@ return [
         $t->same(true, $revisions['items'][1]['accepted']);
         $t->same('32', $revisions['items'][1]['id']);
         $t->same('updated source link', $revisions['items'][1]['text']);
+    },
+    'reports deleted DOCX math text without rendering suppressed formulas' => static function (TestRunner $t) use ($buildDeletedMathRevisionPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildDeletedMathRevisionPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Deleted math audit keeps ', $paragraph->children[0]->attr('text'));
+
+        $insertion = $paragraph->children[1];
+        $t->same('span', $insertion->type);
+        $t->same(['docx-insertion'], $insertion->attr('classes'));
+        $t->same('insertion', $insertion->attr('attributes')['data-docx-change']);
+        $t->same('34', $insertion->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $insertion->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-05T12:35:00Z', $insertion->attr('attributes')['data-docx-date']);
+        $t->same('approved equation summary', $insertion->children[0]->attr('text'));
+        $t->same(' for reviewer handoff.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Deleted math audit keeps [approved equation summary]{.docx-insertion data-docx-change="insertion" data-docx-change-id="34" data-docx-author="Migration Editor" data-docx-date="2026-06-05T12:35:00Z"} for reviewer handoff.', $markdown);
+        $t->true(!str_contains($markdown, 'x + y = z'), 'Deleted DOCX math should not render to Markdown');
+        $t->contains('<p>Deleted math audit keeps <span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="34" data-docx-author="Migration Editor" data-docx-date="2026-06-05T12:35:00Z">approved equation summary</span> for reviewer handoff.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'x + y = z'), 'Deleted DOCX math should not render to WordPress blocks');
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(1, $revisions['insertionCount']);
+        $t->same(1, $revisions['deletionCount']);
+        $t->same(2, count($revisions['items']));
+        $t->same('deletion', $revisions['items'][0]['type']);
+        $t->same(false, $revisions['items'][0]['accepted']);
+        $t->same('33', $revisions['items'][0]['id']);
+        $t->same('Equation Reviewer', $revisions['items'][0]['author']);
+        $t->same('2026-06-05T12:30:00Z', $revisions['items'][0]['date']);
+        $t->same('x + y = z', $revisions['items'][0]['text']);
+        $t->same('insertion', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('34', $revisions['items'][1]['id']);
+        $t->same('approved equation summary', $revisions['items'][1]['text']);
     },
     'preserves accepted DOCX moved text and reports suppressed move sources' => static function (TestRunner $t) use ($buildMoveTrackedChangesPackage): void {
         $reader = new DocxReader();
