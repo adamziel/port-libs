@@ -2540,11 +2540,79 @@ final class MathTexConverter
         return $attributes;
     }
 
+    private function expandArrayColumnRepeats(string $columnSpec, int $depth = 0): string
+    {
+        if ($depth > 4) {
+            throw new \InvalidArgumentException('Unsupported nested TeX array repeated-column preamble');
+        }
+
+        $expanded = '';
+        $length = strlen($columnSpec);
+        for ($offset = 0; $offset < $length;) {
+            $char = $columnSpec[$offset];
+            if ($char === '{') {
+                $argument = $this->readTexBraceArgument($columnSpec, $offset);
+                if ($argument === null) {
+                    throw new \InvalidArgumentException('Unclosed TeX array column preamble group at offset ' . $offset);
+                }
+
+                $expanded .= substr($columnSpec, $offset, $argument['next'] - $offset);
+                $offset = $argument['next'];
+                continue;
+            }
+
+            if ($char !== '*') {
+                $expanded .= $char;
+                $offset++;
+                continue;
+            }
+
+            $countOffset = $offset + 1;
+            $this->skipWhitespace($columnSpec, $countOffset);
+            $countArgument = $this->readTexBraceArgument($columnSpec, $countOffset);
+            if ($countArgument === null) {
+                throw new \InvalidArgumentException('Expected TeX array repeated-column count at offset ' . ($offset + 1));
+            }
+
+            $countText = trim($countArgument['value']);
+            if (preg_match('/^[1-9][0-9]*$/', $countText) !== 1) {
+                throw new \InvalidArgumentException('Unsupported TeX array repeated-column count ' . $countText);
+            }
+
+            $count = (int) $countText;
+            if ($count > 8) {
+                throw new \InvalidArgumentException('Unsupported TeX array repeated-column count ' . $countText);
+            }
+
+            $bodyOffset = $countArgument['next'];
+            $this->skipWhitespace($columnSpec, $bodyOffset);
+            $bodyArgument = $this->readTexBraceArgument($columnSpec, $bodyOffset);
+            if ($bodyArgument === null) {
+                throw new \InvalidArgumentException('Expected TeX array repeated-column preamble at offset ' . $bodyOffset);
+            }
+
+            $body = $this->expandArrayColumnRepeats($bodyArgument['value'], $depth + 1);
+            if (trim($body) === '') {
+                throw new \InvalidArgumentException('Expected TeX array repeated-column preamble content at offset ' . $bodyOffset);
+            }
+
+            $expanded .= str_repeat($body, $count);
+            if (strlen($expanded) > 256) {
+                throw new \InvalidArgumentException('Unsupported TeX array repeated-column preamble expansion');
+            }
+
+            $offset = $bodyArgument['next'];
+        }
+
+        return $expanded;
+    }
+
     /**
      * @return array{columnalign:string, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int}
      */
     private function arrayColumnSpec(string $columnSpec, bool $allowWidthColumns = true): array
     {
+        $columnSpec = $this->expandArrayColumnRepeats($columnSpec);
         $alignments = [];
         $columnLines = [];
         $columnWidths = [];

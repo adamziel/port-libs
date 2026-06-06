@@ -748,6 +748,17 @@ return [
         $t->contains('<mtable columnalign="left left right" columnwidth="auto 3em auto" data-tex-column-valign="baseline top baseline" columnlines="solid none"><mtr><mtd><mi>a</mi></mtd><mtd><mtext>wrapped note</mtext></mtd><mtd><mi>b</mi></mtd></mtr></mtable>', $mixedMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|p{3em}r}a &amp; \\text{wrapped note} &amp; b\\end{array}</annotation>', $mixedMathml);
     },
+    'converts bounded tex array repeated preambles to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $repeatMathml = $converter->texToMathMl('\\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\\\ p_2 & m_2 & 2\\end{array}', true);
+        $widthRepeatMathml = $converter->texToMathMl('\\begin{array}{l|*{2}{p{2cm}|}r}a & \\text{draft} & \\text{final} & b\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $repeatMathml);
+        $t->contains('<mtable columnalign="center center right" columnlines="solid solid"><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd><mtd><mn>2</mn></mtd></mtr></mtable>', $repeatMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{*{2}{c|}r}p_1 &amp; m_1 &amp; 1 \\\\ p_2 &amp; m_2 &amp; 2\\end{array}</annotation>', $repeatMathml);
+        $t->contains('<mtable columnalign="left left left right" columnwidth="auto 2cm 2cm auto" data-tex-column-valign="baseline top top baseline" columnlines="solid solid solid"><mtr><mtd><mi>a</mi></mtd><mtd><mtext>draft</mtext></mtd><mtd><mtext>final</mtext></mtd><mtd><mi>b</mi></mtd></mtr></mtable>', $widthRepeatMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|*{2}{p{2cm}|}r}a &amp; \\text{draft} &amp; \\text{final} &amp; b\\end{array}</annotation>', $widthRepeatMathml);
+    },
     'converts bounded tex array rule commands to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $ruleMathml = $converter->texToMathMl('\\begin{array}{l|c|r}\\hline p_i & m_i & 1 \\\\ \\hline q_i & n_i & 2 \\\\ \\hline\\end{array}', true);
@@ -914,6 +925,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\bfseries}l}a & b\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{p{}}a\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{m{-1cm}}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{*{0}{c}}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{*{9}{c}}a & b & c & d & e & f & g & h & i\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{*{2}{}}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{subarray}{*{2}{p{1cm}}}a\\end{subarray}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}a & b'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\frac{a}{b & c\\end{matrix}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\end{matrix}'));
