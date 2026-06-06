@@ -5186,7 +5186,7 @@ final class PdfAttachmentExtractor
         }
 
         $pending = [];
-        foreach (['Root', 'Info'] as $name) {
+        foreach (['Root', 'Info', 'Encrypt'] as $name) {
             $reference = $this->refObjectReference($sectionDictionary[$name] ?? null);
             if ($reference !== null) {
                 $pending[] = $reference;

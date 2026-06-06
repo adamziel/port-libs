@@ -3620,7 +3620,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $pending = [];
-        foreach (['Root', 'Info'] as $name) {
+        foreach (['Root', 'Info', 'Encrypt'] as $name) {
             $reference = $this->objectReferenceFromValue($this->dictionaryRawValue($sectionBody, $name));
             if ($reference !== null) {
                 $pending[] = $reference;

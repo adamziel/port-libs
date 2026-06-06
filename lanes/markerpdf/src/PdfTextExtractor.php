@@ -26934,8 +26934,8 @@ final class PdfTextExtractor
     /**
      * Some incremental writers append same-generation direct replacements and
      * omit their rows from the latest xref section. If the latest trailer names
-     * those replacements through /Root or /Info, recover only omitted rows in
-     * the current update window before inheriting stale /Prev rows.
+     * those replacements through /Root, /Info, or /Encrypt, recover only omitted
+     * rows in the current update window before inheriting stale /Prev rows.
      *
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
@@ -26960,7 +26960,7 @@ final class PdfTextExtractor
         }
 
         $pending = [];
-        foreach (['Root', 'Info'] as $name) {
+        foreach (['Root', 'Info', 'Encrypt'] as $name) {
             $reference = $this->objectReferenceAfterName($sectionBody, $name);
             if ($reference !== null) {
                 $pending[] = $reference;

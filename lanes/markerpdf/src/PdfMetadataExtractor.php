@@ -13831,7 +13831,7 @@ final class PdfMetadataExtractor
         }
 
         $pending = [];
-        foreach (['Root', 'Info'] as $name) {
+        foreach (['Root', 'Info', 'Encrypt'] as $name) {
             $reference = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($sectionBody, $name));
             if ($reference !== null) {
                 $pending[] = $reference;
