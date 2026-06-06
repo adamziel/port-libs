@@ -609,6 +609,8 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as 
         'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
         'sourceExists' => $part['sourceExists'],
         'loaded' => $part['loaded'],
+        'loadAction' => $part['loadAction'],
+        'loadReason' => $part['loadReason'],
         'relationshipCount' => $part['relationshipCount'],
         'valid' => $part['valid'],
         'issues' => $part['issues'],
@@ -635,6 +637,8 @@ foreach ($graph->preflightPackageParts() as $part) {
         'relationshipSource' => $part['relationshipSource'],
         'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
         'relationshipSourceLoaded' => $part['relationshipSourceLoaded'],
+        'relationshipPartLoadAction' => $part['relationshipPartLoadAction'],
+        'relationshipPartLoadReason' => $part['relationshipPartLoadReason'],
         'sourceExists' => $part['sourceExists'],
         'valid' => $part['valid'],
         'issues' => $part['issues'],
@@ -1208,27 +1212,43 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml', '/word/review source.xml']
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
+        || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'loaded'
+        || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipPartLoadReason'] ?? null) !== 'loaded'
         || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['issues'] ?? null) !== []
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false
+        || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipPartLoadAction'] ?? null) !== 'skipped'
+        || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipPartLoadReason'] ?? null) !== 'invalid-relationship-content-type'
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipSource'] ?? null) !== '/'
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['loadAction'] ?? null) !== 'loaded'
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['loadReason'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 3
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipSource'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadAction'] ?? null) !== 'loaded'
+        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadReason'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipCount'] ?? null) !== 14
         || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['sourceExists'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['loadAction'] ?? null) !== 'loaded'
+        || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['loadReason'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['loaded'] ?? null) !== false
+        || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['loadAction'] ?? null) !== 'skipped'
+        || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['loadReason'] ?? null) !== 'invalid-relationship-content-type'
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loadAction'] ?? null) !== 'loaded'
+        || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loadReason'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['relationshipCount'] ?? null) !== 1
         || ($summary['integrity']['invalidRelationshipParts'][0]['partName'] ?? null) !== '/word/_rels/draft.xml.rels'
         || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipSourceLoaded'] ?? null) !== false
+        || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipPartLoadAction'] ?? null) !== 'skipped'
+        || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipPartLoadReason'] ?? null) !== 'invalid-relationship-content-type'
         || ($summary['integrity']['relationshipSourceAliasGraphRejected'] ?? null) !== true
         || ($summary['integrity']['partNameCaseCollisionGraphRejected'] ?? null) !== true
         || ($summary['integrity']['contentTypeOverrideCaseLookup'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'

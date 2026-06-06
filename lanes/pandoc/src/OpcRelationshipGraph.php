@@ -65,6 +65,7 @@ final class OpcRelationshipGraph
         }
 
         $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        $packagePartNamesByEquivalenceKey = self::packagePartNamesByEquivalenceKey($package);
         $relationshipsBySource = [];
 
         foreach ($package->names() as $name) {
@@ -82,6 +83,10 @@ final class OpcRelationshipGraph
                 continue;
             }
 
+            if ($sourcePartName !== '/' && !isset($packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($sourcePartName)])) {
+                continue;
+            }
+
             if (isset($relationshipsBySource[$sourcePartName])) {
                 throw new \RuntimeException('Duplicate OPC relationship part source: ' . $sourcePartName);
             }
@@ -96,7 +101,7 @@ final class OpcRelationshipGraph
             $package,
             $contentTypes,
             $relationshipsBySource,
-            self::packagePartNamesByEquivalenceKey($package),
+            $packagePartNamesByEquivalenceKey,
         );
     }
 
@@ -147,7 +152,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{partName:string, contentType:?string, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
@@ -208,6 +213,8 @@ final class OpcRelationshipGraph
                 'sourceExists' => $sourceExists,
                 'duplicateRelationshipPartNames' => [],
                 'loaded' => $loaded,
+                'loadAction' => 'skipped',
+                'loadReason' => self::relationshipPartLoadReason($issues, false),
                 'relationshipCount' => $relationshipCount,
                 'valid' => $issues === [],
                 'issues' => $issues,
@@ -235,6 +242,7 @@ final class OpcRelationshipGraph
                 $preflight[$rowIndex]['issues'][] = 'duplicate-relationship-source';
                 $preflight[$rowIndex]['issues'] = array_values(array_unique($preflight[$rowIndex]['issues']));
                 $preflight[$rowIndex]['valid'] = false;
+                self::refreshRelationshipPartLoadDecision($preflight[$rowIndex]);
             }
         }
 
@@ -246,12 +254,15 @@ final class OpcRelationshipGraph
             try {
                 $relationships = OpcRelationships::fromXml($package->read($row['partName']), $row['relationshipSource']);
                 $row['loaded'] = true;
+                $row['loadAction'] = 'loaded';
+                $row['loadReason'] = 'loaded';
                 $row['relationshipCount'] = count($relationships->all());
             } catch (\Throwable $exception) {
                 $row['issues'][] = 'malformed-relationship-xml';
                 $row['issues'] = array_values(array_unique($row['issues']));
                 $row['parseError'] = $exception->getMessage();
                 $row['valid'] = false;
+                self::refreshRelationshipPartLoadDecision($row);
             }
         }
         unset($row);
@@ -478,7 +489,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, sourceExists:?bool, valid:bool, issues:list<string>}>
      */
     public function preflightPackageParts(): array
     {
@@ -494,6 +505,8 @@ final class OpcRelationshipGraph
             $relationshipSource = null;
             $relationshipSourceIsRelationshipPart = null;
             $relationshipSourceLoaded = null;
+            $relationshipPartLoadAction = null;
+            $relationshipPartLoadReason = null;
             $sourceExists = null;
             $issues = [];
 
@@ -520,6 +533,11 @@ final class OpcRelationshipGraph
                 if (!$sourceExists) {
                     $issues[] = 'orphan-relationship-part';
                 }
+
+                $relationshipPartLoadAction = $relationshipSourceLoaded === true && $issues === []
+                    ? 'loaded'
+                    : 'skipped';
+                $relationshipPartLoadReason = self::relationshipPartLoadReason($issues, $relationshipSourceLoaded === true && $issues === []);
             }
 
             $preflight[] = [
@@ -529,6 +547,8 @@ final class OpcRelationshipGraph
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
                 'relationshipSourceLoaded' => $relationshipSourceLoaded,
+                'relationshipPartLoadAction' => $relationshipPartLoadAction,
+                'relationshipPartLoadReason' => $relationshipPartLoadReason,
                 'sourceExists' => $sourceExists,
                 'valid' => $issues === [],
                 'issues' => $issues,
@@ -853,7 +873,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightPackageConsistency(): array
     {
@@ -1974,6 +1994,41 @@ final class OpcRelationshipGraph
         }
 
         return true;
+    }
+
+    /**
+     * @param array{loaded:bool, issues:list<string>, loadAction:string, loadReason:string} $row
+     */
+    private static function refreshRelationshipPartLoadDecision(array &$row): void
+    {
+        $row['loadAction'] = $row['loaded'] ? 'loaded' : 'skipped';
+        $row['loadReason'] = self::relationshipPartLoadReason($row['issues'], $row['loaded']);
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private static function relationshipPartLoadReason(array $issues, bool $loaded): string
+    {
+        if ($loaded) {
+            return 'loaded';
+        }
+
+        foreach ([
+            'invalid-relationship-part-name',
+            'duplicate-relationship-source',
+            'missing-content-type',
+            'invalid-relationship-content-type',
+            'relationship-part-source',
+            'orphan-relationship-part',
+            'malformed-relationship-xml',
+        ] as $issue) {
+            if (in_array($issue, $issues, true)) {
+                return $issue;
+            }
+        }
+
+        return 'not-loaded';
     }
 
     /**
