@@ -2855,6 +2855,78 @@ XML;
         $t->same($durations, $result['importReport']['mediaDurations']);
         $t->same($durations, $result['document']->attr('mediaDurations'));
     },
+    'reports OPF manifest media-overlay bindings for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
+        $opfWithOverlayBindings = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter-1"/><item id="mo-chapter-1" href="overlays/chapter1.smil" media-type="application/smil+xml"/>',
+            $opfXml
+        );
+        $opfWithOverlayBindings = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml" media-overlay="missing-overlay"/>',
+            $opfWithOverlayBindings
+        );
+        $opfWithOverlayBindings = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/book.css" media-type="text/css" media-overlay="mo-style"/><item id="mo-style" href="styles/not-smil.css" media-type="text/css"/>',
+            $opfWithOverlayBindings
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlayBindings,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/chapter1.smil', 'data' => $smilXml],
+                ['name' => 'OEBPS/styles/not-smil.css', 'data' => 'body { color: #444; }'],
+            ]
+        ));
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $chapterOverlay = $manifestById['chapter-1']['mediaOverlayReference'];
+        $t->same('mo-chapter-1', $chapterOverlay['id']);
+        $t->same('/OEBPS/overlays/chapter1.smil', $chapterOverlay['part']);
+        $t->same('application/smil+xml', $chapterOverlay['mediaType']);
+        $t->same(true, $chapterOverlay['exists']);
+        $t->same(['chapter-1'], $chapterOverlay['referencedBy']);
+        $t->same(2, $chapterOverlay['itemCount']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $chapterOverlay['textRefTarget']);
+        $t->same([], $chapterOverlay['diagnostics']);
+
+        $missingOverlay = $manifestById['chapter-2']['mediaOverlayReference'];
+        $t->same('missing-overlay', $missingOverlay['id']);
+        $t->same(false, $missingOverlay['exists']);
+        $t->same(['chapter-2'], $missingOverlay['referencedBy']);
+        $t->same('missing-media-overlay-manifest-item', $missingOverlay['diagnostics'][0]['type']);
+
+        $styleOverlay = $manifestById['style']['mediaOverlayReference'];
+        $t->same('mo-style', $styleOverlay['id']);
+        $t->same('/OEBPS/styles/not-smil.css', $styleOverlay['part']);
+        $t->same('text/css', $styleOverlay['mediaType']);
+        $t->same(true, $styleOverlay['exists']);
+        $t->same('unexpected-media-overlay-type', $styleOverlay['diagnostics'][0]['type']);
+
+        $t->same($chapterOverlay, $result['spine'][0]['mediaOverlayReference']);
+        $t->same($missingOverlay, $result['spine'][1]['mediaOverlayReference']);
+        $t->same($chapterOverlay, $result['xhtmlAssets'][1]['mediaOverlayReference']);
+        $t->same($styleOverlay, $assetById['style']['mediaOverlayReference']);
+        $t->same($chapterOverlay, $result['document']->children[0]->attr('mediaOverlayReference'));
+        $t->same($missingOverlay, $result['document']->children[1]->attr('mediaOverlayReference'));
+        $t->same($chapterOverlay, $result['importReport']['manifest']['items'][1]['mediaOverlayReference']);
+        $importAssetById = [];
+        foreach ($result['importReport']['assets']['items'] as $asset) {
+            $importAssetById[$asset['id']] = $asset;
+        }
+        $t->same($styleOverlay, $importAssetById['style']['mediaOverlayReference']);
+        $t->same($result['mediaOverlays']['mo-chapter-1'], $result['importReport']['mediaOverlays']['mo-chapter-1']);
+    },
     'normalizes EPUB3 SMIL media overlay clip timing for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $smilWithClipTiming = <<<'XML'
 <smil xmlns="http://www.w3.org/ns/SMIL">

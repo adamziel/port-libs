@@ -841,6 +841,21 @@ XML;
     if (($result['mediaOverlays']['mo-chapter']['duration'] ?? null) !== '0:00:08.000' || ($result['mediaOverlays']['mo-chapter']['durationSeconds'] ?? null) !== 8.0) {
         throw new RuntimeException('Expected EPUB media-overlay report to expose OPF duration metadata');
     }
+    if (($result['manifest'][1]['mediaOverlayReference']['id'] ?? null) !== 'mo-chapter') {
+        throw new RuntimeException('Expected EPUB manifest item to expose its OPF media-overlay binding');
+    }
+    if (($result['manifest'][1]['mediaOverlayReference']['part'] ?? null) !== '/EPUB/overlays/chapter.smil') {
+        throw new RuntimeException('Expected EPUB manifest media-overlay binding to resolve to the SMIL package part');
+    }
+    if (($result['manifest'][1]['mediaOverlayReference']['itemCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected EPUB manifest media-overlay binding to expose parsed timing item count');
+    }
+    if (($result['spine'][0]['mediaOverlayReference']['duration'] ?? null) !== '0:00:08.000') {
+        throw new RuntimeException('Expected EPUB spine item to expose OPF media-overlay duration binding');
+    }
+    if (($result['document']->children[0]->attr('mediaOverlayReference')['textRefTarget'] ?? null) !== '/EPUB/text/chapter.xhtml') {
+        throw new RuntimeException('Expected WordPress EPUB handoff block to expose media-overlay text reference target');
+    }
     if (($result['document']->attr('mediaDurations')['overlaysById']['mo-chapter']['duration'] ?? null) !== '0:00:08.000') {
         throw new RuntimeException('Expected WordPress document handoff to expose EPUB media duration metadata');
     }
@@ -1028,6 +1043,9 @@ echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]
 echo 'remoteOverlayClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['clipDurationSeconds'] ?? '') . "\n";
 echo 'mediaDuration=' . ($result['mediaDurations']['total']['duration'] ?? '') . "\n";
 echo 'mediaOverlayDuration=' . ($result['mediaOverlays']['mo-chapter']['duration'] ?? '') . "\n";
+echo 'manifestMediaOverlayPart=' . ($result['manifest'][1]['mediaOverlayReference']['part'] ?? '') . "\n";
+echo 'manifestMediaOverlayItems=' . ($result['manifest'][1]['mediaOverlayReference']['itemCount'] ?? 0) . "\n";
+echo 'spineMediaOverlayDuration=' . ($result['spine'][0]['mediaOverlayReference']['duration'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo 'assetFallbacks=' . ($result['importReport']['assets']['fallbackCount'] ?? 0) . "\n";

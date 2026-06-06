@@ -487,12 +487,13 @@ final class EpubReader
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById, $prefixReport['bindingsByPrefix']);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
-        $spineProperties = self::readSpineProperties($spineElement, $refinementsById);
-        $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById);
-        $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $mediaDurations = self::mediaDurationReport($metadata, $manifestById);
         $metadata['mediaDurations'] = $mediaDurations;
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations);
+        $manifestById = self::attachMediaOverlayReferencesToManifest($manifestById, $mediaOverlays);
+        $spineProperties = self::readSpineProperties($spineElement, $refinementsById);
+        $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById);
+        $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $manifest = array_values($manifestById);
         $resourceProperties = self::resourcePropertyReport($manifest);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
@@ -3289,6 +3290,102 @@ final class EpubReader
         return $references;
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, array<string, mixed>> $mediaOverlays
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function attachMediaOverlayReferencesToManifest(array $manifestById, array $mediaOverlays): array
+    {
+        foreach ($manifestById as $id => $item) {
+            $reference = self::mediaOverlayReferenceReport($item, $mediaOverlays);
+            $item['mediaOverlayReference'] = $reference;
+            $item['mediaOverlayDiagnostics'] = is_array($reference)
+                ? array_values($reference['diagnostics'] ?? [])
+                : [];
+
+            if ($item['mediaOverlayDiagnostics'] !== []) {
+                $diagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
+                array_push($diagnostics, ...$item['mediaOverlayDiagnostics']);
+                $item['diagnostics'] = $diagnostics;
+            }
+
+            $manifestById[$id] = $item;
+        }
+
+        return $manifestById;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $mediaOverlays
+     *
+     * @return ?array<string, mixed>
+     */
+    private static function mediaOverlayReferenceReport(array $item, array $mediaOverlays): ?array
+    {
+        $mediaOverlay = self::nullableManifestId($item['mediaOverlay'] ?? null);
+        if ($mediaOverlay === null) {
+            return null;
+        }
+
+        $overlay = $mediaOverlays[$mediaOverlay] ?? null;
+        if (!is_array($overlay)) {
+            return [
+                'id' => $mediaOverlay,
+                'href' => null,
+                'target' => null,
+                'part' => null,
+                'mediaType' => null,
+                'exists' => false,
+                'referencedBy' => [(string) ($item['id'] ?? '')],
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'duration' => null,
+                'durationSeconds' => null,
+                'durationMetadata' => null,
+                'textRef' => null,
+                'textRefTarget' => null,
+                'textRefFragment' => null,
+                'textRefFragmentKind' => null,
+                'textRefEpubCfi' => null,
+                'textRefExternal' => false,
+                'itemCount' => 0,
+                'diagnostics' => [[
+                    'type' => 'missing-media-overlay-manifest-item',
+                    'id' => $mediaOverlay,
+                    'message' => 'EPUB OPF manifest item references a media-overlay id that is not in the OPF manifest',
+                ]],
+            ];
+        }
+
+        return [
+            'id' => (string) ($overlay['id'] ?? $mediaOverlay),
+            'href' => is_string($overlay['href'] ?? null) ? $overlay['href'] : null,
+            'target' => is_string($overlay['target'] ?? null) ? $overlay['target'] : null,
+            'part' => is_string($overlay['part'] ?? null) ? $overlay['part'] : null,
+            'mediaType' => is_string($overlay['mediaType'] ?? null) ? $overlay['mediaType'] : null,
+            'exists' => (bool) ($overlay['exists'] ?? false),
+            'referencedBy' => is_array($overlay['referencedBy'] ?? null) ? array_values($overlay['referencedBy']) : [],
+            'encrypted' => (bool) ($overlay['encrypted'] ?? false),
+            'canExposeBytes' => (bool) ($overlay['canExposeBytes'] ?? false),
+            'duration' => is_string($overlay['duration'] ?? null) ? $overlay['duration'] : null,
+            'durationSeconds' => is_float($overlay['durationSeconds'] ?? null) || is_int($overlay['durationSeconds'] ?? null)
+                ? (float) $overlay['durationSeconds']
+                : null,
+            'durationMetadata' => is_array($overlay['durationMetadata'] ?? null) ? $overlay['durationMetadata'] : null,
+            'textRef' => is_string($overlay['textRef'] ?? null) ? $overlay['textRef'] : null,
+            'textRefTarget' => is_string($overlay['textRefTarget'] ?? null) ? $overlay['textRefTarget'] : null,
+            'textRefFragment' => is_string($overlay['textRefFragment'] ?? null) ? $overlay['textRefFragment'] : null,
+            'textRefFragmentKind' => is_string($overlay['textRefFragmentKind'] ?? null) ? $overlay['textRefFragmentKind'] : null,
+            'textRefEpubCfi' => is_array($overlay['textRefEpubCfi'] ?? null) ? $overlay['textRefEpubCfi'] : null,
+            'textRefExternal' => (bool) ($overlay['textRefExternal'] ?? false),
+            'itemCount' => is_array($overlay['items'] ?? null) ? count($overlay['items']) : 0,
+            'diagnostics' => is_array($overlay['diagnostics'] ?? null) ? array_values($overlay['diagnostics']) : [],
+        ];
+    }
+
     private static function smilClockSeconds(string $value): ?float
     {
         $value = trim($value);
@@ -3397,6 +3494,8 @@ final class EpubReader
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
                 'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                 'mediaOverlay' => $manifestItem['mediaOverlay'],
+                'mediaOverlayReference' => $manifestItem['mediaOverlayReference'] ?? null,
+                'mediaOverlayDiagnostics' => $manifestItem['mediaOverlayDiagnostics'] ?? [],
                 'encrypted' => self::isEncryptedManifestItem($manifestItem),
                 'canExposeBytes' => (bool) ($manifestItem['canExposeBytes'] ?? true),
                 'encryption' => $manifestItem['encryption'] ?? null,
@@ -5286,7 +5385,7 @@ final class EpubReader
                     'diagnostics' => [[
                         'type' => 'missing-media-overlay-manifest-item',
                         'id' => $id,
-                        'message' => 'EPUB spine item references a media-overlay id that is not in the OPF manifest',
+                        'message' => 'EPUB OPF manifest item references a media-overlay id that is not in the OPF manifest',
                     ]],
                 ];
                 continue;
@@ -5644,6 +5743,8 @@ final class EpubReader
                 'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
                 'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
+                'mediaOverlayReference' => $item['mediaOverlayReference'] ?? null,
+                'mediaOverlayDiagnostics' => $item['mediaOverlayDiagnostics'] ?? [],
                 'html' => $html,
                 'contentResourceReport' => $contentReport,
                 'contentResourceFlags' => $contentReport['flags'],
@@ -6497,6 +6598,9 @@ final class EpubReader
                 'properties' => $item['properties'],
                 'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
                 'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
+                'mediaOverlay' => $item['mediaOverlay'] ?? null,
+                'mediaOverlayReference' => $item['mediaOverlayReference'] ?? null,
+                'mediaOverlayDiagnostics' => $item['mediaOverlayDiagnostics'] ?? [],
                 'exists' => $item['exists'],
                 'byteLength' => $item['byteLength'],
                 'crc32' => $item['crc32'],
@@ -7099,6 +7203,8 @@ final class EpubReader
                 'spineItemProperties' => $item['spineItemProperties'] ?? [],
                 'spineItemDiagnostics' => $item['spineItemDiagnostics'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
+                'mediaOverlayReference' => $item['mediaOverlayReference'] ?? null,
+                'mediaOverlayDiagnostics' => $item['mediaOverlayDiagnostics'] ?? [],
                 'pageBreaks' => is_array($pageBreaks['itemsByPart'][$contentPart] ?? null)
                     ? array_values($pageBreaks['itemsByPart'][$contentPart])
                     : [],
