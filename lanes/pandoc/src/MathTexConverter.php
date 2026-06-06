@@ -4448,8 +4448,28 @@ final class MathTexConverter
 
     private function skipWhitespace(string $source, int &$offset): void
     {
-        while (($source[$offset] ?? '') !== '' && ctype_space($source[$offset])) {
+        while (true) {
+            while (($source[$offset] ?? '') !== '' && ctype_space($source[$offset])) {
+                $offset++;
+            }
+
+            if (($source[$offset] ?? '') !== '%') {
+                return;
+            }
+
             $offset++;
+            while (($source[$offset] ?? '') !== '' && $source[$offset] !== "\n" && $source[$offset] !== "\r") {
+                $offset++;
+            }
+
+            if (($source[$offset] ?? '') === "\r" && ($source[$offset + 1] ?? '') === "\n") {
+                $offset += 2;
+                continue;
+            }
+
+            if (($source[$offset] ?? '') === "\n" || ($source[$offset] ?? '') === "\r") {
+                $offset++;
+            }
         }
     }
 

@@ -553,6 +553,21 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\allowbreak^2'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\allowbreak\\limits_1'));
     },
+    'ignores bounded tex comments in mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $commentMathml = $converter->texToMathMl("p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n", true);
+        $groupMathml = $converter->texToMathMl("\\frac{a % numerator note\n+ b}{c % denominator note\n+ d}");
+        $accessibleMathml = $converter->texToAccessibleMathMl("x% hidden review note\n+y");
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $commentMathml);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mi>slug</mi>', $commentMathml);
+        $t->contains("<annotation encoding=\"application/x-tex\">p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n</annotation>", $commentMathml);
+        $t->contains('<mfrac><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mrow><mi>c</mi><mo>+</mo><mi>d</mi></mrow></mfrac>', $groupMathml);
+        $t->contains('alttext="x plus y"', $accessibleMathml);
+        $t->contains('intent="row(x,plus,y)"', $accessibleMathml);
+        $t->true(!str_contains($commentMathml, '<mo>%</mo>'), 'Expected raw TeX comments to be omitted from rendered MathML');
+        $t->true(!str_contains($commentMathml, '<mi>\\badcommand</mi>'), 'Expected raw TeX comment payload to remain annotation-only');
+    },
     'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $explicitMathml = $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b', true);

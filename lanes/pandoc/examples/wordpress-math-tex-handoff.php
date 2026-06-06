@@ -94,6 +94,8 @@ Spacing audit $p_i\,m_i\;n_i\!q_i + a\quad b\qquad c + \operatorname{post}\thins
 
 Allowbreak audit $p_i\allowbreak + m_i + \operatorname{slug}\allowbreak$ stays semantic.
 
+Comment audit $p_i % reviewer hidden$ keeps source notes out of rendered MathML.
+
 Explicit spacing audit $p_i\hspace{1.5em}m_i\mspace{-2mu}q_i + a\hspace*{.25in}b$ stays semantic.
 
 Sized delimiters audit $\bigl( p_i \bigr) + \Bigl\langle m_i \Bigr\rangle + \bigm| x \in S + \Bigg/ y \Bigg/$ stays semantic.
@@ -194,6 +196,7 @@ $summary = [
     'notagNonumberMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\notag \\\\ x_i &= y_i \\nonumber \\\\ u_i &= v_i\\end{align}', true),
     'spacingMathml' => $converter->texToMathMl('p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\>z'),
     'allowBreakMathml' => $converter->texToMathMl('p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak'),
+    'commentMathml' => $converter->texToMathMl("p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n"),
     'explicitSpacingMathml' => $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b'),
     'sizedDelimiterMathml' => $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/'),
     'delimiterAliasMathml' => $converter->texToMathMl('\\left\\lVert p_i + m_i \\right\\rVert + \\left\\lceil \\frac{x}{y} \\right\\rfloor + \\lbrack q_i \\rbrack'),
@@ -233,6 +236,10 @@ if (($argv[1] ?? '') === '--self-test') {
 
     if (str_contains($summary['allowBreakMathml'], '<mi>\\allowbreak</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted allowbreak as a literal identifier');
+    }
+
+    if (str_contains($summary['commentMathml'], '<mo>%</mo>') || str_contains($summary['commentMathml'], '<mi>\\badcommand</mi>')) {
+        throw new RuntimeException('Math TeX handoff self-test emitted TeX comment content as rendered MathML');
     }
 
     $mathSymbol = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -276,6 +283,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\notag \\\\ x_i &amp;= y_i \\nonumber \\\\ u_i &amp;= v_i\\end{align}\\)</span>',
         '<span class="math inline">\\(p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\&gt;z\\)</span>',
         '<span class="math inline">\\(p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak\\)</span>',
+        '<span class="math inline">\\(p_i % reviewer hidden\\)</span>',
         '<span class="math inline">\\(p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b\\)</span>',
         '<span class="math inline">\\(\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/\\)</span>',
         '<span class="math inline">\\(\\left\\lVert p_i + m_i \\right\\rVert + \\left\\lceil \\frac{x}{y} \\right\\rfloor + \\lbrack q_i \\rbrack\\)</span>',
@@ -447,6 +455,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\&gt;z</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mi>slug</mi>',
         '<annotation encoding="application/x-tex">p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak</annotation>',
+        "<annotation encoding=\"application/x-tex\">p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n</annotation>",
         '<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>',
         '<annotation encoding="application/x-tex">\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/</annotation>',
         '<annotation encoding="application/x-tex">\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle</annotation>',
