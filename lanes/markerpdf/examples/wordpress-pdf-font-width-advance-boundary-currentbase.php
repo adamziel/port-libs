@@ -240,6 +240,37 @@ $exactGenerationDescendantPdf = "%PDF-1.4\n"
     . "4 1 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /StaleDescendant /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [1 4 250 5 8 1000] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($exactGenerationDescendantContent) . " >>\nstream\n{$exactGenerationDescendantContent}\nendstream\nendobj\n%%EOF";
 
+$malformedCidArrayToUnicode = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<0000> <FFFF>\n"
+    . "endcodespacerange\n"
+    . "9 beginbfchar\n"
+    . "<0001> <0057>\n"
+    . "<0002> <0069>\n"
+    . "<0003> <0064>\n"
+    . "<0004> <0065>\n"
+    . "<0005> <0042>\n"
+    . "<0006> <006C>\n"
+    . "<0007> <006F>\n"
+    . "<0008> <0063>\n"
+    . "<0009> <006B>\n"
+    . "endbfchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$malformedCidArrayContent = 'BT /Fcidbad 12 Tf '
+    . '1 0 0 1 72 720 Tm <0001000200030004> Tj '
+    . '1 0 0 1 120 720 Tm <00050006000700080009> Tj ET';
+$malformedCidArrayPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcidbad 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /MalformedCidWidthArray /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($malformedCidArrayToUnicode) . " >>\nstream\n{$malformedCidArrayToUnicode}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MalformedCidWidthArray /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [1 [1000 /Bad 250 250] 5 9 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($malformedCidArrayContent) . " >>\nstream\n{$malformedCidArrayContent}\nendstream\nendobj\n%%EOF";
+
 $lastCharContent = 'BT /Flast 12 Tf '
     . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
     . 'T* 1 0 0 1 72 704 Tm <43> Tj 1 0 0 1 100 704 Tm <44> Tj ET';
@@ -738,6 +769,14 @@ $exactGenerationDescendantSecondBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $exactGenerationDescendantSecondLine['spans'] ?? []
 );
+$malformedCidArrayLines = $extractor->extractTextLines($malformedCidArrayPdf);
+$malformedCidArrayPlainText = implode("\n", $malformedCidArrayLines);
+$malformedCidArrayPages = $extractor->extractStyledTextPages($malformedCidArrayPdf);
+$malformedCidArrayLine = $malformedCidArrayPages[0]['blocks'][0]['lines'][0] ?? [];
+$malformedCidArraySpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $malformedCidArrayLine['spans'] ?? []
+);
 $lastCharLines = $extractor->extractTextLines($lastCharPdf);
 $lastCharPlainText = implode("\n", $lastCharLines);
 $lastCharPages = $extractor->extractStyledTextPages($lastCharPdf);
@@ -916,7 +955,7 @@ $type3CharProcMatrixVectorSecondBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-overlarge-tw-relative-td-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-descendant-cidfont-and-malformed-cid-array-quote-terminal-tc-terminal-tw-overlarge-tw-relative-td-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -1019,6 +1058,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'exact_generation_descendant_second_bboxes_preserved' => $exactGenerationDescendantSecondBboxes === [[0.0, 0.0, 12.0, 12.0], [24.0, 0.0, 72.0, 12.0]],
     'exact_generation_descendant_stale_first_bboxes_excluded' => $exactGenerationDescendantFirstBboxes !== [[0.0, 0.0, 12.0, 12.0], [46.0, 0.0, 94.0, 12.0]],
     'exact_generation_descendant_stale_second_bboxes_excluded' => $exactGenerationDescendantSecondBboxes !== [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'malformed_cid_w_array_segment_rejected' => $malformedCidArrayLines === ['WideBlock'],
+    'malformed_cid_w_array_false_gap_excluded' => !str_contains($malformedCidArrayPlainText, 'Wide Block'),
+    'malformed_cid_w_array_narrow_decoy_bboxes_excluded' => $malformedCidArraySpanBboxes !== [[0.0, 0.0, 30.0, 12.0], [48.0, 0.0, 108.0, 12.0]],
+    'malformed_cid_w_array_bboxes_preserved' => $malformedCidArraySpanBboxes === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]],
     'lastchar_width_decoy_gap_excluded' => ($lastCharLines[0] ?? null) === 'CD',
     'lastchar_real_positioned_gap_preserved' => ($lastCharLines[1] ?? null) === 'C D',
     'lastchar_double_gap_output_excluded' => !str_contains($lastCharPlainText, 'C D' . "\n" . 'C D'),
@@ -1153,6 +1196,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'exact_generation_descendant_lines' => $exactGenerationDescendantLines,
     'exact_generation_descendant_first_bboxes' => $exactGenerationDescendantFirstBboxes,
     'exact_generation_descendant_second_bboxes' => $exactGenerationDescendantSecondBboxes,
+    'malformed_cid_array_lines' => $malformedCidArrayLines,
+    'malformed_cid_array_span_bboxes' => $malformedCidArraySpanBboxes,
     'lastchar_lines' => $lastCharLines,
     'lastchar_span_bboxes' => $lastCharSpanBboxes,
     'malformed_range_lines' => $malformedRangeLines,
@@ -1194,7 +1239,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $overlargeTwRelativeTdLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $overlargeTwRelativeTdLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $malformedCidArrayLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

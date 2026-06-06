@@ -20361,11 +20361,13 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthList, $objects) as $offset => $width) {
-                    $metric = $this->finiteHorizontalFontAdvanceMetric($width);
-                    if ($metric === null) {
-                        continue;
-                    }
+                $metrics = $this->finiteHorizontalFontAdvanceMetricsFromArray($widthList, $objects);
+                if ($metrics === null) {
+                    $index++;
+                    continue;
+                }
+
+                foreach ($metrics as $offset => $metric) {
                     $cid = $firstCid + $offset;
                     if ($cid >= 0 && $cid <= 0xffff) {
                         $widths[$cid] = $metric;
@@ -20393,6 +20395,25 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @return list<float>|null
+     * @param array<int, string> $objects
+     */
+    private function finiteHorizontalFontAdvanceMetricsFromArray(string $arrayBody, array $objects): ?array
+    {
+        $metrics = [];
+        foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($arrayBody, $objects) as $width) {
+            $metric = $this->finiteHorizontalFontAdvanceMetric($width);
+            if ($metric === null) {
+                return null;
+            }
+
+            $metrics[] = $metric;
+        }
+
+        return $metrics;
     }
 
     /**

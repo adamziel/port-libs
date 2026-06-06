@@ -593,6 +593,41 @@ $fontWidthIndirectCidArrayAdvanceBoundaryCurrentBasePdf = static function (): st
         . "6 0 obj\n[1000 1000 1000 1000 1000 1000 1000 1000 1000]\nendobj\n%%EOF";
 };
 
+$fontWidthMalformedCidArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "9 beginbfchar\n"
+        . "<0001> <0057>\n"
+        . "<0002> <0069>\n"
+        . "<0003> <0064>\n"
+        . "<0004> <0065>\n"
+        . "<0005> <0042>\n"
+        . "<0006> <006C>\n"
+        . "<0007> <006F>\n"
+        . "<0008> <0063>\n"
+        . "<0009> <006B>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcidbad 12 Tf '
+        . '1 0 0 1 72 720 Tm <0001000200030004> Tj '
+        . '1 0 0 1 120 720 Tm <00050006000700080009> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcidbad 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /MalformedCidWidthArray /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MalformedCidWidthArray /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [1 [1000 /Bad 250 250] 5 9 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1781,6 +1816,26 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, 'ThinText'));
         $t->true(!str_contains($plainText, 'IndirectCidWidthArray'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'rejects malformed CIDFont W array-form segments before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthMalformedCidArrayAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthMalformedCidArrayAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['WideBlock'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block'], $extractor->extractTextRuns($pdf));
+        $t->same('WideBlock', $plainText);
+        $t->same("WideBlock\n", $extractor->naiveGetText($pdf));
+        $t->same(['Wide', 'Block'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 108.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 30.0, 12.0], [48.0, 0.0, 108.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'MalformedCidWidthArray'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'resolves indirect CIDFont W2 metric arrays before vertical styled span bboxes on current base' => static function (TestRunner $t) use ($fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf): void {
