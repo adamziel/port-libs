@@ -543,3 +543,26 @@ Import Review
 Preserve ``legacy_shortcode`` and :doc:`media map <uploads>` with `queue link`_.
 See https://example.test/review.
 ```
+
+``` {.tsx #tsx-review .numberLines startFrom=350}
+// Gutenberg typed block inspector review
+import type { BlockEditProps } from "@wordpress/blocks";
+import { InspectorControls } from "@wordpress/block-editor";
+
+type ReviewAttributes = {
+  title?: string;
+  sourceId: number;
+};
+
+export const Edit = ({ attributes, setAttributes }: BlockEditProps<ReviewAttributes>) => (
+  <InspectorControls>
+    <PanelBody title={`Import ${attributes.sourceId}`}>
+      <TextControl
+        label="Title"
+        value={attributes.title ?? "Untitled"}
+        onChange={(title: string) => setAttributes({ title })}
+      />
+    </PanelBody>
+  </InspectorControls>
+);
+```

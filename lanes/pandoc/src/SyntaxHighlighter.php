@@ -169,7 +169,10 @@ final class SyntaxHighlighter
         'tex' => 'tex',
         'toml' => 'toml',
         'ts' => 'typescript',
+        'tsx' => 'tsx',
         'typescript' => 'typescript',
+        'typescript-react' => 'tsx',
+        'typescriptreact' => 'tsx',
         'udiff' => 'diff',
         'unified-diff' => 'diff',
         'xhtml' => 'html',
@@ -619,6 +622,7 @@ final class SyntaxHighlighter
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
+            'tsx' => $this->tokenizeTsx($code),
             'typescript' => $this->tokenizeTypeScript($code),
             'xml' => $this->tokenizeXml($code),
             'xslt' => $this->tokenizeXml($code),
@@ -1318,6 +1322,33 @@ final class SyntaxHighlighter
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_$]*(?=\\s*(?:[<({.]|\\b))/'],
             ['variable', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*\\b/'],
             ['operator', '/^(?:<\\/>|\\/?>|=>|===|!==|==|!=|<=|>=|&&|\\|\\||\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:|-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeTsx(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^`(?:\\\\.|[^`\\\\])*`/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['operator', '/^<(?=[A-Z][A-Za-z0-9_$]*>\\s*[),=>])/'],
+            ['function', '/^<\\/?[A-Z][A-Za-z0-9_.$:-]*/'],
+            ['keyword', '/^<\\/?[a-z][A-Za-z0-9_.$:-]*/'],
+            ['attribute', '/^@[A-Za-z_$][A-Za-z0-9_$]*/'],
+            ['keyword', '/^\\b(?:abstract|as|asserts|async|await|break|case|catch|class|const|constructor|continue|declare|default|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|infer|interface|is|keyof|let|module|namespace|new|of|private|protected|public|readonly|return|satisfies|set|static|switch|this|throw|try|type|typeof|var|while|yield)\\b/'],
+            ['datatype', '/^\\b(?:any|bigint|boolean|never|null|number|object|string|symbol|undefined|unknown|void)\\b/'],
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_$]*(?=\\s*(?:[<:={}\\/.]|\\b))/'],
+            ['attribute', '/^[A-Za-z_:][A-Za-z0-9_.:-]*(?=\\s*=)/'],
+            ['function', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*\\b/'],
+            ['operator', '/^(?:<\\/>|\\/?>|=>|===|!==|==|!=|<=|>=|&&|\\|\\||\\?\\?|\\?\\.|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|-])/'],
         ]);
     }
 

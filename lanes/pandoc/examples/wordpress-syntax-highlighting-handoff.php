@@ -256,6 +256,12 @@ if (!$rstCodeBlock instanceof PortLibs\Pandoc\AstNode || $rstCodeBlock->type !==
 }
 $rst = $highlighter->highlightCodeBlock($rstCodeBlock, 'haddock');
 $rstWordpressBlock = $highlighter->wordpressHtmlBlock($rstCodeBlock, 'haddock');
+$tsxCodeBlock = $document->children[36] ?? null;
+if (!$tsxCodeBlock instanceof PortLibs\Pandoc\AstNode || $tsxCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a TSX code block');
+}
+$tsx = $highlighter->highlightCodeBlock($tsxCodeBlock, 'kate');
+$tsxWordpressBlock = $highlighter->wordpressHtmlBlock($tsxCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1064,6 +1070,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($rstWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
         throw new RuntimeException('Expected reStructuredText WordPress style metadata');
     }
+    if (($tsx['language'] ?? '') !== 'tsx') {
+        throw new RuntimeException('Expected TSX fixture to normalize to TSX highlighting');
+    }
+    if (($tsx['lineNumbering']['start'] ?? null) !== 350) {
+        throw new RuntimeException('Expected TSX source startFrom line-number handoff');
+    }
+    if (!str_contains($tsx['html'], '<span class="kw">import</span> <span class="kw">type</span> <span class="op">{</span> <span class="dt">BlockEditProps</span>')) {
+        throw new RuntimeException('Expected TSX type-only import token handoff');
+    }
+    if (!str_contains($tsx['html'], '<span class="kw">type</span> <span class="dt">ReviewAttributes</span> <span class="op">=</span>')) {
+        throw new RuntimeException('Expected TSX type alias token handoff');
+    }
+    if (!str_contains($tsx['html'], '<span class="fu">&lt;PanelBody</span> <span class="ot">title</span><span class="op">={</span><span class="st">`Import ${attributes.sourceId}`</span><span class="op">}&gt;</span>')) {
+        throw new RuntimeException('Expected TSX component tag and template string token handoff');
+    }
+    if (!str_contains($tsx['html'], '<span class="ot">onChange</span><span class="op">={(</span><span class="va">title</span><span class="op">:</span> <span class="dt">string</span><span class="op">)</span> <span class="op">=&gt;</span> <span class="fu">setAttributes</span>')) {
+        throw new RuntimeException('Expected TSX typed callback token handoff');
+    }
+    if (!str_contains($tsxWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected TSX WordPress style metadata');
+    }
+    if (!str_contains($tsxWordpressBlock, '<span class="fu">&lt;TextControl</span>')) {
+        throw new RuntimeException('Expected TSX WordPress component token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1124,6 +1154,7 @@ echo "apacheHighlightedHtml:\n" . $apache['html'] . "\n";
 echo "luaLongBracketHighlightedHtml:\n" . $luaLongBracket['html'] . "\n";
 echo "phpHeredocHighlightedHtml:\n" . $phpHeredoc['html'] . "\n";
 echo "rstHighlightedHtml:\n" . $rst['html'] . "\n";
+echo "tsxHighlightedHtml:\n" . $tsx['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1155,4 +1186,5 @@ echo "apacheWordpressBlock:\n" . $apacheWordpressBlock . "\n";
 echo "luaLongBracketWordpressBlock:\n" . $luaLongBracketWordpressBlock . "\n";
 echo "phpHeredocWordpressBlock:\n" . $phpHeredocWordpressBlock . "\n";
 echo "rstWordpressBlock:\n" . $rstWordpressBlock . "\n";
+echo "tsxWordpressBlock:\n" . $tsxWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

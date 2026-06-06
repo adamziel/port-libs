@@ -131,6 +131,9 @@ return [
         $t->same('r', SyntaxHighlighter::normalizeLanguage('language-q'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('ts'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('typescript'));
+        $t->same('tsx', SyntaxHighlighter::normalizeLanguage('tsx'));
+        $t->same('tsx', SyntaxHighlighter::normalizeLanguage('typescript-react'));
+        $t->same('tsx', SyntaxHighlighter::normalizeLanguage('language-tsx'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -660,6 +663,54 @@ return [
         $t->same('csharp', $directCsharp['language']);
         $t->same('csharp', $directCsharp['requestedLanguage']);
         $t->contains('<span class="kw">await</span> <span class="dt">Console</span><span class="op">.</span><span class="dt">Out</span><span class="op">.</span><span class="fu">WriteLineAsync</span><span class="op">(</span><span class="st">&quot;ok&quot;</span><span class="op">);</span>', $directCsharp['html']);
+    },
+    'highlights tsx gutenberg typed component snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[36] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a TSX code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directTsx = $highlighter->highlight(
+            'type Props = { title?: string }; export const Edit = (props: Props) => <PanelBody title={props.title ?? "Import"} />;',
+            'typescript-react'
+        );
+
+        $t->same('tsx', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('tsx', SyntaxHighlighter::normalizeLanguage('tsx'));
+        $t->same('tsx', SyntaxHighlighter::normalizeLanguage('typescript-react'));
+        $t->same('tsx', $highlighted['language']);
+        $t->same('tsx', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(350, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource tsx numberLines"><code class="sourceCode tsx" style="counter-reset: source-line 349;">', $highlighted['html']);
+        $t->contains('<span id="tsx-review-350"><a href="#tsx-review-350"></a><span class="co">// Gutenberg typed block inspector review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="kw">type</span> <span class="op">{</span> <span class="dt">BlockEditProps</span> <span class="op">}</span> <span class="kw">from</span> <span class="st">&quot;@wordpress/blocks&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">ReviewAttributes</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">?:</span> <span class="dt">string</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">export</span> <span class="kw">const</span> <span class="dt">Edit</span>', $highlighted['html']);
+        $t->contains('<span class="dt">BlockEditProps</span><span class="op">&lt;</span><span class="dt">ReviewAttributes</span><span class="op">&gt;)</span> <span class="op">=&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">&lt;InspectorControls</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">&lt;PanelBody</span> <span class="ot">title</span><span class="op">={</span><span class="st">`Import ${attributes.sourceId}`</span><span class="op">}&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">&lt;TextControl</span>', $highlighted['html']);
+        $t->contains('<span class="ot">value</span><span class="op">={</span><span class="va">attributes</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span><span class="op">}</span>', $highlighted['html']);
+        $t->contains('<span class="ot">onChange</span><span class="op">={(</span><span class="va">title</span><span class="op">:</span> <span class="dt">string</span><span class="op">)</span> <span class="op">=&gt;</span> <span class="fu">setAttributes</span><span class="op">({</span> <span class="va">title</span> <span class="op">})}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="fu">&lt;TextControl</span>', $wordpressBlock);
+        $t->same('tsx', $directTsx['language']);
+        $t->same('typescript-react', $directTsx['requestedLanguage']);
+        $t->contains('<span class="kw">type</span> <span class="dt">Props</span> <span class="op">=</span>', $directTsx['html']);
+        $t->contains('<span class="kw">export</span> <span class="kw">const</span> <span class="dt">Edit</span>', $directTsx['html']);
+        $t->contains('<span class="fu">&lt;PanelBody</span> <span class="ot">title</span><span class="op">={</span><span class="va">props</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Import&quot;</span><span class="op">}</span> <span class="op">/&gt;;</span>', $directTsx['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
