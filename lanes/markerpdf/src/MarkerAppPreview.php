@@ -1681,6 +1681,10 @@ final class MarkerAppPreview
             foreach ($this->pageLabelArrayElements($this->resolvePageLabelPdfValue($kids, $objects, $seen)) as $kid) {
                 $directKidBody = $this->pageLabelDictionaryToken($kid);
                 if ($directKidBody !== null) {
+                    if ($this->pageLabelLimitsMalformed($directKidBody, $objects, $seen)) {
+                        continue;
+                    }
+
                     if ($this->pageLabelLimitsInvalidRange($directKidBody, $objects, $seen)) {
                         continue;
                     }
@@ -1718,12 +1722,23 @@ final class MarkerAppPreview
                 }
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
-                if ($this->pageLabelLimitsInvalidRange($kidBody, $objects, $kidSeen)) {
+                $kidDictionary = $this->pageLabelDictionaryToken(
+                    $this->resolvePageLabelPdfValue($kidBody, $objects, $kidSeen)
+                );
+                if ($kidDictionary === null) {
                     continue;
                 }
 
-                $kidLocalLimits = $this->pageLabelLimits($kidBody, $objects, $kidSeen);
-                if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidBody, $objects, $kidSeen)) {
+                if ($this->pageLabelLimitsMalformed($kidDictionary, $objects, $kidSeen)) {
+                    continue;
+                }
+
+                if ($this->pageLabelLimitsInvalidRange($kidDictionary, $objects, $kidSeen)) {
+                    continue;
+                }
+
+                $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects, $kidSeen);
+                if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidDictionary, $objects, $kidSeen)) {
                     continue;
                 }
 
@@ -1733,7 +1748,7 @@ final class MarkerAppPreview
                 }
 
                 $kidNodes[] = [
-                    'body' => $kidBody,
+                    'body' => $kidDictionary,
                     'seen' => $kidSeen,
                     'limits' => $kidMergedLimits,
                     'local_limits' => $kidLocalLimits,
@@ -1986,6 +2001,26 @@ final class MarkerAppPreview
         }
 
         return $lower < 0 || $upper < 0 || $lower > $upper;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelLimitsMalformed(string $dict, array $objects, array $seen): bool
+    {
+        $limits = $this->valueAfterName($dict, 'Limits');
+        if ($limits === null) {
+            return false;
+        }
+
+        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
+        if (count($elements) !== 2) {
+            return true;
+        }
+
+        return $this->pageLabelLimitOperand($elements[0], $objects, $seen) === null
+            || $this->pageLabelLimitOperand($elements[1], $objects, $seen) === null;
     }
 
     /**
