@@ -12795,6 +12795,10 @@ final class PdfTextExtractor
             return null;
         }
 
+        if (!$this->streamLengthOperandIsWellFormed($dict, $objects)) {
+            return null;
+        }
+
         $streamStart = $streamKeywordOffset + strlen('stream');
         if (substr($value, $streamStart, 2) === "\r\n") {
             $streamStart += 2;
@@ -12950,6 +12954,89 @@ final class PdfTextExtractor
         }
 
         return $this->streamLengthValueAt($dict, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamLengthOperandIsWellFormed(string $dict, array $objects): bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'Length');
+        if ($offset === null) {
+            return true;
+        }
+
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        $reference = $this->pdfIndirectReferenceTokenAt($dict, $offset);
+        if ($reference === null) {
+            return true;
+        }
+
+        return $this->standaloneStreamLengthReferenceIsInteger(
+            $reference['objectNumber'],
+            $reference['generation'],
+            $objects
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function standaloneStreamLengthReferenceIsInteger(
+        int $objectNumber,
+        int $generation,
+        array $objects,
+        array $seen = []
+    ): bool {
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return false;
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return false;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->standaloneStreamLengthValueIsInteger(trim($body), $objects, $seen);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function standaloneStreamLengthValueIsInteger(string $value, array $objects, array $seen): bool
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return false;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            if ($this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)) {
+                return false;
+            }
+
+            return $this->standaloneStreamLengthReferenceIsInteger(
+                $reference['objectNumber'],
+                $reference['generation'],
+                $objects,
+                $seen
+            );
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) !== 1) {
+            return false;
+        }
+
+        if ((int) $match[1] < 0) {
+            return false;
+        }
+
+        return $this->skipPdfWhitespace($value, $offset + strlen($match[0])) === strlen($value);
     }
 
     /**

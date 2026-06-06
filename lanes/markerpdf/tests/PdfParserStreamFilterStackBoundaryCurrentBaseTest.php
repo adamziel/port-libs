@@ -755,6 +755,24 @@ $parserStreamFilterStackBoundaryCurrentBaseCommentSplitLengthPdf = static functi
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseMalformedIndirectLengthPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $leak = 'BT /F1 12 Tf 72 720 Td (Malformed Indirect Length Leak) Tj ET';
+    $compressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($leak);
+    $visibleAfter = 'BT /F1 12 Tf 72 700 Td (Visible After Malformed Length) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "10 0 obj\n" . strlen($compressed) . " << /LengthDecoy true >>\nendobj\n"
+        . "4 0 obj\n<< /Length 10 0 R /Filter /FlateDecode >>\nstream\n{$compressed}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseAscii85,
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
@@ -1321,6 +1339,24 @@ return [
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, '10 0 obj'));
         $t->true(!str_contains($text, 'endobj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects malformed indirect Length helper objects before filtered page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseMalformedIndirectLengthPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseMalformedIndirectLengthPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Visible After Malformed Length'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same('Visible After Malformed Length', $text);
+        $t->same("Visible After Malformed Length\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Malformed Indirect Length Leak'));
+        $t->true(!str_contains($text, 'LengthDecoy'));
+        $t->true(!str_contains($text, '10 0 obj'));
+        $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, "\0"));
     },
     'rejects indirect filter objects with multiple bare top-level names before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf): void {
