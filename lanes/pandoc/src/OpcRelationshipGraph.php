@@ -1298,13 +1298,17 @@ final class OpcRelationshipGraph
                         if (!OpcRelationships::isRelationshipPartName($relationshipPartName)) {
                             $issues[] = 'reference-not-relationship-part';
                         } else {
-                            $referenceRelationshipPartExists = $this->packagePartNameForEquivalent($relationshipPartName) !== null;
+                            $equivalentRelationshipPartName = $this->packagePartNameForEquivalent($relationshipPartName);
+                            $referenceRelationshipPartExists = $equivalentRelationshipPartName !== null;
+                            if ($equivalentRelationshipPartName !== null) {
+                                $relationshipPartName = $equivalentRelationshipPartName;
+                            }
                             if (!$referenceRelationshipPartExists) {
                                 $issues[] = 'reference-relationship-part-missing-in-package';
                             }
                             $referenceTargetContentType = $this->contentTypes->contentTypeForPart($relationshipPartName);
                             $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
-                            $rowsByRelationshipPart[$relationshipPartName][] = count($rows);
+                            $rowsByRelationshipPart[self::partNameEquivalenceKey($relationshipPartName)][] = count($rows);
                         }
                     } catch (\InvalidArgumentException $exception) {
                         $issues[] = 'invalid-reference-uri';

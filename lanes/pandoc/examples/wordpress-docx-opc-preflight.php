@@ -303,6 +303,7 @@ $caseEquivalentTargetContentTypesXml = <<<'XML'
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/Word/Document.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/Word/Styles.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/_xmlsignatures/sig-case-equivalent.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -318,12 +319,36 @@ $caseEquivalentTargetDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$caseEquivalentSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdStyles"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/Word/_rels/Document.XML.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdStyles"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $caseEquivalentTargetPackage = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $caseEquivalentTargetContentTypesXml],
     ['name' => '_rels/.rels', 'data' => $caseEquivalentTargetRootRelationshipsXml],
     ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'Word/_rels/Document.XML.rels', 'data' => $caseEquivalentTargetDocumentRelationshipsXml],
     ['name' => 'Word/Styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => '_xmlsignatures/sig-case-equivalent.xml', 'data' => $caseEquivalentSignatureXml],
 ]);
 $caseEquivalentTargetRelationships = OpcRelationships::fromPackage($caseEquivalentTargetPackage, '/word/document.xml');
 $caseEquivalentTargetGraph = OpcRelationshipGraph::fromPackage($caseEquivalentTargetPackage);
@@ -351,6 +376,23 @@ $caseEquivalentTargets = [
     'officeDocumentRootValid' => $caseEquivalentTargetRoot['valid'],
     'closure' => $caseEquivalentTargetClosure,
 ];
+$caseEquivalentSignatureTransforms = [];
+foreach ($caseEquivalentTargetGraph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-case-equivalent.xml') as $transform) {
+    $caseEquivalentSignatureTransforms[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
+        'source' => $transform['source'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
 
 $internalTargetDiagnosticsContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -860,6 +902,7 @@ $summary = [
         'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
         'contentTypeOverrideDuplicateRejected' => $caseEquivalentOverrideDuplicateRejected,
         'caseEquivalentTargets' => $caseEquivalentTargets,
+        'caseEquivalentSignatureTransforms' => $caseEquivalentSignatureTransforms,
         'internalTargetDiagnostics' => $internalTargetDiagnostics,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
@@ -1029,6 +1072,23 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'
         || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['exists'] ?? null) !== true
         || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['valid'] ?? null) !== true
+        || count($summary['integrity']['caseEquivalentSignatureTransforms'] ?? []) !== 2
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['relationshipPartName'] ?? null) !== '/Word/_rels/Document.XML.rels'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['referenceRelationshipPartExists'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['source'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['relationshipIds'] ?? null) !== ['rIdStyles']
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['valid'] ?? null) !== false
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['issues'] ?? null) !== ['multiple-relationship-transforms-for-part']
+        || !str_contains((string) ($summary['integrity']['caseEquivalentSignatureTransforms'][0]['relationshipXml'] ?? ''), 'Target="styles.xml"')
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['referenceUri'] ?? null) !== '/Word/_rels/Document.XML.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['relationshipPartName'] ?? null) !== '/Word/_rels/Document.XML.rels'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['referenceContentTypeMatches'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['source'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['relationshipIds'] ?? null) !== ['rIdStyles']
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['valid'] ?? null) !== false
+        || ($summary['integrity']['caseEquivalentSignatureTransforms'][1]['issues'] ?? null) !== ['multiple-relationship-transforms-for-part']
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['targetPart'] ?? null) !== null
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['valid'] ?? null) !== false
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['issues'] ?? null) !== ['invalid-target', 'internal-target-absolute-uri']
