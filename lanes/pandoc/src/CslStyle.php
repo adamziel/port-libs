@@ -1347,7 +1347,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, positions:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1406,7 +1406,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, positions:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1421,14 +1421,15 @@ final class CslStyle
         $variables = self::spaceSeparatedAttribute($branch, 'variable');
         $types = self::spaceSeparatedAttribute($branch, 'type');
         $positions = self::spaceSeparatedAttribute($branch, 'position');
+        $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
         foreach ($positions as $position) {
             if (!in_array($position, ['first', 'subsequent', 'ibid', 'ibid-with-locator', 'near-note'], true)) {
                 throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch position is not supported: ' . $position);
             }
         }
 
-        if ($variables === [] && $types === [] && $positions === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, or position');
+        if ($variables === [] && $types === [] && $positions === [] && $isNumeric === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, position, or is-numeric');
         }
 
         return [
@@ -1436,6 +1437,7 @@ final class CslStyle
             'variables' => $variables,
             'types' => $types,
             'positions' => $positions,
+            'isNumeric' => $isNumeric,
             'children' => self::renderingElements($branch, $scope),
         ];
     }

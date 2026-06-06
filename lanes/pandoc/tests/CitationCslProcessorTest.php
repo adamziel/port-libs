@@ -5506,6 +5506,107 @@ XML
 XML
         ));
     },
+    'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'numeric-source',
+                'type' => 'report',
+                'title' => 'Numeric Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'number' => '2 - 4',
+                'page' => '12-14',
+            ],
+            [
+                'id' => 'alpha-source',
+                'type' => 'report',
+                'title' => 'Alpha Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'number' => 'Appendix A',
+                'page' => 'A7',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Numeric Conditional Review Style</title>
+    <id>https://example.test/styles/bounded-numeric-conditional-review</id>
+    <updated>2026-06-06T01:07:36+00:00</updated>
+  </info>
+  <macro name="locator-review">
+    <choose>
+      <if is-numeric="locator" match="all">
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+      <else>
+        <text variable="locator" prefix="loc "/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <text macro="locator-review"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <text variable="title"/>
+        <choose>
+          <if is-numeric="number" match="any">
+            <group delimiter=" ">
+              <label variable="number" form="short"/>
+              <number variable="number" form="ordinal"/>
+            </group>
+          </if>
+          <else-if is-numeric="page" match="any">
+            <group delimiter=" ">
+              <label variable="page" form="short"/>
+              <text variable="page"/>
+            </group>
+          </else-if>
+          <else>
+            <text variable="number" prefix="review number "/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Numeric Conditional Review Style', $summary['title'] ?? null);
+        $t->same(['locator'], $summary['macros']['locator-review'][0]['branches'][0]['isNumeric'] ?? null);
+        $t->same([], $summary['macros']['locator-review'][0]['branches'][0]['variables'] ?? null);
+        $t->same(['number'], $summary['bibliographyRendering'][0]['children'][1]['branches'][0]['isNumeric'] ?? null);
+        $t->same(['page'], $summary['bibliographyRendering'][0]['children'][1]['branches'][1]['isNumeric'] ?? null);
+
+        $numeric = new AstNode('citation', ['id' => 'numeric-source', 'text' => '[@numeric-source]', 'locator' => 'p. 12-14']);
+        $alpha = new AstNode('citation', ['id' => 'alpha-source', 'text' => '[@alpha-source]', 'locator' => 'appendix A']);
+        $t->same('(de la Cruz, pp. 12-14; Archive Team, loc appendix A)', $processor->renderCitationCluster([$numeric, $alpha]));
+        $t->same('Numeric Packet. nos. 2nd-4th.', $processor->renderBibliographyEntry('numeric-source'));
+        $t->same('Alpha Packet. review number Appendix A.', $processor->renderBibliographyEntry('alpha-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@numeric-source, p. 12-14; @alpha-source, appendix A] while preserving numeric source checks.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites (de la Cruz, pp. 12-14; Archive Team, loc appendix A) while preserving numeric source checks.</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. review number Appendix A.</dd>', $blocks);
+    },
     'applies bounded csl locator and page label rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

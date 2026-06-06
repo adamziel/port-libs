@@ -4136,6 +4136,15 @@ final class CitationCslProcessor
             }
         }
 
+        $isNumericVariables = $branch['isNumeric'] ?? [];
+        if (is_array($isNumericVariables)) {
+            foreach ($isNumericVariables as $variable) {
+                if (is_scalar($variable)) {
+                    $conditions[] = $this->renderingVariableIsNumeric($item, (string) $variable, $scope, $citation);
+                }
+            }
+        }
+
         if ($conditions === []) {
             return false;
         }
@@ -4175,6 +4184,21 @@ final class CitationCslProcessor
         }
 
         return $actual === $position;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderingVariableIsNumeric(array $item, string $variable, string $scope, ?AstNode $citation = null): bool
+    {
+        $normalized = strtolower(trim($variable));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $value = $this->renderVariableValue($item, $normalized, $scope, $citation);
+
+        return $value !== '' && $this->cslNumberValueIsNumeric($value);
     }
 
     /**
