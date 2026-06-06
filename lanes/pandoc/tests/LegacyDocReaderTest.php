@@ -2210,6 +2210,58 @@ return [
         ], $metadata['customProperties'] ?? null);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
+    'preserves legacy DOC inline picture placeholders as review spans without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $text = "Inline picture \x01 and \x01 stay review-only\r";
+        $firstPictureCp = strpos($text, "\x01");
+        $secondPictureCp = strpos($text, "\x01", (int) $firstPictureCp + 1);
+        if (!is_int($firstPictureCp) || !is_int($secondPictureCp)) {
+            throw new RuntimeException('Unable to locate legacy DOC picture placeholder fixture characters');
+        }
+
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument($text, 0x0008),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $pictureReferences = $result['pictureReferences'] ?? [];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(true, $metadata['fibBase']['hasPictures'] ?? null);
+        $t->same(2, count($pictureReferences));
+        $t->same(2, $metadata['pictureReferenceCount'] ?? null);
+        $t->same($pictureReferences, $metadata['pictureReferences'] ?? null);
+        $t->same($pictureReferences, $document->attr('pictureReferences'));
+        $t->same('inline-picture', $pictureReferences[0]['type']);
+        $t->same($firstPictureCp, $pictureReferences[0]['referenceCp']);
+        $t->same(0x01, $pictureReferences[0]['characterCode']);
+        $t->same(1, $pictureReferences[0]['pictureIndex']);
+        $t->same(false, $pictureReferences[0]['canExposeBytes']);
+        $t->same('fib-has-pictures', $pictureReferences[0]['source']);
+        $t->same('metadata-only-native-review', $pictureReferences[0]['extractionPolicy']);
+        $t->same($secondPictureCp, $pictureReferences[1]['referenceCp']);
+        $t->same(2, $pictureReferences[1]['pictureIndex']);
+
+        $firstPicture = $document->children[0]->children[1];
+        $secondPicture = $document->children[0]->children[3];
+        $t->same('span', $firstPicture->type);
+        $t->same(['legacy-doc-picture-ref'], $firstPicture->attr('classes'));
+        $t->same('1', $firstPicture->attr('attributes')['data-legacy-doc-picture-ref']);
+        $t->same((string) $firstPictureCp, $firstPicture->attr('attributes')['data-legacy-doc-picture-reference-cp']);
+        $t->same('false', $firstPicture->attr('attributes')['data-legacy-doc-picture-can-expose-bytes']);
+        $t->same('fib-has-pictures', $firstPicture->attr('attributes')['data-legacy-doc-picture-source']);
+        $t->same('metadata-only-native-review', $firstPicture->attr('attributes')['data-legacy-doc-picture-policy']);
+        $t->same('inline picture', $firstPicture->children[0]->attr('text'));
+        $t->same('2', $secondPicture->attr('attributes')['data-legacy-doc-picture-ref']);
+        $t->same('inline picture', $secondPicture->children[0]->attr('text'));
+
+        $t->contains('[inline picture]{.legacy-doc-picture-ref data-legacy-doc-picture-ref="1"', $markdown);
+        $t->contains('<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) $firstPictureCp . '"', $blocks);
+        $t->contains('data-legacy-doc-picture-policy="metadata-only-native-review">inline picture</span>', $blocks);
+        $t->true(!str_contains($blocks, "\x01"), 'Legacy DOC picture placeholder control characters should not render to WordPress blocks');
+    },
     'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream, $compObjStream): void {
         $nativeData = 'embedded spreadsheet bytes';
         $nativeStreamBytes = $ole10NativeStream(

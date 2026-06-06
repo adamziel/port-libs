@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 13:16:43 UTC",
-    "sourceCommit": "44faa0785161b3473e67f1672535e2c667b87e36",
-    "sourceCommitShort": "44faa0785161",
+    "generated": "2026-06-06 13:17:01 UTC",
+    "sourceCommit": "455e5a5acc73ae2312daf59c80781477ecb24f10",
+    "sourceCommitShort": "455e5a5acc73",
     "sourceBranch": "unknown",
-    "dashboardCommit": "44faa0785161b3473e67f1672535e2c667b87e36",
-    "dashboardCommitShort": "44faa0785161",
+    "dashboardCommit": "455e5a5acc73ae2312daf59c80781477ecb24f10",
+    "dashboardCommitShort": "455e5a5acc73",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1746",
-            "coverage": "1,746 / 2,276 (76.7%)",
-            "mapPercent": "76.7%",
-            "unmapped": "530",
-            "php": "1,332 pass / 0 fail",
+            "mapped": "1747",
+            "coverage": "1,747 / 2,276 (76.8%)",
+            "mapPercent": "76.8%",
+            "unmapped": "529",
+            "php": "1,333 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC DOCX/OpenXML deleted OMML math revision slice on accep...",
+            "audit": "2026-06-06 UTC Legacy DOC/CFB inline picture placeholder policy slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For DOCX/OpenXML follow-up, keep richer deleted/moved OMML st...",
+            "nextTarget": "Legacy DOC/CFB follow-up: implement a bounded native picture-...",
             "remainingGate": "No local blocker",
-            "commit": "pending fast ac..."
+            "commit": "pending-pandoc-..."
         },
         {
             "lane": "quadrable",
