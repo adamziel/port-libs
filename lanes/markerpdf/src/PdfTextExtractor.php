@@ -27785,26 +27785,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $extraOffset = $this->skipPdfWhitespace($body, $endOffset);
-        if ($extraOffset >= strlen($body)) {
-            return null;
-        }
-
-        $token = $this->pdfValueAtOffset($body, $extraOffset);
-        if ($token === null) {
-            return null;
-        }
-
-        $type = $this->pdfOperandTokenType($token);
-        $extra = [
-            'type' => $type,
-            'preview' => $this->xrefStreamOperandValuePreview($token),
-        ];
-        if ($type === 'name') {
-            $extra['name'] = $this->decodePdfName(substr($token, 1));
-        }
-
-        return $extra;
+        return $this->postDirectFilterExtraDecoderOperand($body, $endOffset);
     }
 
     /**
