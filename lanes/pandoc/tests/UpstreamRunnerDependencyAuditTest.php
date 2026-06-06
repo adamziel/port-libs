@@ -147,6 +147,10 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
     ]);
 
     $body = implode("\n", array_merge([
+        'cabal-version: 2.4',
+        'name: pandoc',
+        'version: 3.9.0.2',
+        'build-type: Simple',
         'tested-with: GHC == 9.6.7, GHC == 9.8.4, GHC == 9.10.3, GHC == 9.12.2',
         '',
         'common common-options',
@@ -171,6 +175,11 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
     ));
 
     $stanzas = [
+        'cabal-version: 2.4',
+        'name: pandoc-lua-engine',
+        'version: 0.5.2',
+        'build-type: Simple',
+        '',
         'common test-options',
         '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc-lua-engine', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
@@ -526,6 +535,10 @@ return [
         $t->same([], $audit['compilerTestedWithClosure']['missingGhcVersions']);
         $t->same('9.10.3', $audit['compilerTestedWithClosure']['toolGhcVersion']);
         $t->same(true, $audit['compilerTestedWithClosure']['toolGhcVersionSupported']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageIdentities(), $audit['packageIdentityClosure']['expected']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageIdentities(), $audit['packageIdentityClosure']['present']);
+        $t->same([], $audit['packageIdentityClosure']['missingHeaders']);
+        $t->same([], $audit['packageIdentityClosure']['mismatchedHeaders']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -591,7 +604,8 @@ return [
             $audit['benchmarkEntrySourceClosure']['present']['benchmark:benchmark-pandoc']['matchedSnippets']
         );
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
-        $t->contains('record pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
+        $t->contains('record Cabal package identity/version headers', $audit['nonMutatingPlan'][0]);
+        $t->contains('pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
@@ -797,6 +811,51 @@ return [
         $t->contains('missing pandoc.cabal tested-with GHC versions: 9.10.3', $blocked);
         $t->contains('unsupported or unrecorded ghc version for Pandoc tested-with matrix: 9.14.1', $blocked);
         $t->contains('pandoc.cabal tested-with GHC matrix', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks cabal package identity drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace('name: pandoc', 'name: pandoc-core', $files['pandoc.cabal']);
+        $files['pandoc.cabal'] = str_replace('version: 3.9.0.2', 'version: 3.9.0.1', $files['pandoc.cabal']);
+        $files['pandoc.cabal'] = str_replace('build-type: Simple', 'build-type: Custom', $files['pandoc.cabal']);
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace("cabal-version: 2.4\n", '', $files['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace('version: 0.5.2', 'version: 0.5.1', $files['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['compilerTestedWithClosure']['missingGhcVersions']);
+        $t->same(['cabalVersion'], $audit['packageIdentityClosure']['missingHeaders']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([
+            'expected' => 'pandoc',
+            'actual' => 'pandoc-core',
+        ], $audit['packageIdentityClosure']['mismatchedHeaders']['pandoc.cabal']['name']);
+        $t->same([
+            'expected' => '3.9.0.2',
+            'actual' => '3.9.0.1',
+        ], $audit['packageIdentityClosure']['mismatchedHeaders']['pandoc.cabal']['version']);
+        $t->same([
+            'expected' => 'Simple',
+            'actual' => 'Custom',
+        ], $audit['packageIdentityClosure']['mismatchedHeaders']['pandoc.cabal']['buildType']);
+        $t->same([
+            'expected' => '0.5.2',
+            'actual' => '0.5.1',
+        ], $audit['packageIdentityClosure']['mismatchedHeaders']['pandoc-lua-engine/pandoc-lua-engine.cabal']['version']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal package identity headers: pandoc-lua-engine/pandoc-lua-engine.cabal (cabalVersion)', $blocked);
+        $t->contains('mismatched Cabal package identity headers: pandoc.cabal (name expected pandoc, found pandoc-core, version expected 3.9.0.2, found 3.9.0.1, buildType expected Simple, found Custom); pandoc-lua-engine/pandoc-lua-engine.cabal (version expected 0.5.2, found 0.5.1)', $blocked);
+        $t->contains('Cabal package identity/version headers', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'rejects hydrated checkout with incomplete runner package closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
