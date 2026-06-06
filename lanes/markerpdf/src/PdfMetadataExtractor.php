@@ -4324,8 +4324,8 @@ final class PdfMetadataExtractor
             $base['selected_entry_index'] = $selectedEntryIndex;
         }
 
-        $objectNumber = $this->objectNumberFromReference($value);
-        if ($objectNumber === null) {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
             return $base + [
                 'status' => 'rejected_non_indirect_metadata_reference',
                 'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
@@ -4333,11 +4333,15 @@ final class PdfMetadataExtractor
             ];
         }
 
+        $objectNumber = $reference['objectNumber'];
+        $referenceReview = [
+            'object_number' => $objectNumber,
+            'object_generation' => $reference['generation'],
+        ];
         $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
         if ($objectBody === null) {
-            return $base + [
+            return $base + $referenceReview + [
                 'status' => 'unresolved_metadata_reference',
-                'object_number' => $objectNumber,
                 'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
                 'indirect_reference_required' => true,
                 'metadata_reference_resolved' => false,
@@ -4345,9 +4349,8 @@ final class PdfMetadataExtractor
         }
 
         if (!$this->streamObjectHasStreamKeyword($objectBody)) {
-            $review = $base + [
+            $review = $base + $referenceReview + [
                 'status' => 'rejected_non_stream_outline_item_metadata',
-                'object_number' => $objectNumber,
                 'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
                 'metadata_reference_resolved' => true,
                 'has_stream' => false,
@@ -4370,9 +4373,8 @@ final class PdfMetadataExtractor
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
-            $review = $base + [
+            $review = $base + $referenceReview + [
                 'status' => 'unreadable_metadata_stream',
-                'object_number' => $objectNumber,
             ];
             $dictionary = $this->dictionaryObjectBody($objectBody);
             if ($dictionary !== null) {
@@ -4395,9 +4397,8 @@ final class PdfMetadataExtractor
         }
 
         if (!$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)) {
-            $review = $base + [
+            $review = $base + $referenceReview + [
                 'status' => 'rejected_malformed_outline_item_metadata_stream',
-                'object_number' => $objectNumber,
                 'bytes' => strlen($stream['content']),
                 'sha256' => hash('sha256', $stream['content']),
             ];
@@ -4425,9 +4426,8 @@ final class PdfMetadataExtractor
         }
 
         if (!$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
-            $review = $base + [
+            $review = $base + $referenceReview + [
                 'status' => 'rejected_non_metadata_outline_item_stream',
-                'object_number' => $objectNumber,
                 'bytes' => strlen($stream['content']),
                 'sha256' => hash('sha256', $stream['content']),
             ];
@@ -4454,9 +4454,8 @@ final class PdfMetadataExtractor
             return $review;
         }
 
-        $review = $base + [
+        $review = $base + $referenceReview + [
             'status' => 'reviewed_outline_item_metadata_stream',
-            'object_number' => $objectNumber,
             'bytes' => strlen($stream['content']),
             'sha256' => hash('sha256', $stream['content']),
         ];
