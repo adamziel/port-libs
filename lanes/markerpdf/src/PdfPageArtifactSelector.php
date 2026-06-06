@@ -133,6 +133,7 @@ final class PdfPageArtifactSelector
             $artifact = null;
             $bestScore = null;
             $bestArtifactIndex = null;
+            $hasTie = false;
             foreach ($artifacts as $artifactIndex => $candidate) {
                 if (isset($usedArtifactIndexes[$artifactIndex])) {
                     continue;
@@ -152,10 +153,15 @@ final class PdfPageArtifactSelector
                     $artifact = $candidate;
                     $bestScore = $score;
                     $bestArtifactIndex = $artifactIndex;
+                    $hasTie = false;
+                    continue;
+                }
+                if ($score !== null && $score === $bestScore) {
+                    $hasTie = true;
                 }
             }
 
-            if ($artifact !== null) {
+            if ($artifact !== null && !$hasTie) {
                 $selected[] = $artifact;
                 if ($bestArtifactIndex !== null) {
                     $usedArtifactIndexes[$bestArtifactIndex] = true;
