@@ -32297,6 +32297,12 @@ final class PdfTextExtractor
                         $candidate,
                         $expectedLength
                     )
+                    || $this->inlineWrappedFlateCandidateReachesSampleFloorBeforeDecodedPostStreamSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        $expectedLength
+                    )
                     || $this->inlineLzwCandidateReachesSampleFloorBeforePostEodSurplus(
                         $filters,
                         $dictionary,
@@ -32602,6 +32608,87 @@ final class PdfTextExtractor
         }
 
         return $inflated === false ? null : $inflated;
+    }
+
+    /**
+     * Wrapped native stacks such as ASCIIHex + Flate can hide the terminal
+     * Flate member's surplus until the first wrapper is decoded. Keep decoded
+     * delimiter-looking EI bytes image-owned until the later raw EI terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineWrappedFlateCandidateReachesSampleFloorBeforeDecodedPostStreamSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+            return false;
+        }
+
+        $terminalFilterIndex = null;
+        $terminalFilter = null;
+        foreach ($filters as $index => $filter) {
+            if (is_string($filter)) {
+                $terminalFilterIndex = $index;
+                $terminalFilter = $filter;
+            }
+        }
+        if (
+            $terminalFilterIndex === null
+            || $terminalFilter === null
+            || !in_array($terminalFilter, ['FlateDecode', 'Fl'], true)
+        ) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $wrappedFlateInput = $this->decodeStreamBeforeFilter(
+            $dictionary,
+            $candidate,
+            [],
+            $filters,
+            $terminalFilterIndex
+        );
+        if ($wrappedFlateInput === null) {
+            return false;
+        }
+
+        $terminalDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $terminalFilterIndex);
+        if (!$this->canApplyDecodeParms($terminalFilter, $terminalDecodeParms, [])) {
+            return false;
+        }
+
+        $flateEndOffset = $this->flateExplicitEndByteOffset($wrappedFlateInput);
+        if ($flateEndOffset === null) {
+            return false;
+        }
+
+        $postStream = substr($wrappedFlateInput, $flateEndOffset);
+        if (
+            $postStream === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($wrappedFlateInput, $flateEndOffset)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postStream) !== 1
+        ) {
+            return false;
+        }
+
+        $boundedFlate = substr($wrappedFlateInput, 0, $flateEndOffset);
+        $decoded = $this->decodeFlateStream($boundedFlate, $terminalDecodeParms, []);
+        if ($decoded !== null) {
+            // Boundary ownership only: image preview still rejects short decoded sample data.
+            return strlen($decoded) >= $expectedLength || $decoded !== '';
+        }
+
+        // Ownership boundary only: RGB preview still rejects malformed predictor rows.
+        $inflated = $this->inflateFlateStreamWithoutDecodeParms($boundedFlate);
+        return $inflated !== null && $this->decodeParmsUsesPredictor($terminalDecodeParms) && $inflated !== '';
     }
 
     private function decodeParmsUsesPredictor(?string $decodeParms): bool

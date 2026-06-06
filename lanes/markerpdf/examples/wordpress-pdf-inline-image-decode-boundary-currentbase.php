@@ -229,6 +229,16 @@ if (!is_string($stackedNativeFilterCompressed)) {
 $stackedNativeFilterDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1]';
 $stackedNativeFilterSurplusPayload = strtoupper(bin2hex($stackedNativeFilterCompressed))
     . '>ZZ EI BT /F1 12 Tf 72 596 Td (Stacked Native Inline Noise) Tj ET rawtail';
+$wrappedTerminalFlateImageByte = 'K';
+$wrappedTerminalFlateCompressed = gzcompress($wrappedTerminalFlateImageByte, 0);
+if (!is_string($wrappedTerminalFlateCompressed)) {
+    throw new RuntimeException('Unable to build wrapped terminal Flate inline image fixture.');
+}
+$wrappedTerminalFlateDecodedSurplus = 'ZZ EI BT /F1 12 Tf 72 594 Td (Wrapped Terminal Flate Inline Noise) Tj ET rawtail';
+$wrappedTerminalFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1]';
+$wrappedTerminalFlatePayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed . $wrappedTerminalFlateDecodedSurplus)) . '>';
+$wrappedTerminalFlateCleanPayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed)) . '>';
+$identityCryptWrappedTerminalFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/Crypt /AHx /Fl] /DP [<< /Name /Identity >> null null] /D [0 1]';
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -297,6 +307,12 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 596 Td (Before Stacked Native Inline) Tj ET\n"
     . "BI {$stackedNativeFilterDictionary} ID {$stackedNativeFilterSurplusPayload}\nEI\n"
     . "BT /F1 12 Tf 72 595 Td (After Stacked Native Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 594 Td (Before Wrapped Terminal Flate Inline) Tj ET\n"
+    . "BI {$wrappedTerminalFlateDictionary} ID {$wrappedTerminalFlatePayload}\nEI\n"
+    . "BT /F1 12 Tf 72 593 Td (After Wrapped Terminal Flate Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 592 Td (Before Identity Crypt Wrapped Terminal Flate Inline) Tj ET\n"
+    . "BI {$identityCryptWrappedTerminalFlateDictionary} ID {$wrappedTerminalFlatePayload}\nEI\n"
+    . "BT /F1 12 Tf 72 591 Td (After Identity Crypt Wrapped Terminal Flate Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 594 Td (Before Direct Null Filter Inline) Tj ET\n"
     . "BI {$directNullFilterDictionary} ID {$directNullFilterSamples}\nEI\n"
     . "BT /F1 12 Tf 72 593 Td (After Direct Null Filter Inline) Tj ET\n"
@@ -468,6 +484,40 @@ try {
 $stackedNativeFilterCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
     $stackedNativeFilterDictionary,
     strtoupper(bin2hex($stackedNativeFilterCompressed)) . '>',
+    [],
+    1
+);
+$wrappedTerminalFlateSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $wrappedTerminalFlateDictionary,
+        $wrappedTerminalFlatePayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $wrappedTerminalFlateSurplusPreviewRejected = true;
+}
+$identityCryptWrappedTerminalFlateSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $identityCryptWrappedTerminalFlateDictionary,
+        $wrappedTerminalFlatePayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $identityCryptWrappedTerminalFlateSurplusPreviewRejected = true;
+}
+$wrappedTerminalFlateCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $wrappedTerminalFlateDictionary,
+    $wrappedTerminalFlateCleanPayload,
+    [],
+    1
+);
+$identityCryptWrappedTerminalFlateCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $identityCryptWrappedTerminalFlateDictionary,
+    $wrappedTerminalFlateCleanPayload,
     [],
     1
 );
@@ -748,6 +798,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_jpx_post_eoc_surplus_payload' => str_contains($jpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_flate_wrapped_jpx_surplus_payload' => str_contains($flateWrappedJpxSurplusPayload, ' EI '),
     'fake_ei_inside_stacked_native_filter_surplus_payload' => str_contains($stackedNativeFilterSurplusPayload, ' EI '),
+    'fake_ei_inside_wrapped_terminal_flate_decoded_surplus_payload' => str_contains($wrappedTerminalFlateDecodedSurplus, ' EI '),
+    'wrapped_terminal_flate_raw_payload_has_no_fake_ei' => !str_contains($wrappedTerminalFlatePayload, ' EI ')
+        && !str_contains($wrappedTerminalFlatePayload, 'ZZ EI'),
     'fake_ei_inside_runlength_post_eod_surplus_payload' => str_contains($runLengthPostEodSurplusPayload, ' EI '),
     'fake_ei_inside_identity_crypt_flate_post_stream_surplus_payload' => str_contains($identityCryptFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_identity_crypt_jpx_post_eoc_surplus_payload' => str_contains($identityCryptJpxPostEocSurplusPayload, ' EI '),
@@ -795,6 +848,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Flate JPX No Floor',
         'Before Stacked Native Inline',
         'After Stacked Native Inline',
+        'Before Wrapped Terminal Flate Inline',
+        'After Wrapped Terminal Flate Inline',
+        'Before Identity Crypt Wrapped Terminal Flate Inline',
+        'After Identity Crypt Wrapped Terminal Flate Inline',
         'Before Direct Null Filter Inline',
         'After Direct Null Filter Inline',
         'Before RunLength Inline Image',
@@ -936,6 +993,20 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'stacked_native_filter_clean_preview_decoded' => ($stackedNativeFilterCleanPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($stackedNativeFilterCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $stackedNativeFilterImageByte),
     'stacked_native_filter_clean_preview_filters' => $stackedNativeFilterCleanPreview['image_stream']['filters'] ?? [],
+    'wrapped_terminal_flate_decoded_surplus_payload_excluded_until_real_ei' => in_array('After Wrapped Terminal Flate Inline', $lines, true)
+        && !str_contains($plainText, 'Wrapped Terminal Flate Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'identity_crypt_wrapped_terminal_flate_decoded_surplus_payload_excluded_until_real_ei' => in_array('After Identity Crypt Wrapped Terminal Flate Inline', $lines, true)
+        && !str_contains($plainText, 'Wrapped Terminal Flate Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'wrapped_terminal_flate_decoded_surplus_preview_rejected' => $wrappedTerminalFlateSurplusPreviewRejected,
+    'identity_crypt_wrapped_terminal_flate_decoded_surplus_preview_rejected' => $identityCryptWrappedTerminalFlateSurplusPreviewRejected,
+    'wrapped_terminal_flate_clean_preview_decoded' => ($wrappedTerminalFlateCleanPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($wrappedTerminalFlateCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $wrappedTerminalFlateImageByte),
+    'identity_crypt_wrapped_terminal_flate_clean_preview_decoded' => ($identityCryptWrappedTerminalFlateCleanPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($identityCryptWrappedTerminalFlateCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $wrappedTerminalFlateImageByte),
+    'wrapped_terminal_flate_clean_preview_filters' => $wrappedTerminalFlateCleanPreview['image_stream']['filters'] ?? [],
+    'identity_crypt_wrapped_terminal_flate_clean_preview_filters' => $identityCryptWrappedTerminalFlateCleanPreview['image_stream']['filters'] ?? [],
     'runlength_inline_eod_present' => str_contains($runLengthPayload, chr(128)),
     'runlength_inline_preview_decoded' => ($runLengthIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',
@@ -1015,6 +1086,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'JPX Post EOC Inline Noise')
         && !str_contains($plainText, 'Flate Wrapped JPX Inline Noise')
         && !str_contains($plainText, 'Stacked Native Inline Noise')
+        && !str_contains($plainText, 'Wrapped Terminal Flate Inline Noise')
         && !str_contains($plainText, $directNullFilterSamples)
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')

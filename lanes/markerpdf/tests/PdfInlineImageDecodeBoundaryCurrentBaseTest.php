@@ -838,6 +838,73 @@ return [
         $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
         $t->same([90.0], $preview['pixels'][0]['raw_sample']);
     },
+    'keeps wrapped terminal Flate decoded surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $imageByte = 'K';
+        $compressedImage = gzcompress($imageByte, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build wrapped terminal Flate inline image fixture.');
+        }
+
+        $decodedPostStreamSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Wrapped Terminal Flate Inline Noise) Tj ET rawtail';
+        $encodedPayload = strtoupper(bin2hex($compressedImage . $decodedPostStreamSurplus)) . '>';
+        $encodedCleanPayload = strtoupper(bin2hex($compressedImage)) . '>';
+        $cases = [
+            'native' => [
+                '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1]',
+                ['ASCIIHexDecode', 'FlateDecode'],
+                'Before Wrapped Terminal Flate',
+                'After Wrapped Terminal Flate',
+            ],
+            'identity crypt native' => [
+                '/W 1 /H 1 /CS /G /BPC 8 /F [/Crypt /AHx /Fl] /DP [<< /Name /Identity >> null null] /D [0 1]',
+                ['Crypt', 'ASCIIHexDecode', 'FlateDecode'],
+                'Before Identity Crypt Wrapped Terminal Flate',
+                'After Identity Crypt Wrapped Terminal Flate',
+            ],
+        ];
+
+        $t->true(str_contains($decodedPostStreamSurplus, ' EI '));
+        $t->true(str_contains($encodedPayload, '>'));
+        $t->true(!str_contains($encodedPayload, ' EI '));
+        $t->true(!str_contains($encodedPayload, 'ZZ EI'));
+
+        foreach ($cases as [$dictionary, $expectedFilters, $before, $after]) {
+            $content = "BT /F1 12 Tf 72 720 Td ({$before}) Tj ET\n"
+                . "BI {$dictionary} ID "
+                . $encodedPayload . "\nEI\n"
+                . "BT /F1 12 Tf 72 704 Td ({$after}) Tj ET";
+            $pdf = $inlineImageDecodeBoundaryPdf($content);
+            $plainText = $extractor->extractPlainText($pdf);
+            $expected = [$before, $after];
+
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same(implode("\n", $expected), $plainText);
+            $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+            $t->true(!str_contains($plainText, 'Wrapped Terminal Flate Inline Noise'));
+            $t->true(!str_contains($plainText, 'ZZ EI'));
+            $t->true(!str_contains($plainText, 'rawtail'));
+            $t->same(['1'], $extractor->extractPageLabels($pdf));
+            $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $encodedPayload, [], 1)
+            );
+
+            $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $encodedCleanPayload, [], 1);
+            $t->same($expectedFilters, $preview['image_stream']['filters']);
+            $t->same([], $preview['image_stream']['preview_only_filters']);
+            $t->same([], $preview['image_stream']['unsupported_filters']);
+            $t->same(1, $preview['image_stream']['decoded_length']);
+            $t->same(hash('sha256', $imageByte), $preview['image_stream']['decoded_sha256']);
+            $t->same('4B', $preview['image_stream']['decoded_preview_hex']);
+            $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+            $t->same(false, $preview['image_stream']['decode_failed']);
+            $t->same([75.0], $preview['pixels'][0]['raw_sample']);
+        }
+    },
     'reports decoded inline image surplus bytes as review-only sample boundary metadata' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();
