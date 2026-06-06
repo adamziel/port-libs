@@ -1670,6 +1670,66 @@ return [
         $t->contains('<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'builds row header maps for importer table review packets' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
+        $table = $buildAccessibleHeaderDocument()->children[0];
+        $map = TableGeometry::rowHeaderMap($table, 'Migration Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Migration Grid']);
+
+        $t->same(2, $map['summary']['dataRowCount'] ?? null);
+        $t->same(2, $map['summary']['labeledDataRowCount'] ?? null);
+        $t->same(0, $map['summary']['unlabeledDataRowCount'] ?? null);
+        $t->same(1, $map['summary']['rowHeaderCellCount'] ?? null);
+        $t->same(2, $map['summary']['rowHeaderReferenceCount'] ?? null);
+        $t->same(1, $map['summary']['maxRowHeaderCount'] ?? null);
+        $t->same(['rowgroup'], $map['summary']['rowHeaderScopes'] ?? null);
+        $t->same(true, $map['summary']['hasRowHeaders'] ?? null);
+        $t->same(false, $map['summary']['hasUnlabeledDataRows'] ?? null);
+        $t->same(true, $map['summary']['hasRowspanRowHeaders'] ?? null);
+        $t->same(2, $map['summary']['rowspannedRowHeaderReferenceCount'] ?? null);
+
+        $t->same('body', $map['rows'][0]['section'] ?? null);
+        $t->same(1, $map['rows'][0]['row'] ?? null);
+        $t->same('body', $map['rows'][0]['rowRole'] ?? null);
+        $t->same(2, $map['rows'][0]['dataCellCount'] ?? null);
+        $t->same(1, $map['rows'][0]['headerCount'] ?? null);
+        $t->same(['migration-grid-body-r2c1'], $map['rows'][0]['headerIds'] ?? null);
+        $t->same(['Posts'], $map['rows'][0]['headerTexts'] ?? null);
+        $t->same('body:1:0:0', $map['rows'][0]['headers'][0]['key'] ?? null);
+        $t->same('rowgroup', $map['rows'][0]['headers'][0]['scope'] ?? null);
+        $t->same([0], $map['rows'][0]['headers'][0]['columns'] ?? null);
+        $t->same(2, $map['rows'][0]['headers'][0]['rowspan'] ?? null);
+        $t->same(false, $map['rows'][0]['unlabeled'] ?? null);
+        $t->same(2, $map['rows'][1]['row'] ?? null);
+        $t->same(['migration-grid-body-r2c1'], $map['rows'][1]['headerIds'] ?? null);
+        $t->same(['Posts'], $map['rows'][1]['headerTexts'] ?? null);
+        $t->same($map, $packet['rowHeaderMap'] ?? null);
+        $t->same(2, $packet['summary']['rowHeaderDataRowCount'] ?? null);
+        $t->same(1, $packet['summary']['rowHeaderCellCount'] ?? null);
+        $t->same(2, $packet['summary']['rowHeaderReferenceCount'] ?? null);
+        $t->same(true, $packet['summary']['hasRowHeaders'] ?? null);
+        $t->same(false, $packet['summary']['hasUnlabeledDataRows'] ?? null);
+        $t->same(['rowgroup'], $packet['summary']['rowHeaderScopes'] ?? null);
+
+        $sourcePacket = TableGeometry::reviewPacket($buildSourceScopedHeaderDocument()->children[0], ['idPrefix' => 'Source Scope Grid']);
+        $sourceMap = $sourcePacket['rowHeaderMap'] ?? [];
+        $t->same(2, $sourceMap['summary']['dataRowCount'] ?? null);
+        $t->same(1, $sourceMap['summary']['labeledDataRowCount'] ?? null);
+        $t->same(1, $sourceMap['summary']['unlabeledDataRowCount'] ?? null);
+        $t->same(['row'], $sourceMap['summary']['rowHeaderScopes'] ?? null);
+        $t->same(['source-posts'], $sourceMap['rows'][0]['headerIds'] ?? null);
+        $t->same(['Posts'], $sourceMap['rows'][0]['headerTexts'] ?? null);
+        $t->same([], $sourceMap['rows'][1]['headers'] ?? null);
+        $t->same(true, $sourceMap['rows'][1]['unlabeled'] ?? null);
+        $t->same(1, $sourcePacket['summary']['rowHeaderUnlabeledDataRowCount'] ?? null);
+        $t->same(true, $sourcePacket['summary']['hasUnlabeledDataRows'] ?? null);
+
+        $compactPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $t->same([], $compactPacket['rowHeaderMap']['rows'] ?? null);
+        $t->same(0, $compactPacket['summary']['rowHeaderDataRowCount'] ?? null);
+        json_encode($map, JSON_THROW_ON_ERROR);
+        json_encode($sourceMap, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes table header associations for reviewer accessibility audits' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
         $table = $buildAccessibleHeaderDocument()->children[0];
         $associations = TableGeometry::headerAssociations($table, 'Migration Grid');

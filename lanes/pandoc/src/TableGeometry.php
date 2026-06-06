@@ -567,6 +567,17 @@ final class TableGeometry
     }
 
     /**
+     * @return array{rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    public static function rowHeaderMap(AstNode $table, string $idPrefix = 'pandoc-table'): array
+    {
+        return self::rowHeaderMapFromAssociations(
+            self::sectionGrids($table),
+            self::headerAssociations($table, $idPrefix)
+        );
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function diagnostics(AstNode $table): array
@@ -1242,6 +1253,9 @@ final class TableGeometry
         $headerAssociations = $includeAccessibility
             ? self::headerAssociations($table, $idPrefix)
             : self::emptyHeaderAssociations();
+        $rowHeaderMap = $includeAccessibility
+            ? self::rowHeaderMapFromAssociations($sections, $headerAssociations)
+            : self::emptyRowHeaderMap();
 
         $packet = [
             'caption' => (string) $table->attr('caption', ''),
@@ -1258,6 +1272,7 @@ final class TableGeometry
             'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
             'headerAssociations' => $headerAssociations,
+            'rowHeaderMap' => $rowHeaderMap,
             'summary' => self::reviewPacketSummary(
                 $sections,
                 $coverage,
@@ -1266,7 +1281,8 @@ final class TableGeometry
                 $captions,
                 $columnGroups,
                 $rowGroups,
-                $headerAssociations
+                $headerAssociations,
+                $rowHeaderMap
             ),
         ];
 
@@ -1409,6 +1425,219 @@ final class TableGeometry
                 'hasHeaderAbbreviations' => false,
             ],
         ];
+    }
+
+    /**
+     * @return array{rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    private static function emptyRowHeaderMap(): array
+    {
+        return [
+            'rows' => [],
+            'summary' => [
+                'dataRowCount' => 0,
+                'labeledDataRowCount' => 0,
+                'unlabeledDataRowCount' => 0,
+                'rowHeaderCellCount' => 0,
+                'rowHeaderReferenceCount' => 0,
+                'maxRowHeaderCount' => 0,
+                'rowHeaderScopes' => [],
+                'hasRowHeaders' => false,
+                'hasUnlabeledDataRows' => false,
+                'hasRowspanRowHeaders' => false,
+                'rowspannedRowHeaderReferenceCount' => 0,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{
+     *     section:string,
+     *     columnCount:int,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>,
+     *     rows:list<list<array<string, mixed>>>
+     * }> $sections
+     * @param array<string, mixed> $headerAssociations
+     * @return array{rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    private static function rowHeaderMapFromAssociations(array $sections, array $headerAssociations): array
+    {
+        $headerCells = is_array($headerAssociations['headerCells'] ?? null)
+            ? $headerAssociations['headerCells']
+            : [];
+        $rowHeaderCells = [];
+        foreach ($headerCells as $headerCell) {
+            if (!is_array($headerCell)) {
+                continue;
+            }
+
+            $scope = (string) ($headerCell['scope'] ?? '');
+            if ($scope !== 'row' && $scope !== 'rowgroup') {
+                continue;
+            }
+
+            $rowHeaderCells[] = self::rowHeaderReferenceRecord($headerCell);
+        }
+
+        $rows = [];
+        $usedRowHeaderKeys = [];
+        $rowHeaderScopes = [];
+        $rowHeaderReferenceCount = 0;
+        $rowspannedRowHeaderReferenceCount = 0;
+        $maxRowHeaderCount = 0;
+        $labeledDataRowCount = 0;
+        $unlabeledDataRowCount = 0;
+
+        foreach ($sections as $sectionGrid) {
+            $section = (string) ($sectionGrid['section'] ?? '');
+            foreach ($sectionGrid['rows'] ?? [] as $rowIndex => $slots) {
+                if (!is_array($slots)) {
+                    continue;
+                }
+
+                $dataCellCount = 0;
+                foreach ($slots as $slot) {
+                    if (!is_array($slot) || ($slot['kind'] ?? '') !== 'cell' || ($slot['headerCell'] ?? false) === true) {
+                        continue;
+                    }
+
+                    $dataCellCount++;
+                }
+
+                if ($dataCellCount === 0) {
+                    continue;
+                }
+
+                $headers = [];
+                foreach ($rowHeaderCells as $header) {
+                    if ((string) ($header['section'] ?? '') !== $section) {
+                        continue;
+                    }
+
+                    $scope = (string) ($header['scope'] ?? '');
+                    $headerRow = (int) ($header['row'] ?? -1);
+                    $rowspan = max(1, (int) ($header['rowspan'] ?? 1));
+                    $applies = $scope === 'row'
+                        ? $headerRow === (int) $rowIndex
+                        : (int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + $rowspan;
+                    if (!$applies) {
+                        continue;
+                    }
+
+                    $headers[] = $header;
+                    $key = (string) ($header['key'] ?? '');
+                    if ($key !== '') {
+                        $usedRowHeaderKeys[$key] = true;
+                    }
+                    $rowHeaderScopes[] = $scope;
+                    if ($rowspan > 1) {
+                        $rowspannedRowHeaderReferenceCount++;
+                    }
+                }
+
+                $headerCount = count($headers);
+                $rowHeaderReferenceCount += $headerCount;
+                $maxRowHeaderCount = max($maxRowHeaderCount, $headerCount);
+                if ($headerCount > 0) {
+                    $labeledDataRowCount++;
+                } else {
+                    $unlabeledDataRowCount++;
+                }
+
+                $rowEntry = $sectionGrid['rowEntries'][$rowIndex] ?? [];
+                $record = [
+                    'section' => $section,
+                    'row' => (int) $rowIndex,
+                    'rowRole' => (string) ($rowEntry['rowRole'] ?? ''),
+                    'rowHeadColumns' => (int) ($rowEntry['rowHeadColumns'] ?? 0),
+                    'dataCellCount' => $dataCellCount,
+                    'headerCount' => $headerCount,
+                    'headerIds' => array_values(array_map(
+                        static fn (array $header): string => (string) ($header['id'] ?? ''),
+                        array_filter($headers, static fn (array $header): bool => (string) ($header['id'] ?? '') !== '')
+                    )),
+                    'headerTexts' => array_values(array_map(
+                        static fn (array $header): string => (string) ($header['text'] ?? ''),
+                        array_filter($headers, static fn (array $header): bool => (string) ($header['text'] ?? '') !== '')
+                    )),
+                    'headers' => $headers,
+                    'unlabeled' => $headerCount === 0,
+                ];
+                $rows[] = $record;
+            }
+        }
+
+        $rowHeaderScopes = array_values(array_unique($rowHeaderScopes));
+        sort($rowHeaderScopes);
+
+        return [
+            'rows' => $rows,
+            'summary' => [
+                'dataRowCount' => count($rows),
+                'labeledDataRowCount' => $labeledDataRowCount,
+                'unlabeledDataRowCount' => $unlabeledDataRowCount,
+                'rowHeaderCellCount' => count($usedRowHeaderKeys),
+                'rowHeaderReferenceCount' => $rowHeaderReferenceCount,
+                'maxRowHeaderCount' => $maxRowHeaderCount,
+                'rowHeaderScopes' => $rowHeaderScopes,
+                'hasRowHeaders' => $rowHeaderReferenceCount > 0,
+                'hasUnlabeledDataRows' => $unlabeledDataRowCount > 0,
+                'hasRowspanRowHeaders' => $rowspannedRowHeaderReferenceCount > 0,
+                'rowspannedRowHeaderReferenceCount' => $rowspannedRowHeaderReferenceCount,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $headerCell
+     * @return array<string, mixed>
+     */
+    private static function rowHeaderReferenceRecord(array $headerCell): array
+    {
+        $record = [];
+        foreach ([
+            'key',
+            'id',
+            'text',
+            'scope',
+            'section',
+            'rowRole',
+            'abbr',
+        ] as $attribute) {
+            $value = $headerCell[$attribute] ?? null;
+            if (is_scalar($value) && (string) $value !== '') {
+                $record[$attribute] = (string) $value;
+            }
+        }
+
+        foreach ([
+            'row',
+            'column',
+            'sourceCell',
+            'sourceColumn',
+            'colspan',
+            'rowspan',
+            'rowHeadColumns',
+        ] as $attribute) {
+            if (isset($headerCell[$attribute]) && is_numeric($headerCell[$attribute])) {
+                $record[$attribute] = (int) $headerCell[$attribute];
+            }
+        }
+
+        $columns = self::intList($headerCell['columns'] ?? []);
+        if ($columns !== []) {
+            $record['columns'] = $columns;
+        }
+
+        if (($headerCell['rowspanToEnd'] ?? false) === true) {
+            $record['rowspanToEnd'] = true;
+        }
+
+        if (isset($headerCell['sourceAttributes']) && is_array($headerCell['sourceAttributes']) && $headerCell['sourceAttributes'] !== []) {
+            $record['sourceAttributes'] = $headerCell['sourceAttributes'];
+        }
+
+        return $record;
     }
 
     /**
@@ -2236,6 +2465,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $columnGroups
      * @param list<array<string, mixed>> $rowGroups
      * @param array<string, mixed> $headerAssociations
+     * @param array<string, mixed> $rowHeaderMap
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -2246,7 +2476,8 @@ final class TableGeometry
         array $captions,
         array $columnGroups,
         array $rowGroups,
-        array $headerAssociations
+        array $headerAssociations,
+        array $rowHeaderMap
     ): array
     {
         $rowCount = 0;
@@ -2366,6 +2597,13 @@ final class TableGeometry
         if (!is_array($headerAssociationScopes)) {
             $headerAssociationScopes = [];
         }
+        $rowHeaderSummary = is_array($rowHeaderMap['summary'] ?? null)
+            ? $rowHeaderMap['summary']
+            : [];
+        $rowHeaderScopes = $rowHeaderSummary['rowHeaderScopes'] ?? [];
+        if (!is_array($rowHeaderScopes)) {
+            $rowHeaderScopes = [];
+        }
 
         return [
             'sectionCount' => count($sections),
@@ -2451,6 +2689,20 @@ final class TableGeometry
             'headerAssociationScopes' => array_values(array_map(
                 static fn (mixed $scope): string => (string) $scope,
                 $headerAssociationScopes
+            )),
+            'rowHeaderDataRowCount' => (int) ($rowHeaderSummary['dataRowCount'] ?? 0),
+            'rowHeaderLabeledDataRowCount' => (int) ($rowHeaderSummary['labeledDataRowCount'] ?? 0),
+            'rowHeaderUnlabeledDataRowCount' => (int) ($rowHeaderSummary['unlabeledDataRowCount'] ?? 0),
+            'rowHeaderCellCount' => (int) ($rowHeaderSummary['rowHeaderCellCount'] ?? 0),
+            'rowHeaderReferenceCount' => (int) ($rowHeaderSummary['rowHeaderReferenceCount'] ?? 0),
+            'rowHeaderMaxHeaderCount' => (int) ($rowHeaderSummary['maxRowHeaderCount'] ?? 0),
+            'hasRowHeaders' => (bool) ($rowHeaderSummary['hasRowHeaders'] ?? false),
+            'hasUnlabeledDataRows' => (bool) ($rowHeaderSummary['hasUnlabeledDataRows'] ?? false),
+            'hasRowspanRowHeaders' => (bool) ($rowHeaderSummary['hasRowspanRowHeaders'] ?? false),
+            'rowspannedRowHeaderReferenceCount' => (int) ($rowHeaderSummary['rowspannedRowHeaderReferenceCount'] ?? 0),
+            'rowHeaderScopes' => array_values(array_map(
+                static fn (mixed $scope): string => (string) $scope,
+                $rowHeaderScopes
             )),
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),

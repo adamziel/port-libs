@@ -1025,6 +1025,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bodyHeadPacket['rowGroups'][1]['rowRoles'] ?? null) !== ['body-head', 'body'] || ($bodyHeadPacket['rowGroups'][1]['bodyHeadRowCount'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing body-local row-group roles');
     }
+    $bodyHeadRowHeaderPacket = TableGeometry::reviewPacket($document->children[3], ['idPrefix' => 'Body Head Grid']);
+    if (
+        ($bodyHeadRowHeaderPacket['rowHeaderMap']['summary']['dataRowCount'] ?? null) !== 2
+        || ($bodyHeadRowHeaderPacket['rowHeaderMap']['summary']['rowHeaderReferenceCount'] ?? null) !== 2
+        || ($bodyHeadRowHeaderPacket['rowHeaderMap']['rows'][0]['headerTexts'] ?? null) !== ['Posts']
+        || ($bodyHeadRowHeaderPacket['rowHeaderMap']['rows'][1]['headerIds'] ?? null) !== ['body-head-grid-body-r2c1']
+        || ($bodyHeadRowHeaderPacket['summary']['hasRowHeaders'] ?? null) !== true
+        || ($bodyHeadRowHeaderPacket['summary']['hasRowspanRowHeaders'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Table geometry self-test missing row-header map review metadata');
+    }
+    json_encode($bodyHeadRowHeaderPacket, JSON_THROW_ON_ERROR);
     if (!str_contains($blocks, '<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>')) {
         throw new RuntimeException('Table geometry self-test missing body-local head rows in WordPress tbody output');
     }
