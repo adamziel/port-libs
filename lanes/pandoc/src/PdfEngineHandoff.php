@@ -271,6 +271,7 @@ final class PdfEngineHandoff
      *     pdfPageRotations: array<int, int>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
      *     pdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
@@ -688,6 +689,7 @@ final class PdfEngineHandoff
         $pdfPageRotations = [];
         $pdfPageLabels = [];
         $pdfPageTimings = [];
+        $pdfPageViewports = [];
         $pdfPageContentStreams = [];
         $pdfPageContentResourceUsage = [];
         $pdfFonts = [];
@@ -763,6 +765,7 @@ final class PdfEngineHandoff
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
+                $pdfPageViewports = $pdfInspection['pageViewports'];
                 $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
                 $pdfPageContentResourceUsage = $pdfInspection['pageContentResourceUsage'];
                 $pdfFonts = $pdfInspection['fonts'];
@@ -861,6 +864,27 @@ final class PdfEngineHandoff
                     }
                     foreach ($this->summarizePdfPageTransitionTypes($pdfPageTimings) as $transitionType => $transitionCount) {
                         $diagnostics[] = 'pdf-byte-page-transition-type:' . $transitionType . ':' . $transitionCount;
+                    }
+                }
+                if ($pdfPageViewports !== []) {
+                    $diagnostics[] = 'pdf-byte-page-viewports:' . count($pdfPageViewports);
+                    $viewportMeasureCount = 0;
+                    $viewportUnitFormatCount = 0;
+                    foreach ($pdfPageViewports as $pageViewport) {
+                        if (($pageViewport['measureSubtype'] ?? null) !== null) {
+                            $viewportMeasureCount++;
+                        }
+                        foreach (['xUnits', 'yUnits', 'distanceUnits', 'areaUnits', 'angleUnits'] as $unitKey) {
+                            if (isset($pageViewport[$unitKey]) && is_array($pageViewport[$unitKey])) {
+                                $viewportUnitFormatCount += count($pageViewport[$unitKey]);
+                            }
+                        }
+                    }
+                    if ($viewportMeasureCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-viewport-measures:' . $viewportMeasureCount;
+                    }
+                    if ($viewportUnitFormatCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-viewport-unit-formats:' . $viewportUnitFormatCount;
                     }
                 }
                 if ($pdfPageContentStreams !== []) {
@@ -1663,6 +1687,7 @@ final class PdfEngineHandoff
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageTimings' => $pdfPageTimings,
+            'pdfPageViewports' => $pdfPageViewports,
             'pdfPageContentStreams' => $pdfPageContentStreams,
             'pdfPageContentResourceUsage' => $pdfPageContentResourceUsage,
             'pdfFonts' => $pdfFonts,
@@ -1751,6 +1776,7 @@ final class PdfEngineHandoff
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
      *     finalPdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
@@ -1961,6 +1987,7 @@ final class PdfEngineHandoff
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
+            'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
             'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
             'finalPdfPageContentResourceUsage' => is_array($finalRun) && is_array($finalRun['pdfPageContentResourceUsage'] ?? null) ? $finalRun['pdfPageContentResourceUsage'] : [],
             'finalPdfFonts' => is_array($finalRun) && is_array($finalRun['pdfFonts'] ?? null) ? $finalRun['pdfFonts'] : [],
@@ -3068,6 +3095,7 @@ final class PdfEngineHandoff
      *     pageRotations:array<int, int>,
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pageContentResourceUsage:array<string, int>,
      *     fonts:list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
@@ -3133,6 +3161,7 @@ final class PdfEngineHandoff
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
+        $pageViewports = $this->extractPdfPageViewports($pdfBytes, $catalog);
         $pageContentStreams = $this->extractPdfPageContentStreams($pdfBytes, $catalog);
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
@@ -3168,6 +3197,7 @@ final class PdfEngineHandoff
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
+            'pageViewports' => $pageViewports,
             'pageContentStreams' => $pageContentStreams,
             'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
             'fonts' => $fonts,
@@ -7910,6 +7940,211 @@ final class PdfEngineHandoff
         }
 
         return $rotations;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>
+     */
+    private function extractPdfPageViewports(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $viewports = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageViewportsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $viewports,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($viewports === []) {
+            uksort($objects, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a . ' R') <=> $this->pdfReferenceSortKey($b . ' R'));
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                foreach ($this->summarizePdfPageViewports($body, $reference, $objects) as $viewport) {
+                    $viewport['page'] = $pageNumber;
+                    $viewports[] = $viewport;
+                }
+            }
+        }
+
+        return $viewports;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}> $viewports
+     */
+    private function collectPdfPageViewportsFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$viewports,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            foreach ($this->summarizePdfPageViewports($body, $reference, $objects) as $viewport) {
+                $viewport['page'] = $pageNumber;
+                $viewports[] = $viewport;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageViewportsFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $viewports,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>
+     */
+    private function summarizePdfPageViewports(string $dictionary, ?string $pageReference, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'VP');
+        if ($value === null) {
+            return [];
+        }
+
+        $values = $value['kind'] === 'array' ? $this->pdfTopLevelArrayValues($value['value']) : [$value];
+        $viewports = [];
+        foreach ($values as $index => $viewportValue) {
+            $sourceSuffix = $value['kind'] === 'array' ? 'VP[' . $index . ']' : 'VP';
+            $viewport = $this->summarizePdfViewportValue(
+                $viewportValue,
+                $objects,
+                $pageReference,
+                ($pageReference === null ? 'page' : 'page:' . $pageReference . ' R') . '.' . $sourceSuffix
+            );
+            if ($viewport !== null) {
+                $viewports[] = $viewport;
+            }
+        }
+
+        return $viewports;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}|null
+     */
+    private function summarizePdfViewportValue(array $value, array $objects, ?string $pageReference, string $source): ?array
+    {
+        $dictionary = null;
+        $viewportObject = null;
+        if ($value['kind'] === 'dictionary') {
+            $dictionary = $value['value'];
+        } elseif ($value['kind'] === 'reference') {
+            $viewportObject = $value['value'];
+            $dictionary = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        }
+
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $measure = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'Measure', $objects);
+
+        return [
+            'page' => 0,
+            'pageObject' => $pageReference === null ? null : $pageReference . ' R',
+            'viewportObject' => $viewportObject,
+            'source' => $source,
+            'name' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'bbox' => $this->extractPdfNumberArrayToken($dictionary, 'BBox', 4),
+            'measureSubtype' => $measure === null ? null : $this->extractPdfNameToken($measure, 'Subtype'),
+            'scaleRatio' => $measure === null ? null : $this->extractPdfStringOrNameValue($measure, 'R'),
+            'xUnits' => $measure === null ? [] : $this->extractPdfMeasureUnitFormats($measure, 'X', $objects),
+            'yUnits' => $measure === null ? [] : $this->extractPdfMeasureUnitFormats($measure, 'Y', $objects),
+            'distanceUnits' => $measure === null ? [] : $this->extractPdfMeasureUnitFormats($measure, 'D', $objects),
+            'areaUnits' => $measure === null ? [] : $this->extractPdfMeasureUnitFormats($measure, 'A', $objects),
+            'angleUnits' => $measure === null ? [] : $this->extractPdfMeasureUnitFormats($measure, 'T', $objects),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>
+     */
+    private function extractPdfMeasureUnitFormats(string $dictionary, string $name, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return [];
+        }
+
+        $values = $value['kind'] === 'array' ? $this->pdfTopLevelArrayValues($value['value']) : [$value];
+        $units = [];
+        foreach ($values as $unitValue) {
+            $unit = $this->summarizePdfMeasureUnitFormatValue($unitValue, $objects);
+            if ($unit !== null) {
+                $units[] = $unit;
+            }
+        }
+
+        return $units;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}|null
+     */
+    private function summarizePdfMeasureUnitFormatValue(array $value, array $objects): ?array
+    {
+        $dictionary = null;
+        if ($value['kind'] === 'dictionary') {
+            $dictionary = $value['value'];
+        } elseif ($value['kind'] === 'reference') {
+            $dictionary = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        }
+
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $unit = $this->extractPdfStringOrNameValue($dictionary, 'U');
+        $conversionFactor = $this->extractPdfNumberToken($dictionary, 'C');
+        $fractionalDisplay = $this->extractPdfStringOrNameValue($dictionary, 'F');
+        if ($unit === null && $conversionFactor === null && $fractionalDisplay === null) {
+            return null;
+        }
+
+        return [
+            'unit' => $unit,
+            'conversionFactor' => $conversionFactor,
+            'fractionalDisplay' => $fractionalDisplay,
+        ];
     }
 
     /**

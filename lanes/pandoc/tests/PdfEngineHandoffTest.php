@@ -1134,6 +1134,123 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageTimings']);
     },
 
+    'fake runner extracts bounded pdf page viewport measure metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/viewports.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /VP [8 0 R << /Type /Viewport /Name (Inset crop) /BBox [72 72 288 216] /Measure << /Type /Measure /Subtype /RL /R (1 cm = 10 m) /X [<< /Type /NumberFormat /U (cm) /C 0.01 /F /D >>] /D [<< /U (m) /C 1 >>] /A [<< /U (sq m) /C 1 >>] /T [<< /U (deg) /C 1 /F /D >>] >> >>] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /VP 9 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Viewport /Name (Reviewer map) /BBox [0 0 612 792] /Measure 10 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Viewport /Name <FEFF005300690074006500200070006C0061006E> /BBox [10 20 300 400] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Measure /Subtype /RL /R (1 in = 25 ft) /X [<< /Type /NumberFormat /U (in) /C 1 /F /D >> << /Type /NumberFormat /U (ft) /C 25 /F /F >>] /Y [<< /U (in) /C 1 >>] /D [<< /U (ft) /C 25 >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/viewports.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/viewports.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'viewportObject' => '8 0 R',
+                'source' => 'page:3 0 R.VP[0]',
+                'name' => 'Reviewer map',
+                'bbox' => [0.0, 0.0, 612.0, 792.0],
+                'measureSubtype' => 'RL',
+                'scaleRatio' => '1 in = 25 ft',
+                'xUnits' => [
+                    ['unit' => 'in', 'conversionFactor' => 1.0, 'fractionalDisplay' => 'D'],
+                    ['unit' => 'ft', 'conversionFactor' => 25.0, 'fractionalDisplay' => 'F'],
+                ],
+                'yUnits' => [
+                    ['unit' => 'in', 'conversionFactor' => 1.0, 'fractionalDisplay' => null],
+                ],
+                'distanceUnits' => [
+                    ['unit' => 'ft', 'conversionFactor' => 25.0, 'fractionalDisplay' => null],
+                ],
+                'areaUnits' => [],
+                'angleUnits' => [],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'viewportObject' => null,
+                'source' => 'page:3 0 R.VP[1]',
+                'name' => 'Inset crop',
+                'bbox' => [72.0, 72.0, 288.0, 216.0],
+                'measureSubtype' => 'RL',
+                'scaleRatio' => '1 cm = 10 m',
+                'xUnits' => [
+                    ['unit' => 'cm', 'conversionFactor' => 0.01, 'fractionalDisplay' => 'D'],
+                ],
+                'yUnits' => [],
+                'distanceUnits' => [
+                    ['unit' => 'm', 'conversionFactor' => 1.0, 'fractionalDisplay' => null],
+                ],
+                'areaUnits' => [
+                    ['unit' => 'sq m', 'conversionFactor' => 1.0, 'fractionalDisplay' => null],
+                ],
+                'angleUnits' => [
+                    ['unit' => 'deg', 'conversionFactor' => 1.0, 'fractionalDisplay' => 'D'],
+                ],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'viewportObject' => '9 0 R',
+                'source' => 'page:4 0 R.VP',
+                'name' => 'Site plan',
+                'bbox' => [10.0, 20.0, 300.0, 400.0],
+                'measureSubtype' => null,
+                'scaleRatio' => null,
+                'xUnits' => [],
+                'yUnits' => [],
+                'distanceUnits' => [],
+                'areaUnits' => [],
+                'angleUnits' => [],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageViewports'] ?? null);
+        $t->contains('pdf-byte-page-viewports:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-viewport-measures:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-viewport-unit-formats:8', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageViewports'] ?? null);
+    },
+
     'fake runner extracts bounded pdf font resources and embedded font streams from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/fonts.pdf']);
