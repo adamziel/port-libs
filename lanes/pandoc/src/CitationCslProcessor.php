@@ -4638,6 +4638,15 @@ final class CitationCslProcessor
             }
         }
 
+        $isCircaDateVariables = $branch['isCircaDate'] ?? [];
+        if (is_array($isCircaDateVariables)) {
+            foreach ($isCircaDateVariables as $variable) {
+                if (is_scalar($variable)) {
+                    $conditions[] = $this->renderingVariableIsCircaDate($item, (string) $variable);
+                }
+            }
+        }
+
         if ($conditions === []) {
             return false;
         }
@@ -4746,6 +4755,16 @@ final class CitationCslProcessor
         $date = $this->dateVariableForRendering($item, $variable);
 
         return is_array($date) && (($date['uncertain'] ?? false) === true || ($date['circa'] ?? false) === true);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderingVariableIsCircaDate(array $item, string $variable): bool
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+
+        return is_array($date) && ($date['circa'] ?? false) === true;
     }
 
     /**

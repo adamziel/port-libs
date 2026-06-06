@@ -1420,7 +1420,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1479,7 +1479,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1509,6 +1509,7 @@ final class CslStyle
         }
         $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
         $isUncertainDate = self::spaceSeparatedAttribute($branch, 'is-uncertain-date');
+        $isCircaDate = self::spaceSeparatedAttribute($branch, 'is-circa-date');
         foreach ($locators as $locator) {
             if (!in_array($locator, self::supportedLocatorConditions(), true)) {
                 throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch locator is not supported: ' . $locator);
@@ -1520,8 +1521,8 @@ final class CslStyle
             }
         }
 
-        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isNumeric === [] && $isUncertainDate === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-numeric, or is-uncertain-date');
+        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isNumeric === [] && $isUncertainDate === [] && $isCircaDate === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-numeric, is-uncertain-date, or is-circa-date');
         }
 
         return [
@@ -1533,6 +1534,7 @@ final class CslStyle
             'disambiguate' => $disambiguate,
             'isNumeric' => $isNumeric,
             'isUncertainDate' => $isUncertainDate,
+            'isCircaDate' => $isCircaDate,
             'children' => self::renderingElements($branch, $scope),
         ];
     }
