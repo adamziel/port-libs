@@ -371,6 +371,18 @@ $fontWidthHugeFiniteFontSizeBoundaryCurrentBasePdf = static function (): string 
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F] >>\nendobj\n%%EOF";
 };
 
+$fontWidthNegativeFontSizeBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fnegfs 10 Tf 1 0 0 1 72 720 Tm <4142> Tj '
+        . '/Fnegfs -12 Tf <4344> Tj '
+        . '1 0 0 1 116 720 Tm <4546> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fnegfs 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+NegativeFontSizeAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 70 /Widths [1000 1000 1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F] >>\nendobj\n%%EOF";
+};
+
 $fontWidthNegativeWidthMetricBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Fnegw 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj ET';
 
@@ -1556,6 +1568,29 @@ return [
         $t->true(!str_contains($plainText, 'ABCDEF'));
         $t->true(!str_contains($plainText, 'HugeFiniteFontSizeAdvance'));
         $t->true(!str_contains($plainText, 'Fhugefs'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'normalizes negative Tf font-size magnitudes before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthNegativeFontSizeBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthNegativeFontSizeBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABCDEF'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'EF'], $extractor->extractTextRuns($pdf));
+        $t->same('ABCDEF', $plainText);
+        $t->same("ABCDEF\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD', 'EF'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 20.0, 10.0], [20.0, 0.0, 44.0, 12.0], [44.0, 0.0, 68.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 68.0, 12.0], $line['bbox'] ?? null);
+        $t->same([10.0, 12.0, 12.0], array_column($spans, 'font_size'));
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 20.0, 10.0], [20.0, 0.0, 40.0, 10.0], [44.0, 0.0, 64.0, 10.0]]);
+        $t->true(!str_contains($plainText, 'ABCD EF'));
+        $t->true(!str_contains($plainText, 'NegativeFontSizeAdvance'));
+        $t->true(!str_contains($plainText, 'Fnegfs'));
+        $t->true(!str_contains($plainText, '-12'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'ignores non-finite TJ adjustment operands before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthNonFiniteTjAdjustmentBoundaryCurrentBasePdf): void {
