@@ -1456,6 +1456,12 @@ final class MathTexConverter
             return $this->parseStyleCommand($source, $offset, $command);
         }
 
+        if ($command === 'boxed') {
+            return '<menclose notation="box">'
+                . $this->parseRequiredNonEmptyGroup($source, $offset, 'boxed content')
+                . '</menclose>';
+        }
+
         if ($command === 'color' || $command === 'textcolor') {
             return $this->parseColorCommand($source, $offset, $command);
         }

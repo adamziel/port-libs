@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 13:21:12 UTC",
-    "sourceCommit": "a78533cd0e5e243160ea53f34b603564e80f9753",
-    "sourceCommitShort": "a78533cd0e5e",
+    "generated": "2026-06-06 13:21:22 UTC",
+    "sourceCommit": "19d8adc4e1312fb67f0aeb248967cd38582ec825",
+    "sourceCommitShort": "19d8adc4e131",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a78533cd0e5e243160ea53f34b603564e80f9753",
-    "dashboardCommitShort": "a78533cd0e5e",
+    "dashboardCommit": "19d8adc4e1312fb67f0aeb248967cd38582ec825",
+    "dashboardCommitShort": "19d8adc4e131",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1747",
-            "coverage": "1,747 / 2,276 (76.8%)",
+            "mapped": "1748",
+            "coverage": "1,748 / 2,276 (76.8%)",
             "mapPercent": "76.8%",
-            "unmapped": "529",
-            "php": "1,333 pass / 0 fail",
-            "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC Legacy DOC/CFB inline picture placeholder policy slice...",
+            "unmapped": "528",
+            "php": "1,334 pass / 0 fail",
+            "phase": "pandoc math/TeX current-base boxed menclose handoff complete on accep...",
+            "audit": "2026-06-06 UTC Math/TeX boxed handoff slice on accepted base d7dd35e1...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Legacy DOC/CFB follow-up: implement a bounded native picture-...",
-            "remainingGate": "No local blocker",
-            "commit": "pending-pandoc-..."
+            "nextTarget": "Next Math/TeX work should stay native and bounded: choose a n...",
+            "remainingGate": "No new support component is needed for this Math/TeX slice.",
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

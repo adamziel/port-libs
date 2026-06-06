@@ -858,6 +858,18 @@ return [
         $t->contains('<menclose notation="downdiagonalstrike"><msub><mi>y</mi><mi>i</mi></msub></menclose>', $cancelMathml);
         $t->contains('<menclose notation="updiagonalstrike downdiagonalstrike"><msub><mi>z</mi><mi>i</mi></msub></menclose>', $cancelMathml);
     },
+    'converts bounded tex boxed expressions to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $boxedMathml = $converter->texToMathMl('\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\boxed{x_i}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $boxedMathml);
+        $t->contains('<menclose notation="box"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></menclose>', $boxedMathml);
+        $t->contains('<msub><menclose notation="box"><mfrac><mi>a</mi><mi>b</mi></mfrac></menclose><mi>j</mi></msub>', $boxedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\boxed{p_i + m_i} + \\boxed{\\frac{a}{b}}_j</annotation>', $boxedMathml);
+        $t->contains('alttext="enclosed x sub i"', $accessibleMathml);
+        $t->contains('intent="enclose(subscript(x,i))"', $accessibleMathml);
+    },
     'converts bounded tex smash and overlap boxes to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $smashMathml = $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i}', true);
@@ -1071,6 +1083,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xleftarrow[]{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overrightarrow'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underrightarrow_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\boxed'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\boxed{}'));
     },
     'renders latex writer math and raw tex without dropping source content' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
