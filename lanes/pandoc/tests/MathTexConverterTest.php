@@ -34,6 +34,23 @@ return [
         $t->contains('<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mi>k</mi></mroot>', $docxRootMathml);
         $t->contains('<annotation encoding="application/x-tex">\\sqrt[k]{x_i + y_i}</annotation>', $docxRootMathml);
     },
+    'converts bounded texmath command aliases and wrappers to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $stackrelMathml = $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\stackrel\\alpha\\beta', true);
+        $ensureMathml = $converter->texToMathMl('\\ensuremath{p_i + m_i} + q');
+        $surdMathml = $converter->texToMathMl('\\surd x + \\surd{p_i + m_i}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\stackrel{\\text{audit}}{p_i} + \\surd{x}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $stackrelMathml);
+        $t->contains('<mover><msub><mi>p</mi><mi>i</mi></msub><mtext>audit</mtext></mover><mo>+</mo><mover><mi>β</mi><mi>α</mi></mover>', $stackrelMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\stackrel{\\text{audit}}{p_i} + \\stackrel\\alpha\\beta</annotation>', $stackrelMathml);
+        $t->contains('<mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>+</mo><mi>q</mi>', $ensureMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\ensuremath{p_i + m_i} + q</annotation>', $ensureMathml);
+        $t->contains('<msqrt><mi>x</mi></msqrt><mo>+</mo><msqrt><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></msqrt>', $surdMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\surd x + \\surd{p_i + m_i}</annotation>', $surdMathml);
+        $t->contains('alttext="p sub i over audit plus square root of x"', $accessibleMathml);
+        $t->contains('intent="row(over(subscript(p,i),audit),plus,sqrt(x))"', $accessibleMathml);
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);
@@ -1088,6 +1105,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[]{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[3{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\surd'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\surd{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\surd_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\binom{n}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\binom{}{k}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tbinom{n}{}'));
@@ -1121,6 +1141,11 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a & b}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a \\\\ }'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\ensuremath'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\ensuremath{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{x}_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\middle|'));

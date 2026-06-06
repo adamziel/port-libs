@@ -77,6 +77,8 @@ Multline audit $\begin{multline}p_i + m_i \\[.5em] = a_i + b_i \\ + \frac{x}{y}\
 
 Compact environment audit $\left(\begin{smallmatrix}p_1 & m_1 \\ p_2 & m_2\end{smallmatrix}\right) + \sum_{\begin{subarray}{c}i=1 \\ i\ne j\end{subarray}}^{n} a_i$ stays semantic.
 
+Texmath command wrapper audit $\stackrel{\text{audit}}{p_i} + \ensuremath{q_i + r_i} + \surd{s_i}$ stays semantic.
+
 Equation wrapper audit:
 $$\begin{equation}r_i + s_i \label{eq:wrapped-env} \tag{WP-3}\end{equation}$$
 
@@ -180,6 +182,7 @@ $summary = [
     'eqnarrayMathml' => $converter->texToMathMl('\\begin{eqnarray}p_i &=& m_i \\\\ x_i &=& y_i \\tag{WP-E}\\end{eqnarray}', true),
     'multlineMathml' => $converter->texToMathMl('\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)'),
     'compactEnvironmentMathml' => $converter->texToMathMl('\\left(\\begin{smallmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i'),
+    'texmathCommandWrapperMathml' => $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}'),
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
     'starredEquationWrapperMathml' => $converter->texToMathMl('\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}', false, [], $equationReferenceLabels),
     'rowTaggedEnvironmentMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true),
@@ -255,6 +258,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}\\)</span>',
         '<span class="math inline">\\(\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)\\)</span>',
         '<span class="math inline">\\(\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i\\)</span>',
+        '<span class="math inline">\\(\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}\\)</span>',
         '<span class="math display">\\[\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}\\]</span>',
         '<span class="math inline">\\(\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}\\)</span>',
         '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}\\)</span>',
@@ -422,6 +426,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)</annotation>',
         '<annotation encoding="application/x-tex">\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i</annotation>',
+        '<mover><msub><mi>p</mi><mi>i</mi></msub><mtext>audit</mtext></mover><mo>+</mo><mrow><msub><mi>q</mi><mi>i</mi></msub><mo>+</mo><msub><mi>r</mi><mi>i</mi></msub></mrow><mo>+</mo><msqrt><msub><mi>s</mi><mi>i</mi></msub></msqrt>',
+        '<annotation encoding="application/x-tex">\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}</annotation>',
         '<annotation encoding="application/x-tex">p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\&gt;z</annotation>',
         '<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>',

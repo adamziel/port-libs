@@ -1424,6 +1424,12 @@ final class MathTexConverter
             return '<msqrt>' . $radicand . '</msqrt>';
         }
 
+        if ($command === 'surd') {
+            return '<msqrt>'
+                . $this->parseRequiredAtomOrGroup($source, $offset, 'surd radicand')
+                . '</msqrt>';
+        }
+
         if ($command === 'binom') {
             return $this->parseBinomialCommand($source, $offset, null);
         }
@@ -1468,6 +1474,17 @@ final class MathTexConverter
 
         if ($command === 'substack') {
             return $this->parseSubstackCommand($source, $offset);
+        }
+
+        if ($command === 'ensuremath') {
+            return $this->parseRequiredNonEmptyGroup($source, $offset, 'ensuremath');
+        }
+
+        if ($command === 'stackrel') {
+            $above = $this->parseRequiredAtomOrGroup($source, $offset, 'stackrel above');
+            $base = $this->parseRequiredAtomOrGroup($source, $offset, 'stackrel base');
+
+            return '<mover>' . $base . $above . '</mover>';
         }
 
         if ($command === 'overset') {
@@ -4133,6 +4150,21 @@ final class MathTexConverter
         }
 
         return $this->parseScriptArgument($source, $offset);
+    }
+
+    private function parseRequiredAtomOrGroup(string $source, int &$offset, string $label): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' content at offset ' . $offset);
+        }
+
+        if ($char === '{') {
+            return $this->parseRequiredNonEmptyGroup($source, $offset, $label);
+        }
+
+        return $this->parseAtom($source, $offset);
     }
 
     private function parseRequiredGroup(string $source, int &$offset): string
