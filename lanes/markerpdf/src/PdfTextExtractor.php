@@ -11597,18 +11597,21 @@ final class PdfTextExtractor
         $entries = [];
         $items = $this->pdfArrayItems($arrayBody);
         $itemCount = count($items);
-        $lastAcceptedPageIndex = null;
+        $lastSeenPageIndex = null;
         for ($index = 0; $index + 1 < $itemCount; $index += 2) {
             $pageIndex = $this->pageLabelPageIndexOperand($items[$index], $objects);
             if ($pageIndex === null) {
                 continue;
             }
 
-            if ($lastAcceptedPageIndex !== null && $pageIndex <= $lastAcceptedPageIndex) {
+            if ($lastSeenPageIndex !== null && $pageIndex < $lastSeenPageIndex) {
                 continue;
             }
 
-            $lastAcceptedPageIndex = $pageIndex;
+            if ($lastSeenPageIndex === null || $pageIndex > $lastSeenPageIndex) {
+                $lastSeenPageIndex = $pageIndex;
+            }
+
             $labelValue = $items[$index + 1];
             if ($this->pageLabelNullValue($labelValue, $objects)) {
                 if (

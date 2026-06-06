@@ -1797,7 +1797,7 @@ final class MarkerAppPreview
         $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($nums, $objects, $seen));
         $sections = [];
         $seenPageIndexes = [];
-        $lastAcceptedPageIndex = null;
+        $lastSeenPageIndex = null;
         $count = count($elements);
         for ($index = 0; $index + 1 < $count; $index += 2) {
             $pageIndexValue = $this->pageLabelIndexOperand($elements[$index], $objects, $seen);
@@ -1805,11 +1805,14 @@ final class MarkerAppPreview
                 continue;
             }
 
-            if ($lastAcceptedPageIndex !== null && $pageIndexValue <= $lastAcceptedPageIndex) {
+            if ($lastSeenPageIndex !== null && $pageIndexValue < $lastSeenPageIndex) {
                 continue;
             }
 
-            $lastAcceptedPageIndex = $pageIndexValue;
+            if ($lastSeenPageIndex === null || $pageIndexValue > $lastSeenPageIndex) {
+                $lastSeenPageIndex = $pageIndexValue;
+            }
+
             $sectionValue = $elements[$index + 1];
             if ($this->pageLabelNullValue($sectionValue, $objects, $seen)) {
                 if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
