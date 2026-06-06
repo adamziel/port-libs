@@ -1055,6 +1055,115 @@ MARKDOWN);
         $t->same([1 => 90, 2 => 270], $sequence['finalPdfPageRotations']);
     },
 
+    'fake runner extracts bounded pdf page production print metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/print-production.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /TrimBox [36 36 576 756] /BleedBox [9 9 603 783] /BoxColorInfo << /TrimBox << /C [1 0 0] /W 0.5 /S /D >> /BleedBox << /C [0 0.2 0.8] /W 1 /S /S >> >> /SeparationInfo 5 0 R /PresSteps << /S /NA /Next 8 0 R >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /BoxColorInfo 6 0 R /PresSteps 7 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Pages [3 0 R 4 0 R] /DeviceColorant /PANTONE#20123#20C /ColorSpace /DeviceCMYK >>',
+            'endobj',
+            '6 0 obj',
+            '<< /CropBox << /C [0 1 0] /W 0.25 /S /S >> /ArtBox << /C [0.1 0.2 0.3] /W 0.75 /S /D >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /S /Render /Next [8 0 R 9 0 R] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/print-production.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/print-production.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'boxColorInfoObject' => 'inline',
+                'boxColorInfo' => [
+                    [
+                        'box' => 'BleedBox',
+                        'color' => [0.0, 0.2, 0.8],
+                        'width' => 1.0,
+                        'style' => 'S',
+                    ],
+                    [
+                        'box' => 'TrimBox',
+                        'color' => [1.0, 0.0, 0.0],
+                        'width' => 0.5,
+                        'style' => 'D',
+                    ],
+                ],
+                'separationInfoObject' => '5 0 R',
+                'separationPages' => ['3 0 R', '4 0 R'],
+                'separationDeviceColorant' => 'PANTONE 123 C',
+                'separationColorSpace' => 'DeviceCMYK',
+                'presStepsObject' => 'inline',
+                'presStepsSubtype' => 'NA',
+                'presStepsNext' => ['8 0 R'],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'boxColorInfoObject' => '6 0 R',
+                'boxColorInfo' => [
+                    [
+                        'box' => 'ArtBox',
+                        'color' => [0.1, 0.2, 0.3],
+                        'width' => 0.75,
+                        'style' => 'D',
+                    ],
+                    [
+                        'box' => 'CropBox',
+                        'color' => [0.0, 1.0, 0.0],
+                        'width' => 0.25,
+                        'style' => 'S',
+                    ],
+                ],
+                'separationInfoObject' => null,
+                'separationPages' => [],
+                'separationDeviceColorant' => null,
+                'separationColorSpace' => null,
+                'presStepsObject' => '7 0 R',
+                'presStepsSubtype' => 'Render',
+                'presStepsNext' => ['8 0 R', '9 0 R'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageProductionMetadata'] ?? null);
+        $t->contains('pdf-byte-page-production-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-box-color-info:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-separation-info:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-presentation-steps:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageProductionMetadata'] ?? null);
+    },
+
     'fake runner extracts bounded pdf page display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/display.pdf']);

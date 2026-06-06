@@ -269,6 +269,7 @@ final class PdfEngineHandoff
      *     pdfPageCount: int|null,
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
+     *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
@@ -689,6 +690,7 @@ final class PdfEngineHandoff
         $pdfPageCount = null;
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
+        $pdfPageProductionMetadata = [];
         $pdfPageDisplayMetadata = [];
         $pdfPageLabels = [];
         $pdfPageTimings = [];
@@ -767,6 +769,7 @@ final class PdfEngineHandoff
                 $pdfPageCount = $pdfInspection['pageCount'];
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
+                $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
@@ -846,6 +849,32 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageRotations !== []) {
                     $diagnostics[] = 'pdf-byte-page-rotations:' . count($pdfPageRotations);
+                }
+                if ($pdfPageProductionMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-page-production-metadata:' . count($pdfPageProductionMetadata);
+                    $boxColorInfoCount = 0;
+                    $separationInfoCount = 0;
+                    $presentationStepsCount = 0;
+                    foreach ($pdfPageProductionMetadata as $productionMetadata) {
+                        if (isset($productionMetadata['boxColorInfo']) && is_array($productionMetadata['boxColorInfo'])) {
+                            $boxColorInfoCount += count($productionMetadata['boxColorInfo']);
+                        }
+                        if (($productionMetadata['separationInfoObject'] ?? null) !== null) {
+                            $separationInfoCount++;
+                        }
+                        if (($productionMetadata['presStepsObject'] ?? null) !== null) {
+                            $presentationStepsCount++;
+                        }
+                    }
+                    if ($boxColorInfoCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-box-color-info:' . $boxColorInfoCount;
+                    }
+                    if ($separationInfoCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-separation-info:' . $separationInfoCount;
+                    }
+                    if ($presentationStepsCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-presentation-steps:' . $presentationStepsCount;
+                    }
                 }
                 if ($pdfPageDisplayMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-page-display-metadata:' . count($pdfPageDisplayMetadata);
@@ -1780,6 +1809,7 @@ final class PdfEngineHandoff
             'pdfPageCount' => $pdfPageCount,
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
+            'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageTimings' => $pdfPageTimings,
@@ -1871,6 +1901,7 @@ final class PdfEngineHandoff
      *     finalPdfPageCount: int|null,
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
+     *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
@@ -2084,6 +2115,7 @@ final class PdfEngineHandoff
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
+            'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
@@ -3262,6 +3294,7 @@ final class PdfEngineHandoff
         $xrefStreams = $this->extractPdfXrefStreams($pdfBytes);
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
+        $pageProductionMetadata = $this->extractPdfPageProductionMetadata($pdfBytes, $catalog);
         $pageDisplayMetadata = $this->extractPdfPageDisplayMetadata($pdfBytes, $catalog);
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
         $pageViewports = $this->extractPdfPageViewports($pdfBytes, $catalog);
@@ -3298,6 +3331,7 @@ final class PdfEngineHandoff
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
+            'pageProductionMetadata' => $pageProductionMetadata,
             'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
@@ -8288,6 +8322,190 @@ final class PdfEngineHandoff
         }
 
         return $rotations;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>
+     */
+    private function extractPdfPageProductionMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $metadata = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageProductionMetadataFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $metadata,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($metadata === []) {
+            uksort($objects, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a . ' R') <=> $this->pdfReferenceSortKey($b . ' R'));
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $summary = $this->summarizePdfPageProductionMetadata($body, $reference, $objects, $pageNumber);
+                if ($this->pdfPageProductionMetadataHasValues($summary)) {
+                    $metadata[] = $summary;
+                }
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}> $metadata
+     */
+    private function collectPdfPageProductionMetadataFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$metadata,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $summary = $this->summarizePdfPageProductionMetadata($body, $reference, $objects, $pageNumber);
+            if ($this->pdfPageProductionMetadataHasValues($summary)) {
+                $metadata[] = $summary;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageProductionMetadataFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $metadata,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}
+     */
+    private function summarizePdfPageProductionMetadata(string $dictionary, string $reference, array $objects, int $pageNumber): array
+    {
+        $boxColorInfo = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($dictionary, 'BoxColorInfo'), $objects);
+        $separationInfo = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($dictionary, 'SeparationInfo'), $objects);
+        $presSteps = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($dictionary, 'PresSteps'), $objects);
+        $separationDictionary = $separationInfo['dictionary'];
+        $presStepsDictionary = $presSteps['dictionary'];
+
+        return [
+            'page' => $pageNumber,
+            'pageObject' => $reference . ' R',
+            'boxColorInfoObject' => $boxColorInfo['object'],
+            'boxColorInfo' => $boxColorInfo['dictionary'] === null
+                ? []
+                : $this->extractPdfBoxColorInfoEntries($boxColorInfo['dictionary'], $objects),
+            'separationInfoObject' => $separationInfo['object'],
+            'separationPages' => $separationDictionary === null
+                ? []
+                : $this->collectPdfReferencesFromValue($this->extractPdfValueForName($separationDictionary, 'Pages'), $objects),
+            'separationDeviceColorant' => $separationDictionary === null
+                ? null
+                : $this->extractPdfStringOrNameValue($separationDictionary, 'DeviceColorant'),
+            'separationColorSpace' => $separationDictionary === null
+                ? null
+                : $this->extractPdfColorSpaceNameValue($separationDictionary, 'ColorSpace', $objects),
+            'presStepsObject' => $presSteps['object'],
+            'presStepsSubtype' => $presStepsDictionary === null ? null : $this->extractPdfNameToken($presStepsDictionary, 'S'),
+            'presStepsNext' => $presStepsDictionary === null
+                ? []
+                : $this->collectPdfReferencesFromValue($this->extractPdfValueForName($presStepsDictionary, 'Next'), $objects),
+        ];
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @return array{dictionary:string|null, object:string|null}
+     */
+    private function resolvePdfDictionaryValue(?array $value, array $objects): array
+    {
+        if ($value === null) {
+            return ['dictionary' => null, 'object' => null];
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return ['dictionary' => $value['value'], 'object' => 'inline'];
+        }
+
+        if ($value['kind'] === 'reference') {
+            return [
+                'dictionary' => $objects[$this->pdfReferenceKey($value['value'])] ?? null,
+                'object' => $value['value'],
+            ];
+        }
+
+        return ['dictionary' => null, 'object' => null];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>
+     */
+    private function extractPdfBoxColorInfoEntries(string $dictionary, array $objects): array
+    {
+        $entries = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            if ($entry['key'] === 'Type') {
+                continue;
+            }
+
+            $boxInfo = $this->resolvePdfDictionaryValue($entry['value'], $objects);
+            if ($boxInfo['dictionary'] === null) {
+                continue;
+            }
+
+            $entries[] = [
+                'box' => $entry['key'],
+                'color' => $this->extractPdfNumberArrayValues($boxInfo['dictionary'], 'C'),
+                'width' => $this->extractPdfNumberToken($boxInfo['dictionary'], 'W'),
+                'style' => $this->extractPdfNameToken($boxInfo['dictionary'], 'S'),
+            ];
+        }
+
+        usort($entries, static fn (array $a, array $b): int => strcmp($a['box'], $b['box']));
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function pdfPageProductionMetadataHasValues(array $metadata): bool
+    {
+        return ($metadata['boxColorInfo'] ?? []) !== []
+            || ($metadata['separationInfoObject'] ?? null) !== null
+            || ($metadata['presStepsObject'] ?? null) !== null;
     }
 
     /**
