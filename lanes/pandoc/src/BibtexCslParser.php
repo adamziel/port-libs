@@ -644,6 +644,7 @@ final class BibtexCslParser
             'original-publisher' => self::literalListDisplay($originalPublisherList),
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),
             'original-language' => self::firstField($fields, ['origlanguage']),
+            'reprint-title' => self::firstField($fields, ['reprinttitle', 'reprint-title']),
             'rawBibtex' => [
                 'type' => $type,
                 'key' => $key,

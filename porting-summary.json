@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 08:24:10 UTC",
-    "sourceCommit": "35aa729dcd980a849ecfe8cf124c4f3b8e9ef712",
-    "sourceCommitShort": "35aa729dcd98",
+    "generated": "2026-06-06 08:24:17 UTC",
+    "sourceCommit": "54a89c63695063e4b706f0b4c24d45204a3b5947",
+    "sourceCommitShort": "54a89c636950",
     "sourceBranch": "unknown",
-    "dashboardCommit": "35aa729dcd980a849ecfe8cf124c4f3b8e9ef712",
-    "dashboardCommitShort": "35aa729dcd98",
+    "dashboardCommit": "54a89c63695063e4b706f0b4c24d45204a3b5947",
+    "dashboardCommitShort": "54a89c636950",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1694",
-            "coverage": "1,694 / 2,276 (74.4%)",
-            "mapPercent": "74.4%",
-            "unmapped": "582",
-            "php": "1,250 pass / 0 fail",
+            "mapped": "1695",
+            "coverage": "1,695 / 2,276 (74.5%)",
+            "mapPercent": "74.5%",
+            "unmapped": "581",
+            "php": "1,251 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-06 UTC table geometry header-abbreviation slice on accepted b...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For table geometry follow-up, keep full upstream table reader...",
+            "nextTarget": "For BibTeX/CSL follow-up, keep broader BibLaTeX related-entry...",
             "remainingGate": "No local blocker",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

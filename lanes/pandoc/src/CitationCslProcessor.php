@@ -691,6 +691,7 @@ final class CitationCslProcessor
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::stringField($item, 'title-addon'),
             'reviewedTitle' => self::firstStringField($item, ['reviewed-title', 'reviewedTitle', 'reviewtitle']),
+            'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
             'containerTitle' => self::stringField($item, 'container-title'),
             'containerTitleShort' => $containerTitleShort,
             'journalAbbreviation' => $containerTitleShort,
@@ -3614,6 +3615,7 @@ final class CitationCslProcessor
         $parts = [];
         foreach ([
             ['reviewedTitle', 'Reviewed title'],
+            ['reprintTitle', 'Reprint title'],
             ['references', 'References'],
             ['dimensions', 'Dimensions'],
             ['scale', 'Scale'],
@@ -4905,6 +4907,7 @@ final class CitationCslProcessor
             'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
+            'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'container-title' => (string) $item['containerTitle'],
             'container-title-short' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation' => (string) $item['journalAbbreviation'],

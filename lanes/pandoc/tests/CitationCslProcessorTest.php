@@ -8391,6 +8391,74 @@ XML);
         $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Direct Review Packet. 2025. Reviewed title: Source Atlas. References: Archive ref 42. Dimensions: A4. Scale: 1:2500.</dd>', $blocks);
     },
+    'maps bounded biblatex reprint title metadata into csl review packets' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{reprint-manual,
+  author        = {Smith, Ada},
+  title         = {Migration Manual},
+  date          = {2026},
+  publisher     = {Review Press},
+  origtitle     = {Manual de Migraci{\'o}n},
+  origdate      = {1998},
+  origpublisher = {Archive Desk},
+  origlocation  = {London},
+  reprinttitle  = {Facsimile Source Packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Facsimile Source Packet', $items[0]['reprint-title'] ?? null);
+        $t->same('reprinttitle', array_key_exists('reprinttitle', $items[0]['rawBibtex']['fields'] ?? []) ? 'reprinttitle' : null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('reprint-manual');
+        $t->same('Facsimile Source Packet', $item['reprintTitle'] ?? null);
+        $t->same('Manual de Migración', $item['originalTitle'] ?? null);
+        $t->same('1998', $item['originalDate']['display'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('reprint-manual', '[@reprint-manual]')]));
+        $t->same(
+            'Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.',
+            $processor->renderBibliographyEntry('reprint-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title"/>
+        <text variable="reprint-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reprint-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | Migration Manual | Facsimile Source Packet]', $styled->renderCitationCluster([$citation('reprint-manual', '[@reprint-manual]')]));
+        $t->same('Migration Manual :: Facsimile Source Packet', $styled->renderBibliographyEntry('reprint-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-reprint',
+            'title' => 'Manual Reprint Packet',
+            'reprint-title' => 'Direct Facsimile Title',
+        ]]);
+        $directItem = $direct->item('manual-reprint');
+        $t->same('Direct Facsimile Title', $directItem['reprintTitle'] ?? null);
+        $t->same('Manual Reprint Packet. Reprint title: Direct Facsimile Title.', $direct->renderBibliographyEntry('manual-reprint'));
+
+        $document = (new MarkdownReader())->read('Reprint source @reprint-manual preserves facsimile title metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Reprint source Smith (2026) preserves facsimile title metadata.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
