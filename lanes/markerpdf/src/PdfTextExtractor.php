@@ -13657,7 +13657,16 @@ final class PdfTextExtractor
         if ($decodeParms !== null && $this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
             $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
             if ($endOfBlock === false) {
-                return $this->ccittFaxEndOfLineMarkersForOwnership($decodeParms, $objects, $imageHeight);
+                $rowMarkers = $this->ccittFaxEndOfLineMarkersForOwnership($decodeParms, $objects, $imageHeight);
+                if ($rowMarkers !== []) {
+                    return $rowMarkers;
+                }
+
+                if ($this->ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback($decodeParms, $objects)) {
+                    return $this->ccittFaxEndOfBlockMarkers($decodeParms, $objects);
+                }
+
+                return [];
             }
         }
 
@@ -13667,6 +13676,44 @@ final class PdfTextExtractor
 
         $eolPair = "\x00\x10\x01";
         return [$eolPair, $eolPair . $eolPair . $eolPair];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return false;
+        }
+
+        if (!$this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            return false;
+        }
+
+        if ($this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects) !== false) {
+            return false;
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'K') && $this->decodeParmsInt($decodeParms, 'K', $objects) === null) {
+            return true;
+        }
+
+        if (
+            $this->decodeParmsHasName($decodeParms, 'EndOfLine')
+            && $this->decodeParmsBool($decodeParms, 'EndOfLine', $objects) === null
+        ) {
+            return true;
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
+            $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
+            if ($rows === null || $rows <= 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

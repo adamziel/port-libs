@@ -567,6 +567,57 @@ return [
         $t->true(!str_contains($encodedReview, 'Fake invalid owner CCITT leak'));
         $t->true(!str_contains($encodedReview, $faxPayload));
     },
+    'keeps malformed non-terminal CCITT Fax DecodeParms stream owners closed before nested fake objects' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before nonterminal invalid owner CCITT) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After nonterminal invalid owner CCITT) Tj ET';
+        $fakeObjectText = 'BT /F1 12 Tf 72 700 Td (Fake nonterminal invalid owner CCITT leak) Tj ET';
+        $eofb = "\x00\x10\x01";
+        $rtc = $eofb . $eofb . $eofb;
+        $faxPayload = "\x01\x02\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObjectText) . " >>\nstream\n{$fakeObjectText}\nendstream\nendobj\n"
+            . "\x03{$rtc}";
+        $staleLength = strpos($faxPayload, "\nendstream\n");
+        if ($staleLength === false) {
+            throw new RuntimeException('Focused non-terminal malformed CCITT owner fixture must expose a stale endstream marker.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxInvalidNonTerminal 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 16 /Rows 1 /EndOfLine /Maybe /EndOfBlock false >> /Length {$staleLength} >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+        $decodeParms = $entry['filter_details'][0]['decode_parms'] ?? [];
+        $boundary = $entry['ccitt_fax_decode_boundary'] ?? [];
+
+        $t->same(['Before nonterminal invalid owner CCITT', 'After nonterminal invalid owner CCITT'], $extractor->extractTextLines($pdf));
+        $t->same("Before nonterminal invalid owner CCITT\nAfter nonterminal invalid owner CCITT", $plainText);
+        $t->true(!str_contains($plainText, 'Fake nonterminal invalid owner CCITT leak'));
+        $t->same(['CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(strlen($faxPayload), $entry['raw_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $decodeParms['valid_decode_parms'] ?? null);
+        $t->same('invalid_ccitt_decodeparms_fail_closed', $decodeParms['decode_parms_review'] ?? null);
+        $t->same(['end_of_line'], $decodeParms['invalid_decode_parms_fields'] ?? null);
+        $t->same(false, $decodeParms['end_of_block'] ?? null);
+        $t->same(null, $decodeParms['end_of_line'] ?? null);
+        $t->same(true, $boundary['invalid_decode_parms'] ?? null);
+        $t->same(['end_of_line'], $boundary['invalid_decode_parms_fields'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, 'Fake nonterminal invalid owner CCITT leak'));
+        $t->true(!str_contains($encodedReview, $faxPayload));
+    },
     'marks inline CCITT Fax image filters review-only before WordPress image preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $payload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT fax payload noise) Tj ET final";

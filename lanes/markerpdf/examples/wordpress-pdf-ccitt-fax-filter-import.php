@@ -258,6 +258,32 @@ $invalidOwnerLines = $boundaryExtractor->extractTextLines($invalidOwnerPdf);
 $invalidOwnerReview = $boundaryExtractor->extractImageXObjectBoundaryReview($invalidOwnerPdf);
 $invalidOwnerEntry = $invalidOwnerReview['entries'][0] ?? [];
 $invalidOwnerParms = $invalidOwnerEntry['filter_details'][0]['decode_parms'] ?? [];
+$nonTerminalInvalidOwnerBefore = 'BT /F1 12 Tf 72 720 Td (Before nonterminal invalid-owner CCITT import) Tj ET';
+$nonTerminalInvalidOwnerAfter = 'BT /F1 12 Tf 72 680 Td (After nonterminal invalid-owner CCITT import) Tj ET';
+$nonTerminalInvalidOwnerFakeText = 'BT /F1 12 Tf 72 700 Td (WordPress nonterminal invalid-owner CCITT leak) Tj ET';
+$nonTerminalInvalidOwnerEofb = "\x00\x10\x01";
+$nonTerminalInvalidOwnerRtc = $nonTerminalInvalidOwnerEofb . $nonTerminalInvalidOwnerEofb . $nonTerminalInvalidOwnerEofb;
+$nonTerminalInvalidOwnerPayload = "\x01\x02\n"
+    . "endstream\nendobj\n"
+    . "9 0 obj\n<< /Length " . strlen($nonTerminalInvalidOwnerFakeText) . " >>\nstream\n{$nonTerminalInvalidOwnerFakeText}\nendstream\nendobj\n"
+    . "\x03{$nonTerminalInvalidOwnerRtc}";
+$nonTerminalInvalidOwnerStaleLength = strpos($nonTerminalInvalidOwnerPayload, "\nendstream\n");
+if ($nonTerminalInvalidOwnerStaleLength === false) {
+    throw new RuntimeException('Unable to build non-terminal malformed CCITT owner-boundary fixture.');
+}
+$nonTerminalInvalidOwnerPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxInvalidNonTerminal 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($nonTerminalInvalidOwnerBefore) . " >>\nstream\n{$nonTerminalInvalidOwnerBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 16 /Rows 1 /EndOfLine /Maybe /EndOfBlock false >> /Length {$nonTerminalInvalidOwnerStaleLength} >>\nstream\n{$nonTerminalInvalidOwnerPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($nonTerminalInvalidOwnerAfter) . " >>\nstream\n{$nonTerminalInvalidOwnerAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$nonTerminalInvalidOwnerLines = $boundaryExtractor->extractTextLines($nonTerminalInvalidOwnerPdf);
+$nonTerminalInvalidOwnerReview = $boundaryExtractor->extractImageXObjectBoundaryReview($nonTerminalInvalidOwnerPdf);
+$nonTerminalInvalidOwnerEntry = $nonTerminalInvalidOwnerReview['entries'][0] ?? [];
+$nonTerminalInvalidOwnerParms = $nonTerminalInvalidOwnerEntry['filter_details'][0]['decode_parms'] ?? [];
+$nonTerminalInvalidOwnerBoundary = $nonTerminalInvalidOwnerEntry['ccitt_fax_decode_boundary'] ?? [];
 $rowEolBefore = 'BT /F1 12 Tf 72 720 Td (Before row-EOL CCITT import) Tj ET';
 $rowEolAfter = 'BT /F1 12 Tf 72 680 Td (After row-EOL CCITT import) Tj ET';
 $rowEolFakeText = 'BT /F1 12 Tf 72 700 Td (WordPress row-EOL CCITT leak) Tj ET';
@@ -497,6 +523,19 @@ if (
     throw new RuntimeException('Malformed CCITT owner-boundary smoke failed.');
 }
 if (
+    $nonTerminalInvalidOwnerLines !== ['Before nonterminal invalid-owner CCITT import', 'After nonterminal invalid-owner CCITT import']
+    || str_contains($boundaryExtractor->extractPlainText($nonTerminalInvalidOwnerPdf), 'WordPress nonterminal invalid-owner CCITT leak')
+    || (($nonTerminalInvalidOwnerEntry['raw_length'] ?? null) !== strlen($nonTerminalInvalidOwnerPayload))
+    || (($nonTerminalInvalidOwnerParms['valid_decode_parms'] ?? null) !== false)
+    || (($nonTerminalInvalidOwnerParms['decode_parms_review'] ?? null) !== 'invalid_ccitt_decodeparms_fail_closed')
+    || !in_array('end_of_line', $nonTerminalInvalidOwnerParms['invalid_decode_parms_fields'] ?? [], true)
+    || (($nonTerminalInvalidOwnerBoundary['invalid_decode_parms'] ?? null) !== true)
+    || !in_array('end_of_line', $nonTerminalInvalidOwnerBoundary['invalid_decode_parms_fields'] ?? [], true)
+    || str_contains(json_encode($nonTerminalInvalidOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', $nonTerminalInvalidOwnerPayload)
+) {
+    throw new RuntimeException('Non-terminal malformed CCITT owner-boundary smoke failed.');
+}
+if (
     $rowEolLines !== ['Before row-EOL CCITT import', 'After row-EOL CCITT import']
     || str_contains($boundaryExtractor->extractPlainText($rowEolPdf), 'WordPress row-EOL CCITT leak')
     || (($rowEolEntry['raw_length'] ?? null) !== strlen($rowEolPayload))
@@ -641,6 +680,13 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'xobject_invalid_owner_raw_length' => $invalidOwnerEntry['raw_length'] ?? null,
     'xobject_invalid_owner_payload_excluded_from_review' => !str_contains(json_encode($invalidOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidOwnerPayload),
     'xobject_invalid_owner_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($invalidOwnerPdf), 'WordPress invalid-owner CCITT leak'),
+    'xobject_nonterminal_invalid_owner_decode_parms_valid' => $nonTerminalInvalidOwnerParms['valid_decode_parms'] ?? null,
+    'xobject_nonterminal_invalid_owner_decode_parms_review' => $nonTerminalInvalidOwnerParms['decode_parms_review'] ?? null,
+    'xobject_nonterminal_invalid_owner_invalid_fields' => $nonTerminalInvalidOwnerParms['invalid_decode_parms_fields'] ?? [],
+    'xobject_nonterminal_invalid_owner_boundary_repaired' => ($nonTerminalInvalidOwnerEntry['raw_length'] ?? null) === strlen($nonTerminalInvalidOwnerPayload),
+    'xobject_nonterminal_invalid_owner_raw_length' => $nonTerminalInvalidOwnerEntry['raw_length'] ?? null,
+    'xobject_nonterminal_invalid_owner_payload_excluded_from_review' => !str_contains(json_encode($nonTerminalInvalidOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', $nonTerminalInvalidOwnerPayload),
+    'xobject_nonterminal_invalid_owner_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($nonTerminalInvalidOwnerPdf), 'WordPress nonterminal invalid-owner CCITT leak'),
     'xobject_row_eol_no_endblock_boundary_repaired' => ($rowEolEntry['raw_length'] ?? null) === strlen($rowEolPayload),
     'xobject_row_eol_no_endblock_raw_length' => $rowEolEntry['raw_length'] ?? null,
     'xobject_row_eol_no_endblock_end_of_line' => $rowEolEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_line'] ?? null,
