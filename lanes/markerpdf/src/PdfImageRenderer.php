@@ -5035,6 +5035,9 @@ final class PdfImageRenderer
                     'filters_before_ccitt' => $filters,
                     'native_prefix_filters' => $nativePrefix,
                     'preview_only_filters_before_ccitt' => $previewOnly,
+                    ...($previewOnly !== [] ? [
+                        'pre_ccitt_preview_filters_block_native_prefix_decode' => true,
+                    ] : []),
                     'filters_after_ccitt' => $filtersAfterCcitt,
                     'native_filters_after_ccitt' => $nativeFiltersAfterCcitt,
                     'preview_only_filters_after_ccitt' => $previewOnlyFiltersAfterCcitt,
