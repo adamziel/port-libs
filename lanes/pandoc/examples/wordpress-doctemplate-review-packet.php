@@ -342,6 +342,89 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $filesystemRoot = sys_get_temp_dir() . '/pandoc-doctemplate-example-' . bin2hex(random_bytes(6));
+    $writeFilesystemTemplate = static function (string $relativePath, string $contents) use ($filesystemRoot): void {
+        $path = $filesystemRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create doctemplate filesystem example directory');
+        }
+
+        file_put_contents($path, $contents);
+    };
+    $removeFilesystemTemplates = static function () use ($filesystemRoot): void {
+        if (!is_dir($filesystemRoot)) {
+            return;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($filesystemRoot, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isDir()) {
+                rmdir($fileInfo->getPathname());
+            } else {
+                unlink($fileInfo->getPathname());
+            }
+        }
+
+        rmdir($filesystemRoot);
+    };
+
+    if (!mkdir($filesystemRoot, 0777, true) && !is_dir($filesystemRoot)) {
+        fwrite(STDERR, "Unable to create doctemplate filesystem example root\n");
+        exit(1);
+    }
+
+    try {
+        $writeFilesystemTemplate('review-packets/review.html', <<<'HTML'
+<article class="wp-import-filesystem-review">
+${ components/header() }
+<section>
+${ warnings:components/warning-row()[
+] }
+</section>
+${ footer() }
+</article>
+HTML);
+        $writeFilesystemTemplate('review-packets/components/header.html', '<header><h2>$title$</h2><p>$sources/uppercase[, ]$</p></header>' . "\n");
+        $writeFilesystemTemplate('review-packets/components/warning-row.html', '<p data-source="$it.source$">$it.message$</p>' . "\n");
+        $writeFilesystemTemplate('review-packets/summary.html', 'Summary: $~$media links layout status$~$');
+        $writeFilesystemTemplate('wp-data/templates/footer.html', '<footer>$reviewer$</footer>' . "\n");
+
+        $filesystemOutput = (new DocTemplate())->renderFilesystemResource('review-packets/review', $filesystemRoot, [
+            'title' => 'Filesystem Review Packet',
+            'sources' => ['media', 'links', 'layout'],
+            'reviewer' => 'Migration desk',
+            'warnings' => [
+                ['source' => 'docx', 'message' => 'Imported heading'],
+                ['source' => 'odt', 'message' => 'Styled paragraph'],
+            ],
+        ], 'wp-data', 'html');
+
+        foreach ([
+            '<article class="wp-import-filesystem-review">',
+            '<header><h2>Filesystem Review Packet</h2><p>MEDIA, LINKS, LAYOUT</p></header>',
+            '<p data-source="docx">Imported heading</p>',
+            '<p data-source="odt">Styled paragraph</p>',
+            '<footer>Migration desk</footer>',
+        ] as $needle) {
+            if (!str_contains($filesystemOutput, $needle)) {
+                fwrite(STDERR, "Missing expected doctemplate filesystem output: {$needle}\n");
+                exit(1);
+            }
+        }
+
+        $filesystemWrapped = (new DocTemplate())->renderFilesystemResourceWrapped('review-packets/summary', $filesystemRoot, [], 20, null, 'html');
+        if ($filesystemWrapped !== "Summary: media links\nlayout status") {
+            fwrite(STDERR, "Missing expected doctemplate filesystem wrapped output\n");
+            exit(1);
+        }
+    } finally {
+        $removeFilesystemTemplates();
+    }
+
     $loopGuard = (new DocTemplate())->render('${ loop() }', [], [
         'loop' => '${ loop() }',
     ]);

@@ -4,6 +4,45 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\DocTemplate;
 
+$makeTemplateTree = static function (array $files): string {
+    $root = sys_get_temp_dir() . '/pandoc-doctemplate-fixture-' . bin2hex(random_bytes(6));
+    if (!mkdir($root, 0777, true) && !is_dir($root)) {
+        throw new RuntimeException('Unable to create doctemplate fixture directory');
+    }
+
+    foreach ($files as $relativePath => $contents) {
+        $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, (string) $relativePath);
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create doctemplate fixture subdirectory');
+        }
+
+        file_put_contents($path, (string) $contents);
+    }
+
+    return $root;
+};
+
+$removeTemplateTree = static function (string $root): void {
+    if (!is_dir($root)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $fileInfo) {
+        if ($fileInfo->isDir()) {
+            rmdir($fileInfo->getPathname());
+        } else {
+            unlink($fileInfo->getPathname());
+        }
+    }
+
+    rmdir($root);
+};
+
 return [
     'renders pandoc doctemplate variables delimiters comments and literals' => static function (TestRunner $t): void {
         $template = <<<'TPL'
@@ -1360,6 +1399,60 @@ HTML,
             'Next: LINKS: REVIEW REDIRECTS',
             '</article>',
         ]), $output);
+    },
+
+    'renders pandoc doctemplate filesystem resources with rooted partial discovery' => static function (TestRunner $t) use ($makeTemplateTree, $removeTemplateTree): void {
+        $root = $makeTemplateTree([
+            'review-packets/review.html' => <<<'HTML'
+<article>
+${ components/review-header() }
+<section>
+${ warnings:components/warning-row()[
+] }
+</section>
+${ footer() }
+</article>
+HTML,
+            'review-packets/components/review-header.html' => '<header><h1>$title$</h1><p>$reviewSources/uppercase[, ]$</p></header>' . "\n",
+            'review-packets/components/warning-row.html' => '<p data-source="$it.source$">$it.message$</p>' . "\n",
+            'review-packets/summary.html' => 'Summary: $~$media links layout status$~$',
+            'wp-data/templates/footer.html' => '<footer>$reviewer$</footer>' . "\n",
+        ]);
+
+        try {
+            $renderer = new DocTemplate();
+            $output = $renderer->renderFilesystemResource('review-packets/review', $root, [
+                'title' => 'Batch 42 Review',
+                'reviewer' => 'Migration desk',
+                'reviewSources' => ['media', 'links', 'layout'],
+                'warnings' => [
+                    ['source' => 'docx', 'message' => 'Imported heading'],
+                    ['source' => 'odt', 'message' => 'Styled paragraph'],
+                ],
+            ], 'wp-data', 'html');
+
+            $t->same(implode("\n", [
+                '<article>',
+                '<header><h1>Batch 42 Review</h1><p>MEDIA, LINKS, LAYOUT</p></header>',
+                '<section>',
+                '<p data-source="docx">Imported heading</p>',
+                '<p data-source="odt">Styled paragraph</p>',
+                '</section>',
+                '<footer>Migration desk</footer>',
+                '</article>',
+            ]), $output);
+
+            $t->same(implode("\n", [
+                'Summary: media links',
+                'layout status',
+            ]), $renderer->renderFilesystemResourceWrapped('review-packets/summary', $root, [], 20, null, 'html'));
+
+            $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderFilesystemResource('../review.html', $root, []));
+            $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderFilesystemResource('/review.html', $root, []));
+            $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderFilesystemResource('review-packets/review.html', $root, [], '../outside'));
+        } finally {
+            $removeTemplateTree($root);
+        }
     },
 
     'swallows standalone empty pandoc doctemplate partial lines without changing inline partials' => static function (TestRunner $t): void {

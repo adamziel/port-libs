@@ -8,6 +8,9 @@ final class DocTemplate
 {
     private const MAX_PARTIAL_DEPTH = 50;
     private const BREAKABLE_SPACE_MARKER = "\x1F";
+    private const MAX_FILESYSTEM_RESOURCE_FILES = 512;
+    private const MAX_FILESYSTEM_RESOURCE_BYTES = 1048576;
+    private const MAX_FILESYSTEM_RESOURCE_TOTAL_BYTES = 4194304;
 
     /**
      * @param array<string, mixed> $context
@@ -78,6 +81,37 @@ final class DocTemplate
 
     /**
      * @param array<string, mixed> $context
+     */
+    public function renderFilesystemResource(string $templatePath, string $rootDirectory, array $context, ?string $userDataDirectory = null, ?string $format = null): string
+    {
+        return $this->renderResource(
+            $this->normalizeFilesystemResourcePath($templatePath, 'Doctemplate filesystem template path'),
+            $this->loadFilesystemTemplateResources($rootDirectory),
+            $context,
+            $userDataDirectory === null ? null : $this->normalizeFilesystemResourcePath($userDataDirectory, 'Doctemplate filesystem user-data path'),
+            $format,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    public function renderFilesystemResourceWrapped(string $templatePath, string $rootDirectory, array $context, int $lineLength, ?string $userDataDirectory = null, ?string $format = null): string
+    {
+        $this->validateLineLength($lineLength);
+
+        return $this->renderResourceWrapped(
+            $this->normalizeFilesystemResourcePath($templatePath, 'Doctemplate filesystem template path'),
+            $this->loadFilesystemTemplateResources($rootDirectory),
+            $context,
+            $lineLength,
+            $userDataDirectory === null ? null : $this->normalizeFilesystemResourcePath($userDataDirectory, 'Doctemplate filesystem user-data path'),
+            $format,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
@@ -108,6 +142,104 @@ final class DocTemplate
         }
 
         return $normalized;
+    }
+
+    private function normalizeFilesystemResourcePath(string $path, string $label): string
+    {
+        $normalized = $this->normalizeTemplateResourcePath($path);
+        if ($this->isAbsoluteTemplateResourcePath($normalized)) {
+            throw new \InvalidArgumentException($label . ' must be relative to the resource root');
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function loadFilesystemTemplateResources(string $rootDirectory): array
+    {
+        if ($rootDirectory === '' || str_contains($rootDirectory, "\0")) {
+            throw new \InvalidArgumentException('Invalid doctemplate filesystem root');
+        }
+
+        $rootPath = realpath($rootDirectory);
+        if ($rootPath === false || !is_dir($rootPath)) {
+            throw new \InvalidArgumentException('Doctemplate filesystem root must be an existing directory');
+        }
+
+        if ($this->isFilesystemRootDirectory($rootPath)) {
+            throw new \InvalidArgumentException('Doctemplate filesystem root is too broad');
+        }
+
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($rootPath, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY,
+        );
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo instanceof \SplFileInfo || $fileInfo->isLink() || !$fileInfo->isFile()) {
+                continue;
+            }
+
+            $filePath = $fileInfo->getRealPath();
+            if ($filePath === false || !$this->filesystemPathIsInsideDirectory($filePath, $rootPath)) {
+                throw new \UnexpectedValueException('Doctemplate filesystem resource escaped the resource root');
+            }
+
+            $relative = substr($filePath, strlen($this->filesystemDirectoryPrefix($rootPath)));
+            $resourcePath = $this->normalizeTemplateResourcePath(str_replace('\\', '/', $relative));
+            $files[$resourcePath] = $filePath;
+        }
+
+        ksort($files, SORT_STRING);
+
+        $resources = [];
+        $totalBytes = 0;
+        foreach ($files as $resourcePath => $filePath) {
+            if (count($resources) >= self::MAX_FILESYSTEM_RESOURCE_FILES) {
+                throw new \UnexpectedValueException('Too many doctemplate filesystem resources');
+            }
+
+            $bytes = filesize($filePath);
+            if ($bytes === false) {
+                throw new \UnexpectedValueException("Unable to inspect doctemplate filesystem resource {$resourcePath}");
+            }
+
+            if ($bytes > self::MAX_FILESYSTEM_RESOURCE_BYTES) {
+                throw new \UnexpectedValueException("Doctemplate filesystem resource {$resourcePath} is too large");
+            }
+
+            $totalBytes += $bytes;
+            if ($totalBytes > self::MAX_FILESYSTEM_RESOURCE_TOTAL_BYTES) {
+                throw new \UnexpectedValueException('Doctemplate filesystem resources exceed bounded byte limit');
+            }
+
+            $source = file_get_contents($filePath);
+            if (!is_string($source)) {
+                throw new \UnexpectedValueException("Unable to read doctemplate filesystem resource {$resourcePath}");
+            }
+
+            $resources[$resourcePath] = $source;
+        }
+
+        return $resources;
+    }
+
+    private function filesystemPathIsInsideDirectory(string $path, string $directory): bool
+    {
+        return str_starts_with($path, $this->filesystemDirectoryPrefix($directory));
+    }
+
+    private function filesystemDirectoryPrefix(string $directory): string
+    {
+        return rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    }
+
+    private function isFilesystemRootDirectory(string $path): bool
+    {
+        return dirname($path) === $path;
     }
 
     /**
