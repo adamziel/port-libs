@@ -312,7 +312,7 @@ final class BatchConverter
 
                 if (!$valueProvided) {
                     $nextIndex = $index + 1;
-                    if ($nextIndex >= $count || $tokens[$nextIndex] === '--' || str_starts_with($tokens[$nextIndex], '--')) {
+                    if ($nextIndex >= $count || $this->runtimeMainArgparseMissingOptionValue($tokens[$nextIndex])) {
                         return $this->runtimeMainArgparseErrorPlan(
                             $tokens,
                             'argument ' . $optionName . ': expected one argument',
@@ -3675,6 +3675,21 @@ final class BatchConverter
         }
 
         return (int) $trimmed;
+    }
+
+    private function runtimeMainArgparseMissingOptionValue(string $token): bool
+    {
+        if ($token === '-') {
+            return false;
+        }
+        if ($token === '--' || str_starts_with($token, '--')) {
+            return true;
+        }
+        if (!str_starts_with($token, '-')) {
+            return false;
+        }
+
+        return preg_match('/^-(?:\d|\.\d)/', $token) !== 1;
     }
 
     private function filesystemPathType(string $path): string

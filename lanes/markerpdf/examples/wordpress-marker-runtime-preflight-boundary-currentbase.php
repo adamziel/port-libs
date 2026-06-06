@@ -320,6 +320,23 @@ try {
         $input,
         $output,
     ]);
+    $shortOptionMetadataArgPlan = $batch->runtimeMainArgumentPreflightPlan([
+        $input,
+        $output,
+        '--metadata_file',
+        '-x',
+    ]);
+    $equalsShortMetadataArgPlan = $batch->runtimeMainArgumentPreflightPlan([
+        $input,
+        $output,
+        '--metadata_file=-x',
+    ]);
+    $negativeNumericMetadataArgPlan = $batch->runtimeMainArgumentPreflightPlan([
+        $input,
+        $output,
+        '--metadata_file',
+        '-1',
+    ]);
     $emptyMetadataRuntimePlan = $batch->runtimeMainPreflightPlan(
         $input,
         $output,
@@ -701,6 +718,17 @@ try {
         || $emptyMetadataArgPlan['semantic_boundaries']['empty_metadata_file_skips_json_load'] !== true
     ) {
         throw new RuntimeException('Expected empty --metadata_file= to remain an argparse value but skip runtime json.load like upstream Python truthiness.');
+    }
+    if (
+        $shortOptionMetadataArgPlan['parse_args']['parse_args_success'] !== false
+        || $shortOptionMetadataArgPlan['parse_args']['error_message'] !== 'argument --metadata_file: expected one argument'
+        || $shortOptionMetadataArgPlan['parse_args']['filesystem_touched_before_error'] !== false
+        || $equalsShortMetadataArgPlan['parse_args']['parse_args_success'] !== true
+        || $equalsShortMetadataArgPlan['arguments']['options']['metadata_file'] !== '-x'
+        || $negativeNumericMetadataArgPlan['parse_args']['parse_args_success'] !== true
+        || $negativeNumericMetadataArgPlan['arguments']['options']['metadata_file'] !== '-1'
+    ) {
+        throw new RuntimeException('Expected argparse to reject separate option-looking metadata_file values while preserving equals and negative-number values.');
     }
     if (
         $emptyMetadataRuntimePlan['metadata']['source'] !== 'metadataByFilename argument'
@@ -1090,6 +1118,12 @@ try {
         'empty_metadata_file_selected_metadata_filenames' => $emptyMetadataRuntimePlan['metadata']['selected_metadata_filenames'],
         'empty_metadata_file_ignored_file_decoys' => $emptyMetadataRuntimePlan['metadata']['metadata_file'] === null
             && $emptyMetadataRuntimePlan['metadata']['metadata_file_input'] === null,
+        'short_option_metadata_arg_success' => $shortOptionMetadataArgPlan['parse_args']['parse_args_success'],
+        'short_option_metadata_arg_error' => $shortOptionMetadataArgPlan['parse_args']['error_message'],
+        'short_option_metadata_arg_blocks_runtime' => $shortOptionMetadataArgPlan['parse_args']['blocks_runtime_preflight'],
+        'short_option_metadata_arg_filesystem_touched' => $shortOptionMetadataArgPlan['parse_args']['filesystem_touched_before_error'],
+        'equals_short_metadata_arg_value' => $equalsShortMetadataArgPlan['arguments']['options']['metadata_file'],
+        'negative_numeric_metadata_arg_value' => $negativeNumericMetadataArgPlan['arguments']['options']['metadata_file'],
         'symlink_filter' => $symlinkPlan['input_listing']['symlink_filter'],
         'symlink_entries' => $symlinkPlan['input_listing']['symlink_basenames'],
         'file_symlink_basenames' => $symlinkPlan['input_listing']['file_symlink_basenames'],

@@ -1930,6 +1930,72 @@ return [
             $removeTree($output);
         }
     },
+    'matches argparse metadata_file option-looking value boundaries before runtime preflight' => static function (TestRunner $t): void {
+        $batch = new BatchConverter();
+        $shortOptionValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file',
+            '-x',
+        ]);
+        $negativeNumberValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file',
+            '-1',
+        ]);
+        $dashValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file',
+            '-',
+        ]);
+        $equalsOptionValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--metadata_file=-x',
+        ]);
+        $negativeIntOptionValue = $batch->runtimeMainArgumentPreflightPlan([
+            '/wp/uploads',
+            '/wp/output',
+            '--max',
+            '-1',
+        ]);
+
+        $t->same(false, $shortOptionValue['parse_args']['parse_args_success']);
+        $t->same(2, $shortOptionValue['parse_args']['exit_code']);
+        $t->same('argparse-system-exit', $shortOptionValue['parse_args']['error_boundary']);
+        $t->same('--metadata_file', $shortOptionValue['parse_args']['error_argument']);
+        $t->same('argument --metadata_file: expected one argument', $shortOptionValue['parse_args']['error_message']);
+        $t->same(true, $shortOptionValue['parse_args']['blocks_runtime_preflight']);
+        $t->same(false, $shortOptionValue['semantic_boundaries']['filesystem_touched_before_error']);
+        $t->same([
+            'abspath_input_output',
+            'list_input_files',
+            'makedirs_output_exist_ok',
+            'chunk_files',
+            'load_metadata_file',
+            'set_spawn_start_method',
+            'prepare_model_handoff',
+            'print_conversion_summary',
+            'build_task_args',
+            'pool_imap_process_single_pdf',
+        ], $shortOptionValue['blocked_stages']);
+
+        $t->same(true, $negativeNumberValue['parse_args']['parse_args_success']);
+        $t->same('-1', $negativeNumberValue['arguments']['options']['metadata_file']);
+        $t->same(true, $negativeNumberValue['semantic_boundaries']['metadata_file_truthy_for_json_load']);
+        $t->same(true, $dashValue['parse_args']['parse_args_success']);
+        $t->same('-', $dashValue['arguments']['options']['metadata_file']);
+        $t->same(true, $equalsOptionValue['parse_args']['parse_args_success']);
+        $t->same('-x', $equalsOptionValue['arguments']['options']['metadata_file']);
+        $t->same(true, $negativeIntOptionValue['parse_args']['parse_args_success']);
+        $t->same(-1, $negativeIntOptionValue['arguments']['options']['max']);
+        $t->same(true, $negativeIntOptionValue['semantic_boundaries']['negative_max_allowed_by_argparse']);
+        $t->same(false, $shortOptionValue['executes_python_or_models']);
+        $t->same(false, $shortOptionValue['executes_multiprocessing']);
+        $t->same(false, $shortOptionValue['executes_external_pdf_tools']);
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
