@@ -9,6 +9,7 @@ final class GzipStream
     private const ID1 = 0x1f;
     private const ID2 = 0x8b;
     private const COMPRESSION_METHOD_DEFLATE = 8;
+    private const FLAG_TEXT = 0x01;
     private const FLAG_HEADER_CRC = 0x02;
     private const FLAG_EXTRA = 0x04;
     private const FLAG_FILENAME = 0x08;
@@ -24,6 +25,7 @@ final class GzipStream
      *     filename?:string,
      *     comment?:string,
      *     headerCrc?:bool,
+     *     textHint?:bool,
      *     compressionLevel?:int
      * } $options
      */
@@ -64,12 +66,17 @@ final class GzipStream
         }
 
         $headerCrc = (bool) ($options['headerCrc'] ?? false);
+        $textHint = (bool) ($options['textHint'] ?? false);
         $compressionLevel = $options['compressionLevel'] ?? -1;
         if (!is_int($compressionLevel) || $compressionLevel < -1 || $compressionLevel > 9) {
             throw new \RuntimeException('GZIP compression level must be between -1 and 9');
         }
 
         $flags = 0;
+        if ($textHint) {
+            $flags |= self::FLAG_TEXT;
+        }
+
         if (is_string($extraFieldData)) {
             $flags |= self::FLAG_EXTRA;
         }
@@ -133,6 +140,8 @@ final class GzipStream
      *     members:list<array{
      *         data:string,
      *         modifiedAt:int,
+     *         flags:int,
+     *         textHint:bool,
      *         extraFlags:int,
      *         operatingSystem:int,
      *         extraFieldData:?string,
@@ -201,6 +210,7 @@ final class GzipStream
             }
 
             $modifiedAt = self::readUInt32($bytes, $cursor + 4);
+            $textHint = ($flags & self::FLAG_TEXT) !== 0;
             $extraFlags = ord($bytes[$cursor + 8]);
             $operatingSystem = ord($bytes[$cursor + 9]);
             $cursor += 10;
@@ -278,6 +288,8 @@ final class GzipStream
                 'modifiedAt' => $modifiedAt,
                 'modifiedAtKnown' => $modifiedAt !== 0,
                 'modifiedAtText' => self::modifiedAtText($modifiedAt),
+                'flags' => $flags,
+                'textHint' => $textHint,
                 'extraFlags' => $extraFlags,
                 'extraFlagsMeaning' => self::extraFlagsMeaning($extraFlags),
                 'operatingSystem' => $operatingSystem,

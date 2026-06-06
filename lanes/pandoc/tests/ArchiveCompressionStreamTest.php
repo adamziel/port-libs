@@ -867,6 +867,43 @@ return [
         $t->same("# GZIP Latin-1 provenance\n\nReady for review.\n", $inspection['archive']->read('/packet/content.md'));
     },
 
+    'exposes gzip text hint flag for archive review provenance' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-text-hint","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP text hint provenance\n\nReady for review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $defaultGzip = GzipStream::build($tarBytes, [
+            'filename' => 'binary-review-packet.tar',
+        ]);
+        $textHintGzip = GzipStream::build($tarBytes, [
+            'filename' => 'text-hint-review-packet.tar',
+            'textHint' => true,
+        ]);
+
+        $defaultMember = GzipStream::members($defaultGzip)[0];
+        $textHintInspection = ArchiveCompressionStream::inspectTarStream(
+            $textHintGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $textHintMember = $textHintInspection['stream']['members'][0];
+
+        $t->same(false, $defaultMember['textHint']);
+        $t->same(0x08, $defaultMember['flags']);
+        $t->same(true, $textHintMember['textHint']);
+        $t->same(0x09, $textHintMember['flags']);
+        $t->same('text-hint-review-packet.tar', $textHintMember['filename']);
+        $t->same('{"source":"gzip-text-hint","target":"wordpress"}', $textHintInspection['archive']->read('/packet/manifest.json'));
+        $t->same("# GZIP text hint provenance\n\nReady for review.\n", $textHintInspection['archive']->read('/packet/content.md'));
+    },
+
     'labels gzip timestamp compression and platform provenance for review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

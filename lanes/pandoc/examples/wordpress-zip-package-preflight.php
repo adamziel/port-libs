@@ -1810,6 +1810,17 @@ $reproducibleGzipTarInspection = ArchiveCompressionStream::inspectTarStream(
     strlen($tarPacketBytes),
     $tarPacketUnpackedBytes
 );
+$textHintGzipTarPacket = GzipStream::build($tarPacketBytes, [
+    'modifiedAt' => $documentModifiedAt,
+    'filename' => 'wordpress-import-packet-text-flag.tar',
+    'textHint' => true,
+]);
+$textHintGzipTarInspection = ArchiveCompressionStream::inspectTarStream(
+    $textHintGzipTarPacket,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
 $streamDetectedTarFormat = ArchiveCompressionStream::detectTarFormat(
     $compressedTarPacket,
@@ -2842,6 +2853,15 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip OS review label to identify Unix provenance');
     }
 
+    $textHintGzipMember = $textHintGzipTarInspection['stream']['members'][0] ?? [];
+    if (($textHintGzipMember['textHint'] ?? null) !== true) {
+        throw new RuntimeException('Expected gzip FTEXT review flag to be inspectable');
+    }
+
+    if ((($textHintGzipMember['flags'] ?? 0) & 0x01) !== 0x01) {
+        throw new RuntimeException('Expected gzip raw header flags to preserve FTEXT provenance');
+    }
+
     if (!$tarPacketRoundTrip->has('/packet/word/document.xml')) {
         throw new RuntimeException('Expected tar packet document part to be discoverable');
     }
@@ -3410,6 +3430,7 @@ echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): s
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'gzip.trailingPaddingBytes=' . $paddedGzipTarInspection['stream']['trailingPaddingBytes'] . "\n";
 echo 'gzip.nonZeroTrailerPolicy=' . ($gzipNonZeroTrailerRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'gzip.textHint=' . (($textHintGzipTarInspection['stream']['members'][0]['textHint'] ?? false) ? 'true' : 'false') . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
 echo 'tar.globalPaxComment=' . ($tarPacketRoundTrip->globalPaxHeaders()['comment'] ?? 'none') . "\n";
