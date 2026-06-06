@@ -731,11 +731,6 @@ final class PdfMetadataExtractor
             return $this->duplicateCatalogMetadataStreamBoundaryReview($values, $objects);
         }
 
-        $value = $values[0];
-        if ($this->trimPdfWhitespaceAndComments($value) === 'null') {
-            return [];
-        }
-
         $base = [
             'source' => 'catalog_metadata_stream_boundary',
             'review_only' => true,
@@ -746,6 +741,11 @@ final class PdfMetadataExtractor
         $malformedOperandReview = $this->catalogMetadataMalformedOperandReview($catalog);
         if ($malformedOperandReview !== []) {
             return $base + $malformedOperandReview;
+        }
+
+        $value = $values[0];
+        if ($this->trimPdfWhitespaceAndComments($value) === 'null') {
+            return [];
         }
 
         $objectNumber = $this->objectNumberFromReference($value);

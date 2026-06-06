@@ -65,6 +65,48 @@ return [
         $t->same(false, isset($metadata['catalog']['metadata_stream_review']));
         $t->true(is_string($encoded) && !str_contains($encoded, 'catalog_metadata_stream_boundary'));
     },
+    'rejects catalog Metadata null followed by extra operands before XMP promotion' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
+        $xmp = $xmpMetadataBoundaryPacket(
+            'Null Extra Operand Hidden XMP Title',
+            'A catalog Metadata null followed by an extra reference must not define WordPress metadata',
+            '2026-06-06T13:16:35Z'
+        );
+
+        $metadataObject = "5 0 obj\n"
+            . '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . " >>\n"
+            . "stream\n{$xmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /S /JavaScript /JS (app.alert\\('null metadata operand action tail'\\)) >>\nendobj\n";
+        $pdf = $xmpMetadataBoundaryPdf(
+            'null 5 0 R 7 0 R',
+            'Null Extra Operand Metadata Boundary Body',
+            $metadataObject
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same(['Metadata Boundary Author'], $metadata['authors']);
+        $t->same('Null Extra Operand Metadata Boundary Body', $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_malformed_metadata_operand', $review['status'] ?? null);
+        $t->same(1, $review['metadata_entry_count'] ?? null);
+        $t->same(3, $review['metadata_operand_count'] ?? null);
+        $t->same([5, 7], $review['trailing_reference_object_numbers'] ?? null);
+        $t->same(false, isset($review['object_number']));
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Null Extra Operand Hidden XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'null metadata operand action tail'));
+        $t->true(!str_contains($plainText, 'Null Extra Operand Hidden XMP Title'));
+        $t->true(!str_contains($plainText, 'null metadata operand action tail'));
+    },
     'keeps direct catalog Metadata dictionaries review-only before WordPress import' => static function (
         TestRunner $t
     ) use ($xmpMetadataBoundaryPdf): void {
