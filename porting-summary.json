@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 22:25:37 UTC",
-    "sourceCommit": "efd3912412f32e446cb9c14dd4c526ece9f557c9",
-    "sourceCommitShort": "efd3912412f3",
+    "generated": "2026-06-06 22:25:57 UTC",
+    "sourceCommit": "204fa0ddb0ebbf5cd9ff9ae8fc29b9caa6581c05",
+    "sourceCommitShort": "204fa0ddb0eb",
     "sourceBranch": "unknown",
-    "dashboardCommit": "efd3912412f32e446cb9c14dd4c526ece9f557c9",
-    "dashboardCommitShort": "efd3912412f3",
+    "dashboardCommit": "204fa0ddb0ebbf5cd9ff9ae8fc29b9caa6581c05",
+    "dashboardCommitShort": "204fa0ddb0eb",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1820",
-            "coverage": "1,820 / 2,276 (80.0%)",
+            "mapped": "1821",
+            "coverage": "1,821 / 2,276 (80.0%)",
             "mapPercent": "80.0%",
-            "unmapped": "456",
-            "php": "1,407 pass / 0 fail",
+            "unmapped": "455",
+            "php": "1,408 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC XML/HTML5 DOM current-base charset metadata slice on a...",
+            "audit": "2026-06-06 UTC ZIP package current-base ZIP64 extra-field plan slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Continue XML/HTML5 DOM closure with non-overlapping support s...",
+            "nextTarget": "Continue ZIP package closure with non-overlapping package sem...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending pandoc-..."
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

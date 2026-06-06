@@ -12,6 +12,7 @@ final class ZipPackage
     private const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = "PK\x06\x06";
     private const ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE = "PK\x06\x07";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
+    private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
     private const ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x0001;
     private const ENHANCED_DEFLATE_GENERAL_PURPOSE_FLAG = 0x0010;
     private const COMPRESSED_PATCHED_DATA_GENERAL_PURPOSE_FLAG = 0x0020;
@@ -1678,6 +1679,205 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     zip64ExtraFieldEntryCount:int,
+     *     centralZip64ExtraFieldEntryCount:int,
+     *     localZip64ExtraFieldEntryCount:int,
+     *     requiresZip64EntryCount:int,
+     *     zip64Entries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function zip64ExtraFieldPreflight(string $bytes): array
+    {
+        $eocdOffset = self::findEndOfCentralDirectory($bytes);
+        $entryCount = self::readUInt16($bytes, $eocdOffset + 10);
+        $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
+        $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        if ($entryCount === 0xffff || $centralDirectorySize === 0xffffffff || $centralDirectoryOffset === 0xffffffff) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before entry extra fields can be scanned');
+        }
+
+        self::assertRange($bytes, $centralDirectoryOffset, $centralDirectorySize, 'central directory');
+
+        $entries = [];
+        $zip64Entries = [];
+        $zip64ExtraFieldEntryCount = 0;
+        $centralZip64ExtraFieldEntryCount = 0;
+        $localZip64ExtraFieldEntryCount = 0;
+        $requiresZip64EntryCount = 0;
+        $cursor = $centralDirectoryOffset;
+
+        for ($index = 0; $index < $entryCount; $index++) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $diskStart = self::readUInt16($bytes, $cursor + 34);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            self::assertRange($bytes, $variableStart, $nameLength + $extraLength + $commentLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $name = (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0 && preg_match('//u', $rawName) === 1)
+                ? $rawName
+                : self::decodeCp437($rawName);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $centralExtraFields = ZipPackageEntry::extraFieldsFromData(
+                $centralExtraFieldData,
+                "central extra fields for {$name}",
+                true
+            );
+            $centralZip64ExtraFieldData = self::singleZip64ExtraFieldData(
+                $centralExtraFields,
+                "central extra fields for {$name}"
+            );
+            $centralRequiredFields = [];
+            if ($uncompressedSize === 0xffffffff) {
+                $centralRequiredFields[] = 'uncompressedSize';
+            }
+            if ($compressedSize === 0xffffffff) {
+                $centralRequiredFields[] = 'compressedSize';
+            }
+            if ($localHeaderOffset === 0xffffffff) {
+                $centralRequiredFields[] = 'localHeaderOffset';
+            }
+            if ($diskStart === 0xffff) {
+                $centralRequiredFields[] = 'diskStart';
+            }
+
+            $centralPlan = self::zip64ExtraFieldPlan(
+                $centralZip64ExtraFieldData,
+                $centralRequiredFields,
+                "central extra fields for {$name}"
+            );
+            $actualLocalHeaderOffset = $centralPlan['values']['localHeaderOffset'] ?? (
+                $localHeaderOffset === 0xffffffff ? null : $localHeaderOffset
+            );
+            $localPlan = self::zip64ExtraFieldPlan(null, [], "local extra fields for {$name}");
+            $localHeaderCompressedSize = null;
+            $localHeaderUncompressedSize = null;
+            if ($actualLocalHeaderOffset !== null) {
+                self::assertRange($bytes, $actualLocalHeaderOffset, 30, "local file header for {$name}");
+                if (substr($bytes, $actualLocalHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
+                    throw new \RuntimeException("Invalid ZIP local file header for entry {$name}");
+                }
+
+                $localHeaderCompressedSize = self::readUInt32($bytes, $actualLocalHeaderOffset + 18);
+                $localHeaderUncompressedSize = self::readUInt32($bytes, $actualLocalHeaderOffset + 22);
+                $localNameLength = self::readUInt16($bytes, $actualLocalHeaderOffset + 26);
+                $localExtraLength = self::readUInt16($bytes, $actualLocalHeaderOffset + 28);
+                $localVariableStart = $actualLocalHeaderOffset + 30;
+                self::assertRange($bytes, $localVariableStart, $localNameLength + $localExtraLength, "local file header variable fields for {$name}");
+                $localExtraFieldData = substr($bytes, $localVariableStart + $localNameLength, $localExtraLength);
+                $localExtraFields = ZipPackageEntry::extraFieldsFromData(
+                    $localExtraFieldData,
+                    "local extra fields for {$name}",
+                    true
+                );
+                $localZip64ExtraFieldData = self::singleZip64ExtraFieldData(
+                    $localExtraFields,
+                    "local extra fields for {$name}"
+                );
+                $localRequiredFields = [];
+                if ($localHeaderUncompressedSize === 0xffffffff) {
+                    $localRequiredFields[] = 'uncompressedSize';
+                }
+                if ($localHeaderCompressedSize === 0xffffffff) {
+                    $localRequiredFields[] = 'compressedSize';
+                }
+                $localPlan = self::zip64ExtraFieldPlan(
+                    $localZip64ExtraFieldData,
+                    $localRequiredFields,
+                    "local extra fields for {$name}"
+                );
+            }
+
+            $requiresZip64 = $centralRequiredFields !== [] || $localPlan['requiredFields'] !== [];
+            $hasZip64ExtraField = $centralPlan['present'] || $localPlan['present'];
+            if ($centralPlan['present']) {
+                $centralZip64ExtraFieldEntryCount++;
+            }
+            if ($localPlan['present']) {
+                $localZip64ExtraFieldEntryCount++;
+            }
+            if ($hasZip64ExtraField) {
+                $zip64ExtraFieldEntryCount++;
+            }
+            if ($requiresZip64) {
+                $requiresZip64EntryCount++;
+            }
+
+            $issues = [];
+            if ($hasZip64ExtraField) {
+                $issues[] = 'zip64-extra-field';
+            }
+            if ($requiresZip64) {
+                $issues[] = 'zip64-size-or-offset-sentinel';
+            }
+            $issues = array_values(array_unique(array_merge(
+                $issues,
+                $centralPlan['issues'],
+                $localPlan['issues']
+            )));
+
+            $summary = [
+                'name' => $name,
+                'rawName' => $rawName,
+                'centralDirectoryIndex' => $index,
+                'compressionMethod' => $method,
+                'centralCompressedSize' => $compressedSize,
+                'centralUncompressedSize' => $uncompressedSize,
+                'centralLocalHeaderOffset' => $localHeaderOffset,
+                'centralDiskStart' => $diskStart,
+                'localHeaderOffset' => $actualLocalHeaderOffset,
+                'localHeaderCompressedSize' => $localHeaderCompressedSize,
+                'localHeaderUncompressedSize' => $localHeaderUncompressedSize,
+                'centralZip64ExtraFieldPresent' => $centralPlan['present'],
+                'centralZip64RequiredFields' => $centralPlan['requiredFields'],
+                'centralZip64Values' => $centralPlan['values'],
+                'centralZip64ExtraBytes' => $centralPlan['extraBytes'],
+                'localZip64ExtraFieldPresent' => $localPlan['present'],
+                'localZip64RequiredFields' => $localPlan['requiredFields'],
+                'localZip64Values' => $localPlan['values'],
+                'localZip64ExtraBytes' => $localPlan['extraBytes'],
+                'requiresZip64' => $requiresZip64,
+                'isSupportedByBoundedReader' => !$requiresZip64 && !$hasZip64ExtraField,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($hasZip64ExtraField || $requiresZip64) {
+                $zip64Entries[] = $summary;
+            }
+
+            $cursor += 46 + $nameLength + $extraLength + $commentLength;
+        }
+
+        if ($cursor !== $centralDirectoryOffset + $centralDirectorySize) {
+            throw new \RuntimeException('ZIP central directory size does not match scanned entry records');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'zip64ExtraFieldEntryCount' => $zip64ExtraFieldEntryCount,
+            'centralZip64ExtraFieldEntryCount' => $centralZip64ExtraFieldEntryCount,
+            'localZip64ExtraFieldEntryCount' => $localZip64ExtraFieldEntryCount,
+            'requiresZip64EntryCount' => $requiresZip64EntryCount,
+            'zip64Entries' => $zip64Entries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     fileCount:int,
      *     directoryCount:int,
      *     compressedBytes:int,
@@ -2697,6 +2897,82 @@ final class ZipPackage
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $fields
+     */
+    private static function singleZip64ExtraFieldData(array $fields, string $label): ?string
+    {
+        $data = null;
+        foreach ($fields as $field) {
+            if ($field['id'] !== self::ZIP64_EXTENDED_INFORMATION_EXTRA_ID) {
+                continue;
+            }
+
+            if ($data !== null) {
+                throw new \RuntimeException("ZIP64 extra field for {$label} appears more than once");
+            }
+
+            $data = $field['data'];
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param list<string> $requiredFields
+     * @return array{present:bool, requiredFields:list<string>, values:array<string, int>, parsedBytes:int, extraBytes:int, issues:list<string>}
+     */
+    private static function zip64ExtraFieldPlan(?string $data, array $requiredFields, string $label): array
+    {
+        $issues = [];
+        if ($data === null) {
+            if ($requiredFields !== []) {
+                $issues[] = 'missing-zip64-extra-field';
+            }
+
+            return [
+                'present' => false,
+                'requiredFields' => $requiredFields,
+                'values' => [],
+                'parsedBytes' => 0,
+                'extraBytes' => 0,
+                'issues' => $issues,
+            ];
+        }
+
+        if ($requiredFields === []) {
+            $issues[] = 'zip64-extra-field-without-sentinel';
+        }
+
+        $values = [];
+        $cursor = 0;
+        foreach ($requiredFields as $field) {
+            $width = $field === 'diskStart' ? 4 : 8;
+            if ($cursor + $width > strlen($data)) {
+                throw new \RuntimeException("ZIP64 extra field for {$label} is truncated before {$field}");
+            }
+
+            $values[$field] = $width === 8
+                ? self::readUInt64($data, $cursor)
+                : self::readUInt32($data, $cursor);
+            $cursor += $width;
+        }
+
+        $extraBytes = strlen($data) - $cursor;
+        if ($extraBytes > 0) {
+            $issues[] = 'zip64-extra-field-trailing-bytes';
+        }
+
+        return [
+            'present' => true,
+            'requiredFields' => $requiredFields,
+            'values' => $values,
+            'parsedBytes' => $cursor,
+            'extraBytes' => $extraBytes,
+            'issues' => $issues,
+        ];
     }
 
     private static function assertDirectoryEntryMetadata(ZipPackageEntry $entry): void

@@ -348,9 +348,9 @@ final class ZipPackageEntry
     /**
      * @return list<array{id:int, data:string}>
      */
-    public static function extraFieldsFromData(string $bytes, string $label): array
+    public static function extraFieldsFromData(string $bytes, string $label, bool $allowZip64 = false): array
     {
-        return self::parseExtraFields($bytes, $label);
+        return self::parseExtraFields($bytes, $label, $allowZip64);
     }
 
     public static function extendedTimestampFromExtraField(?string $data, string $label): ?int
@@ -391,7 +391,7 @@ final class ZipPackageEntry
     /**
      * @return list<array{id:int, data:string}>
      */
-    private static function parseExtraFields(string $bytes, string $label): array
+    private static function parseExtraFields(string $bytes, string $label, bool $allowZip64 = false): array
     {
         $fields = [];
         $cursor = 0;
@@ -415,7 +415,7 @@ final class ZipPackageEntry
             }
 
             $data = substr($bytes, $dataStart, $size);
-            if ($id === self::ZIP64_EXTENDED_INFORMATION_EXTRA_ID) {
+            if ($id === self::ZIP64_EXTENDED_INFORMATION_EXTRA_ID && !$allowZip64) {
                 throw new \RuntimeException("ZIP64 extra field for {$label} is not supported by this bounded package reader");
             }
             if ($id === self::WINZIP_AES_EXTRA_ID) {

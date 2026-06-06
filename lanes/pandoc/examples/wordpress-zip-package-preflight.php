@@ -672,6 +672,59 @@ $buildZip64ExtraBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildZip64SizeUpgradeBackedPackage = static function () use ($crc32, $packUInt64): string {
+    $name = 'word/media/oversized-review.bin';
+    $data = "ZIP64 size upgrade metadata should stay blocked but explainable\n";
+    $compressed = gzdeflate($data);
+    $crc = $crc32($data);
+    $zip64Values = $packUInt64(strlen($data))
+        . $packUInt64(strlen($compressed))
+        . $packUInt64(0)
+        . pack('V', 0);
+    $zip64Extra = pack('vv', 0x0001, strlen($zip64Values)) . $zip64Values;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $compressed;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        8,
+        0,
+        0,
+        $crc,
+        0xffffffff,
+        0xffffffff,
+        strlen($name),
+        strlen($zip64Extra),
+        0,
+        0xffff,
+        0,
+        0x81a40000,
+        0xffffffff
+    );
+    $central .= $name . $zip64Extra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildDriveLetterBackedPackage = static function () use ($crc32): string {
     $name = 'C:word/media/review.png';
     $data = "Drive-letter media path should stay blocked\n";
@@ -2574,6 +2627,16 @@ try {
 } catch (RuntimeException $exception) {
     $zip64Rejected = str_contains($exception->getMessage(), 'ZIP64 extra field');
 }
+$zip64ExtraPreflight = ZipPackage::zip64ExtraFieldPreflight($buildZip64ExtraBackedPackage());
+$zip64SizeUpgradeBytes = $buildZip64SizeUpgradeBackedPackage();
+$zip64SizeUpgradePreflight = ZipPackage::zip64ExtraFieldPreflight($zip64SizeUpgradeBytes);
+$zip64SizeUpgradeRejected = false;
+try {
+    ZipPackage::fromString($zip64SizeUpgradeBytes);
+} catch (RuntimeException $exception) {
+    $zip64SizeUpgradeRejected = str_contains($exception->getMessage(), 'ZIP64')
+        || str_contains($exception->getMessage(), 'Split ZIP entry data');
+}
 $driveLetterRejected = false;
 try {
     ZipPackage::fromString($buildDriveLetterBackedPackage());
@@ -3906,6 +3969,31 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP64 extra-field entries to be rejected before media import');
     }
 
+    if (
+        ($zip64ExtraPreflight['zip64Entries'][0]['issues'] ?? []) !== [
+            'zip64-extra-field',
+            'zip64-extra-field-without-sentinel',
+            'zip64-extra-field-trailing-bytes',
+        ]
+    ) {
+        throw new RuntimeException('Expected unneeded ZIP64 extra-field metadata to remain explainable before rejection');
+    }
+
+    if (
+        !$zip64SizeUpgradeRejected
+        || ($zip64SizeUpgradePreflight['requiresZip64EntryCount'] ?? null) !== 1
+        || ($zip64SizeUpgradePreflight['centralZip64ExtraFieldEntryCount'] ?? null) !== 1
+        || ($zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64RequiredFields'] ?? []) !== [
+            'uncompressedSize',
+            'compressedSize',
+            'localHeaderOffset',
+            'diskStart',
+        ]
+        || ($zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64Values']['localHeaderOffset'] ?? null) !== 0
+    ) {
+        throw new RuntimeException('Expected ZIP64 size-upgrade extra fields to be planned and rejected before media import');
+    }
+
     if (!$driveLetterRejected) {
         throw new RuntimeException('Expected drive-letter ZIP paths to be rejected before media import');
     }
@@ -4178,6 +4266,11 @@ echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnixSpecialFilePolicy=' . ($unixSpecialFileRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zip64ExtraFieldEntries=' . $zip64ExtraPreflight['zip64ExtraFieldEntryCount'] . "\n";
+echo 'zip64ExtraFieldIssues=' . implode(',', $zip64ExtraPreflight['zip64Entries'][0]['issues'] ?? []) . "\n";
+echo 'zip64SizeUpgradePolicy=' . ($zip64SizeUpgradeRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zip64SizeUpgradeFields=' . implode(',', $zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64RequiredFields'] ?? []) . "\n";
+echo 'zip64SizeUpgradeLocalOffset=' . ($zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64Values']['localHeaderOffset'] ?? 'none') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";

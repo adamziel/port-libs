@@ -65,6 +65,7 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     versionNeededToExtract?:int,
  *     localVersionNeeded?:int,
  *     centralVersionNeeded?:int,
+ *     centralLocalHeaderOffset?:int,
  *     centralIndex?:int
  * }> $entries
  */
@@ -165,7 +166,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             $entry['diskStart'] ?? 0,
             0,
             $entry['externalAttributes'] ?? 0,
-            $offset
+            $entry['centralLocalHeaderOffset'] ?? $offset
         );
         $centralRecord .= $name . $centralExtra . $entryComment;
         $centralRecords[] = [
@@ -3422,8 +3423,105 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $badPackage->assertStrictImportable(256, 2.0, 256));
     },
 
+    'preflights zip64 extended information extra field plans before package import' => static function (TestRunner $t) use ($buildZipPackage, $packUInt64): void {
+        $centralData = '<w:document><w:p>zip64 central size upgrade plan</w:p></w:document>';
+        $centralCompressed = gzdeflate($centralData);
+        $centralZip64Values = $packUInt64(strlen($centralData))
+            . $packUInt64(strlen($centralCompressed))
+            . $packUInt64(0)
+            . pack('V', 0);
+        $centralZip64Extra = pack('vv', 0x0001, strlen($centralZip64Values)) . $centralZip64Values;
+        $localData = "local ZIP64 size placeholders should stay blocked\n";
+        $localZip64Values = $packUInt64(strlen($localData)) . $packUInt64(strlen($localData));
+        $localZip64Extra = pack('vv', 0x0001, strlen($localZip64Values)) . $localZip64Values;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $centralData,
+                'method' => 8,
+                'centralCompressedSize' => 0xffffffff,
+                'centralUncompressedSize' => 0xffffffff,
+                'centralLocalHeaderOffset' => 0xffffffff,
+                'diskStart' => 0xffff,
+                'centralExtra' => $centralZip64Extra,
+            ],
+            [
+                'name' => 'word/media/local-size.bin',
+                'data' => $localData,
+                'method' => 0,
+                'localCompressedSize' => 0xffffffff,
+                'localUncompressedSize' => 0xffffffff,
+                'localExtra' => $localZip64Extra,
+                'centralExtra' => '',
+            ],
+        ]);
+        $summary = ZipPackage::zip64ExtraFieldPreflight($zip);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['zip64ExtraFieldEntryCount']);
+        $t->same(1, $summary['centralZip64ExtraFieldEntryCount']);
+        $t->same(1, $summary['localZip64ExtraFieldEntryCount']);
+        $t->same(2, $summary['requiresZip64EntryCount']);
+        $t->same(2, count($summary['zip64Entries']));
+
+        $centralEntry = $summary['entries'][0];
+        $t->same('word/document.xml', $centralEntry['name']);
+        $t->same(true, $centralEntry['centralZip64ExtraFieldPresent']);
+        $t->same(false, $centralEntry['localZip64ExtraFieldPresent']);
+        $t->same([
+            'uncompressedSize',
+            'compressedSize',
+            'localHeaderOffset',
+            'diskStart',
+        ], $centralEntry['centralZip64RequiredFields']);
+        $t->same([
+            'uncompressedSize' => strlen($centralData),
+            'compressedSize' => strlen($centralCompressed),
+            'localHeaderOffset' => 0,
+            'diskStart' => 0,
+        ], $centralEntry['centralZip64Values']);
+        $t->same(0, $centralEntry['centralZip64ExtraBytes']);
+        $t->same(true, $centralEntry['requiresZip64']);
+        $t->same(false, $centralEntry['isSupportedByBoundedReader']);
+        $t->same(['zip64-extra-field', 'zip64-size-or-offset-sentinel'], $centralEntry['issues']);
+
+        $localEntry = $summary['entries'][1];
+        $t->same('word/media/local-size.bin', $localEntry['name']);
+        $t->same(false, $localEntry['centralZip64ExtraFieldPresent']);
+        $t->same(true, $localEntry['localZip64ExtraFieldPresent']);
+        $t->same([], $localEntry['centralZip64RequiredFields']);
+        $t->same([
+            'uncompressedSize',
+            'compressedSize',
+        ], $localEntry['localZip64RequiredFields']);
+        $t->same([
+            'uncompressedSize' => strlen($localData),
+            'compressedSize' => strlen($localData),
+        ], $localEntry['localZip64Values']);
+        $t->same(0, $localEntry['localZip64ExtraBytes']);
+        $t->same(true, $localEntry['requiresZip64']);
+        $t->same(false, $localEntry['isSupportedByBoundedReader']);
+        $t->same(['zip64-extra-field', 'zip64-size-or-offset-sentinel'], $localEntry['issues']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects zip64 extra field metadata before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip64Extra = pack('vv', 0x0001, 8) . str_repeat("\0", 8);
+        $summary = ZipPackage::zip64ExtraFieldPreflight($buildZipPackage([
+            [
+                'name' => 'word/media/oversized-review.bin',
+                'data' => 'unneeded zip64 metadata remains review-only',
+                'centralExtra' => $zip64Extra,
+            ],
+        ]));
+
+        $t->same(1, $summary['entryCount']);
+        $t->same(1, $summary['zip64ExtraFieldEntryCount']);
+        $t->same(1, $summary['centralZip64ExtraFieldEntryCount']);
+        $t->same(0, $summary['requiresZip64EntryCount']);
+        $t->same('word/media/oversized-review.bin', $summary['zip64Entries'][0]['name']);
+        $t->same([], $summary['zip64Entries'][0]['centralZip64RequiredFields']);
+        $t->same(['zip64-extra-field', 'zip64-extra-field-without-sentinel', 'zip64-extra-field-trailing-bytes'], $summary['zip64Entries'][0]['issues']);
 
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
