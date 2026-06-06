@@ -153,9 +153,33 @@ $testPandocEntryPoint = static function (): string {
         'import Text.Pandoc.Shared (inDirectory)',
         'import System.Environment (getArgs, getExecutablePath)',
         'import qualified Tests.Command',
+        'import qualified Tests.Old',
+        'import qualified Tests.Shared',
+        'import qualified Tests.MediaBag',
+        'import qualified Tests.XML',
+        'import qualified Tests.Readers.LaTeX',
+        'import qualified Tests.Readers.HTML',
         'import qualified Tests.Readers.Markdown',
+        'import qualified Tests.Readers.RST',
+        'import qualified Tests.Readers.Docx',
+        'import qualified Tests.Readers.Pptx',
+        'import qualified Tests.Readers.Xlsx',
+        'import qualified Tests.Readers.ODT',
+        'import qualified Tests.Readers.EPUB',
+        'import qualified Tests.Readers.FB2',
+        'import qualified Tests.Readers.Pod',
+        'import qualified Tests.Writers.AsciiDoc',
+        'import qualified Tests.Writers.DocBook',
+        'import qualified Tests.Writers.Docx',
+        'import qualified Tests.Writers.HTML',
+        'import qualified Tests.Writers.LaTeX',
         'import qualified Tests.Writers.Markdown',
         'import qualified Tests.Writers.Native',
+        'import qualified Tests.Writers.Powerpoint',
+        'import qualified Tests.Writers.RST',
+        'import qualified Tests.Writers.TEI',
+        'import qualified Tests.Writers.AnnotatedTable',
+        'import qualified Tests.Writers.BBCode',
         'main = do',
         '  setLocaleEncoding utf8',
         '  args <- getArgs',
@@ -164,7 +188,7 @@ $testPandocEntryPoint = static function (): string {
         '    _ -> inDirectory "test" $ do',
         '      fp <- getExecutablePath',
         '      defaultMain $ tests fp',
-        'tests fp = testGroup "pandoc tests" [Tests.Command.tests, Tests.Readers.Markdown.tests, Tests.Writers.Native.tests, Tests.Writers.Markdown.tests]',
+        'tests fp = testGroup "pandoc tests" [Tests.Command.tests, testGroup "Old" (Tests.Old.tests fp), testGroup "Shared" Tests.Shared.tests, testGroup "MediaBag" Tests.MediaBag.tests, testGroup "XML" Tests.XML.tests, testGroup "Readers" [Tests.Readers.LaTeX.tests, Tests.Readers.Markdown.tests, Tests.Readers.HTML.tests, Tests.Readers.RST.tests, Tests.Readers.Docx.tests, Tests.Readers.Pptx.tests, Tests.Readers.Xlsx.tests, Tests.Readers.ODT.tests, Tests.Readers.EPUB.tests, Tests.Readers.FB2.tests, Tests.Readers.Pod.tests], testGroup "Writers" [Tests.Writers.Native.tests, Tests.Writers.HTML.tests, Tests.Writers.LaTeX.tests, Tests.Writers.Markdown.tests, Tests.Writers.Docx.tests, Tests.Writers.RST.tests, Tests.Writers.AsciiDoc.tests, Tests.Writers.DocBook.tests, Tests.Writers.TEI.tests, Tests.Writers.Powerpoint.tests, Tests.Writers.AnnotatedTable.tests, Tests.Writers.BBCode.tests]]',
     ]);
 };
 
@@ -801,6 +825,61 @@ return [
         $t->contains('runs from lua engine test directory', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc-lua-engine']));
         $t->contains('names lua engine tasty group', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc-lua-engine']));
         $t->contains('loads custom reader tests', implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc-lua-engine']));
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing runner entry point source semantics', $blocked);
+        $t->contains('runner entry-point source semantics', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks omitted main runner tasty groups before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $testPandocEntryPoint): void {
+        $files = $requiredFiles($pinnedProject());
+        $entryPoint = $testPandocEntryPoint();
+        foreach ([
+            'Tests.Shared.tests',
+            'Tests.MediaBag.tests',
+            'Tests.XML.tests',
+            'Tests.Readers.Docx.tests',
+            'Tests.Readers.ODT.tests',
+            'Tests.Readers.EPUB.tests',
+            'Tests.Writers.Docx.tests',
+            'Tests.Writers.RST.tests',
+            'Tests.Writers.BBCode.tests',
+        ] as $snippet) {
+            $entryPoint = str_replace($snippet, 'omitted_' . str_replace(['.', ':'], '_', $snippet), $entryPoint);
+        }
+        $files['test/test-pandoc.hs'] = $entryPoint;
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['runnerEntrySourceClosure']['missingTargets']);
+        $missing = implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc']);
+        $t->contains('loads shared helper tests', $missing);
+        $t->contains('loads media bag tests', $missing);
+        $t->contains('loads xml tests', $missing);
+        $t->contains('loads docx reader tests', $missing);
+        $t->contains('loads odt reader tests', $missing);
+        $t->contains('loads epub reader tests', $missing);
+        $t->contains('loads docx writer tests', $missing);
+        $t->contains('loads rst writer tests', $missing);
+        $t->contains('loads bbcode writer tests', $missing);
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing runner entry point source semantics', $blocked);
         $t->contains('runner entry-point source semantics', $audit['activationGate']);
