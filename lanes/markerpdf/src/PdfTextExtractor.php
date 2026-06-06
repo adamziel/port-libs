@@ -27389,7 +27389,11 @@ final class PdfTextExtractor
         if ($name === 'Filter' && $body !== null) {
             $body = trim($body);
             $review['token_type'] = $this->pdfOperandTokenType($body);
-            $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($body);
+            $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary(
+                $body,
+                $objects,
+                [$objectNumber . ':' . $generation => true]
+            );
             $extraFilterOperand = $this->indirectFilterHelperExtraOperand($body);
             if ($review['token_type'] === 'name') {
                 $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
@@ -27908,17 +27912,55 @@ final class PdfTextExtractor
         return $this->filterOperandBodyContainsDictionary($preview);
     }
 
-    private function filterOperandBodyContainsDictionary(string $body): bool
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function filterOperandBodyContainsDictionary(
+        string $body,
+        array $objects = [],
+        array $seenObjects = []
+    ): bool
     {
         $body = ltrim($body);
         if (str_starts_with($body, '<<')) {
             return true;
         }
 
-        return str_starts_with($body, '[') && $this->filterOperandArrayContainsDictionary($body);
+        if (str_starts_with($body, '[')) {
+            return $this->filterOperandArrayContainsDictionary($body, $objects, $seenObjects);
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($body, 0);
+        if ($reference === null || $this->skipPdfWhitespace($body, $reference['endOffset']) !== strlen($body)) {
+            return false;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seenObjects[$objectKey])) {
+            return false;
+        }
+
+        $referencedBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($referencedBody === null) {
+            return false;
+        }
+
+        $seenObjects[$objectKey] = true;
+        return $this->filterOperandBodyContainsDictionary($referencedBody, $objects, $seenObjects);
     }
 
-    private function filterOperandArrayContainsDictionary(string $body): bool
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function filterOperandArrayContainsDictionary(
+        string $body,
+        array $objects = [],
+        array $seenObjects = []
+    ): bool
     {
         $arrayBody = $this->readPdfArrayAt($body, 0);
         if ($arrayBody === null) {
@@ -27931,7 +27973,11 @@ final class PdfTextExtractor
                 return true;
             }
 
-            if (str_starts_with($item, '[') && $this->filterOperandArrayContainsDictionary($item)) {
+            if (str_starts_with($item, '[') && $this->filterOperandArrayContainsDictionary($item, $objects, $seenObjects)) {
+                return true;
+            }
+
+            if ($this->filterOperandBodyContainsDictionary($item, $objects, $seenObjects)) {
                 return true;
             }
         }
