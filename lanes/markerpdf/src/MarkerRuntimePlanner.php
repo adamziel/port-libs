@@ -188,6 +188,100 @@ final class MarkerRuntimePlanner
     }
 
     /**
+     * Native review-only boundary for convert.py's import-time side effects.
+     *
+     * Upstream assigns the conversion environment before importing pypdfium2,
+     * keeps pypdfium2 ahead of argparse/Torch/Marker runtime imports, and calls
+     * configure_logging before argument parsing. This records that ordering
+     * without importing Python modules, PDFium, Torch, or Marker models.
+     *
+     * @return array<string, mixed>
+     */
+    public function conversionImportBoundaryPlan(): array
+    {
+        $environment = $this->conversionImportEnvironment();
+
+        return [
+            'schema' => 'markerpdf.convert_import_boundary.v1',
+            'source' => 'sddai/markerPDF convert.py import-time environment, pypdfium2 import order, and logging setup',
+            'environment' => $environment,
+            'environment_assignments' => [
+                [
+                    'key' => 'PYTORCH_ENABLE_MPS_FALLBACK',
+                    'value' => $environment['PYTORCH_ENABLE_MPS_FALLBACK'],
+                    'order' => 'before_pypdfium2_import',
+                    'statement' => 'os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"',
+                    'reason' => 'Enable MPS fallback before PDF/model runtime imports.',
+                ],
+                [
+                    'key' => 'IN_STREAMLIT',
+                    'value' => $environment['IN_STREAMLIT'],
+                    'order' => 'before_pypdfium2_import',
+                    'statement' => 'os.environ["IN_STREAMLIT"] = "true"',
+                    'reason' => 'Match upstream conversion import guard that disables nested Streamlit-style multiprocessing paths.',
+                ],
+                [
+                    'key' => 'PDFTEXT_CPU_WORKERS',
+                    'value' => $environment['PDFTEXT_CPU_WORKERS'],
+                    'order' => 'before_pypdfium2_import',
+                    'statement' => 'os.environ["PDFTEXT_CPU_WORKERS"] = "1"',
+                    'reason' => 'Keep pdftext worker fanout bounded before searchable-PDF text extraction imports.',
+                ],
+            ],
+            'import_order' => [
+                'os',
+                'set_PYTORCH_ENABLE_MPS_FALLBACK',
+                'set_IN_STREAMLIT',
+                'set_PDFTEXT_CPU_WORKERS',
+                'pypdfium2',
+                'argparse',
+                'torch.multiprocessing',
+                'tqdm.tqdm',
+                'math',
+                'marker.convert.convert_single_pdf',
+                'marker.output.markdown_exists',
+                'marker.output.save_markdown',
+                'marker.pdf.utils.find_filetype',
+                'marker.pdf.extract_text.get_length_of_text',
+                'marker.models.load_all_models',
+                'marker.settings.settings',
+                'marker.logger.configure_logging',
+                'traceback',
+                'json',
+                'configure_logging',
+                'parse_args',
+            ],
+            'pypdfium_import' => [
+                'module' => 'pypdfium2',
+                'statement' => 'import pypdfium2',
+                'comment' => 'Needs to be at the top to avoid warnings',
+                'after_environment_assignments' => true,
+                'before_argparse' => true,
+                'before_torch_multiprocessing' => true,
+                'native_plan_imports_pypdfium2' => false,
+            ],
+            'logging' => [
+                'function' => 'configure_logging',
+                'called_at_import_time' => true,
+                'after_logger_import' => true,
+                'before_parse_args' => true,
+                'plan' => ['schema' => 'markerpdf.logging_plan.v1'] + $this->loggingPlan(),
+            ],
+            'runtime_boundaries' => [
+                'filesystem_touched_by_import_plan' => false,
+                'model_handoff_reached_by_import_plan' => false,
+                'multiprocessing_pool_reached_by_import_plan' => false,
+                'argument_parser_reached_after_logging' => true,
+            ],
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_pypdfium' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
      * Native planning boundary for convert.py's torch multiprocessing pool.
      *
      * @param list<array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null}> $tasks
