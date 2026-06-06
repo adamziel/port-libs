@@ -28349,6 +28349,10 @@ final class PdfTextExtractor
         foreach ($objects as $body) {
             $cmap = $this->decodedCMapBodyForParsing($body, $objects);
             $name = $cmap === null ? null : $this->cMapName($cmap);
+            if ($cmap !== null && $name === null) {
+                $fullCMap = $this->decodedCMapBody($body, $objects);
+                $name = $fullCMap === null ? null : $this->cMapName($fullCMap);
+            }
             if ($cmap === null || $name === null) {
                 continue;
             }
@@ -28372,6 +28376,10 @@ final class PdfTextExtractor
         }
 
         $currentName = $this->cMapName($decoded);
+        if ($currentName === null) {
+            $fullDecoded = $this->decodedCMapBody($objectBody, $objects);
+            $currentName = $fullDecoded === null ? null : $this->cMapName($fullDecoded);
+        }
 
         return $this->parseToUnicodeCMap($decoded, $namedCMapBodies, $currentName === null ? [] : [$currentName]);
     }
@@ -28407,6 +28415,26 @@ final class PdfTextExtractor
             if ($char === '[') {
                 $arrayBody = $this->readPdfArrayAt($cmap, $index);
                 $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($cmap, $index, 'CMapName')) {
+                $operatorOffset = $this->skipPdfWhitespace($cmap, $index + strlen('CMapName'));
+                if ($this->pdfKeywordAt($cmap, $operatorOffset, 'currentdict')) {
+                    $nameOffset = $this->skipPdfWhitespace($cmap, $operatorOffset + strlen('currentdict'));
+                    if (($cmap[$nameOffset] ?? '') === '/') {
+                        $nameToken = $this->readNameToken($cmap, $nameOffset);
+                        $defineresourceOffset = $this->skipPdfWhitespace($cmap, $nameOffset);
+                        if ($this->pdfKeywordAt($cmap, $defineresourceOffset, 'defineresource')) {
+                            $name = $this->decodePdfName(substr($nameToken, 1));
+                            if ($name !== '') {
+                                return $name;
+                            }
+                        }
+                    }
+                }
+
+                $index += strlen('CMapName');
                 continue;
             }
 

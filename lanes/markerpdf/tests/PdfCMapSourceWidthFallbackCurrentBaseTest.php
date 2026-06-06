@@ -572,6 +572,55 @@ $cMapPredefinedUseCMapSourceWidthCurrentBasePdf = static function (): string {
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$cMapNamedUseCMapDefineresourceSourceWidthCurrentBasePdf = static function (): string {
+    $baseCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<20> <23>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<20> <0041>\n"
+        . "<21> <0042>\n"
+        . "<22> <0043>\n"
+        . "<23> <0044>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /NamedBaseSourceWidth-H defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/NamedBaseSourceWidth-H usecmap\n"
+        . "1 begincodespacerange\n"
+        . "<24> <27>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<24> <0045>\n"
+        . "<25> <0046>\n"
+        . "<26> <0047>\n"
+        . "<27> <0048>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /DerivedSourceWidth-H defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf '
+        . '1 0 0 1 72 720 Tm <20212223> Tj '
+        . '1 0 0 1 132 720 Tm <24252627> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NamedUseCMapSourceWidth /Encoding /MissingCustom-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NamedUseCMapSourceWidth /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [32 35 1000 36 39 250] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($baseCMap) . " >>\nstream\n{$baseCMap}\nendstream\nendobj\n%%EOF";
+};
+
 $cMapLateUseCMapSourceWidthCurrentBasePdf = static function (): string {
     $baseCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1668,6 +1717,27 @@ return [
         $t->same([0.0, 0.0, 48.0, 12.0], $spans[0]['bbox'] ?? null);
         $t->same([48.0, 0.0, 60.0, 12.0], $spans[1]['bbox'] ?? null);
         $t->same([0.0, 0.0, 60.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'ABCDEFGH'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'inherits named ToUnicode usecmap defineresource mappings before source-width fallback on current base' => static function (TestRunner $t) use ($cMapNamedUseCMapDefineresourceSourceWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapNamedUseCMapDefineresourceSourceWidthCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $runs = $extractor->extractTextRuns($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABCD EFGH'], $extractor->extractTextLines($pdf));
+        $t->same(['ABCD', 'EFGH'], $runs);
+        $t->same('ABCD EFGH', $plainText);
+        $t->same("ABCD EFGH\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABCD', 'EFGH'], array_column($spans, 'text'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $spans[0]['bbox'] ?? null);
+        $t->same([48.0, 0.0, 60.0, 12.0], $spans[1]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 60.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, ' !"'));
         $t->true(!str_contains($plainText, 'ABCDEFGH'));
         $t->true(!str_contains($plainText, "\0"));
     },
