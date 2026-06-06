@@ -236,6 +236,7 @@ final class TableFormatter
                 }
             }
 
+            $insertedOnPage = 0;
             foreach ($tableRegions as $tableIndex => $region) {
                 if (!isset($insertPoints[$tableIndex])) {
                     $tableContextReviews[] = $this->tableContextReview(
@@ -258,7 +259,7 @@ final class TableFormatter
                 }
 
                 $tableBlock = $this->tableBlock($region['bbox'], (string) $markdownTables[$processedTables], (int) ($page['pnum'] ?? 0), $tableIndex);
-                $insertPoint = min((int) $insertPoints[$tableIndex], count($newPageBlocks));
+                $insertPoint = min((int) $insertPoints[$tableIndex] + $insertedOnPage, count($newPageBlocks));
                 array_splice($newPageBlocks, $insertPoint, 0, [$tableBlock]);
                 $tableContextReviews[] = $this->tableContextReview(
                     $page,
@@ -273,6 +274,7 @@ final class TableFormatter
                 );
                 $processedTables++;
                 $insertedTables++;
+                $insertedOnPage++;
             }
 
             $page['blocks'] = $newPageBlocks;

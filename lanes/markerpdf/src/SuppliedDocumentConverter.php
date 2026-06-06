@@ -224,6 +224,11 @@ final class SuppliedDocumentConverter
 
         $markdownTables = $this->listOption($options, 'markdown_tables');
         $recognizedTables = $this->listOption($options, 'recognized_tables');
+        $recognizedTablePageResultBoundary = $this->flattenRecognizedTablePageResults($recognizedTables);
+        $recognizedTables = $recognizedTablePageResultBoundary['tables'];
+        if ($recognizedTablePageResultBoundary['reviews'] !== []) {
+            $metadata['table_page_result_boundary_reviews'] = $recognizedTablePageResultBoundary['reviews'];
+        }
         if ($recognizedTables !== []) {
             $detectBoxes = (bool) ($options['table_detect_boxes'] ?? $options['ocr_all_pages'] ?? false);
             $tablePlan = $this->tableFormatter->getTableBoxes(
@@ -349,6 +354,149 @@ final class SuppliedDocumentConverter
             'images' => $finalized['images'],
             'metadata' => $finalized['metadata'],
         ];
+    }
+
+    /**
+     * Upstream tabled.extract.extract_tables returns page-level
+     * ExtractPageResult envelopes before extract.py serializes them as
+     * per-table records. Native supplied artifacts can arrive at either
+     * boundary, so normalize the page envelope without changing flat tables.
+     *
+     * @param list<array<string, mixed>> $recognizedTables
+     * @return array{tables: list<array<string, mixed>>, reviews: list<array<string, mixed>>}
+     */
+    private function flattenRecognizedTablePageResults(array $recognizedTables): array
+    {
+        $tables = [];
+        $reviews = [];
+
+        foreach ($recognizedTables as $pageResultIndex => $tableOrPageResult) {
+            if (!$this->isRecognizedTablePageResult($tableOrPageResult)) {
+                $tables[] = $tableOrPageResult;
+                continue;
+            }
+
+            $cellsByTable = isset($tableOrPageResult['cells']) && is_array($tableOrPageResult['cells'])
+                ? array_values($tableOrPageResult['cells'])
+                : [];
+            $rowsColsByTable = isset($tableOrPageResult['rows_cols']) && is_array($tableOrPageResult['rows_cols'])
+                ? array_values($tableOrPageResult['rows_cols'])
+                : [];
+            $tableBboxes = isset($tableOrPageResult['bboxes']) && is_array($tableOrPageResult['bboxes'])
+                ? array_values($tableOrPageResult['bboxes'])
+                : [];
+            $imageBboxes = isset($tableOrPageResult['image_bboxes']) && is_array($tableOrPageResult['image_bboxes'])
+                ? array_values($tableOrPageResult['image_bboxes'])
+                : [];
+
+            $firstFlattenedIndex = count($tables);
+            $tableCount = max(count($cellsByTable), count($rowsColsByTable), count($tableBboxes), count($imageBboxes));
+            for ($tableIndex = 0; $tableIndex < $tableCount; $tableIndex++) {
+                $rowsCols = isset($rowsColsByTable[$tableIndex]) && is_array($rowsColsByTable[$tableIndex])
+                    ? $rowsColsByTable[$tableIndex]
+                    : [];
+                $table = [
+                    'cells' => $this->pageResultRecordList($cellsByTable[$tableIndex] ?? []),
+                    'rows' => $this->pageResultRecordList($rowsCols['rows'] ?? $rowsCols['row_bboxes'] ?? []),
+                    'cols' => $this->pageResultRecordList($rowsCols['cols'] ?? $rowsCols['columns'] ?? $rowsCols['col_bboxes'] ?? []),
+                ];
+
+                $bbox = $this->pageResultBboxValue($tableBboxes[$tableIndex] ?? null);
+                if ($bbox !== null) {
+                    $table['bbox'] = $bbox;
+                }
+
+                $imageBbox = $this->pageResultBboxValue($imageBboxes[$tableIndex] ?? null);
+                if ($imageBbox !== null) {
+                    $table['image_bbox'] = $imageBbox;
+                }
+
+                if (isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || is_string($tableOrPageResult['pnum']))) {
+                    $table['pnum'] = is_numeric($tableOrPageResult['pnum'])
+                        ? (int) $tableOrPageResult['pnum']
+                        : $tableOrPageResult['pnum'];
+                }
+                $table['tnum'] = $tableIndex;
+
+                $tables[] = $table;
+            }
+
+            $reviews[] = [
+                'review_target' => 'table_page_result_boundary',
+                'upstream_boundary' => 'tabled.schema.ExtractPageResult',
+                'page_result_index' => $pageResultIndex,
+                'table_count' => $tableCount,
+                'flattened_table_indexes' => $tableCount > 0
+                    ? range($firstFlattenedIndex, $firstFlattenedIndex + $tableCount - 1)
+                    : [],
+                'cells_table_count' => count($cellsByTable),
+                'rows_cols_table_count' => count($rowsColsByTable),
+                'table_bbox_count' => count($tableBboxes),
+                'image_bbox_count' => count($imageBboxes),
+                'pnum' => isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || (is_string($tableOrPageResult['pnum']) && is_numeric($tableOrPageResult['pnum'])))
+                    ? (int) $tableOrPageResult['pnum']
+                    : ($tableOrPageResult['pnum'] ?? null),
+            ];
+        }
+
+        return [
+            'tables' => $tables,
+            'reviews' => $reviews,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function isRecognizedTablePageResult(array $entry): bool
+    {
+        if (!isset($entry['cells']) || !is_array($entry['cells']) || !array_is_list($entry['cells'])) {
+            return false;
+        }
+
+        if (!isset($entry['rows_cols']) || !is_array($entry['rows_cols']) || !array_is_list($entry['rows_cols'])) {
+            return false;
+        }
+
+        foreach ($entry['cells'] as $tableCells) {
+            if (is_array($tableCells) && array_is_list($tableCells)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function pageResultRecordList(mixed $records): array
+    {
+        if (!is_array($records)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $records,
+            static fn (mixed $record): bool => is_array($record)
+        ));
+    }
+
+    private function pageResultBboxValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        if (isset($value['bbox']) && is_array($value['bbox'])) {
+            return $value['bbox'];
+        }
+
+        if (isset($value['box']) && is_array($value['box'])) {
+            return $value['box'];
+        }
+
+        return $value;
     }
 
     /**
