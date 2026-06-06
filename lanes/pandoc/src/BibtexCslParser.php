@@ -570,6 +570,11 @@ final class BibtexCslParser
         $publisherPlaceList = self::literalListFromFirstField($fields, ['location', 'address', 'venue']);
         $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher']);
         $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress']);
+        $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'eventlocation', 'eventplace', 'venue']);
+        $eventPlace = self::literalListDisplay($eventPlaceList);
+        if ($eventPlace === '') {
+            $eventPlace = self::firstField($fields, ['venue', 'eventvenue', 'eventlocation', 'eventplace']);
+        }
         $item = [
             'id' => $key,
             'type' => self::cslType($type),
@@ -594,7 +599,7 @@ final class BibtexCslParser
             'main-title-addon' => self::firstField($fields, ['maintitleaddon']),
             'event' => self::firstField($fields, ['eventtitle']),
             'event-title-addon' => self::firstField($fields, ['eventtitleaddon']),
-            'event-place' => self::firstField($fields, ['venue', 'eventvenue', 'eventlocation', 'eventplace']),
+            'event-place' => $eventPlace,
             'event-type' => self::firstField($fields, ['eventtype']),
             'publisher' => self::literalListDisplay($publisherList),
             'publisher-place' => self::literalListDisplay($publisherPlaceList),
@@ -666,6 +671,10 @@ final class BibtexCslParser
 
         if ($originalPublisherPlaceList !== []) {
             $item['original-publisher-place-list'] = $originalPublisherPlaceList;
+        }
+
+        if ($eventPlaceList !== []) {
+            $item['event-place-list'] = $eventPlaceList;
         }
 
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));

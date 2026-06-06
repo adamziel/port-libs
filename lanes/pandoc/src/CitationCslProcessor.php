@@ -666,6 +666,11 @@ final class CitationCslProcessor
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList']);
+        $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace']);
+        $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList']);
+        if ($eventPlace === '' && $eventPlaceList !== []) {
+            $eventPlace = implode('; ', $eventPlaceList);
+        }
         $accessedDate = self::dateVariable($item['accessed'] ?? null, $id, 'accessed');
         $originalDate = self::dateVariable($item['original-date'] ?? null, $id, 'original-date');
         $eventDate = self::dateVariable($item['event-date'] ?? null, $id, 'event-date');
@@ -700,7 +705,8 @@ final class CitationCslProcessor
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon']),
-            'eventPlace' => self::firstStringField($item, ['event-place', 'eventPlace']),
+            'eventPlace' => $eventPlace,
+            'eventPlaceList' => $eventPlaceList !== [] ? $eventPlaceList : ($eventPlace !== '' ? [$eventPlace] : []),
             'eventType' => self::firstStringField($item, ['event-type', 'eventType']),
             'publisher' => $publisher,
             'publisherPlace' => $publisherPlace,
@@ -3429,6 +3435,11 @@ final class CitationCslProcessor
         $eventTitle = trim((string) ($item['eventTitle'] ?? ''));
         $eventTitleAddon = trim((string) ($item['eventTitleAddon'] ?? ''));
         $eventPlace = trim((string) ($item['eventPlace'] ?? ''));
+        $eventPlaceList = $item['eventPlaceList'] ?? [];
+        $multipleEventPlaces = is_array($eventPlaceList) && count(array_filter(
+            array_map(static fn (mixed $place): string => trim((string) $place), $eventPlaceList),
+            static fn (string $place): bool => $place !== ''
+        )) > 1;
         $eventType = trim((string) ($item['eventType'] ?? ''));
         $eventDate = $item['eventDate'] ?? null;
         $eventOrganizers = $item['eventOrganizers'] ?? [];
@@ -3459,7 +3470,7 @@ final class CitationCslProcessor
             $parts[] = $this->localizedEventBibliographyLabel('event-organizer', 'Event organizer') . ': ' . rtrim($this->renderNameList($eventOrganizers, $this->style->bibliographyNameRendering(), true), '.') . '.';
         }
         if ($eventPlace !== '') {
-            $parts[] = $this->localizedEventBibliographyPart('event-place', 'Event place', $eventPlace);
+            $parts[] = $this->localizedEventBibliographyPart('event-place', $multipleEventPlaces ? 'Event places' : 'Event place', $eventPlace, $multipleEventPlaces);
         }
         if (is_array($eventDate) && (string) ($eventDate['display'] ?? '') !== '') {
             $parts[] = $this->localizedEventBibliographyLabel('event-date', 'Event date') . ' ' . (string) $eventDate['display'] . '.';
@@ -3468,14 +3479,14 @@ final class CitationCslProcessor
         return $parts;
     }
 
-    private function localizedEventBibliographyPart(string $termName, string $fallbackLabel, string $value): string
+    private function localizedEventBibliographyPart(string $termName, string $fallbackLabel, string $value, bool $plural = false): string
     {
-        return $this->localizedEventBibliographyLabel($termName, $fallbackLabel) . ': ' . $this->withTerminalPunctuation($value);
+        return $this->localizedEventBibliographyLabel($termName, $fallbackLabel, $plural) . ': ' . $this->withTerminalPunctuation($value);
     }
 
-    private function localizedEventBibliographyLabel(string $termName, string $fallbackLabel): string
+    private function localizedEventBibliographyLabel(string $termName, string $fallbackLabel, bool $plural = false): string
     {
-        $label = trim($this->style->term($termName));
+        $label = trim($this->style->term($termName, 'long', $plural));
 
         return $label !== '' ? $label : $fallbackLabel;
     }
@@ -4917,6 +4928,7 @@ final class CitationCslProcessor
             'event', 'event-title' => (string) $item['eventTitle'],
             'event-title-addon' => (string) $item['eventTitleAddon'],
             'event-place' => (string) $item['eventPlace'],
+            'event-place-list' => implode('; ', is_array($item['eventPlaceList'] ?? null) ? $item['eventPlaceList'] : []),
             'event-type' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],

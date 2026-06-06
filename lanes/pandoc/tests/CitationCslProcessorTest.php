@@ -3151,6 +3151,89 @@ XML);
         $t->same('Remote', $manual['eventPlace'] ?? null);
         $t->same('2026-06-05', $manual['eventDate']['display'] ?? null);
     },
+    'maps bounded biblatex event venue lists into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{multi-venue-proceedings,
+  editor          = {Curator, Eli},
+  title           = {Multi Venue Proceedings},
+  eventtitle      = {WordCamp Review Summit},
+  eventvenue      = {{Portland Convention Center} and {Remote Stream}},
+  eventdate       = {2026-06-04/2026-06-05},
+  date            = {2026},
+  publisher       = {Migration Desk}
+}
+
+@inproceedings{multi-venue-paper,
+  author   = {Ng, Nia},
+  title    = {Distributed Venue Review},
+  pages    = {60--64},
+  crossref = {multi-venue-proceedings}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Portland Convention Center; Remote Stream', $items[0]['event-place'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $items[0]['event-place-list'] ?? null);
+        $t->same('Portland Convention Center; Remote Stream', $items[1]['event-place'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $items[1]['event-place-list'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $proceedings = $processor->item('multi-venue-proceedings');
+        $paper = $processor->item('multi-venue-paper');
+        $t->same('Portland Convention Center; Remote Stream', $proceedings['eventPlace'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $proceedings['eventPlaceList'] ?? null);
+        $t->same('Portland Convention Center; Remote Stream', $paper['eventPlace'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $paper['eventPlaceList'] ?? null);
+        $t->same('(Curator 2026; Ng 2026)', $processor->renderCitationCluster([
+            $citation('multi-venue-proceedings', '[@multi-venue-proceedings]'),
+            $citation('multi-venue-paper', '[@multi-venue-paper]'),
+        ]));
+        $t->same(
+            'Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64.',
+            $processor->renderBibliographyEntry('multi-venue-paper')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author editor"/>
+        <text variable="event-place"/>
+        <text variable="event-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="event-place"/>
+      <text variable="event-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Curator | Portland Convention Center; Remote Stream | Portland Convention Center; Remote Stream; Ng | Portland Convention Center; Remote Stream | Portland Convention Center; Remote Stream]', $styled->renderCitationCluster([
+            $citation('multi-venue-proceedings', '[@multi-venue-proceedings]'),
+            $citation('multi-venue-paper', '[@multi-venue-paper]'),
+        ]));
+        $t->same('Distributed Venue Review :: Portland Convention Center; Remote Stream :: Portland Convention Center; Remote Stream', $styled->renderBibliographyEntry('multi-venue-paper'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-event-places',
+            'title' => 'Manual Event Places',
+            'event-place-list' => ['Review Room', 'Remote Stream'],
+        ]])->item('manual-event-places');
+        $t->same('Review Room; Remote Stream', $direct['eventPlace'] ?? null);
+        $t->same(['Review Room', 'Remote Stream'], $direct['eventPlaceList'] ?? null);
+
+        $document = (new MarkdownReader())->read('Venue source @multi-venue-paper and proceedings [@multi-venue-proceedings] keep distributed event places visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Venue source Ng (2026) and proceedings (Curator 2026) keep distributed event places visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64.</dd>', $blocks);
+    },
     'maps bounded biblatex event organizer metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{organized-proceedings,
