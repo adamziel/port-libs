@@ -1536,8 +1536,9 @@ final class TableRecognizer
             ];
         }
 
-        $cropBbox = $needsTranslation ? $this->tableCropBbox($table, $imageSize) : null;
-        $cropBboxSource = $cropBbox === null ? null : $this->tableCropBboxSource($table, $imageSize);
+        $cropCandidate = $needsTranslation ? $this->tableCropBboxCandidate($table, $imageSize) : null;
+        $cropBbox = $cropCandidate['bbox'] ?? null;
+        $cropBboxSource = $cropCandidate['source'] ?? null;
         if ($needsTranslation && $cropBbox === null) {
             return [
                 'table' => $table,
@@ -1687,6 +1688,15 @@ final class TableRecognizer
             $review['table_bbox'] = $cropBbox;
             if ($cropBboxSource !== null) {
                 $review['table_bbox_source'] = $cropBboxSource;
+            }
+            if (isset($cropCandidate['source_bbox']) && is_array($cropCandidate['source_bbox'])) {
+                $review['source_table_bbox'] = $cropCandidate['source_bbox'];
+            }
+            if (isset($cropCandidate['source_coordinate_space']) && is_scalar($cropCandidate['source_coordinate_space'])) {
+                $review['table_bbox_source_coordinate_space'] = (string) $cropCandidate['source_coordinate_space'];
+            }
+            if (isset($cropCandidate['page_image_normalization_size']) && is_array($cropCandidate['page_image_normalization_size'])) {
+                $review['table_bbox_page_image_normalization_size'] = $cropCandidate['page_image_normalization_size'];
             }
             $review['translation'] = ['x' => $dx, 'y' => $dy];
         }
@@ -2130,27 +2140,40 @@ final class TableRecognizer
      *
      * @param array<string, mixed> $table
      * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
-     * @return array{bbox: list<float>, source: string}|null
+     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}}|null
      */
     private function tableCropBboxCandidate(array $table, array $imageSize): ?array
     {
         foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
-            if (isset($table[$key]) && $this->bboxFromGeometryValue($table[$key]) !== null) {
-                return [
-                    'bbox' => $this->bboxFromGeometryValue($table[$key]),
-                    'source' => $key,
-                ];
+            if (isset($table[$key])) {
+                $candidate = $this->tableCropBboxCandidateFromValue(
+                    $table[$key],
+                    $key,
+                    $table,
+                    $key,
+                    $table,
+                    $imageSize
+                );
+                if ($candidate !== null) {
+                    return $candidate;
+                }
             }
-            if (isset($imageSize[$key]) && $this->bboxFromGeometryValue($imageSize[$key]) !== null) {
+            if (isset($imageSize[$key])) {
                 $source = $key;
                 if ($key === 'table_bbox' && isset($imageSize['table_bbox_source']) && is_scalar($imageSize['table_bbox_source'])) {
                     $source = (string) $imageSize['table_bbox_source'];
                 }
-
-                return [
-                    'bbox' => $this->bboxFromGeometryValue($imageSize[$key]),
-                    'source' => $source,
-                ];
+                $candidate = $this->tableCropBboxCandidateFromValue(
+                    $imageSize[$key],
+                    $source,
+                    $imageSize,
+                    $key,
+                    $table,
+                    $imageSize
+                );
+                if ($candidate !== null) {
+                    return $candidate;
+                }
             }
         }
 
@@ -2158,10 +2181,13 @@ final class TableRecognizer
         if ($polygonBbox !== null) {
             $source = $this->polygonCoordinateSourceFromRecord($table);
             if ($source !== null) {
-                return [
-                    'bbox' => $polygonBbox,
-                    'source' => $source,
-                ];
+                return $this->tableCropBboxCandidateWithCoordinateSpace(
+                    $polygonBbox,
+                    $source,
+                    $this->tableCropBboxCoordinateSpace($table, 'polygon'),
+                    $table,
+                    $imageSize
+                );
             }
         }
 
@@ -2179,29 +2205,193 @@ final class TableRecognizer
             $tableBbox = $this->bboxFromExplicitCoordinateOrder($table)
                 ?? $this->bboxFromGeometryValue($table['bbox']);
             if ($tableBbox !== null) {
-                return [
-                    'bbox' => $tableBbox,
-                    'source' => is_array($table['bbox'])
+                return $this->tableCropBboxCandidateWithCoordinateSpace(
+                    $tableBbox,
+                    is_array($table['bbox'])
                         ? $this->bboxCoordinateSourceFromRecord($table)
                         : 'bbox_array',
-                ];
+                    $this->tableCropBboxCoordinateSpace($table, 'bbox'),
+                    $table,
+                    $imageSize
+                );
             }
         }
 
         $wrappedBbox = $this->bboxFromWrappedValue($table);
         if ($wrappedBbox !== null) {
-            return [
-                'bbox' => $wrappedBbox,
-                'source' => $this->bboxWrappedFieldSource($table) ?? 'bbox_array',
-            ];
+            $wrappedSource = $this->bboxWrappedFieldSource($table) ?? 'bbox_array';
+
+            return $this->tableCropBboxCandidateWithCoordinateSpace(
+                $wrappedBbox,
+                $wrappedSource,
+                $this->tableCropBboxCoordinateSpace($table, $wrappedSource),
+                $table,
+                $imageSize
+            );
         }
 
         return null;
     }
 
     /**
+     * @param array<string|int, mixed> $record
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}}|null
+     */
+    private function tableCropBboxCandidateFromValue(
+        mixed $value,
+        string $source,
+        array $record,
+        string $sourceKey,
+        array $table,
+        array $imageSize,
+        bool $allowGenericCoordinateSpace = false
+    ): ?array {
+        $bbox = $this->bboxFromGeometryValue($value);
+        if ($bbox === null) {
+            return null;
+        }
+
+        return $this->tableCropBboxCandidateWithCoordinateSpace(
+            $bbox,
+            $source,
+            $this->tableCropBboxCoordinateSpace($record, $sourceKey, $allowGenericCoordinateSpace),
+            $table,
+            $imageSize
+        );
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}}
+     */
+    private function tableCropBboxCandidateWithCoordinateSpace(
+        array $bbox,
+        string $source,
+        ?string $coordinateSpace,
+        array $table,
+        array $imageSize
+    ): array {
+        $candidate = [
+            'bbox' => $bbox,
+            'source' => $source,
+        ];
+        if ($coordinateSpace === null) {
+            return $candidate;
+        }
+
+        $coordinateSpace = $this->normalizeCoordinateSpace($coordinateSpace);
+        $candidate['source_coordinate_space'] = $coordinateSpace;
+        if (!$this->isNormalizedPageImageCoordinateSpace($coordinateSpace)) {
+            return $candidate;
+        }
+
+        $pageImageSize = $this->tableCropBboxPageImageNormalizationSize($table, $imageSize);
+        if ($pageImageSize === null) {
+            return $candidate;
+        }
+
+        $candidate['source_bbox'] = $bbox;
+        $candidate['bbox'] = $this->unnormalizedTableBbox($bbox, $pageImageSize);
+        $candidate['page_image_normalization_size'] = $pageImageSize;
+
+        return $candidate;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function tableCropBboxCoordinateSpace(array $record, string $sourceKey, bool $allowGenericCoordinateSpace = false): ?string
+    {
+        $normalizedSource = $this->normalizeCoordinateSpace($sourceKey);
+        $sourceParts = array_values(array_filter(explode('.', $normalizedSource), static fn (string $part): bool => $part !== ''));
+        $lastSourcePart = $sourceParts === [] ? $normalizedSource : $sourceParts[count($sourceParts) - 1];
+        $keys = [
+            $normalizedSource . '_coordinate_space',
+            $normalizedSource . '_geometry_space',
+            $normalizedSource . '_bbox_coordinate_space',
+            $normalizedSource . '_bbox_geometry_space',
+            $lastSourcePart . '_coordinate_space',
+            $lastSourcePart . '_geometry_space',
+            $lastSourcePart . '_bbox_coordinate_space',
+            $lastSourcePart . '_bbox_geometry_space',
+        ];
+
+        if (str_contains($normalizedSource, 'table_bbox') || str_contains($normalizedSource, 'crop_bbox')) {
+            $keys = [
+                ...$keys,
+                'table_bbox_coordinate_space',
+                'table_bbox_geometry_space',
+                'table_crop_bbox_coordinate_space',
+                'table_crop_bbox_geometry_space',
+                'crop_bbox_coordinate_space',
+                'crop_bbox_geometry_space',
+                'highres_bbox_coordinate_space',
+                'highres_bbox_geometry_space',
+                'page_table_bbox_coordinate_space',
+                'page_table_bbox_geometry_space',
+            ];
+        }
+        if ($lastSourcePart === 'bbox') {
+            $keys = [
+                ...$keys,
+                'bbox_coordinate_space',
+                'bbox_geometry_space',
+            ];
+        }
+
+        foreach (array_values(array_unique($keys)) as $key) {
+            if (isset($record[$key]) && is_scalar($record[$key])) {
+                return $this->normalizeCoordinateSpace((string) $record[$key]);
+            }
+        }
+
+        if ($allowGenericCoordinateSpace) {
+            foreach (['coordinate_space', 'geometry_coordinate_space', 'geometry_space'] as $key) {
+                if (isset($record[$key]) && is_scalar($record[$key])) {
+                    return $this->normalizeCoordinateSpace((string) $record[$key]);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array{width: int, height: int}|null
+     */
+    private function tableCropBboxPageImageNormalizationSize(array $table, array $imageSize): ?array
+    {
+        foreach (['image_bbox', 'page_image_bbox', 'rendered_image_bbox'] as $key) {
+            $bbox = isset($table[$key]) ? $this->bboxFromValue($table[$key]) : null;
+            if ($bbox === null && isset($imageSize[$key])) {
+                $bbox = $this->bboxFromValue($imageSize[$key]);
+            }
+            if ($bbox === null) {
+                continue;
+            }
+
+            $fromExtent = $this->imageSizeFromBboxExtent($bbox);
+            if ($fromExtent !== null) {
+                return $fromExtent;
+            }
+        }
+
+        if (isset($imageSize['table_bbox']) || isset($imageSize['table_bbox_source'])) {
+            return null;
+        }
+
+        return $this->nullableImageSize($imageSize);
+    }
+
+    /**
      * @param array<string|int, mixed> $source
-     * @return array{bbox: list<float>, source: string}|null
+     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}}|null
      */
     private function nestedTableCropBboxCandidate(array $source): ?array
     {
@@ -2216,12 +2406,17 @@ final class TableRecognizer
                     continue;
                 }
 
-                $bbox = $this->bboxFromGeometryValue($container[$bboxKey]);
-                if ($bbox !== null) {
-                    return [
-                        'bbox' => $bbox,
-                        'source' => $containerKey . '.' . $bboxKey,
-                    ];
+                $candidate = $this->tableCropBboxCandidateFromValue(
+                    $container[$bboxKey],
+                    $containerKey . '.' . $bboxKey,
+                    $container,
+                    $bboxKey,
+                    $source,
+                    $source,
+                    true
+                );
+                if ($candidate !== null) {
+                    return $candidate;
                 }
             }
 
@@ -2229,10 +2424,13 @@ final class TableRecognizer
             if ($polygonBbox !== null) {
                 $sourceKey = $this->polygonCoordinateSourceFromRecord($container);
                 if ($sourceKey !== null) {
-                    return [
-                        'bbox' => $polygonBbox,
-                        'source' => $containerKey . '.' . $sourceKey,
-                    ];
+                    return $this->tableCropBboxCandidateWithCoordinateSpace(
+                        $polygonBbox,
+                        $containerKey . '.' . $sourceKey,
+                        $this->tableCropBboxCoordinateSpace($container, $sourceKey, true),
+                        $source,
+                        $source
+                    );
                 }
             }
 
@@ -2241,12 +2439,17 @@ final class TableRecognizer
                     continue;
                 }
 
-                $bbox = $this->bboxFromGeometryValue($container[$bboxKey]);
-                if ($bbox !== null) {
-                    return [
-                        'bbox' => $bbox,
-                        'source' => $containerKey . '.' . $bboxKey,
-                    ];
+                $candidate = $this->tableCropBboxCandidateFromValue(
+                    $container[$bboxKey],
+                    $containerKey . '.' . $bboxKey,
+                    $container,
+                    $bboxKey,
+                    $source,
+                    $source,
+                    true
+                );
+                if ($candidate !== null) {
+                    return $candidate;
                 }
             }
         }

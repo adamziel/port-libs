@@ -470,6 +470,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-page-resource-object-tail-currentbase.php` maps malformed indirect page `/Resources` objects with trailing non-comment tokens into a WordPress-safe import boundary. It rejects the resource dictionary prefix before inherited font/Form XObject lookup, emits only safe fallback text, and excludes stale resource font text, Form XObject payload text, and resource names without Python, pdftext, pypdfium/PDFium execution, models, OCR, or external PDF tools.
 
+`examples/wordpress-table-normalized-crop-bbox-boundary-currentbase.php` maps supplied table recognition results whose `table_bbox` is explicitly in 1000-unit normalized page-image coordinates into WordPress table output. It unnormalizes the crop bbox against the page `image_bbox` before translating rows, columns, cells, and OCR conflict geometry into table-crop coordinates, emits the expected Gutenberg heading/table/paragraph blocks, and excludes stale normalized table lines without Python, tabled/Surya model inference, OCR, PDFium, PIL, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
