@@ -308,11 +308,7 @@ final class LayoutOrderer
                 continue;
             }
 
-            $isBareBbox = array_is_list($box) && count($box) === 4;
-            $bbox = $this->bboxValue($box['bbox'] ?? ($isBareBbox ? $box : null));
-            if ($bbox === null && !$isBareBbox) {
-                $bbox = $this->polygonBbox($box['polygon'] ?? null);
-            }
+            $bbox = $this->bboxValue($box);
             if ($bbox === null) {
                 continue;
             }
@@ -779,7 +775,7 @@ final class LayoutOrderer
                 continue;
             }
 
-            $bbox = $this->bboxValue($box['bbox'] ?? null);
+            $bbox = $this->bboxValue($box);
             if ($bbox === null) {
                 continue;
             }
@@ -798,12 +794,106 @@ final class LayoutOrderer
      */
     private function bboxValue(mixed $value): ?array
     {
-        if (!is_array($value) || count($value) !== 4) {
+        if (!is_array($value)) {
             return null;
         }
 
+        if (array_key_exists('bbox', $value)) {
+            return $this->bboxValue($value['bbox'])
+                ?? $this->bboxFromNamedFields($value)
+                ?? $this->polygonBbox($value['polygon'] ?? null);
+        }
+
+        return $this->bboxFromNamedFields($value)
+            ?? $this->polygonBbox($value['polygon'] ?? null)
+            ?? $this->bboxFromCoordinateList($value);
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>|null
+     */
+    private function bboxFromCoordinateList(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 4) {
+            return null;
+        }
+
+        $coordinates = $this->numericCoordinates(array_values($value));
+        if ($coordinates === null) {
+            return null;
+        }
+
+        return $this->normalizeRect($coordinates);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromNamedFields(array $record): ?array
+    {
+        foreach ([
+            ['x0', 'y0', 'x1', 'y1'],
+            ['x1', 'y1', 'x2', 'y2'],
+            ['x_start', 'y_start', 'x_end', 'y_end'],
+            ['xmin', 'ymin', 'xmax', 'ymax'],
+            ['min_x', 'min_y', 'max_x', 'max_y'],
+            ['left', 'top', 'right', 'bottom'],
+        ] as $keys) {
+            [$x1, $y1, $x2, $y2] = $keys;
+            if (
+                !array_key_exists($x1, $record)
+                || !array_key_exists($y1, $record)
+                || !array_key_exists($x2, $record)
+                || !array_key_exists($y2, $record)
+            ) {
+                continue;
+            }
+
+            $coordinates = $this->numericCoordinates([$record[$x1], $record[$y1], $record[$x2], $record[$y2]]);
+            if ($coordinates !== null) {
+                return $this->normalizeRect($coordinates);
+            }
+        }
+
+        foreach ([
+            ['x', 'y', 'width', 'height'],
+            ['x0', 'y0', 'width', 'height'],
+            ['left', 'top', 'width', 'height'],
+        ] as $keys) {
+            [$x, $y, $width, $height] = $keys;
+            if (
+                !array_key_exists($x, $record)
+                || !array_key_exists($y, $record)
+                || !array_key_exists($width, $record)
+                || !array_key_exists($height, $record)
+            ) {
+                continue;
+            }
+
+            $coordinates = $this->numericCoordinates([$record[$x], $record[$y], $record[$width], $record[$height]]);
+            if ($coordinates !== null) {
+                return $this->normalizeRect([
+                    $coordinates[0],
+                    $coordinates[1],
+                    $coordinates[0] + $coordinates[2],
+                    $coordinates[1] + $coordinates[3],
+                ]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<float>|null
+     */
+    private function numericCoordinates(array $values): ?array
+    {
         $bbox = [];
-        foreach (array_values($value) as $item) {
+        foreach ($values as $item) {
             $number = $this->numericValue($item);
             if ($number === null) {
                 return null;
@@ -811,7 +901,7 @@ final class LayoutOrderer
             $bbox[] = $number;
         }
 
-        return $this->normalizeRect($bbox);
+        return $bbox;
     }
 
     private function numericValue(mixed $value): ?float
