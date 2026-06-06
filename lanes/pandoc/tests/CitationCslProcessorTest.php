@@ -5691,6 +5691,129 @@ XML
         $t->contains('<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>', $blocks);
         $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. review number Appendix A.</dd>', $blocks);
     },
+    'applies bounded csl is uncertain date conditionals for date variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'uncertain-issued',
+                'type' => 'report',
+                'title' => 'Uncertain Issued Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]], 'uncertain' => true, 'raw' => '2026?'],
+                'accessed' => ['date-parts' => [[2026, 6, 5]]],
+            ],
+            [
+                'id' => 'uncertain-accessed',
+                'type' => 'webpage',
+                'title' => 'Uncertain Access Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'accessed' => ['date-parts' => [[2026, 6, 4]], 'uncertain' => true, 'raw' => '2026-06-04?'],
+            ],
+            [
+                'id' => 'uncertain-event',
+                'type' => 'paper-conference',
+                'title' => 'Event Date Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'issued' => ['date-parts' => [[2024]], 'circa' => true, 'raw' => '2024~'],
+                'event-date' => ['date-parts' => [[2024, 10, 3]], 'uncertain' => true, 'raw' => '2024-10-03?'],
+            ],
+            [
+                'id' => 'stable-source',
+                'type' => 'report',
+                'title' => 'Stable Date Packet',
+                'author' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'accessed' => ['date-parts' => [[2026, 6, 1]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Uncertain Date Conditional Review Style</title>
+    <id>https://example.test/styles/bounded-uncertain-date-conditional-review</id>
+    <updated>2026-06-06T01:35:52+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <choose>
+        <if is-uncertain-date="issued" match="all">
+          <group delimiter=" ">
+            <names variable="author"/>
+            <text value="uncertain"/>
+            <date variable="issued"><date-part name="year"/></date>
+          </group>
+        </if>
+        <else-if is-uncertain-date="accessed" match="any">
+          <group delimiter=" ">
+            <names variable="author"/>
+            <text value="accessed?"/>
+            <date variable="accessed"/>
+          </group>
+        </else-if>
+        <else>
+          <group delimiter=" ">
+            <names variable="author"/>
+            <date variable="issued"><date-part name="year"/></date>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <choose>
+        <if is-uncertain-date="issued event-date" match="any">
+          <text variable="date-marker-summary"/>
+        </if>
+        <else-if is-uncertain-date="accessed" match="none">
+          <text value="stable access date"/>
+        </else-if>
+        <else>
+          <text value="access date uncertain"/>
+        </else>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Uncertain Date Conditional Review Style', $summary['title'] ?? null);
+        $t->same(['issued'], $summary['citationRendering'][0]['branches'][0]['isUncertainDate'] ?? null);
+        $t->same(['accessed'], $summary['citationRendering'][0]['branches'][1]['isUncertainDate'] ?? null);
+        $t->same(['issued', 'event-date'], $summary['bibliographyRendering'][1]['branches'][0]['isUncertainDate'] ?? null);
+        $t->same('none', $summary['bibliographyRendering'][1]['branches'][1]['match'] ?? null);
+
+        $t->same('(de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team 2024; Review Desk 2023)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'uncertain-issued', 'text' => '[@uncertain-issued]']),
+            new AstNode('citation', ['id' => 'uncertain-accessed', 'text' => '[@uncertain-accessed]']),
+            new AstNode('citation', ['id' => 'uncertain-event', 'text' => '[@uncertain-event]']),
+            new AstNode('citation', ['id' => 'stable-source', 'text' => '[@stable-source]']),
+        ]));
+        $t->same('Uncertain Issued Packet :: Date markers: issued uncertain (2026?)', $processor->renderBibliographyEntry('uncertain-issued'));
+        $t->same('Uncertain Access Packet :: access date uncertain', $processor->renderBibliographyEntry('uncertain-accessed'));
+        $t->same('Event Date Packet :: Date markers: issued circa (2024~); event-date uncertain (2024-10-03?)', $processor->renderBibliographyEntry('uncertain-event'));
+        $t->same('Stable Date Packet :: stable access date', $processor->renderBibliographyEntry('stable-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@uncertain-issued; @uncertain-accessed; @uncertain-event; @stable-source] before WordPress review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites (de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team 2024; Review Desk 2023) before WordPress review.</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>Uncertain Issued Packet :: Date markers: issued uncertain (2026?)</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Uncertain Access Packet :: access date uncertain</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2024</dt><dd>Event Date Packet :: Date markers: issued circa (2024~); event-date uncertain (2024-10-03?)</dd>', $blocks);
+        $t->contains('<dt>Review Desk 2023</dt><dd>Stable Date Packet :: stable access date</dd>', $blocks);
+    },
     'applies bounded csl locator and page label rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

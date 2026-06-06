@@ -1347,7 +1347,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1406,7 +1406,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1422,14 +1422,15 @@ final class CslStyle
         $types = self::spaceSeparatedAttribute($branch, 'type');
         $positions = self::spaceSeparatedAttribute($branch, 'position');
         $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
+        $isUncertainDate = self::spaceSeparatedAttribute($branch, 'is-uncertain-date');
         foreach ($positions as $position) {
             if (!in_array($position, ['first', 'subsequent', 'ibid', 'ibid-with-locator', 'near-note'], true)) {
                 throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch position is not supported: ' . $position);
             }
         }
 
-        if ($variables === [] && $types === [] && $positions === [] && $isNumeric === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, position, or is-numeric');
+        if ($variables === [] && $types === [] && $positions === [] && $isNumeric === [] && $isUncertainDate === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, position, is-numeric, or is-uncertain-date');
         }
 
         return [
@@ -1438,6 +1439,7 @@ final class CslStyle
             'types' => $types,
             'positions' => $positions,
             'isNumeric' => $isNumeric,
+            'isUncertainDate' => $isUncertainDate,
             'children' => self::renderingElements($branch, $scope),
         ];
     }

@@ -4157,6 +4157,15 @@ final class CitationCslProcessor
             }
         }
 
+        $isUncertainDateVariables = $branch['isUncertainDate'] ?? [];
+        if (is_array($isUncertainDateVariables)) {
+            foreach ($isUncertainDateVariables as $variable) {
+                if (is_scalar($variable)) {
+                    $conditions[] = $this->renderingVariableIsUncertainDate($item, (string) $variable);
+                }
+            }
+        }
+
         if ($conditions === []) {
             return false;
         }
@@ -4211,6 +4220,16 @@ final class CitationCslProcessor
         $value = $this->renderVariableValue($item, $normalized, $scope, $citation);
 
         return $value !== '' && $this->cslNumberValueIsNumeric($value);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderingVariableIsUncertainDate(array $item, string $variable): bool
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+
+        return is_array($date) && ($date['uncertain'] ?? false) === true;
     }
 
     /**
