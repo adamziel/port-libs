@@ -1322,8 +1322,156 @@ final class PdfActionReviewExtractor
             return [];
         }
 
+        return $this->xrefStreamEntriesFromOffsetChain($offset, $definitions);
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @param array<int, true> $visited
+     * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
+     */
+    private function xrefStreamEntriesFromOffsetChain(int $offset, array $definitions, array $visited = []): array
+    {
+        if (isset($visited[$offset])) {
+            return [];
+        }
+        $visited[$offset] = true;
+
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
-        return $section === null ? [] : $this->xrefStreamEntriesFromSection($section);
+        if ($section === null) {
+            return [];
+        }
+
+        $previousOffset = $this->previousXrefStreamOffset($section);
+        $entries = $this->repairCurrentUpdateXrefEntries(
+            $this->xrefStreamEntriesFromSection($section),
+            $definitions,
+            $previousOffset,
+            $offset
+        );
+
+        if ($previousOffset !== null && $previousOffset >= 0 && $previousOffset < $offset) {
+            foreach ($this->xrefStreamEntriesFromOffsetChain($previousOffset, $definitions, $visited) as $objectNumber => $entry) {
+                $entries[$objectNumber] ??= $entry;
+            }
+        }
+
+        ksort($entries, SORT_NUMERIC);
+
+        return $entries;
+    }
+
+    /**
+     * @param array{dictionary: array<string, mixed>, body: string} $section
+     */
+    private function previousXrefStreamOffset(array $section): ?int
+    {
+        $offset = $this->directIntegerValue($section['dictionary']['Prev'] ?? null);
+
+        return $offset !== null && $offset >= 0 ? $offset : null;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}> $entries
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
+     */
+    private function repairCurrentUpdateXrefEntries(
+        array $entries,
+        array $definitions,
+        ?int $previousOffset,
+        int $currentOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0 || $previousOffset >= $currentOffset) {
+            return $entries;
+        }
+
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1 || !isset($entry['offset'])) {
+                continue;
+            }
+
+            $generation = $entry['generation'] ?? 0;
+            if (!is_int($generation)) {
+                continue;
+            }
+
+            $offset = $entry['offset'];
+            if (!is_int($offset)) {
+                continue;
+            }
+
+            $candidate = $this->currentUpdateDefinitionForXrefEntry(
+                $definitions,
+                (int) $objectNumber,
+                $generation,
+                $previousOffset,
+                $currentOffset
+            );
+            if ($candidate === null) {
+                continue;
+            }
+
+            $owner = $this->definitionAtOffset($definitions, $offset);
+            $pointsAtCurrentOwner = $owner !== null
+                && $owner['object'] === (int) $objectNumber
+                && $owner['generation'] === $generation
+                && $offset > $previousOffset
+                && $offset < $currentOffset;
+            if ($pointsAtCurrentOwner) {
+                continue;
+            }
+
+            $entries[$objectNumber]['offset'] = $candidate['offset'];
+            $entries[$objectNumber]['generation'] = $candidate['generation'];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array{object: int, generation: int, body: string, offset: int}|null
+     */
+    private function currentUpdateDefinitionForXrefEntry(
+        array $definitions,
+        int $objectNumber,
+        int $generation,
+        int $previousOffset,
+        int $currentOffset
+    ): ?array {
+        $candidate = null;
+        foreach ($definitions as $definition) {
+            if (
+                $definition['object'] !== $objectNumber
+                || $definition['generation'] !== $generation
+                || $definition['offset'] <= $previousOffset
+                || $definition['offset'] >= $currentOffset
+            ) {
+                continue;
+            }
+
+            if ($candidate === null || $definition['offset'] > $candidate['offset']) {
+                $candidate = $definition;
+            }
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array{object: int, generation: int, body: string, offset: int}|null
+     */
+    private function definitionAtOffset(array $definitions, int $offset): ?array
+    {
+        foreach ($definitions as $definition) {
+            if ($definition['offset'] === $offset) {
+                return $definition;
+            }
+        }
+
+        return null;
     }
 
     /**
