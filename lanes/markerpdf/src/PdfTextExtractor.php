@@ -15300,9 +15300,11 @@ final class PdfTextExtractor
 
         $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
         if (
-            in_array($filter, ['LZWDecode', 'LZW'], true)
-            && $earlyChange !== null
-            && !in_array($earlyChange, [0, 1], true)
+            $earlyChange !== null
+            && (
+                !in_array($earlyChange, [0, 1], true)
+                || ($earlyChange !== 1 && !in_array($filter, ['LZWDecode', 'LZW'], true))
+            )
         ) {
             return false;
         }
