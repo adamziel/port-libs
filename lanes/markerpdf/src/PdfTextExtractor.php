@@ -26450,15 +26450,16 @@ final class PdfTextExtractor
     private function startxrefOffsetWithClassicRebuild(string $pdfBytes, array $definitions): ?int
     {
         $entry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $boundary = $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry);
         if ($entry === null) {
-            return null;
+            return $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $boundary);
         }
 
         return $this->classicRebuildOffsetForStartxref(
             $pdfBytes,
             $entry['offset'],
             $definitions,
-            $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry)
+            $boundary
         ) ?? $entry['offset'];
     }
 
@@ -26475,17 +26476,60 @@ final class PdfTextExtractor
     {
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
         if ($boundary === null) {
-            $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
+            if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
+                $latestBeforeEof = $eofBoundary === null
+                    ? null
+                    : $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
 
-            return $ignoredBoundary !== null
-                && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)
-                ? $ignoredBoundary
-                : $eofBoundary;
+                return $latestBeforeEof !== null
+                    && $latestBeforeEof > $ignoredBoundary
+                    && !$this->hasTopLevelStartxrefTokenBetweenOffsets(
+                        $pdfBytes,
+                        $definitions,
+                        $latestBeforeEof,
+                        $eofBoundary
+                    )
+                    ? $eofBoundary
+                    : $ignoredBoundary;
+            }
+
+            return $eofBoundary;
         }
 
-        if ($ignoredBoundary !== null && ($boundary === null || $ignoredBoundary > $boundary)) {
-            return $ignoredBoundary;
+        if ($ignoredBoundary !== null && $ignoredBoundary > $boundary) {
+            $latestBeforeEof = $eofBoundary === null
+                ? null
+                : $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+            if (
+                $latestBeforeEof === null
+                || $latestBeforeEof <= $ignoredBoundary
+                || $this->hasTopLevelStartxrefTokenBetweenOffsets(
+                    $pdfBytes,
+                    $definitions,
+                    $latestBeforeEof,
+                    $eofBoundary
+                )
+            ) {
+                return $ignoredBoundary;
+            }
+        }
+
+        if ($eofBoundary !== null && $eofBoundary > $boundary) {
+            $latestBeforeEof = $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+            if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $boundary
+                && !$this->hasTopLevelStartxrefTokenBetweenOffsets(
+                    $pdfBytes,
+                    $definitions,
+                    $latestBeforeEof,
+                    $eofBoundary
+                )
+            ) {
+                return $eofBoundary;
+            }
         }
 
         return $boundary;
@@ -26514,6 +26558,38 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function hasTopLevelStartxrefTokenBetweenOffsets(
+        string $pdfBytes,
+        array $definitions,
+        int $afterOffset,
+        int $beforeOffset
+    ): bool {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return false;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (!is_int($tokenOffset) || $tokenOffset <= $afterOffset || $tokenOffset >= $beforeOffset) {
+                continue;
+            }
+
+            if (
+                $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
