@@ -1008,6 +1008,10 @@ final class LegacyDocReader
             ];
         }
 
+        if ($fieldName === 'SYMBOL') {
+            return $this->symbolFieldAttrs($tokens, $instruction);
+        }
+
         $crossReferenceAttrs = $this->crossReferenceFieldAttrs($fieldName, $tokens, $instruction);
         if ($crossReferenceAttrs !== null) {
             return $crossReferenceAttrs;
@@ -1041,6 +1045,68 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function symbolFieldAttrs(array $tokens, string $instruction): ?array
+    {
+        $symbolCode = null;
+        $font = null;
+        $size = null;
+        $switches = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if ($switch === '') {
+                    continue;
+                }
+                if (($switch === 'f' || $switch === 's') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                    if ($switch === 'f') {
+                        $font = $tokens[$index];
+                    } else {
+                        $size = $tokens[$index];
+                    }
+                    continue;
+                }
+
+                $switches[] = $switch;
+                continue;
+            }
+
+            $symbolCode ??= $token;
+        }
+        if ($symbolCode === null || $symbolCode === '') {
+            return null;
+        }
+
+        $attributes = [
+            'data-legacy-doc-field' => 'symbol',
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-symbol-code' => $symbolCode,
+        ];
+        if ($font !== null && $font !== '') {
+            $attributes['data-legacy-doc-symbol-font'] = $font;
+        }
+        if ($size !== null && $size !== '') {
+            $attributes['data-legacy-doc-symbol-size'] = $size;
+        }
+        if ($switches !== []) {
+            $attributes['data-legacy-doc-symbol-switches'] = implode(' ', array_values(array_unique($switches)));
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-symbol-field', 'legacy-doc-field-symbol'],
             'attributes' => $attributes,
         ];
     }

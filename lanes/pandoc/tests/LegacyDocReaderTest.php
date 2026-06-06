@@ -2902,6 +2902,39 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC cross-reference instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC symbol field provenance around displayed glyphs' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Marker '
+                . $fieldBegin . ' SYMBOL 183 \f "Symbol" \s 12 \u ' . $fieldSeparator . '·' . $fieldEnd
+                . " bullet.\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+        $symbol = $paragraph->children[1];
+
+        $t->same('span', $symbol->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-symbol-field', 'legacy-doc-field-symbol'], $symbol->attr('classes'));
+        $t->same('symbol', $symbol->attr('attributes')['data-legacy-doc-field']);
+        $t->same('SYMBOL 183 \f "Symbol" \s 12 \u', $symbol->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('183', $symbol->attr('attributes')['data-legacy-doc-symbol-code']);
+        $t->same('Symbol', $symbol->attr('attributes')['data-legacy-doc-symbol-font']);
+        $t->same('12', $symbol->attr('attributes')['data-legacy-doc-symbol-size']);
+        $t->same('u', $symbol->attr('attributes')['data-legacy-doc-symbol-switches']);
+        $t->same('·', $symbol->children[0]->attr('text'));
+
+        $t->contains('[·]{.legacy-doc-field .legacy-doc-symbol-field .legacy-doc-field-symbol data-legacy-doc-field="symbol"', $markdown);
+        $t->contains('data-legacy-doc-symbol-font="Symbol"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-symbol-field legacy-doc-field-symbol" data-legacy-doc-field="symbol" data-legacy-doc-field-instruction="SYMBOL 183 \f &quot;Symbol&quot; \s 12 \u" data-legacy-doc-symbol-code="183" data-legacy-doc-symbol-font="Symbol" data-legacy-doc-symbol-size="12" data-legacy-doc-symbol-switches="u">·</span>', $blocks);
+        $t->true(!str_contains(strip_tags($blocks), 'SYMBOL'), 'Legacy DOC symbol field instructions should not render as visible text');
+    },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 
