@@ -2027,6 +2027,73 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps ODT page variable chapter filename and statistic fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPageAndStatisticFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Review page <text:page-variable-set text:name="SourcePage" text:current-value="4" style:num-format="1">4</text:page-variable-set> of <text:page-variable-get text:name="SourcePage" text:current-value="4"/>, chapter <text:chapter text:outline-level="2" text:display="name-and-number">2 Source review</text:chapter>, file <text:file-name text:display="full">source/review.odt</text:file-name>, counts <text:word-count>128</text:word-count>/<text:sentence-count>6</text:sentence-count>/<text:paragraph-count>7</text:paragraph-count>/<text:character-count>640</text:character-count>/<text:table-count>2</text:table-count>/<text:image-count>1</text:image-count>/<text:object-count>3</text:object-count>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPageAndStatisticFields));
+        $paragraph = $result['document']->children[0];
+        $pageSet = $paragraph->children[1];
+        $pageGet = $paragraph->children[3];
+        $chapter = $paragraph->children[5];
+        $file = $paragraph->children[7];
+        $wordCount = $paragraph->children[9];
+        $sentenceCount = $paragraph->children[11];
+        $paragraphCount = $paragraph->children[13];
+        $characterCount = $paragraph->children[15];
+        $tableCount = $paragraph->children[17];
+        $imageCount = $paragraph->children[19];
+        $objectCount = $paragraph->children[21];
+
+        $t->same('Review page 4 of 4, chapter 2 Source review, file source/review.odt, counts 128/6/7/640/2/1/3.', $paragraph->attr('text'));
+        $t->same('span', $pageSet->type);
+        $t->same(['odf-field', 'odf-field-page-variable-set'], $pageSet->attr('classes'));
+        $t->same('page-variable-set', $pageSet->attr('fieldType'));
+        $t->same('SourcePage', $pageSet->attr('fieldName'));
+        $t->same('4', $pageSet->attr('fieldMetadata')['currentValue']);
+        $t->same('1', $pageSet->attr('fieldMetadata')['numFormat']);
+        $t->same('4', $pageSet->attr('attributes')['data-odf-field-current-value']);
+        $t->same('1', $pageSet->attr('attributes')['data-odf-field-num-format']);
+        $t->same('page-variable-get', $pageGet->attr('fieldType'));
+        $t->same('SourcePage', $pageGet->attr('fieldName'));
+        $t->same('4', $pageGet->attr('fieldMetadata')['currentValue']);
+        $t->same('chapter', $chapter->attr('fieldType'));
+        $t->same(2, $chapter->attr('fieldMetadata')['outlineLevel']);
+        $t->same('name-and-number', $chapter->attr('fieldMetadata')['display']);
+        $t->same('2', $chapter->attr('attributes')['data-odf-field-outline-level']);
+        $t->same('name-and-number', $chapter->attr('attributes')['data-odf-field-display']);
+        $t->same('file-name', $file->attr('fieldType'));
+        $t->same('full', $file->attr('fieldMetadata')['display']);
+        $t->same('source/review.odt', $file->children[0]->attr('text'));
+
+        $t->same('word-count', $wordCount->attr('fieldType'));
+        $t->same('sentence-count', $sentenceCount->attr('fieldType'));
+        $t->same('paragraph-count', $paragraphCount->attr('fieldType'));
+        $t->same('character-count', $characterCount->attr('fieldType'));
+        $t->same('table-count', $tableCount->attr('fieldType'));
+        $t->same('image-count', $imageCount->attr('fieldType'));
+        $t->same('object-count', $objectCount->attr('fieldType'));
+        $t->same(11, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[4]{.odf-field .odf-field-page-variable-set data-odf-field-type="page-variable-set" data-odf-field-name="SourcePage" data-odf-field-current-value="4" data-odf-field-num-format="1"}', $markdown);
+        $t->contains('[2 Source review]{.odf-field .odf-field-chapter data-odf-field-type="chapter" data-odf-field-display="name-and-number" data-odf-field-outline-level="2"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-page-variable-get" data-odf-field-type="page-variable-get" data-odf-field-name="SourcePage" data-odf-field-current-value="4">4</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-chapter" data-odf-field-type="chapter" data-odf-field-display="name-and-number" data-odf-field-outline-level="2">2 Source review</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-file-name" data-odf-field-type="file-name" data-odf-field-display="full">source/review.odt</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-word-count" data-odf-field-type="word-count">128</span>', $blocksHtml);
+    },
     'maps ODT conditional and hidden text fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithConditionalFields = <<<'XML'
 <office:document-content

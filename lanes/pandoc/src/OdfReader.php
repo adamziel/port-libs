@@ -2737,6 +2737,17 @@ final class OdfReader
             'hidden-text',
             'page-number',
             'page-count',
+            'page-variable-set',
+            'page-variable-get',
+            'chapter',
+            'file-name',
+            'word-count',
+            'sentence-count',
+            'paragraph-count',
+            'character-count',
+            'table-count',
+            'image-count',
+            'object-count',
             'date',
             'time',
             'title',
@@ -2887,13 +2898,21 @@ final class OdfReader
         if ($stringValue === '') {
             $stringValue = self::attr($field, self::TEXT_NS, 'string-value');
         }
+        $currentValue = self::attr($field, self::TEXT_NS, 'current-value');
+        if ($currentValue === '') {
+            $currentValue = self::attr($field, self::OFFICE_NS, 'current-value');
+        }
 
         $metadata = self::withoutEmpty([
             'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
+            'refName' => self::nullable(self::attr($field, self::TEXT_NS, 'ref-name')),
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
             'condition' => self::nullable(self::attr($field, self::TEXT_NS, 'condition')),
+            'display' => self::nullable(self::attr($field, self::TEXT_NS, 'display')),
+            'outlineLevel' => self::nullableInt(self::attr($field, self::TEXT_NS, 'outline-level')),
             'valueType' => self::nullable(self::attr($field, self::OFFICE_NS, 'value-type')),
             'value' => self::nullable(self::attr($field, self::OFFICE_NS, 'value')),
+            'currentValue' => self::nullable($currentValue),
             'stringValue' => self::nullable($stringValue),
             'stringValueIfTrue' => self::nullable(self::attr($field, self::TEXT_NS, 'string-value-if-true')),
             'stringValueIfFalse' => self::nullable(self::attr($field, self::TEXT_NS, 'string-value-if-false')),
@@ -2901,6 +2920,8 @@ final class OdfReader
             'timeValue' => self::nullable($timeValue),
             'selectPage' => self::nullable(self::attr($field, self::TEXT_NS, 'select-page')),
             'pageAdjust' => self::nullable(self::attr($field, self::TEXT_NS, 'page-adjust')),
+            'numFormat' => self::nullable(self::attr($field, self::STYLE_NS, 'num-format')),
+            'formatSource' => self::nullable(self::attr($field, self::TEXT_NS, 'format-source')),
             'styleName' => self::nullable(self::attr($field, self::STYLE_NS, 'data-style-name')),
         ]);
 
@@ -2959,7 +2980,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
+        foreach (['stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_scalar($value) && (string) $value !== '') {
                 return (string) $value;
