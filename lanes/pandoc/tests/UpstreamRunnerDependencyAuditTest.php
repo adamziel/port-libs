@@ -1126,4 +1126,50 @@ return [
         $t->contains('cabal.project package entries/flags/constraints', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'ignores conditional cabal project fields when auditing unconditional closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = $pinnedProject() . "\n" . implode("\n", [
+            '',
+            'if arch(wasm32)',
+            '  tests: False',
+            '',
+            '  package pandoc',
+            '    flags: +embed_data_files -http',
+            '',
+            '  package pandoc-lua-engine',
+            '    flags: -repl',
+            '',
+            '  source-repository-package',
+            '    type: git',
+            '    location: https://github.com/jappeace/ram.git',
+            '    tag: 6e49475ae7b4b3545923407388690234d838dc45',
+            '    post-checkout-command: sh -c "patch -N -p1 < ../../../wasm/patches/memory.patch"',
+            '',
+            '  allow-newer:',
+            '    all:base,',
+            '    all:text',
+        ]);
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([
+            'embed_data_files' => true,
+            'http' => true,
+        ], $audit['projectPackageClosure']['presentFlags']['pandoc']);
+        $t->same(false, array_key_exists('pandoc-lua-engine', $audit['projectPackageClosure']['presentFlags']));
+        $t->same(false, array_key_exists('ram', $audit['projectSourceRepositoryPins']['present']));
+        $t->same(false, array_key_exists('ram', $audit['projectSourceRepositoryClosure']['present']));
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['blockedReasons']);
+    },
 ];

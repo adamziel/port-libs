@@ -540,7 +540,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectPackages(string $contents): array
     {
-        $contents = self::stripCabalLineComments($contents);
+        $contents = self::normalizeCabalProjectForUnconditionalAudit($contents);
         $rawPackages = '';
         $capturing = false;
 
@@ -582,7 +582,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectFlags(string $contents): array
     {
-        $contents = self::stripCabalLineComments($contents);
+        $contents = self::normalizeCabalProjectForUnconditionalAudit($contents);
         $flags = [];
         $currentPackage = null;
 
@@ -622,7 +622,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectConstraints(string $contents): array
     {
-        $contents = self::stripCabalLineComments($contents);
+        $contents = self::normalizeCabalProjectForUnconditionalAudit($contents);
         $rawConstraints = '';
         $capturing = false;
 
@@ -670,7 +670,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectPins(string $contents): array
     {
-        $contents = self::stripCabalLineComments($contents);
+        $contents = self::normalizeCabalProjectForUnconditionalAudit($contents);
         $pins = [];
         $current = [];
         $finish = static function (array $block) use (&$pins): void {
@@ -723,7 +723,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectSourceRepositories(string $contents): array
     {
-        $contents = self::stripCabalLineComments($contents);
+        $contents = self::normalizeCabalProjectForUnconditionalAudit($contents);
         $repositories = [];
         $current = [];
         $finish = static function (array $block) use (&$repositories): void {
@@ -1410,6 +1410,47 @@ final class UpstreamRunnerDependencyAudit
         $lines = [];
         foreach (preg_split('/\R/', $raw) ?: [] as $line) {
             $lines[] = preg_replace('/--.*$/', '', $line) ?? $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private static function normalizeCabalProjectForUnconditionalAudit(string $raw): string
+    {
+        return self::stripCabalConditionalBlocks(self::stripCabalLineComments($raw));
+    }
+
+    private static function stripCabalConditionalBlocks(string $raw): string
+    {
+        $lines = [];
+        $conditionalIndent = null;
+
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            $trimmed = trim($line);
+            $indent = strlen($line) - strlen(ltrim($line));
+
+            if ($conditionalIndent !== null) {
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                if ($indent > $conditionalIndent) {
+                    continue;
+                }
+
+                if ($indent === $conditionalIndent && preg_match('/^(?:elif|else)\b/i', $trimmed) === 1) {
+                    continue;
+                }
+
+                $conditionalIndent = null;
+            }
+
+            if (preg_match('/^(?:if|elif|else)\b/i', $trimmed) === 1) {
+                $conditionalIndent = $indent;
+                continue;
+            }
+
+            $lines[] = $line;
         }
 
         return implode("\n", $lines);
