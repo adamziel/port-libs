@@ -11042,18 +11042,100 @@ final class PdfMetadataExtractor
 
     private function xmpPacketInstructionMatchesKind(string $instruction, string $kind): bool
     {
-        if (preg_match('/^<\?\s*xpacket\b/si', $instruction) !== 1) {
+        $attributes = $this->xmpPacketInstructionAttributes($instruction);
+        if ($attributes === null) {
             return false;
         }
 
-        $hasBegin = preg_match('/\bbegin\s*=/si', $instruction) === 1;
-        $hasTerminalEnd = preg_match('/\bend\s*=\s*([\'"])[rw]\1/si', $instruction) === 1;
+        $hasBegin = isset($attributes['begin']);
+        $hasTerminalEnd = false;
+        foreach ($attributes['end'] ?? [] as $value) {
+            if (in_array(strtolower(trim($value)), ['r', 'w'], true)) {
+                $hasTerminalEnd = true;
+                break;
+            }
+        }
 
         return match ($kind) {
             'begin' => $hasBegin && !$hasTerminalEnd,
             'end' => $hasTerminalEnd && !$hasBegin,
             default => false,
         };
+    }
+
+    /**
+     * XMP packet delimiters are XML processing-instruction pseudo-attributes.
+     * Quoted text inside unrelated attributes must not become a begin/end
+     * marker.
+     *
+     * @return array<string, list<string>>|null
+     */
+    private function xmpPacketInstructionAttributes(string $instruction): ?array
+    {
+        if (preg_match('/^<\?\s*xpacket\b/si', $instruction, $match) !== 1) {
+            return null;
+        }
+
+        $end = strrpos($instruction, '?>');
+        if ($end === false) {
+            return null;
+        }
+
+        $body = substr($instruction, strlen($match[0]), $end - strlen($match[0]));
+        $attributes = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipXmlWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (preg_match('/[A-Za-z_:][A-Za-z0-9_.:-]*/A', substr($body, $offset), $nameMatch) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = strtolower($nameMatch[0]);
+            $offset += strlen($nameMatch[0]);
+            $offset = $this->skipXmlWhitespace($body, $offset);
+            if (($body[$offset] ?? '') !== '=') {
+                continue;
+            }
+
+            $offset++;
+            $offset = $this->skipXmlWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $quote = $body[$offset];
+            if ($quote === '"' || $quote === "'") {
+                $valueStart = $offset + 1;
+                $valueEnd = strpos($body, $quote, $valueStart);
+                if ($valueEnd === false) {
+                    break;
+                }
+
+                $attributes[$name][] = substr($body, $valueStart, $valueEnd - $valueStart);
+                $offset = $valueEnd + 1;
+                continue;
+            }
+
+            $valueStart = $offset;
+            while ($offset < $length && !ctype_space($body[$offset])) {
+                $offset++;
+            }
+            $attributes[$name][] = substr($body, $valueStart, $offset - $valueStart);
+        }
+
+        return $attributes;
+    }
+
+    private function skipXmlWhitespace(string $value, int $offset): int
+    {
+        for ($length = strlen($value); $offset < $length && ctype_space($value[$offset]); $offset++) {
+        }
+
+        return $offset;
     }
 
     private function xmpmetaRootDeclaresAdobeNamespace(string $xml): bool
