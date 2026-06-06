@@ -14263,6 +14263,10 @@ final class PdfTextExtractor
                 return true;
             }
 
+            if ((int) $match[1] < 0) {
+                return false;
+            }
+
             return $this->streamLengthTailPermitsStreamPayload($dict, $offset + strlen($match[0]), $objects);
         }
 

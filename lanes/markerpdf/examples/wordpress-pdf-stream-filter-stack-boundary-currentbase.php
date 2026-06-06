@@ -501,6 +501,18 @@ $commentSplitLengthPdf = "%PDF-1.4\n"
     . "4 0 obj\n<< /Length 10 % split stream length object number from generation\n 0 R /Filter /FlateDecode >>\nstream\n{$commentSplitLengthCompressed}\nendobj\n"
     . "%%EOF";
 
+$negativeLengthLeak = 'BT /F1 12 Tf 72 720 Td (Negative Length Filter Leak) Tj ET';
+$negativeLengthCompressed = $zlibStored($negativeLengthLeak);
+$negativeLengthVisibleAfter = 'BT /F1 12 Tf 72 700 Td (Visible After Negative Length) Tj ET';
+$negativeLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($negativeLengthVisibleAfter) . " >>\nstream\n{$negativeLengthVisibleAfter}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length -" . strlen($negativeLengthCompressed) . " /Filter /FlateDecode >>\nstream\n{$negativeLengthCompressed}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $malformedIndirectFilterLeak = 'BT /F1 12 Tf 72 720 Td (Malformed Indirect Multi Filter Leak) Tj ET';
 $malformedIndirectFilterEncoded = $ascii85Encode($zlibStored($malformedIndirectFilterLeak)) . '~>';
 $indirectArrayFilterContent = 'BT /F1 12 Tf 72 700 Td (Indirect Array Filter Preserved) Tj ET';
@@ -572,6 +584,7 @@ $indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
 $defaultCryptLines = $extractor->extractTextLines($defaultCryptPdf);
 $commentSplitLines = $extractor->extractTextLines($commentSplitPdf);
 $commentSplitLengthLines = $extractor->extractTextLines($commentSplitLengthPdf);
+$negativeLengthLines = $extractor->extractTextLines($negativeLengthPdf);
 $malformedIndirectFilterLines = $extractor->extractTextLines($malformedIndirectFilterPdf);
 $verticalTabFilterWhitespaceLines = $extractor->extractTextLines($verticalTabFilterWhitespacePdf);
 $duplicateStreamKeysLines = $extractor->extractTextLines($duplicateStreamKeysPdf);
@@ -597,6 +610,7 @@ $allLines = [
     ...$defaultCryptLines,
     ...$commentSplitLines,
     ...$commentSplitLengthLines,
+    ...$negativeLengthLines,
     ...$malformedIndirectFilterLines,
     ...$verticalTabFilterWhitespaceLines,
     ...$duplicateStreamKeysLines,
@@ -637,6 +651,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['ASCII85Decode', 'FlateDecode'],
         'malformed_indirect_multi_name_filter_object',
         ['ASCII85Decode', 'FlateDecode'],
+        'negative_direct_length_rejected',
         'vertical_tab_asciihex_filter_data_rejected',
         'vertical_tab_ascii85_filter_data_rejected',
         'duplicate_top_level_filter_key_rejected',
@@ -720,6 +735,10 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     ],
     'parser_comment_split_length_damaged_terminator_bounded' => str_contains($joined, 'Comment Split Length Imports')
         && !str_contains($joined, 'endobj'),
+    'negative_direct_length_filter_stream_rejected' => $negativeLengthLines === [
+        'Visible After Negative Length',
+    ],
+    'negative_length_payload_excluded' => !str_contains($joined, 'Negative Length Filter Leak'),
     'malformed_indirect_multi_name_filter_rejected' => $malformedIndirectFilterLines === [
         'Indirect Array Filter Preserved',
         'Visible After Malformed Filter Object',
