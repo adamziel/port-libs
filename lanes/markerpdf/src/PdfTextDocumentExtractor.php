@@ -24,7 +24,7 @@ final class PdfTextDocumentExtractor
      * enumerates that sliced result, so span IDs restart at 0 even when page["page"]
      * remains the original document page number.
      *
-     * @param list<array<string, mixed>|\stdClass> $pdftextPages
+     * @param list<array<string, mixed>|\stdClass>|array{pages?: array<mixed>, metadata?: array<string, mixed>} $pdftextPages
      * @param list<array<string, mixed>> $toc
      * @return array{
      *     pages: list<array<string, mixed>>,
@@ -45,6 +45,7 @@ final class PdfTextDocumentExtractor
         bool $disableLinks = false,
         bool $quoteLoosebox = true
     ): array {
+        $pdftextPages = $this->normalizeSuppliedDictionaryPageList($pdftextPages);
         $totalPages = count($pdftextPages);
         $startPage ??= 0;
 
@@ -101,6 +102,27 @@ final class PdfTextDocumentExtractor
             ],
             'page_range' => $pageRange,
         ];
+    }
+
+    /**
+     * Some callers cache pdftext.dictionary_output alongside adapter metadata.
+     * The upstream markerPDF boundary only consumes the ordered page list, so
+     * unwrap that list before slicing and keep envelope payloads out of pages.
+     *
+     * @param array<mixed> $pdftextPages
+     * @return list<mixed>
+     */
+    private function normalizeSuppliedDictionaryPageList(array $pdftextPages): array
+    {
+        if (
+            !array_key_exists('blocks', $pdftextPages)
+            && array_key_exists('pages', $pdftextPages)
+            && is_array($pdftextPages['pages'])
+        ) {
+            return array_values($pdftextPages['pages']);
+        }
+
+        return array_values($pdftextPages);
     }
 
     /**
