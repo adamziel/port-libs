@@ -10843,6 +10843,47 @@ final class PdfTextExtractor
     }
 
     /**
+     * Font width arrays are scalar PDF objects. If a helper object contains an
+     * array plus extra operands, fail closed so stray width data cannot drive
+     * text advance grouping.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfSingleArrayFromValue(string $value, array $objects, array $seen = []): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (($value[$offset] ?? '') === '[') {
+            $array = $this->readPdfArrayAt($value, $offset);
+            if ($array === null) {
+                return null;
+            }
+
+            $after = $this->skipPdfWhitespace($value, $offset + strlen($array) + 2);
+            return $after >= strlen($value) ? $array : null;
+        }
+
+        $referenceOffset = $offset;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference === null || $this->skipPdfWhitespace($value, $referenceOffset) < strlen($value)) {
+            return null;
+        }
+
+        $key = $reference['objectNumber'] . ':' . $reference['generation'];
+        if ($reference['objectNumber'] <= 0 || $reference['generation'] < 0 || isset($seen[$key])) {
+            return null;
+        }
+
+        $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$key] = true;
+        return $this->pdfSingleArrayFromValue($body, $objects, $seen);
+    }
+
+    /**
      * @param array<int, string> $objects
      */
     private function pdfDictionaryFromValue(string $value, array $objects): ?string
@@ -19293,7 +19334,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $widthArray = $this->topLevelPdfArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
+        $widthArray = $this->topLevelPdfSingleArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
         if ($widthArray === null) {
             return [];
         }
@@ -20099,6 +20140,19 @@ final class PdfTextExtractor
         }
 
         return $this->pdfArrayFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfSingleArrayValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfSingleArrayFromValue($value, $objects);
     }
 
     /**
