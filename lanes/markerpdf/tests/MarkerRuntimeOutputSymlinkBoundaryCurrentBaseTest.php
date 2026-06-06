@@ -150,4 +150,59 @@ return [
             $removeTree($root);
         }
     },
+    'records broken output parent symlink makedirs boundary before metadata and model handoff' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        try {
+            $input = $root . DIRECTORY_SEPARATOR . 'uploads';
+            mkdir($input);
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued\n%%EOF");
+
+            $brokenParentSymlink = $root . DIRECTORY_SEPARATOR . 'output-broken-parent-link';
+            if (!@symlink($root . DIRECTORY_SEPARATOR . 'missing-output-parent-target', $brokenParentSymlink)) {
+                throw new RuntimeException('Unable to create broken symlink output parent fixture.');
+            }
+            $brokenParentOutput = $brokenParentSymlink . DIRECTORY_SEPARATOR . 'marker-output';
+
+            $brokenParentPlan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $brokenParentOutput,
+                metadataFile: $root . DIRECTORY_SEPARATOR . 'missing-metadata.json',
+                workers: 2,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $brokenParentPaths = $brokenParentPlan['paths'];
+            $t->same(false, $brokenParentPaths['output_path_exists']);
+            $t->same('missing', $brokenParentPaths['output_path_type']);
+            $t->same(false, $brokenParentPaths['output_folder_exists']);
+            $t->same(false, $brokenParentPaths['output_folder_is_symlink']);
+            $t->same(true, $brokenParentPaths['output_folder_creation_required']);
+            $t->same($brokenParentSymlink, $brokenParentPaths['output_folder_parent_path']);
+            $t->same(false, $brokenParentPaths['output_folder_parent_path_exists']);
+            $t->same('broken-symlink', $brokenParentPaths['output_folder_parent_path_type']);
+            $t->same($brokenParentSymlink, $brokenParentPaths['output_folder_parent_conflict_path']);
+            $t->same('broken-symlink', $brokenParentPaths['output_folder_parent_conflict_type']);
+            $t->same(true, $brokenParentPaths['output_folder_parent_creation_blocked']);
+            $t->same(true, $brokenParentPaths['output_folder_creation_blocked']);
+            $t->same('output-folder-parent-broken-symlink', $brokenParentPaths['output_folder_creation_error_boundary']);
+            $t->same('FileNotFoundError', $brokenParentPaths['output_folder_creation_error_class']);
+            $t->contains('No such file or directory', (string) $brokenParentPaths['output_folder_creation_error_message']);
+            $t->same(['queued.pdf'], $brokenParentPlan['input_listing']['file_basenames']);
+            $t->same('output-folder-create-failed', $brokenParentPlan['chunking']['chunk_error_boundary']);
+            $t->same(false, $brokenParentPlan['chunking']['chunking_reached']);
+            $t->same(false, $brokenParentPlan['metadata']['metadata_load_reached']);
+            $t->same(0, $brokenParentPlan['worker_pool']['task_args_count']);
+            $t->same('output-folder-create-failed', $brokenParentPlan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $brokenParentPlan['model_handoff']['model_handoff_reached']);
+            $t->same(false, $brokenParentPlan['console_summary']['summary_reached']);
+            $t->same(false, $brokenParentPlan['executes_python_or_models']);
+            $t->same(false, $brokenParentPlan['executes_multiprocessing']);
+            $t->same(false, $brokenParentPlan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($root);
+        }
+    },
 ];

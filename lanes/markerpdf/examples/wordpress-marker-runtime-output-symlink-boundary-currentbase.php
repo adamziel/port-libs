@@ -56,18 +56,26 @@ try {
         throw new RuntimeException('Unable to create broken output symlink fixture.');
     }
 
+    $brokenParentSymlink = $root . DIRECTORY_SEPARATOR . 'output-broken-parent-link';
+    if (!@symlink($root . DIRECTORY_SEPARATOR . 'missing-output-parent-target', $brokenParentSymlink)) {
+        throw new RuntimeException('Unable to create broken output parent symlink fixture.');
+    }
+    $brokenParentOutput = $brokenParentSymlink . DIRECTORY_SEPARATOR . 'marker-output';
+
     $batch = new BatchConverter();
     $directoryPlan = $batch->runtimeMainPreflightPlan($input, $directorySymlink, workers: 2);
     $filePlan = $batch->runtimeMainPreflightPlan($input, $fileSymlink, workers: 2);
     $brokenPlan = $batch->runtimeMainPreflightPlan($input, $brokenSymlink, workers: 2);
+    $brokenParentPlan = $batch->runtimeMainPreflightPlan($input, $brokenParentOutput, workers: 2);
 
     $directoryPaths = $directoryPlan['paths'];
     $filePaths = $filePlan['paths'];
     $brokenPaths = $brokenPlan['paths'];
+    $brokenParentPaths = $brokenParentPlan['paths'];
 
     $result = [
         'scenario' => 'wordpress-marker-runtime-output-symlink-boundary-currentbase',
-        'source_truth' => 'sddai/markerPDF convert.py calls os.makedirs(out_folder, exist_ok=True) after os.listdir and before chunking, metadata loading, model handoff, task args, or torch multiprocessing Pool launch',
+        'source_truth' => 'sddai/markerPDF convert.py calls os.makedirs(out_folder, exist_ok=True) after os.listdir and before chunking, metadata loading, model handoff, task args, or torch multiprocessing Pool launch; Python fails a broken symlink output parent with FileNotFoundError',
         'directory_symlink_output_accepted' => $directoryPaths['output_folder_is_symlink'] === true
             && $directoryPaths['output_folder_makedirs_follows_symlink'] === true
             && $directoryPaths['output_folder_creation_blocked'] === false
@@ -82,19 +90,28 @@ try {
             && $brokenPaths['output_path_type'] === 'broken-symlink'
             && $brokenPaths['output_folder_creation_error_class'] === 'FileExistsError'
             && $brokenPlan['chunking']['chunking_reached'] === false,
+        'broken_parent_symlink_output_rejected_before_metadata' => $brokenParentPaths['output_folder_parent_path_type'] === 'broken-symlink'
+            && $brokenParentPaths['output_folder_parent_conflict_type'] === 'broken-symlink'
+            && $brokenParentPaths['output_folder_creation_error_boundary'] === 'output-folder-parent-broken-symlink'
+            && $brokenParentPaths['output_folder_creation_error_class'] === 'FileNotFoundError'
+            && $brokenParentPlan['metadata']['metadata_load_reached'] === false,
         'blocked_output_worker_task_args' => [
             'file_symlink' => $filePlan['worker_pool']['task_args_count'],
             'broken_symlink' => $brokenPlan['worker_pool']['task_args_count'],
+            'broken_parent_symlink' => $brokenParentPlan['worker_pool']['task_args_count'],
         ],
         'executes_python_or_models' => $directoryPlan['executes_python_or_models']
             || $filePlan['executes_python_or_models']
-            || $brokenPlan['executes_python_or_models'],
+            || $brokenPlan['executes_python_or_models']
+            || $brokenParentPlan['executes_python_or_models'],
         'executes_multiprocessing' => $directoryPlan['executes_multiprocessing']
             || $filePlan['executes_multiprocessing']
-            || $brokenPlan['executes_multiprocessing'],
+            || $brokenPlan['executes_multiprocessing']
+            || $brokenParentPlan['executes_multiprocessing'],
         'executes_external_pdf_tools' => $directoryPlan['executes_external_pdf_tools']
             || $filePlan['executes_external_pdf_tools']
-            || $brokenPlan['executes_external_pdf_tools'],
+            || $brokenPlan['executes_external_pdf_tools']
+            || $brokenParentPlan['executes_external_pdf_tools'],
     ];
 
     if (
@@ -102,6 +119,7 @@ try {
         || $result['directory_symlink_task_out_folder_preserved'] !== true
         || $result['file_symlink_output_rejected_before_metadata'] !== true
         || $result['broken_symlink_output_rejected_before_chunking'] !== true
+        || $result['broken_parent_symlink_output_rejected_before_metadata'] !== true
         || $result['executes_python_or_models'] !== false
         || $result['executes_multiprocessing'] !== false
         || $result['executes_external_pdf_tools'] !== false

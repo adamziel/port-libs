@@ -2505,9 +2505,15 @@ final class BatchConverter
             $errorClass = 'FileExistsError';
             $errorMessage = "[Errno 17] File exists: '" . $absoluteOutputFolder . "'";
         } elseif ($parentBlocked) {
-            $errorBoundary = 'output-folder-parent-not-directory';
-            $errorClass = 'NotADirectoryError';
-            $errorMessage = "[Errno 20] Not a directory: '" . $absoluteOutputFolder . "'";
+            if (($parentConflict['type'] ?? null) === 'broken-symlink') {
+                $errorBoundary = 'output-folder-parent-broken-symlink';
+                $errorClass = 'FileNotFoundError';
+                $errorMessage = "[Errno 2] No such file or directory: '" . $absoluteOutputFolder . "'";
+            } else {
+                $errorBoundary = 'output-folder-parent-not-directory';
+                $errorClass = 'NotADirectoryError';
+                $errorMessage = "[Errno 20] Not a directory: '" . $absoluteOutputFolder . "'";
+            }
         }
 
         return [
@@ -2655,7 +2661,7 @@ final class BatchConverter
     {
         $parent = dirname($absoluteOutputFolder);
         while ($parent !== '' && $parent !== dirname($parent)) {
-            if (file_exists($parent)) {
+            if (file_exists($parent) || is_link($parent)) {
                 return is_dir($parent)
                     ? null
                     : ['path' => $parent, 'type' => $this->filesystemPathType($parent)];
@@ -2664,7 +2670,7 @@ final class BatchConverter
             $parent = dirname($parent);
         }
 
-        if ($parent !== '' && file_exists($parent) && !is_dir($parent)) {
+        if ($parent !== '' && (file_exists($parent) || is_link($parent)) && !is_dir($parent)) {
             return ['path' => $parent, 'type' => $this->filesystemPathType($parent)];
         }
 
@@ -3840,6 +3846,9 @@ final class BatchConverter
         }
         if (file_exists($path)) {
             return 'other';
+        }
+        if (is_link($path)) {
+            return 'broken-symlink';
         }
 
         return 'missing';
