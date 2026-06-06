@@ -34,6 +34,8 @@ final class PdfTextExtractor
         'RGB' => 'DeviceRGB',
         'RL' => 'RunLengthDecode',
     ];
+    private const MALFORMED_IMAGE_FILTER_OPERAND = 'MalformedFilterOperand';
+    private const UNRESOLVED_IMAGE_FILTER_OPERAND = 'UnresolvedFilterOperand';
     private const NON_OUTLINE_ITEM_TYPES = [
         'Action' => true,
         'Annot' => true,
@@ -6933,8 +6935,14 @@ final class PdfTextExtractor
         $filters = $this->streamFilters($stream['dict'], $objects);
         $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($stream['dict'], 'Filter');
         $reviewFilters = $filters;
+        $filterOperandBoundaryFilters = [];
         if ($reviewFilters === null && $duplicateFilterDeclarationCount > 0) {
             $reviewFilters = $this->imageXObjectDuplicateFilterDeclarationReviewFilters($stream['dict'], $objects);
+        } elseif ($reviewFilters === null) {
+            $reviewFilters = $this->imageXObjectFilterOperandBoundaryReviewFilters($stream['dict'], $objects);
+            $filterOperandBoundaryFilters = $reviewFilters === null
+                ? []
+                : $this->imageXObjectFilterOperandBoundaryFilters($reviewFilters);
         }
         $resolvedFilters = $reviewFilters === null
             ? []
@@ -7306,6 +7314,7 @@ final class PdfTextExtractor
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                 'filter_operand_policy' => 'reject_duplicate_filter_declarations',
             ] : []),
+            ...$this->imageXObjectFilterOperandBoundaryMetadata($filterOperandBoundaryFilters),
             'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'dctdecode_stream_boundary' => $dctStreamBoundary,
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
@@ -8393,6 +8402,211 @@ final class PdfTextExtractor
         }
 
         return $this->nativePrefixStreamBoundaryMetadata($decodedPrefix, $ccittFilter);
+    }
+
+    /**
+     * @return list<string|null>|null
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectFilterOperandBoundaryReviewFilters(string $dictionary, array $objects): ?array
+    {
+        $values = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Filter');
+        if (count($values) !== 1) {
+            return null;
+        }
+
+        $filters = $this->imageXObjectFilterOperandBoundaryValuesFromValue($values[0], $objects);
+        if ($filters === []) {
+            return null;
+        }
+
+        return $this->normalizeStreamFilterStack($filters);
+    }
+
+    /**
+     * @return list<string|null>
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function imageXObjectFilterOperandBoundaryValuesFromValue(
+        string $value,
+        array $objects,
+        array $seenObjects = []
+    ): array {
+        $value = trim($value);
+        if ($value === '') {
+            return [self::MALFORMED_IMAGE_FILTER_OPERAND];
+        }
+
+        if ($value[0] === '[') {
+            $arrayBody = $this->readPdfArrayAt($value, 0);
+            if ($arrayBody === null) {
+                return [self::MALFORMED_IMAGE_FILTER_OPERAND];
+            }
+
+            return $this->imageXObjectFilterOperandBoundaryValuesFromArrayBody($arrayBody, $objects, $seenObjects);
+        }
+
+        if ($value[0] === '/') {
+            $end = $this->pdfNameTokenEndOffset($value, 0);
+            if ($this->skipPdfWhitespace($value, $end) !== strlen($value)) {
+                return [self::MALFORMED_IMAGE_FILTER_OPERAND];
+            }
+
+            return [$this->decodePdfName(substr($value, 1, $end - 1))];
+        }
+
+        if (preg_match('/\Gnull\b/s', $value, $match, 0, 0) === 1) {
+            return $this->skipPdfWhitespace($value, strlen($match[0])) === strlen($value)
+                ? []
+                : [self::MALFORMED_IMAGE_FILTER_OPERAND];
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, 0);
+        if ($reference !== null && $this->skipPdfWhitespace($value, $reference['endOffset']) === strlen($value)) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seenObjects[$objectKey])) {
+                return [self::UNRESOLVED_IMAGE_FILTER_OPERAND];
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return [self::UNRESOLVED_IMAGE_FILTER_OPERAND];
+            }
+
+            $seenObjects[$objectKey] = true;
+            return $this->imageXObjectFilterOperandBoundaryValuesFromValue($body, $objects, $seenObjects);
+        }
+
+        return [$this->imageXObjectFilterOperandFallbackName($value)];
+    }
+
+    /**
+     * @return list<string|null>
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function imageXObjectFilterOperandBoundaryValuesFromArrayBody(
+        string $arrayBody,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $filters = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($arrayBody[$offset] === '%') {
+                $this->skipPdfComment($arrayBody, $offset);
+                continue;
+            }
+
+            if ($arrayBody[$offset] === '/') {
+                $end = $this->pdfNameTokenEndOffset($arrayBody, $offset);
+                $filters[] = $this->decodePdfName(substr($arrayBody, $offset + 1, $end - $offset - 1));
+                $offset = $end;
+                continue;
+            }
+
+            if (preg_match('/\Gnull\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $filters[] = null;
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $reference = $this->pdfIndirectReferenceTokenAt($arrayBody, $offset);
+            if ($reference !== null) {
+                $objectNumber = $reference['objectNumber'];
+                $generation = $reference['generation'];
+                $objectKey = $objectNumber . ':' . $generation;
+                if ($objectNumber <= 0 || isset($seenObjects[$objectKey])) {
+                    $filters[] = self::UNRESOLVED_IMAGE_FILTER_OPERAND;
+                    $offset = $reference['endOffset'];
+                    continue;
+                }
+
+                $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+                if ($body === null) {
+                    $filters[] = self::UNRESOLVED_IMAGE_FILTER_OPERAND;
+                    $offset = $reference['endOffset'];
+                    continue;
+                }
+
+                $nextSeenObjects = $seenObjects;
+                $nextSeenObjects[$objectKey] = true;
+                foreach ($this->imageXObjectFilterOperandBoundaryValuesFromValue($body, $objects, $nextSeenObjects) as $filter) {
+                    $filters[] = $filter;
+                }
+                $offset = $reference['endOffset'];
+                continue;
+            }
+
+            $token = $this->pdfValueAtOffset($arrayBody, $offset);
+            $filters[] = $this->imageXObjectFilterOperandFallbackName($token ?? '');
+            $nextOffset = $this->skipPdfValueAt($arrayBody, $offset);
+            $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+        }
+
+        return $filters;
+    }
+
+    private function imageXObjectFilterOperandFallbackName(string $resolved): string
+    {
+        return preg_match('/^\d+\s+\d+\s+R$/', trim($resolved)) === 1
+            ? self::UNRESOLVED_IMAGE_FILTER_OPERAND
+            : self::MALFORMED_IMAGE_FILTER_OPERAND;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @return list<string>
+     */
+    private function imageXObjectFilterOperandBoundaryFilters(array $filters): array
+    {
+        return array_values(array_filter(
+            $filters,
+            static fn (?string $filter): bool => in_array(
+                $filter,
+                [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND],
+                true
+            )
+        ));
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return array<string, int|string>
+     */
+    private function imageXObjectFilterOperandBoundaryMetadata(array $filters): array
+    {
+        if ($filters === []) {
+            return [];
+        }
+
+        $malformedCount = 0;
+        $unresolvedCount = 0;
+        foreach ($filters as $filter) {
+            if ($filter === self::MALFORMED_IMAGE_FILTER_OPERAND) {
+                $malformedCount++;
+            } elseif ($filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND) {
+                $unresolvedCount++;
+            }
+        }
+
+        return [
+            'filter_operand_policy' => $malformedCount > 0
+                ? 'reject_malformed_filter_operands'
+                : 'reject_unresolved_filter_operands',
+            'malformed_filter_operand_count' => $malformedCount,
+            'unresolved_filter_operand_count' => $unresolvedCount,
+        ];
     }
 
     /**
