@@ -380,6 +380,54 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $typstFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'title' => 'Typst Default Review',
+        'subtitle' => 'Native metadata handoff',
+        'author' => [
+            ['name' => 'Migration bot', 'affiliation' => 'Migration Desk', 'email' => 'bot@example.test'],
+            'Content editor',
+        ],
+        'keywords' => ['migration', 'wordpress'],
+        'date' => '2026-06-06',
+        'lang' => 'en',
+        'region' => 'US',
+        'abstract-title' => 'Abstract',
+        'abstract' => 'Typst metadata body.',
+        'margin' => ['x' => '1.25in', 'y' => '1in'],
+        'papersize' => 'a4',
+        'mainfont' => 'Atkinson Hyperlegible',
+        'columns' => 2,
+        'toc' => true,
+        'toc-depth' => 3,
+        'body' => '#heading[Typst body]',
+        'citations' => true,
+        'nocite-ids' => ['doe2024'],
+        'bibliographystyle' => 'chicago-author-date',
+        'bibliography' => ['review.bib'],
+    ], null, 'typst');
+    foreach ([
+        '#let conf(',
+        'title: [Typst Default Review],',
+        'subtitle: [Native metadata handoff],',
+        '(name: [Migration bot], affiliation: [Migration Desk], email: [bot@example.test]),',
+        '(name: [Content editor], affiliation: "", email: ""),',
+        'keywords: (migration,wordpress),',
+        'margin: (x: 1.25in,y: 1in,),',
+        'paper: "a4",',
+        'font: ("Atkinson Hyperlegible",),',
+        'cols: 2,',
+        '#outline(title: auto, depth: 3);',
+        '#heading[Typst body]',
+        '#cite(label("doe2024"), form: none)',
+        '#set bibliography(style: "chicago-author-date")',
+        '#bibliography(("review.bib"))',
+    ] as $needle) {
+        if (!str_contains($typstFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate typst default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $filesystemRoot = sys_get_temp_dir() . '/pandoc-doctemplate-example-' . bin2hex(random_bytes(6));
     $writeFilesystemTemplate = static function (string $relativePath, string $contents) use ($filesystemRoot): void {
         $path = $filesystemRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);

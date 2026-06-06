@@ -1497,6 +1497,116 @@ HTML,
         ], null, 'docx'));
     },
 
+    'renders bounded pandoc default typst template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $typst = $renderer->renderResource('templates/default', [], [
+            'table-caption-position' => 'bottom',
+            'figure-caption-position' => 'top',
+            'highlighting-definitions' => '#let hl = text',
+            'smart' => false,
+            'header-includes' => ['#set text(fill: navy)'],
+            'title' => 'Batch 42 Review',
+            'subtitle' => 'Typst metadata packet',
+            'author' => [
+                ['name' => 'Migration bot', 'affiliation' => 'Migration Desk', 'email' => 'bot@example.test'],
+                'Content editor',
+            ],
+            'keywords' => ['migration', 'wordpress', 'review'],
+            'date' => '2026-06-06',
+            'lang' => 'en',
+            'region' => 'US',
+            'abstract-title' => 'Abstract',
+            'abstract' => 'Native Typst template review.',
+            'thanks' => 'Internal migration packet',
+            'margin' => [
+                'x' => '1.25in',
+                'y' => '1in',
+            ],
+            'papersize' => 'a4',
+            'mainfont' => 'Atkinson Hyperlegible',
+            'fontsize' => '11pt',
+            'mathfont' => ['New Computer Modern Math'],
+            'codefont' => ['JetBrains Mono'],
+            'linestretch' => '1.15',
+            'section-numbering' => '1.1',
+            'page-numbering' => '1',
+            'linkcolor' => 'blue',
+            'citecolor' => 'green',
+            'filecolor' => 'purple',
+            'columns' => 2,
+            'include-before' => ['#block[Reviewer queue]'],
+            'toc' => true,
+            'toc-depth' => 3,
+            'body' => '#heading[Imported Typst body]',
+            'citations' => true,
+            'nocite-ids' => ['doe2024'],
+            'csl' => 'apa.csl',
+            'bibliography' => ['refs.bib', 'archive.bib'],
+            'full-bibliography' => true,
+            'include-after' => ['#block[Done]'],
+        ], null, 'typst');
+
+        foreach ([
+            '#let horizontalrule = line(start: (25%,0%), end: (75%,0%))',
+            '#let content-to-string(content) = {',
+            '#let conf(',
+            '#show figure.where(kind: table): set figure.caption(position: bottom)',
+            '#show figure.where(kind: image): set figure.caption(position: top)',
+            '// syntax highlighting functions from skylighting:',
+            '#let hl = text',
+            '#set smartquote(enabled: false)',
+            '#set text(fill: navy)',
+            '#show: doc => conf(',
+            'title: [Batch 42 Review],',
+            'subtitle: [Typst metadata packet],',
+            '(name: [Migration bot], affiliation: [Migration Desk], email: [bot@example.test]),',
+            '(name: [Content editor], affiliation: "", email: ""),',
+            'keywords: (migration,wordpress,review),',
+            'date: [2026-06-06],',
+            'lang: "en",',
+            'region: "US",',
+            'abstract-title: [Abstract],',
+            'abstract: [Native Typst template review.],',
+            'thanks: [Internal migration packet],',
+            'margin: (x: 1.25in,y: 1in,),',
+            'paper: "a4",',
+            'font: ("Atkinson Hyperlegible",),',
+            'fontsize: 11pt,',
+            'mathfont: ("New Computer Modern Math",),',
+            'codefont: ("JetBrains Mono",),',
+            'linestretch: 1.15,',
+            'sectionnumbering: "1.1",',
+            'pagenumbering: "1",',
+            'linkcolor: [blue],',
+            'citecolor: [green],',
+            'filecolor: [purple],',
+            'cols: 2,',
+            '#block[Reviewer queue]',
+            '#outline(title: auto, depth: 3);',
+            '#heading[Imported Typst body]',
+            '#cite(label("doe2024"), form: none)',
+            '#set bibliography(style: "apa.csl")',
+            '#bibliography(("refs.bib","archive.bib"), full: true)',
+            '#block[Done]',
+        ] as $needle) {
+            $t->contains($needle, $typst);
+        }
+
+        $imported = $renderer->renderResource('templates/default.typst', [], [
+            'template' => 'custom-review.typst',
+            'body' => '#heading[Imported body]',
+        ]);
+        $t->contains('#import "custom-review.typst": conf', $imported);
+        $t->same(false, str_contains($imported, '#let conf('));
+
+        $t->same('custom typst', $renderer->renderResource('templates/default', [
+            'templates/default.typst' => 'custom $body$',
+        ], [
+            'body' => 'typst',
+        ], null, 'typst'));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'
