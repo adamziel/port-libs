@@ -12588,14 +12588,27 @@ final class PdfMetadataExtractor
             if ($previousOffset !== null && $previousOffset >= 0) {
                 $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
                 foreach ($previousEntries as $objectNumber => $entry) {
+                    if (isset($entries[$objectNumber])) {
+                        if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+                            $objectNumber,
+                            $entries[$objectNumber],
+                            $entry,
+                            $previousEntries,
+                            $definitions
+                        )) {
+                            $entries[$objectNumber] = $entry;
+                        }
+
+                        continue;
+                    }
+
                     if (
-                        !isset($entries[$objectNumber])
-                        && $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)
+                        $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)
                     ) {
                         continue;
                     }
 
-                    $entries[$objectNumber] ??= $entry;
+                    $entries[$objectNumber] = $entry;
                 }
             }
 
@@ -12614,14 +12627,27 @@ final class PdfMetadataExtractor
         if ($previousOffset !== null && $previousOffset >= 0) {
             $previousEntries = $this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
+                if (isset($entries[$objectNumber])) {
+                    if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+                        $objectNumber,
+                        $entries[$objectNumber],
+                        $entry,
+                        $previousEntries,
+                        $definitions
+                    )) {
+                        $entries[$objectNumber] = $entry;
+                    }
+
+                    continue;
+                }
+
                 if (
-                    !isset($entries[$objectNumber])
-                    && $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)
+                    $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)
                 ) {
                     continue;
                 }
 
-                $entries[$objectNumber] ??= $entry;
+                $entries[$objectNumber] = $entry;
             }
         }
 
