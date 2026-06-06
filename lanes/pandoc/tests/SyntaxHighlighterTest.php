@@ -94,6 +94,10 @@ return [
         $t->same('go', SyntaxHighlighter::normalizeLanguage('go'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('golang'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('language-go'));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('graphql'));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('gql'));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('graphql-schema'));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('language-graphql-query'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-expr'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-shell'));
@@ -1028,6 +1032,48 @@ return [
         $t->same('html', $directHtml['language']);
         $t->contains('<span class="pp">&lt;?php</span> <span class="kw">if</span>', $directHtml['html']);
         $t->contains('<span class="pp">&lt;?=</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">)</span> <span class="pp">?&gt;</span>', $directHtml['html']);
+    },
+    'highlights graphql wpgraphql review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[44] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a GraphQL code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directGraphql = $highlighter->highlight(
+            'fragment MediaFields on MediaItem { sourceUrl altText }',
+            'graphql-query'
+        );
+
+        $t->same('gql', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('gql'));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('graphql-schema'));
+        $t->same('graphql', SyntaxHighlighter::normalizeLanguage('language-graphql-query'));
+        $t->same('graphql', $highlighted['language']);
+        $t->same('gql', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(510, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource gql numberLines"><code class="sourceCode graphql" style="counter-reset: source-line 509;">', $highlighted['html']);
+        $t->contains('<span id="graphql-review-510"><a href="#graphql-review-510"></a><span class="co"># WPGraphQL import review query</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">query</span> <span class="dt">ImportReview</span><span class="op">(</span><span class="va">$postId</span><span class="op">:</span> <span class="dt">ID</span><span class="op">!,</span> <span class="va">$includeMedia</span><span class="op">:</span> <span class="dt">Boolean</span> <span class="op">=</span> <span class="cn">true</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">post</span><span class="op">(</span><span class="ot">id</span><span class="op">:</span> <span class="va">$postId</span><span class="op">,</span> <span class="ot">idType</span><span class="op">:</span> <span class="dt">DATABASE_ID</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">media</span><span class="op">:</span> <span class="va">featuredImage</span> <span class="ot">@include</span><span class="op">(</span><span class="ot">if</span><span class="op">:</span> <span class="va">$includeMedia</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="kw">implements</span> <span class="dt">Node</span>', $highlighted['html']);
+        $t->contains('<span class="ot">blocks</span><span class="op">:</span> <span class="op">[</span><span class="dt">String</span><span class="op">!]!</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="ot">@include</span><span class="op">(</span><span class="ot">if</span><span class="op">:</span> <span class="va">$includeMedia</span>', $wordpressBlock);
+        $t->same('graphql', $directGraphql['language']);
+        $t->same('graphql-query', $directGraphql['requestedLanguage']);
+        $t->contains('<span class="kw">fragment</span> <span class="dt">MediaFields</span> <span class="kw">on</span> <span class="dt">MediaItem</span>', $directGraphql['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

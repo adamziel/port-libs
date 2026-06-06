@@ -304,6 +304,12 @@ if (!$htmlPhpCodeBlock instanceof PortLibs\Pandoc\AstNode || $htmlPhpCodeBlock->
 }
 $htmlPhp = $highlighter->highlightCodeBlock($htmlPhpCodeBlock, 'breezedark');
 $htmlPhpWordpressBlock = $highlighter->wordpressHtmlBlock($htmlPhpCodeBlock, 'breezedark');
+$graphqlCodeBlock = $document->children[44] ?? null;
+if (!$graphqlCodeBlock instanceof PortLibs\Pandoc\AstNode || $graphqlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a GraphQL code block');
+}
+$graphql = $highlighter->highlightCodeBlock($graphqlCodeBlock, 'kate');
+$graphqlWordpressBlock = $highlighter->wordpressHtmlBlock($graphqlCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1283,6 +1289,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($htmlPhpWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected HTML/PHP template WordPress style metadata');
     }
+    if (($graphql['language'] ?? '') !== 'graphql') {
+        throw new RuntimeException('Expected GraphQL fixture to normalize to GraphQL highlighting');
+    }
+    if (($graphql['lineNumbering']['start'] ?? null) !== 510) {
+        throw new RuntimeException('Expected GraphQL source startFrom line-number handoff');
+    }
+    if (!str_contains($graphql['html'], '<span class="kw">query</span> <span class="dt">ImportReview</span>')) {
+        throw new RuntimeException('Expected GraphQL query token handoff');
+    }
+    if (!str_contains($graphql['html'], '<span class="ot">media</span><span class="op">:</span> <span class="va">featuredImage</span> <span class="ot">@include</span>')) {
+        throw new RuntimeException('Expected GraphQL alias and directive token handoff');
+    }
+    if (!str_contains($graphql['html'], '<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="kw">implements</span> <span class="dt">Node</span>')) {
+        throw new RuntimeException('Expected GraphQL schema type token handoff');
+    }
+    if (!str_contains($graphqlWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected GraphQL WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1351,6 +1375,7 @@ echo "handlebarsHighlightedHtml:\n" . $handlebars['html'] . "\n";
 echo "mermaidHighlightedHtml:\n" . $mermaid['html'] . "\n";
 echo "htmlEmbeddedHighlightedHtml:\n" . $htmlEmbedded['html'] . "\n";
 echo "htmlPhpHighlightedHtml:\n" . $htmlPhp['html'] . "\n";
+echo "graphqlHighlightedHtml:\n" . $graphql['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1390,4 +1415,5 @@ echo "handlebarsWordpressBlock:\n" . $handlebarsWordpressBlock . "\n";
 echo "mermaidWordpressBlock:\n" . $mermaidWordpressBlock . "\n";
 echo "htmlEmbeddedWordpressBlock:\n" . $htmlEmbeddedWordpressBlock . "\n";
 echo "htmlPhpWordpressBlock:\n" . $htmlPhpWordpressBlock . "\n";
+echo "graphqlWordpressBlock:\n" . $graphqlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

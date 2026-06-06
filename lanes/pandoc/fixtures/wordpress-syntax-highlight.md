@@ -677,3 +677,28 @@ flowchart LR
   <?php endif; ?>
 </article>
 ```
+
+``` {.gql #graphql-review .numberLines startFrom=510}
+# WPGraphQL import review query
+query ImportReview($postId: ID!, $includeMedia: Boolean = true) {
+  post(id: $postId, idType: DATABASE_ID) {
+    title
+    blocks {
+      name
+      attributes
+    }
+    media: featuredImage @include(if: $includeMedia) {
+      node {
+        sourceUrl
+        altText
+      }
+    }
+  }
+}
+
+type ReviewPacket implements Node {
+  id: ID!
+  title: String
+  blocks: [String!]!
+}
+```

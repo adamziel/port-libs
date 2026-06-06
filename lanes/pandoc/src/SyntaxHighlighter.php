@@ -116,6 +116,11 @@ final class SyntaxHighlighter
         'gfm' => 'markdown',
         'go' => 'go',
         'golang' => 'go',
+        'gql' => 'graphql',
+        'graphql' => 'graphql',
+        'graphql-query' => 'graphql',
+        'graphql-schema' => 'graphql',
+        'graphqls' => 'graphql',
         'markdown' => 'markdown',
         'mariadb' => 'sql',
         'md' => 'markdown',
@@ -626,6 +631,7 @@ final class SyntaxHighlighter
             'dot' => $this->tokenizeDot($code),
             'dockerfile' => $this->tokenizeDockerfile($code),
             'go' => $this->tokenizeGo($code),
+            'graphql' => $this->tokenizeGraphql($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'ini' => $this->tokenizeIni($code),
@@ -945,6 +951,29 @@ final class SyntaxHighlighter
             ['constant', '/^\\b(?:false|null|true)\\b/'],
             ['number', '/^-?\\b(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b/'],
             ['operator', '/^[{}[\\]:,]/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeGraphql(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['keyword', '/^\\b(?:directive|enum|extend|fragment|implements|input|interface|mutation|on|query|scalar|schema|subscription|type|union)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:Boolean|Float|ID|Int|String)\\b/'],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_]*/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)/'],
+            ['number', '/^-?\\b(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[!\\[\\]{}()|]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|[{}()[\\]:,|=!.@])/'],
         ]);
     }
 
