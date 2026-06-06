@@ -3611,6 +3611,75 @@ XML,
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text"><info/></style>'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<locale xmlns="http://purl.org/net/xbiblio/csl" version="1.0"/>'));
     },
+    'applies bounded csl exact locale terms after language fallback locales' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locale-source',
+                'type' => 'webpage',
+                'title' => 'Locale Source Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'accessed' => ['date-parts' => [[2026, 6, 6]]],
+                'URL' => 'https://example.test/locale-source',
+            ],
+            [
+                'id' => 'undated-locale-source',
+                'type' => 'report',
+                'title' => 'Undated Locale Packet',
+                'issued' => [],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Locale Precedence Review Style</title>
+    <id>https://example.test/styles/bounded-locale-precedence-review</id>
+    <updated>2026-06-06T08:35:56+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="and">and exact</term>
+      <term name="accessed">Inspected</term>
+      <term name="no date">exact n.d.</term>
+    </terms>
+  </locale>
+  <locale xml:lang="en">
+    <terms>
+      <term name="and">and generic</term>
+      <term name="accessed">Retrieved</term>
+      <term name="no date">generic n.d.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; "/>
+  </citation>
+  <bibliography>
+    <layout/>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Locale Precedence Review Style', $summary['title'] ?? null);
+        $t->same('and exact', $summary['terms']['and'] ?? null);
+        $t->same('Inspected', $summary['terms']['accessed'] ?? null);
+        $t->same('exact n.d.', $summary['terms']['noDate'] ?? null);
+
+        $t->same('(Smith and exact Ng 2026; Undated Locale Packet exact n.d.)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'locale-source', 'text' => '[@locale-source]']),
+            new AstNode('citation', ['id' => 'undated-locale-source', 'text' => '[@undated-locale-source]']),
+        ]));
+        $t->same('Smith, Ada; Ng, Nia. Locale Source Packet. 2026. https://example.test/locale-source. Inspected 2026-06-06.', $processor->renderBibliographyEntry('locale-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@locale-source; @undated-locale-source] for localized bibliography handoff.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites (Smith and exact Ng 2026; Undated Locale Packet exact n.d.) for localized bibliography handoff.</p>', $blocks);
+        $t->contains('<dt>Smith and exact Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Locale Source Packet. 2026. https://example.test/locale-source. Inspected 2026-06-06.</dd>', $blocks);
+        $t->contains('<dt>Undated Locale Packet exact n.d.</dt><dd>Undated Locale Packet.</dd>', $blocks);
+    },
     'applies bounded csl bibliography layout affixes and accessed locale term' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

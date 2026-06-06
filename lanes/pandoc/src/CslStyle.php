@@ -242,11 +242,9 @@ final class CslStyle
             $localeOptions = self::applyLocaleElementOptions($locale, $localeOptions);
         }
 
-        foreach (self::directChildren($root, 'locale') as $locale) {
-            if (self::localeMatches($locale, $defaultLocale)) {
-                $terms = self::applyLocaleElementTerms($locale, $terms);
-                $localeOptions = self::applyLocaleElementOptions($locale, $localeOptions);
-            }
+        foreach (self::matchingStyleLocales(self::directChildren($root, 'locale'), $defaultLocale) as $locale) {
+            $terms = self::applyLocaleElementTerms($locale, $terms);
+            $localeOptions = self::applyLocaleElementOptions($locale, $localeOptions);
         }
 
         $citation = self::directChild($root, 'citation');
@@ -1796,24 +1794,49 @@ final class CslStyle
         return $terms;
     }
 
-    private static function localeMatches(\DOMElement $locale, string $defaultLocale): bool
+    /**
+     * @param list<\DOMElement> $locales
+     * @return list<\DOMElement>
+     */
+    private static function matchingStyleLocales(array $locales, string $defaultLocale): array
+    {
+        if ($defaultLocale === '') {
+            return $locales;
+        }
+
+        $unqualified = [];
+        $languageFallbacks = [];
+        $exact = [];
+        $defaultLocale = strtolower($defaultLocale);
+        $defaultLanguage = strtok($defaultLocale, '-');
+        foreach ($locales as $locale) {
+            $lang = self::localeLanguage($locale);
+            if ($lang === '') {
+                $unqualified[] = $locale;
+                continue;
+            }
+
+            if ($lang === $defaultLocale) {
+                $exact[] = $locale;
+                continue;
+            }
+
+            if (strtok($lang, '-') === $defaultLanguage) {
+                $languageFallbacks[] = $locale;
+            }
+        }
+
+        return [...$unqualified, ...$languageFallbacks, ...$exact];
+    }
+
+    private static function localeLanguage(\DOMElement $locale): string
     {
         $lang = trim($locale->getAttributeNS(self::XML_NS, 'lang'));
         if ($lang === '') {
             $lang = trim($locale->getAttribute('xml:lang'));
         }
 
-        if ($lang === '' || $defaultLocale === '') {
-            return true;
-        }
-
-        $lang = strtolower($lang);
-        $defaultLocale = strtolower($defaultLocale);
-        if ($lang === $defaultLocale) {
-            return true;
-        }
-
-        return strtok($lang, '-') === strtok($defaultLocale, '-');
+        return strtolower($lang);
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument
