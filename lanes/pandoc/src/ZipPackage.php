@@ -1513,8 +1513,8 @@ final class ZipPackage
      *     signedDescriptorEntryCount:int,
      *     unsignedDescriptorEntryCount:int,
      *     zip64SizedDescriptorEntryCount:int,
-     *     descriptorEntries:list<array{name:string, usesDataDescriptor:bool, hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:int, crc32Hex:string, compressedSize:int, uncompressedSize:int, usesZip64SizedDescriptor:bool}>,
-     *     entries:list<array{name:string, usesDataDescriptor:bool, hasSignature:?bool, descriptorOffset:?int, valueOffset:?int, descriptorLength:?int, crc32:?int, crc32Hex:?string, compressedSize:int, uncompressedSize:int, usesZip64SizedDescriptor:bool}>
+     *     descriptorEntries:list<array{name:string, usesDataDescriptor:bool, hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:int, crc32Hex:string, compressedSize:int, uncompressedSize:int, usesZip64SizedDescriptor:bool, localHeaderCrc32:int, localHeaderCompressedSize:int, localHeaderUncompressedSize:int, hasZeroLocalHeaderPlaceholders:bool}>,
+     *     entries:list<array{name:string, usesDataDescriptor:bool, hasSignature:?bool, descriptorOffset:?int, valueOffset:?int, descriptorLength:?int, crc32:?int, crc32Hex:?string, compressedSize:int, uncompressedSize:int, usesZip64SizedDescriptor:bool, localHeaderCrc32:?int, localHeaderCompressedSize:?int, localHeaderUncompressedSize:?int, hasZeroLocalHeaderPlaceholders:?bool}>
      * }
      */
     public function dataDescriptorPreflight(): array
@@ -1539,10 +1539,20 @@ final class ZipPackage
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
                 'usesZip64SizedDescriptor' => false,
+                'localHeaderCrc32' => null,
+                'localHeaderCompressedSize' => null,
+                'localHeaderUncompressedSize' => null,
+                'hasZeroLocalHeaderPlaceholders' => null,
             ];
 
             if ($usesDataDescriptor) {
                 $localHeader = $this->readLocalHeader($entry);
+                $summary['localHeaderCrc32'] = $localHeader['crc32'];
+                $summary['localHeaderCompressedSize'] = $localHeader['compressedSize'];
+                $summary['localHeaderUncompressedSize'] = $localHeader['uncompressedSize'];
+                $summary['hasZeroLocalHeaderPlaceholders'] = $localHeader['crc32'] === 0
+                    && $localHeader['compressedSize'] === 0
+                    && $localHeader['uncompressedSize'] === 0;
                 $descriptor = $this->dataDescriptorMetadata(
                     $entry,
                     $localHeader['dataStart'] + $entry->compressedSize,
@@ -2150,7 +2160,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{extraFieldData:string, dataStart:int}
+     * @return array{extraFieldData:string, dataStart:int, crc32:int, compressedSize:int, uncompressedSize:int}
      */
     private function readLocalHeader(ZipPackageEntry $entry): array
     {
@@ -2231,7 +2241,13 @@ final class ZipPackage
             );
         }
 
-        if (($entry->generalPurposeFlags & 0x0008) === 0) {
+        if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+            if ($localCrc32 !== 0 || $localCompressedSize !== 0 || $localUncompressedSize !== 0) {
+                throw new \RuntimeException(
+                    "ZIP local header data descriptor placeholders must be zero for entry {$entry->name}"
+                );
+            }
+        } else {
             if ($localCrc32 !== $entry->crc32) {
                 throw new \RuntimeException("ZIP local header CRC32 does not match central directory entry {$entry->name}");
             }
@@ -2244,6 +2260,9 @@ final class ZipPackage
         return [
             'extraFieldData' => $localExtraFieldData,
             'dataStart' => $nameStart + $nameLength + $extraLength,
+            'crc32' => $localCrc32,
+            'compressedSize' => $localCompressedSize,
+            'uncompressedSize' => $localUncompressedSize,
         ];
     }
 

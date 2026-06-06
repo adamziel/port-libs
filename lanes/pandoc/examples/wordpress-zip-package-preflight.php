@@ -217,6 +217,55 @@ $buildDescriptorBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildDescriptorPlaceholderMismatchBackedPackage = static function () use ($crc32): string {
+    $name = 'word/comments.xml';
+    $data = '<w:comments><w:comment>Descriptor local header placeholders should stay blocked</w:comment></w:comments>';
+    $compressed = gzdeflate($data);
+    $crc = $crc32($data);
+    $flags = 0x0808;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        8,
+        0,
+        0,
+        $crc,
+        0,
+        0,
+        strlen($name),
+        0
+    );
+    $body .= $name . $compressed . "PK\x07\x08" . pack('VVV', $crc, strlen($compressed), strlen($data));
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildZip64DataDescriptorBackedPackage = static function () use ($crc32): string {
     $name = 'word/comments.xml';
     $data = '<w:comments><w:comment>ZIP64 descriptor metadata should stay blocked</w:comment></w:comments>';
@@ -1758,6 +1807,12 @@ try {
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
+$descriptorPlaceholderRejected = false;
+try {
+    ZipPackage::fromString($buildDescriptorPlaceholderMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $descriptorPlaceholderRejected = str_contains($exception->getMessage(), 'data descriptor placeholders');
+}
 $zip64DataDescriptorRejected = false;
 try {
     ZipPackage::fromString($buildZip64DataDescriptorBackedPackage());
@@ -2858,8 +2913,13 @@ if (in_array('--self-test', $argv, true)) {
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['name'] ?? null) !== 'word/comments.xml'
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasSignature'] ?? null) !== true
         || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorLength'] ?? null) !== 16
+        || ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders'] ?? null) !== true
     ) {
         throw new RuntimeException('Expected ZIP data descriptor metadata to be inspectable before comments import');
+    }
+
+    if (!$descriptorPlaceholderRejected) {
+        throw new RuntimeException('Expected nonzero ZIP data descriptor local header placeholders to stay blocked before package import');
     }
 
     if (!$zip64DataDescriptorRejected) {
@@ -3472,6 +3532,8 @@ echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml')
 echo 'descriptor.entryCount=' . $descriptorDataDescriptorPreflight['descriptorEntryCount'] . "\n";
 echo 'descriptor.signedEntryCount=' . $descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] . "\n";
 echo 'descriptor.comments.xml.length=' . ($descriptorDataDescriptorPreflight['descriptorEntries'][0]['descriptorLength'] ?? 'none') . "\n";
+echo 'descriptor.zeroLocalHeaderPlaceholders=' . (($descriptorDataDescriptorPreflight['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders'] ?? false) ? 'true' : 'false') . "\n";
+echo 'zipDescriptorPlaceholderPolicy=' . ($descriptorPlaceholderRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64DescriptorPolicy=' . ($zip64DataDescriptorRejected ? 'rejected' : 'not-rejected') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";

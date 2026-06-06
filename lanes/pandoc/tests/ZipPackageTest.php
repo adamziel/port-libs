@@ -711,14 +711,71 @@ return [
         $t->same(strlen(gzdeflate($documentXml)), $descriptorPreflight['descriptorEntries'][0]['compressedSize']);
         $t->same(strlen($documentXml), $descriptorPreflight['descriptorEntries'][0]['uncompressedSize']);
         $t->same(false, $descriptorPreflight['descriptorEntries'][0]['usesZip64SizedDescriptor']);
+        $t->same(0, $descriptorPreflight['descriptorEntries'][0]['localHeaderCrc32']);
+        $t->same(0, $descriptorPreflight['descriptorEntries'][0]['localHeaderCompressedSize']);
+        $t->same(0, $descriptorPreflight['descriptorEntries'][0]['localHeaderUncompressedSize']);
+        $t->same(true, $descriptorPreflight['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders']);
         $t->same('word/footnotes.xml', $descriptorPreflight['descriptorEntries'][1]['name']);
         $t->same(false, $descriptorPreflight['descriptorEntries'][1]['hasSignature']);
         $t->same(12, $descriptorPreflight['descriptorEntries'][1]['descriptorLength']);
         $t->same(strlen($footnotesXml), $descriptorPreflight['descriptorEntries'][1]['compressedSize']);
         $t->same(strlen($footnotesXml), $descriptorPreflight['descriptorEntries'][1]['uncompressedSize']);
+        $t->same(0, $descriptorPreflight['descriptorEntries'][1]['localHeaderCrc32']);
+        $t->same(0, $descriptorPreflight['descriptorEntries'][1]['localHeaderCompressedSize']);
+        $t->same(0, $descriptorPreflight['descriptorEntries'][1]['localHeaderUncompressedSize']);
+        $t->same(true, $descriptorPreflight['descriptorEntries'][1]['hasZeroLocalHeaderPlaceholders']);
         $t->same(true, $descriptorPreflight['descriptorEntries'][0]['descriptorOffset'] < $descriptorPreflight['descriptorEntries'][1]['descriptorOffset']);
         $t->same($descriptorPreflight['descriptorEntries'][0]['descriptorOffset'] + 4, $descriptorPreflight['descriptorEntries'][0]['valueOffset']);
         $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorOffset'], $descriptorPreflight['descriptorEntries'][1]['valueOffset']);
+    },
+
+    'rejects data descriptor entries with nonzero local header placeholders' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>descriptor local crc placeholder</w:p></w:document>',
+                'method' => 8,
+                'descriptor' => true,
+                'localCrc' => 1,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments><w:comment>descriptor local compressed size</w:comment></w:comments>',
+                'method' => 8,
+                'descriptor' => true,
+                'localCompressedSize' => 1,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => '<w:footnotes><w:footnote>descriptor local uncompressed size</w:footnote></w:footnotes>',
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+                'localUncompressedSize' => 1,
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/endnotes.xml',
+                'data' => '<w:endnotes><w:endnote>zero placeholders stay valid</w:endnote></w:endnotes>',
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]));
+        $summary = $package->dataDescriptorPreflight();
+
+        $t->same(1, $summary['descriptorEntryCount']);
+        $t->same('word/endnotes.xml', $summary['descriptorEntries'][0]['name']);
+        $t->same(0, $summary['descriptorEntries'][0]['localHeaderCrc32']);
+        $t->same(0, $summary['descriptorEntries'][0]['localHeaderCompressedSize']);
+        $t->same(0, $summary['descriptorEntries'][0]['localHeaderUncompressedSize']);
+        $t->same(true, $summary['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same('<w:endnotes><w:endnote>zero placeholders stay valid</w:endnote></w:endnotes>', $package->read('/word/endnotes.xml'));
     },
 
     'rejects zip64 sized data descriptors before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
