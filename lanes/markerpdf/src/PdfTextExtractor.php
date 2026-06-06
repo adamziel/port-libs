@@ -24241,7 +24241,7 @@ final class PdfTextExtractor
                 : [];
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if ($objectNumber === 0 || ($entry['type'] ?? null) !== 0) {
                         continue;
                     }
@@ -24437,7 +24437,7 @@ final class PdfTextExtractor
             $trailer = $tableSection['trailer'];
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'], $tableSection['entries'][$objectNumber])) {
                         continue;
                     }
@@ -25024,7 +25024,7 @@ final class PdfTextExtractor
             $trailer = $tableSection['trailer'];
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if (isset($entries[$objectNumber])) {
                         if ($this->hybridXrefStreamEntryOwnsTableEntry($entry, $entries[$objectNumber])) {
                             $entries[$objectNumber] = $entry;
@@ -25514,7 +25514,7 @@ final class PdfTextExtractor
                 if ($hybridStreamSection !== null) {
                     $rootPresent = $rootPresent || $this->topLevelPdfValueAfterName($hybridStreamSection['body'], 'Root') !== null;
                 }
-                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     if (
                         !isset($entries[$objectNumber])
                         || $this->hybridXrefStreamEntryOwnsTableEntry($entry, $entries[$objectNumber])
@@ -27655,9 +27655,9 @@ final class PdfTextExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions): array
+    private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions, ?string $pdfBytes = null): array
     {
-        $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $section = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions);
     }
 
