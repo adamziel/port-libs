@@ -7318,6 +7318,14 @@ final class PdfMetadataExtractor
                 $resolved = $this->resolvePdfValue($value, $objects);
                 $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
                 $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
+                $firstToken = $this->firstPdfValueToken($valueForReview);
+                $integerValue = $pdfName !== 'Filter' && $operandShape === 'token' && preg_match('/^[+-]?\d+$/', $firstToken) === 1
+                    ? (int) $firstToken
+                    : null;
+                $nameValue = null;
+                if ($pdfName === 'Filter' && $operandShape === 'name' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $valueForReview, $match) === 1) {
+                    $nameValue = $this->decodePdfName($match[1]);
+                }
                 $entries[] = [
                     'source' => 'standard_security_handler_parameter_entry_review',
                     'index' => $index,
@@ -7325,6 +7333,9 @@ final class PdfMetadataExtractor
                     'metadata_key' => $metadataKey,
                     'resolved' => $resolved !== null,
                     'operand_shape' => $operandShape,
+                    'integer' => $integerValue !== null,
+                    'integer_value' => $integerValue,
+                    'name_value' => $nameValue,
                     'status' => $this->standardSecurityHandlerParameterEntryStatus(
                         $pdfName,
                         $value,
@@ -7347,6 +7358,8 @@ final class PdfMetadataExtractor
             if ($malformedEntries !== []) {
                 $malformedNames[] = $pdfName;
             }
+            $selectedEntryIndex = $entryCount - 1;
+            $selectedEntry = $entries[$selectedEntryIndex] ?? [];
 
             $rows[] = [
                 'source' => 'standard_security_handler_parameter_declaration_row',
@@ -7354,7 +7367,13 @@ final class PdfMetadataExtractor
                 'metadata_key' => $metadataKey,
                 'declared_entry_count' => $entryCount,
                 'duplicate_entries' => $duplicate,
-                'selected_entry_index' => $entryCount - 1,
+                'selected_entry_index' => $selectedEntryIndex,
+                'selected_entry_status' => is_string($selectedEntry['status'] ?? null) ? $selectedEntry['status'] : null,
+                'selected_entry_operand_shape' => is_string($selectedEntry['operand_shape'] ?? null) ? $selectedEntry['operand_shape'] : null,
+                'selected_entry_resolved' => (bool) ($selectedEntry['resolved'] ?? false),
+                'selected_entry_integer' => (bool) ($selectedEntry['integer'] ?? false),
+                'selected_integer_value' => is_int($selectedEntry['integer_value'] ?? null) ? $selectedEntry['integer_value'] : null,
+                'selected_name_value' => is_string($selectedEntry['name_value'] ?? null) ? $selectedEntry['name_value'] : null,
                 'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
                     array_map(
                         static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
