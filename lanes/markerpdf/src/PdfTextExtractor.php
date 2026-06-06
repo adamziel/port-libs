@@ -30790,6 +30790,20 @@ final class PdfTextExtractor
                 continue;
             }
             $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);
+            $mappedSourceCount = $this->cMapMappedSourceCountForRange(
+                $source,
+                $last,
+                $sourceWidth,
+                $sameWidthCodeSpaceRanges
+            );
+            if (
+                $overwrite
+                && $mappedSourceCount !== null
+                && $mappedSourceCount > 0
+                && $cid + $mappedSourceCount - 1 > 0xffff
+            ) {
+                continue;
+            }
             if ($overwrite) {
                 $this->removeCidMappingsInSourceRange($cidMap, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
             }
