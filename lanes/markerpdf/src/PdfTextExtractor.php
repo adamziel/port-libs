@@ -3921,6 +3921,7 @@ final class PdfTextExtractor
      * @param array<int, true> $activeFormObjectNumbers
      * @param list<float>|null $initialTransformationMatrix
      * @param list<float>|null $formBoundingBox
+     * @param array<string, string> $fontAliasesForExtGState
      * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}
      */
     private function expandFormXObjectInvocations(
@@ -3934,8 +3935,15 @@ final class PdfTextExtractor
         array $optionalContentStates = [],
         array $activeFormObjectNumbers = [],
         ?array $initialTransformationMatrix = null,
-        ?array $formBoundingBox = null
+        ?array $formBoundingBox = null,
+        array $fontAliasesForExtGState = []
     ): array {
+        $content = $this->rewriteExtGStateFontOperands(
+            $content,
+            $resourceOwnerBody,
+            $objects,
+            $fontAliasesForExtGState
+        );
         $contentMayTransformTextPositions = $this->contentMayTransformTextPositions($content);
         $shouldTransformTextPositions = $contentMayTransformTextPositions
             || ($initialTransformationMatrix !== null && !$this->pdfMatrixIsIdentity($initialTransformationMatrix));
@@ -4063,7 +4071,8 @@ final class PdfTextExtractor
                                 $currentTransformationMatrix,
                                 $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects) ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
                             ),
-                            $this->pdfRectangleValueAfterName($form['body'], 'BBox', $objects)
+                            $this->pdfRectangleValueAfterName($form['body'], 'BBox', $objects),
+                            $fontAliases
                         );
                         $expanded[] = $expandedForm['stream'];
                         $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
@@ -10168,6 +10177,235 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $fontAliases
+     */
+    private function rewriteExtGStateFontOperands(
+        string $content,
+        string $resourceOwnerBody,
+        array $objects,
+        array $fontAliases = []
+    ): string {
+        if (!str_contains($content, 'gs')) {
+            return $content;
+        }
+
+        $textStates = $this->extGStateFontTextStatesForResourceOwnerBody($resourceOwnerBody, $objects, $fontAliases);
+        if ($textStates === []) {
+            return $content;
+        }
+
+        $rewritten = [];
+        $operands = [];
+        foreach ($this->contentTokens($content) as $token) {
+            if ($this->isOperator($token)) {
+                $state = $token === 'gs' ? $this->extGStateFontTextStateForOperands($operands, $textStates) : null;
+                if ($state !== null) {
+                    $rewritten[] = '/' . $this->encodePdfName($state['font']);
+                    $rewritten[] = $state['size'];
+                    $rewritten[] = 'Tf';
+                }
+
+                foreach ($operands as $operand) {
+                    $rewritten[] = $operand;
+                }
+                $rewritten[] = $token;
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        foreach ($operands as $operand) {
+            $rewritten[] = $operand;
+        }
+
+        return implode(' ', $rewritten);
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param array<string, array{font: string, size: string}> $textStates
+     * @return array{font: string, size: string}|null
+     */
+    private function extGStateFontTextStateForOperands(array $operands, array $textStates): ?array
+    {
+        $resourceName = $this->xObjectNameOperand($operands);
+        if ($resourceName === null) {
+            return null;
+        }
+
+        return $textStates[$resourceName] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $fontAliases
+     * @return array<string, array{font: string, size: string}>
+     */
+    private function extGStateFontTextStatesForResourceOwnerBody(
+        string $resourceOwnerBody,
+        array $objects,
+        array $fontAliases = []
+    ): array {
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
+        $extGStateDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ExtGState');
+        if ($extGStateDictionary === null) {
+            return [];
+        }
+
+        $states = [];
+        foreach ($this->topLevelResourceReferenceEntries($extGStateDictionary, true) as $resourceName => $reference) {
+            $resolved = $this->resolvedResourceObjectBody(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
+                continue;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($resolved['body']);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $state = $this->extGStateFontTextStateFromDictionary($dictionary, $objects, $fontAliases);
+            if ($state !== null) {
+                $states[$resourceName] = $state;
+            }
+        }
+
+        foreach ($this->directExtGStateResourceDictionaries($extGStateDictionary, true) as $resourceName => $dictionary) {
+            if (isset($states[$resourceName])) {
+                continue;
+            }
+
+            $state = $this->extGStateFontTextStateFromDictionary($dictionary, $objects, $fontAliases);
+            if ($state !== null) {
+                $states[$resourceName] = $state;
+            }
+        }
+
+        return $states;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function directExtGStateResourceDictionaries(
+        string $extGStateDictionary,
+        bool $rejectMalformedValueTails = false
+    ): array {
+        $dictionaries = [];
+        $offset = 0;
+        $length = strlen($extGStateDictionary);
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($extGStateDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($extGStateDictionary[$offset] !== '/') {
+                $next = $this->skipPdfValueAt($extGStateDictionary, $offset);
+                $offset = $next > $offset ? $next : $offset + 1;
+                continue;
+            }
+
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $extGStateDictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $resourceName = $this->decodePdfName(substr($extGStateDictionary, $nameStart, $nameEnd - $nameStart));
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($extGStateDictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            if (preg_match('/\G\d+\s+\d+\s+R\b/s', $extGStateDictionary, $match, 0, $valueOffset) === 1) {
+                $offset = $valueOffset + strlen($match[0]);
+                continue;
+            }
+
+            if (substr($extGStateDictionary, $valueOffset, 2) !== '<<') {
+                $next = $this->skipPdfValueAt($extGStateDictionary, $valueOffset);
+                $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+                continue;
+            }
+
+            $dictionaryOffset = $valueOffset;
+            $dictionary = $this->readPdfDictionaryTokenAt($extGStateDictionary, $dictionaryOffset);
+            if ($dictionary === null) {
+                $offset = $valueOffset + 2;
+                continue;
+            }
+
+            $tailOffset = $dictionaryOffset;
+            $this->skipContentWhitespaceAndComments($extGStateDictionary, $tailOffset);
+            $malformedTail = $rejectMalformedValueTails
+                && $tailOffset < $length
+                && ($extGStateDictionary[$tailOffset] ?? '') !== '/';
+            if (!$malformedTail) {
+                $dictionaries[$resourceName] = $dictionary;
+            }
+            $offset = $dictionaryOffset;
+        }
+
+        return $dictionaries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $fontAliases
+     * @return array{font: string, size: string}|null
+     */
+    private function extGStateFontTextStateFromDictionary(string $dictionary, array $objects, array $fontAliases): ?array
+    {
+        $fontValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Font');
+        if ($fontValue === null) {
+            return null;
+        }
+
+        $fontArray = $this->pdfArrayFromValue($fontValue, $objects);
+        if ($fontArray === null) {
+            return null;
+        }
+
+        $items = $this->pdfArrayItems($fontArray);
+        if (count($items) < 2 || !str_starts_with(trim($items[0]), '/')) {
+            return null;
+        }
+
+        $fontName = $this->decodePdfName(substr(trim($items[0]), 1));
+        if ($fontName === '') {
+            return null;
+        }
+
+        $fontSize = $this->finiteFontAdvanceMetric($this->numericOperand($items[1]));
+        if ($fontSize === null) {
+            return null;
+        }
+
+        return [
+            'font' => $fontAliases[$fontName] ?? $fontName,
+            'size' => $this->formatPdfNumber(abs($fontSize)),
+        ];
+    }
+
+    /**
      * @param array<string, string> $propertyAliases
      */
     private function rewriteMarkedContentPropertyOperands(string $content, array $propertyAliases): string
@@ -10529,7 +10767,8 @@ final class PdfTextExtractor
             $optionalContentStates,
             [],
             $this->pdfMatrixValueAfterName($objects[$appearanceObjectNumber], 'Matrix', $objects),
-            $this->pdfRectangleValueAfterName($objects[$appearanceObjectNumber], 'BBox', $objects)
+            $this->pdfRectangleValueAfterName($objects[$appearanceObjectNumber], 'BBox', $objects),
+            $fontAliases
         );
     }
 
