@@ -2451,8 +2451,33 @@ final class CitationCslProcessor
     private function yearSuffixDisambiguationKey(array $item): string
     {
         $withoutSuffix = $this->itemWithYearSuffix($item, '');
+        $renderedKey = $this->renderedCitationDisambiguationKey($withoutSuffix);
+        if ($renderedKey !== '') {
+            return $renderedKey;
+        }
 
         return $this->citationAuthorLabel($withoutSuffix) . "\n" . $this->citationYear($withoutSuffix);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderedCitationDisambiguationKey(array $item): string
+    {
+        $elements = $this->style->citationRenderingElements();
+        if ($elements === [] || !$this->hasNonNameRenderingElement($elements)) {
+            return '';
+        }
+
+        $citation = new AstNode('citation', [
+            'id' => (string) ($item['id'] ?? ''),
+            'mode' => 'normal',
+            'cslYearSuffix' => '',
+            'cslDisambiguate' => false,
+        ]);
+        $rendered = $this->renderRenderingElements($elements, $item, 'citation', '', $citation);
+
+        return $this->normalizedRenderedNameKey($rendered);
     }
 
     private function yearSuffixForIndex(int $index): string

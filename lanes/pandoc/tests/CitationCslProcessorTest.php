@@ -7959,6 +7959,98 @@ XML
 XML
         ));
     },
+    'does not add csl year suffix when visible citation labels disambiguate entries' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'label-post',
+                'type' => 'report',
+                'title' => 'Post Import Packet',
+                'citation-label' => 'WP-POST',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/post-import',
+            ],
+            [
+                'id' => 'label-media',
+                'type' => 'report',
+                'title' => 'Media Import Packet',
+                'citation-label' => 'WP-MEDIA',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/media-import',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Label Disambiguation Review Style</title>
+    <id>https://example.test/styles/bounded-citation-label-disambiguation-review</id>
+    <updated>2026-06-06T11:49:46+00:00</updated>
+  </info>
+  <citation disambiguate-add-year-suffix="true">
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter="">
+        <text variable="citation-label"/>
+        <text variable="year-suffix"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="citation-label"/>
+      <text variable="year-suffix"/>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Citation Label Disambiguation Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['citationOptions']['disambiguateAddYearSuffix'] ?? null);
+        $t->same('citation-label', $summary['citationRendering'][0]['children'][0]['variable'] ?? null);
+        $t->same('year-suffix', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+
+        $t->same('[WP-POST; WP-MEDIA]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'label-post', 'text' => '[@label-post]']),
+            new AstNode('citation', ['id' => 'label-media', 'text' => '[@label-media]']),
+        ]));
+        $t->same('WP-POST :: Post Import Packet :: https://example.test/post-import', $processor->renderBibliographyEntry('label-post'));
+        $t->same('WP-MEDIA :: Media Import Packet :: https://example.test/media-import', $processor->renderBibliographyEntry('label-media'));
+
+        $document = (new MarkdownReader())->read('Labelled review packets [@label-post; @label-media] keep source labels stable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citationNodes = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citationNodes): void {
+            if ($node->type === 'citation') {
+                $citationNodes[(string) $node->attr('id', '')] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+        $bibliography = $processed->children[2];
+        $t->same('', $citationNodes['label-post']->attr('cslYearSuffix'));
+        $t->same('', $citationNodes['label-media']->attr('cslYearSuffix'));
+        $t->same(null, $citationNodes['label-post']->attr('cslDisambiguate'));
+        $t->same(null, $citationNodes['label-media']->attr('cslDisambiguate'));
+        $t->same('WP-POST', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('WP-MEDIA', $bibliography->children[1]->children[0]->attr('text'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Labelled review packets [WP-POST; WP-MEDIA] keep source labels stable.</p>', $blocks);
+        $t->contains('<dt>WP-POST</dt><dd>WP-POST :: Post Import Packet :: https://example.test/post-import</dd>', $blocks);
+        $t->contains('<dt>WP-MEDIA</dt><dd>WP-MEDIA :: Media Import Packet :: https://example.test/media-import</dd>', $blocks);
+    },
     'applies bounded csl citation collapse for author date clusters' => static function (TestRunner $t): void {
         $items = [
             [
