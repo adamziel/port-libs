@@ -17,6 +17,7 @@ final class PdfEngineHandoff
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
     private const MAX_FORM_XOBJECT_STREAM_BYTES = 262144;
+    private const MAX_ANNOTATION_APPEARANCE_STREAM_BYTES = 262144;
     private const MAX_PAGE_CONTENT_STREAM_BYTES = 262144;
     private const MAX_XREF_STREAM_BYTES = 262144;
     private const MAX_OBJECT_STREAM_BYTES = 262144;
@@ -315,6 +316,7 @@ final class PdfEngineHandoff
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     pdfRichMediaActivationModes: array<string, int>,
      *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     pdfAnnotationAppearances: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
@@ -737,6 +739,7 @@ final class PdfEngineHandoff
         $pdfRichMediaAnnotations = [];
         $pdfRichMediaActivationModes = [];
         $pdfAnnotations = [];
+        $pdfAnnotationAppearances = [];
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
@@ -817,6 +820,7 @@ final class PdfEngineHandoff
                 $pdfRichMediaAnnotations = $pdfInspection['richMediaAnnotations'];
                 $pdfRichMediaActivationModes = $pdfInspection['richMediaActivationModes'];
                 $pdfAnnotations = $pdfInspection['annotations'];
+                $pdfAnnotationAppearances = $pdfInspection['annotationAppearances'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
@@ -1644,6 +1648,54 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-annotation-review-states:' . $annotationReviewStateCount;
                     }
                 }
+                if ($pdfAnnotationAppearances !== []) {
+                    $diagnostics[] = 'pdf-byte-annotation-appearances:' . count($pdfAnnotationAppearances);
+                    $appearanceStreamCount = 0;
+                    $appearanceStateCount = 0;
+                    $appearanceGroupCount = 0;
+                    $appearanceFilters = [];
+                    $appearanceStreamSkips = [];
+                    foreach ($pdfAnnotationAppearances as $appearance) {
+                        if (($appearance['streamBytes'] ?? null) !== null) {
+                            $appearanceStreamCount++;
+                        }
+                        if (is_string($appearance['stateName'] ?? null) && $appearance['stateName'] !== '') {
+                            $appearanceStateCount++;
+                        }
+                        if (
+                            ($appearance['groupSubtype'] ?? null) !== null
+                            || ($appearance['groupColorSpace'] ?? null) !== null
+                            || ($appearance['groupIsolated'] ?? null) !== null
+                            || ($appearance['groupKnockout'] ?? null) !== null
+                        ) {
+                            $appearanceGroupCount++;
+                        }
+                        foreach (($appearance['filters'] ?? []) as $filter) {
+                            if (is_string($filter) && $filter !== '') {
+                                $appearanceFilters[$filter] = ($appearanceFilters[$filter] ?? 0) + 1;
+                            }
+                        }
+                        if (is_string($appearance['streamSkipped'] ?? null) && $appearance['streamSkipped'] !== '') {
+                            $appearanceStreamSkips[$appearance['streamSkipped']] = true;
+                        }
+                    }
+                    if ($appearanceStreamCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-streams:' . $appearanceStreamCount;
+                    }
+                    if ($appearanceStateCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-states:' . $appearanceStateCount;
+                    }
+                    if ($appearanceGroupCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-groups:' . $appearanceGroupCount;
+                    }
+                    ksort($appearanceFilters);
+                    foreach ($appearanceFilters as $filter => $filterCount) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-filter:' . $filter . ':' . $filterCount;
+                    }
+                    foreach (array_keys($appearanceStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-stream-skipped:' . $skipReason;
+                    }
+                }
                 if ($pdfAnnotationTypes !== []) {
                     $diagnostics[] = 'pdf-byte-annotations:' . array_sum($pdfAnnotationTypes);
                 }
@@ -1877,6 +1929,7 @@ final class PdfEngineHandoff
             'pdfRichMediaAnnotations' => $pdfRichMediaAnnotations,
             'pdfRichMediaActivationModes' => $pdfRichMediaActivationModes,
             'pdfAnnotations' => $pdfAnnotations,
+            'pdfAnnotationAppearances' => $pdfAnnotationAppearances,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
@@ -1978,6 +2031,7 @@ final class PdfEngineHandoff
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     finalPdfRichMediaActivationModes: array<string, int>,
      *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     finalPdfAnnotationAppearances: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
@@ -2193,6 +2247,7 @@ final class PdfEngineHandoff
             'finalPdfRichMediaAnnotations' => is_array($finalRun) && is_array($finalRun['pdfRichMediaAnnotations'] ?? null) ? $finalRun['pdfRichMediaAnnotations'] : [],
             'finalPdfRichMediaActivationModes' => is_array($finalRun) && is_array($finalRun['pdfRichMediaActivationModes'] ?? null) ? $finalRun['pdfRichMediaActivationModes'] : [],
             'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
+            'finalPdfAnnotationAppearances' => is_array($finalRun) && is_array($finalRun['pdfAnnotationAppearances'] ?? null) ? $finalRun['pdfAnnotationAppearances'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
@@ -3333,6 +3388,7 @@ final class PdfEngineHandoff
         $signatures = $this->extractPdfSignatures($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
+        $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -3404,6 +3460,7 @@ final class PdfEngineHandoff
             'richMediaAnnotations' => $richMediaAnnotations,
             'richMediaActivationModes' => $this->summarizePdfRichMediaActivationModes($richMediaAnnotations),
             'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
+            'annotationAppearances' => $annotationAppearances,
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
             'embeddedFileNames' => $embeddedFileNames,
@@ -10927,6 +10984,359 @@ final class PdfEngineHandoff
             'Watermark',
             'Widget',
         ], true);
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>
+     */
+    private function extractPdfAnnotationAppearances(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $appearances = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfAnnotationAppearancesFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $appearances,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($appearances === []) {
+            foreach ($objects as $reference => $body) {
+                $subtype = $this->extractPdfNameToken($body, 'Subtype');
+                if ($subtype === null || !$this->isPdfAnnotationSubtype($subtype)) {
+                    continue;
+                }
+
+                array_push(
+                    $appearances,
+                    ...$this->summarizePdfAnnotationAppearances($body, $reference . ' R', null, null, $objects)
+                );
+            }
+        }
+
+        usort(
+            $appearances,
+            fn (array $left, array $right): int => [
+                $left['page'],
+                $this->pdfReferenceSortKey($left['annotationObject'] ?? ''),
+                $this->pdfAnnotationAppearanceSortOrder((string) ($left['appearance'] ?? '')),
+                (string) ($left['stateName'] ?? ''),
+                $this->pdfReferenceSortKey($left['appearanceObject'] ?? ''),
+            ] <=> [
+                $right['page'],
+                $this->pdfReferenceSortKey($right['annotationObject'] ?? ''),
+                $this->pdfAnnotationAppearanceSortOrder((string) ($right['appearance'] ?? '')),
+                (string) ($right['stateName'] ?? ''),
+                $this->pdfReferenceSortKey($right['appearanceObject'] ?? ''),
+            ]
+        );
+
+        return $appearances;
+    }
+
+    private function pdfAnnotationAppearanceSortOrder(string $appearance): int
+    {
+        return match ($appearance) {
+            'N' => 0,
+            'R' => 1,
+            'D' => 2,
+            default => 9,
+        };
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $appearances
+     */
+    private function collectPdfAnnotationAppearancesFromPageTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$appearances,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $this->collectPdfAnnotationAppearancesFromPage($body, $reference, $pageNumber, $objects, $appearances);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfAnnotationAppearancesFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $appearances,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $appearances
+     */
+    private function collectPdfAnnotationAppearancesFromPage(
+        string $pageDictionary,
+        string $pageReference,
+        int $pageNumber,
+        array $objects,
+        array &$appearances
+    ): void {
+        $array = $this->extractPdfArrayOrReferenceValue($pageDictionary, 'Annots', $objects);
+        if ($array === null) {
+            return;
+        }
+
+        $this->walkPdfArrayValues($array, function (array $value) use (&$appearances, $objects, $pageNumber, $pageReference): void {
+            if (!in_array($value['kind'], ['reference', 'dictionary'], true)) {
+                return;
+            }
+
+            array_push(
+                $appearances,
+                ...$this->summarizePdfAnnotationAppearancesFromValue(
+                    $value,
+                    $objects,
+                    $pageNumber,
+                    $pageReference . ' R'
+                )
+            );
+        });
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>
+     */
+    private function summarizePdfAnnotationAppearancesFromValue(array $value, array $objects, int $pageNumber, string $pageReference): array
+    {
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $dictionary = $objects[$reference] ?? null;
+
+            return $dictionary === null
+                ? []
+                : $this->summarizePdfAnnotationAppearances($dictionary, $reference . ' R', $pageNumber, $pageReference, $objects);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfAnnotationAppearances($value['value'], 'inline', $pageNumber, $pageReference, $objects);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>
+     */
+    private function summarizePdfAnnotationAppearances(
+        string $dictionary,
+        ?string $annotationObject,
+        ?int $pageNumber,
+        ?string $pageReference,
+        array $objects
+    ): array {
+        $subtype = $this->extractPdfNameToken($dictionary, 'Subtype');
+        if ($subtype === null || !$this->isPdfAnnotationSubtype($subtype)) {
+            return [];
+        }
+
+        $appearanceDictionary = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'AP', $objects);
+        if ($appearanceDictionary === null) {
+            return [];
+        }
+
+        $appearances = [];
+        $base = [
+            'page' => $pageNumber ?? 0,
+            'pageObject' => $pageReference,
+            'annotationObject' => $annotationObject,
+            'subtype' => $subtype,
+            'fieldName' => $this->extractPdfStringOrNameValue($dictionary, 'T'),
+            'selectedState' => $this->extractPdfNameToken($dictionary, 'AS'),
+            'source' => $annotationObject === null || $annotationObject === '' ? 'annotation:inline' : 'annotation:' . $annotationObject,
+        ];
+
+        foreach ($this->extractPdfTopLevelDictionaryEntries($appearanceDictionary) as $entry) {
+            if (!in_array($entry['key'], ['N', 'R', 'D'], true)) {
+                continue;
+            }
+
+            array_push(
+                $appearances,
+                ...$this->summarizePdfAnnotationAppearanceEntry(
+                    $entry['key'],
+                    null,
+                    $entry['value'],
+                    $objects,
+                    $base
+                )
+            );
+        }
+
+        return $appearances;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @param array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, source:string} $base
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>
+     */
+    private function summarizePdfAnnotationAppearanceEntry(
+        string $appearance,
+        ?string $stateName,
+        array $value,
+        array $objects,
+        array $base
+    ): array {
+        $appearanceObject = null;
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $dictionary = $objects[$reference] ?? null;
+            $appearanceObject = $reference . ' R';
+        } elseif ($value['kind'] === 'dictionary') {
+            $dictionary = $value['value'];
+        } else {
+            return [];
+        }
+
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $source = $base['source'] . '.AP.' . $appearance;
+        if ($stateName !== null && $stateName !== '') {
+            $source .= '.' . $stateName;
+        }
+
+        if ($this->isPdfAnnotationAppearanceStreamDictionary($dictionary)) {
+            return [
+                $this->summarizePdfAnnotationAppearanceStream(
+                    $dictionary,
+                    $appearance,
+                    $stateName,
+                    $appearanceObject,
+                    $source,
+                    $objects,
+                    $base
+                ),
+            ];
+        }
+
+        $appearances = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            array_push(
+                $appearances,
+                ...$this->summarizePdfAnnotationAppearanceEntry(
+                    $appearance,
+                    $entry['key'],
+                    $entry['value'],
+                    $objects,
+                    $base
+                )
+            );
+        }
+
+        return $appearances;
+    }
+
+    private function isPdfAnnotationAppearanceStreamDictionary(string $dictionary): bool
+    {
+        return $this->extractPdfStreamBytes($dictionary) !== null
+            || $this->extractPdfNameToken($dictionary, 'Subtype') === 'Form'
+            || $this->extractPdfValueForName($dictionary, 'BBox') !== null
+            || $this->extractPdfValueForName($dictionary, 'Length') !== null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, source:string} $base
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}
+     */
+    private function summarizePdfAnnotationAppearanceStream(
+        string $dictionary,
+        string $appearance,
+        ?string $stateName,
+        ?string $appearanceObject,
+        string $source,
+        array $objects,
+        array $base
+    ): array {
+        $group = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'Group', $objects);
+        $stream = $this->summarizePdfAnnotationAppearanceStreamBytes($dictionary);
+
+        return [
+            'page' => $base['page'],
+            'pageObject' => $base['pageObject'],
+            'annotationObject' => $base['annotationObject'],
+            'subtype' => $base['subtype'],
+            'fieldName' => $base['fieldName'],
+            'selectedState' => $base['selectedState'],
+            'appearance' => $appearance,
+            'stateName' => $stateName,
+            'appearanceObject' => $appearanceObject,
+            'source' => $source,
+            'bbox' => $this->extractPdfNumberArrayToken($dictionary, 'BBox', 4),
+            'matrix' => $this->extractPdfNumberArrayToken($dictionary, 'Matrix', 6),
+            'resourcesPresent' => $this->extractPdfValueForName($dictionary, 'Resources') !== null,
+            'groupSubtype' => $group === null ? null : $this->extractPdfNameToken($group, 'S'),
+            'groupColorSpace' => $group === null ? null : $this->extractPdfColorSpaceNameValue($group, 'CS', $objects),
+            'groupIsolated' => $group === null ? null : $this->extractPdfBooleanToken($group, 'I'),
+            'groupKnockout' => $group === null ? null : $this->extractPdfBooleanToken($group, 'K'),
+            'filters' => $this->extractPdfFilterNames($dictionary, $objects),
+            'streamBytes' => $stream['bytes'],
+            'streamSha256' => $stream['sha256'],
+            'streamSkipped' => $stream['skipped'],
+        ];
+    }
+
+    /**
+     * @return array{bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function summarizePdfAnnotationAppearanceStreamBytes(string $dictionary): array
+    {
+        $summary = [
+            'bytes' => null,
+            'sha256' => null,
+            'skipped' => null,
+        ];
+        $bytes = $this->extractPdfStreamBytes($dictionary);
+        if ($bytes === null) {
+            return $summary;
+        }
+
+        $summary['bytes'] = strlen($bytes);
+        if (strlen($bytes) > self::MAX_ANNOTATION_APPEARANCE_STREAM_BYTES) {
+            $summary['skipped'] = 'too-large';
+
+            return $summary;
+        }
+
+        $summary['sha256'] = hash('sha256', $bytes);
+
+        return $summary;
     }
 
     /**
