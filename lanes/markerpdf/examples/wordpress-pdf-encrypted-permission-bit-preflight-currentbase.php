@@ -40,6 +40,10 @@ if (($permission['not_applicable_permission_names'] ?? []) !== [
     throw new RuntimeException('Expected revision-two permission bits 9-12 to be reported as not applicable.');
 }
 
+if (($permission['accessibility_extract_allowed'] ?? null) !== null) {
+    throw new RuntimeException('Expected revision-two accessibility extraction to stay not-applicable, not denied.');
+}
+
 echo '<!-- markerpdf-encrypted-permission-bit-preflight-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-encrypted-permission-bit-preflight-currentbase',
     'native_boundary' => 'Standard security-handler permission bits are reported with revision applicability before encrypted WordPress import decisions',
@@ -52,6 +56,7 @@ echo '<!-- markerpdf-encrypted-permission-bit-preflight-currentbase-smoke ' . ht
     'applicable_permission_names' => $permission['applicable_permission_names'] ?? [],
     'not_applicable_permission_names' => $permission['not_applicable_permission_names'] ?? [],
     'copy_or_extract_allowed' => $permission['copy_or_extract_allowed'] ?? null,
+    'accessibility_extract_allowed' => $permission['accessibility_extract_allowed'] ?? null,
     'native_text_extraction_allowed_now' => $permission['native_text_extraction_allowed_now'] ?? null,
     'raw_key_material_exposed' => false,
     'executes_decryption' => $report['executes_decryption'] ?? null,
@@ -80,6 +85,7 @@ echo '<!-- markerpdf:encrypted-permission-bit-preflight ' . htmlspecialchars(jso
         'applicable_permission_names' => $permission['applicable_permission_names'] ?? [],
         'not_applicable_permission_names' => $permission['not_applicable_permission_names'] ?? [],
         'permission_bit_statuses' => $permission['permission_bit_statuses'] ?? [],
+        'accessibility_extract_allowed' => $permission['accessibility_extract_allowed'] ?? null,
     ],
     'security' => [
         'executes_decryption' => $report['executes_decryption'] ?? null,

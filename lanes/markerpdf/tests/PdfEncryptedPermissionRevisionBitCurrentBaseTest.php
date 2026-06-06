@@ -109,7 +109,9 @@ return [
         $t->same('copy_extract_allowed_after_decryption', $permission['policy']);
         $t->same('blocked_until_decryption_password_available', $permission['content_extraction_boundary']);
         $t->same(true, $permission['copy_or_extract_allowed']);
+        $t->same(null, $permission['accessibility_extract_allowed']);
         $t->same(false, $permission['native_text_extraction_allowed_now']);
+        $t->same(null, $encryption['accessibility_extract_allowed']);
 
         $t->same($permissions['permission_bits'], $handler['permission_bits']);
         $t->same($permissions['permission_bits'], $encryption['permission_bits']);

@@ -225,9 +225,12 @@ final class PdfSecurityPreflight
         $copyAllowed = $permissionsDecoded && $permissionBitsReliable && !$permissionWordDuplicateEntries
             ? in_array('copy_or_extract', $allowed, true)
             : null;
-        $accessibilityAllowed = $permissionsDecoded && $permissionBitsReliable && !$permissionWordDuplicateEntries
-            ? in_array('extract_for_accessibility', $allowed, true)
-            : null;
+        $accessibilityAllowed = $this->standardPermissionFlagAllowed(
+            $permissions,
+            $permissionBitsReliable && !$permissionWordDuplicateEntries,
+            'extract_for_accessibility',
+            $allowed
+        );
         $reviewAllowed = $permissionBitsReliable ? $allowed : [];
         $reviewDenied = $permissionBitsReliable ? $denied : [];
         $permissionBits = $permissionBitsReliable && is_array($permissions['permission_bits'] ?? null)
@@ -646,6 +649,30 @@ final class PdfSecurityPreflight
             'status' => $status,
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $permissions
+     * @param list<string> $allowed
+     */
+    private function standardPermissionFlagAllowed(
+        array $permissions,
+        bool $permissionBitsReliable,
+        string $name,
+        array $allowed
+    ): ?bool {
+        if (!$permissionBitsReliable) {
+            return null;
+        }
+
+        $applicable = is_array($permissions['applicable_permission_names'] ?? null)
+            ? $permissions['applicable_permission_names']
+            : [];
+        if ($applicable !== [] && !in_array($name, $applicable, true)) {
+            return null;
+        }
+
+        return in_array($name, $allowed, true);
     }
 
     /**
@@ -5704,9 +5731,12 @@ final class PdfSecurityPreflight
             'copy_or_extract_allowed' => $permissionBitsReliable
                 ? in_array('copy_or_extract', $allowed, true)
                 : null,
-            'accessibility_extract_allowed' => $permissionBitsReliable
-                ? in_array('extract_for_accessibility', $allowed, true)
-                : null,
+            'accessibility_extract_allowed' => $this->standardPermissionFlagAllowed(
+                $permissions,
+                $permissionBitsReliable,
+                'extract_for_accessibility',
+                $allowed
+            ),
             'print_quality' => $permissionBitsReliable ? ($permissions['print_quality'] ?? null) : null,
             'permission_word_status' => $permissionWordDuplicateEntries
                 ? 'duplicate_standard_permission_entries_review'
