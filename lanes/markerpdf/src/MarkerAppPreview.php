@@ -1674,9 +1674,9 @@ final class MarkerAppPreview
             break;
         }
 
-        $kids = $this->valueAfterName($value, 'Kids');
-        if ($kids !== null) {
-            $kidNodes = [];
+        $kidNodes = [];
+        foreach ($this->valuesAfterName($value, 'Kids') as $kids) {
+            $candidateKidNodes = [];
             $kidOrder = 0;
             foreach ($this->pageLabelArrayElements($this->resolvePageLabelPdfValue($kids, $objects, $seen)) as $kid) {
                 $directKidBody = $this->pageLabelDictionaryToken($kid);
@@ -1699,7 +1699,7 @@ final class MarkerAppPreview
                         continue;
                     }
 
-                    $kidNodes[] = [
+                    $candidateKidNodes[] = [
                         'body' => $directKidBody,
                         'seen' => $seen,
                         'limits' => $kidMergedLimits,
@@ -1747,7 +1747,7 @@ final class MarkerAppPreview
                     continue;
                 }
 
-                $kidNodes[] = [
+                $candidateKidNodes[] = [
                     'body' => $kidDictionary,
                     'seen' => $kidSeen,
                     'limits' => $kidMergedLimits,
@@ -1756,6 +1756,13 @@ final class MarkerAppPreview
                 ];
             }
 
+            if ($candidateKidNodes !== []) {
+                $kidNodes = $candidateKidNodes;
+                break;
+            }
+        }
+
+        if ($kidNodes !== []) {
             $sortableKidLimits = true;
             foreach ($kidNodes as $kidNode) {
                 if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {

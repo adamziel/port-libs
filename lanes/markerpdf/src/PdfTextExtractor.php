@@ -12116,53 +12116,54 @@ final class PdfTextExtractor
      */
     private function pageLabelKidDictionaryNodes(string $dictionary, array $objects, array $seen): array
     {
-        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Kids', $objects);
-        if ($arrayBody === null) {
-            return [];
-        }
+        foreach ($this->pageLabelArrayValuesAfterNameResolved($dictionary, 'Kids', $objects) as $arrayBody) {
+            $nodes = [];
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                $directDictionary = $this->pageLabelDictionaryObjectBody($item);
+                if ($directDictionary !== null) {
+                    $nodes[] = [
+                        'dictionary' => $directDictionary,
+                        'seen' => $seen,
+                    ];
+                    continue;
+                }
 
-        $nodes = [];
-        foreach ($this->pdfArrayItems($arrayBody) as $item) {
-            $directDictionary = $this->pageLabelDictionaryObjectBody($item);
-            if ($directDictionary !== null) {
+                $reference = $this->pageLabelReferenceOperand($item);
+                if ($reference === null) {
+                    continue;
+                }
+
+                $kidObjectNumber = $reference['objectNumber'];
+                $kidGeneration = $reference['generation'];
+                $kidKey = $kidObjectNumber . ':' . $kidGeneration;
+                if (isset($seen[$kidKey])) {
+                    continue;
+                }
+
+                $kidBody = $this->pageLabelObjectBodyForReference($objects, $kidObjectNumber, $kidGeneration);
+                if ($kidBody === null) {
+                    continue;
+                }
+
+                $nextSeen = $seen;
+                $nextSeen[$kidKey] = true;
+                $kidDictionary = $this->pageLabelDictionaryFromValueResolved($kidBody, $objects, $nextSeen);
+                if ($kidDictionary === null) {
+                    continue;
+                }
+
                 $nodes[] = [
-                    'dictionary' => $directDictionary,
-                    'seen' => $seen,
+                    'dictionary' => $kidDictionary,
+                    'seen' => $nextSeen,
                 ];
-                continue;
             }
 
-            $reference = $this->pageLabelReferenceOperand($item);
-            if ($reference === null) {
-                continue;
+            if ($nodes !== []) {
+                return $nodes;
             }
-
-            $kidObjectNumber = $reference['objectNumber'];
-            $kidGeneration = $reference['generation'];
-            $kidKey = $kidObjectNumber . ':' . $kidGeneration;
-            if (isset($seen[$kidKey])) {
-                continue;
-            }
-
-            $kidBody = $this->pageLabelObjectBodyForReference($objects, $kidObjectNumber, $kidGeneration);
-            if ($kidBody === null) {
-                continue;
-            }
-
-            $nextSeen = $seen;
-            $nextSeen[$kidKey] = true;
-            $kidDictionary = $this->pageLabelDictionaryFromValueResolved($kidBody, $objects, $nextSeen);
-            if ($kidDictionary === null) {
-                continue;
-            }
-
-            $nodes[] = [
-                'dictionary' => $kidDictionary,
-                'seen' => $nextSeen,
-            ];
         }
 
-        return $nodes;
+        return [];
     }
 
     /**
