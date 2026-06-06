@@ -1312,6 +1312,63 @@ return [
         $t->true(!str_contains($html, 'cover.png'), 'Expected preload resource link to be dropped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe link relation URL to be stripped');
     },
+    'filters active navigation target download and opener rel side effects before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html" target="_blank">'
+            . '<p>'
+            . '<a href="./packet.html" target="_blank" rel="noopener opener noreferrer opener" download="packet.html">packet</a>'
+            . '<a href="./safe.html" rel="Author TAG">safe</a>'
+            . '<map name="review-map"><area href="./map.html" target="review-frame" rel="opener nofollow" alt="map"></map>'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/navigation-side-effect-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>'
+            . '<a href="https://source.example.test/import/posts/packet.html" rel="noopener noreferrer">packet</a>'
+            . '<a href="https://source.example.test/import/posts/safe.html" rel="author tag">safe</a>'
+            . '<map name="review-map"><area href="https://source.example.test/import/posts/map.html" rel="nofollow" alt="map"></map>'
+            . '</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('packetsafe', $fragment->textContent());
+        $t->same(['a', 'area', 'map', 'p'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['download', 'rel', 'target'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same('p', $nodes[0]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/packet.html',
+            'rel' => 'noopener noreferrer',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/safe.html',
+            'rel' => 'author tag',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/map.html',
+            'rel' => 'nofollow',
+            'alt' => 'map',
+        ], $nodes[0]['children'][2]['children'][0]['attrs']);
+        $t->same('/migration/navigation-side-effect-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'target='), 'Expected browsing-context targets to be stripped');
+        $t->true(!str_contains($html, 'download='), 'Expected download side effects to be stripped');
+        $t->same(0, preg_match('/(?:^|[\s"])opener(?:[\s"]|$)/', $html), 'Expected opener rel tokens to be stripped');
+        $t->true(!str_contains($blocks, 'target='), 'Expected WordPress blocks to omit target attributes');
+        $t->true(!str_contains($blocks, 'download='), 'Expected WordPress blocks to omit download attributes');
+    },
     'ignores inactive fallback base elements before resolving reviewer URLs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base href="https://inactive.example/assets/"><a href="template-note.html">template note</a></template>'

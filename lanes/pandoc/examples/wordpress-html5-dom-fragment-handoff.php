@@ -28,7 +28,7 @@ $source = <<<HTML
 <article id="legacy-post-42" data-source="html-export">
   <h1>Imported source packet</h1>
   <!--review--->
-  <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;">source note</a>.</p>
+  <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
   <iframe srcdoc="$srcdoc"></iframe>
   <svg><desc><![CDATA[Legacy <source> & review notes]]></desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path=" url( #review-clip ) " filter="url(javascript:alert(1))" mask="url(./masks/review.svg#mask)" marker-start="url(ja/**/vascript:alert(1))"><path d="M0 0" fill="url(#paint)" stroke="url( java&#10;script:alert(1) )"></path></g></svg>
   <figure><img src=" cover.png&#13;" srcset=" h&#9;ttps://cdn.example.test/cover.png?x=1&amp;y=2 01.00x, cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
@@ -75,7 +75,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }

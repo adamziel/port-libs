@@ -1135,6 +1135,16 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($name) === 'rel') {
+                $rel = self::normalizeHtmlRelAttribute($value, $tagName, $diagnostics);
+                if ($rel === null) {
+                    continue;
+                }
+
+                $attrs[$name] = $rel;
+                continue;
+            }
+
             if ($mode === 'html' && self::isSvgPresentationResourceAttribute($name, $foreignContext)) {
                 $resourceValue = self::normalizeSvgPresentationResourceAttribute(
                     $value,
@@ -1313,10 +1323,50 @@ final class Html5DomFragment
         $lower = strtolower($name);
 
         return str_starts_with($lower, 'on')
+            || $lower === 'download'
             || $lower === 'ping'
             || $lower === 'style'
             || $lower === 'srcdoc'
+            || $lower === 'target'
             || $lower === 'data-pandoc-fragment-root';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlRelAttribute(string $value, string $tagName, array &$diagnostics): ?string
+    {
+        $tokens = preg_split('/[\x00-\x20]+/', strtolower(trim($value)));
+        if (!is_array($tokens)) {
+            return null;
+        }
+
+        $normalized = [];
+        $removedOpener = false;
+        foreach ($tokens as $token) {
+            $token = trim((string) $token);
+            if ($token === '') {
+                continue;
+            }
+            if ($token === 'opener') {
+                $removedOpener = true;
+                continue;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        if ($removedOpener) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'rel',
+                'token' => 'opener',
+            ];
+        }
+
+        return $normalized === [] ? null : implode(' ', $normalized);
     }
 
     private static function isUrlAttribute(string $name): bool
