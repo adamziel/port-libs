@@ -13753,7 +13753,7 @@ final class PdfTextExtractor
                     return $rowMarkers;
                 }
 
-                if ($this->ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback($decodeParms, $objects)) {
+                if ($this->ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback($decodeParms, $objects, $imageHeight)) {
                     return $this->ccittFaxEndOfBlockMarkers($decodeParms, $objects);
                 }
 
@@ -13772,7 +13772,11 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback(?string $decodeParms, array $objects): bool
+    private function ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback(
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight = null
+    ): bool
     {
         if ($decodeParms === null || trim($decodeParms) === '') {
             return false;
@@ -13799,6 +13803,15 @@ final class PdfTextExtractor
 
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
+            if (
+                $rows === null
+                && $imageHeight !== null
+                && $imageHeight > 0
+                && $this->decodeParmsValueIsIndirectReference($decodeParms, 'Rows')
+            ) {
+                return false;
+            }
+
             if ($rows === null || $rows <= 0) {
                 return true;
             }
@@ -13841,11 +13854,20 @@ final class PdfTextExtractor
 
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
-            if ($rows === null || $rows <= 0) {
-                return null;
+            if ($rows !== null && $rows > 0) {
+                return $rows;
             }
 
-            return $rows;
+            if (
+                $rows === null
+                && $imageHeight !== null
+                && $imageHeight > 0
+                && $this->decodeParmsValueIsIndirectReference($decodeParms, 'Rows')
+            ) {
+                return $imageHeight;
+            }
+
+            return null;
         }
 
         if ($imageHeight !== null && $imageHeight > 0) {
@@ -15584,6 +15606,21 @@ final class PdfTextExtractor
     private function decodeParmsHasName(?string $decodeParms, string $name): bool
     {
         return $decodeParms !== null && $this->topLevelNameValueOffset($decodeParms, $name) !== null;
+    }
+
+    private function decodeParmsValueIsIndirectReference(?string $decodeParms, string $name): bool
+    {
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $offset = $this->topLevelNameValueOffset($decodeParms, $name);
+        if ($offset === null) {
+            return false;
+        }
+
+        $offset = $this->skipPdfWhitespace($decodeParms, $offset);
+        return $this->pdfIndirectReferenceTokenAt($decodeParms, $offset) !== null;
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
