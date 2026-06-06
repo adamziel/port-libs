@@ -484,6 +484,8 @@ final class EpubReader
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $metadata = $this->resolveMetadataLinks($package, $opfPart, $metadata, $manifestById);
+        $linkedResourcesById = is_array($metadata['linksByRefinedId'] ?? null) ? $metadata['linksByRefinedId'] : [];
+        $manifestById = self::attachMetadataLinksToManifest($manifestById, $linkedResourcesById);
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById, $prefixReport['bindingsByPrefix']);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
@@ -491,8 +493,8 @@ final class EpubReader
         $metadata['mediaDurations'] = $mediaDurations;
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations);
         $manifestById = self::attachMediaOverlayReferencesToManifest($manifestById, $mediaOverlays);
-        $spineProperties = self::readSpineProperties($spineElement, $refinementsById);
-        $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById);
+        $spineProperties = self::readSpineProperties($spineElement, $refinementsById, $linkedResourcesById);
+        $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById, $linkedResourcesById);
         $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $manifest = array_values($manifestById);
         $resourceProperties = self::resourcePropertyReport($manifest);
@@ -517,6 +519,7 @@ final class EpubReader
                 'opfPart' => $opfPart,
                 'language' => self::xmlLang($root),
                 'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
+                'linkedResources' => self::metadataLinkedResourcesForId($linkedResourcesById, $packageId),
                 'prefix' => $prefixReport['raw'],
                 'prefixes' => $prefixReport['bindingsByPrefix'],
                 'prefixBindings' => $prefixReport['bindings'],
@@ -1604,6 +1607,7 @@ final class EpubReader
                 'manifestMediaType' => $reference['mediaType'],
                 'properties' => is_array($link['properties'] ?? null) ? array_values($link['properties']) : [],
                 'refines' => is_string($link['refines'] ?? null) ? $link['refines'] : null,
+                'subjectId' => self::metadataRefinementSubject($link['refines'] ?? null),
                 'hreflang' => is_string($link['hreflang'] ?? null) ? $link['hreflang'] : null,
                 'encrypted' => $reference['encrypted'],
                 'canExposeBytes' => $reference['canExposeBytes'],
@@ -1613,9 +1617,192 @@ final class EpubReader
 
         $metadata['links'] = $links;
         $metadata['linksByRel'] = self::linksByRel($links);
+        $metadata['linksByRefinedId'] = self::metadataLinksByRefinedId($links);
+        $metadata['linkedResourcesById'] = $metadata['linksByRefinedId'];
+        $metadata['linkedResourceSummary'] = self::metadataLinkedResourceSummary($metadata['linksByRefinedId']);
+        $metadata = self::attachMetadataLinkedResources($metadata, $metadata['linksByRefinedId']);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataLinksByRefinedId(array $links): array
+    {
+        $byId = [];
+        foreach ($links as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $subjectId = is_string($link['subjectId'] ?? null)
+                ? (string) $link['subjectId']
+                : self::metadataRefinementSubject($link['refines'] ?? null);
+            if ($subjectId === null) {
+                continue;
+            }
+
+            $link['subjectId'] = $subjectId;
+            $byId[$subjectId][] = $link;
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $linksByRefinedId
+     *
+     * @return array{present:bool, subjectCount:int, linkCount:int, subjects:list<string>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function metadataLinkedResourceSummary(array $linksByRefinedId): array
+    {
+        $linkCount = 0;
+        foreach ($linksByRefinedId as $links) {
+            $linkCount += is_array($links) ? count($links) : 0;
+        }
+
+        return [
+            'present' => $linkCount > 0,
+            'subjectCount' => count($linksByRefinedId),
+            'linkCount' => $linkCount,
+            'subjects' => array_keys($linksByRefinedId),
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, list<array<string, mixed>>> $linksByRefinedId
+     *
+     * @return array<string, mixed>
+     */
+    private static function attachMetadataLinkedResources(array $metadata, array $linksByRefinedId): array
+    {
+        $dc = is_array($metadata['dc'] ?? null) ? $metadata['dc'] : [];
+        foreach ($dc as $name => $entries) {
+            if (!is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $index => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+                $dc[$name][$index]['linkedResources'] = self::metadataLinkedResourcesForId($linksByRefinedId, $id);
+            }
+        }
+        $metadata['dc'] = $dc;
+
+        $metadata['titleDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['titleDetails'] ?? null) ? $metadata['titleDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['titlesByType'] = self::metadataTitlesByType($metadata['titleDetails']);
+        $metadata['mainTitle'] = self::firstMetadataTitleByType($metadata['titleDetails'], 'main') ?? ($metadata['titleDetails'][0] ?? null);
+        $metadata['subtitle'] = self::firstMetadataTitleByType($metadata['titleDetails'], 'subtitle');
+        $metadata['shortTitle'] = self::firstMetadataTitleByType($metadata['titleDetails'], 'short');
+        $metadata['collectionTitle'] = self::firstMetadataTitleByType($metadata['titleDetails'], 'collection');
+        $metadata['sortTitle'] = is_array($metadata['mainTitle'] ?? null) ? $metadata['mainTitle']['fileAs'] : null;
+
+        $metadata['creatorDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['creatorDetails'] ?? null) ? $metadata['creatorDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['creatorsByRole'] = self::metadataAgentsByRole($metadata['creatorDetails']);
+        $metadata['contributorDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['contributorDetails'] ?? null) ? $metadata['contributorDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['contributorsByRole'] = self::metadataAgentsByRole($metadata['contributorDetails']);
+        $metadata['untypedContributors'] = self::metadataAgentsWithoutRoles($metadata['contributorDetails']);
+
+        if (is_array($metadata['uniqueIdentifier'] ?? null)) {
+            $metadata['uniqueIdentifier'] = self::uniqueIdentifierWithLinkedResources(
+                $metadata['uniqueIdentifier'],
+                $linksByRefinedId
+            );
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     * @param array<string, list<array<string, mixed>>> $linksByRefinedId
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataDetailsWithLinkedResources(array $details, array $linksByRefinedId): array
+    {
+        foreach ($details as $index => $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $id = is_string($detail['id'] ?? null) ? $detail['id'] : null;
+            $details[$index]['linkedResources'] = self::metadataLinkedResourcesForId($linksByRefinedId, $id);
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<string, mixed> $identifier
+     * @param array<string, list<array<string, mixed>>> $linksByRefinedId
+     *
+     * @return array<string, mixed>
+     */
+    private static function uniqueIdentifierWithLinkedResources(array $identifier, array $linksByRefinedId): array
+    {
+        foreach (['entries', 'matchedEntries'] as $key) {
+            $entries = is_array($identifier[$key] ?? null) ? $identifier[$key] : [];
+            foreach ($entries as $index => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+                $entries[$index]['linkedResources'] = self::metadataLinkedResourcesForId($linksByRefinedId, $id);
+            }
+            $identifier[$key] = $entries;
+        }
+
+        return $identifier;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $linksByRefinedId
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataLinkedResourcesForId(array $linksByRefinedId, ?string $id): array
+    {
+        if ($id === null || $id === '') {
+            return [];
+        }
+
+        return is_array($linksByRefinedId[$id] ?? null) ? array_values($linksByRefinedId[$id]) : [];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, list<array<string, mixed>>> $linksByRefinedId
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function attachMetadataLinksToManifest(array $manifestById, array $linksByRefinedId): array
+    {
+        foreach ($manifestById as $id => $item) {
+            $manifestById[$id]['linkedResources'] = self::metadataLinkedResourcesForId($linksByRefinedId, (string) $id);
+        }
+
+        return $manifestById;
     }
 
     /**
@@ -3447,7 +3634,8 @@ final class EpubReader
         \DOMElement $spineElement,
         array $manifestById,
         array $bindings,
-        array $refinementsById
+        array $refinementsById,
+        array $linksByRefinedId = []
     ): array
     {
         $spine = [];
@@ -3489,6 +3677,7 @@ final class EpubReader
                 'linearValid' => $linearProperties['valid'],
                 'properties' => $properties,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $itemrefId),
+                'linkedResources' => self::metadataLinkedResourcesForId($linksByRefinedId, $itemrefId),
                 'spineItemProperties' => $itemProperties,
                 'spineItemDiagnostics' => $itemDiagnostics,
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
@@ -3529,7 +3718,11 @@ final class EpubReader
      *     diagnostics:list<array<string, mixed>>
      * }
      */
-    private static function readSpineProperties(\DOMElement $spineElement, array $refinementsById): array
+    private static function readSpineProperties(
+        \DOMElement $spineElement,
+        array $refinementsById,
+        array $linksByRefinedId = []
+    ): array
     {
         $spineId = self::nullableAttribute($spineElement, 'id');
         $rawDirection = trim($spineElement->getAttribute('page-progression-direction'));
@@ -3556,6 +3749,7 @@ final class EpubReader
             'id' => $spineId,
             'toc' => self::nullableAttribute($spineElement, 'toc'),
             'refinements' => self::metadataRefinementsForId($refinementsById, $spineId),
+            'linkedResources' => self::metadataLinkedResourcesForId($linksByRefinedId, $spineId),
             'pageProgressionDirection' => $direction,
             'pageProgressionDirectionRaw' => $specified ? $rawDirection : null,
             'pageProgressionDirectionSpecified' => $specified,
@@ -7304,6 +7498,7 @@ final class EpubReader
                 'linearSpecified' => $item['linearSpecified'] ?? false,
                 'linearValid' => $item['linearValid'] ?? true,
                 'refinements' => $item['refinements'] ?? [],
+                'linkedResources' => $item['linkedResources'] ?? [],
                 'pageProgressionDirection' => $spineProperties['pageProgressionDirection'] ?? 'default',
                 'pageSpread' => $item['pageSpread'] ?? null,
                 'pageSpreadProperties' => $item['pageSpreadProperties'] ?? [],

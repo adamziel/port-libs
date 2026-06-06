@@ -626,6 +626,24 @@ XML;
     if (($result['metadata']['linksByRel']['record'][0]['id'] ?? null) !== 'review-record') {
         throw new RuntimeException('Expected EPUB OPF metadata links to be indexed by rel');
     }
+    if (($result['metadata']['linkedResourceSummary']['subjectCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB OPF metadata link refinements to summarize linked review subjects');
+    }
+    if (($result['metadata']['linksByRefinedId']['creator'][0]['id'] ?? null) !== 'creator-voicing') {
+        throw new RuntimeException('Expected EPUB OPF metadata links to be indexed by refined subject id');
+    }
+    if (($result['metadata']['linksByRefinedId']['creator'][0]['subjectId'] ?? null) !== 'creator') {
+        throw new RuntimeException('Expected EPUB OPF metadata linked resource to preserve its subject id');
+    }
+    if (($result['metadata']['dc']['creator'][0]['linkedResources'][0]['id'] ?? null) !== 'creator-voicing') {
+        throw new RuntimeException('Expected EPUB OPF creator metadata to expose linked voicing resources');
+    }
+    if (($result['metadata']['creatorDetails'][0]['linkedResources'][0]['rel'] ?? null) !== ['voicing']) {
+        throw new RuntimeException('Expected EPUB OPF creator details to expose linked resource relations');
+    }
+    if (($result['document']->attr('metadata')['linksByRefinedId']['creator'][0]['id'] ?? null) !== 'creator-voicing') {
+        throw new RuntimeException('Expected WordPress EPUB AST metadata to retain linked resource subjects');
+    }
     if (($result['metadata']['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-metadata-reference') {
         throw new RuntimeException('Expected remote EPUB OPF metadata link to stay unfetched');
     }
@@ -1015,6 +1033,8 @@ echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target']
 echo 'metadataLinks=' . count($result['metadata']['links'] ?? []) . "\n";
 echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '') . "\n";
 echo 'metadataRecordSha256=' . ($result['metadata']['links'][0]['byteSha256'] ?? '') . "\n";
+echo 'metadataLinkedResourceSubjects=' . ($result['metadata']['linkedResourceSummary']['subjectCount'] ?? 0) . "\n";
+echo 'metadataCreatorLinkedResources=' . count($result['metadata']['dc']['creator'][0]['linkedResources'] ?? []) . "\n";
 echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";

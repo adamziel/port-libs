@@ -1754,6 +1754,72 @@ XML;
         );
         $t->same(false, in_array('/OEBPS/meta/review-record.json', $unmanifestedParts, true));
     },
+    'attaches OPF metadata link refines records to package review subjects' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $identifierRecord = '{"@context":"https://schema.org","identifier":"urn:uuid:wp-epub-source-42"}';
+        $packageRecord = '{"@context":"https://schema.org","name":"Source package"}';
+        $chapterRecord = '{"@context":"https://schema.org","name":"Chapter one"}';
+        $creatorVoicing = 'MP3-CREATOR-NAME';
+        $opfWithLinkRefinements = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            $opfXml
+        );
+        $opfWithLinkRefinements = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="chapter-entry" idref="chapter-1"/>',
+            $opfWithLinkRefinements
+        );
+        $opfWithLinkRefinements = str_replace(
+            '</metadata>',
+            '<link id="identifier-record" rel="record" refines="#pub-id" href="meta/identifier.json" media-type="application/ld+json" properties="schema-org"/>'
+            . '<link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>'
+            . '<link id="package-review-record" rel="record" refines="#package-record" href="meta/package.json" media-type="application/ld+json"/>'
+            . '<link id="chapter-review-record" rel="record" refines="#chapter-1" href="meta/chapter.json" media-type="application/ld+json"/>'
+            . '<link id="spine-preview" rel="preview" refines="#chapter-entry" href="text/chapter1.xhtml#intro" media-type="application/xhtml+xml"/>'
+            . '</metadata>',
+            $opfWithLinkRefinements
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithLinkRefinements,
+            null,
+            [
+                ['name' => 'OEBPS/meta/identifier.json', 'data' => $identifierRecord],
+                ['name' => 'OEBPS/meta/package.json', 'data' => $packageRecord],
+                ['name' => 'OEBPS/meta/chapter.json', 'data' => $chapterRecord],
+                ['name' => 'OEBPS/audio/creator-name.mp3', 'data' => $creatorVoicing],
+            ],
+        ));
+        $metadata = $result['metadata'];
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $t->same(true, $metadata['linkedResourceSummary']['present']);
+        $t->same(5, $metadata['linkedResourceSummary']['linkCount']);
+        $t->same(5, $metadata['linkedResourceSummary']['subjectCount']);
+        $t->same(['pub-id', 'creator', 'package-record', 'chapter-1', 'chapter-entry'], $metadata['linkedResourceSummary']['subjects']);
+        $t->same($metadata['links'][0], $metadata['linksByRefinedId']['pub-id'][0]);
+        $t->same('pub-id', $metadata['linksByRefinedId']['pub-id'][0]['subjectId']);
+        $t->same('identifier-record', $metadata['dc']['identifier'][0]['linkedResources'][0]['id']);
+        $t->same(hash('sha256', $identifierRecord), $metadata['dc']['identifier'][0]['linkedResources'][0]['byteSha256']);
+        $t->same('identifier-record', $metadata['uniqueIdentifier']['matchedEntries'][0]['linkedResources'][0]['id']);
+        $t->same('creator-voicing', $metadata['dc']['creator'][0]['linkedResources'][0]['id']);
+        $t->same(['voicing'], $metadata['creatorDetails'][0]['linkedResources'][0]['rel']);
+        $t->same(hash('sha256', $creatorVoicing), $metadata['creatorDetails'][0]['linkedResources'][0]['byteSha256']);
+        $t->same('package-review-record', $result['package']['linkedResources'][0]['id']);
+        $t->same('/OEBPS/meta/package.json', $result['package']['linkedResources'][0]['part']);
+        $t->same('chapter-review-record', $manifestById['chapter-1']['linkedResources'][0]['id']);
+        $t->same(hash('sha256', $chapterRecord), $manifestById['chapter-1']['linkedResources'][0]['byteSha256']);
+        $t->same('spine-preview', $result['spine'][0]['linkedResources'][0]['id']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $result['spine'][0]['linkedResources'][0]['target']);
+        $t->same('intro', $result['spine'][0]['linkedResources'][0]['fragment']);
+        $t->same('chapter-1', $result['spine'][0]['linkedResources'][0]['manifestId']);
+        $t->same($result['spine'][0]['linkedResources'], $result['document']->children[0]->attr('linkedResources'));
+        $t->same($metadata['linksByRefinedId'], $result['importReport']['metadata']['linksByRefinedId']);
+        $t->same($metadata['linkedResourceSummary'], $result['document']->attr('metadata')['linkedResourceSummary']);
+    },
     'groups OPF metadata refinements by referenced metadata id for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithRefinedMetadata = str_replace(
             '<dc:title>WordPress Import EPUB</dc:title>',
