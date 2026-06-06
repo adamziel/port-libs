@@ -1062,6 +1062,112 @@ XML;
         $t->same(2, $result['document']->children[1]->attr('pageBreakCount'));
         $t->same('2 note', $result['document']->children[1]->attr('pageBreaks')[1]['label']);
     },
+    'builds EPUB page-break report from legacy NCX pageList when nav page-list is absent' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $tocOnlyNavXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Imported packet</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $ncxWithPageList = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="navpoint-1" playOrder="1">
+      <navLabel><text>Imported packet</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+  </navMap>
+  <pageList id="print-pages">
+    <navLabel><text>Print page list</text></navLabel>
+    <pageTarget id="page-1" type="normal" value="1" playOrder="10">
+      <navLabel><text>1</text></navLabel>
+      <content src="text/chapter1.xhtml#page-1"/>
+    </pageTarget>
+    <pageTarget id="page-appendix" type="front" value="iii" playOrder="11" class="frontmatter">
+      <navLabel><text>iii</text></navLabel>
+      <content src="appendix/print-page.xhtml#page-iii"/>
+    </pageTarget>
+    <pageTarget id="page-remote" type="special" value="remote" playOrder="12">
+      <navLabel><text>Remote</text></navLabel>
+      <content src="https://cdn.example.test/epub/remote-page.xhtml#page-remote"/>
+    </pageTarget>
+  </pageList>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'OEBPS/appendix/print-page.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><span id="page-iii">iii</span></body></html>'],
+            ],
+            $tocOnlyNavXhtml,
+            $ncxWithPageList
+        ));
+
+        $ncx = $result['ncx'];
+        $t->same(3, count($ncx['pageList']));
+        $t->same('page-1', $ncx['pageList'][0]['id']);
+        $t->same('normal', $ncx['pageList'][0]['type']);
+        $t->same('1', $ncx['pageList'][0]['value']);
+        $t->same('10', $ncx['pageList'][0]['playOrder']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $ncx['pageList'][0]['target']);
+        $t->same('frontmatter', $ncx['pageList'][1]['class']);
+        $t->same(true, $ncx['pageList'][2]['external']);
+        $t->same('external-ncx-page-list-reference', $ncx['pageList'][2]['diagnostics'][0]['type']);
+
+        $pageBreaks = $result['pageBreaks'];
+        $t->same(true, $pageBreaks['present']);
+        $t->same('ncx-page-list', $pageBreaks['source']);
+        $t->same(3, $pageBreaks['count']);
+        $t->same($pageBreaks, $result['importReport']['pageBreaks']);
+        $t->same($pageBreaks, $result['document']->attr('pageBreaks'));
+
+        $first = $pageBreaks['items'][0];
+        $t->same('ncx', $first['source']);
+        $t->same('page-1', $first['id']);
+        $t->same('1', $first['label']);
+        $t->same('text/chapter1.xhtml#page-1', $first['href']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $first['target']);
+        $t->same('page-1', $first['fragment']);
+        $t->same('normal', $first['type']);
+        $t->same(['normal'], $first['types']);
+        $t->same('1', $first['value']);
+        $t->same('10', $first['playOrder']);
+        $t->same(0, $first['spineIndex']);
+        $t->same('chapter-1', $first['spineIdref']);
+        $t->same([], $first['sourceDiagnostics']);
+        $t->same([], $first['diagnostics']);
+
+        $outside = $pageBreaks['items'][1];
+        $t->same('page-appendix', $outside['id']);
+        $t->same('/OEBPS/appendix/print-page.xhtml', $outside['part']);
+        $t->same(null, $outside['spineIndex']);
+        $t->same('page-list-target-outside-spine', $outside['diagnostics'][0]['type']);
+
+        $remote = $pageBreaks['items'][2];
+        $t->same('page-remote', $remote['id']);
+        $t->same(true, $remote['external']);
+        $t->same('https://cdn.example.test/epub/remote-page.xhtml#page-remote', $remote['target']);
+        $t->same('external-ncx-page-list-reference', $remote['sourceDiagnostics'][0]['type']);
+        $t->same('external-page-list-reference', $remote['diagnostics'][0]['type']);
+
+        $t->same(1, count($pageBreaks['itemsByPart']['/OEBPS/text/chapter1.xhtml']));
+        $t->same(1, count($pageBreaks['itemsByPart']['/OEBPS/appendix/print-page.xhtml']));
+        $t->same(2, count($pageBreaks['diagnostics']));
+        $t->same('page-list-target-outside-spine', $pageBreaks['diagnostics'][0]['type']);
+        $t->same('external-page-list-reference', $pageBreaks['diagnostics'][1]['type']);
+
+        $t->same(1, $result['document']->children[0]->attr('pageBreakCount'));
+        $t->same('ncx', $result['document']->children[0]->attr('pageBreaks')[0]['source']);
+        $t->same('1', $result['document']->children[0]->attr('pageBreaks')[0]['label']);
+    },
     'parses OPF guide references and collection review metadata' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
 

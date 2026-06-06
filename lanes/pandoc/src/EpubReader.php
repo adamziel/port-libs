@@ -492,7 +492,7 @@ final class EpubReader
         $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem);
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
         $navigation = self::navigationReport($nav, $ncx, $spine);
-        $pageBreaks = self::pageBreakReport($nav, $spine);
+        $pageBreaks = self::pageBreakReport($nav, $ncx, $spine);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, self::manifestByPart($manifestById));
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
         $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport);
@@ -3839,6 +3839,7 @@ final class EpubReader
 
     /**
      * @param ?array<string, mixed> $nav
+     * @param ?array<string, mixed> $ncx
      * @param list<array<string, mixed>> $spine
      *
      * @return array{
@@ -3850,11 +3851,23 @@ final class EpubReader
      *     diagnostics:list<array<string, mixed>>
      * }
      */
-    private static function pageBreakReport(?array $nav, array $spine): array
+    private static function pageBreakReport(?array $nav, ?array $ncx, array $spine): array
     {
-        $pageList = is_array($nav) && is_array($nav['pageList'] ?? null)
+        $navPageList = is_array($nav) && is_array($nav['pageList'] ?? null)
             ? $nav['pageList']
             : [];
+        $ncxPageList = is_array($ncx) && is_array($ncx['pageList'] ?? null)
+            ? $ncx['pageList']
+            : [];
+        $pageList = $navPageList;
+        $pageListSource = 'nav-page-list';
+        $itemSource = 'nav';
+        if ($pageList === [] && $ncxPageList !== []) {
+            $pageList = $ncxPageList;
+            $pageListSource = 'ncx-page-list';
+            $itemSource = 'ncx';
+        }
+
         if ($pageList === []) {
             return [
                 'present' => false,
@@ -3888,6 +3901,7 @@ final class EpubReader
             $target = is_string($navItem['target'] ?? null) ? $navItem['target'] : null;
             $part = is_string($navItem['part'] ?? null) ? $navItem['part'] : null;
             $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
+            $sourceDiagnostics = is_array($navItem['diagnostics'] ?? null) ? array_values($navItem['diagnostics']) : [];
             $itemDiagnostics = [];
 
             if (($navItem['external'] ?? false) === true) {
@@ -3921,6 +3935,8 @@ final class EpubReader
 
             $items[] = [
                 'index' => $index,
+                'source' => $itemSource,
+                'id' => is_string($navItem['id'] ?? null) ? $navItem['id'] : null,
                 'depth' => $pageItem['depth'],
                 'label' => is_string($navItem['title'] ?? null) ? $navItem['title'] : '',
                 'href' => is_string($navItem['href'] ?? null) ? $navItem['href'] : null,
@@ -3933,13 +3949,17 @@ final class EpubReader
                 'exists' => (bool) ($navItem['exists'] ?? false),
                 'type' => is_string($navItem['type'] ?? null) ? $navItem['type'] : null,
                 'types' => is_array($navItem['types'] ?? null) ? array_values($navItem['types']) : [],
+                'value' => is_string($navItem['value'] ?? null) ? $navItem['value'] : null,
+                'playOrder' => is_string($navItem['playOrder'] ?? null) ? $navItem['playOrder'] : null,
+                'class' => is_string($navItem['class'] ?? null) ? $navItem['class'] : null,
                 'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
                 'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
                 'spinePart' => is_array($spineItem) ? (string) ($spineItem['part'] ?? '') : null,
                 'contentPart' => is_array($spineItem) ? (string) ($spineItem['contentPart'] ?? $spineItem['part'] ?? '') : null,
                 'linear' => is_array($spineItem) ? (bool) ($spineItem['linear'] ?? true) : null,
                 'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
-                'navDiagnostics' => is_array($navItem['diagnostics'] ?? null) ? array_values($navItem['diagnostics']) : [],
+                'sourceDiagnostics' => $sourceDiagnostics,
+                'navDiagnostics' => $sourceDiagnostics,
                 'diagnostics' => $itemDiagnostics,
             ];
         }
@@ -3959,7 +3979,7 @@ final class EpubReader
 
         return [
             'present' => $items !== [],
-            'source' => 'nav-page-list',
+            'source' => $pageListSource,
             'count' => count($items),
             'cfiPageBreakCount' => count($cfiItems),
             'cfiPageBreaks' => $cfiItems,
@@ -4127,7 +4147,7 @@ final class EpubReader
     /**
      * @param array<string, mixed> $item
      *
-     * @return array{part:string, items:list<array<string, mixed>>}
+     * @return array{part:string, items:list<array<string, mixed>>, pageList:list<array<string, mixed>>}
      */
     private function readNcxDocument(ZipPackage $package, array $item): array
     {
@@ -4135,6 +4155,7 @@ final class EpubReader
             return [
                 'part' => (string) $item['part'],
                 'items' => [],
+                'pageList' => [],
                 'encrypted' => true,
                 'encryption' => $item['encryption'] ?? null,
             ];
@@ -4147,11 +4168,55 @@ final class EpubReader
         }
 
         $navMap = self::firstChildElement($root, 'navMap', self::NCX_NS);
+        $pageList = self::firstChildElement($root, 'pageList', self::NCX_NS);
 
         return [
             'part' => (string) $item['part'],
             'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part']) : [],
+            'pageList' => $pageList instanceof \DOMElement ? $this->readNcxPageTargets($package, $pageList, (string) $item['part']) : [],
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function readNcxPageTargets(ZipPackage $package, \DOMElement $parent, string $ncxPart): array
+    {
+        $items = [];
+        foreach (self::childElements($parent, 'pageTarget', self::NCX_NS) as $target) {
+            $navLabel = self::firstChildElement($target, 'navLabel', self::NCX_NS);
+            $label = $navLabel instanceof \DOMElement
+                ? self::firstDescendantElement($navLabel, 'text', self::NCX_NS)
+                : null;
+            $content = self::firstChildElement($target, 'content', self::NCX_NS);
+            $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
+            $reference = $src === ''
+                ? self::emptyPackageReference()
+                : $this->packageReference($package, $ncxPart, $src, [], 'ncx-page-list');
+            $type = self::nullableAttribute($target, 'type');
+
+            $items[] = [
+                'id' => self::nullableAttribute($target, 'id'),
+                'playOrder' => self::nullableAttribute($target, 'playOrder'),
+                'value' => self::nullableAttribute($target, 'value'),
+                'class' => self::nullableAttribute($target, 'class'),
+                'type' => $type,
+                'types' => $type === null ? [] : [$type],
+                'title' => $label instanceof \DOMElement ? self::normalizedText($label) : '',
+                'href' => $src === '' ? null : $src,
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'fragment' => $reference['fragment'],
+                'fragmentKind' => $reference['fragmentKind'],
+                'epubCfi' => $reference['epubCfi'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'diagnostics' => $reference['diagnostics'],
+                'children' => [],
+            ];
+        }
+
+        return $items;
     }
 
     /**

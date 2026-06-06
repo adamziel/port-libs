@@ -471,6 +471,43 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['pageBreaks']['items'][0]['spineIdref'] ?? null) !== 'chapter' || ($result['document']->children[0]->attr('pageBreakCount') ?? null) !== 1) {
         throw new RuntimeException('Expected WordPress spine block to expose EPUB page-break metadata');
     }
+    $navWithoutPageList = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter.xhtml#source">Source chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+    $ncxWithPageList = str_replace(
+        '</ncx>',
+        '  <pageList id="print-pages">' . "\n"
+        . '    <pageTarget id="print-page-1" type="normal" value="1" playOrder="20">' . "\n"
+        . '      <navLabel><text>1</text></navLabel>' . "\n"
+        . '      <content src="text/chapter.xhtml#page-1"/>' . "\n"
+        . '    </pageTarget>' . "\n"
+        . '  </pageList>' . "\n"
+        . '</ncx>',
+        $ncxXml
+    );
+    $ncxPageListParts = $withPackagePartData(
+        $withPackagePartData($packageParts, 'EPUB/nav.xhtml', $navWithoutPageList),
+        'EPUB/toc.ncx',
+        $ncxWithPageList
+    );
+    $ncxPageListResult = $reader->readPackage(ZipPackage::fromParts($ncxPageListParts));
+    if (($ncxPageListResult['pageBreaks']['source'] ?? null) !== 'ncx-page-list') {
+        throw new RuntimeException('Expected legacy NCX pageList to supply page-break metadata when nav page-list is absent');
+    }
+    if (($ncxPageListResult['ncx']['pageList'][0]['value'] ?? null) !== '1' || ($ncxPageListResult['pageBreaks']['items'][0]['source'] ?? null) !== 'ncx') {
+        throw new RuntimeException('Expected NCX pageTarget metadata to remain visible in the WordPress page-break handoff');
+    }
+    if (($ncxPageListResult['document']->children[0]->attr('pageBreaks')[0]['playOrder'] ?? null) !== '20') {
+        throw new RuntimeException('Expected WordPress spine block to expose NCX pageTarget playOrder metadata');
+    }
     if (($result['guide']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB OPF guide text target to resolve to the source chapter');
     }
