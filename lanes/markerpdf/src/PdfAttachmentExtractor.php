@@ -547,7 +547,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @param list<int> $seen
-     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      * @return list<array{name: string, fileSpec: mixed, fileSpecRaw?: string}>
      */
     private function nameTreeEntries(
@@ -597,13 +597,17 @@ final class PdfAttachmentExtractor
                 : $inheritedLimits;
             $childLimits = $entryLimits;
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->stringValue($this->resolveValue($names[$index], $objects));
-                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                $name = $this->pdfStringDetails($this->resolveValue($names[$index], $objects));
+                if (
+                    $name === null
+                    || $name['text'] === ''
+                    || !$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
+                ) {
                     continue;
                 }
 
                 $entry = [
-                    'name' => $name,
+                    'name' => $name['text'],
                     'fileSpec' => $names[$index + 1],
                 ];
                 if (isset($rawNameItems[$index + 1]) && is_string($rawNameItems[$index + 1])) {
@@ -630,8 +634,8 @@ final class PdfAttachmentExtractor
     /**
      * @param array<string, mixed> $node
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @param array{lower: string, upper: string}|null $inheritedLimits
-     * @return array{lower: string, upper: string}|null
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeEffectiveLimits(array $node, array $objects, ?array $inheritedLimits): ?array
     {
@@ -643,20 +647,29 @@ final class PdfAttachmentExtractor
             return $nodeLimits;
         }
 
+        $lower = strcmp($nodeLimits['lower_bytes'], $inheritedLimits['lower_bytes']) < 0
+            ? ['text' => $inheritedLimits['lower'], 'bytes' => $inheritedLimits['lower_bytes']]
+            : ['text' => $nodeLimits['lower'], 'bytes' => $nodeLimits['lower_bytes']];
+        $upper = strcmp($nodeLimits['upper_bytes'], $inheritedLimits['upper_bytes']) > 0
+            ? ['text' => $inheritedLimits['upper'], 'bytes' => $inheritedLimits['upper_bytes']]
+            : ['text' => $nodeLimits['upper'], 'bytes' => $nodeLimits['upper_bytes']];
+
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
+            return $inheritedLimits;
+        }
+
         return [
-            'lower' => strcmp($nodeLimits['lower'], $inheritedLimits['lower']) < 0
-                ? $inheritedLimits['lower']
-                : $nodeLimits['lower'],
-            'upper' => strcmp($nodeLimits['upper'], $inheritedLimits['upper']) > 0
-                ? $inheritedLimits['upper']
-                : $nodeLimits['upper'],
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
         ];
     }
 
     /**
      * @param array<string, mixed> $node
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @return array{lower: string, upper: string}|null
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeNodeLimits(array $node, array $objects): ?array
     {
@@ -665,36 +678,45 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $lower = $this->stringValue($this->resolveValue($limits[0], $objects));
-        $upper = $this->stringValue($this->resolveValue($limits[1], $objects));
-        if ($lower === null || $upper === null || $lower === '' || $upper === '') {
+        $lower = $this->pdfStringDetails($this->resolveValue($limits[0], $objects));
+        $upper = $this->pdfStringDetails($this->resolveValue($limits[1], $objects));
+        if ($lower === null || $upper === null || $lower['text'] === '' || $upper['text'] === '') {
+            return null;
+        }
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
             return null;
         }
 
         return [
-            'lower' => $lower,
-            'upper' => $upper,
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
         ];
     }
 
     /**
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
-    private function nameTreeNameWithinLimits(string $name, ?array $limits): bool
+    private function nameTreeNameWithinLimits(string $name, ?array $limits, ?string $nameBytes = null): bool
     {
         if ($limits === null) {
             return true;
         }
 
-        return strcmp($limits['lower'], $limits['upper']) <= 0
-            && strcmp($name, $limits['lower']) >= 0
-            && strcmp($name, $limits['upper']) <= 0;
+        $candidate = $nameBytes ?? $name;
+        $lower = $limits['lower_bytes'] ?? $limits['lower'];
+        $upper = $limits['upper_bytes'] ?? $limits['upper'];
+
+        return strcmp($lower, $upper) <= 0
+            && strcmp($candidate, $lower) >= 0
+            && strcmp($candidate, $upper) <= 0;
     }
 
     /**
      * @param list<mixed> $items
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
     private function nameTreeLimitsMatchAnyPairKey(array $items, array $objects, ?array $limits): bool
     {
@@ -703,8 +725,8 @@ final class PdfAttachmentExtractor
         }
 
         for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
-            $name = $this->stringValue($this->resolveValue($items[$index], $objects));
-            if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
+            $name = $this->pdfStringDetails($this->resolveValue($items[$index], $objects));
+            if ($name !== null && $this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
         }
@@ -715,7 +737,7 @@ final class PdfAttachmentExtractor
     /**
      * @param list<mixed> $kids
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      * @return list<mixed>
      */
     private function nameTreeKidsSortedByLimits(array $kids, array $objects, ?array $inheritedLimits): array
@@ -753,7 +775,7 @@ final class PdfAttachmentExtractor
         usort(
             $boundedNodes,
             static function (array $left, array $right): int {
-                return strcmp($left['limits']['lower'], $right['limits']['lower'])
+                return strcmp($left['limits']['lower_bytes'], $right['limits']['lower_bytes'])
                     ?: $left['order'] <=> $right['order'];
             }
         );
@@ -7438,6 +7460,21 @@ final class PdfAttachmentExtractor
     private function stringValue(mixed $value): ?string
     {
         return is_array($value) && ($value['__kind'] ?? null) === 'string' ? (string) $value['value'] : null;
+    }
+
+    /**
+     * @return array{text: string, bytes: string}|null
+     */
+    private function pdfStringDetails(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['__kind'] ?? null) !== 'string') {
+            return null;
+        }
+
+        return [
+            'text' => (string) $value['value'],
+            'bytes' => (string) $value['bytes'],
+        ];
     }
 
     private function stringBytesHex(mixed $value): ?string

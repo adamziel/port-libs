@@ -110,7 +110,7 @@ final class PdfEmbeddedFileExtractor
      * @param array<string, mixed> $catalogPieceInfo
      * @param array<string, mixed>|null $encryptionPolicy
      * @param array<int, true> $seen
-     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      */
     private function collectNameTreeFiles(
         string $nodeBody,
@@ -138,14 +138,18 @@ final class PdfEmbeddedFileExtractor
                 : $inheritedLimits;
             $childLimits = $entryLimits;
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->stringValueFromRaw($names[$index], $objects);
-                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                $name = $this->stringDetailsFromRaw($names[$index], $objects);
+                if (
+                    $name === null
+                    || $name['text'] === ''
+                    || !$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
+                ) {
                     continue;
                 }
 
                 $file = $this->embeddedFileFromFileSpecValue(
                     $names[$index + 1],
-                    $name,
+                    $name['text'],
                     $objects,
                     'catalog_names_embedded_files',
                     $portfolioMetadata,
@@ -181,8 +185,8 @@ final class PdfEmbeddedFileExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array{lower: string, upper: string}|null $inheritedLimits
-     * @return array{lower: string, upper: string}|null
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeEffectiveLimits(string $nodeBody, array $objects, ?array $inheritedLimits): ?array
     {
@@ -194,19 +198,28 @@ final class PdfEmbeddedFileExtractor
             return $nodeLimits;
         }
 
+        $lower = strcmp($nodeLimits['lower_bytes'], $inheritedLimits['lower_bytes']) < 0
+            ? ['text' => $inheritedLimits['lower'], 'bytes' => $inheritedLimits['lower_bytes']]
+            : ['text' => $nodeLimits['lower'], 'bytes' => $nodeLimits['lower_bytes']];
+        $upper = strcmp($nodeLimits['upper_bytes'], $inheritedLimits['upper_bytes']) > 0
+            ? ['text' => $inheritedLimits['upper'], 'bytes' => $inheritedLimits['upper_bytes']]
+            : ['text' => $nodeLimits['upper'], 'bytes' => $nodeLimits['upper_bytes']];
+
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
+            return $inheritedLimits;
+        }
+
         return [
-            'lower' => strcmp($nodeLimits['lower'], $inheritedLimits['lower']) < 0
-                ? $inheritedLimits['lower']
-                : $nodeLimits['lower'],
-            'upper' => strcmp($nodeLimits['upper'], $inheritedLimits['upper']) > 0
-                ? $inheritedLimits['upper']
-                : $nodeLimits['upper'],
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
         ];
     }
 
     /**
      * @param array<int, string> $objects
-     * @return array{lower: string, upper: string}|null
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeNodeLimits(string $nodeBody, array $objects): ?array
     {
@@ -220,36 +233,45 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        $lower = $this->stringValueFromRaw($items[0], $objects);
-        $upper = $this->stringValueFromRaw($items[1], $objects);
-        if ($lower === null || $upper === null || $lower === '' || $upper === '') {
+        $lower = $this->stringDetailsFromRaw($items[0], $objects);
+        $upper = $this->stringDetailsFromRaw($items[1], $objects);
+        if ($lower === null || $upper === null || $lower['text'] === '' || $upper['text'] === '') {
+            return null;
+        }
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
             return null;
         }
 
         return [
-            'lower' => $lower,
-            'upper' => $upper,
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
         ];
     }
 
     /**
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
-    private function nameTreeNameWithinLimits(string $name, ?array $limits): bool
+    private function nameTreeNameWithinLimits(string $name, ?array $limits, ?string $nameBytes = null): bool
     {
         if ($limits === null) {
             return true;
         }
 
-        return strcmp($limits['lower'], $limits['upper']) <= 0
-            && strcmp($name, $limits['lower']) >= 0
-            && strcmp($name, $limits['upper']) <= 0;
+        $candidate = $nameBytes ?? $name;
+        $lower = $limits['lower_bytes'] ?? $limits['lower'];
+        $upper = $limits['upper_bytes'] ?? $limits['upper'];
+
+        return strcmp($lower, $upper) <= 0
+            && strcmp($candidate, $lower) >= 0
+            && strcmp($candidate, $upper) <= 0;
     }
 
     /**
      * @param list<string> $items
      * @param array<int, string> $objects
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
     private function nameTreeLimitsMatchAnyPairKey(array $items, array $objects, ?array $limits): bool
     {
@@ -258,8 +280,8 @@ final class PdfEmbeddedFileExtractor
         }
 
         for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
-            $name = $this->stringValueFromRaw($items[$index], $objects);
-            if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
+            $name = $this->stringDetailsFromRaw($items[$index], $objects);
+            if ($name !== null && $this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
         }
@@ -270,7 +292,7 @@ final class PdfEmbeddedFileExtractor
     /**
      * @param list<string> $kids
      * @param array<int, string> $objects
-     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      * @return list<string>
      */
     private function nameTreeKidsSortedByLimits(array $kids, array $objects, ?array $inheritedLimits): array
@@ -308,7 +330,7 @@ final class PdfEmbeddedFileExtractor
         usort(
             $boundedNodes,
             static function (array $left, array $right): int {
-                return strcmp($left['limits']['lower'], $right['limits']['lower'])
+                return strcmp($left['limits']['lower_bytes'], $right['limits']['lower_bytes'])
                     ?: $left['order'] <=> $right['order'];
             }
         );
@@ -7382,6 +7404,76 @@ final class PdfEmbeddedFileExtractor
         }
 
         return preg_match('/^[^\s\[\]()<>{}\/%]+$/', $resolved) === 1 ? $resolved : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{text: string, bytes: string}|null
+     */
+    private function stringDetailsFromRaw(string $value, array $objects): ?array
+    {
+        $resolved = $this->resolveRawValue($value, $objects) ?? $value;
+        $resolved = trim($resolved);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (str_starts_with($resolved, '(')) {
+            $literal = $this->readLiteralStringAt($resolved, 0);
+            if ($literal === null) {
+                return null;
+            }
+
+            $bytes = $this->decodeLiteralEscapes($literal['body']);
+
+            return [
+                'text' => $this->decodePdfStringBytes($bytes),
+                'bytes' => $bytes,
+            ];
+        }
+
+        if (str_starts_with($resolved, '<') && !str_starts_with($resolved, '<<')) {
+            $end = strpos($resolved, '>');
+            if ($end === false) {
+                return null;
+            }
+
+            $hex = preg_replace('/\s+/', '', substr($resolved, 1, $end - 1));
+            if ($hex === null || $hex === '' || preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
+                return null;
+            }
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = hex2bin($hex);
+            if ($bytes === false) {
+                return null;
+            }
+
+            return [
+                'text' => $this->decodePdfStringBytes($bytes),
+                'bytes' => $bytes,
+            ];
+        }
+
+        if (str_starts_with($resolved, '/')) {
+            $text = $this->decodePdfName(substr($resolved, 1));
+
+            return [
+                'text' => $text,
+                'bytes' => $text,
+            ];
+        }
+
+        if (preg_match('/^[^\s\[\]()<>{}\/%]+$/', $resolved) === 1) {
+            return [
+                'text' => $resolved,
+                'bytes' => $resolved,
+            ];
+        }
+
+        return null;
     }
 
     /**
