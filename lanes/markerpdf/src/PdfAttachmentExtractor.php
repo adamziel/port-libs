@@ -2926,6 +2926,10 @@ final class PdfAttachmentExtractor
      */
     private function decodeParmsSupportedForFilters(array $decodeParms, array $objects, array $filters): bool
     {
+        if ($filters === []) {
+            return true;
+        }
+
         $appliedParameterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
             if ($filter === null) {
@@ -2947,7 +2951,7 @@ final class PdfAttachmentExtractor
             if (isset($appliedParameterIndexes[$parameterIndex])) {
                 continue;
             }
-            if ($this->decodeParmsValueIsDefault($value, $objects)) {
+            if ($value === null) {
                 continue;
             }
             if (

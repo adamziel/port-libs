@@ -149,6 +149,33 @@ if ($lzwSummaryJson === false || $lzwFilesJson === false) {
     throw new RuntimeException('Expected LZW attachment summary JSON.');
 }
 
+$extraDecodeParmsVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Extra Params Review) Tj ET';
+$extraDecodeParmsPayload = "Title,Status\nExtra DecodeParms Attachment Leak,Blocked\n";
+$validAfterDecodeParmsPayload = "Title,Status\nValid Attachment After DecodeParms,Ready\n";
+$extraDecodeParmsEncoded = $ascii85Encode(gzcompress($extraDecodeParmsPayload));
+$validAfterDecodeParmsEncoded = $ascii85Encode(gzcompress($validAfterDecodeParmsPayload));
+$extraDecodeParmsPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($extraDecodeParmsVisible) . " >>\nstream\n{$extraDecodeParmsVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(extra-decodeparms.csv) 10 0 R (valid-after-decodeparms.csv) 12 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (extra-decodeparms.csv) /Desc (Extra DecodeParms attachment leak) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null << /Predictor 1 >> ] /Params << /Size " . strlen($extraDecodeParmsPayload) . " /CheckSum <" . md5($extraDecodeParmsPayload) . "> >> /Length " . strlen($extraDecodeParmsEncoded) . " >>\nstream\n{$extraDecodeParmsEncoded}\nendstream\nendobj\n"
+    . "12 0 obj\n<< /Type /Filespec /F (valid-after-decodeparms.csv) /Desc (Valid attachment after extra DecodeParms) /AFRelationship /Source /EF << /F 13 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validAfterDecodeParmsPayload) . " /CheckSum <" . md5($validAfterDecodeParmsPayload) . "> >> /Length " . strlen($validAfterDecodeParmsEncoded) . " >>\nstream\n{$validAfterDecodeParmsEncoded}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$extraDecodeParmsSummary = (new PdfAttachmentExtractor())->attachmentSummary($extraDecodeParmsPdf);
+$extraDecodeParmsFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($extraDecodeParmsPdf);
+$extraDecodeParmsText = (new PdfTextExtractor())->extractPlainText($extraDecodeParmsPdf);
+$extraDecodeParmsSummaryJson = json_encode($extraDecodeParmsSummary, JSON_UNESCAPED_SLASHES);
+$extraDecodeParmsFilesJson = json_encode($extraDecodeParmsFiles, JSON_UNESCAPED_SLASHES);
+if ($extraDecodeParmsSummaryJson === false || $extraDecodeParmsFilesJson === false) {
+    throw new RuntimeException('Expected extra DecodeParms attachment summary JSON.');
+}
+
 $metadata = [
     'native_boundary' => 'WordPress attachment preflight stream-filter stack decoding',
     'attachment_count' => $summary['attachment_count'] ?? null,
@@ -183,6 +210,17 @@ $metadata = [
         && !str_contains($lzwFilesJson, 'LZW Surplus Stacked Attachment')
         && !str_contains($lzwText, 'LZW Surplus Stacked Attachment')
         && !str_contains($lzwText, 'LZW attachment surplus smoke bytes'),
+    'extra_decodeparms_attachment_rejected' => ($extraDecodeParmsSummary['attachment_count'] ?? null) === 1
+        && ($extraDecodeParmsSummary['attachments'][0]['filename'] ?? null) === 'valid-after-decodeparms.csv'
+        && count($extraDecodeParmsFiles) === 1
+        && (($extraDecodeParmsFiles[0]['content'] ?? null) === $validAfterDecodeParmsPayload),
+    'extra_decodeparms_payload_excluded' => !str_contains($extraDecodeParmsSummaryJson, 'extra-decodeparms.csv')
+        && !str_contains($extraDecodeParmsSummaryJson, 'Extra DecodeParms Attachment Leak')
+        && !str_contains($extraDecodeParmsFilesJson, 'extra-decodeparms.csv')
+        && !str_contains($extraDecodeParmsFilesJson, 'Extra DecodeParms Attachment Leak')
+        && !str_contains($extraDecodeParmsText, 'Extra DecodeParms Attachment Leak'),
+    'valid_attachment_after_extra_decodeparms_preserved' => ($extraDecodeParmsSummary['attachments'][0]['checksum_matches'] ?? false) === true
+        && (($extraDecodeParmsFiles[0]['computed_checksum'] ?? null) === md5($validAfterDecodeParmsPayload)),
     'executes_python_or_models' => $summary['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $summary['executes_external_pdf_tools'] ?? null,
 ];

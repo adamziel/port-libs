@@ -5615,12 +5615,18 @@ final class PdfEmbeddedFileExtractor
      */
     private function decodeParmsSupportedForFilters(array $filters, array $decodeParms, array $objects): bool
     {
+        if ($filters === []) {
+            return true;
+        }
+
         $appliedDecodeParmsIndexes = [];
+        $nonNullFilterCount = 0;
         foreach ($filters as $filterIndex => $filter) {
             if ($filter === null) {
                 continue;
             }
 
+            $nonNullFilterCount++;
             $decodeParmsIndex = $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $filterIndex);
             if ($decodeParmsIndex === null || !array_key_exists($decodeParmsIndex, $decodeParms)) {
                 continue;
@@ -5636,9 +5642,15 @@ final class PdfEmbeddedFileExtractor
             if (isset($appliedDecodeParmsIndexes[$decodeParmsIndex]) || $value === null) {
                 continue;
             }
-            if (!$this->decodeParmsValueIsDefault($value, $objects)) {
-                return false;
+            if (
+                count($decodeParms) !== $nonNullFilterCount
+                && array_key_exists($decodeParmsIndex, $filters)
+                && $filters[$decodeParmsIndex] === null
+            ) {
+                continue;
             }
+
+            return false;
         }
 
         return true;

@@ -151,6 +151,29 @@ $attachmentStreamFilterStackBoundaryCurrentBaseLzwPdf = static function () use (
     ];
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): string {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Stack Review) Tj ET';
+    $ambiguousPayload = "Title,Status\nExtra DecodeParms Attachment Leak,Blocked\n";
+    $validPayload = "Title,Status\nValid Attachment After DecodeParms,Ready\n";
+    $ambiguousEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($ambiguousPayload));
+    $validEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($validPayload));
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Names [(extra-decodeparms.csv) 10 0 R (valid-after-decodeparms.csv) 12 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /Type /Filespec /F (extra-decodeparms.csv) /Desc (Extra DecodeParms attachment leak) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null << /Predictor 1 >> ] /Params << /Size " . strlen($ambiguousPayload) . " /CheckSum <" . md5($ambiguousPayload) . "> >> /Length " . strlen($ambiguousEncoded) . " >>\nstream\n{$ambiguousEncoded}\nendstream\nendobj\n"
+        . "12 0 obj\n<< /Type /Filespec /F (valid-after-decodeparms.csv) /Desc (Valid attachment after extra DecodeParms) /AFRelationship /Source /EF << /F 13 0 R >> >>\nendobj\n"
+        . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validPayload) . " /CheckSum <" . md5($validPayload) . "> >> /Length " . strlen($validEncoded) . " >>\nstream\n{$validEncoded}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+};
+
 return [
     'treats Identity Crypt as a byte-preserving attachment stream stack stage while rejecting private crypt filters' => static function (
         TestRunner $t
@@ -280,5 +303,49 @@ return [
         $t->true(!str_contains($plainText, 'LZW Flate Attachment'));
         $t->true(!str_contains($plainText, 'LZW Surplus Attachment'));
         $t->true(!str_contains($plainText, 'LZW attachment surplus bytes'));
+    },
+    'rejects extra non-null DecodeParms entries in attachment filter stacks before summary or payload extraction' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf): void {
+        $pdf = $attachmentStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf();
+        $validPayload = "Title,Status\nValid Attachment After DecodeParms,Ready\n";
+        $checksum = md5($validPayload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['valid-after-decodeparms.csv'], $summary['filenames']);
+        $t->same(strlen($validPayload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('valid-after-decodeparms.csv', $attachment['filename'] ?? null);
+        $t->same('Valid attachment after extra DecodeParms', $attachment['description'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($validPayload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('valid-after-decodeparms.csv', $files[0]['filename'] ?? null);
+        $t->same($validPayload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Stack Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'extra-decodeparms.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'Extra DecodeParms Attachment Leak'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'extra-decodeparms.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Extra DecodeParms Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Extra DecodeParms Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Valid Attachment After DecodeParms'));
+        $t->true(!str_contains($plainText, 'DecodeParms'));
     },
 ];
