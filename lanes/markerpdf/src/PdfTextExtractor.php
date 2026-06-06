@@ -15610,6 +15610,10 @@ final class PdfTextExtractor
         }
 
         if (preg_match('/\Gnull\b/s', $dict, $match, 0, $offset) === 1) {
+            if ($this->directNullFilterExtraOperand($dict, $offset) !== null) {
+                return null;
+            }
+
             return [];
         }
 
@@ -15699,6 +15703,19 @@ final class PdfTextExtractor
         }
 
         return $this->postDirectFilterExtraDecoderOperand($dict, $next);
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function directNullFilterExtraOperand(string $dict, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if (preg_match('/\Gnull\b/s', $dict, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return $this->postDirectFilterExtraDecoderOperand($dict, $offset + strlen($match[0]));
     }
 
     private function pdfNameTokenEndOffset(string $body, int $offset): int
@@ -27102,6 +27119,8 @@ final class PdfTextExtractor
                     $topLevelFilterExtraOperandAttached = true;
                 } elseif ($tokenType === 'name') {
                     $extraFilterOperand = $this->directScalarFilterExtraOperand($dict, $offset);
+                } elseif ($tokenType === 'null') {
+                    $extraFilterOperand = $this->directNullFilterExtraOperand($dict, $offset);
                 }
                 $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType)
                     && $extraFilterOperand === null;
