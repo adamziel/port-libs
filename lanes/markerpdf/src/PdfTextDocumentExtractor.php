@@ -115,14 +115,28 @@ final class PdfTextDocumentExtractor
      */
     private function normalizeSuppliedDictionaryPageList(array $pdftextPages): array
     {
-        if (!array_key_exists('blocks', $pdftextPages) && array_key_exists('pages', $pdftextPages)) {
-            $pages = $pdftextPages['pages'];
-            if ($pages instanceof \stdClass) {
-                $pages = get_object_vars($pages);
+        if (array_key_exists('blocks', $pdftextPages)) {
+            return array_values($pdftextPages);
+        }
+
+        foreach (['pages', 'dictionary_output'] as $pageListKey) {
+            if (!array_key_exists($pageListKey, $pdftextPages)) {
+                continue;
             }
-            if (is_array($pages)) {
-                return array_values($pages);
+
+            $pages = $this->normalizeSuppliedDictionaryValue($pdftextPages[$pageListKey]);
+            if (!is_array($pages)) {
+                continue;
             }
+
+            if (!array_key_exists('blocks', $pages) && array_key_exists('pages', $pages)) {
+                $nestedPages = $this->normalizeSuppliedDictionaryValue($pages['pages']);
+                if (is_array($nestedPages)) {
+                    return array_values($nestedPages);
+                }
+            }
+
+            return array_values($pages);
         }
 
         return array_values($pdftextPages);
