@@ -1375,20 +1375,13 @@ final class PdfNamedDestinationExtractor
         array $destinationValuesByName = [],
         array $seenAliases = []
     ): ?array {
-        $destinationValue = $value;
-        $destination = $this->resolve($destinationValue, $objects, $cache);
-        if ($this->isDictionary($destination) && array_key_exists('D', $destination)) {
-            if (array_key_exists('S', $destination)) {
-                $actionType = $this->nameValue($this->resolve($destination['S'], $objects, $cache));
-                if ($actionType !== 'GoTo') {
-                    return null;
-                }
-            }
-
-            $destinationValue = $destination['D'];
-            $destination = $this->resolve($destinationValue, $objects, $cache);
+        $unwrapped = $this->unwrappedGoToDestinationValue($value, $objects, $cache);
+        if ($unwrapped === null) {
+            return null;
         }
 
+        $destinationValue = $unwrapped['value'];
+        $destination = $unwrapped['destination'];
         $aliasName = $this->destinationAliasName($destinationValue, $objects, $cache);
         if ($aliasName !== null) {
             if (!array_key_exists($aliasName, $destinationValuesByName) || isset($seenAliases[$aliasName])) {
@@ -1934,18 +1927,56 @@ final class PdfNamedDestinationExtractor
      */
     private function destinationAliasNameFromDestinationValue(mixed $value, array $objects, array &$cache): ?string
     {
-        $destinationValue = $value;
-        $destination = $this->resolve($destinationValue, $objects, $cache);
-        while (
-            $this->isDictionary($destination)
-            && $this->nameValue($destination['S'] ?? null) === 'GoTo'
-            && array_key_exists('D', $destination)
-        ) {
-            $destinationValue = $destination['D'];
-            $destination = $this->resolve($destinationValue, $objects, $cache);
+        $unwrapped = $this->unwrappedGoToDestinationValue($value, $objects, $cache);
+        if ($unwrapped === null) {
+            return null;
         }
 
-        return $this->destinationAliasName($destinationValue, $objects, $cache);
+        return $this->destinationAliasName($unwrapped['value'], $objects, $cache);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     * @return array{value: mixed, destination: mixed}|null
+     */
+    private function unwrappedGoToDestinationValue(
+        mixed $value,
+        array $objects,
+        array &$cache,
+        array $seenObjects = [],
+        int $depth = 0
+    ): ?array {
+        if ($depth > 20) {
+            return null;
+        }
+
+        $destinationValue = $value;
+        $destination = $this->resolve($destinationValue, $objects, $cache);
+        if (!$this->isDictionary($destination) || !array_key_exists('D', $destination)) {
+            return [
+                'value' => $destinationValue,
+                'destination' => $destination,
+            ];
+        }
+
+        if (array_key_exists('S', $destination)) {
+            $actionType = $this->nameValue($this->resolve($destination['S'], $objects, $cache));
+            if ($actionType !== 'GoTo') {
+                return null;
+            }
+        }
+
+        $objectId = $this->validRefObjectId($destinationValue, $objects);
+        if ($objectId !== null) {
+            $seenKey = $this->objectGenerationKey($objectId, $this->refGeneration($destinationValue));
+            if (isset($seenObjects[$seenKey])) {
+                return null;
+            }
+            $seenObjects[$seenKey] = true;
+        }
+
+        return $this->unwrappedGoToDestinationValue($destination['D'], $objects, $cache, $seenObjects, $depth + 1);
     }
 
     /**

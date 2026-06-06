@@ -3395,11 +3395,29 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<int, int> $pageIndexes
      */
-    private function documentDestinationValueAllowedForMap(string $value, array $objects, array $pageIndexes): bool
+    private function documentDestinationValueAllowedForMap(
+        string $value,
+        array $objects,
+        array $pageIndexes,
+        array $seenObjects = [],
+        int $depth = 0
+    ): bool
     {
+        if ($depth > 20) {
+            return false;
+        }
+
         $trimmed = trim($value);
         if ($trimmed === '') {
             return false;
+        }
+
+        $referenceKey = $this->destinationReferenceKey($trimmed, $objects);
+        if ($referenceKey !== null) {
+            if (isset($seenObjects[$referenceKey])) {
+                return false;
+            }
+            $seenObjects[$referenceKey] = true;
         }
 
         if ($this->destinationNameFromRaw($trimmed, $objects) !== null) {
@@ -3415,7 +3433,11 @@ final class PdfMetadataExtractor
         if ($dictionary !== null) {
             $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
             if (isset($entries['D'])) {
-                return $this->documentDestinationValueAllowedForMap($entries['D'], $objects, $pageIndexes);
+                if (isset($entries['S']) && $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo') {
+                    return false;
+                }
+
+                return $this->documentDestinationValueAllowedForMap($entries['D'], $objects, $pageIndexes, $seenObjects, $depth + 1);
             }
         }
 
@@ -3432,6 +3454,31 @@ final class PdfMetadataExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function destinationReferenceKey(string $value, array $objects): ?string
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null
+            || $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']) === null
+        ) {
+            return null;
+        }
+
+        return $reference['objectNumber'] . ':' . $reference['generation'];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function destinationActionNameFromRaw(string $value, array $objects): ?string
+    {
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
+
+        return str_starts_with($resolved, '/') ? $this->nameValueAt($resolved, 0) : null;
     }
 
     /**
@@ -4938,11 +4985,25 @@ final class PdfMetadataExtractor
         array $pageIndexes,
         array $destinationsByName,
         ?string $destinationName,
-        array $seenNames = []
+        array $seenNames = [],
+        array $seenObjects = [],
+        int $depth = 0
     ): ?array {
+        if ($depth > 20) {
+            return null;
+        }
+
         $trimmed = trim($value);
         if ($trimmed === '') {
             return null;
+        }
+
+        $referenceKey = $this->destinationReferenceKey($trimmed, $objects);
+        if ($referenceKey !== null) {
+            if (isset($seenObjects[$referenceKey])) {
+                return null;
+            }
+            $seenObjects[$referenceKey] = true;
         }
 
         $page = $this->destinationPageFromRaw($trimmed, $objects, $pageIndexes);
@@ -4963,7 +5024,9 @@ final class PdfMetadataExtractor
                 $pageIndexes,
                 $destinationsByName,
                 $name,
-                $seenNames
+                $seenNames,
+                $seenObjects,
+                $depth + 1
             );
         }
 
@@ -4971,13 +5034,19 @@ final class PdfMetadataExtractor
         if ($dictionary !== null) {
             $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
             if (isset($entries['D'])) {
+                if (isset($entries['S']) && $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo') {
+                    return null;
+                }
+
                 return $this->documentDestinationDetails(
                     $entries['D'],
                     $objects,
                     $pageIndexes,
                     $destinationsByName,
                     $destinationName,
-                    $seenNames
+                    $seenNames,
+                    $seenObjects,
+                    $depth + 1
                 );
             }
         }
