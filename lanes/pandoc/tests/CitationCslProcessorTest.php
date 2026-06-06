@@ -9015,6 +9015,89 @@ XML);
         $t->contains('<p>Reprint source Smith (2026) preserves facsimile title metadata.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.</dd>', $blocks);
     },
+    'maps bounded biblatex custom user and verb fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@misc{custom-field-review,
+  author = {Curator, Eli},
+  title  = {Custom Field Packet},
+  date   = {2026},
+  usera  = {Migration batch 42},
+  userb  = {Needs media review},
+  userf  = {\mkbibemph{Reviewer escalation}},
+  verba  = {wp:shortcode [gallery ids="1,2"]},
+  verbc  = {source checksum sha256:abc123}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same([
+            'usera' => 'Migration batch 42',
+            'userb' => 'Needs media review',
+            'userf' => 'Reviewer escalation',
+            'verba' => 'wp:shortcode [gallery ids="1,2"]',
+            'verbc' => 'source checksum sha256:abc123',
+        ], $items[0]['biblatex-custom-fields'] ?? null);
+        $t->same('\\mkbibemph{Reviewer escalation}', $items[0]['rawBibtex']['fields']['userf'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('custom-field-review');
+        $t->same('Migration batch 42', $item['biblatexCustomFields']['usera'] ?? null);
+        $t->same('wp:shortcode [gallery ids="1,2"]', $item['biblatexCustomFields']['verba'] ?? null);
+        $t->same('usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids="1,2"]; verbc: source checksum sha256:abc123', $item['biblatexCustomFieldSummary'] ?? null);
+        $t->same('(Curator 2026)', $processor->renderCitationCluster([$citation('custom-field-review', '[@custom-field-review]')]));
+        $t->same(
+            'Curator, Eli. Custom Field Packet. 2026. BibLaTeX custom fields: usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids="1,2"]; verbc: source checksum sha256:abc123.',
+            $processor->renderBibliographyEntry('custom-field-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="usera"/>
+        <text variable="verba"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-custom-field-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Curator | Migration batch 42 | wp:shortcode [gallery ids="1,2"]', $styled->renderCitationCluster([$citation('custom-field-review', '[@custom-field-review]')]));
+        $t->same('Custom Field Packet :: usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids="1,2"]; verbc: source checksum sha256:abc123', $styled->renderBibliographyEntry('custom-field-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-custom',
+            'title' => 'Manual Custom Packet',
+            'biblatex-custom-fields' => [
+                'userc' => 'Direct queue',
+                'verbb' => 'literal review note',
+            ],
+        ]]);
+        $directItem = $direct->item('manual-custom');
+        $t->same('Direct queue', $directItem['biblatexCustomFields']['userc'] ?? null);
+        $t->same('Manual Custom Packet. BibLaTeX custom fields: userc: Direct queue; verbb: literal review note.', $direct->renderBibliographyEntry('manual-custom'));
+
+        $document = (new MarkdownReader())->read('Custom field source @custom-field-review preserves reviewer data fields.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Custom field source Curator (2026) preserves reviewer data fields.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Custom Field Packet. 2026. BibLaTeX custom fields: usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids=&quot;1,2&quot;]; verbc: source checksum sha256:abc123.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-custom',
+            'biblatex-custom-fields' => [
+                'usera' => ['not scalar'],
+            ],
+        ]]));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

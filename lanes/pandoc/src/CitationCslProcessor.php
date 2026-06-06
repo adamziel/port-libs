@@ -688,6 +688,7 @@ final class CitationCslProcessor
             'original-date' => $originalDate,
             'event-date' => $eventDate,
         ]);
+        $biblatexCustomFields = self::biblatexCustomFields($item, $id);
 
         return [
             'id' => $id,
@@ -781,6 +782,8 @@ final class CitationCslProcessor
             'originalDate' => $originalDate,
             'eventDate' => $eventDate,
             'dateMarkerSummary' => $dateMarkerSummary,
+            'biblatexCustomFields' => $biblatexCustomFields,
+            'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
@@ -924,6 +927,92 @@ final class CitationCslProcessor
         }
 
         return $strings;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, string>
+     */
+    private static function biblatexCustomFields(array $item, string $id): array
+    {
+        $fields = [];
+        $value = $item['biblatex-custom-fields'] ?? $item['biblatexCustomFields'] ?? null;
+        if ($value !== null && $value !== []) {
+            if (!is_array($value) || array_is_list($value)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-fields must be an object map');
+            }
+
+            foreach ($value as $field => $fieldValue) {
+                $field = strtolower(trim((string) $field));
+                if (!in_array($field, self::biblatexCustomFieldNames(), true)) {
+                    throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-fields contains unsupported field ' . $field);
+                }
+
+                if (!is_scalar($fieldValue) && $fieldValue !== null) {
+                    throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-fields.' . $field . ' must be scalar');
+                }
+
+                $fieldValue = trim((string) ($fieldValue ?? ''));
+                if ($fieldValue !== '') {
+                    $fields[$field] = $fieldValue;
+                }
+            }
+        }
+
+        foreach (self::biblatexCustomFieldNames() as $field) {
+            if (!array_key_exists($field, $item)) {
+                continue;
+            }
+
+            $fieldValue = $item[$field];
+            if (!is_scalar($fieldValue) && $fieldValue !== null) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . ' must be scalar when present');
+            }
+
+            $fieldValue = trim((string) ($fieldValue ?? ''));
+            if ($fieldValue !== '') {
+                $fields[$field] = $fieldValue;
+            }
+        }
+
+        return self::orderedBiblatexCustomFields($fields);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, string>
+     */
+    private static function orderedBiblatexCustomFields(array $fields): array
+    {
+        $ordered = [];
+        foreach (self::biblatexCustomFieldNames() as $field) {
+            if (isset($fields[$field]) && $fields[$field] !== '') {
+                $ordered[$field] = $fields[$field];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function biblatexCustomFieldNames(): array
+    {
+        return ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function biblatexCustomFieldSummary(array $fields): string
+    {
+        $parts = [];
+        foreach (self::orderedBiblatexCustomFields($fields) as $field => $value) {
+            $parts[] = $field . ': ' . $value;
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
@@ -3993,6 +4082,11 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($dateMarkerSummary);
         }
 
+        $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
+        if ($customFieldSummary !== '') {
+            $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
+        }
+
         return $parts;
     }
 
@@ -5344,6 +5438,8 @@ final class CitationCslProcessor
             'name-addon' => (string) $item['nameAddon'],
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
             'date-marker-summary', 'date-status', 'date-status-summary' => (string) ($item['dateMarkerSummary'] ?? ''),
+            'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),
+            'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
             'issued-status', 'issued-date-status' => $this->dateMarkerStatusForVariable($item, 'issued'),
             'accessed-status', 'accessed-date-status' => $this->dateMarkerStatusForVariable($item, 'accessed'),
             'event-date-status' => $this->dateMarkerStatusForVariable($item, 'event-date'),
@@ -5389,6 +5485,21 @@ final class CitationCslProcessor
             'editorial-role-summary' => implode(' ', $this->bibliographyRoleNameParts($item)),
             default => $this->rawVariableValue($item, $variable),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function biblatexCustomFieldValue(array $item, string $field): string
+    {
+        $fields = $item['biblatexCustomFields'] ?? [];
+        if (!is_array($fields)) {
+            return '';
+        }
+
+        $value = $fields[$field] ?? '';
+
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     /**

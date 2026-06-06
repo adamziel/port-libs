@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class BibtexCslParser
 {
+    private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
+
     private int $offset = 0;
     private readonly int $length;
 
@@ -677,6 +679,11 @@ final class BibtexCslParser
             $item['event-place-list'] = $eventPlaceList;
         }
 
+        $biblatexCustomFields = self::biblatexCustomFieldsFromFields($fields);
+        if ($biblatexCustomFields !== []) {
+            $item['biblatex-custom-fields'] = $biblatexCustomFields;
+        }
+
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
@@ -996,6 +1003,27 @@ final class BibtexCslParser
             array_map(static fn (string $keyword): string => trim($keyword), $keywords),
             static fn (string $keyword): bool => $keyword !== ''
         ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, string>
+     */
+    private static function biblatexCustomFieldsFromFields(array $fields): array
+    {
+        $customFields = [];
+        foreach (self::BIBLATEX_CUSTOM_FIELDS as $field) {
+            if (!isset($fields[$field])) {
+                continue;
+            }
+
+            $value = self::cleanBibtexText($fields[$field]);
+            if ($value !== '') {
+                $customFields[$field] = $value;
+            }
+        }
+
+        return $customFields;
     }
 
     /**

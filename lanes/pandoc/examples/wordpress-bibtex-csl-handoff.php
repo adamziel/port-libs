@@ -89,6 +89,8 @@ Container-author chapter @container-author-review preserves source volume author
 
 Reviewed work source @reviewed-work-review preserves reviewed-title, references, dimensions, and scale metadata for review.
 
+Custom field source @custom-field-review preserves BibLaTeX user and verb fields for review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -662,6 +664,17 @@ $bibtex = <<<'BIB'
   date           = {2026},
   journaltitle   = {Journal of Source Imports},
   pages          = {70--72}
+}
+
+@misc{custom-field-review,
+  author = {Curator, Eli},
+  title  = {Custom Field Packet},
+  date   = {2026},
+  usera  = {Migration batch 42},
+  userb  = {Needs media review},
+  userf  = {\mkbibemph{Reviewer escalation}},
+  verba  = {wp:shortcode [gallery ids="1,2"]},
+  verbc  = {source checksum sha256:abc123}
 }
 BIB;
 
@@ -1345,6 +1358,49 @@ XML);
     if (!str_contains($reviewedMetadataBlocks, '<dt>Roe 2026</dt><dd>Review of Imported Block Patterns | Block Patterns in the Wild: A Migration Source Atlas | Smith 2024, pp. 12-18 | 24 x 32 cm | 1:50000</dd>')) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not render reviewed-work metadata in custom bibliography output');
     }
+    $customFieldReview = $processor->item('custom-field-review');
+    if (($customFieldReview['biblatexCustomFields']['usera'] ?? null) !== 'Migration batch 42') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve usera custom metadata');
+    }
+    if (($customFieldReview['biblatexCustomFields']['userf'] ?? null) !== 'Reviewer escalation') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not clean wrapped userf custom metadata');
+    }
+    if (($customFieldReview['biblatexCustomFields']['verba'] ?? null) !== 'wp:shortcode [gallery ids="1,2"]') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve verba custom metadata');
+    }
+    if (($customFieldReview['biblatexCustomFieldSummary'] ?? null) !== 'usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids="1,2"]; verbc: source checksum sha256:abc123') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize custom BibLaTeX metadata');
+    }
+    $customFieldStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="usera"/>
+        <text variable="verba"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="biblatex-custom-field-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $customFieldBlocks = (new WordPressBlockWriter())->write($customFieldStyled->appendBibliography(
+        (new MarkdownReader())->read('Custom fields [@custom-field-review] stay visible.'),
+        'Custom Field Sources'
+    ));
+    if (!str_contains($customFieldBlocks, '<p>Custom fields Curator | Migration batch 42 | wp:shortcode [gallery ids=&quot;1,2&quot;] stay visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render custom user/verba metadata in custom citations');
+    }
+    if (!str_contains($customFieldBlocks, '<dt>Curator 2026</dt><dd>Custom Field Packet | usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids=&quot;1,2&quot;]; verbc: source checksum sha256:abc123</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render custom user/verba metadata in custom bibliography output');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -1435,6 +1491,8 @@ XML);
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Reviewed work source Roe (2026) preserves reviewed-title, references, dimensions, and scale metadata for review.</p>',
         '<dt>Roe 2026</dt><dd>Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>',
+        '<p>Custom field source Curator (2026) preserves BibLaTeX user and verb fields for review.</p>',
+        '<dt>Curator 2026</dt><dd>Curator, Eli. Custom Field Packet. 2026. BibLaTeX custom fields: usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids=&quot;1,2&quot;]; verbc: source checksum sha256:abc123.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
