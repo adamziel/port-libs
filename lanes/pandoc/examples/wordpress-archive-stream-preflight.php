@@ -9,7 +9,7 @@ use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
 
-$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0): string {
+$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, bool $withEndMarker = true): string {
     $octal = static function (int $value, int $length): string {
         return str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
     };
@@ -41,13 +41,33 @@ $rawTarHeader = static function (string $name, string $typeFlag, string $data = 
     $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
     $padding = strlen($data) % 512 === 0 ? '' : str_repeat("\0", 512 - (strlen($data) % 512));
 
-    return $header . $data . $padding . str_repeat("\0", 1024);
+    return $header . $data . $padding . ($withEndMarker ? str_repeat("\0", 1024) : '');
+};
+
+$paxPayload = static function (array $headers): string {
+    $payload = '';
+    foreach ($headers as $key => $value) {
+        $body = " {$key}={$value}\n";
+        $recordLength = strlen($body) + 1;
+        do {
+            $nextLength = strlen((string) $recordLength) + strlen($body);
+            if ($nextLength === $recordLength) {
+                $payload .= $recordLength . $body;
+                break;
+            }
+            $recordLength = $nextLength;
+        } while (true);
+    }
+
+    return $payload;
 };
 
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
 $legacyDirectoryBytes = '';
+$paxDeleteContentBytes = "# PAX deletion packet\n\nReady for WordPress archive provenance review.\n";
+$paxInheritedContentBytes = "# PAX inherited packet\n\nReady for WordPress archive provenance review.\n";
 
 $archive = TarArchive::fromEntries([
     [
@@ -115,6 +135,29 @@ $legacyDirectoryInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($legacyDirectoryArchiveBytes),
     strlen($legacyDirectoryBytes)
 );
+$paxDeleteArchiveBytes = $rawTarHeader('GlobalHead/review', 'g', $paxPayload([
+    'comment' => 'global WordPress archive review',
+    'mtime' => '1780479074',
+    'uname' => 'global-reviewer',
+]), 0, false)
+    . $rawTarHeader('PaxHeaders/local-delete', 'x', $paxPayload([
+        'comment' => '',
+        'mtime' => '',
+        'uname' => '',
+        'org.wordpress.import.review' => 'local-clean',
+    ]), 0, false)
+    . $rawTarHeader('packet/pax-delete.md', '0', $paxDeleteContentBytes, 1780479073, false)
+    . $rawTarHeader('packet/pax-inherited.md', '0', $paxInheritedContentBytes, 0, false)
+    . str_repeat("\0", 1024);
+$paxDeleteGzip = GzipStream::build($paxDeleteArchiveBytes, [
+    'filename' => 'wordpress-pax-delete.tar',
+    'comment' => 'PAX deletion metadata preflight',
+]);
+$paxDeleteInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+    $paxDeleteGzip,
+    strlen($paxDeleteArchiveBytes),
+    strlen($paxDeleteContentBytes) + strlen($paxInheritedContentBytes)
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -142,6 +185,9 @@ if (in_array('--self-test', $argv, true)) {
         'legacyContent' => $legacyContentBytes,
         'legacyDirectoryType' => TarArchiveEntry::TYPE_DIRECTORY,
         'legacyDirectoryCount' => 1,
+        'paxDeleteFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'paxDeleteLocalModifiedAt' => 1780479073,
+        'paxDeleteInheritedModifiedAt' => 1780479074,
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -159,6 +205,14 @@ if (in_array('--self-test', $argv, true)) {
         || ($legacyDirectoryInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyDirectoryType']
         || $legacyDirectoryInspection['directoryCount'] !== $expected['legacyDirectoryCount']
         || $legacyDirectoryInspection['archive']->read('/packet/legacy-directory/') !== $legacyDirectoryBytes
+        || $paxDeleteInspection['format'] !== $expected['paxDeleteFormat']
+        || ($paxDeleteInspection['archive']->entry('/packet/pax-delete.md')->paxHeaders['comment'] ?? null) !== null
+        || ($paxDeleteInspection['archive']->entry('/packet/pax-delete.md')->paxHeaders['mtime'] ?? null) !== null
+        || ($paxDeleteInspection['archive']->entry('/packet/pax-delete.md')->paxHeaders['org.wordpress.import.review'] ?? null) !== 'local-clean'
+        || $paxDeleteInspection['archive']->entry('/packet/pax-delete.md')->modifiedAt !== $expected['paxDeleteLocalModifiedAt']
+        || $paxDeleteInspection['archive']->entry('/packet/pax-inherited.md')->modifiedAt !== $expected['paxDeleteInheritedModifiedAt']
+        || ($paxDeleteInspection['archive']->entry('/packet/pax-inherited.md')->paxHeaders['comment'] ?? null) !== 'global WordPress archive review'
+        || $paxDeleteInspection['archive']->read('/packet/pax-delete.md') !== $paxDeleteContentBytes
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -184,3 +238,7 @@ echo 'legacyContiguous.content.md=' . $legacyContiguousInspection['archive']->re
 echo 'legacyDirectory.format=' . $legacyDirectoryInspection['format'] . "\n";
 echo 'legacyDirectory.entryType=' . $legacyDirectoryInspection['entryLayouts'][0]['type'] . "\n";
 echo 'legacyDirectory.directoryCount=' . $legacyDirectoryInspection['directoryCount'] . "\n";
+echo 'paxDelete.format=' . $paxDeleteInspection['format'] . "\n";
+echo 'paxDelete.localModifiedAt=' . $paxDeleteInspection['archive']->entry('/packet/pax-delete.md')->modifiedAt . "\n";
+echo 'paxDelete.localReview=' . $paxDeleteInspection['archive']->entry('/packet/pax-delete.md')->paxHeaders['org.wordpress.import.review'] . "\n";
+echo 'paxDelete.inheritedComment=' . $paxDeleteInspection['archive']->entry('/packet/pax-inherited.md')->paxHeaders['comment'] . "\n";

@@ -116,13 +116,13 @@ final class TarArchive
                     $pendingPaxHeaders = $headers;
                 } else {
                     self::assertGlobalPaxHeaders($headers);
-                    $globalPaxHeaders = array_merge($globalPaxHeaders, $headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
                 }
                 $cursor = $nextCursor;
                 continue;
             }
 
-            $metadataHeaders = array_merge($globalPaxHeaders, $pendingPaxHeaders);
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
             $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
             self::assertSafePath($name, 'TAR entry name');
             $size = self::resolvedSizeFromHeader($header, $metadataHeaders);
@@ -713,6 +713,35 @@ final class TarArchive
     }
 
     /**
+     * @param array<string, string> $base
+     * @param array<string, string> $records
+     * @return array<string, string>
+     */
+    private static function applyPaxHeaderRecords(array $base, array $records): array
+    {
+        foreach ($records as $key => $value) {
+            if ($value === '') {
+                unset($base[$key]);
+                continue;
+            }
+
+            $base[$key] = $value;
+        }
+
+        return $base;
+    }
+
+    /**
+     * @param array<string, string> $globalHeaders
+     * @param array<string, string> $localHeaders
+     * @return array<string, string>
+     */
+    private static function mergePaxHeaderRecords(array $globalHeaders, array $localHeaders): array
+    {
+        return self::applyPaxHeaderRecords($globalHeaders, $localHeaders);
+    }
+
+    /**
      * @param array<string, string> $headers
      */
     private static function hasSparsePaxHeaders(array $headers): bool
@@ -744,7 +773,7 @@ final class TarArchive
                 self::assertUtf8($value, 'TAR PAX path metadata');
             }
 
-            if ($key === 'linkpath') {
+            if ($key === 'linkpath' && $value !== '') {
                 throw new \RuntimeException('TAR local PAX linkpath metadata is not supported by the pandoc archive reader');
             }
         }
@@ -756,6 +785,10 @@ final class TarArchive
     private static function assertGlobalPaxHeaders(array $headers): void
     {
         foreach ($headers as $key => $value) {
+            if ($value === '') {
+                continue;
+            }
+
             if ($key === 'path' || $key === 'linkpath' || $key === 'size') {
                 throw new \RuntimeException("TAR global PAX header {$key} is per-entry metadata and is not supported");
             }

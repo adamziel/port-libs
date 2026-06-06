@@ -454,6 +454,73 @@ return [
         $t->same('<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
     },
 
+    'applies zero-length pax records as scoped metadata deletions' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $localDocument = '<w:document><w:body><w:p>Local PAX deletion source</w:p></w:body></w:document>';
+        $inheritedDocument = '<w:document><w:body><w:p>Inherited PAX source</w:p></w:body></w:document>';
+        $globalDeletionDocument = '<w:document><w:body><w:p>Global PAX deletion source</w:p></w:body></w:document>';
+        $archive = $rawTarHeader('GlobalHead/review', 'g', $paxPayload([
+            'comment' => 'global archive review',
+            'hdrcharset' => 'BINARY',
+            'mtime' => '1780479074',
+            'uname' => 'global-reviewer',
+        ]), 0, false)
+            . $rawTarHeader('PaxHeaders/local-delete', 'x', $paxPayload([
+                'comment' => '',
+                'mtime' => '',
+                'uname' => '',
+                'org.wordpress.import.review' => 'local-clean',
+            ]), 0, false)
+            . $rawTarHeader('packet/local-delete.xml', '0', $localDocument, 1780479073, false)
+            . $rawTarHeader('packet/inherited.xml', '0', $inheritedDocument, 0, false)
+            . $rawTarHeader('GlobalHead/delete-review', 'g', $paxPayload([
+                'comment' => '',
+                'hdrcharset' => '',
+                'uname' => '',
+            ]), 0, false)
+            . $rawTarHeader('packet/global-delete.xml', '0', $globalDeletionDocument, 0, false)
+            . str_repeat("\0", 1024);
+
+        $roundTrip = TarArchive::fromString($archive);
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $archive,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archive),
+            strlen($localDocument) + strlen($inheritedDocument) + strlen($globalDeletionDocument)
+        );
+        $local = $roundTrip->entry('/packet/local-delete.xml');
+        $inherited = $roundTrip->entry('/packet/inherited.xml');
+        $afterGlobalDelete = $roundTrip->entry('/packet/global-delete.xml');
+
+        $t->same([
+            'packet/local-delete.xml',
+            'packet/inherited.xml',
+            'packet/global-delete.xml',
+        ], $roundTrip->names());
+        $t->same(['mtime' => '1780479074'], $roundTrip->globalPaxHeaders());
+        $t->same(1780479073, $local->modifiedAt);
+        $t->same('', $local->userName);
+        $t->same(null, $local->paxHeaders['comment'] ?? null);
+        $t->same(null, $local->paxHeaders['mtime'] ?? null);
+        $t->same(null, $local->paxHeaders['uname'] ?? null);
+        $t->same('BINARY', $local->paxHeaders['hdrcharset'] ?? null);
+        $t->same('local-clean', $local->paxHeaders['org.wordpress.import.review'] ?? null);
+        $t->same($localDocument, $roundTrip->read('/packet/local-delete.xml'));
+        $t->same(1780479074, $inherited->modifiedAt);
+        $t->same('global-reviewer', $inherited->userName);
+        $t->same('global archive review', $inherited->paxHeaders['comment'] ?? null);
+        $t->same('BINARY', $inherited->paxHeaders['hdrcharset'] ?? null);
+        $t->same($inheritedDocument, $roundTrip->read('/packet/inherited.xml'));
+        $t->same(1780479074, $afterGlobalDelete->modifiedAt);
+        $t->same('', $afterGlobalDelete->userName);
+        $t->same(null, $afterGlobalDelete->paxHeaders['comment'] ?? null);
+        $t->same(null, $afterGlobalDelete->paxHeaders['hdrcharset'] ?? null);
+        $t->same(null, $afterGlobalDelete->paxHeaders['uname'] ?? null);
+        $t->same($globalDeletionDocument, $roundTrip->read('/packet/global-delete.xml'));
+        $t->same(['hdrcharset', 'org.wordpress.import.review'], $inspection['entryLayouts'][0]['paxHeaderKeys']);
+        $t->same(['comment', 'hdrcharset', 'mtime', 'uname'], $inspection['entryLayouts'][1]['paxHeaderKeys']);
+        $t->same(['mtime'], $inspection['entryLayouts'][2]['paxHeaderKeys']);
+    },
+
     'rejects per-entry global pax metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $globalPath = $rawTarHeader('GlobalHead/path', 'g', $paxPayload([
             'path' => 'packet/global-name.xml',
