@@ -3276,15 +3276,19 @@ return [
         $t->same(0, $stroke['parent_pattern_generation'] ?? null);
         $t->same(1, $stroke['pattern_paint_count'] ?? null);
         $t->same([[1.0, 0.0, 0.0, 1.0, 4.0, 5.0]], $stroke['pattern_matrices'] ?? null);
-        $t->same([[0.0, 0.0, 20.0, 10.0]], $stroke['pattern_bboxes'] ?? null);
-        $t->same([[0.0, 0.0, 20.0, 10.0]], $stroke['pattern_visible_bboxes'] ?? null);
+        $t->same([[-1.0, -1.0, 21.0, 11.0]], $stroke['pattern_bboxes'] ?? null);
+        $t->same([[0.0, 0.0, 20.0, 10.0]], $stroke['pattern_path_bboxes'] ?? null);
+        $t->same([[-1.0, -1.0, 21.0, 11.0]], $stroke['pattern_visible_bboxes'] ?? null);
+        $t->same(['stroking'], $stroke['pattern_paint_kinds'] ?? null);
+        $t->same([[2.0]], $stroke['pattern_stroke_widths'] ?? null);
+        $t->same(true, $stroke['pattern_stroke_width_expanded'] ?? null);
         $t->same(true, $stroke['pattern_review_only'] ?? null);
         $t->same(['Stroke Tile', 'Stroke Image'], $stroke['resource_path']);
         $t->same(true, $stroke['invoked']);
         $t->same(1, $stroke['invocation_count']);
         $t->same([[5.0, 0.0, 0.0, 2.0, 6.0, 6.0]], $stroke['invocation_matrices']);
         $t->same([[6.0, 6.0, 11.0, 8.0]], $stroke['invocation_bboxes']);
-        $t->same([[4.0, 5.0, 20.0, 10.0]], $stroke['invocation_clip_bboxes']);
+        $t->same([[4.0, 5.0, 21.0, 11.0]], $stroke['invocation_clip_bboxes']);
         $t->same([[6.0, 6.0, 11.0, 8.0]], $stroke['invocation_visible_bboxes']);
         $t->same([6.0, 6.0, 11.0, 8.0], $stroke['image_unit_bbox']);
         $t->same([6.0, 6.0, 11.0, 8.0], $stroke['image_visible_bbox']);
@@ -3303,6 +3307,80 @@ return [
         $t->same("Before stroking pattern image\nAfter stroking pattern image", $plainText);
         $t->true(!str_contains($plainText, 'Stroke Pattern Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Unused Stroke Pattern Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $strokePayload));
+        $t->true(!str_contains($encoded, $unusedPayload));
+        $t->true(str_contains($encoded, hash('sha256', $strokePayload)));
+        $t->true(str_contains($encoded, hash('sha256', $unusedPayload)));
+    },
+    'expands stroked tiling-pattern line bboxes by line width before image XObject review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before stroked line pattern image) Tj ET\n"
+            . "6 w /Pattern CS /Line#20Stroke#20Tile SCN 0 0 m 20 0 l S\n"
+            . 'BT /F1 12 Tf 72 660 Td (After stroked line pattern image) Tj ET';
+        $patternContent = 'q 4 0 0 2 1 -2 cm /Line#20Stroke#20Image Do Q';
+        $strokePayload = 'BT /F1 12 Tf 72 720 Td (Line Stroke Pattern Image Payload Noise) Tj ET';
+        $unusedPayload = 'BT /F1 12 Tf 72 720 Td (Unused Line Stroke Pattern Image Payload Noise) Tj ET';
+        $strokeCompressed = gzcompress($strokePayload);
+        $unusedCompressed = gzcompress($unusedPayload);
+        if (!is_string($strokeCompressed) || !is_string($unusedCompressed)) {
+            throw new RuntimeException('Unable to compress stroked-line pattern image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Pattern << /Line#20Stroke#20Tile 11 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($strokeCompressed) . " >>\nstream\n{$strokeCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($unusedCompressed) . " >>\nstream\n{$unusedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "11 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [-5 -5 25 5] /XStep 25 /YStep 10 /Resources << /XObject << /Line#20Stroke#20Image 5 0 R /Unused#20Line#20Stroke#20Image 6 0 R >> >> /Length " . strlen($patternContent) . " >>\nstream\n{$patternContent}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $stroke = $entriesByName['Line Stroke Image'];
+        $t->same('Line Stroke Tile', $stroke['pattern_resource_name'] ?? null);
+        $t->same(11, $stroke['parent_pattern_object'] ?? null);
+        $t->same(1, $stroke['pattern_paint_count'] ?? null);
+        $t->same([[6.0]], $stroke['pattern_stroke_widths'] ?? null);
+        $t->same([[-3.0, -3.0, 23.0, 3.0]], $stroke['pattern_bboxes'] ?? null);
+        $t->same([[-3.0, -3.0, 23.0, 3.0]], $stroke['pattern_visible_bboxes'] ?? null);
+        $t->same(true, $stroke['pattern_stroke_width_expanded'] ?? null);
+        $t->same(true, $stroke['invoked']);
+        $t->same(1, $stroke['invocation_count']);
+        $t->same([[4.0, 0.0, 0.0, 2.0, 1.0, -2.0]], $stroke['invocation_matrices']);
+        $t->same([[1.0, -2.0, 5.0, 0.0]], $stroke['invocation_bboxes']);
+        $t->same([[-3.0, -3.0, 23.0, 3.0]], $stroke['invocation_clip_bboxes']);
+        $t->same([[1.0, -2.0, 5.0, 0.0]], $stroke['invocation_visible_bboxes']);
+        $t->same([1.0, -2.0, 5.0, 0.0], $stroke['image_visible_bbox']);
+        $t->same(false, $stroke['clip_excludes_image']);
+        $t->same(1, $stroke['painted_invocation_count']);
+        $t->same(0, $stroke['clip_excluded_invocation_count']);
+        $t->same(hash('sha256', $strokePayload), $stroke['decoded_sha256']);
+        $t->same(false, $stroke['payload_in_visible_text']);
+
+        $unused = $entriesByName['Unused Line Stroke Image'];
+        $t->same('Line Stroke Tile', $unused['pattern_resource_name'] ?? null);
+        $t->same(false, $unused['invoked']);
+        $t->same(0, $unused['invocation_count']);
+        $t->same(hash('sha256', $unusedPayload), $unused['decoded_sha256']);
+
+        $t->same(['Before stroked line pattern image', 'After stroked line pattern image'], $extractor->extractTextLines($pdf));
+        $t->same("Before stroked line pattern image\nAfter stroked line pattern image", $plainText);
+        $t->true(!str_contains($plainText, 'Line Stroke Pattern Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Unused Line Stroke Pattern Image Payload Noise'));
 
         $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encoded, $strokePayload));

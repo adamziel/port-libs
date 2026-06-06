@@ -4787,7 +4787,7 @@ final class PdfTextExtractor
      * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
      * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, path_bbox?: list<float>, paint_kind?: string, stroke_width?: float|null, stroke_width_expanded?: bool, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
      */
     private function contentXObjectInvocationDetails(
         string $content,
@@ -4918,6 +4918,11 @@ final class PdfTextExtractor
             }
 
             if ($this->applyNonstrokingColorStateOperator($token, $operands, $currentStates)) {
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyLineWidthStateOperator($token, $operands, $currentStates)) {
                 $operands = [];
                 continue;
             }
@@ -5243,15 +5248,32 @@ final class PdfTextExtractor
                             && ($graphicsState[$colorSpaceKey] ?? null) === 'Pattern'
                             && $pathBbox !== null
                         ) {
+                            $paintBbox = $pathBbox;
+                            $strokeWidth = null;
+                            $strokeWidthExpanded = false;
+                            if ($paintKind === 'stroking') {
+                                $strokeBoundary = $this->strokedPathPaintBbox(
+                                    $pathBbox,
+                                    $graphicsState,
+                                    $state['matrix'] ?? null
+                                );
+                                $paintBbox = $strokeBoundary['bbox'];
+                                $strokeWidth = $strokeBoundary['line_width'];
+                                $strokeWidthExpanded = $strokeBoundary['expanded'];
+                            }
                             $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null);
-                            $visibleBbox = $this->visibleImageInvocationBbox($pathBbox, $clipRectangle);
+                            $visibleBbox = $this->visibleImageInvocationBbox($paintBbox, $clipRectangle);
                             $paints[$patternName][] = [
                                 'matrix' => $this->normalizedPdfReviewNumbers($state['matrix']),
-                                'bbox' => $pathBbox,
+                                'bbox' => $paintBbox,
+                                'path_bbox' => $pathBbox,
+                                'paint_kind' => $paintKind,
+                                'stroke_width' => $strokeWidth,
+                                'stroke_width_expanded' => $strokeWidthExpanded,
                                 'clip_bbox' => $clipRectangle,
                                 'visible_bbox' => $visibleBbox,
                                 'clipped' => $clipRectangle !== null
-                                    && ($visibleBbox === null || !$this->pdfRectanglesEqual($pathBbox, $visibleBbox)),
+                                    && ($visibleBbox === null || !$this->pdfRectanglesEqual($paintBbox, $visibleBbox)),
                                 'graphics_state' => $graphicsState,
                                 'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                                 'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
@@ -5302,6 +5324,11 @@ final class PdfTextExtractor
             }
 
             if ($this->applyStrokingColorStateOperator($token, $operands, $currentStates)) {
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyLineWidthStateOperator($token, $operands, $currentStates)) {
                 $operands = [];
                 continue;
             }
@@ -5519,6 +5546,7 @@ final class PdfTextExtractor
      *     stroking_alpha: float|null,
      *     nonstroking_alpha: float|null,
      *     alpha_source: bool|null,
+     *     line_width: float,
      *     blend_modes: list<string>,
      *     soft_mask: array<string, mixed>|null,
      *     review_only: true
@@ -5532,6 +5560,7 @@ final class PdfTextExtractor
             'stroking_alpha' => null,
             'nonstroking_alpha' => null,
             'alpha_source' => null,
+            'line_width' => 1.0,
             'blend_modes' => [],
             'soft_mask' => null,
             'stroking_color_space' => 'DeviceGray',
@@ -5571,6 +5600,12 @@ final class PdfTextExtractor
         }
         if (is_bool($state['alpha_source'] ?? null)) {
             $default['alpha_source'] = $state['alpha_source'];
+        }
+        if (
+            (is_int($state['line_width'] ?? null) || is_float($state['line_width'] ?? null))
+            && (float) $state['line_width'] >= 0.0
+        ) {
+            $default['line_width'] = (float) $state['line_width'];
         }
         $default['blend_modes'] = array_values(array_filter(
             $state['blend_modes'] ?? [],
@@ -5716,6 +5751,30 @@ final class PdfTextExtractor
             $graphicsState['stroking_color_components'] = $components;
             $graphicsState['stroking_pattern_name'] = $patternName;
             $graphicsState['stroking_color_operator'] = $operator;
+            $currentStates[$index]['graphics_state'] = $graphicsState;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<array<string, mixed>> $currentStates
+     */
+    private function applyLineWidthStateOperator(string $operator, array $operands, array &$currentStates): bool
+    {
+        if ($operator !== 'w') {
+            return false;
+        }
+
+        $lineWidth = count($operands) === 1 ? $this->numericOperand($operands[0]) : null;
+        if ($lineWidth === null || $lineWidth < 0.0) {
+            return true;
+        }
+
+        foreach ($currentStates as $index => $state) {
+            $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+            $graphicsState['line_width'] = $lineWidth;
             $currentStates[$index]['graphics_state'] = $graphicsState;
         }
 
@@ -6666,7 +6725,11 @@ final class PdfTextExtractor
             $patternInvocationStates = [];
             $patternMatrices = [];
             $patternBboxes = [];
+            $patternPathBboxes = [];
             $patternVisibleBboxes = [];
+            $patternPaintKinds = [];
+            $patternStrokeWidths = [];
+            $patternStrokeWidthExpanded = false;
             foreach ($paintDetails as $detail) {
                 $matrix = $detail['matrix'] ?? null;
                 if (!is_array($matrix) || count($matrix) < 6) {
@@ -6695,8 +6758,20 @@ final class PdfTextExtractor
                 if (isset($detail['bbox']) && is_array($detail['bbox']) && count($detail['bbox']) >= 4) {
                     $patternBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($detail['bbox'], 0, 4));
                 }
+                if (isset($detail['path_bbox']) && is_array($detail['path_bbox']) && count($detail['path_bbox']) >= 4) {
+                    $patternPathBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($detail['path_bbox'], 0, 4));
+                }
                 if (isset($detail['visible_bbox']) && is_array($detail['visible_bbox']) && count($detail['visible_bbox']) >= 4) {
                     $patternVisibleBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($detail['visible_bbox'], 0, 4));
+                }
+                if (is_string($detail['paint_kind'] ?? null) && $detail['paint_kind'] !== '') {
+                    $patternPaintKinds[] = $detail['paint_kind'];
+                }
+                if (is_int($detail['stroke_width'] ?? null) || is_float($detail['stroke_width'] ?? null)) {
+                    $patternStrokeWidths[] = $this->normalizedPdfReviewNumbers([(float) $detail['stroke_width']]);
+                }
+                if (($detail['stroke_width_expanded'] ?? false) === true) {
+                    $patternStrokeWidthExpanded = true;
                 }
             }
 
@@ -6728,7 +6803,11 @@ final class PdfTextExtractor
                     'pattern_paint_count' => count($patternInvocationStates),
                     'pattern_matrices' => $patternMatrices,
                     'pattern_bboxes' => $patternBboxes,
+                    'pattern_path_bboxes' => $patternPathBboxes,
                     'pattern_visible_bboxes' => $patternVisibleBboxes,
+                    'pattern_paint_kinds' => $patternPaintKinds,
+                    'pattern_stroke_widths' => $patternStrokeWidths,
+                    'pattern_stroke_width_expanded' => $patternStrokeWidthExpanded,
                     'pattern_review_only' => true,
                 ];
             }
@@ -21123,6 +21202,62 @@ final class PdfTextExtractor
             'B', 'B*', 'b', 'b*' => ['nonstroking', 'stroking'],
             default => [],
         };
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param array<string, mixed> $graphicsState
+     * @return array{bbox: list<float>, line_width: float|null, expanded: bool}
+     */
+    private function strokedPathPaintBbox(array $bbox, array $graphicsState, mixed $matrix): array
+    {
+        $lineWidth = (is_int($graphicsState['line_width'] ?? null) || is_float($graphicsState['line_width'] ?? null))
+            ? max(0.0, (float) $graphicsState['line_width'])
+            : 1.0;
+        if ($lineWidth <= 0.0) {
+            return [
+                'bbox' => $this->normalizedPdfReviewNumbers($bbox),
+                'line_width' => $lineWidth,
+                'expanded' => false,
+            ];
+        }
+
+        $scale = $this->strokeLineWidthScaleForMatrix($matrix);
+        $expand = ($lineWidth * $scale) / 2.0;
+        if ($expand <= 0.0) {
+            return [
+                'bbox' => $this->normalizedPdfReviewNumbers($bbox),
+                'line_width' => $lineWidth,
+                'expanded' => false,
+            ];
+        }
+
+        $expanded = $this->normalizedPdfReviewNumbers([
+            (float) $bbox[0] - $expand,
+            (float) $bbox[1] - $expand,
+            (float) $bbox[2] + $expand,
+            (float) $bbox[3] + $expand,
+        ]);
+
+        return [
+            'bbox' => $expanded,
+            'line_width' => $lineWidth,
+            'expanded' => !$this->pdfRectanglesEqual($this->normalizedPdfReviewNumbers($bbox), $expanded),
+        ];
+    }
+
+    private function strokeLineWidthScaleForMatrix(mixed $matrix): float
+    {
+        $normalized = $this->normalizedPdfMatrixOrNull($matrix);
+        if ($normalized === null) {
+            return 1.0;
+        }
+
+        $xScale = sqrt(($normalized[0] * $normalized[0]) + ($normalized[1] * $normalized[1]));
+        $yScale = sqrt(($normalized[2] * $normalized[2]) + ($normalized[3] * $normalized[3]));
+        $scale = max($xScale, $yScale);
+
+        return $scale > 0.0 ? $scale : 1.0;
     }
 
     private function pdfNumberValueAfterName(string $body, string $name): ?float
