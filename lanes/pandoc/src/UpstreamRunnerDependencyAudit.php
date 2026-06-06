@@ -42,6 +42,13 @@ final class UpstreamRunnerDependencyAudit
         'cabal',
     ];
 
+    private const TESTED_GHC_VERSIONS = [
+        '9.6.7',
+        '9.8.4',
+        '9.10.3',
+        '9.12.2',
+    ];
+
     private const PROJECT_SOURCE_REPOSITORY_PINS = [
         'doclayout' => 'ef7f18308a61787244a80885d907fcd2c16604d4',
         'typst-symbols' => '6e97668c9f2ffea09f3187c34b7641038370fd21',
@@ -441,6 +448,7 @@ final class UpstreamRunnerDependencyAudit
      *   requiredFileProvenance:array{expected:list<string>, present:array<string, array{sha256:string, bytes:int}>, missing:list<string>},
      *   tools:array<string, array{available:bool, version:string|null}>,
      *   missingTools:list<string>,
+     *   compilerTestedWithClosure:array{packageFile:string, expectedGhcVersions:list<string>, presentGhcVersions:list<string>, missingGhcVersions:list<string>, toolGhcVersion:string|null, toolGhcVersionSupported:bool},
      *   runnerTargets:list<string>,
      *   runnerEntryPoints:array<string, array{packageFile:string, type:string, mainIs:string, sourceDirectory:string}>,
      *   benchmarkTargets:list<string>,
@@ -487,6 +495,7 @@ final class UpstreamRunnerDependencyAudit
         $projectSourceRepositoryClosure = self::auditProjectSourceRepositoryClosure($projectContents);
         $projectPackageClosure = self::auditProjectPackageClosure($projectContents);
         $projectConstraintClosure = self::auditProjectConstraintClosure($projectContents);
+        $compilerTestedWithClosure = self::auditCompilerTestedWithClosure($root, $normalizedTools);
         $runnerDependencyClosure = self::auditRunnerDependencyClosure($root);
         $benchmarkDependencyClosure = self::auditBenchmarkDependencyClosure($root);
         $luaEngineLibraryClosure = self::auditLuaEngineLibraryClosure($root);
@@ -501,6 +510,12 @@ final class UpstreamRunnerDependencyAudit
         }
         if ($missingTools !== []) {
             $blockedReasons[] = 'missing required Cabal toolchain commands: ' . implode(', ', $missingTools);
+        }
+        if ($compilerTestedWithClosure['missingGhcVersions'] !== []) {
+            $blockedReasons[] = 'missing pandoc.cabal tested-with GHC versions: ' . implode(', ', $compilerTestedWithClosure['missingGhcVersions']);
+        }
+        if (($normalizedTools['ghc']['available'] ?? false) === true && $compilerTestedWithClosure['toolGhcVersionSupported'] !== true) {
+            $blockedReasons[] = 'unsupported or unrecorded ghc version for Pandoc tested-with matrix: ' . ($compilerTestedWithClosure['toolGhcVersion'] ?? 'none');
         }
         if ($projectPins['missing'] !== []) {
             $blockedReasons[] = 'missing cabal.project source-repository pins: ' . implode(', ', $projectPins['missing']);
@@ -625,6 +640,7 @@ final class UpstreamRunnerDependencyAudit
             'requiredFileProvenance' => $requiredFileProvenance,
             'tools' => $normalizedTools,
             'missingTools' => $missingTools,
+            'compilerTestedWithClosure' => $compilerTestedWithClosure,
             'runnerTargets' => array_keys(self::RUNNER_ENTRY_POINTS),
             'runnerEntryPoints' => self::RUNNER_ENTRY_POINTS,
             'benchmarkTargets' => array_keys(self::BENCHMARK_ENTRY_POINTS),
@@ -643,15 +659,23 @@ final class UpstreamRunnerDependencyAudit
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
-                'record cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics, and package-file hashes before any solver/build command',
+                'record pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
                 'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
                 'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
-            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $benchmarkDependencyClosure, $luaEngineLibraryClosure, $runnerEntrySourceClosure, $runnerArtifactClosure, $benchmarkArtifactClosure, $benchmarkEntrySourceClosure),
+            'activationGate' => self::activationGate($missingFiles, $missingTools, $compilerTestedWithClosure, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $benchmarkDependencyClosure, $luaEngineLibraryClosure, $runnerEntrySourceClosure, $runnerArtifactClosure, $benchmarkArtifactClosure, $benchmarkEntrySourceClosure),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function expectedCompilerGhcVersions(): array
+    {
+        return self::TESTED_GHC_VERSIONS;
     }
 
     /**
@@ -966,6 +990,57 @@ final class UpstreamRunnerDependencyAudit
 
         ksort($constraints);
         return $constraints;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function parseCabalTestedWithGhcVersions(string $contents): array
+    {
+        $contents = self::stripCabalLineComments($contents);
+        $raw = '';
+        $capturing = false;
+        $fieldIndent = null;
+
+        foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            $indent = strlen($line) - strlen(ltrim($line));
+
+            if (preg_match('/^\s*tested-with\s*:\s*(.*?)\s*$/i', $line, $match) === 1) {
+                $raw .= ' ' . trim($match[1]);
+                $capturing = true;
+                $fieldIndent = $indent;
+                continue;
+            }
+
+            if (!$capturing) {
+                continue;
+            }
+
+            if (trim($line) === '') {
+                continue;
+            }
+
+            if ($fieldIndent !== null && $indent > $fieldIndent && preg_match('/^\s+(.*?)\s*$/', $line, $match) === 1) {
+                $raw .= ' ' . trim($match[1]);
+                continue;
+            }
+
+            $capturing = false;
+            $fieldIndent = null;
+        }
+
+        $versions = [];
+        if (preg_match_all('/\bGHC\s*==\s*([0-9]+(?:\.[0-9]+){1,3})\b/i', $raw, $matches) === false) {
+            return [];
+        }
+
+        foreach ($matches[1] ?? [] as $version) {
+            if (!in_array($version, $versions, true)) {
+                $versions[] = $version;
+            }
+        }
+
+        return $versions;
     }
 
     /**
@@ -1345,6 +1420,35 @@ final class UpstreamRunnerDependencyAudit
             'presentConstraints' => $present,
             'missingConstraints' => $missing,
             'mismatchedConstraints' => $mismatched,
+        ];
+    }
+
+    /**
+     * @param array<string, array{available:bool, version:string|null}> $tools
+     * @return array{packageFile:string, expectedGhcVersions:list<string>, presentGhcVersions:list<string>, missingGhcVersions:list<string>, toolGhcVersion:string|null, toolGhcVersionSupported:bool}
+     */
+    private static function auditCompilerTestedWithClosure(string $root, array $tools): array
+    {
+        $packageFile = 'pandoc.cabal';
+        $path = $root . DIRECTORY_SEPARATOR . $packageFile;
+        $present = is_file($path) ? self::parseCabalTestedWithGhcVersions((string) file_get_contents($path)) : [];
+        $missing = [];
+
+        foreach (self::TESTED_GHC_VERSIONS as $version) {
+            if (!in_array($version, $present, true)) {
+                $missing[] = $version;
+            }
+        }
+
+        $toolVersion = self::normalizeGhcToolVersion($tools['ghc']['version'] ?? null);
+
+        return [
+            'packageFile' => $packageFile,
+            'expectedGhcVersions' => self::TESTED_GHC_VERSIONS,
+            'presentGhcVersions' => $present,
+            'missingGhcVersions' => $missing,
+            'toolGhcVersion' => $toolVersion,
+            'toolGhcVersionSupported' => $toolVersion !== null && in_array($toolVersion, self::TESTED_GHC_VERSIONS, true),
         ];
     }
 
@@ -2155,6 +2259,20 @@ final class UpstreamRunnerDependencyAudit
         return preg_replace('/\s+/', ' ', trim($raw)) ?? trim($raw);
     }
 
+    private static function normalizeGhcToolVersion(?string $version): ?string
+    {
+        if ($version === null) {
+            return null;
+        }
+
+        if (preg_match('/\b([0-9]+(?:\.[0-9]+){1,3})\b/', $version, $match) === 1) {
+            return $match[1];
+        }
+
+        $version = trim($version);
+        return $version === '' ? null : $version;
+    }
+
     /**
      * @return list<string>
      */
@@ -2468,6 +2586,7 @@ final class UpstreamRunnerDependencyAudit
     /**
      * @param list<string> $missingFiles
      * @param list<string> $missingTools
+     * @param array{missingGhcVersions:list<string>, toolGhcVersionSupported:bool} $compilerTestedWithClosure
      * @param array{missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>} $projectPins
      * @param array{missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>} $projectSourceRepositoryClosure
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
@@ -2480,11 +2599,13 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $benchmarkArtifactClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $benchmarkEntrySourceClosure
      */
-    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $benchmarkDependencyClosure, array $luaEngineLibraryClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure, array $benchmarkArtifactClosure, array $benchmarkEntrySourceClosure): string
+    private static function activationGate(array $missingFiles, array $missingTools, array $compilerTestedWithClosure, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $benchmarkDependencyClosure, array $luaEngineLibraryClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure, array $benchmarkArtifactClosure, array $benchmarkEntrySourceClosure): string
     {
         if (
             $missingFiles === []
             && $missingTools === []
+            && $compilerTestedWithClosure['missingGhcVersions'] === []
+            && $compilerTestedWithClosure['toolGhcVersionSupported'] === true
             && $projectPins['missing'] === []
             && $projectPins['mismatched'] === []
             && $projectSourceRepositoryClosure['missing'] === []
@@ -2523,10 +2644,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

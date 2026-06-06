@@ -147,6 +147,8 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
     ]);
 
     $body = implode("\n", array_merge([
+        'tested-with: GHC == 9.6.7, GHC == 9.8.4, GHC == 9.10.3, GHC == 9.12.2',
+        '',
         'common common-options',
         '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
@@ -434,6 +436,10 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::expectedProjectConstraints(), $audit['projectConstraintClosure']['presentConstraints']);
         $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
         $t->same([], $audit['projectConstraintClosure']['mismatchedConstraints']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCompilerGhcVersions(), $audit['compilerTestedWithClosure']['presentGhcVersions']);
+        $t->same([], $audit['compilerTestedWithClosure']['missingGhcVersions']);
+        $t->same('9.10.3', $audit['compilerTestedWithClosure']['toolGhcVersion']);
+        $t->same(true, $audit['compilerTestedWithClosure']['toolGhcVersionSupported']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -487,7 +493,8 @@ return [
             $audit['benchmarkEntrySourceClosure']['present']['benchmark:benchmark-pandoc']['matchedSnippets']
         );
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
-        $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
+        $t->contains('record pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
+        $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, and other-modules closure', $audit['nonMutatingPlan'][2]);
@@ -656,6 +663,41 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('mismatched cabal.project source-repository package locations/types: doclayout, typst-symbols', $blocked);
         $t->contains('exact cabal.project source-repository Git types and locations', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks stale tested-with ghc matrix and unsupported local ghc before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            'tested-with: GHC == 9.6.7, GHC == 9.8.4, GHC == 9.10.3, GHC == 9.12.2',
+            "tested-with: GHC == 9.6.7,\n  GHC == 9.8.4,\n  GHC == 9.12.2",
+            $files['pandoc.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => 'The Glorious Glasgow Haskell Compilation System, version 9.14.1'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([
+            '9.6.7',
+            '9.8.4',
+            '9.12.2',
+        ], $audit['compilerTestedWithClosure']['presentGhcVersions']);
+        $t->same(['9.10.3'], $audit['compilerTestedWithClosure']['missingGhcVersions']);
+        $t->same('9.14.1', $audit['compilerTestedWithClosure']['toolGhcVersion']);
+        $t->same(false, $audit['compilerTestedWithClosure']['toolGhcVersionSupported']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc.cabal tested-with GHC versions: 9.10.3', $blocked);
+        $t->contains('unsupported or unrecorded ghc version for Pandoc tested-with matrix: 9.14.1', $blocked);
+        $t->contains('pandoc.cabal tested-with GHC matrix', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'rejects hydrated checkout with incomplete runner package closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
