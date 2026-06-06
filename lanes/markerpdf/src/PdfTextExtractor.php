@@ -26629,12 +26629,12 @@ final class PdfTextExtractor
             return false;
         }
 
-        if ($absoluteOffset === $memberTable['first']) {
-            return true;
+        if ($this->isPdfWhitespace($decoded[$absoluteOffset]) || $decoded[$absoluteOffset] === '%') {
+            return false;
         }
 
-        if ($decoded[$absoluteOffset] === '%') {
-            return false;
+        if ($absoluteOffset === $memberTable['first']) {
+            return true;
         }
 
         $index = $memberTable['first'];
