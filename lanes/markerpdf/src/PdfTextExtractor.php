@@ -6650,6 +6650,7 @@ final class PdfTextExtractor
         );
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
+        $opiProxyReview = $this->imageXObjectOpiProxyReview($stream['dict'], $objects);
         $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
         $jpxSoftMaskInData = $this->imageXObjectJpxSoftMaskInDataReview($stream['dict'], $resolvedFilters, $objects);
         $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
@@ -6915,6 +6916,10 @@ final class PdfTextExtractor
             'struct_parent' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParent', $objects),
             'struct_parents' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParents', $objects),
             'metadata_stream' => $metadataStream,
+            'opi_proxy_present' => $opiProxyReview !== null,
+            'opi_proxy_review' => $opiProxyReview,
+            'opi_proxy_payload_in_visible_text' => false,
+            'opi_proxy_review_only' => $opiProxyReview !== null,
             'alternate_image_count' => count($alternateImages),
             'alternate_images' => $alternateImages,
             'alternates_review_only' => $alternateImages !== [],
@@ -6960,6 +6965,136 @@ final class PdfTextExtractor
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{
+     *     present: true,
+     *     resolved: bool,
+     *     entry_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     unresolved_versions: list<string>,
+     *     payload_in_visible_text: false,
+     *     review_only: true
+     * }|null
+     */
+    private function imageXObjectOpiProxyReview(string $imageDictionary, array $objects): ?array
+    {
+        $opiValue = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'OPI');
+        if ($opiValue === null) {
+            return null;
+        }
+
+        $opiDictionary = $this->pdfDictionaryFromValue($opiValue, $objects);
+        if ($opiDictionary === null) {
+            return [
+                'present' => true,
+                'resolved' => false,
+                'entry_count' => 0,
+                'entries' => [],
+                'unresolved_versions' => [],
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        $entries = [];
+        $unresolvedVersions = [];
+        foreach ($this->topLevelPdfNameValueEntriesInDictionaryBody($opiDictionary) as $entry) {
+            $version = $entry['name'];
+            if (!$this->imageXObjectOpiVersionName($version)) {
+                continue;
+            }
+
+            $versionDictionary = $this->pdfDictionaryFromValue($entry['value'], $objects);
+            if ($versionDictionary === null) {
+                $unresolvedVersions[] = $version;
+                continue;
+            }
+
+            $entries[] = $this->imageXObjectOpiProxyEntryReview($version, $versionDictionary, $objects);
+        }
+
+        if (
+            $entries === []
+            && $unresolvedVersions === []
+            && (
+                $this->pdfNameValueAfterNameResolvingObjects($opiDictionary, 'Type', $objects) === 'OPI'
+                || $this->pdfNumberValueAfterNameResolvingObjects($opiDictionary, 'Version', $objects) !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($opiDictionary, 'F') !== null
+            )
+        ) {
+            $versionValue = $this->pdfNumberValueAfterNameResolvingObjects($opiDictionary, 'Version', $objects);
+            $entries[] = $this->imageXObjectOpiProxyEntryReview(
+                $versionValue === null ? 'direct' : $this->normalizedPdfVersionName($versionValue),
+                $opiDictionary,
+                $objects
+            );
+        }
+
+        return [
+            'present' => true,
+            'resolved' => true,
+            'entry_count' => count($entries),
+            'entries' => $entries,
+            'unresolved_versions' => $unresolvedVersions,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    private function imageXObjectOpiVersionName(string $name): bool
+    {
+        return preg_match('/^\d+(?:\.\d+)?$/', $name) === 1;
+    }
+
+    private function normalizedPdfVersionName(float $version): string
+    {
+        $formatted = rtrim(rtrim(sprintf('%.6F', $version), '0'), '.');
+        return $formatted === '' ? '0' : $formatted;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function imageXObjectOpiProxyEntryReview(string $version, string $opiDictionary, array $objects): array
+    {
+        return [
+            'version' => $version,
+            'resolved' => true,
+            'type' => $this->pdfNameValueAfterNameResolvingObjects($opiDictionary, 'Type', $objects),
+            'version_value' => $this->pdfNumberValueAfterNameResolvingObjects($opiDictionary, 'Version', $objects),
+            'file_specification' => $this->pdfSingleStringValueAfterName($opiDictionary, 'F', $objects),
+            'image_type' => $this->pdfNameValueAfterNameResolvingObjects($opiDictionary, 'ImageType', $objects),
+            'included_image_dimensions' => $this->opiNumericArrayReview($opiDictionary, 'IncludedImageDimensions', $objects),
+            'crop_rect' => $this->opiNumericArrayReview($opiDictionary, 'CropRect', $objects),
+            'position' => $this->opiNumericArrayReview($opiDictionary, 'Position', $objects),
+            'resolution' => $this->opiNumericArrayReview($opiDictionary, 'Resolution', $objects),
+            'overprint' => $this->pdfBooleanValueAfterNameResolvingObjects($opiDictionary, 'Overprint', $objects),
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function opiNumericArrayReview(string $dictionary, string $name, array $objects): ?array
+    {
+        $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, $name, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
+        if ($numbers === []) {
+            return null;
+        }
+
+        return $this->normalizedPdfReviewNumbers($numbers);
     }
 
     /**
@@ -19783,6 +19918,71 @@ final class PdfTextExtractor
     private function topLevelPdfValueAfterNameInDictionaryBody(string $dictionary, string $name): ?string
     {
         return $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name)[0] ?? null;
+    }
+
+    /**
+     * @return list<array{name: string, value: string}>
+     */
+    private function topLevelPdfNameValueEntriesInDictionaryBody(string $dictionary): array
+    {
+        $dictionary = trim($dictionary);
+        if (str_starts_with($dictionary, '<<')) {
+            $body = $this->readPdfDictionaryAt($dictionary, 0);
+            if ($body === null) {
+                return [];
+            }
+
+            $dictionary = $body;
+        }
+
+        $entries = [];
+        $offset = 0;
+        $length = strlen($dictionary);
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $value = $this->pdfValueAtOffset($dictionary, $valueOffset);
+            if ($value === null) {
+                break;
+            }
+
+            $entries[] = [
+                'name' => $this->decodePdfName(substr($dictionary, $keyStart, $keyEnd - $keyStart)),
+                'value' => $value,
+            ];
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return $entries;
     }
 
     /**
