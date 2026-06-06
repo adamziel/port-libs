@@ -4284,7 +4284,12 @@ final class PdfTextExtractor
         }
 
         $references = [];
+        $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($xObjectDictionary);
         foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
             $resolved = $this->resolvedExactResourceReference($objects, $objectNumber, $generation);
@@ -4306,6 +4311,32 @@ final class PdfTextExtractor
         }
 
         return $references;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function duplicateTopLevelResourceReferenceNames(string $dictionary): array
+    {
+        $counts = [];
+        foreach ($this->topLevelPdfNameValueEntriesInDictionaryBody($dictionary) as $entry) {
+            $offset = 0;
+            if ($this->readPdfIndirectReferenceToken($entry['value'], $offset) === null) {
+                continue;
+            }
+
+            $name = $entry['name'];
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
+        }
+
+        $duplicates = [];
+        foreach ($counts as $name => $count) {
+            if ($count > 1) {
+                $duplicates[$name] = true;
+            }
+        }
+
+        return $duplicates;
     }
 
     /**
