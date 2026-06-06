@@ -5739,12 +5739,22 @@ final class CitationCslProcessor
 
         $nonDroppingParticle = (string) $name['nonDroppingParticle'];
         if (strtolower(trim((string) ($options['form'] ?? 'long'))) === 'short') {
-            $family = trim($nonDroppingParticle . ' ' . (string) $name['family']);
+            $family = $this->nameUsesFamilyGivenDisplayOrder($name)
+                ? trim((string) $name['family'])
+                : trim($nonDroppingParticle . ' ' . (string) $name['family']);
             if ($family !== '') {
                 return $this->formatNamePart('family', $family, $options);
             }
 
-            return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
+            $given = $this->nameUsesFamilyGivenDisplayOrder($name)
+                ? (string) $name['given']
+                : $this->renderGivenName((string) $name['given'], $options);
+
+            return $this->formatNamePart('given', $given, $options);
+        }
+
+        if ($this->nameUsesFamilyGivenDisplayOrder($name)) {
+            return $this->renderFamilyGivenBibliographyName($name, $options);
         }
 
         $sortOrdered = $options['nameAsSortOrder'] === 'all' || ($options['nameAsSortOrder'] === 'first' && $index === 0);
@@ -5787,6 +5797,56 @@ final class CitationCslProcessor
         }
 
         return $entry;
+    }
+
+    /**
+     * @param array<string, mixed> $name
+     * @param array<string, mixed> $options
+     */
+    private function renderFamilyGivenBibliographyName(array $name, array $options): string
+    {
+        $family = $this->formatNamePart('family', trim((string) ($name['family'] ?? '')), $options);
+        $given = $this->formatNamePart('given', trim((string) ($name['given'] ?? '')), $options);
+        $separator = $this->nameUsesCompactFamilyGivenScript($name) ? '' : ' ';
+        $parts = array_values(array_filter([$family, $given], static fn (string $part): bool => $part !== ''));
+        $entry = implode($separator, $parts);
+
+        $suffix = trim((string) ($name['suffix'] ?? ''));
+        if ($suffix !== '') {
+            $entry .= (($name['commaSuffix'] ?? false) ? ', ' : ' ') . $suffix;
+        }
+
+        return trim($entry);
+    }
+
+    /**
+     * @param array<string, mixed> $name
+     */
+    private function nameUsesFamilyGivenDisplayOrder(array $name): bool
+    {
+        if (($name['staticOrdering'] ?? false) === true) {
+            return true;
+        }
+
+        return $this->nameUsesCompactFamilyGivenScript($name);
+    }
+
+    /**
+     * @param array<string, mixed> $name
+     */
+    private function nameUsesCompactFamilyGivenScript(array $name): bool
+    {
+        $text = trim(implode('', [
+            (string) ($name['family'] ?? ''),
+            (string) ($name['given'] ?? ''),
+            (string) ($name['nonDroppingParticle'] ?? ''),
+            (string) ($name['droppingParticle'] ?? ''),
+        ]));
+        if ($text === '' || preg_match('/[\x{3040}-\x{30FF}\x{3400}-\x{9FFF}\x{AC00}-\x{D7AF}]/u', $text) !== 1) {
+            return false;
+        }
+
+        return preg_match('/\p{Latin}/u', $text) !== 1;
     }
 
     /**

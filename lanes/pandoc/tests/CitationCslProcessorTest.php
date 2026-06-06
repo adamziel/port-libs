@@ -4164,6 +4164,79 @@ XML
         $t->contains('<p>Sort separator source Source and Reviewer (2026) keeps reviewer names readable.</p>', $blocks);
         $t->contains('<dt>Source and Reviewer 2026</dt><dd>Source | A. M.; Reviewer | N. Sort Separator Packet.</dd>', $blocks);
     },
+    'applies bounded csl family given script order under name as sort order' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'mao-source',
+                'type' => 'book',
+                'title' => 'Chinese Review Packet',
+                'author' => [
+                    ['family' => '毛', 'given' => '泽东'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'yamada-source',
+                'type' => 'report',
+                'title' => 'Japanese Review Packet',
+                'author' => [
+                    ['family' => '山田', 'given' => '太郎'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'latin-source',
+                'type' => 'report',
+                'title' => 'Latin Review Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Family Given Script Review</title>
+    <id>https://example.test/styles/bounded-family-given-script-review</id>
+    <updated>2026-06-06T02:42:32+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name name-as-sort-order="all" sort-separator=", "/>
+      </names>
+      <text variable="title"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('all', $summary['nameRendering']['bibliography']['nameAsSortOrder'] ?? null);
+        $t->same('all', $summary['bibliographyRendering'][0]['nameRendering']['nameAsSortOrder'] ?? null);
+        $t->same('毛泽东. Chinese Review Packet. 2026.', $processor->renderBibliographyEntry('mao-source'));
+        $t->same('山田太郎. Japanese Review Packet. 2025.', $processor->renderBibliographyEntry('yamada-source'));
+        $t->same('Smith, Ada. Latin Review Packet. 2024.', $processor->renderBibliographyEntry('latin-source'));
+
+        $document = (new MarkdownReader())->read('Family-order source @mao-source and review cluster [@latin-source; @yamada-source] keep reviewer names readable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Family-order source 毛 (2026) and review cluster (Smith 2024; 山田 2025) keep reviewer names readable.</p>', $blocks);
+        $t->contains('<dt>毛 2026</dt><dd>毛泽东. Chinese Review Packet. 2026.</dd>', $blocks);
+        $t->contains('<dt>Smith 2024</dt><dd>Smith, Ada. Latin Review Packet. 2024.</dd>', $blocks);
+        $t->contains('<dt>山田 2025</dt><dd>山田太郎. Japanese Review Packet. 2025.</dd>', $blocks);
+    },
     'applies bounded csl demote non dropping particle display and sort behavior' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
