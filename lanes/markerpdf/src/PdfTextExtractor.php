@@ -32347,6 +32347,31 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($token === 'MP') {
+                    if (
+                        count($outsideTextOperands) !== 1
+                        || !$this->markedContentTagOperand($outsideTextOperands[0])
+                    ) {
+                        return false;
+                    }
+
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
+                if ($token === 'DP') {
+                    if (
+                        count($outsideTextOperands) !== 2
+                        || !$this->markedContentTagOperand($outsideTextOperands[0])
+                        || !$this->markedContentPropertyOperand($outsideTextOperands[1])
+                    ) {
+                        return false;
+                    }
+
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
                 if ($token === 'BMC') {
                     if (
                         count($outsideTextOperands) !== 1
