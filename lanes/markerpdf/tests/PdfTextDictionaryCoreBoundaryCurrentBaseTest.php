@@ -313,6 +313,31 @@ return [
         $t->same('Read [plugin docs](https://example.com/import\\)docs) but review script action', $blocks[0]['text']);
         $t->true(!str_contains($blocks[0]['text'], 'javascript:'), 'Unsafe pdftext URI metadata must not leak into visible Gutenberg Markdown.');
     },
+    'accepts json decoded pdftext dictionaries at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['raw_json_adapter_payload'] = 'json adapter payload must not cross dictionary_output';
+        $page['refs'][0]['raw_private_payload'] = 'json ref payload must not cross dictionary_output';
+        $jsonDecodedPage = json_decode(json_encode($page, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: 'null');
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$jsonDecodedPage], maxPages: 1);
+        $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
+        $refs = $document['pages'][0]['pdftext_source']['refs'];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(12, $document['pages'][0]['pnum']);
+        $t->same('https://example.com/import)docs', $spans[1]['url']);
+        $t->same(false, $spans[2]['pdftext_url_is_safe']);
+        $t->same([[
+            'url' => '#page-3-xy',
+            'page' => 3,
+            'dest_pos' => [72.0, 96.0],
+        ]], $refs);
+        $t->same('Read [plugin docs](https://example.com/import\\)docs) but review script action', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'json adapter payload must not cross dictionary_output'));
+        $t->true(!str_contains($encoded, 'json ref payload must not cross dictionary_output'));
+        $t->true(!str_contains($blocks[0]['text'], 'javascript:'), 'Unsafe URI text from JSON-decoded pdftext spans stays review-only.');
+    },
     'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';

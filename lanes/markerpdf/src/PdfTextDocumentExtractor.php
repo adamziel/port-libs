@@ -24,7 +24,7 @@ final class PdfTextDocumentExtractor
      * enumerates that sliced result, so span IDs restart at 0 even when page["page"]
      * remains the original document page number.
      *
-     * @param list<array<string, mixed>> $pdftextPages
+     * @param list<array<string, mixed>|\stdClass> $pdftextPages
      * @param list<array<string, mixed>> $toc
      * @return array{
      *     pages: list<array<string, mixed>>,
@@ -68,6 +68,7 @@ final class PdfTextDocumentExtractor
         $selectedPages = array_slice($pdftextPages, $startPage, $pageCount);
         $pages = [];
         foreach (array_values($selectedPages) as $relativeIndex => $page) {
+            $page = $this->normalizeSuppliedDictionaryValue($page);
             if (!is_array($page)) {
                 throw new InvalidArgumentException('Supplied pdftext page entries must be arrays.');
             }
@@ -103,6 +104,29 @@ final class PdfTextDocumentExtractor
     }
 
     /**
+     * pdftext dictionary_output is often passed through JSON before native PHP
+     * import. PHP's default json_decode keeps dictionaries as stdClass objects;
+     * normalize those plain data objects before applying the stricter boundary
+     * whitelist.
+     */
+    private function normalizeSuppliedDictionaryValue(mixed $value): mixed
+    {
+        if ($value instanceof \stdClass) {
+            $value = get_object_vars($value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $nestedValue) {
+            $value[$key] = $this->normalizeSuppliedDictionaryValue($nestedValue);
+        }
+
+        return $value;
+    }
+
+    /**
      * Native supplied-data bridge across marker.pdf.extract_text::get_text_blocks
      * and marker.layout.order::sort_blocks_in_reading_order.
      *
@@ -111,7 +135,7 @@ final class PdfTextDocumentExtractor
      * relative pdftext pages. This helper preserves that boundary for callers
      * that already have pdftext dictionaries and supplied order-model output.
      *
-     * @param list<array<string, mixed>> $pdftextPages
+     * @param list<array<string, mixed>|\stdClass> $pdftextPages
      * @param list<array<string, mixed>> $orderResults
      * @param list<mixed> $orderImages
      * @param list<array<string, mixed>> $toc
