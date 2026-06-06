@@ -62,12 +62,30 @@ $paxPayload = static function (array $headers): string {
     return $payload;
 };
 
+$rewriteTarHeaderFields = static function (string $archive, array $fields): string {
+    $header = substr($archive, 0, 512);
+    foreach ($fields as $offset => $field) {
+        $header = substr_replace($header, $field, (int) $offset, strlen($field));
+    }
+
+    $header = substr_replace($header, str_repeat(' ', 8), 148, 8);
+    $checksum = 0;
+    for ($index = 0; $index < strlen($header); $index++) {
+        $checksum += ord($header[$index]);
+    }
+
+    $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
+
+    return $header . substr($archive, 512);
+};
+
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
 $legacyDirectoryBytes = '';
 $paxDeleteContentBytes = "# PAX deletion packet\n\nReady for WordPress archive provenance review.\n";
 $paxInheritedContentBytes = "# PAX inherited packet\n\nReady for WordPress archive provenance review.\n";
+$linkPolicySourceBytes = "# Link target source\n\nReady for WordPress archive link policy review.\n";
 
 $archive = TarArchive::fromEntries([
     [
@@ -158,6 +176,34 @@ $paxDeleteInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($paxDeleteArchiveBytes),
     strlen($paxDeleteContentBytes) + strlen($paxInheritedContentBytes)
 );
+$linkPolicyArchiveBytes = $rawTarHeader('packet/link-source.md', '0', $linkPolicySourceBytes, 1780479075, false)
+    . $rewriteTarHeaderFields(
+        $rawTarHeader('packet/link-hard-copy.md', '1', '', 1780479076, false),
+        [157 => str_pad('packet/link-source.md', 100, "\0")]
+    )
+    . $rawTarHeader('PaxHeaders/link-symlink', 'x', $paxPayload([
+        'linkpath' => 'packet/media/review.png',
+    ]), 0, false)
+    . $rewriteTarHeaderFields(
+        $rawTarHeader('packet/media/latest.png', '2', '', 1780479077, false),
+        [157 => str_pad('ignored-header-target.png', 100, "\0")]
+    )
+    . str_repeat("\0", 1024);
+$linkPolicyGzip = GzipStream::build($linkPolicyArchiveBytes, [
+    'filename' => 'wordpress-link-policy.tar',
+    'comment' => 'TAR link extraction policy preflight',
+]);
+$linkPolicyInspection = ArchiveCompressionStream::inspectTarLinkPolicy(
+    $linkPolicyGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($linkPolicyArchiveBytes)
+);
+$linkPolicyExtractionBlocked = false;
+try {
+    TarArchive::fromString($linkPolicyArchiveBytes);
+} catch (RuntimeException) {
+    $linkPolicyExtractionBlocked = true;
+}
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -189,6 +235,12 @@ if (in_array('--self-test', $argv, true)) {
         'paxDeleteFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'paxDeleteLocalModifiedAt' => 1780479073,
         'paxDeleteInheritedModifiedAt' => 1780479074,
+        'linkPolicyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'linkPolicyEntryCount' => 3,
+        'linkPolicyLinkCount' => 2,
+        'linkPolicyExtractionPolicy' => 'link-entries-blocked',
+        'linkPolicyHardTarget' => 'packet/link-source.md',
+        'linkPolicySymlinkTarget' => 'packet/media/review.png',
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -225,6 +277,18 @@ if (in_array('--self-test', $argv, true)) {
         || ($paxDeleteInspection['entryLayouts'][1]['paxGlobalHeaderKeys'] ?? []) !== ['comment', 'mtime', 'uname']
         || ($paxDeleteInspection['entryLayouts'][1]['paxLocalHeaderKeys'] ?? []) !== []
         || ($paxDeleteInspection['entryLayouts'][1]['paxDeletedHeaderKeys'] ?? []) !== []
+        || $linkPolicyInspection['format'] !== $expected['linkPolicyFormat']
+        || $linkPolicyInspection['entryCount'] !== $expected['linkPolicyEntryCount']
+        || $linkPolicyInspection['linkEntryCount'] !== $expected['linkPolicyLinkCount']
+        || $linkPolicyInspection['extractionPolicy'] !== $expected['linkPolicyExtractionPolicy']
+        || !$linkPolicyExtractionBlocked
+        || ($linkPolicyInspection['entries'][0]['linkType'] ?? null) !== 'hard-link'
+        || ($linkPolicyInspection['entries'][0]['linkTarget'] ?? null) !== $expected['linkPolicyHardTarget']
+        || ($linkPolicyInspection['entries'][0]['targetEntryExists'] ?? null) !== true
+        || ($linkPolicyInspection['entries'][1]['linkType'] ?? null) !== 'symbolic-link'
+        || ($linkPolicyInspection['entries'][1]['linkTargetSource'] ?? null) !== 'pax-linkpath'
+        || ($linkPolicyInspection['entries'][1]['linkTarget'] ?? null) !== $expected['linkPolicySymlinkTarget']
+        || ($linkPolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-link-policy.tar'
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -260,3 +324,8 @@ echo 'paxDelete.inheritedComment=' . $paxDeleteInspection['archive']->entry('/pa
 echo 'paxDelete.localGlobalKeys=' . implode(',', $paxDeleteInspection['entryLayouts'][0]['paxGlobalHeaderKeys']) . "\n";
 echo 'paxDelete.localPaxKeys=' . implode(',', $paxDeleteInspection['entryLayouts'][0]['paxLocalHeaderKeys']) . "\n";
 echo 'paxDelete.localDeletedKeys=' . implode(',', $paxDeleteInspection['entryLayouts'][0]['paxDeletedHeaderKeys']) . "\n";
+echo 'linkPolicy.format=' . $linkPolicyInspection['format'] . "\n";
+echo 'linkPolicy.extractionPolicy=' . $linkPolicyInspection['extractionPolicy'] . "\n";
+echo 'linkPolicy.linkEntryCount=' . $linkPolicyInspection['linkEntryCount'] . "\n";
+echo 'linkPolicy.hardTarget=' . $linkPolicyInspection['entries'][0]['linkTarget'] . "\n";
+echo 'linkPolicy.symlinkTarget=' . $linkPolicyInspection['entries'][1]['linkTarget'] . "\n";

@@ -211,6 +211,208 @@ final class TarArchive
     }
 
     /**
+     * @return array{
+     *     entryCount:int,
+     *     linkEntryCount:int,
+     *     hardLinkCount:int,
+     *     symbolicLinkCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         linkType:string,
+     *         linkTarget:string,
+     *         linkTargetSource:string,
+     *         targetEntryExists:bool,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function linkPolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $seenEntryNames = [];
+        $entryCount = 0;
+        $linkEntries = [];
+        $hardLinkCount = 0;
+        $symbolicLinkCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLinkPolicyLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                if ($entrySize !== 0) {
+                    throw new \RuntimeException("TAR link entry {$name} must not contain payload bytes");
+                }
+
+                $linkTarget = self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink);
+                $linkTargetSource = self::resolvedLinkTargetSourceFromHeader($metadataHeaders, $pendingGnuLongLink);
+                self::assertSafePath($linkTarget, 'TAR link target');
+
+                $isHardLink = $typeFlag === self::TYPE_HARD_LINK;
+                if ($isHardLink) {
+                    $hardLinkCount++;
+                } else {
+                    $symbolicLinkCount++;
+                }
+
+                $diagnostics = ['tar-link-entry-not-extracted'];
+                $targetEntryExists = isset($seenEntryNames[$linkTarget]);
+                if ($isHardLink && !$targetEntryExists) {
+                    $diagnostics[] = 'hard-link-target-not-yet-seen';
+                }
+
+                $linkEntries[] = [
+                    'name' => $name,
+                    'linkType' => $isHardLink ? 'hard-link' : 'symbolic-link',
+                    'linkTarget' => $linkTarget,
+                    'linkTargetSource' => $linkTargetSource,
+                    'targetEntryExists' => $targetEntryExists,
+                    'nameSource' => $nameSource,
+                    'headerOffset' => $headerOffset,
+                    'dataOffset' => $dataOffset,
+                    'policy' => 'blocked',
+                    'diagnostics' => $diagnostics,
+                ];
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $seenEntryNames[$name] = true;
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'linkEntryCount' => count($linkEntries),
+            'hardLinkCount' => $hardLinkCount,
+            'symbolicLinkCount' => $symbolicLinkCount,
+            'extractionPolicy' => $linkEntries === [] ? 'no-link-entries' : 'link-entries-blocked',
+            'entries' => $linkEntries,
+        ];
+    }
+
+    /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
@@ -739,6 +941,51 @@ final class TarArchive
         return $name;
     }
 
+    private static function parseGnuLongLink(string $bytes): string
+    {
+        if (!str_ends_with($bytes, "\0")) {
+            throw new \RuntimeException('TAR GNU long-link metadata must end with a NUL terminator');
+        }
+
+        $name = rtrim($bytes, "\0");
+        self::assertUtf8($name, 'TAR GNU long link metadata');
+        self::assertSafePath($name, 'TAR GNU long link');
+
+        return $name;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedLinkTargetFromHeader(string $header, array $headers, ?string $gnuLongLink): string
+    {
+        if (isset($headers['linkpath'])) {
+            return $headers['linkpath'];
+        }
+
+        if ($gnuLongLink !== null) {
+            return $gnuLongLink;
+        }
+
+        return self::trimNullField(substr($header, 157, 100));
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedLinkTargetSourceFromHeader(array $headers, ?string $gnuLongLink): string
+    {
+        if (isset($headers['linkpath'])) {
+            return 'pax-linkpath';
+        }
+
+        if ($gnuLongLink !== null) {
+            return 'gnu-long-link';
+        }
+
+        return 'header-linkname';
+    }
+
     /**
      * @param array<string, string> $base
      * @param array<string, string> $records
@@ -820,6 +1067,22 @@ final class TarArchive
 
             if ($key === 'linkpath' && $value !== '') {
                 throw new \RuntimeException('TAR local PAX linkpath metadata is not supported by the pandoc archive reader');
+            }
+        }
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function assertLinkPolicyLocalPaxHeaders(array $headers): void
+    {
+        foreach ($headers as $key => $value) {
+            if ($key === 'path') {
+                self::assertUtf8($value, 'TAR PAX path metadata');
+            }
+
+            if ($key === 'linkpath' && $value !== '') {
+                self::assertSafePath($value, 'TAR PAX linkpath metadata');
             }
         }
     }

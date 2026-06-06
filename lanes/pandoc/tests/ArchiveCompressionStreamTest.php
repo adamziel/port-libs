@@ -889,6 +889,84 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxLinkPath));
     },
 
+    'preflights tar hardlink and symlink policy without exposing link entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload, $rewriteTarHeaderFields): void {
+        $sourceBytes = "# Link target source\n\nReady for WordPress import review.\n";
+        $gnuLongTarget = 'packet/' . str_repeat('nested-link-target-', 6) . 'review.md';
+        $hardLink = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/hard-copy.md', '1', '', 1780479076, false),
+            [157 => str_pad('packet/source.md', 100, "\0")]
+        );
+        $paxSymlink = $rawTarHeader('PaxHeaders/symlink-linkpath', 'x', $paxPayload([
+            'linkpath' => 'packet/media/review.png',
+        ]), 0, false)
+            . $rewriteTarHeaderFields(
+                $rawTarHeader('packet/media/latest.png', '2', '', 1780479077, false),
+                [157 => str_pad('ignored-header-target.png', 100, "\0")]
+            );
+        $gnuSymlink = $rawTarHeader('././@LongLink', 'K', $gnuLongTarget . "\0", 0, false)
+            . $rewriteTarHeaderFields(
+                $rawTarHeader('packet/gnu-symlink.md', '2', '', 1780479078, false),
+                [157 => str_pad('short-target.md', 100, "\0")]
+            );
+        $archiveBytes = $rawTarHeader('PaxHeaders/source-size', 'x', $paxPayload([
+            'size' => (string) strlen($sourceBytes),
+        ]), 0, false)
+            . $rawTarHeader('packet/source.md', '0', $sourceBytes, 1780479075, false, 0)
+            . $hardLink
+            . $paxSymlink
+            . $gnuSymlink
+            . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-link-policy.tar',
+            'comment' => 'link entries stay blocked for extraction',
+        ]);
+
+        $policy = TarArchive::linkPolicyPreflight($archiveBytes);
+        $streamPolicy = ArchiveCompressionStream::inspectTarLinkPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+        $missingHardLinkPolicy = TarArchive::linkPolicyPreflight(
+            $rewriteTarHeaderFields(
+                $rawTarHeader('packet/missing-hard-copy.md', '1', '', 1780479079),
+                [157 => str_pad('packet/missing-target.md', 100, "\0")]
+            )
+        );
+        $unsafeSymlink = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/unsafe-link.md', '2', ''),
+            [157 => str_pad('../packet/source.md', 100, "\0")]
+        );
+
+        $t->same(4, $policy['entryCount']);
+        $t->same(3, $policy['linkEntryCount']);
+        $t->same(1, $policy['hardLinkCount']);
+        $t->same(2, $policy['symbolicLinkCount']);
+        $t->same('link-entries-blocked', $policy['extractionPolicy']);
+        $t->same('packet/hard-copy.md', $policy['entries'][0]['name']);
+        $t->same('hard-link', $policy['entries'][0]['linkType']);
+        $t->same('packet/source.md', $policy['entries'][0]['linkTarget']);
+        $t->same('header-linkname', $policy['entries'][0]['linkTargetSource']);
+        $t->same(true, $policy['entries'][0]['targetEntryExists']);
+        $t->same(['tar-link-entry-not-extracted'], $policy['entries'][0]['diagnostics']);
+        $t->same('packet/media/latest.png', $policy['entries'][1]['name']);
+        $t->same('symbolic-link', $policy['entries'][1]['linkType']);
+        $t->same('packet/media/review.png', $policy['entries'][1]['linkTarget']);
+        $t->same('pax-linkpath', $policy['entries'][1]['linkTargetSource']);
+        $t->same('packet/gnu-symlink.md', $policy['entries'][2]['name']);
+        $t->same($gnuLongTarget, $policy['entries'][2]['linkTarget']);
+        $t->same('gnu-long-link', $policy['entries'][2]['linkTargetSource']);
+        $t->same('blocked', $policy['entries'][2]['policy']);
+        $t->same('hard-link-target-not-yet-seen', $missingHardLinkPolicy['entries'][0]['diagnostics'][1] ?? null);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(3, $streamPolicy['linkEntryCount']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-link-policy.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same('packet/media/review.png', $streamPolicy['entries'][1]['linkTarget']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::linkPolicyPreflight($unsafeSymlink));
+    },
+
     'rejects tar gnu long-link metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader): void {
         $gnuLongLink = $rawTarHeader('././@LongLink', 'K', 'packet/target.xml' . "\0", 0, false)
             . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
