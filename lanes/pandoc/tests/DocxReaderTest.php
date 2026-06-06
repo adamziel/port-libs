@@ -428,6 +428,82 @@ $characterStyleRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$themeFontContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+</Types>
+XML;
+
+$themeFontDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+</Relationships>
+XML;
+
+$themeFontStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="character" w:styleId="ThemeMajor">
+    <w:name w:val="Theme Major"/>
+    <w:rPr>
+      <w:rFonts w:asciiTheme="majorHAnsi" w:hAnsiTheme="majorHAnsi" w:eastAsiaTheme="majorEastAsia" w:cstheme="majorBidi"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="ThemeMinor">
+    <w:name w:val="Theme Minor"/>
+    <w:basedOn w:val="ThemeMajor"/>
+    <w:rPr>
+      <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:eastAsiaTheme="minorEastAsia" w:cstheme="minorBidi"/>
+    </w:rPr>
+  </w:style>
+</w:styles>
+XML;
+
+$themeFontThemeXml = <<<'XML'
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Review Theme">
+  <a:themeElements>
+    <a:fontScheme name="Review Theme Fonts">
+      <a:majorFont>
+        <a:latin typeface="Aptos Display"/>
+        <a:ea typeface="Yu Gothic"/>
+        <a:cs typeface="Arial"/>
+      </a:majorFont>
+      <a:minorFont>
+        <a:latin typeface="Aptos"/>
+        <a:ea typeface="Meiryo"/>
+        <a:cs typeface="Times New Roman"/>
+      </a:minorFont>
+    </a:fontScheme>
+  </a:themeElements>
+</a:theme>
+XML;
+
+$themeFontDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Theme fonts </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ThemeMajor"/></w:rPr><w:t>major theme label</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ThemeMinor"/></w:rPr><w:t>minor theme label</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="ThemeMajor"/>
+          <w:rFonts w:ascii="Source Serif" w:hAnsi="Source Serif" w:eastAsiaTheme="minorEastAsia" w:cstheme="minorBidi"/>
+        </w:rPr>
+        <w:t>direct source override</w:t>
+      </w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $stylesNumberingDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1860,6 +1936,24 @@ $buildCharacterStyleRunPackage = static function () use (
     ]);
 };
 
+$buildThemeFontPackage = static function () use (
+    $themeFontContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $themeFontDocumentRelationshipsXml,
+    $themeFontDocumentXml,
+    $themeFontStylesXml,
+    $themeFontThemeXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $themeFontContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $themeFontDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $themeFontDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $themeFontStylesXml],
+        ['name' => 'word/theme/theme1.xml', 'data' => $themeFontThemeXml],
+    ]);
+};
+
 $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableSpanDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -2713,6 +2807,77 @@ return [
         $t->contains('<span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted</u></strong></span>', $blocks);
         $t->true(!str_contains($markdown, 'docx-highlight-yellow .docx-language data-docx-highlight="yellow" data-docx-lang="de-DE"'), 'Disabled style highlight should not leak into muted character style Markdown');
         $t->true(!str_contains($blocks, '<em><u>muted</u></em>'), 'Disabled inherited italic should not leak into muted character style WordPress output');
+    },
+    'resolves DOCX theme font slots into run metadata spans' => static function (TestRunner $t) use ($buildThemeFontPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildThemeFontPackage());
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $theme = $metadata['docxTheme'];
+        $t->same('/word/theme/theme1.xml', $theme['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $theme['contentType']);
+        $t->same('rIdTheme', $theme['relationship']['id']);
+        $t->same('Review Theme Fonts', $theme['fonts']['schemeName']);
+        $t->same('Aptos Display', $theme['fonts']['majorLatin']);
+        $t->same('Yu Gothic', $theme['fonts']['majorEastAsia']);
+        $t->same('Arial', $theme['fonts']['majorComplexScript']);
+        $t->same('Aptos', $theme['fonts']['minorLatin']);
+        $t->same('Meiryo', $theme['fonts']['minorEastAsia']);
+        $t->same('Times New Roman', $theme['fonts']['minorComplexScript']);
+        $t->same($theme, $result['importReport']['theme']);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Theme fonts ', $paragraph->children[0]->attr('text'));
+
+        $major = $paragraph->children[1];
+        $t->same('span', $major->type);
+        $t->same(['docx-theme-font', 'docx-font'], $major->attr('classes'));
+        $majorAttrs = $major->attr('attributes');
+        $t->same('majorHAnsi', $majorAttrs['data-docx-theme-font-ascii']);
+        $t->same('Aptos Display', $majorAttrs['data-docx-font-ascii']);
+        $t->same('majorHAnsi', $majorAttrs['data-docx-theme-font-hansi']);
+        $t->same('Aptos Display', $majorAttrs['data-docx-font-hansi']);
+        $t->same('majorEastAsia', $majorAttrs['data-docx-theme-font-east-asia']);
+        $t->same('Yu Gothic', $majorAttrs['data-docx-font-east-asia']);
+        $t->same('majorBidi', $majorAttrs['data-docx-theme-font-complex-script']);
+        $t->same('Arial', $majorAttrs['data-docx-font-complex-script']);
+        $t->same('major theme label', $major->children[0]->attr('text'));
+
+        $minor = $paragraph->children[3];
+        $t->same('span', $minor->type);
+        $minorAttrs = $minor->attr('attributes');
+        $t->same('minorHAnsi', $minorAttrs['data-docx-theme-font-ascii']);
+        $t->same('Aptos', $minorAttrs['data-docx-font-ascii']);
+        $t->same('minorEastAsia', $minorAttrs['data-docx-theme-font-east-asia']);
+        $t->same('Meiryo', $minorAttrs['data-docx-font-east-asia']);
+        $t->same('minorBidi', $minorAttrs['data-docx-theme-font-complex-script']);
+        $t->same('Times New Roman', $minorAttrs['data-docx-font-complex-script']);
+        $t->same('minor theme label', $minor->children[0]->attr('text'));
+
+        $override = $paragraph->children[5];
+        $t->same('span', $override->type);
+        $overrideAttrs = $override->attr('attributes');
+        $t->same('Source Serif', $overrideAttrs['data-docx-font-ascii']);
+        $t->same('Source Serif', $overrideAttrs['data-docx-font-hansi']);
+        $t->true(!array_key_exists('data-docx-theme-font-ascii', $overrideAttrs), 'Direct run font should replace inherited theme ascii slot');
+        $t->same('minorEastAsia', $overrideAttrs['data-docx-theme-font-east-asia']);
+        $t->same('Meiryo', $overrideAttrs['data-docx-font-east-asia']);
+        $t->same('minorBidi', $overrideAttrs['data-docx-theme-font-complex-script']);
+        $t->same('Times New Roman', $overrideAttrs['data-docx-font-complex-script']);
+        $t->same('direct source override', $override->children[0]->attr('text'));
+
+        $t->contains('[major theme label]{.docx-theme-font .docx-font data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display"', $markdown);
+        $t->contains('[minor theme label]{.docx-theme-font .docx-font data-docx-theme-font-ascii="minorHAnsi" data-docx-font-ascii="Aptos"', $markdown);
+        $t->contains('[direct source override]{.docx-font .docx-theme-font data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia"', $markdown);
+
+        $t->contains('<span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display"', $blocks);
+        $t->contains('<span class="docx-theme-font docx-font" data-docx-theme-font-ascii="minorHAnsi" data-docx-font-ascii="Aptos"', $blocks);
+        $t->contains('<span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia"', $blocks);
     },
     'preserves nested DOCX numbering levels as child AST lists' => static function (TestRunner $t) use ($buildNestedNumberingPackage): void {
         $document = (new DocxReader())->readDocument($buildNestedNumberingPackage());

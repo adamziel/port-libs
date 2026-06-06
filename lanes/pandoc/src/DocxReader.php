@@ -33,6 +33,7 @@ final class DocxReader
     public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    public const REL_TYPE_THEME = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
     public const REL_TYPE_ATTACHED_TEMPLATE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     public const REL_TYPE_GLOSSARY_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
@@ -84,6 +85,11 @@ final class DocxReader
     private array $currentStyles = [];
 
     /**
+     * @var array<string, string>
+     */
+    private array $currentThemeFonts = [];
+
+    /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
@@ -104,6 +110,9 @@ final class DocxReader
         $relationshipPreflight = $graph->preflightTargetsForSource($documentPart);
         $reachableRelationships = $graph->reachableTargetsForSource($documentPart);
         $settings = $this->readSettings($package, $graph, $documentPart);
+        $theme = $this->readTheme($package, $graph, $documentPart);
+        $themeFonts = $theme['fonts'] ?? [];
+        $this->currentThemeFonts = is_array($themeFonts) ? $themeFonts : [];
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
@@ -121,6 +130,9 @@ final class DocxReader
         $metadata = $this->readCoreProperties($package, $graph);
         if ($settings !== []) {
             $metadata['docxSettings'] = $settings;
+        }
+        if ($theme !== []) {
+            $metadata['docxTheme'] = $theme;
         }
         if ($glossary !== []) {
             $metadata['docxGlossary'] = $glossary;
@@ -141,6 +153,7 @@ final class DocxReader
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
                 $settings,
+                $theme,
                 $glossary,
             ),
         ];
@@ -152,6 +165,7 @@ final class DocxReader
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
      * @param array<string, mixed> $settings
+     * @param array<string, mixed> $theme
      * @param array<string, mixed> $glossary
      * @return array<string, mixed>
      */
@@ -165,6 +179,7 @@ final class DocxReader
         array $revisions,
         array $alternativeFormats,
         array $settings,
+        array $theme,
         array $glossary
     ): array {
         $relationshipIssues = [];
@@ -194,6 +209,7 @@ final class DocxReader
             'notes' => $this->notesImportReport($document),
             'revisions' => $revisions,
             'settings' => $settings,
+            'theme' => $theme,
             'glossary' => $glossary,
             'sections' => [
                 'count' => count($document->attr('sectionProperties', [])),
@@ -3693,6 +3709,7 @@ final class DocxReader
             'shd' => 'shading',
             'lang' => 'language',
             'rtl' => 'rtl',
+            'rFonts' => 'font',
         ] as $childName => $family) {
             if ($this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $childName) instanceof \DOMElement) {
                 $families[] = $family;
@@ -3836,6 +3853,15 @@ final class DocxReader
             }
         }
 
+        if ($family === 'font') {
+            $classes = array_values(array_diff($classes, ['docx-font', 'docx-theme-font']));
+            foreach (array_keys($attributes) as $name) {
+                if (str_starts_with((string) $name, 'data-docx-font-') || str_starts_with((string) $name, 'data-docx-theme-font-')) {
+                    unset($attributes[$name]);
+                }
+            }
+        }
+
         return [$classes, $attributes];
     }
 
@@ -3848,6 +3874,7 @@ final class DocxReader
         foreach ([
             $this->runReviewMarkupAttrs($properties),
             $this->runLanguageDirectionAttrs($properties),
+            $this->runFontAttrs($properties),
             $includeFormattingChange ? $this->runFormattingChangeAttrs($properties) : null,
         ] as $source) {
             if ($source === null) {
@@ -3867,6 +3894,79 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runFontAttrs(\DOMElement $properties): ?array
+    {
+        $fonts = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'rFonts');
+        if (!$fonts instanceof \DOMElement) {
+            return null;
+        }
+
+        $classes = [];
+        $attributes = [];
+        foreach ([
+            'ascii' => ['ascii', 'asciiTheme'],
+            'hansi' => ['hAnsi', 'hAnsiTheme'],
+            'east-asia' => ['eastAsia', 'eastAsiaTheme'],
+            'complex-script' => ['cs', 'cstheme'],
+        ] as $target => [$directName, $themeName]) {
+            $direct = trim((string) ($this->wordAttr($fonts, $directName) ?? ''));
+            $themeSlot = trim((string) ($this->wordAttr($fonts, $themeName) ?? ''));
+
+            if ($themeSlot !== '') {
+                $attributes['data-docx-theme-font-' . $target] = $themeSlot;
+                $classes[] = 'docx-theme-font';
+            }
+
+            if ($direct !== '') {
+                $attributes['data-docx-font-' . $target] = $direct;
+                $classes[] = 'docx-font';
+                continue;
+            }
+
+            if ($themeSlot !== '') {
+                $resolved = $this->themeFontForSlot($themeSlot);
+                if ($resolved !== null) {
+                    $attributes['data-docx-font-' . $target] = $resolved;
+                    $classes[] = 'docx-font';
+                }
+            }
+        }
+
+        if ($attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function themeFontForSlot(string $slot): ?string
+    {
+        $normalized = strtolower(preg_replace('/[^A-Za-z0-9]+/', '', $slot) ?? $slot);
+        $key = match ($normalized) {
+            'majorascii', 'majorhansi', 'majorlatin' => 'majorLatin',
+            'majoreastasia' => 'majorEastAsia',
+            'majorbidi', 'majorcs', 'majorcomplexscript' => 'majorComplexScript',
+            'minorascii', 'minorhansi', 'minorlatin' => 'minorLatin',
+            'minoreastasia' => 'minorEastAsia',
+            'minorbidi', 'minorcs', 'minorcomplexscript' => 'minorComplexScript',
+            default => null,
+        };
+
+        if ($key === null) {
+            return null;
+        }
+
+        $font = $this->currentThemeFonts[$key] ?? null;
+
+        return is_string($font) && $font !== '' ? $font : null;
     }
 
     /**
@@ -5461,6 +5561,105 @@ final class DocxReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readTheme(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $documentRelationships = $graph->relationshipsForSource($documentPart);
+        if (!$documentRelationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $relationship = $documentRelationships->firstOfType(self::REL_TYPE_THEME);
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $relationshipSummary = $this->internalSupportPartRelationshipSummary(
+            $relationship,
+            $package,
+            $documentRelationships,
+        );
+
+        $theme = [
+            'part' => $relationshipSummary['targetPart'],
+            'contentType' => $relationshipSummary['contentType'],
+            'relationship' => $relationshipSummary,
+        ];
+
+        if ($relationshipSummary['exists'] !== true || !is_string($relationshipSummary['targetPart'])) {
+            $theme['issues'] = $relationshipSummary['issues'];
+
+            return $theme;
+        }
+
+        $dom = self::loadXml($package->read($relationshipSummary['targetPart']), 'DOCX theme XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::DRAWINGML_MAIN_NS || $root->localName !== 'theme') {
+            $theme['issues'] = ['invalid-theme-root'];
+
+            return $theme;
+        }
+
+        $fonts = $this->themeFontScheme($root);
+        if ($fonts !== []) {
+            $theme['fonts'] = $fonts;
+        }
+
+        return $theme;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function themeFontScheme(\DOMElement $theme): array
+    {
+        $themeElements = $this->firstChildElement($theme, self::DRAWINGML_MAIN_NS, 'themeElements');
+        if (!$themeElements instanceof \DOMElement) {
+            return [];
+        }
+
+        $fontScheme = $this->firstChildElement($themeElements, self::DRAWINGML_MAIN_NS, 'fontScheme');
+        if (!$fontScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $fonts = [];
+        $schemeName = trim($fontScheme->getAttribute('name'));
+        if ($schemeName !== '') {
+            $fonts['schemeName'] = $schemeName;
+        }
+
+        foreach ([
+            'majorFont' => 'major',
+            'minorFont' => 'minor',
+        ] as $fontElementName => $prefix) {
+            $fontElement = $this->firstChildElement($fontScheme, self::DRAWINGML_MAIN_NS, $fontElementName);
+            if (!$fontElement instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach ([
+                'latin' => 'Latin',
+                'ea' => 'EastAsia',
+                'cs' => 'ComplexScript',
+            ] as $source => $target) {
+                $sourceElement = $this->firstChildElement($fontElement, self::DRAWINGML_MAIN_NS, $source);
+                if (!$sourceElement instanceof \DOMElement) {
+                    continue;
+                }
+
+                $typeface = trim($sourceElement->getAttribute('typeface'));
+                if ($typeface !== '') {
+                    $fonts[$prefix . $target] = $typeface;
+                }
+            }
+        }
+
+        return $fonts;
     }
 
     /**

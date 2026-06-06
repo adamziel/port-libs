@@ -21,6 +21,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
@@ -56,6 +57,7 @@ XML],
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   <Relationship Id="rIdGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
   <Relationship Id="rIdFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
@@ -252,6 +254,13 @@ XML],
       <w:r><w:rPr><w:rStyle w:val="ReviewAlert"/></w:rPr><w:t>inherited urgency</w:t></w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
       <w:r><w:rPr><w:rStyle w:val="ReviewMuted"/></w:rPr><w:t>muted follow-up</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Theme font reviewer label </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewThemeMajor"/></w:rPr><w:t>major theme source</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewThemeMinor"/><w:rFonts w:ascii="Source Serif" w:hAnsi="Source Serif" w:eastAsiaTheme="minorEastAsia" w:cstheme="minorBidi"/></w:rPr><w:t>direct font override</w:t></w:r>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
@@ -590,7 +599,34 @@ XML],
     <w:basedOn w:val="ReviewAlert"/>
     <w:rPr><w:i w:val="0"/><w:highlight w:val="none"/><w:lang w:val="de-DE"/></w:rPr>
   </w:style>
+  <w:style w:type="character" w:styleId="ReviewThemeMajor">
+    <w:name w:val="Review Theme Major"/>
+    <w:rPr><w:rFonts w:asciiTheme="majorHAnsi" w:hAnsiTheme="majorHAnsi" w:eastAsiaTheme="majorEastAsia" w:cstheme="majorBidi"/></w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="ReviewThemeMinor">
+    <w:name w:val="Review Theme Minor"/>
+    <w:basedOn w:val="ReviewThemeMajor"/>
+    <w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:eastAsiaTheme="minorEastAsia" w:cstheme="minorBidi"/></w:rPr>
+  </w:style>
 </w:styles>
+XML],
+    ['name' => 'word/theme/theme1.xml', 'data' => <<<'XML'
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="WordPress Review Theme">
+  <a:themeElements>
+    <a:fontScheme name="WordPress Review Fonts">
+      <a:majorFont>
+        <a:latin typeface="Aptos Display"/>
+        <a:ea typeface="Yu Gothic"/>
+        <a:cs typeface="Arial"/>
+      </a:majorFont>
+      <a:minorFont>
+        <a:latin typeface="Aptos"/>
+        <a:ea typeface="Meiryo"/>
+        <a:cs typeface="Times New Roman"/>
+      </a:minorFont>
+    </a:fontScheme>
+  </a:themeElements>
+</a:theme>
 XML],
     ['name' => 'word/numbering.xml', 'data' => <<<'XML'
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -690,6 +726,15 @@ $summary = [
 if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['title'] ?? '') !== 'WordPress DOCX handoff') {
         throw new RuntimeException('DOCX body handoff self-test missing metadata title');
+    }
+    if (($summary['metadata']['docxTheme']['fonts']['schemeName'] ?? '') !== 'WordPress Review Fonts') {
+        throw new RuntimeException('DOCX body handoff self-test missing theme font scheme metadata');
+    }
+    if (($summary['metadata']['docxTheme']['fonts']['majorLatin'] ?? '') !== 'Aptos Display') {
+        throw new RuntimeException('DOCX body handoff self-test missing major theme font metadata');
+    }
+    if (($summary['importReport']['theme']['fonts']['minorEastAsia'] ?? '') !== 'Meiryo') {
+        throw new RuntimeException('DOCX body handoff self-test missing theme font import report');
     }
     if (($summary['metadata']['docxSettings']['trackRevisions'] ?? null) !== true) {
         throw new RuntimeException('DOCX body handoff self-test missing settings tracked-revisions metadata');
@@ -884,6 +929,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Tracked run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="25" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>',
         '<p>Proof and permissions <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> plus <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>review window</strong></span> stay labeled.</p>',
         '<p>Character style reviewer label <span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>inherited urgency</u></em></strong></span> and <span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted follow-up</u></strong></span>.</p>',
+        '<p>Theme font reviewer label <span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display" data-docx-theme-font-hansi="majorHAnsi" data-docx-font-hansi="Aptos Display" data-docx-theme-font-east-asia="majorEastAsia" data-docx-font-east-asia="Yu Gothic" data-docx-theme-font-complex-script="majorBidi" data-docx-font-complex-script="Arial">major theme source</span> and <span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia" data-docx-font-east-asia="Meiryo" data-docx-theme-font-complex-script="minorBidi" data-docx-font-complex-script="Times New Roman">direct font override</span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
