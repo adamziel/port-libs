@@ -459,6 +459,55 @@ XML;
         $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
         $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
     },
+    'maps ODT source text styles into inline code spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithSourceText = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="Source_Text" style:family="text" style:display-name="Source Text"/>
+    <style:style style:name="Source_20_Text" style:family="text" style:display-name="Source Text Escaped"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithSourceText = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Inline <text:span text:style-name="Source_Text">wp_insert_post</text:span> keeps <text:span text:style-name="Source_20_Text">esc_html(<text:s/>$title)</text:span>.</text:p>
+      <text:h text:outline-level="2">Use <text:span text:style-name="Source_Text">do_shortcode</text:span></text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSourceText, null, $stylesWithSourceText));
+        $paragraph = $result['document']->children[0];
+        $heading = $result['document']->children[1];
+        $firstCode = $paragraph->children[1];
+        $secondCode = $paragraph->children[3];
+        $headingCode = $heading->children[1];
+
+        $t->same('Inline wp_insert_post keeps esc_html( $title).', $paragraph->attr('text'));
+        $t->same('code', $firstCode->type);
+        $t->same('wp_insert_post', $firstCode->attr('text'));
+        $t->same('Source_Text', $firstCode->attr('styleName'));
+        $t->same('Source_Text', $firstCode->attr('attributes')['data-odf-style-name']);
+        $t->same('code', $secondCode->type);
+        $t->same('esc_html( $title)', $secondCode->attr('text'));
+        $t->same('Source_20_Text', $secondCode->attr('styleName'));
+        $t->same('code', $headingCode->type);
+        $t->same('do_shortcode', $headingCode->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Inline `wp_insert_post`{data-odf-style-name="Source_Text"} keeps `esc_html( $title)`{data-odf-style-name="Source_20_Text"}.', $markdown);
+        $t->contains('## Use `do_shortcode`{data-odf-style-name="Source_Text"}', $markdown);
+        $t->contains('<p>Inline <code data-odf-style-name="Source_Text">wp_insert_post</code> keeps <code data-odf-style-name="Source_20_Text">esc_html( $title)</code>.</p>', $blocksHtml);
+        $t->contains('<h2>Use <code data-odf-style-name="Source_Text">do_shortcode</code></h2>', $blocksHtml);
+    },
     'maps ODT content XML blocks to the shared Pandoc-like AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage());
         $document = $result['document'];

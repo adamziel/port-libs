@@ -2992,6 +2992,17 @@ final class OdfReader
             return [];
         }
 
+        if ($this->isInlineCodeTextStyle($styleName)) {
+            return [new AstNode('code', [
+                'sourceFormat' => 'odt',
+                'text' => $this->plainInlineText($children),
+                'styleName' => $styleName,
+                'attributes' => [
+                    'data-odf-style-name' => $styleName,
+                ],
+            ])];
+        }
+
         if ($styleName !== '') {
             $children = [new AstNode('span', [
                 'sourceFormat' => 'odt',
@@ -4279,6 +4290,11 @@ final class OdfReader
             || (string) ($style['parentName'] ?? '') === 'Preformatted_20_Text';
     }
 
+    private function isInlineCodeTextStyle(string $styleName): bool
+    {
+        return $styleName === 'Source_Text' || $styleName === 'Source_20_Text';
+    }
+
     private function isQuoteWidth(string $textIndent, string $marginLeft): bool
     {
         $indent = $this->quoteMeasure($textIndent);
@@ -4659,6 +4675,10 @@ final class OdfReader
         $text = '';
         foreach ($nodes as $node) {
             if ($node->type === 'text') {
+                $text .= (string) $node->attr('text', '');
+                continue;
+            }
+            if ($node->type === 'code') {
                 $text .= (string) $node->attr('text', '');
                 continue;
             }
