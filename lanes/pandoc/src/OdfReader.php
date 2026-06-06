@@ -804,6 +804,18 @@ final class OdfReader
         if ($ordered) {
             $attrs['style'] = $this->orderedListStyle((string) ($definition['format'] ?? '1'));
             $attrs['start'] = $start;
+            $numPrefix = (string) ($definition['numPrefix'] ?? '');
+            $numSuffix = (string) ($definition['numSuffix'] ?? '');
+            $delimiter = $this->orderedListDelimiter($numPrefix, $numSuffix);
+            if ($delimiter !== '') {
+                $attrs['delimiter'] = $delimiter;
+            }
+            if ($numPrefix !== '') {
+                $attrs['numberPrefix'] = $numPrefix;
+            }
+            if ($numSuffix !== '') {
+                $attrs['numberSuffix'] = $numSuffix;
+            }
         } else {
             $attrs['format'] = (string) ($definition['bulletChar'] ?? 'bullet');
         }
@@ -4159,6 +4171,8 @@ final class OdfReader
                 'type' => $levelStyle->localName === 'list-level-style-number' ? 'number' : 'bullet',
                 'level' => $level,
                 'format' => self::attr($levelStyle, self::STYLE_NS, 'num-format'),
+                'numPrefix' => self::attr($levelStyle, self::STYLE_NS, 'num-prefix'),
+                'numSuffix' => self::attr($levelStyle, self::STYLE_NS, 'num-suffix'),
                 'bulletChar' => self::attr($levelStyle, self::TEXT_NS, 'bullet-char'),
                 'start' => self::intAttr($levelStyle, self::TEXT_NS, 'start-value', 1),
             ];
@@ -4417,6 +4431,16 @@ final class OdfReader
             'i' => 'lower_roman',
             'I' => 'upper_roman',
             default => 'decimal',
+        };
+    }
+
+    private function orderedListDelimiter(string $prefix, string $suffix): string
+    {
+        return match ([$prefix, $suffix]) {
+            ['', '.'] => 'period',
+            ['', ')'] => 'one_paren',
+            ['(', ')'] => 'two_parens',
+            default => ($prefix !== '' || $suffix !== '') ? 'default' : '',
         };
     }
 

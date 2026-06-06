@@ -1125,6 +1125,100 @@ XML;
         $t->contains('<ol start="2">', $blocksHtml);
         $t->contains('<ol start="4" type="a">', $blocksHtml);
     },
+    'maps ODT list number prefix and suffix delimiters like upstream list styles' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithDelimitedList = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="DelimitedReviewSteps">
+      <text:list-level-style-number text:level="1" style:num-format="1" style:num-prefix="(" style:num-suffix=")" text:start-value="2"/>
+      <text:list-level-style-number text:level="2" style:num-format="A" style:num-suffix=")" text:start-value="3"/>
+      <text:list-level-style-number text:level="3" style:num-format="i" style:num-suffix="." text:start-value="4"/>
+      <text:list-level-style-number text:level="4" style:num-format="1" style:num-prefix="[" style:num-suffix="]" text:start-value="5"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithDelimitedList = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="DelimitedReviewSteps">
+        <text:list-item>
+          <text:p>Top-level review item</text:p>
+          <text:list>
+            <text:list-item>
+              <text:p>Upper alpha nested item</text:p>
+              <text:list>
+                <text:list-item>
+                  <text:p>Roman period nested item</text:p>
+                  <text:list>
+                    <text:list-item><text:p>Default delimiter nested item</text:p></text:list-item>
+                  </text:list>
+                </text:list-item>
+              </text:list>
+            </text:list-item>
+          </text:list>
+        </text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDelimitedList, null, $stylesWithDelimitedList));
+        $levels = $result['listStyles']['DelimitedReviewSteps']['levels'];
+        $outer = $result['document']->children[0];
+        $level2 = $outer->children[0]->children[1];
+        $level3 = $level2->children[0]->children[1];
+        $level4 = $level3->children[0]->children[1];
+
+        $t->same('(', $levels[1]['numPrefix']);
+        $t->same(')', $levels[1]['numSuffix']);
+        $t->same('', $levels[2]['numPrefix']);
+        $t->same(')', $levels[2]['numSuffix']);
+        $t->same('', $levels[3]['numPrefix']);
+        $t->same('.', $levels[3]['numSuffix']);
+        $t->same('[', $levels[4]['numPrefix']);
+        $t->same(']', $levels[4]['numSuffix']);
+
+        $t->same('ordered_list', $outer->type);
+        $t->same(2, $outer->attr('start'));
+        $t->same('decimal', $outer->attr('style'));
+        $t->same('two_parens', $outer->attr('delimiter'));
+        $t->same('(', $outer->attr('numberPrefix'));
+        $t->same(')', $outer->attr('numberSuffix'));
+        $t->same('ordered_list', $level2->type);
+        $t->same(3, $level2->attr('start'));
+        $t->same('upper_alpha', $level2->attr('style'));
+        $t->same('one_paren', $level2->attr('delimiter'));
+        $t->same(')', $level2->attr('numberSuffix'));
+        $t->same('ordered_list', $level3->type);
+        $t->same(4, $level3->attr('start'));
+        $t->same('lower_roman', $level3->attr('style'));
+        $t->same('period', $level3->attr('delimiter'));
+        $t->same('.', $level3->attr('numberSuffix'));
+        $t->same('ordered_list', $level4->type);
+        $t->same(5, $level4->attr('start'));
+        $t->same('default', $level4->attr('delimiter'));
+        $t->same('[', $level4->attr('numberPrefix'));
+        $t->same(']', $level4->attr('numberSuffix'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('(2) Top-level review item', $markdown);
+        $t->contains('C)  Upper alpha nested item', $markdown);
+        $t->contains('iv. Roman period nested item', $markdown);
+        $t->contains('5.  Default delimiter nested item', $markdown);
+        $t->contains('<ol start="2">', $blocksHtml);
+        $t->contains('<ol start="3" type="A">', $blocksHtml);
+        $t->contains('<ol start="4" type="i">', $blocksHtml);
+        $t->contains('<ol start="5">', $blocksHtml);
+    },
     'maps ODT list headers as unnumbered review content' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithListHeader = <<<'XML'
 <office:document-styles

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\OdfReader;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -61,8 +62,8 @@ $stylesXml = <<<'XML'
       <style:text-properties style:text-position="sub 58%"/>
     </style:style>
     <text:list-style style:name="ReviewSteps">
-      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
-      <text:list-level-style-number text:level="2" style:num-format="a" text:start-value="4"/>
+      <text:list-level-style-number text:level="1" style:num-format="1" style:num-prefix="(" style:num-suffix=")" text:start-value="1"/>
+      <text:list-level-style-number text:level="2" style:num-format="a" style:num-suffix=")" text:start-value="4"/>
     </text:list-style>
     <table:table-template
       table:name="ReviewTemplate"
@@ -264,6 +265,7 @@ $package = ZipPackage::fromParts([
 
 $reader = new OdfReader();
 $result = $reader->readPackage($package);
+$markdown = (new MarkdownWriter())->write($result['document']);
 $blocks = (new WordPressBlockWriter())->write($result['document']);
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -533,6 +535,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<ol start="4" type="a"><li>Check inherited nested checklist style</li></ol>')) {
         throw new RuntimeException('Expected ODT nested lists without explicit style names to inherit parent list style');
+    }
+    if (!str_contains($markdown, '(1) Match ODT media to WordPress attachments')) {
+        throw new RuntimeException('Expected ODT list prefix/suffix to render two-parentheses Markdown markers');
+    }
+    if (!str_contains($markdown, 'd)  Check inherited nested checklist style')) {
+        throw new RuntimeException('Expected inherited ODT list suffix to render one-parenthesis Markdown markers');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
