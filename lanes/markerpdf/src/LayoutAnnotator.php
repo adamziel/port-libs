@@ -1020,6 +1020,35 @@ final class LayoutAnnotator
             }
         }
 
+        return $this->bboxFromPointPairFields($record);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromPointPairFields(array $record): ?array
+    {
+        foreach ([
+            ['top_left', 'bottom_right'],
+            ['upper_left', 'lower_right'],
+            ['top_right', 'bottom_left'],
+            ['upper_right', 'lower_left'],
+            ['tl', 'br'],
+            ['tr', 'bl'],
+        ] as $keys) {
+            [$firstKey, $secondKey] = $keys;
+            if (!array_key_exists($firstKey, $record) || !array_key_exists($secondKey, $record)) {
+                continue;
+            }
+
+            $first = $this->pointCoordinates($record[$firstKey]);
+            $second = $this->pointCoordinates($record[$secondKey]);
+            if ($first !== null && $second !== null) {
+                return $this->canonicalBbox([$first[0], $first[1], $second[0], $second[1]]);
+            }
+        }
+
         return null;
     }
 

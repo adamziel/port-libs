@@ -6123,7 +6123,7 @@ final class TableRecognizer
     {
         $normalized = $this->bboxFromValue($bbox);
         if ($normalized === null) {
-            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox or named bbox fields.');
+            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox, named bbox fields, or two-corner point fields.');
         }
 
         return $normalized;
@@ -6137,7 +6137,7 @@ final class TableRecognizer
     {
         $bbox = $this->nullableBboxFromRecord($record);
         if ($bbox === null) {
-            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox, named bbox fields, or four-corner polygon alias.');
+            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox, named bbox fields, two-corner point fields, or four-corner polygon alias.');
         }
 
         return $bbox;
@@ -6347,7 +6347,47 @@ final class TableRecognizer
             }
         }
 
+        return $this->bboxFromPointPairFields($record);
+    }
+
+    /**
+     * Saved JSON/Pydantic sidecars sometimes serialize a rectangle as two
+     * named corner points instead of a four-value bbox or full polygon.
+     *
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromPointPairFields(array $record): ?array
+    {
+        foreach ($this->bboxPointPairFieldSets() as $keys) {
+            [$firstKey, $secondKey] = $keys;
+            if (!array_key_exists($firstKey, $record) || !array_key_exists($secondKey, $record)) {
+                continue;
+            }
+
+            $first = $this->pointCoordinatesFromValue($record[$firstKey]);
+            $second = $this->pointCoordinatesFromValue($record[$secondKey]);
+            if ($first !== null && $second !== null) {
+                return $this->canonicalBbox([$first[0], $first[1], $second[0], $second[1]]);
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    private function bboxPointPairFieldSets(): array
+    {
+        return [
+            'bbox_top_left_bottom_right_points' => ['top_left', 'bottom_right'],
+            'bbox_upper_left_lower_right_points' => ['upper_left', 'lower_right'],
+            'bbox_top_right_bottom_left_points' => ['top_right', 'bottom_left'],
+            'bbox_upper_right_lower_left_points' => ['upper_right', 'lower_left'],
+            'bbox_tl_br_points' => ['tl', 'br'],
+            'bbox_tr_bl_points' => ['tr', 'bl'],
+        ];
     }
 
     /**
@@ -6483,6 +6523,28 @@ final class TableRecognizer
                 if ($this->pointCoordinatesFromValue($record[$key] ?? null) !== null) {
                     return 'bbox_center_' . $key . '_fields';
                 }
+            }
+        }
+
+        return $this->bboxPointPairFieldSource($record);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function bboxPointPairFieldSource(array $record): ?string
+    {
+        foreach ($this->bboxPointPairFieldSets() as $source => $keys) {
+            [$firstKey, $secondKey] = $keys;
+            if (!array_key_exists($firstKey, $record) || !array_key_exists($secondKey, $record)) {
+                continue;
+            }
+
+            if (
+                $this->pointCoordinatesFromValue($record[$firstKey]) !== null
+                && $this->pointCoordinatesFromValue($record[$secondKey]) !== null
+            ) {
+                return $source;
             }
         }
 
@@ -6698,6 +6760,28 @@ final class TableRecognizer
                     $center[0] + ($extent[0] / 2.0),
                     $center[1] + ($extent[1] / 2.0),
                 ];
+            }
+        }
+
+        return $this->rawBboxCoordinatesFromPointPairFields($record);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromPointPairFields(array $record): ?array
+    {
+        foreach ($this->bboxPointPairFieldSets() as $keys) {
+            [$firstKey, $secondKey] = $keys;
+            if (!array_key_exists($firstKey, $record) || !array_key_exists($secondKey, $record)) {
+                continue;
+            }
+
+            $first = $this->pointCoordinatesFromValue($record[$firstKey]);
+            $second = $this->pointCoordinatesFromValue($record[$secondKey]);
+            if ($first !== null && $second !== null) {
+                return [$first[0], $first[1], $second[0], $second[1]];
             }
         }
 
