@@ -2214,7 +2214,7 @@ final class TableGeometry
             }
 
             if ($writer === 'asciidoc') {
-                $diagnostics = [];
+                $diagnostics = $table instanceof AstNode ? self::tableFootSectionWriterDiagnostics($table, $writer) : [];
                 foreach ($coverage as $record) {
                     $node = $record['node'] ?? null;
                     if (!$node instanceof AstNode) {
@@ -2272,7 +2272,7 @@ final class TableGeometry
             return $diagnostics;
         }
 
-        $diagnostics = [];
+        $diagnostics = $table instanceof AstNode ? self::tableFootSectionWriterDiagnostics($table, $writer) : [];
         foreach ($coverage as $record) {
             $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
             $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
@@ -2319,7 +2319,7 @@ final class TableGeometry
      */
     private static function latexLongtableFooterRequirements(AstNode $table, string $writer): array
     {
-        $sectionSummary = self::latexTableSectionSummary($table);
+        $sectionSummary = self::tableSectionSummary($table);
         if (($sectionSummary['footRowCount'] ?? 0) <= 0) {
             return [];
         }
@@ -2329,6 +2329,44 @@ final class TableGeometry
             'writer' => $writer,
             'reason' => 'table-foot',
             'requiredFeature' => 'longtable-footer',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => self::columnCount($table),
+            'sectionCount' => $sectionSummary['sectionCount'],
+            'rowCount' => $sectionSummary['rowCount'],
+            'bodyCount' => $sectionSummary['bodyCount'],
+            'headRowCount' => $sectionSummary['headRowCount'],
+            'bodyRowCount' => $sectionSummary['bodyRowCount'],
+            'footRowCount' => $sectionSummary['footRowCount'],
+            'sections' => $sectionSummary['sections'],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableFootSectionWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $sectionSummary = self::tableSectionSummary($table);
+        if (($sectionSummary['footRowCount'] ?? 0) <= 0) {
+            return [];
+        }
+
+        if ($writer === 'markdown') {
+            $code = 'markdown-table-foot-flattened';
+            $requiredFeature = 'body-row-flattening';
+        } elseif ($writer === 'asciidoc') {
+            $code = 'asciidoc-table-foot-required';
+            $requiredFeature = 'table-footer';
+        } else {
+            return [];
+        }
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-foot',
+            'requiredFeature' => $requiredFeature,
             'caption' => (string) $table->attr('caption', ''),
             'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
             'columnCount' => self::columnCount($table),
@@ -2353,7 +2391,7 @@ final class TableGeometry
      *     sections:list<array{section:string,rowCount:int,rowRole:string}>
      * }
      */
-    private static function latexTableSectionSummary(AstNode $table): array
+    private static function tableSectionSummary(AstNode $table): array
     {
         $sections = [];
         $rowCount = 0;

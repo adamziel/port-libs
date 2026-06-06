@@ -1957,6 +1957,83 @@ return [
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports markdown and asciidoc table foot section writer handoff diagnostics' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Footer section audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+            new AstNode('table_foot', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Total'], [new AstNode('text', ['text' => 'Total'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+        $plainTable = new AstNode('table', [
+            'caption' => 'No footer section audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc'],
+        ]);
+        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same(['markdown-table-foot-flattened'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $markdownDiagnostics));
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('table-foot', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('body-row-flattening', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('Footer section audit', $markdownDiagnostics[0]['caption'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['columnCount'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['sectionCount'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['rowCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['footRowCount'] ?? null);
+        $t->same(['head', 'body', 'foot'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $markdownDiagnostics[0]['sections'] ?? []));
+        $t->same([1, 1, 1], array_map(static fn (array $section): int => (int) ($section['rowCount'] ?? 0), $markdownDiagnostics[0]['sections'] ?? []));
+
+        $t->same(['asciidoc-table-foot-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
+        $t->same('asciidoc', $asciidocDiagnostics[0]['writer'] ?? null);
+        $t->same('table-foot', $asciidocDiagnostics[0]['reason'] ?? null);
+        $t->same('table-footer', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(1, $asciidocDiagnostics[0]['bodyCount'] ?? null);
+        $t->same(1, $asciidocDiagnostics[0]['footRowCount'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'markdown'));
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'asciidoc'));
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same(2, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['markdown-table-foot-flattened', 'asciidoc-table-foot-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->contains('| Total | Ready |', $markdown);
+        $t->contains('<tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">Ready</td></tr></tfoot>', $blocks);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($asciidocDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports asciidoc nested table passthrough requirements for writer handoff' => static function (TestRunner $t): void {
         $innerTable = new AstNode('table', [
             'caption' => 'Nested source audit',

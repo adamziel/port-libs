@@ -1427,6 +1427,23 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($latexFooterPacket, JSON_THROW_ON_ERROR);
 
+    $footerSectionPacket = TableGeometry::reviewPacket($latexFooterTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc'],
+    ]);
+    if (
+        ($footerSectionPacket['summary']['writerDowngradeCodes'] ?? null) !== [
+            'markdown-table-foot-flattened',
+            'asciidoc-table-foot-required',
+        ]
+        || ($footerSectionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'body-row-flattening'
+        || ($footerSectionPacket['writerDowngrades']['asciidoc'][0]['requiredFeature'] ?? null) !== 'table-footer'
+        || ($footerSectionPacket['writerDowngrades']['markdown'][0]['footRowCount'] ?? null) !== 1
+    ) {
+        throw new RuntimeException('Table geometry self-test missing Markdown/AsciiDoc footer-section writer diagnostics');
+    }
+    json_encode($footerSectionPacket, JSON_THROW_ON_ERROR);
+
     echo "table geometry handoff self-test ok\n";
     return;
 }
