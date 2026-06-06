@@ -2490,12 +2490,41 @@ final class PdfAnnotationExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
-        if (count($numbers) < 4) {
+        $numbers = $this->fixedNumericArrayPrefix($arrayBody, 4, $objects);
+        if ($numbers === null) {
             return null;
         }
 
-        return $this->normalizeRect(array_slice($numbers, 0, 4));
+        return $this->normalizeRect($numbers);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function fixedNumericArrayPrefix(string $arrayBody, int $expectedCount, array $objects = []): ?array
+    {
+        $numbers = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+
+        while (count($numbers) < $expectedCount) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                return null;
+            }
+
+            $numberEnd = null;
+            $number = $this->numericArrayElementAtOffset($arrayBody, $offset, $objects, $numberEnd);
+            if ($numberEnd === null || $numberEnd <= $offset || $number === null) {
+                return null;
+            }
+
+            $numbers[] = $number;
+            $offset = $numberEnd;
+        }
+
+        return $numbers;
     }
 
     /**
@@ -3385,6 +3414,30 @@ final class PdfAnnotationExtractor
         }
 
         return $numbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function numericArrayElementAtOffset(string $arrayBody, int $offset, array $objects, ?int &$endOffset): ?float
+    {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[0]);
+            $objectBody = $this->objectBodyForReference((int) $match[1], (int) $match[2], $objects);
+            if ($objectBody !== null && preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', trim($objectBody)) === 1) {
+                return (float) trim($objectBody);
+            }
+
+            return null;
+        }
+
+        if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?=$|[\s\[\]\(\)<>{}\/%])/s', $arrayBody, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[0]);
+            return (float) $match[0];
+        }
+
+        $endOffset = null;
+        return null;
     }
 
     private function decodePdfName(string $name): string

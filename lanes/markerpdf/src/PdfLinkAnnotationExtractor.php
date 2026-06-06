@@ -1251,12 +1251,41 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
-        if (count($numbers) < 4) {
+        $numbers = $this->fixedNumericArrayPrefix($arrayBody, 4, $objects);
+        if ($numbers === null) {
             return null;
         }
 
-        return $this->normalizeRect(array_slice($numbers, 0, 4));
+        return $this->normalizeRect($numbers);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function fixedNumericArrayPrefix(string $arrayBody, int $expectedCount, array $objects = []): ?array
+    {
+        $numbers = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+
+        while (count($numbers) < $expectedCount) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                return null;
+            }
+
+            $numberEnd = null;
+            $number = $this->numericArrayElementAtOffset($arrayBody, $offset, $objects, $numberEnd);
+            if ($numberEnd === null || $numberEnd <= $offset || $number === null) {
+                return null;
+            }
+
+            $numbers[] = $number;
+            $offset = $numberEnd;
+        }
+
+        return $numbers;
     }
 
     /**
