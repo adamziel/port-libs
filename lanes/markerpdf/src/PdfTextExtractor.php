@@ -19101,6 +19101,11 @@ final class PdfTextExtractor
                 return $wx === null || $wy === null ? null : [$wx, $wy];
             }
 
+            if ($token === 'R' && $this->type3CharProcCanQueueReferenceOperatorOperand($operands)) {
+                $operands[] = $token;
+                continue;
+            }
+
             if ($this->isOperator($token)) {
                 if (!$this->type3CharProcAllowsPreMetricSetupOperator($token, $operands)) {
                     return null;
@@ -19245,9 +19250,7 @@ final class PdfTextExtractor
         }
 
         if ($token === 'DP') {
-            return count($operands) === 2
-                && $this->markedContentTagOperand($operands[0])
-                && $this->markedContentPropertyOperand($operands[1]);
+            return $this->type3CharProcMarkedContentPropertyOperandsAreSafe($operands);
         }
 
         if (in_array($token, ['Tc', 'Tw', 'Tz', 'TL', 'Tr', 'Ts'], true)) {
@@ -19265,9 +19268,7 @@ final class PdfTextExtractor
         }
 
         if ($token === 'BDC') {
-            return count($operands) === 2
-                && $this->markedContentTagOperand($operands[0])
-                && $this->markedContentPropertyOperand($operands[1]);
+            return $this->type3CharProcMarkedContentPropertyOperandsAreSafe($operands);
         }
 
         if ($token === 'EMC') {
@@ -19275,6 +19276,49 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcMarkedContentPropertyOperandsAreSafe(array $operands): bool
+    {
+        if (count($operands) === 2) {
+            return $this->markedContentTagOperand($operands[0])
+                && $this->markedContentPropertyOperand($operands[1]);
+        }
+
+        if (count($operands) !== 4 || !$this->markedContentTagOperand($operands[0])) {
+            return false;
+        }
+
+        return $this->type3CharProcIndirectPropertyReferenceOperandsAreSafe(
+            $operands[1],
+            $operands[2],
+            $operands[3]
+        );
+    }
+
+    private function type3CharProcIndirectPropertyReferenceOperandsAreSafe(
+        string $objectNumber,
+        string $generation,
+        string $referenceOperator
+    ): bool {
+        if ($referenceOperator !== 'R' || !ctype_digit($objectNumber) || !ctype_digit($generation)) {
+            return false;
+        }
+
+        return (int) $objectNumber > 0;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcCanQueueReferenceOperatorOperand(array $operands): bool
+    {
+        return count($operands) === 3
+            && $this->markedContentTagOperand($operands[0])
+            && $this->type3CharProcIndirectPropertyReferenceOperandsAreSafe($operands[1], $operands[2], 'R');
     }
 
     /**
