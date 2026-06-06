@@ -31472,7 +31472,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (!$lineSeparated && $char !== 'B') {
+            if (!$lineSeparated && !in_array($char, ['B', 'E', 'Q'], true)) {
                 return false;
             }
 
@@ -31566,7 +31566,16 @@ final class PdfTextExtractor
             $token = substr($segment, $start, $index - $start);
             if (!$lineSeparated) {
                 if (
-                    $token === 'BX'
+                    (
+                        $token === 'BX'
+                        || $this->contentSegmentExternalScopeCloseOperator(
+                            $token,
+                            $outsideTextOperands,
+                            $graphicsStateDepth,
+                            $markedContentDepth,
+                            $compatibilityDepth
+                        )
+                    )
                     && !$insideTextObject
                     && $outsideTextOperands === []
                     && $graphicsStateDepth === 0
@@ -31710,6 +31719,18 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if (
+                    $this->contentSegmentExternalScopeCloseOperator(
+                        $token,
+                        $outsideTextOperands,
+                        $graphicsStateDepth,
+                        $markedContentDepth,
+                        $compatibilityDepth
+                    )
+                ) {
+                    continue;
+                }
+
                 if ($token !== 'BT') {
                     if ($compatibilityDepth > 0) {
                         continue;
@@ -31742,6 +31763,23 @@ final class PdfTextExtractor
             && $graphicsStateDepth === 0
             && $markedContentDepth === 0
             && $compatibilityDepth === 0;
+    }
+
+    /**
+     * @param list<string> $outsideTextOperands
+     */
+    private function contentSegmentExternalScopeCloseOperator(
+        string $token,
+        array $outsideTextOperands,
+        int $graphicsStateDepth,
+        int $markedContentDepth,
+        int $compatibilityDepth
+    ): bool {
+        return $outsideTextOperands === []
+            && $graphicsStateDepth === 0
+            && $markedContentDepth === 0
+            && $compatibilityDepth === 0
+            && in_array($token, ['Q', 'EMC', 'EX'], true);
     }
 
     /**

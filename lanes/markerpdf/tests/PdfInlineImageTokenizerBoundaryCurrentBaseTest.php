@@ -737,6 +737,63 @@ $inlineImageTokenizerSameLineCompatibilitySectionStrayEiPdf = static function ()
         . "%%EOF";
 };
 
+$inlineImageTokenizerOuterMarkedContentClosePdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Outer Marked Inline) Tj ET\n"
+        . "/Span BMC\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Outer Marked Payload Noise) Tj ET rawtail\n"
+        . "EI EMC\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible After Outer Marked Inline) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Outer Marked Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$inlineImageTokenizerOuterGraphicsStateClosePdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Outer Graphics Inline) Tj ET\n"
+        . "q\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Outer Graphics Payload Noise) Tj ET rawtail\n"
+        . "EI Q\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible After Outer Graphics Inline) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Outer Graphics Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$inlineImageTokenizerOuterCompatibilityClosePdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Outer Compatibility Inline) Tj ET\n"
+        . "BX\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Outer Compatibility Payload Noise) Tj ET rawtail\n"
+        . "EI EX\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible After Outer Compatibility Inline) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Outer Compatibility Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -1570,5 +1627,72 @@ return [
         $t->true(!str_contains($sameLinePlainText, '/FutureOperand'));
         $t->true(!str_contains($sameLinePlainText, 'FutureOp'));
         $t->true(!str_contains($sameLinePlainText, "\x80 EI BX"));
+    },
+    'closes preview-only fallback before externally closed marked-content text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerOuterMarkedContentClosePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerOuterMarkedContentClosePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Outer Marked Inline',
+            'Visible After Outer Marked Inline',
+            'Visible After Outer Marked Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible After Outer Marked Inline'));
+        $t->true(str_contains($plainText, 'Visible After Outer Marked Stray'));
+        $t->true(!str_contains($plainText, 'Outer Marked Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, '/Span BMC'));
+        $t->true(!str_contains($plainText, 'EMC'));
+    },
+    'closes preview-only fallback before externally closed graphics-state text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerOuterGraphicsStateClosePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerOuterGraphicsStateClosePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Outer Graphics Inline',
+            'Visible After Outer Graphics Inline',
+            'Visible After Outer Graphics Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible After Outer Graphics Inline'));
+        $t->true(str_contains($plainText, 'Visible After Outer Graphics Stray'));
+        $t->true(!str_contains($plainText, 'Outer Graphics Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'closes preview-only fallback before externally closed compatibility text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerOuterCompatibilityClosePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerOuterCompatibilityClosePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Outer Compatibility Inline',
+            'Visible After Outer Compatibility Inline',
+            'Visible After Outer Compatibility Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible After Outer Compatibility Inline'));
+        $t->true(str_contains($plainText, 'Visible After Outer Compatibility Stray'));
+        $t->true(!str_contains($plainText, 'Outer Compatibility Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'BX'));
+        $t->true(!str_contains($plainText, 'EX'));
     },
 ];
