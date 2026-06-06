@@ -509,6 +509,52 @@ return [
         $t->true(!str_contains($html, 'data:image/svg+xml'), 'Expected SVG data URL candidates to be stripped');
         $t->true(str_contains($html, $pngData . ' 1x'), 'Expected data image payload to stay attached to its data URL header');
     },
+    'preserves safe raster data image src attributes before WordPress handoff' => static function (TestRunner $t): void {
+        $pngData = 'data:image/png;base64,iVBORw0KGgo=';
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure data-review="inline-image">'
+            . '<img src="' . $pngData . '" alt="Inline raster">'
+            . '<img src="data:text/html;base64,PHNjcmlwdD4=" alt="HTML data">'
+            . '<img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" alt="SVG data">'
+            . '<a href="' . $pngData . '">linked data image</a>'
+            . '<img src="/media/fallback.png" alt="Fallback">'
+            . '</figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/data-image-src-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<figure data-review="inline-image">'
+            . '<img src="' . $pngData . '" alt="Inline raster">'
+            . '<img alt="HTML data"><img alt="SVG data"><a>linked data image</a>'
+            . '<img src="https://source.example.test/media/fallback.png" alt="Fallback">'
+            . '</figure>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['a', 'figure', 'img'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['href', 'src'], $summary['filteredAttributes']);
+        $t->same(['unsafe-url', 'unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same($pngData, $nodes[0]['children'][0]['attrs']['src']);
+        $t->same([], $nodes[0]['children'][3]['attrs']);
+        $t->same('https://source.example.test/media/fallback.png', $nodes[0]['children'][4]['attrs']['src']);
+        $t->same('/migration/data-image-src-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(str_contains($html, $pngData), 'Expected safe raster data image source to survive');
+        $t->true(!str_contains($html, 'data:text/html'), 'Expected active data payloads to be stripped from img src');
+        $t->true(!str_contains($html, 'data:image/svg+xml'), 'Expected SVG data images to be stripped from img src');
+        $t->true(!str_contains($html, '<a href="data:'), 'Expected data URLs to remain blocked for navigational links');
+    },
     'serializes html5 boolean attributes without redundant values for review media' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<details open="open"><summary>Review packet</summary>'

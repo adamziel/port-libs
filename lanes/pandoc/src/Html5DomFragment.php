@@ -1138,6 +1138,10 @@ final class Html5DomFragment
             return self::isSafeImageMapReference($value);
         }
 
+        if (self::isSafeRasterImageSourceAttribute($tagName, $name, $value)) {
+            return true;
+        }
+
         if (self::isSvgResourceReferenceAttribute($tagName, $name, $foreignContext)) {
             return self::isSafeFetchUrl($value);
         }
@@ -1160,6 +1164,17 @@ final class Html5DomFragment
         }
 
         return self::isSafeUrl($value);
+    }
+
+    private static function isSafeRasterImageSourceAttribute(string $tagName, string $name, string $value): bool
+    {
+        if (strtolower($tagName) !== 'img' || strtolower($name) !== 'src') {
+            return false;
+        }
+
+        $normalized = self::normalizeUrlAttributeValue($value);
+
+        return self::isSafeRasterImageDataUrl($normalized);
     }
 
     private static function isSvgResourceReferenceAttribute(string $tagName, string $name, ?string $foreignContext): bool
