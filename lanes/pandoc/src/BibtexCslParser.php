@@ -1914,7 +1914,7 @@ final class BibtexCslParser
         $value = self::decodeLatexText($value);
         $value = str_replace('~', ' ', $value);
         $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
-        $value = preg_replace('/\\\\(?:emph|textit|textbf|enquote)\s*\{([^{}]*)\}/', '$1', $value) ?? $value;
+        $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
 
@@ -1926,7 +1926,7 @@ final class BibtexCslParser
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
         $value = self::decodeLatexText($value);
         $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
-        $value = preg_replace('/\\\\(?:emph|textit|textbf|enquote)\s*\{([^{}]*)\}/', '$1', $value) ?? $value;
+        $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
         $value = preg_replace('/~(?!(?:\s*\/|\s*\z))/', ' ', $value) ?? $value;
@@ -1939,6 +1939,38 @@ final class BibtexCslParser
         $value = self::decodeLatexAccentCommands($value);
 
         return self::decodeLatexSpecialLetters($value);
+    }
+
+    private static function stripLatexTextWrappers(string $value): string
+    {
+        $commands = [
+            'emph',
+            'enquote',
+            'mkbibbold',
+            'mkbibbrackets',
+            'mkbibemph',
+            'mkbibitalic',
+            'mkbibparens',
+            'mkbibquote',
+            'textbf',
+            'textit',
+            'textnormal',
+            'textrm',
+            'textsc',
+            'textsf',
+            'textsl',
+            'textsubscript',
+            'textsuperscript',
+            'texttt',
+        ];
+        $alternation = implode('|', array_map(static fn (string $command): string => preg_quote($command, '/'), $commands));
+
+        do {
+            $previous = $value;
+            $value = preg_replace('/\\\\(?:' . $alternation . ')\s*\{([^{}]*)\}/u', '$1', $value) ?? $value;
+        } while ($value !== $previous);
+
+        return $value;
     }
 
     private static function decodeLatexAccentCommands(string $value): string

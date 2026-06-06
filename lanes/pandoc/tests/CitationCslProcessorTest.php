@@ -295,6 +295,66 @@ BIB;
         $t->contains('<p>Review keeps Müller et al. (2026) in source notes.</p>', $blocks);
         $t->contains('<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>', $blocks);
     },
+    'strips bounded latex text wrappers in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{macro-source,
+  author       = {Smith, Ada},
+  title        = {\mkbibemph{\textsc{Packet}} \textit{Review} \textsuperscript{Draft} \textsubscript{v2}},
+  journaltitle = {\mkbibquote{Import \textbf{Desk}}},
+  publisher    = {\textnormal{Review} \textsf{Press}},
+  note         = {\mkbibparens{\texttt{macro-wrapper} source}},
+  date         = {2026},
+  url          = {https://example.test/macro-source}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Packet Review Draft v2', $items[0]['title'] ?? null);
+        $t->same('Import Desk', $items[0]['container-title'] ?? null);
+        $t->same('Review Press', $items[0]['publisher'] ?? null);
+        $t->same('macro-wrapper source', $items[0]['note'] ?? null);
+        $t->same('\\mkbibemph{\\textsc{Packet}} \\textit{Review} \\textsuperscript{Draft} \\textsubscript{v2}', $items[0]['rawBibtex']['fields']['title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('macro-source');
+        $t->same('Packet Review Draft v2', $item['title'] ?? null);
+        $t->same('Import Desk', $item['containerTitle'] ?? null);
+        $t->same('Review Press', $item['publisher'] ?? null);
+        $t->same('macro-wrapper source', $item['note'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('macro-source', '[@macro-source]')]));
+        $t->same('Smith, Ada. Packet Review Draft v2. Import Desk. Review Press, 2026. Note: macro-wrapper source. https://example.test/macro-source.', $processor->renderBibliographyEntry('macro-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="container-title"/>
+        <text variable="note"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="publisher"/>
+      <text variable="note"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Packet Review Draft v2 | Import Desk | macro-wrapper source]', $styled->renderCitationCluster([$citation('macro-source', '[@macro-source]')]));
+        $t->same('Packet Review Draft v2 :: Import Desk :: Review Press :: macro-wrapper source', $styled->renderBibliographyEntry('macro-source'));
+
+        $document = (new MarkdownReader())->read('Macro source @macro-source keeps review text visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Macro source Smith (2026) keeps review text visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Packet Review Draft v2. Import Desk. Review Press, 2026. Note: macro-wrapper source. https://example.test/macro-source.</dd>', $blocks);
+    },
     'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{conf2026,
