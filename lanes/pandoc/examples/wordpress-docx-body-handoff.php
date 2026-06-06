@@ -283,6 +283,10 @@ XML],
         <w:jc w:val="center"/>
         <w:spacing w:before="240" w:after="120" w:line="360" w:lineRule="auto"/>
         <w:ind w:left="720" w:firstLine="240"/>
+        <w:tabs>
+          <w:tab w:val="left" w:pos="720"/>
+          <w:tab w:val="decimal" w:pos="1440" w:leader="dot"/>
+        </w:tabs>
         <w:keepNext/>
         <w:pageBreakBefore/>
       </w:pPr>
@@ -958,7 +962,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Theme font reviewer label <span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display" data-docx-theme-font-hansi="majorHAnsi" data-docx-font-hansi="Aptos Display" data-docx-theme-font-east-asia="majorEastAsia" data-docx-font-east-asia="Yu Gothic" data-docx-theme-font-complex-script="majorBidi" data-docx-font-complex-script="Arial">major theme source</span> and <span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia" data-docx-font-east-asia="Meiryo" data-docx-theme-font-complex-script="minorBidi" data-docx-font-complex-script="Times New Roman">direct font override</span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
-        '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
+        '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-paragraph-tabs docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-tab-stop-count="2" data-docx-tab-1-val="left" data-docx-tab-1-pos-twips="720" data-docx-tab-2-val="decimal" data-docx-tab-2-pos-twips="1440" data-docx-tab-2-leader="dot" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',

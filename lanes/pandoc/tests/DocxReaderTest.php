@@ -1598,6 +1598,11 @@ $paragraphLayoutDocumentXml = <<<'XML'
         <w:jc w:val="center"/>
         <w:spacing w:before="240" w:after="120" w:line="360" w:lineRule="auto"/>
         <w:ind w:left="720" w:right="360" w:firstLine="240" w:hanging="120"/>
+        <w:tabs>
+          <w:tab w:val="left" w:pos="720"/>
+          <w:tab w:val="decimal" w:pos="1440" w:leader="dot"/>
+          <w:tab w:val="clear" w:pos="2160"/>
+        </w:tabs>
         <w:keepNext/>
         <w:pageBreakBefore/>
       </w:pPr>
@@ -4424,6 +4429,7 @@ return [
             'docx-align-center',
             'docx-paragraph-spacing',
             'docx-paragraph-indent',
+            'docx-paragraph-tabs',
             'docx-keep-next',
             'docx-page-break-before',
         ], $centered->attr('classes'));
@@ -4437,6 +4443,15 @@ return [
         $t->same('360', $centeredAttrs['data-docx-indent-right-twips']);
         $t->same('240', $centeredAttrs['data-docx-indent-first-line-twips']);
         $t->same('120', $centeredAttrs['data-docx-indent-hanging-twips']);
+        $t->same('3', $centeredAttrs['data-docx-tab-stop-count']);
+        $t->same('left', $centeredAttrs['data-docx-tab-1-val']);
+        $t->same('720', $centeredAttrs['data-docx-tab-1-pos-twips']);
+        $t->same('decimal', $centeredAttrs['data-docx-tab-2-val']);
+        $t->same('1440', $centeredAttrs['data-docx-tab-2-pos-twips']);
+        $t->same('dot', $centeredAttrs['data-docx-tab-2-leader']);
+        $t->same('clear', $centeredAttrs['data-docx-tab-3-val']);
+        $t->same('2160', $centeredAttrs['data-docx-tab-3-pos-twips']);
+        $t->true(!isset($centeredAttrs['data-docx-tab-3-leader']), 'DOCX tab stop without leader should not invent leader metadata');
         $t->same('true', $centeredAttrs['data-docx-keep-next']);
         $t->same('true', $centeredAttrs['data-docx-page-break-before']);
         $t->same('Centered review paragraph.', $centered->children[0]->attr('text'));
@@ -4468,12 +4483,12 @@ return [
         $t->same('right', $headingSpan->attr('attributes')['data-docx-paragraph-align']);
         $t->same('Aligned review heading', $headingSpan->children[0]->attr('text'));
 
-        $t->contains('[Centered review paragraph.]{.docx-paragraph-align .docx-align-center .docx-paragraph-spacing .docx-paragraph-indent .docx-keep-next .docx-page-break-before data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-right-twips="360" data-docx-indent-first-line-twips="240" data-docx-indent-hanging-twips="120" data-docx-keep-next="true" data-docx-page-break-before="true"}', $markdown);
+        $t->contains('[Centered review paragraph.]{.docx-paragraph-align .docx-align-center .docx-paragraph-spacing .docx-paragraph-indent .docx-paragraph-tabs .docx-keep-next .docx-page-break-before data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-right-twips="360" data-docx-indent-first-line-twips="240" data-docx-indent-hanging-twips="120" data-docx-tab-stop-count="3" data-docx-tab-1-val="left" data-docx-tab-1-pos-twips="720" data-docx-tab-2-val="decimal" data-docx-tab-2-pos-twips="1440" data-docx-tab-2-leader="dot" data-docx-tab-3-val="clear" data-docx-tab-3-pos-twips="2160" data-docx-keep-next="true" data-docx-page-break-before="true"}', $markdown);
         $t->contains('[Justified source packet paragraph.]{.docx-paragraph-align .docx-align-both .docx-paragraph-spacing .docx-paragraph-indent data-docx-paragraph-align="both" data-docx-spacing-before-lines="100" data-docx-spacing-after-lines="50" data-docx-indent-start-twips="480" data-docx-indent-end-twips="240"}', $markdown);
         $t->contains('[Trailing aligned paragraph.]{.docx-paragraph-align .docx-align-end data-docx-paragraph-align="end"}', $markdown);
         $t->contains('## [Aligned review heading]{.docx-paragraph-align .docx-align-right data-docx-paragraph-align="right"}', $markdown);
 
-        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-right-twips="360" data-docx-indent-first-line-twips="240" data-docx-indent-hanging-twips="120" data-docx-keep-next="true" data-docx-page-break-before="true">Centered review paragraph.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-paragraph-tabs docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-right-twips="360" data-docx-indent-first-line-twips="240" data-docx-indent-hanging-twips="120" data-docx-tab-stop-count="3" data-docx-tab-1-val="left" data-docx-tab-1-pos-twips="720" data-docx-tab-2-val="decimal" data-docx-tab-2-pos-twips="1440" data-docx-tab-2-leader="dot" data-docx-tab-3-val="clear" data-docx-tab-3-pos-twips="2160" data-docx-keep-next="true" data-docx-page-break-before="true">Centered review paragraph.</span></p>', $blocks);
         $t->contains('<p><span class="docx-paragraph-align docx-align-both docx-paragraph-spacing docx-paragraph-indent" data-docx-paragraph-align="both" data-docx-spacing-before-lines="100" data-docx-spacing-after-lines="50" data-docx-indent-start-twips="480" data-docx-indent-end-twips="240">Justified source packet paragraph.</span></p>', $blocks);
         $t->contains('<p><span class="docx-paragraph-align docx-align-end" data-docx-paragraph-align="end">Trailing aligned paragraph.</span></p>', $blocks);
         $t->contains('<h2 id="aligned-review-heading"><span class="docx-paragraph-align docx-align-right" data-docx-paragraph-align="right">Aligned review heading</span></h2>', $blocks);

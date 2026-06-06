@@ -1753,6 +1753,7 @@ final class DocxReader
         $this->appendParagraphAlignmentMetadata($properties, $classes, $attributes);
         $this->appendParagraphSpacingMetadata($properties, $classes, $attributes);
         $this->appendParagraphIndentMetadata($properties, $classes, $attributes);
+        $this->appendParagraphTabsMetadata($properties, $classes, $attributes);
 
         if ($this->hasOnOffChild($properties, 'keepNext')) {
             $classes[] = 'docx-keep-next';
@@ -2000,6 +2001,60 @@ final class DocxReader
 
         $classes[] = 'docx-paragraph-indent';
         $attributes += $indentAttributes;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphTabsMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $tabs = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tabs');
+        if (!$tabs instanceof \DOMElement) {
+            return;
+        }
+
+        $tabStopAttributes = [];
+        foreach ($tabs->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'tab')) {
+                continue;
+            }
+
+            $tabAttributes = [];
+            $value = trim((string) ($this->wordAttr($child, 'val') ?? ''));
+            if ($value !== '') {
+                $tabAttributes['val'] = $value;
+            }
+
+            $position = $this->optionalIntWordAttr($child, 'pos');
+            if ($position !== null) {
+                $tabAttributes['pos-twips'] = (string) $position;
+            }
+
+            $leader = trim((string) ($this->wordAttr($child, 'leader') ?? ''));
+            if ($leader !== '') {
+                $tabAttributes['leader'] = $leader;
+            }
+
+            if ($tabAttributes === []) {
+                continue;
+            }
+
+            $tabStopAttributes[] = $tabAttributes;
+        }
+
+        if ($tabStopAttributes === []) {
+            return;
+        }
+
+        $classes[] = 'docx-paragraph-tabs';
+        $attributes['data-docx-tab-stop-count'] = (string) count($tabStopAttributes);
+        foreach ($tabStopAttributes as $zeroBasedIndex => $tabAttributes) {
+            $index = $zeroBasedIndex + 1;
+            foreach ($tabAttributes as $name => $tabValue) {
+                $attributes['data-docx-tab-' . $index . '-' . $name] = $tabValue;
+            }
+        }
     }
 
     /**
