@@ -16737,7 +16737,7 @@ final class PdfTextExtractor
 
             $parentValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent');
             if ($parentValue === null) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
                     return [
                         'lineage' => $catalogLineage,
@@ -16754,7 +16754,7 @@ final class PdfTextExtractor
             }
 
             if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                     $blocked = true;
@@ -16772,7 +16772,7 @@ final class PdfTextExtractor
                 || $objects[$parentObjectNumber] !== $parentBody
                 || !$this->isPagesObject($parentBody)
             ) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                 }
@@ -16786,7 +16786,7 @@ final class PdfTextExtractor
                 $childGeneration === null
                 || !$this->pageTreeParentListsChild($parentBody, $objectNumber, $childGeneration, $objects)
             ) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                 }
@@ -16806,9 +16806,10 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param list<int> $preferredPrefix
      * @return list<int>
      */
-    private function pageObjectLineageFromCatalogPath(int $pageObjectNumber, array $objects): array
+    private function pageObjectLineageFromCatalogPath(int $pageObjectNumber, array $objects, array $preferredPrefix = []): array
     {
         $catalog = $this->catalogObjectBody($objects);
         if ($catalog === null) {
@@ -16824,13 +16825,16 @@ final class PdfTextExtractor
             $pagesReference['objectNumber'],
             $pagesReference['generation'],
             $pageObjectNumber,
-            $objects
+            $objects,
+            [],
+            $preferredPrefix
         ) ?? [];
     }
 
     /**
      * @param array<int, string> $objects
      * @param array<string, true> $seen
+     * @param list<int> $preferredPrefix
      * @return list<int>|null
      */
     private function pageObjectLineageFromTreeReference(
@@ -16838,7 +16842,8 @@ final class PdfTextExtractor
         int $generation,
         int $targetPageObjectNumber,
         array $objects,
-        array $seen = []
+        array $seen = [],
+        array $preferredPrefix = []
     ): ?array {
         $referenceKey = $objectNumber . ':' . $generation;
         if (isset($seen[$referenceKey])) {
@@ -16859,21 +16864,38 @@ final class PdfTextExtractor
             return null;
         }
 
+        $firstLineage = null;
+        $bestLineage = null;
+        $bestPrefixLength = -1;
         foreach ($this->pageTreeKidObjectReferences($body, $objects) as $childReference) {
             $lineage = $this->pageObjectLineageFromTreeReference(
                 $childReference['objectNumber'],
                 $childReference['generation'],
                 $targetPageObjectNumber,
                 $objects,
-                $seen
+                $seen,
+                $preferredPrefix
             );
             if ($lineage !== null) {
                 $lineage[] = $objectNumber;
-                return $lineage;
+                $firstLineage ??= $lineage;
+                if ($preferredPrefix === []) {
+                    return $lineage;
+                }
+
+                if ($this->pageObjectLineageIsPrefix($preferredPrefix, $lineage)) {
+                    return $lineage;
+                }
+
+                $prefixLength = count($this->pageObjectLineageCommonPrefix($preferredPrefix, $lineage));
+                if ($prefixLength > $bestPrefixLength) {
+                    $bestPrefixLength = $prefixLength;
+                    $bestLineage = $lineage;
+                }
             }
         }
 
-        return null;
+        return $bestLineage ?? $firstLineage;
     }
 
     /**

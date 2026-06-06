@@ -1618,7 +1618,7 @@ final class PdfPagePropertyExtractor
 
             $parentValue = $this->dictionaryRawValue($dictionary, 'Parent');
             if ($parentValue === null) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
                     return $catalogLineage;
                 }
@@ -1632,7 +1632,7 @@ final class PdfPagePropertyExtractor
 
             $parentReference = $this->objectReferenceFromValue($parentValue);
             if ($parentReference === null) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                 }
@@ -1645,7 +1645,7 @@ final class PdfPagePropertyExtractor
                 !isset($objects[$parentObjectNumber])
                 || ($this->currentObjectGenerations[$parentObjectNumber] ?? null) !== $parentReference['generation']
             ) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                 }
@@ -1655,7 +1655,7 @@ final class PdfPagePropertyExtractor
 
             $parentDictionary = $this->dictionaryObjectBody($objects[$parentObjectNumber]);
             if ($parentDictionary === null || $this->pdfObjectTypeName($parentDictionary, $objects) !== 'Pages') {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                 }
@@ -1668,7 +1668,7 @@ final class PdfPagePropertyExtractor
                 $childGeneration === null
                 || !$this->pageTreeParentListsChild($parentDictionary, $objectNumber, $childGeneration, $objects)
             ) {
-                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
                 }
@@ -1684,9 +1684,15 @@ final class PdfPagePropertyExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param list<int> $preferredPrefix
      * @return list<int>
      */
-    private function pageObjectLineageFromCatalogPath(int $pageObjectNumber, string $catalog, array $objects): array
+    private function pageObjectLineageFromCatalogPath(
+        int $pageObjectNumber,
+        string $catalog,
+        array $objects,
+        array $preferredPrefix = []
+    ): array
     {
         $pagesValue = $this->dictionaryRawValue($catalog, 'Pages');
         $pagesReference = $pagesValue === null ? null : $this->objectReferenceFromValue($pagesValue);
@@ -1698,13 +1704,16 @@ final class PdfPagePropertyExtractor
             $pagesReference['objectNumber'],
             $pagesReference['generation'],
             $pageObjectNumber,
-            $objects
+            $objects,
+            [],
+            $preferredPrefix
         ) ?? [];
     }
 
     /**
      * @param array<int, string> $objects
      * @param array<string, true> $seen
+     * @param list<int> $preferredPrefix
      * @return list<int>|null
      */
     private function pageObjectLineageFromTreeReference(
@@ -1712,7 +1721,8 @@ final class PdfPagePropertyExtractor
         int $generation,
         int $targetPageObjectNumber,
         array $objects,
-        array $seen = []
+        array $seen = [],
+        array $preferredPrefix = []
     ): ?array {
         $referenceKey = $objectNumber . ':' . $generation;
         if (isset($seen[$referenceKey])) {
@@ -1744,6 +1754,9 @@ final class PdfPagePropertyExtractor
             return null;
         }
 
+        $firstLineage = null;
+        $bestLineage = null;
+        $bestPrefixLength = -1;
         foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
             $childReference = $this->objectReferenceFromValue($kidValue);
             if ($childReference === null) {
@@ -1755,15 +1768,29 @@ final class PdfPagePropertyExtractor
                 $childReference['generation'],
                 $targetPageObjectNumber,
                 $objects,
-                $seen
+                $seen,
+                $preferredPrefix
             );
             if ($lineage !== null) {
                 $lineage[] = $objectNumber;
-                return $lineage;
+                $firstLineage ??= $lineage;
+                if ($preferredPrefix === []) {
+                    return $lineage;
+                }
+
+                if ($this->pageObjectLineageIsPrefix($preferredPrefix, $lineage)) {
+                    return $lineage;
+                }
+
+                $prefixLength = count($this->pageObjectLineageCommonPrefix($preferredPrefix, $lineage));
+                if ($prefixLength > $bestPrefixLength) {
+                    $bestPrefixLength = $prefixLength;
+                    $bestLineage = $lineage;
+                }
             }
         }
 
-        return null;
+        return $bestLineage ?? $firstLineage;
     }
 
     /**
