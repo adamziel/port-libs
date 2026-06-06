@@ -3758,6 +3758,7 @@ final class DocxReader
         foreach ([
             'highlight' => 'highlight',
             'shd' => 'shading',
+            'color' => 'color',
             'lang' => 'language',
             'rtl' => 'rtl',
             'rFonts' => 'font',
@@ -3865,6 +3866,16 @@ final class DocxReader
         } elseif ($family === 'shading') {
             $removeExactClasses[] = 'docx-shading';
             $removeAttributePrefixes[] = 'data-docx-shading-';
+        } elseif ($family === 'color') {
+            array_push($removeExactClasses, 'docx-color', 'docx-theme-color');
+            array_push($removeClassPrefixes, 'docx-color-', 'docx-theme-color-');
+            array_push(
+                $removeExactAttributes,
+                'data-docx-color',
+                'data-docx-theme-color',
+                'data-docx-theme-tint',
+                'data-docx-theme-shade'
+            );
         } elseif ($family === 'language') {
             $removeExactClasses[] = 'docx-language';
             array_push($removeExactAttributes, 'lang', 'data-docx-lang', 'data-docx-lang-bidi', 'data-docx-lang-east-asia');
@@ -3924,6 +3935,7 @@ final class DocxReader
         $attrs = null;
         foreach ([
             $this->runReviewMarkupAttrs($properties),
+            $this->runColorAttrs($properties),
             $this->runLanguageDirectionAttrs($properties),
             $this->runFontAttrs($properties),
             $includeFormattingChange ? $this->runFormattingChangeAttrs($properties) : null,
@@ -4180,6 +4192,59 @@ final class DocxReader
         }
 
         if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runColorAttrs(\DOMElement $properties): ?array
+    {
+        $color = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'color');
+        if (!$color instanceof \DOMElement) {
+            return null;
+        }
+
+        $classes = [];
+        $attributes = [];
+
+        $value = trim((string) ($this->wordAttr($color, 'val') ?? ''));
+        if ($value !== '') {
+            $attributes['data-docx-color'] = $value;
+            $classes[] = 'docx-color';
+            $suffix = $this->metadataClassSuffix($value);
+            if ($suffix !== null) {
+                $classes[] = 'docx-color-' . $suffix;
+            }
+        }
+
+        $themeColor = trim((string) ($this->wordAttr($color, 'themeColor') ?? ''));
+        if ($themeColor !== '') {
+            $attributes['data-docx-theme-color'] = $themeColor;
+            $classes[] = 'docx-theme-color';
+            $suffix = $this->metadataClassSuffix($themeColor);
+            if ($suffix !== null) {
+                $classes[] = 'docx-theme-color-' . $suffix;
+            }
+        }
+
+        foreach ([
+            'themeTint' => 'data-docx-theme-tint',
+            'themeShade' => 'data-docx-theme-shade',
+        ] as $source => $target) {
+            $themeValue = trim((string) ($this->wordAttr($color, $source) ?? ''));
+            if ($themeValue !== '') {
+                $attributes[$target] = $themeValue;
+            }
+        }
+
+        if ($attributes === []) {
             return null;
         }
 

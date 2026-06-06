@@ -1543,6 +1543,8 @@ $reviewMarkupRunDocumentXml = <<<'XML'
       <w:r><w:rPr><w:shd w:val="clear" w:fill="D9EAF7" w:color="auto"/></w:rPr><w:t>source shading</w:t></w:r>
       <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
       <w:r><w:rPr><w:b/><w:highlight w:val="green"/><w:shd w:fill="FFE699"/></w:rPr><w:t>bold flagged text</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and color </w:t></w:r>
+      <w:r><w:rPr><w:color w:val="C00000" w:themeColor="accent2" w:themeTint="33"/></w:rPr><w:t>redline label</w:t></w:r>
       <w:r><w:rPr><w:highlight w:val="none"/></w:rPr><w:t xml:space="preserve"> plain text.</w:t></w:r>
     </w:p>
   </w:body>
@@ -4256,14 +4258,14 @@ return [
         $t->contains('<span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span>', $blocks);
         $t->contains('<p>Rendered pagination <span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span> before reviewer continuation.</p>', $blocks);
     },
-    'preserves DOCX highlighted and shaded reviewer run markup as spans' => static function (TestRunner $t) use ($buildReviewMarkupRunPackage): void {
+    'preserves DOCX highlighted shaded and colored reviewer run markup as spans' => static function (TestRunner $t) use ($buildReviewMarkupRunPackage): void {
         $document = (new DocxReader())->readDocument($buildReviewMarkupRunPackage());
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $paragraph = $document->children[0];
         $t->same('paragraph', $paragraph->type);
-        $t->same(7, count($paragraph->children));
+        $t->same(9, count($paragraph->children));
         $t->same('Reviewer marked ', $paragraph->children[0]->attr('text'));
 
         $highlight = $paragraph->children[1];
@@ -4289,15 +4291,24 @@ return [
         $t->same('FFE699', $combined->attr('attributes')['data-docx-shading-fill']);
         $t->same('strong', $combined->children[0]->type);
         $t->same('bold flagged text', $combined->children[0]->children[0]->attr('text'));
-        $t->same(' plain text.', $paragraph->children[6]->attr('text'));
+
+        $t->same(' and color ', $paragraph->children[6]->attr('text'));
+        $color = $paragraph->children[7];
+        $t->same('span', $color->type);
+        $t->same(['docx-color', 'docx-color-c00000', 'docx-theme-color', 'docx-theme-color-accent2'], $color->attr('classes'));
+        $t->same('C00000', $color->attr('attributes')['data-docx-color']);
+        $t->same('accent2', $color->attr('attributes')['data-docx-theme-color']);
+        $t->same('33', $color->attr('attributes')['data-docx-theme-tint']);
+        $t->same('redline label', $color->children[0]->attr('text'));
+        $t->same(' plain text.', $paragraph->children[8]->attr('text'));
 
         $t->contains('[priority update]{.docx-highlight .docx-highlight-yellow data-docx-highlight="yellow"}', $markdown);
         $t->contains('[source shading]{.docx-shading data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7" data-docx-shading-color="auto"}', $markdown);
-        $t->contains('[**bold flagged text**]{.docx-highlight .docx-highlight-green .docx-shading data-docx-highlight="green" data-docx-shading-fill="FFE699"} plain text.', $markdown);
+        $t->contains('[**bold flagged text**]{.docx-highlight .docx-highlight-green .docx-shading data-docx-highlight="green" data-docx-shading-fill="FFE699"} and color [redline label]{.docx-color .docx-color-c00000 .docx-theme-color .docx-theme-color-accent2 data-docx-color="C00000" data-docx-theme-color="accent2" data-docx-theme-tint="33"} plain text.', $markdown);
 
         $t->contains('<span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span>', $blocks);
         $t->contains('<span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7" data-docx-shading-color="auto">source shading</span>', $blocks);
-        $t->contains('<span class="docx-highlight docx-highlight-green docx-shading" data-docx-highlight="green" data-docx-shading-fill="FFE699"><strong>bold flagged text</strong></span> plain text.', $blocks);
+        $t->contains('<span class="docx-highlight docx-highlight-green docx-shading" data-docx-highlight="green" data-docx-shading-fill="FFE699"><strong>bold flagged text</strong></span> and color <span class="docx-color docx-color-c00000 docx-theme-color docx-theme-color-accent2" data-docx-color="C00000" data-docx-theme-color="accent2" data-docx-theme-tint="33">redline label</span> plain text.', $blocks);
         $t->true(!str_contains($markdown, 'data-docx-highlight="none"'), 'DOCX highlight none should not create reviewer markup');
         $t->true(!str_contains($blocks, 'data-docx-highlight="none"'), 'DOCX highlight none should not create WordPress reviewer markup');
     },
