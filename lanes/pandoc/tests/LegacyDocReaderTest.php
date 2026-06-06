@@ -2566,6 +2566,61 @@ return [
             $t->true(!str_contains($blocks, trim($fixture[$field])), 'Legacy DOC supplemental subdocument text should not render to WordPress blocks');
         }
     },
+    'parses legacy DOC PlcfHdd header footer story ranges as metadata only' => static function (TestRunner $t) use ($buildCfb, $buildSubdocumentReferenceBodyDocStreams, $u32): void {
+        $fixture = $buildSubdocumentReferenceBodyDocStreams();
+        $headerCharacters = strlen($fixture['headerText']);
+        $headerStoryText = substr($fixture['headerText'], 0, -1);
+        $ignoredFinalCp = 0x44444444;
+        $plcfhdd = $u32(0)
+            . $u32(0)
+            . $u32(0)
+            . $u32(0)
+            . $u32(0)
+            . $u32(0)
+            . $u32(0)
+            . $u32(0)
+            . $u32($headerCharacters - 1)
+            . $u32($headerCharacters - 1)
+            . $u32($headerCharacters - 1)
+            . $u32($headerCharacters - 1)
+            . $u32($headerCharacters - 1)
+            . $u32($ignoredFinalCp);
+        $fcPlcfHdd = strlen($fixture['streams']['1Table']);
+        $fixture['streams']['1Table'] .= $plcfhdd;
+        $fixture['streams']['WordDocument'] = substr_replace($fixture['streams']['WordDocument'], $u32($fcPlcfHdd), 0x00f2, 4);
+        $fixture['streams']['WordDocument'] = substr_replace($fixture['streams']['WordDocument'], $u32(strlen($plcfhdd)), 0x00f6, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb($fixture['streams']));
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $stories = $result['headerFooterStories'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($stories));
+        $t->same(1, $metadata['headerFooterStoryCount']);
+        $t->same(12, $metadata['headerFooterDeclaredStoryCount']);
+        $t->same($ignoredFinalCp, $metadata['headerFooterIgnoredFinalCp']);
+        $t->same($stories, $metadata['headerFooterStories']);
+        $t->same($stories, $document->attr('headerFooterStories'));
+        $t->same('PlcfHdd', $stories[0]['sourceTable']);
+        $t->same(8, $stories[0]['index']);
+        $t->same(7, $stories[0]['storyNumber']);
+        $t->same('odd-page-header', $stories[0]['role']);
+        $t->same('header', $stories[0]['kind']);
+        $t->same(1, $stories[0]['sectionIndex']);
+        $t->same(0, $stories[0]['startCp']);
+        $t->same($headerCharacters - 1, $stories[0]['endCp']);
+        $t->same($headerCharacters - 1, $stories[0]['characterCount']);
+        $t->same($headerStoryText, $stories[0]['text']);
+        $t->same($headerCharacters - 1, $stories[0]['guardCp']);
+        $t->same(true, $stories[0]['hasGuardParagraph']);
+        $t->contains('<p>Main <span class="legacy-doc-note-ref legacy-doc-footnote-ref"', $blocks);
+        $t->true(!str_contains($blocks, $headerStoryText), 'Legacy DOC PlcfHdd header story text should not render to WordPress blocks');
+
+        $badFixture = $fixture;
+        $badFixture['streams']['1Table'] = substr_replace($badFixture['streams']['1Table'], $u32($headerCharacters), $fcPlcfHdd + 48, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badFixture['streams'])));
+    },
     'extracts legacy DOC supplemental story Plcfld field tables as metadata only' => static function (TestRunner $t) use ($buildCfb, $buildSupplementalFieldTableDocStreams, $u32): void {
         $fixture = $buildSupplementalFieldTableDocStreams();
         $result = (new LegacyDocReader())->readBytes($buildCfb($fixture['streams']));

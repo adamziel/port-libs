@@ -21,6 +21,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFAND_TXT = 0x00c6;
     private const FIB_FC_PLCF_SED = 0x00ca;
     private const FIB_LCB_PLCF_SED = 0x00ce;
+    private const FIB_FC_PLCF_HDD = 0x00f2;
+    private const FIB_LCB_PLCF_HDD = 0x00f6;
     private const FIB_FC_PLCF_BTE_CHPX = 0x00fa;
     private const FIB_LCB_PLCF_BTE_CHPX = 0x00fe;
     private const FIB_FC_PLCF_BTE_PAPX = 0x0102;
@@ -70,6 +72,22 @@ final class LegacyDocReader
         'ccpTxbx' => 'textbox',
         'ccpHdrTxbx' => 'header-textbox',
     ];
+    private const HEADER_FOOTER_SEPARATOR_ROLES = [
+        'footnote-separator',
+        'footnote-continuation-separator',
+        'footnote-continuation-notice',
+        'endnote-separator',
+        'endnote-continuation-separator',
+        'endnote-continuation-notice',
+    ];
+    private const HEADER_FOOTER_SECTION_ROLES = [
+        'even-page-header',
+        'odd-page-header',
+        'even-page-footer',
+        'odd-page-footer',
+        'first-page-header',
+        'first-page-footer',
+    ];
     private const FIELD_CHARACTER_BEGIN = 0x13;
     private const FIELD_CHARACTER_SEPARATOR = 0x14;
     private const FIELD_CHARACTER_END = 0x15;
@@ -102,7 +120,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -110,7 +128,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -158,6 +176,14 @@ final class LegacyDocReader
         if ($subdocuments !== []) {
             $metadata['subdocumentCount'] = count($subdocuments);
             $metadata['subdocuments'] = $subdocuments;
+        }
+        $headerFooterStoryReport = $this->headerFooterStoryReport($wordDocument, $tableStream, $subdocumentTexts);
+        $headerFooterStories = $headerFooterStoryReport['stories'];
+        if ($headerFooterStories !== []) {
+            $metadata['headerFooterStoryCount'] = count($headerFooterStories);
+            $metadata['headerFooterDeclaredStoryCount'] = $headerFooterStoryReport['declaredStoryCount'];
+            $metadata['headerFooterIgnoredFinalCp'] = $headerFooterStoryReport['ignoredFinalCp'];
+            $metadata['headerFooterStories'] = $headerFooterStories;
         }
         if ($streamDirectory !== []) {
             $metadata['cfbStreamCount'] = count($streamDirectory);
@@ -287,6 +313,7 @@ final class LegacyDocReader
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
             'subdocuments' => $subdocuments,
+            'headerFooterStories' => $headerFooterStories,
             'styles' => $styles,
             'formattingRuns' => $formattingRuns,
             'listFormats' => $listFormats,
@@ -319,6 +346,7 @@ final class LegacyDocReader
             'directoryEntries' => $directoryEntries,
             'fib' => $fib + ['textSource' => $textResult['source']],
             'subdocuments' => $subdocuments,
+            'headerFooterStories' => $headerFooterStories,
             'styles' => $styles,
             'formattingRuns' => $formattingRuns,
             'listFormats' => $listFormats,
@@ -850,6 +878,146 @@ final class LegacyDocReader
         }
 
         return $texts;
+    }
+
+    /**
+     * @param array<string,string> $subdocumentTexts
+     * @return array{stories:list<array<string,mixed>>,declaredStoryCount:int,ignoredFinalCp:int|null}
+     */
+    private function headerFooterStoryReport(string $wordDocument, ?string $tableStream, array $subdocumentTexts): array
+    {
+        $empty = [
+            'stories' => [],
+            'declaredStoryCount' => 0,
+            'ignoredFinalCp' => null,
+        ];
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_HDD + 4) {
+            return $empty;
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_PLCF_HDD);
+        if ($length === 0) {
+            return $empty;
+        }
+        if (!array_key_exists('header', $subdocumentTexts)) {
+            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer table is present without extracted header text');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_PLCF_HDD);
+
+        return $this->parsePlcfhdd(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'PlcfHdd header/footer story table'),
+            $subdocumentTexts['header']
+        );
+    }
+
+    /**
+     * @return array{stories:list<array<string,mixed>>,declaredStoryCount:int,ignoredFinalCp:int}
+     */
+    private function parsePlcfhdd(string $bytes, string $headerText): array
+    {
+        $length = strlen($bytes);
+        if ($length < 12 || ($length % 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table has an invalid length');
+        }
+
+        $characters = $this->unicodeCharacters($headerText);
+        $headerCharacterCount = count($characters);
+        if ($headerCharacterCount === 0) {
+            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer table is present for an empty header document');
+        }
+
+        $cpCount = intdiv($length, 4);
+        $storyCount = $cpCount - 2;
+        if ($storyCount <= 0 || $storyCount > 4096) {
+            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table declares an invalid story count');
+        }
+        $minimumStoryCount = count(self::HEADER_FOOTER_SEPARATOR_ROLES) + count(self::HEADER_FOOTER_SECTION_ROLES);
+        if ($storyCount < $minimumStoryCount) {
+            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table is missing first-section story slots');
+        }
+
+        $cps = [];
+        for ($index = 0; $index < $cpCount; $index++) {
+            $cps[] = self::u32($bytes, $index * 4);
+        }
+
+        $previousCp = null;
+        for ($index = 0; $index < $cpCount - 1; $index++) {
+            $cp = $cps[$index];
+            if ($cp >= $headerCharacterCount) {
+                throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table points outside the header document');
+            }
+            if ($previousCp !== null && $cp < $previousCp) {
+                throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table contains descending CPs');
+            }
+            $previousCp = $cp;
+        }
+
+        $terminatingCp = $cps[$cpCount - 2];
+        if ($terminatingCp !== $headerCharacterCount - 1) {
+            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table does not terminate at ccpHdd minus one');
+        }
+
+        $stories = [];
+        for ($storyNumber = 0; $storyNumber < $storyCount; $storyNumber++) {
+            $startCp = $cps[$storyNumber];
+            $endCp = $cps[$storyNumber + 1];
+            if ($endCp === $startCp) {
+                continue;
+            }
+
+            $descriptor = $this->headerFooterStoryDescriptor($storyNumber);
+            $story = [
+                'index' => $storyNumber + 1,
+                'storyNumber' => $storyNumber,
+                'sourceTable' => 'PlcfHdd',
+                'role' => $descriptor['role'],
+                'kind' => $descriptor['kind'],
+                'startCp' => $startCp,
+                'endCp' => $endCp,
+                'characterCount' => $endCp - $startCp,
+                'text' => $this->charactersToString(array_slice($characters, $startCp, $endCp - $startCp)),
+                'guardCp' => $endCp,
+                'hasGuardParagraph' => isset($characters[$endCp]) && $characters[$endCp] === "\r",
+            ];
+            if (isset($descriptor['sectionIndex'])) {
+                $story['sectionIndex'] = $descriptor['sectionIndex'];
+                $story['sectionStoryNumber'] = $descriptor['sectionStoryNumber'];
+            }
+            $stories[] = $story;
+        }
+
+        return [
+            'stories' => $stories,
+            'declaredStoryCount' => $storyCount,
+            'ignoredFinalCp' => $cps[$cpCount - 1],
+        ];
+    }
+
+    /**
+     * @return array{role:string,kind:string,sectionIndex?:int,sectionStoryNumber?:int}
+     */
+    private function headerFooterStoryDescriptor(int $storyNumber): array
+    {
+        $separatorRoleCount = count(self::HEADER_FOOTER_SEPARATOR_ROLES);
+        if ($storyNumber < $separatorRoleCount) {
+            return [
+                'role' => self::HEADER_FOOTER_SEPARATOR_ROLES[$storyNumber],
+                'kind' => 'separator',
+            ];
+        }
+
+        $sectionStoryOrdinal = $storyNumber - $separatorRoleCount;
+        $sectionStoryNumber = $sectionStoryOrdinal % count(self::HEADER_FOOTER_SECTION_ROLES);
+        $role = self::HEADER_FOOTER_SECTION_ROLES[$sectionStoryNumber];
+
+        return [
+            'role' => $role,
+            'kind' => str_contains($role, 'header') ? 'header' : 'footer',
+            'sectionIndex' => intdiv($sectionStoryOrdinal, count(self::HEADER_FOOTER_SECTION_ROLES)) + 1,
+            'sectionStoryNumber' => $sectionStoryNumber,
+        ];
     }
 
     /**

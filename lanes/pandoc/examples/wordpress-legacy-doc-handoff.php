@@ -419,7 +419,7 @@ $firstPieceBytes = $utf16le($firstPieceText);
 $secondPieceBytes = $utf16le($secondPieceText);
 $subdocumentSeparatorBytes = $utf16le("\r");
 $footnoteSubdocumentText = "Footnote body retained for metadata-only review.\r";
-$headerSubdocumentText = 'H ' . $fieldBegin . ' DATE ' . $fieldSeparator . '2026-06-06' . $fieldEnd . "\r";
+$headerSubdocumentText = 'H ' . $fieldBegin . ' DATE ' . $fieldSeparator . '2026-06-06' . $fieldEnd . "\r\r";
 $commentSubdocumentText = "Comment body retained for annotation review.\r";
 $endnoteSubdocumentText = "Endnote body retained for metadata-only review.\r";
 $footnoteSubdocumentBytes = $utf16le($footnoteSubdocumentText);
@@ -539,6 +539,20 @@ $fieldRecords = $fieldRecordsForText($mainText);
 $headerFieldRecords = $fieldRecordsForText($headerSubdocumentText);
 $plcfldMom = $buildPlcfldMom($fieldRecords, $totalPieceCharacters);
 $plcfldHdr = $buildPlcfldMom($headerFieldRecords, $headerSubdocumentCharacters);
+$plcfHdd = $u32(0)
+    . $u32(0)
+    . $u32(0)
+    . $u32(0)
+    . $u32(0)
+    . $u32(0)
+    . $u32(0)
+    . $u32(0)
+    . $u32($headerSubdocumentCharacters - 1)
+    . $u32($headerSubdocumentCharacters - 1)
+    . $u32($headerSubdocumentCharacters - 1)
+    . $u32($headerSubdocumentCharacters - 1)
+    . $u32($headerSubdocumentCharacters - 1)
+    . $u32(0);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
 $wordDocument = substr_replace($wordDocument, $u32($totalPieceCharacters), 0x004c, 4);
 $wordDocument = substr_replace($wordDocument, $u32($footnoteSubdocumentCharacters), 0x0050, 4);
@@ -667,7 +681,8 @@ $associatedStringsTable = $sttbfAssoc([
 ]);
 $fcPlcfFldMom = strlen($clx);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
-$fcSttbfAssoc = $fcPlcfFldHdr + strlen($plcfldHdr);
+$fcPlcfHdd = $fcPlcfFldHdr + strlen($plcfldHdr);
+$fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
 $fcSttbfBkmk = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
@@ -684,9 +699,11 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $plcfldMom . $plcfldHdr . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $plcfldMom . $plcfldHdr . $plcfHdd . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfHdd)), 0x00f6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBtePapx), 0x0102, 4);
@@ -1116,6 +1133,7 @@ $summary = [
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
     'subdocuments' => $result['subdocuments'],
+    'headerFooterStories' => $result['headerFooterStories'],
     'styles' => $result['styles'],
     'formattingRuns' => $result['formattingRuns'],
     'listFormats' => $result['listFormats'],
@@ -1419,6 +1437,31 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($subdocumentsByType['endnote']['text'] ?? '') !== $endnoteSubdocumentText
     ) {
         throw new RuntimeException('Legacy DOC handoff self-test missing supplemental subdocument body text');
+    }
+    $headerFooterStoryText = substr($headerSubdocumentText, 0, -1);
+    if (
+        ($summary['metadata']['headerFooterStoryCount'] ?? null) !== 1
+        || ($summary['metadata']['headerFooterDeclaredStoryCount'] ?? null) !== 12
+        || count($summary['headerFooterStories'] ?? []) !== 1
+        || ($summary['metadata']['headerFooterStories'] ?? []) !== ($summary['headerFooterStories'] ?? [])
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PlcfHdd header/footer story inventory');
+    }
+    if (
+        ($summary['headerFooterStories'][0]['sourceTable'] ?? '') !== 'PlcfHdd'
+        || ($summary['headerFooterStories'][0]['storyNumber'] ?? null) !== 7
+        || ($summary['headerFooterStories'][0]['role'] ?? '') !== 'odd-page-header'
+        || ($summary['headerFooterStories'][0]['kind'] ?? '') !== 'header'
+        || ($summary['headerFooterStories'][0]['sectionIndex'] ?? null) !== 1
+        || ($summary['headerFooterStories'][0]['text'] ?? '') !== $headerFooterStoryText
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PlcfHdd odd-header story metadata');
+    }
+    if (
+        ($summary['headerFooterStories'][0]['guardCp'] ?? null) !== $headerSubdocumentCharacters - 1
+        || ($summary['headerFooterStories'][0]['hasGuardParagraph'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PlcfHdd guard-paragraph boundary');
     }
     if (($summary['footnotes'][0]['bodyText'] ?? '') !== substr($footnoteSubdocumentText, 0, 35)) {
         throw new RuntimeException('Legacy DOC handoff self-test missing bounded footnote body text');
