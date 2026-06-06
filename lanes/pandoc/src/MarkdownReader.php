@@ -652,6 +652,29 @@ final class MarkdownReader
         ));
     }
 
+    private function yamlMetadataPathWithSegment(int|string $segment): string
+    {
+        $this->yamlMetadataDiagnosticPath[] = (string) $segment;
+        try {
+            return $this->currentYamlMetadataDiagnosticPath() ?? '';
+        } finally {
+            array_pop($this->yamlMetadataDiagnosticPath);
+        }
+    }
+
+    private function retargetYamlTagProvenanceFrom(int $start, int|string $segment): void
+    {
+        $count = count($this->yamlMetadataTagProvenance);
+        if ($start >= $count) {
+            return;
+        }
+
+        $path = $this->yamlMetadataPathWithSegment($segment);
+        for ($index = $start; $index < $count; $index++) {
+            $this->yamlMetadataTagProvenance[$index]['path'] = $path;
+        }
+    }
+
     /**
      * @param list<string> $lines
      * @return array<string, mixed>
@@ -789,6 +812,7 @@ final class MarkdownReader
         $cursor = $start + 1;
         $keyValue = null;
         $quotedKey = false;
+        $keyTagStart = count($this->yamlMetadataTagProvenance);
         if ($keySource === '') {
             $keyLines = [];
             $count = count($lines);
@@ -828,6 +852,7 @@ final class MarkdownReader
             return null;
         }
 
+        $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
         [$children, $nextIndex] = $this->collectYamlChildLines($lines, $cursor + 1);
 
         return [$key, $sourceValue, $children, $nextIndex, $quotedKey];
@@ -1986,8 +2011,10 @@ final class MarkdownReader
         foreach ($this->splitYamlFlowItems($source) as $item) {
             $mapping = $this->splitYamlFlowMappingItem($item);
             if ($mapping === null) {
+                $keyTagStart = count($this->yamlMetadataTagProvenance);
                 $key = $this->normalizeYamlFlowKeyOnlyItem($item);
                 if ($key !== '') {
+                    $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
                     $map[$key] = null;
                     if ($this->isYamlQuotedFlowKey($item)) {
                         $fieldQuoteMap[(string) $key] = true;
@@ -1997,11 +2024,13 @@ final class MarkdownReader
             }
 
             [$sourceKey, $value] = $mapping;
+            $keyTagStart = count($this->yamlMetadataTagProvenance);
             $key = $this->normalizeYamlFlowKey($sourceKey);
             if ($key === '') {
                 continue;
             }
 
+            $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
             $value = $this->withYamlMetadataPathSegment(
                 (string) $key,
                 fn (): mixed => $this->parseYamlScalarValue($value)
@@ -2081,11 +2110,13 @@ final class MarkdownReader
                 continue;
             }
 
+            $keyTagStart = count($this->yamlMetadataTagProvenance);
             $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue($item));
             if ($key === null || $key === '') {
                 continue;
             }
 
+            $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
             $set[$key] = null;
         }
 
@@ -2110,6 +2141,7 @@ final class MarkdownReader
                 continue;
             }
 
+            $keyTagStart = count($this->yamlMetadataTagProvenance);
             if ($this->isYamlExplicitMappingKeyLine($trimmed)) {
                 $keySource = trim(substr($trimmed, 1));
                 if ($keySource === '') {
@@ -2134,6 +2166,7 @@ final class MarkdownReader
                 continue;
             }
 
+            $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
             $set[$key] = null;
         }
 

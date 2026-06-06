@@ -2004,6 +2004,55 @@ return [
         $t->same('tag-path-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-path-body">Tag path body</h1>', $blocks);
     },
+    'records pandoc yaml custom tag provenance paths for explicit mapping keys' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Explicit key tag **Packet**',
+            '? !<tag:example.test,2026:key> "source:key"',
+            ': metadata value',
+            'review:',
+            '  ? !wp-key [owner, desk]',
+            '  : Import Desk',
+            '  ? !wp-map-key {source: uri, type: review}',
+            '  : https://example.test/source',
+            'flow-review: {? !wp-flow-key "source:key": flow metadata, ? !wp-flow-seq [source, uri]: https://example.test/flow}',
+            'label-set: !!set {!wp-label migration, wordpress}',
+            '...',
+            '',
+            '# Explicit key tag body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Explicit key tag **Packet**', $meta['title']);
+        $t->same('metadata value', $meta['source:key']);
+        $t->same('Import Desk', $meta['review']['[owner, desk]']);
+        $t->same('https://example.test/source', $meta['review']['{source: uri, type: review}']);
+        $t->same('flow metadata', $meta['flow-review']['source:key']);
+        $t->same('https://example.test/flow', $meta['flow-review']['[source, uri]']);
+        $t->true(array_key_exists('migration', $meta['label-set']) && $meta['label-set']['migration'] === null);
+        $t->same([
+            '!<tag:example.test,2026:key>',
+            '!wp-key',
+            '!wp-map-key',
+            '!wp-flow-key',
+            '!wp-flow-seq',
+            '!wp-label',
+        ], array_column($provenance, 'tag'));
+        $t->same([
+            '/source:key',
+            '/review/[owner, desk]',
+            '/review/{source: uri, type: review}',
+            '/flow-review/source:key',
+            '/flow-review/[source, uri]',
+            '/label-set/migration',
+        ], array_column($provenance, 'path'));
+        $t->same(false, str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wp-'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('explicit-key-tag-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="explicit-key-tag-body">Explicit key tag body</h1>', $blocks);
+    },
     'maps pandoc yaml tag directives in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

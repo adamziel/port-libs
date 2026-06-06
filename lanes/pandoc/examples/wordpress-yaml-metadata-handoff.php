@@ -63,6 +63,7 @@ tag-directive-review:
   priority: !yaml!int "10"
   labels: [!wpd!label directive, !wpd!label metadata]
 flow-tag-directive-review: {? !wpd!key "source:key": !wpd!value directive metadata, owner: !wpd!reviewer Flow Directive Desk}
+flow-key-tag-review: {? !wpd!key "source:key": directive key metadata}
 non-specific-review:
   owner: ! "Import Desk"
   status: ! queued
@@ -175,6 +176,8 @@ flow-merge-review: {<<: [*merge_review_override, *merge_review_base], reviewer: 
 : "https://example.test/exports/packet#explicit-key"
 ? [sequence, source-uri]
 : "https://example.test/exports/packet#sequence-key"
+? !wpd!key [tagged, source-uri]
+: "https://example.test/exports/packet#tagged-explicit-key"
 sequence-key-review:
   ? [owner, desk]
   : Import Desk
@@ -454,6 +457,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-tag-directive-review']['owner'] ?? '') !== 'Flow Directive Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow tag directive owner metadata');
     }
+    if (($meta['flow-key-tag-review']['source:key'] ?? '') !== 'directive key metadata') {
+        throw new RuntimeException('YAML metadata self-test missing flow custom-tagged explicit key metadata');
+    }
     if (($meta['non-specific-review']['owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test leaked bare non-specific tag on owner metadata');
     }
@@ -484,6 +490,22 @@ if (($argv[1] ?? '') === '--self-test') {
         if (!in_array($expectedPath, $yamlTagPaths, true)) {
             throw new RuntimeException('YAML metadata self-test missing custom tag provenance path ' . $expectedPath);
         }
+    }
+    $foundFlowKeyTagPath = false;
+    $foundBlockKeyTagPath = false;
+    foreach ($yamlTagProvenance as $entry) {
+        if (($entry['tag'] ?? '') !== '!<tag:directive.example,2026:key>') {
+            continue;
+        }
+
+        $foundFlowKeyTagPath = $foundFlowKeyTagPath || (($entry['path'] ?? '') === '/flow-key-tag-review/source:key');
+        $foundBlockKeyTagPath = $foundBlockKeyTagPath || (($entry['path'] ?? '') === '/[tagged, source-uri]');
+    }
+    if (!$foundFlowKeyTagPath) {
+        throw new RuntimeException('YAML metadata self-test missing flow explicit-key tag provenance path');
+    }
+    if (!$foundBlockKeyTagPath) {
+        throw new RuntimeException('YAML metadata self-test missing block explicit-key tag provenance path');
     }
     if (str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wpd!')) {
         throw new RuntimeException('YAML metadata self-test leaked raw tag directive handle text');
@@ -634,6 +656,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['[sequence, source-uri]'] ?? '') !== 'https://example.test/exports/packet#sequence-key') {
         throw new RuntimeException('YAML metadata self-test missing explicit sequence source URI key');
+    }
+    if (($meta['[tagged, source-uri]'] ?? '') !== 'https://example.test/exports/packet#tagged-explicit-key') {
+        throw new RuntimeException('YAML metadata self-test missing custom-tagged explicit sequence key metadata');
     }
     if (($meta['sequence-key-review']['[owner, desk]'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing nested explicit sequence key owner');
