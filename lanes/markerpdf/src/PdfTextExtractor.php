@@ -1858,9 +1858,7 @@ final class PdfTextExtractor
         $outlineRootReference = $this->readPdfIndirectReferenceToken($outlineRootValue, $referenceOffset);
         if ($outlineRootReference !== null && isset($objects[$outlineRootReference['objectNumber']])) {
             $outlineRootNumber = $outlineRootReference['objectNumber'];
-            $outlineRootBody = $this->objectBodyIsStreamObject($objects[$outlineRootNumber])
-                ? null
-                : $objects[$outlineRootNumber];
+            $outlineRootBody = $this->singleOutlineDictionaryObjectBody($objects[$outlineRootNumber]);
         } else {
             $trimmedOutlineRoot = trim($outlineRootValue);
             if (str_starts_with($trimmedOutlineRoot, '<<')) {
@@ -1912,9 +1910,7 @@ final class PdfTextExtractor
 
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
-            $body = $this->objectBodyIsStreamObject($objects[$objectNumber])
-                ? null
-                : $objects[$objectNumber];
+            $body = $this->singleOutlineDictionaryObjectBody($objects[$objectNumber]);
             if ($body === null) {
                 break;
             }
@@ -21168,6 +21164,20 @@ final class PdfTextExtractor
 
         $this->skipContentWhitespaceAndComments($objectBody, $offset);
         return $offset >= strlen($objectBody) ? $dictionary : null;
+    }
+
+    private function singleOutlineDictionaryObjectBody(string $objectBody): ?string
+    {
+        $offset = 0;
+        $this->skipContentWhitespaceAndComments($objectBody, $offset);
+        $dictionary = $this->readPdfDictionaryTokenAt($objectBody, $offset);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $offset = $this->skipPdfWhitespace($objectBody, $offset);
+
+        return $offset >= strlen($objectBody) ? '<<' . $dictionary . '>>' : null;
     }
 
     private function objectBodyIsStreamObject(string $objectBody): bool

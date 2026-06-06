@@ -4335,7 +4335,11 @@ final class PdfMetadataExtractor
         $reference = $this->objectReferenceFromValue($value);
         if ($reference !== null) {
             $objectBody = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
-            if ($objectBody === null || $this->streamObjectHasStreamKeyword($objectBody)) {
+            if (
+                $objectBody === null
+                || $this->streamObjectHasStreamKeyword($objectBody)
+                || !$this->objectBodyHasSingleTopLevelValue($objectBody)
+            ) {
                 return null;
             }
         }
@@ -4793,7 +4797,9 @@ final class PdfMetadataExtractor
         while ($current !== null && !isset($seen[$current])) {
             $seen[$current] = true;
             $objectBody = $objects[$current] ?? null;
-            $dictionary = $objectBody === null || $this->streamObjectHasStreamKeyword($objectBody)
+            $dictionary = $objectBody === null
+                || $this->streamObjectHasStreamKeyword($objectBody)
+                || !$this->objectBodyHasSingleTopLevelValue($objectBody)
                 ? null
                 : $this->dictionaryObjectBody($objectBody);
             if ($dictionary === null) {
@@ -4942,6 +4948,13 @@ final class PdfMetadataExtractor
     private function isDocumentOutlineRootObject(?int $objectNumber, array $objects): bool
     {
         if ($objectNumber === null || !isset($objects[$objectNumber])) {
+            return false;
+        }
+
+        if (
+            $this->streamObjectHasStreamKeyword($objects[$objectNumber])
+            || !$this->objectBodyHasSingleTopLevelValue($objects[$objectNumber])
+        ) {
             return false;
         }
 
@@ -18356,6 +18369,19 @@ final class PdfMetadataExtractor
         $after = $this->skipPdfWhitespace($candidate, $offset + strlen($token));
 
         return $after >= strlen($candidate);
+    }
+
+    private function objectBodyHasSingleTopLevelValue(string $objectBody): bool
+    {
+        $offset = $this->skipPdfWhitespace($objectBody, 0);
+        $value = $this->readPdfValueAt($objectBody, $offset);
+        if ($value === null || $value === '') {
+            return false;
+        }
+
+        $after = $this->skipPdfWhitespace($objectBody, $offset + strlen($value));
+
+        return $after >= strlen($objectBody);
     }
 
     /**
