@@ -599,6 +599,7 @@ final class Html5DomFragment
         if ($title !== '') {
             $attrs['title'] = $title;
         }
+        self::addIframePolicyReviewAttributes($element, $attrs, $diagnostics);
 
         return [
             'type' => 'element',
@@ -609,6 +610,145 @@ final class Html5DomFragment
                 'text' => $title !== '' ? $title : 'Embedded frame source',
             ]],
         ];
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addIframePolicyReviewAttributes(\DOMElement $element, array &$attrs, array &$diagnostics): void
+    {
+        if ($element->hasAttribute('sandbox')) {
+            $sandbox = self::normalizeIframeSandboxAttribute($element->getAttribute('sandbox'), $diagnostics);
+            if ($sandbox !== null) {
+                $attrs['data-pandoc-iframe-sandbox'] = $sandbox;
+            }
+        }
+
+        if ($element->hasAttribute('allow')) {
+            $allow = self::normalizeIframeAllowAttribute($element->getAttribute('allow'));
+            if ($allow !== null) {
+                $attrs['data-pandoc-iframe-allow'] = $allow;
+            }
+        }
+
+        if ($element->hasAttribute('referrerpolicy')) {
+            $referrerPolicy = self::normalizeIframeReferrerPolicyAttribute(
+                $element->getAttribute('referrerpolicy'),
+                $diagnostics
+            );
+            if ($referrerPolicy !== null) {
+                $attrs['data-pandoc-iframe-referrerpolicy'] = $referrerPolicy;
+            }
+        }
+
+        if ($element->hasAttribute('allowfullscreen')) {
+            $attrs['data-pandoc-iframe-allowfullscreen'] = 'true';
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeIframeSandboxAttribute(string $value, array &$diagnostics): ?string
+    {
+        $trimmed = strtolower(trim(str_replace("\0", '', $value)));
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $tokens = preg_split('/[\x00-\x20]+/', $trimmed);
+        if (!is_array($tokens)) {
+            return null;
+        }
+
+        $allowedTokens = [
+            'allow-downloads' => true,
+            'allow-forms' => true,
+            'allow-modals' => true,
+            'allow-orientation-lock' => true,
+            'allow-pointer-lock' => true,
+            'allow-popups' => true,
+            'allow-popups-to-escape-sandbox' => true,
+            'allow-presentation' => true,
+            'allow-same-origin' => true,
+            'allow-scripts' => true,
+            'allow-storage-access-by-user-activation' => true,
+            'allow-top-navigation' => true,
+            'allow-top-navigation-by-user-activation' => true,
+            'allow-top-navigation-to-custom-protocols' => true,
+        ];
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $token = trim((string) $token);
+            if ($token === '') {
+                continue;
+            }
+            if (!isset($allowedTokens[$token])) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'iframe',
+                    'attribute' => 'sandbox',
+                    'token' => $token,
+                ];
+                continue;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized === [] ? null : implode(' ', $normalized);
+    }
+
+    private static function normalizeIframeAllowAttribute(string $value): ?string
+    {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '') {
+            return null;
+        }
+
+        $directives = [];
+        foreach (explode(';', $cleaned) as $directive) {
+            $directive = trim($directive);
+            if ($directive === '') {
+                continue;
+            }
+            $directive = preg_replace('/[\t\r\n\f ]+/u', ' ', $directive) ?? $directive;
+            $directives[] = $directive;
+        }
+
+        return $directives === [] ? null : implode('; ', $directives);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeIframeReferrerPolicyAttribute(string $value, array &$diagnostics): ?string
+    {
+        $policy = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if (in_array($policy, [
+            'no-referrer',
+            'no-referrer-when-downgrade',
+            'origin',
+            'origin-when-cross-origin',
+            'same-origin',
+            'strict-origin',
+            'strict-origin-when-cross-origin',
+            'unsafe-url',
+        ], true)) {
+            return $policy;
+        }
+
+        $diagnostics[] = [
+            'code' => 'unsafe-attribute',
+            'tag' => 'iframe',
+            'attribute' => 'referrerpolicy',
+            'value' => $policy,
+        ];
+
+        return null;
     }
 
     /**

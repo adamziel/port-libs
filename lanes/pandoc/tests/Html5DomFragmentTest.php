@@ -414,6 +414,59 @@ return [
         $t->true(!str_contains($html, 'No source'), 'Expected sourceless iframe title to stay hidden');
         $t->true(!str_contains($blocks, '<iframe'), 'Expected WordPress blocks to omit iframe wrappers');
     },
+    'preserves iframe policy metadata on reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<iframe src="./frames/review.html" title="Sandboxed frame" sandbox="allow-scripts allow-same-origin allow-popups allow-scripts" allow="fullscreen *; clipboard-write \'self\'; geolocation https://maps.example.test" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen=""></iframe>'
+            . '<iframe src="./frames/bad-policy.html" title="Bad policy" sandbox="allow-forms bad-token" referrerpolicy="bad-policy"></iframe>'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/iframe-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/frames/review.html" data-pandoc-iframe-src="true" title="Sandboxed frame" data-pandoc-iframe-sandbox="allow-scripts allow-same-origin allow-popups" data-pandoc-iframe-allow="fullscreen *; clipboard-write &#039;self&#039;; geolocation https://maps.example.test" data-pandoc-iframe-referrerpolicy="strict-origin-when-cross-origin" data-pandoc-iframe-allowfullscreen="true">Sandboxed frame</a>'
+            . '<a href="https://source.example.test/import/posts/frames/bad-policy.html" data-pandoc-iframe-src="true" title="Bad policy" data-pandoc-iframe-sandbox="allow-forms">Bad policy</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Sandboxed frameBad policyafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'iframe'], $summary['blockedTags']);
+        $t->same(['referrerpolicy', 'sandbox'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/frames/review.html',
+            'data-pandoc-iframe-src' => 'true',
+            'title' => 'Sandboxed frame',
+            'data-pandoc-iframe-sandbox' => 'allow-scripts allow-same-origin allow-popups',
+            'data-pandoc-iframe-allow' => "fullscreen *; clipboard-write 'self'; geolocation https://maps.example.test",
+            'data-pandoc-iframe-referrerpolicy' => 'strict-origin-when-cross-origin',
+            'data-pandoc-iframe-allowfullscreen' => 'true',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/frames/bad-policy.html',
+            'data-pandoc-iframe-src' => 'true',
+            'title' => 'Bad policy',
+            'data-pandoc-iframe-sandbox' => 'allow-forms',
+        ], $nodes[1]['attrs']);
+        $t->same('/migration/iframe-policy-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<iframe'), 'Expected iframe wrappers to be stripped');
+        $t->true(!str_contains($html, 'bad-token'), 'Expected unknown sandbox tokens to be omitted');
+        $t->true(!str_contains($html, 'data-pandoc-iframe-referrerpolicy="bad-policy"'), 'Expected unknown referrer policies to be omitted');
+        $t->true(!str_contains($blocks, '<iframe'), 'Expected WordPress blocks to omit iframe wrappers');
+    },
     'unwraps noscript fallback content while dropping unsafe container before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<noscript><p>Script-disabled fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p>'
