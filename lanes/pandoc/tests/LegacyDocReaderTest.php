@@ -118,8 +118,10 @@ $directoryEntry = static function (
         . $u64($size);
 };
 
-$buildCfb = static function (array $streams, bool $useMiniStreams = true, array $directoryMetadata = []) use ($u16, $u32, $directoryEntry, $padTo, $compareCfbDirectoryNames): string {
-    $sectorSize = 512;
+$buildCfb = static function (array $streams, bool $useMiniStreams = true, array $directoryMetadata = [], array $options = []) use ($u16, $u32, $directoryEntry, $padTo, $compareCfbDirectoryNames): string {
+    $majorVersion = (int) ($options['majorVersion'] ?? 3);
+    $sectorSize = $majorVersion === 4 ? 4096 : 512;
+    $sectorShift = $majorVersion === 4 ? 12 : 9;
     $miniSectorSize = 64;
     $free = 0xffffffff;
     $end = 0xfffffffe;
@@ -380,21 +382,22 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
     }
 
     $fatBytes = '';
-    $fatEntries = max(128, count($sectors));
+    $fatEntries = max(intdiv($sectorSize, 4), count($sectors));
     for ($index = 0; $index < $fatEntries; $index++) {
         $fatBytes .= $u32($fat[$index] ?? $free);
     }
     $sectors[0] = substr($fatBytes, 0, $sectorSize);
+    $directorySectorCount = $majorVersion === 4 ? count($directoryChunks) : 0;
 
     $header = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
         . str_repeat("\0", 16)
         . $u16(0x003e)
-        . $u16(3)
+        . $u16($majorVersion)
         . $u16(0xfffe)
-        . $u16(9)
+        . $u16($sectorShift)
         . $u16(6)
         . str_repeat("\0", 6)
-        . $u32(0)
+        . $u32($directorySectorCount)
         . $u32(1)
         . $u32($directorySector)
         . $u32(0)
@@ -406,7 +409,7 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
         . $u32(0)
         . str_repeat($u32($free), 108);
 
-    return str_pad($header, 512, "\0") . implode('', $sectors);
+    return str_pad($header, $sectorSize, "\0") . implode('', $sectors);
 };
 
 $moveFatListingToDifatSector = static function (string $bytes) use ($u32): array {
@@ -1575,6 +1578,18 @@ return [
 
         $versionThreeWithDirectoryCount = substr_replace($bytes, $u32(1), 40, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionThreeWithDirectoryCount));
+
+        $versionFour = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ], true, [], ['majorVersion' => 4]);
+        $versionFourFile = CompoundFileBinary::fromBytes($versionFour);
+        $t->same('root stream bytes', $versionFourFile->readStream('WordDocument'));
+
+        $versionFourWithMissingDirectoryCount = substr_replace($versionFour, $u32(0), 40, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionFourWithMissingDirectoryCount));
+
+        $versionFourWithDirtyHeaderPadding = substr_replace($versionFour, "\x01", 512, 1);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionFourWithDirtyHeaderPadding));
     },
     'rejects reserved CFB header fields and invalid root storage identity before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([

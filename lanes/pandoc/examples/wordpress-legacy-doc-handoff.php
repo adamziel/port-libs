@@ -1683,6 +1683,60 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
     }
 
+    $buildVersionFourCfb = static function () use ($u16, $u32, $makeDirectoryEntry, $padTo, $free, $end, $fatSector): string {
+        $v4SectorSize = 4096;
+        $wordDocumentBytes = str_repeat('V', $v4SectorSize);
+        $directory = $makeDirectoryEntry('Root Entry', 5, $end, 0, $free, $free, 1)
+            . $makeDirectoryEntry('WordDocument', 2, 2, strlen($wordDocumentBytes), $free, $free, $free);
+        $fatBytes = $u32($fatSector) . $u32($end) . $u32($end) . str_repeat($u32($free), 1021);
+        $header = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+            . str_repeat("\0", 16)
+            . $u16(0x003e)
+            . $u16(4)
+            . $u16(0xfffe)
+            . $u16(12)
+            . $u16(6)
+            . str_repeat("\0", 6)
+            . $u32(1)
+            . $u32(1)
+            . $u32(1)
+            . $u32(0)
+            . $u32(4096)
+            . $u32($end)
+            . $u32(0)
+            . $u32($end)
+            . $u32(0)
+            . $u32(0)
+            . str_repeat($u32($free), 108);
+
+        return str_pad($header, $v4SectorSize, "\0")
+            . substr($fatBytes, 0, $v4SectorSize)
+            . $padTo($directory, $v4SectorSize)
+            . $wordDocumentBytes;
+    };
+    $versionFourDocBytes = $buildVersionFourCfb();
+    if (CompoundFileBinary::fromBytes($versionFourDocBytes)->readStream('WordDocument') !== str_repeat('V', 4096)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing readable version 4 CFB fixture');
+    }
+    $versionFourRejected = false;
+    try {
+        CompoundFileBinary::fromBytes(substr_replace($versionFourDocBytes, $u32(0), 40, 4));
+    } catch (RuntimeException) {
+        $versionFourRejected = true;
+    }
+    if (!$versionFourRejected) {
+        throw new RuntimeException('Legacy DOC handoff self-test accepted version 4 CFB directory-sector count mismatch');
+    }
+    $versionFourRejected = false;
+    try {
+        CompoundFileBinary::fromBytes(substr_replace($versionFourDocBytes, "\x01", 512, 1));
+    } catch (RuntimeException) {
+        $versionFourRejected = true;
+    }
+    if (!$versionFourRejected) {
+        throw new RuntimeException('Legacy DOC handoff self-test accepted dirty version 4 CFB header padding');
+    }
+
     $directoryFieldOffset = static function (int $directoryId, int $fieldOffset) use ($fat, $sectorSize, $end): int {
         $entryOffset = ($directoryId * 128) + $fieldOffset;
         $directorySectorIndex = intdiv($entryOffset, $sectorSize);

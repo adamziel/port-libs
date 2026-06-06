@@ -87,6 +87,14 @@ final class CompoundFileBinary
 
         $sectorSize = 1 << $sectorShift;
         $miniSectorSize = 1 << $miniSectorShift;
+        if ($majorVersion === 4) {
+            if (strlen($bytes) < $sectorSize) {
+                throw new \RuntimeException('CFB version 4 file is shorter than the header sector size');
+            }
+            if (substr($bytes, 512, $sectorSize - 512) !== str_repeat("\0", $sectorSize - 512)) {
+                throw new \RuntimeException('CFB version 4 header sector padding must be zero');
+            }
+        }
         $directorySectorCount = self::u32($bytes, 40);
         $fatSectorCount = self::u32($bytes, 44);
         $firstDirectorySector = self::u32($bytes, 48);
@@ -199,7 +207,14 @@ final class CompoundFileBinary
             $maxStreamBytes
         );
 
-        $directoryBytes = $reader->readRegularSectorChain($firstDirectorySector, null, 'directory');
+        $directorySectorIds = $reader->regularSectorChainIds($firstDirectorySector, null, 'directory');
+        if ($majorVersion === 4 && count($directorySectorIds) !== $directorySectorCount) {
+            throw new \RuntimeException('CFB version 4 directory sector count does not match the directory chain length');
+        }
+        $directoryBytes = '';
+        foreach ($directorySectorIds as $directorySectorId) {
+            $directoryBytes .= self::sectorBytes($bytes, $sectorSize, $directorySectorId);
+        }
         [$entries, $entriesByName] = self::parseDirectory($directoryBytes);
 
         $reader = new self(
@@ -814,13 +829,13 @@ final class CompoundFileBinary
 
     private static function sectorCount(string $bytes, int $sectorSize): int
     {
-        return intdiv(max(0, strlen($bytes) - 512), $sectorSize);
+        return intdiv(max(0, strlen($bytes) - $sectorSize), $sectorSize);
     }
 
     private static function sectorBytes(string $bytes, int $sectorSize, int $sector): string
     {
-        $offset = 512 + ($sector * $sectorSize);
-        if ($offset < 512 || $offset + $sectorSize > strlen($bytes)) {
+        $offset = $sectorSize + ($sector * $sectorSize);
+        if ($offset < $sectorSize || $offset + $sectorSize > strlen($bytes)) {
             throw new \RuntimeException('CFB sector points outside the file');
         }
 
