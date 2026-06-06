@@ -554,6 +554,21 @@ final class PdfXrefFreeObjectMap
         int $beforeOffset
     ): ?string
     {
+        $object = self::directObjectForReferenceBeforeOffset($pdfBytes, $objectNumber, $generation, $beforeOffset);
+
+        return $object['body'] ?? null;
+    }
+
+    /**
+     * @return array{body: string, offset: int}|null
+     */
+    private static function directObjectForReferenceBeforeOffset(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?array
+    {
         if ($objectNumber <= 0 || $generation < 0 || $beforeOffset <= 0) {
             return null;
         }
@@ -573,7 +588,10 @@ final class PdfXrefFreeObjectMap
             }
 
             if ((int) $match[1][0] === $objectNumber && (int) $match[2][0] === $generation) {
-                $selected = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
+                $selected = [
+                    'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
+                    'offset' => $objectOffset,
+                ];
             }
 
             $offset = $bodyEnd + strlen('endobj');
@@ -582,12 +600,15 @@ final class PdfXrefFreeObjectMap
         return $selected;
     }
 
-    private static function compressedObjectStreamBodyForReferenceBeforeOffset(
+    /**
+     * @return array{body: string, carrierOffset: int}|null
+     */
+    private static function compressedObjectStreamHelperForReferenceBeforeOffset(
         string $pdfBytes,
         int $objectNumber,
         int $generation,
         int $beforeOffset
-    ): ?string {
+    ): ?array {
         if ($objectNumber <= 0 || $generation !== 0 || $beforeOffset <= 0) {
             return null;
         }
@@ -609,7 +630,10 @@ final class PdfXrefFreeObjectMap
             $body = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
             $memberBody = self::objectStreamMemberBody($body, $objectNumber);
             if ($memberBody !== null) {
-                $selected = $memberBody;
+                $selected = [
+                    'body' => $memberBody,
+                    'carrierOffset' => $objectOffset,
+                ];
             }
 
             $offset = $bodyEnd + strlen('endobj');
@@ -692,22 +716,36 @@ final class PdfXrefFreeObjectMap
         if ($reference === null) {
             $previousOffset = self::integerValueAfterName($sectionBody, 'Prev');
         } else {
-            $body = self::directObjectBodyForReferenceBeforeOffset(
+            $direct = self::directObjectForReferenceBeforeOffset(
                 $pdfBytes,
                 $reference['object'],
                 $reference['generation'],
                 $beforeOffset
             );
+            $compressed = self::compressedObjectStreamHelperForReferenceBeforeOffset(
+                $pdfBytes,
+                $reference['object'],
+                $reference['generation'],
+                $beforeOffset
+            );
+
+            $directBody = $direct['body'] ?? null;
+            $compressedBody = $compressed['body'] ?? null;
+            $body = null;
+            if (
+                is_string($compressedBody)
+                && self::xrefPrevHelperBodyIsSafe($compressedBody)
+                && ($direct === null || $compressed['carrierOffset'] > $direct['offset'])
+            ) {
+                $body = $compressedBody;
+            } elseif (is_string($directBody) && self::xrefPrevHelperBodyIsSafe($directBody)) {
+                $body = $directBody;
+            } elseif (is_string($compressedBody) && self::xrefPrevHelperBodyIsSafe($compressedBody)) {
+                $body = $compressedBody;
+            }
+
             if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
-                $body = self::compressedObjectStreamBodyForReferenceBeforeOffset(
-                    $pdfBytes,
-                    $reference['object'],
-                    $reference['generation'],
-                    $beforeOffset
-                );
-                if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
-                    return null;
-                }
+                return null;
             }
 
             $previousOffset = (int) $match[1];
@@ -722,6 +760,12 @@ final class PdfXrefFreeObjectMap
         }
 
         return $previousOffset;
+    }
+
+    private static function xrefPrevHelperBodyIsSafe(string $body): bool
+    {
+        return preg_match('/^\s*[+-]?\d+\s*\z/s', $body) === 1
+            && preg_match('/\b(?:obj|endobj|stream|endstream|xref|trailer|startxref)\b/s', $body) !== 1;
     }
 
     private static function xrefSectionExistsAtOffset(string $pdfBytes, int $offset): bool
