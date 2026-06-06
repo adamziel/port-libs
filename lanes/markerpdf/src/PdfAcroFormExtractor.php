@@ -3619,6 +3619,21 @@ final class PdfAcroFormExtractor
         $widgets = $this->widgetsWithCurrentValueState($widgets, $fieldType, $flags, $value);
         $fieldHierarchy = $this->fieldHierarchyBoundary($currentHierarchyPath, $effective, $inherited, $objectNumber, $password);
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
+        $choiceTopIndexReview = $fieldType === 'Ch'
+            ? $this->choiceTopIndexReviewForField($objectNumber, $name, $effective, $options, $objects)
+            : null;
+        if ($choiceTopIndexReview !== null) {
+            $valueState['choice_top_index'] = $choiceTopIndexReview['top_index'];
+            $valueState['choice_top_index_valid'] = $choiceTopIndexReview['top_index_valid'];
+            $valueState['choice_top_index_source'] = $choiceTopIndexReview['top_index_source'];
+            $valueState['choice_top_index_source_object'] = $choiceTopIndexReview['top_index_source_object'];
+            $valueState['choice_top_index_inherited'] = $choiceTopIndexReview['top_index_inherited'];
+            $valueState['choice_top_option'] = $choiceTopIndexReview['top_option'];
+            $valueState['choice_top_option_export'] = $choiceTopIndexReview['top_option_export'];
+            $valueState['choice_top_option_label'] = $choiceTopIndexReview['top_option_label'];
+            $valueState['choice_top_index_used_for_import'] = false;
+            $valueState['appearance_scroll_position_used_for_import'] = false;
+        }
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
         $quaddingReview = $this->quaddingReviewForField($objectNumber, $name, $fieldType, $effective, $objects);
         $valueState['quadding'] = $quaddingReview['quadding'];
@@ -3689,6 +3704,9 @@ final class PdfAcroFormExtractor
         if ($fieldType === 'Ch') {
             $field['options'] = $options;
         }
+        if ($choiceTopIndexReview !== null) {
+            $field['choice_top_index_review'] = $choiceTopIndexReview;
+        }
         if ($fieldType === 'Btn' && $options !== []) {
             $field['button_export_options'] = $options;
         }
@@ -3716,7 +3734,7 @@ final class PdfAcroFormExtractor
         $inheritedAttributes = [];
         $localAttributes = [];
         $localValueAttributes = [];
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'MaxLen'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen'] as $name) {
             if (!isset($effective[$name])) {
                 continue;
             }
@@ -3985,6 +4003,65 @@ final class PdfAcroFormExtractor
             return null;
         }
 
+        if ($sourceObject === null) {
+            return 'acroform_default';
+        }
+
+        return $sourceObject === $fieldObject ? 'field_terminal' : 'field_hierarchy_inherited';
+    }
+
+    /**
+     * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @param list<array{export: string, label: string}> $options
+     * @return array<string, mixed>|null
+     */
+    private function choiceTopIndexReviewForField(
+        int $fieldObject,
+        string $fieldName,
+        array $effective,
+        array $options,
+        array $objects
+    ): ?array {
+        if (!isset($effective['TI'])) {
+            return null;
+        }
+
+        $sourceObject = $effective['TI']['source_object'];
+        $topIndex = $this->integerFromEffectiveOrNull($effective, 'TI', $objects);
+        $resolved = $topIndex !== null;
+        $valid = $resolved && $topIndex >= 0 && isset($options[$topIndex]);
+        $topOption = $valid ? $options[$topIndex] : null;
+
+        return [
+            'source' => 'acroform_choice_top_index_boundary',
+            'field_object' => $fieldObject,
+            'field_name' => $fieldName,
+            'present' => true,
+            'raw_value' => $effective['TI']['value'],
+            'top_index' => $topIndex,
+            'top_index_resolved' => $resolved,
+            'top_index_valid' => $valid,
+            'top_index_source' => $effective['TI']['source'],
+            'top_index_source_object' => $sourceObject,
+            'top_index_inherited' => $sourceObject !== $fieldObject,
+            'top_index_source_boundary' => $this->choiceTopIndexSourceBoundary($sourceObject, $fieldObject),
+            'option_count' => count($options),
+            'top_option' => $topOption,
+            'top_option_export' => $topOption['export'] ?? null,
+            'top_option_label' => $topOption['label'] ?? null,
+            'review_only' => true,
+            'top_index_used_for_visible_text' => false,
+            'top_index_used_for_import' => false,
+            'appearance_scroll_position_used_for_import' => false,
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+            'executes_appearance_streams' => false,
+            'renders_appearances' => false,
+        ];
+    }
+
+    private function choiceTopIndexSourceBoundary(?int $sourceObject, int $fieldObject): string
+    {
         if ($sourceObject === null) {
             return 'acroform_default';
         }
@@ -4737,7 +4814,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'MaxLen'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen'] as $name) {
             $value = $this->valueAfterName($body, $name);
             if ($value === null) {
                 continue;
