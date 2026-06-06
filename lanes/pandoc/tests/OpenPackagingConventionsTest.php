@@ -3331,6 +3331,12 @@ XML;
 </Relationships>
 XML;
 
+        $invalidTargetModeRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTargetModeCase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="external"/>
+</Relationships>
+XML;
+
         $malformedRelationshipXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bad.png">';
 
         $package = ZipPackage::fromParts([
@@ -3340,6 +3346,8 @@ XML;
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
             ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/targetmode.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/targetmode.xml.rels', 'data' => $invalidTargetModeRelationshipsXml],
             ['name' => 'word/malformed.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/malformed.xml.rels', 'data' => $malformedRelationshipXml],
             ['name' => 'word/_rels/missing.xml.rels', 'data' => $commentsRelationshipsXml],
@@ -3358,6 +3366,7 @@ XML;
             '/_rels/.rels',
             '/word/_rels/document.xml.rels',
             '/word/_rels/comments.xml.rels',
+            '/word/_rels/targetmode.xml.rels',
             '/word/_rels/malformed.xml.rels',
             '/word/_rels/missing.xml.rels',
             '/word/_rels/_rels/document.xml.rels.rels',
@@ -3385,6 +3394,15 @@ XML;
         $t->same('invalid-relationship-content-type', $loads['/word/_rels/comments.xml.rels']['loadReason']);
         $t->same(null, $loads['/word/_rels/comments.xml.rels']['relationshipCount']);
         $t->same(['invalid-relationship-content-type'], $loads['/word/_rels/comments.xml.rels']['issues']);
+
+        $t->same('/word/targetmode.xml', $loads['/word/_rels/targetmode.xml.rels']['relationshipSource']);
+        $t->same(true, $loads['/word/_rels/targetmode.xml.rels']['sourceExists']);
+        $t->same(false, $loads['/word/_rels/targetmode.xml.rels']['loaded']);
+        $t->same('skipped', $loads['/word/_rels/targetmode.xml.rels']['loadAction']);
+        $t->same('malformed-relationship-xml', $loads['/word/_rels/targetmode.xml.rels']['loadReason']);
+        $t->same(null, $loads['/word/_rels/targetmode.xml.rels']['relationshipCount']);
+        $t->same(['malformed-relationship-xml', 'invalid-relationship-target-mode'], $loads['/word/_rels/targetmode.xml.rels']['issues']);
+        $t->contains('Unsupported OPC relationship TargetMode: external', $loads['/word/_rels/targetmode.xml.rels']['parseError'] ?? '');
 
         $t->same('/word/malformed.xml', $loads['/word/_rels/malformed.xml.rels']['relationshipSource']);
         $t->same(true, $loads['/word/_rels/malformed.xml.rels']['sourceExists']);

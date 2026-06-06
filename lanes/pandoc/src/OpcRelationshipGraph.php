@@ -252,13 +252,17 @@ final class OpcRelationshipGraph
             }
 
             try {
-                $relationships = OpcRelationships::fromXml($package->read($row['partName']), $row['relationshipSource']);
+                $relationshipXml = $package->read($row['partName']);
+                $relationships = OpcRelationships::fromXml($relationshipXml, $row['relationshipSource']);
                 $row['loaded'] = true;
                 $row['loadAction'] = 'loaded';
                 $row['loadReason'] = 'loaded';
                 $row['relationshipCount'] = count($relationships->all());
             } catch (\Throwable $exception) {
-                $row['issues'][] = 'malformed-relationship-xml';
+                self::appendUniqueString($row['issues'], 'malformed-relationship-xml');
+                foreach (self::relationshipXmlIssueHints($relationshipXml ?? '') as $issue) {
+                    self::appendUniqueString($row['issues'], $issue);
+                }
                 $row['issues'] = array_values(array_unique($row['issues']));
                 $row['parseError'] = $exception->getMessage();
                 $row['valid'] = false;
@@ -2029,6 +2033,41 @@ final class OpcRelationshipGraph
         }
 
         return 'not-loaded';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function relationshipXmlIssueHints(string $xml): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        try {
+            $dom = XmlHtmlDom::loadXmlDocument($xml, 'OPC relationships XML');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'Relationships' || $root->namespaceURI !== OpcRelationships::NAMESPACE_URI) {
+            return [];
+        }
+
+        $issues = [];
+        foreach ($root->getElementsByTagNameNS(OpcRelationships::NAMESPACE_URI, 'Relationship') as $relationship) {
+            if (!$relationship instanceof \DOMElement || !$relationship->hasAttribute('TargetMode')) {
+                continue;
+            }
+
+            $targetMode = $relationship->getAttribute('TargetMode');
+            if ($targetMode !== OpcRelationship::TARGET_MODE_INTERNAL && $targetMode !== OpcRelationship::TARGET_MODE_EXTERNAL) {
+                self::appendUniqueString($issues, 'invalid-relationship-target-mode');
+            }
+        }
+
+        return $issues;
     }
 
     /**

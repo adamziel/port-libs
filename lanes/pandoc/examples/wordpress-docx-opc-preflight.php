@@ -250,6 +250,32 @@ $relationshipSourceAliasPackage = ZipPackage::fromParts([
     ['name' => 'word/media/raw.png', 'data' => 'PNG'],
 ]);
 
+$targetModeDiagnosticContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+$targetModeDiagnosticRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTargetModeAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/targetmode.xml"/>
+</Relationships>
+XML;
+
+$targetModeDiagnosticRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLowerExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="external"/>
+</Relationships>
+XML;
+
+$relationshipTargetModePackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $targetModeDiagnosticContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $targetModeDiagnosticRootRelationshipsXml],
+    ['name' => 'word/targetmode.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/targetmode.xml.rels', 'data' => $targetModeDiagnosticRelationshipsXml],
+]);
+
 $caseCollisionContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -597,6 +623,26 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
         'relationshipCount' => $part['relationshipCount'],
         'valid' => $part['valid'],
         'issues' => $part['issues'],
+    ];
+}
+
+$relationshipTargetModeGuards = [];
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationshipTargetModePackage) as $part) {
+    if ($part['partName'] !== '/word/_rels/targetmode.xml.rels') {
+        continue;
+    }
+
+    $relationshipTargetModeGuards[$part['partName']] = [
+        'partName' => $part['partName'],
+        'relationshipSource' => $part['relationshipSource'],
+        'sourceExists' => $part['sourceExists'],
+        'loaded' => $part['loaded'],
+        'loadAction' => $part['loadAction'],
+        'loadReason' => $part['loadReason'],
+        'relationshipCount' => $part['relationshipCount'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+        'parseError' => $part['parseError'],
     ];
 }
 
@@ -1072,6 +1118,7 @@ $summary = [
         'emptySignatureOriginGuard' => $emptySignatureOriginGuard,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
+    'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
@@ -1322,6 +1369,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['loaded'] ?? null) !== false
         || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['issues'] ?? null) !== ['duplicate-relationship-source']
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['relationshipSource'] ?? null) !== '/word/targetmode.xml'
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['sourceExists'] ?? null) !== true
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['loaded'] ?? null) !== false
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['loadAction'] ?? null) !== 'skipped'
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['loadReason'] ?? null) !== 'malformed-relationship-xml'
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['relationshipCount'] ?? null) !== null
+        || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'invalid-relationship-target-mode']
+        || !str_contains((string) ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['parseError'] ?? ''), 'Unsupported OPC relationship TargetMode: external')
         || array_keys($summary['partNameCaseCollisionGuards'] ?? []) !== [
             '/Word/Document.XML',
             '/word/document.xml',
