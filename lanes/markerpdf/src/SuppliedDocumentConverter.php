@@ -549,7 +549,102 @@ final class SuppliedDocumentConverter
             }
         }
 
+        $table = $this->withPageResultTableBboxMetadata($table, $pageResult);
+
         return $table;
+    }
+
+    /**
+     * Page-level ExtractPageResult envelopes name table crop rectangles as
+     * bboxes, but flattened recognized-table records expose the selected crop
+     * as bbox. Preserve field-specific metadata under the singular keys that
+     * TableRecognizer uses to localize the crop before row/cell assignment.
+     *
+     * @param array<string, mixed> $table
+     * @param array<string, mixed> $pageResult
+     * @return array<string, mixed>
+     */
+    private function withPageResultTableBboxMetadata(array $table, array $pageResult): array
+    {
+        foreach ($this->pageResultTableBboxCoordinateSpaceKeys() as $key) {
+            if (array_key_exists('bbox_coordinate_space', $table) || !isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                continue;
+            }
+
+            $table['bbox_coordinate_space'] = (string) $pageResult[$key];
+            break;
+        }
+
+        foreach ($this->pageResultTableBboxOrderKeys() as $key) {
+            if (array_key_exists('bbox_order', $table) || !isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                continue;
+            }
+
+            $table['bbox_order'] = (string) $pageResult[$key];
+            break;
+        }
+
+        foreach ($this->pageResultTableBboxFormatKeys() as $key) {
+            if (array_key_exists('bbox_format', $table) || !isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                continue;
+            }
+
+            $table['bbox_format'] = (string) $pageResult[$key];
+            break;
+        }
+
+        return $table;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultTableBboxCoordinateSpaceKeys(): array
+    {
+        return [
+            'bboxes_coordinate_space',
+            'table_bboxes_coordinate_space',
+            'table_bbox_coordinate_space',
+            'bboxes_geometry_space',
+            'table_bboxes_geometry_space',
+            'table_bbox_geometry_space',
+            'bboxes_bbox_coordinate_space',
+            'table_bboxes_bbox_coordinate_space',
+            'bboxes_bbox_geometry_space',
+            'table_bboxes_bbox_geometry_space',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultTableBboxOrderKeys(): array
+    {
+        return [
+            'bboxes_order',
+            'bboxes_bbox_order',
+            'bboxes_coordinate_order',
+            'table_bboxes_order',
+            'table_bboxes_bbox_order',
+            'table_bboxes_coordinate_order',
+            'table_bbox_order',
+            'table_bbox_coordinate_order',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultTableBboxFormatKeys(): array
+    {
+        return [
+            'bboxes_bbox_format',
+            'bboxes_coordinate_format',
+            'table_bboxes_bbox_format',
+            'table_bboxes_coordinate_format',
+            'table_bbox_format',
+            'table_bbox_coordinate_format',
+        ];
     }
 
     /**

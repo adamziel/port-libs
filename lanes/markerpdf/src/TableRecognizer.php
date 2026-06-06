@@ -2323,6 +2323,14 @@ final class TableRecognizer
                 ...$keys,
                 'bbox_coordinate_space',
                 'bbox_geometry_space',
+                'bboxes_coordinate_space',
+                'bboxes_geometry_space',
+                'bboxes_bbox_coordinate_space',
+                'bboxes_bbox_geometry_space',
+                'table_bboxes_coordinate_space',
+                'table_bboxes_geometry_space',
+                'table_bboxes_bbox_coordinate_space',
+                'table_bboxes_bbox_geometry_space',
             ];
         }
 
