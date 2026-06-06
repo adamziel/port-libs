@@ -455,6 +455,22 @@ HTML);
         // Expected: breakable-space regions must be closed.
     }
 
+    try {
+        (new DocTemplate())->renderResource('review-packets/broken.html', [
+            'review-packets/broken.html' => "<article>\n" . '${ components/broken-row() }' . "\n</article>",
+            'review-packets/components/broken-row.html' => "<p>\n" . '$if(title)$Missing endif',
+        ], [
+            'title' => 'Broken review packet',
+        ]);
+        fwrite(STDERR, "Expected doctemplate partial source-location diagnostic\n");
+        exit(1);
+    } catch (\UnexpectedValueException $exception) {
+        if (!str_contains($exception->getMessage(), 'Unclosed doctemplate if block at review-packets/components/broken-row.html:2:1')) {
+            fwrite(STDERR, "Unexpected doctemplate partial source-location diagnostic: {$exception->getMessage()}\n");
+            exit(1);
+        }
+    }
+
     fwrite(STDOUT, "OK wordpress doctemplate review packet\n");
     exit(0);
 }

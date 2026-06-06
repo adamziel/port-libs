@@ -18,7 +18,9 @@ final class DocTemplate
      */
     public function render(string $template, array $context, array $partials = []): string
     {
-        return $this->renderTemplate($template, $context, $this->normalizePartialMap($partials), [], false);
+        $partials = $this->normalizePartialMap($partials);
+
+        return $this->renderTemplate($template, $context, $partials, $this->partialSourceMap($partials), [], false, '<template>');
     }
 
     /**
@@ -28,9 +30,10 @@ final class DocTemplate
     public function renderWrapped(string $template, array $context, int $lineLength, array $partials = []): string
     {
         $this->validateLineLength($lineLength);
+        $partials = $this->normalizePartialMap($partials);
 
         return $this->wrapBreakableSpaces(
-            $this->renderTemplate($template, $context, $this->normalizePartialMap($partials), [], true),
+            $this->renderTemplate($template, $context, $partials, $this->partialSourceMap($partials), [], true, '<template>'),
             $lineLength,
         );
     }
@@ -49,10 +52,16 @@ final class DocTemplate
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
         }
 
-        return $this->render(
+        $partialResources = $this->partialResourcesForTemplateResource($templatePath, $resources, $userDataDirectory);
+
+        return $this->renderTemplate(
             $resources[$templatePath],
             $context,
-            $this->partialsForTemplateResource($templatePath, $resources, $userDataDirectory),
+            $partialResources['partials'],
+            $partialResources['sources'],
+            [],
+            false,
+            $templatePath,
         );
     }
 
@@ -71,11 +80,19 @@ final class DocTemplate
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
         }
 
-        return $this->renderWrapped(
-            $resources[$templatePath],
-            $context,
+        $partialResources = $this->partialResourcesForTemplateResource($templatePath, $resources, $userDataDirectory);
+
+        return $this->wrapBreakableSpaces(
+            $this->renderTemplate(
+                $resources[$templatePath],
+                $context,
+                $partialResources['partials'],
+                $partialResources['sources'],
+                [],
+                true,
+                $templatePath,
+            ),
             $lineLength,
-            $this->partialsForTemplateResource($templatePath, $resources, $userDataDirectory),
         );
     }
 
@@ -113,13 +130,14 @@ final class DocTemplate
     /**
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
-    private function renderTemplate(string $template, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
+    private function renderTemplate(string $template, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces, string $sourceName): string
     {
-        $tokens = $this->tokenize($template);
+        $tokens = $this->tokenize($template, $sourceName);
 
-        return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialStack, $preserveBreakableSpaces);
+        return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
     }
 
     /**
@@ -857,6 +875,20 @@ CSS;
         return $normalized;
     }
 
+    /**
+     * @param array<string, string> $partials
+     * @return array<string, string>
+     */
+    private function partialSourceMap(array $partials): array
+    {
+        $sources = [];
+        foreach ($partials as $name => $_source) {
+            $sources[$name] = $name;
+        }
+
+        return $sources;
+    }
+
     private function normalizeTemplateResourcePath(string $path): string
     {
         if ($path === '' || str_contains($path, "\0")) {
@@ -910,9 +942,9 @@ CSS;
 
     /**
      * @param array<string, string> $resources
-     * @return array<string, string>
+     * @return array{partials:array<string, string>, sources:array<string, string>}
      */
-    private function partialsForTemplateResource(string $templatePath, array $resources, ?string $userDataDirectory): array
+    private function partialResourcesForTemplateResource(string $templatePath, array $resources, ?string $userDataDirectory): array
     {
         $mainDirectory = $this->templateResourceDirectory($templatePath);
         $mainExtension = $this->templateResourceExtension($this->templateResourceBasename($templatePath));
@@ -925,6 +957,7 @@ CSS;
         }
 
         $partials = [];
+        $sources = [];
         foreach ($searchDirectories as $directory) {
             foreach ($resources as $resourcePath => $source) {
                 if ($resourcePath === $templatePath) {
@@ -939,12 +972,16 @@ CSS;
                 foreach ($this->partialAliasesForResourcePath($relativePath, $mainExtension) as $alias) {
                     if (!array_key_exists($alias, $partials)) {
                         $partials[$alias] = $source;
+                        $sources[$alias] = $resourcePath;
                     }
                 }
             }
         }
 
-        return $partials;
+        return [
+            'partials' => $partials,
+            'sources' => $sources,
+        ];
     }
 
     private function isAbsoluteTemplateResourcePath(string $path): bool
@@ -1042,13 +1079,14 @@ CSS;
     }
 
     /**
-     * @return list<array{type:string, value:string}>
+     * @return list<array<string, mixed>>
      */
-    private function tokenize(string $template): array
+    private function tokenize(string $template, string $sourceName): array
     {
         $tokens = [];
         $buffer = '';
         $breakableSpaces = false;
+        $breakableSpaceStart = null;
         $length = strlen($template);
 
         for ($index = 0; $index < $length; $index++) {
@@ -1082,21 +1120,26 @@ CSS;
             if (($template[$index + 1] ?? '') === '{') {
                 $closing = $this->findBracedDirectiveClosing($template, $index + 2);
                 if ($closing === null) {
-                    throw new \UnexpectedValueException('Unclosed doctemplate ${...} directive');
+                    $this->throwTemplateError('Unclosed doctemplate ${...} directive', $template, $index, $sourceName);
                 }
 
                 $this->appendTextToken($tokens, $buffer, $breakableSpaces);
                 $buffer = '';
                 $directive = trim(substr($template, $index + 2, $closing - $index - 2), " \t");
                 if ($directive === '~') {
+                    $breakableSpaceStart = $breakableSpaces ? null : $index;
                     $breakableSpaces = !$breakableSpaces;
                     $index = $closing;
                     continue;
                 }
 
+                $location = $this->sourceLocation($template, $index);
                 $tokens[] = [
                     'type' => 'directive',
                     'value' => $directive,
+                    'source' => $sourceName,
+                    'line' => $location['line'],
+                    'column' => $location['column'],
                 ];
                 $index = $closing;
                 continue;
@@ -1104,27 +1147,37 @@ CSS;
 
             $closing = strpos($template, '$', $index + 1);
             if ($closing === false) {
-                throw new \UnexpectedValueException('Unclosed doctemplate $...$ directive');
+                $this->throwTemplateError('Unclosed doctemplate $...$ directive', $template, $index, $sourceName);
             }
 
             $this->appendTextToken($tokens, $buffer, $breakableSpaces);
             $buffer = '';
             $directive = trim(substr($template, $index + 1, $closing - $index - 1), " \t");
             if ($directive === '~') {
+                $breakableSpaceStart = $breakableSpaces ? null : $index;
                 $breakableSpaces = !$breakableSpaces;
                 $index = $closing;
                 continue;
             }
 
+            $location = $this->sourceLocation($template, $index);
             $tokens[] = [
                 'type' => 'directive',
                 'value' => $directive,
+                'source' => $sourceName,
+                'line' => $location['line'],
+                'column' => $location['column'],
             ];
             $index = $closing;
         }
 
         if ($breakableSpaces) {
-            throw new \UnexpectedValueException('Unclosed doctemplate breakable-space region');
+            $this->throwTemplateError(
+                'Unclosed doctemplate breakable-space region',
+                $template,
+                $breakableSpaceStart ?? $length,
+                $sourceName,
+            );
         }
 
         $this->appendTextToken($tokens, $buffer, $breakableSpaces);
@@ -1172,6 +1225,68 @@ CSS;
         }
 
         return null;
+    }
+
+    /**
+     * @return array{line:int, column:int}
+     */
+    private function sourceLocation(string $source, int $offset): array
+    {
+        $offset = max(0, min($offset, strlen($source)));
+        $line = 1;
+        $column = 1;
+
+        for ($index = 0; $index < $offset; $index++) {
+            $char = $source[$index];
+            if ($char === "\r") {
+                $line++;
+                $column = 1;
+                if (($source[$index + 1] ?? '') === "\n" && $index + 1 < $offset) {
+                    $index++;
+                }
+                continue;
+            }
+
+            if ($char === "\n") {
+                $line++;
+                $column = 1;
+                continue;
+            }
+
+            $column++;
+        }
+
+        return ['line' => $line, 'column' => $column];
+    }
+
+    private function throwTemplateError(string $message, string $source, int $offset, string $sourceName): never
+    {
+        $location = $this->sourceLocation($source, $offset);
+
+        throw new \UnexpectedValueException(
+            $message . ' at ' . $sourceName . ':' . $location['line'] . ':' . $location['column'],
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $token
+     */
+    private function withTokenLocation(\UnexpectedValueException $exception, array $token): \UnexpectedValueException
+    {
+        if ($this->messageHasTemplateLocation($exception->getMessage())) {
+            return $exception;
+        }
+
+        return new \UnexpectedValueException(
+            $exception->getMessage() . ' at ' . $token['source'] . ':' . $token['line'] . ':' . $token['column'],
+            0,
+            $exception,
+        );
+    }
+
+    private function messageHasTemplateLocation(string $message): bool
+    {
+        return preg_match('/ at [^\\r\\n]+:\\d+:\\d+$/', $message) === 1;
     }
 
     /**
@@ -1233,12 +1348,13 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
-    private function renderRange(array $tokens, int $start, int $end, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
+    private function renderRange(array $tokens, int $start, int $end, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $output = '';
         $pendingNestColumn = null;
@@ -1270,7 +1386,11 @@ CSS;
 
             $ifVariable = $this->controlVariable($directive, 'if');
             if ($ifVariable !== null) {
-                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialStack, $preserveBreakableSpaces);
+                try {
+                    [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
+                } catch (\UnexpectedValueException $exception) {
+                    throw $this->withTokenLocation($exception, $token);
+                }
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
@@ -1281,7 +1401,11 @@ CSS;
 
             $forVariable = $this->controlVariable($directive, 'for');
             if ($forVariable !== null) {
-                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialStack, $preserveBreakableSpaces);
+                try {
+                    [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
+                } catch (\UnexpectedValueException $exception) {
+                    throw $this->withTokenLocation($exception, $token);
+                }
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
@@ -1291,11 +1415,18 @@ CSS;
             }
 
             if (in_array($directive, ['elseif', 'else', 'endif', 'sep', 'endfor'], true) || $this->controlVariable($directive, 'elseif') !== null) {
-                throw new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}");
+                throw $this->withTokenLocation(
+                    new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}"),
+                    $token,
+                );
             }
 
-            $isBarePartial = $this->parsePartialDirective($directive) !== null;
-            $rendered = $this->renderDirective($directive, $context, $partials, $partialStack, $preserveBreakableSpaces);
+            try {
+                $isBarePartial = $this->parsePartialDirective($directive) !== null;
+                $rendered = $this->renderDirective($directive, $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
+            } catch (\UnexpectedValueException $exception) {
+                throw $this->withTokenLocation($exception, $token);
+            }
             if ($pendingNestColumn === null) {
                 $autoNestPrefix = $this->automaticNestPrefix($tokens, $index, $end, $output);
                 if ($autoNestPrefix !== null) {
@@ -1315,13 +1446,14 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      * @return array{0:string, 1:int, 2:bool}
      */
-    private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): array
+    private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): array
     {
         [$branches, $nextIndex, $blockMultiline] = $this->collectIfBranches($tokens, $start, $end, $firstVariable);
 
@@ -1334,6 +1466,7 @@ CSS;
                         $branch['end'],
                         $context,
                         $partials,
+                        $partialSources,
                         $partialStack,
                         $branch['trimLeadingLineEnding'],
                         $preserveBreakableSpaces,
@@ -1348,7 +1481,7 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      * @return array{0:list<array{variable:?string, start:int, end:int, trimLeadingLineEnding:bool}>, 1:int, 2:bool}
      */
     private function collectIfBranches(array $tokens, int $start, int $end, string $firstVariable): array
@@ -1429,13 +1562,14 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      * @return array{0:string, 1:int, 2:bool}
      */
-    private function renderFor(array $tokens, int $start, int $end, string $variable, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): array
+    private function renderFor(array $tokens, int $start, int $end, string $variable, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): array
     {
         [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex, $blockMultiline] = $this->collectForSlices($tokens, $start, $end);
         $expression = $this->parseVariableExpression($variable);
@@ -1452,6 +1586,7 @@ CSS;
                 $bodyEnd,
                 $iterationContext,
                 $partials,
+                $partialSources,
                 $partialStack,
                 $blockMultiline,
                 $preserveBreakableSpaces,
@@ -1470,6 +1605,7 @@ CSS;
                 (int) $separatorEnd,
                 $context,
                 $partials,
+                $partialSources,
                 $partialStack,
                 $blockMultiline,
                 $preserveBreakableSpaces,
@@ -1479,7 +1615,7 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      * @return array{0:int, 1:int, 2:?int, 3:?int, 4:int, 5:bool}
      */
     private function collectForSlices(array $tokens, int $start, int $end): array
@@ -1528,9 +1664,10 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
     private function renderRangeDroppingLeadingLineEnding(
@@ -1539,6 +1676,7 @@ CSS;
         int $end,
         array $context,
         array $partials,
+        array $partialSources,
         array $partialStack,
         bool $dropLeadingLineEnding,
         bool $preserveBreakableSpaces,
@@ -1547,11 +1685,11 @@ CSS;
             $this->dropLeadingLineEndingAt($tokens, $start, $end);
         }
 
-        return $this->renderRange($tokens, $start, $end, $context, $partials, $partialStack, $preserveBreakableSpaces);
+        return $this->renderRange($tokens, $start, $end, $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      */
     private function tokenStartsWithLineEnding(array $tokens, int $index, int $end): bool
     {
@@ -1563,7 +1701,7 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      */
     private function dropLeadingLineEndingAt(array &$tokens, int $index, int $end): void
     {
@@ -1580,7 +1718,7 @@ CSS;
     }
 
     /**
-     * @param list<array{type:string, value:string}> $tokens
+     * @param list<array<string, mixed>> $tokens
      */
     private function dropStandaloneDirectiveLine(array &$tokens, int $index, int $end, string &$output, string $prefix): void
     {
@@ -1615,18 +1753,19 @@ CSS;
     /**
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
-    private function renderDirective(string $directive, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
+    private function renderDirective(string $directive, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $partial = $this->parsePartialDirective($directive);
         if ($partial !== null) {
-            return $this->renderPartialDirective($partial, $context, $partials, $partialStack, $preserveBreakableSpaces);
+            return $this->renderPartialDirective($partial, $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
         }
 
         $appliedPartial = $this->parseAppliedPartialDirective($directive);
         if ($appliedPartial !== null) {
-            return $this->renderAppliedPartialDirective($appliedPartial, $context, $partials, $partialStack, $preserveBreakableSpaces);
+            return $this->renderAppliedPartialDirective($appliedPartial, $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
         }
 
         return $this->renderVariableDirective($directive, $context);
@@ -1655,11 +1794,12 @@ CSS;
      * @param array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>} $partial
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
-    private function renderPartialDirective(array $partial, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
+    private function renderPartialDirective(array $partial, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
-        $value = $this->renderPartial($partial['name'], $context, $partials, $partialStack, $preserveBreakableSpaces);
+        $value = $this->renderPartial($partial['name'], $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
         foreach ($partial['pipes'] as $pipe) {
             $value = $this->applyPipe($pipe, $value);
         }
@@ -1671,9 +1811,10 @@ CSS;
      * @param array{variable:array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}, partial:array{name:string, separator:?string, pipes:list<array{name:string, args:list<int|string>}>}} $appliedPartial
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
-    private function renderAppliedPartialDirective(array $appliedPartial, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
+    private function renderAppliedPartialDirective(array $appliedPartial, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $resolved = $this->resolveParsedExpression($appliedPartial['variable'], $context);
         $iterations = $this->loopIterations($resolved['exists'], $resolved['value']);
@@ -1685,7 +1826,7 @@ CSS;
         $rendered = [];
         foreach ($iterations as $item) {
             $iterationContext = $this->contextForLoopIteration($context, $appliedPartial['variable']['name'], $item, $baseExists);
-            $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialStack, $preserveBreakableSpaces);
+            $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
             foreach ($appliedPartial['partial']['pipes'] as $pipe) {
                 $value = $this->applyPipe($pipe, $value);
             }
@@ -1699,9 +1840,10 @@ CSS;
     /**
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
      * @param list<string> $partialStack
      */
-    private function renderPartial(string $name, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
+    private function renderPartial(string $name, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
         if (!array_key_exists($name, $partials) || !is_string($partials[$name])) {
             throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
@@ -1711,7 +1853,15 @@ CSS;
             return '(loop)';
         }
 
-        $rendered = $this->renderTemplate($partials[$name], $context, $partials, [...$partialStack, $name], $preserveBreakableSpaces);
+        $rendered = $this->renderTemplate(
+            $partials[$name],
+            $context,
+            $partials,
+            $partialSources,
+            [...$partialStack, $name],
+            $preserveBreakableSpaces,
+            $partialSources[$name] ?? $name,
+        );
 
         return $this->stripIncludedPartialFinalNewline($rendered);
     }

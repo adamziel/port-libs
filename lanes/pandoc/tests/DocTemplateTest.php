@@ -43,6 +43,18 @@ $removeTemplateTree = static function (string $root): void {
     rmdir($root);
 };
 
+$expectTemplateErrorContains = static function (TestRunner $t, callable $callback, string $needle): void {
+    try {
+        $callback();
+    } catch (UnexpectedValueException $exception) {
+        $t->contains($needle, $exception->getMessage());
+
+        return;
+    }
+
+    throw new RuntimeException('Expected doctemplate exception containing ' . $needle);
+};
+
 return [
     'renders pandoc doctemplate variables delimiters comments and literals' => static function (TestRunner $t): void {
         $template = <<<'TPL'
@@ -1594,6 +1606,59 @@ TPL;
         $t->contains('<p class="authors">Migration bot, Content editor</p>', $output);
         $t->contains('<li data-source="media">Check &amp; confirm alt text</li>', $output);
         $t->contains('<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->', $output);
+    },
+
+    'reports pandoc doctemplate parser failures with source line and column' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render("Title\n" . 'Broken: $title', ['title' => 'Review']),
+            'Unclosed doctemplate $...$ directive at <template>:2:9',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render("Intro\r\n" . '$~$review packet', []),
+            'Unclosed doctemplate breakable-space region at <template>:2:1',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render("Before\n" . '$if(title)$' . "\nMissing endif", ['title' => 'Review']),
+            'Unclosed doctemplate if block at <template>:2:1',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render("Before\n" . '$for(items)$' . "\nMissing endfor", ['items' => ['x']]),
+            'Unclosed doctemplate for block at <template>:2:1',
+        );
+    },
+
+    'reports pandoc doctemplate resource and partial parser locations' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/review.html', [
+                'review-packets/review.html' => "<article>\n" . '$title/no-such-pipe$' . "\n</article>",
+            ], [
+                'title' => 'Review',
+            ]),
+            'Unsupported doctemplate pipe no-such-pipe at review-packets/review.html:2:1',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/review.html', [
+                'review-packets/review.html' => "<article>\n" . '${ components/footer() }' . "\n</article>",
+                'review-packets/components/footer.html' => "<footer>\n" . '$if(show)$Missing endif',
+            ], [
+                'show' => true,
+            ]),
+            'Unclosed doctemplate if block at review-packets/components/footer.html:2:1',
+        );
     },
 
     'throws on unclosed pandoc doctemplate control blocks' => static function (TestRunner $t): void {
