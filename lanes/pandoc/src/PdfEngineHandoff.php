@@ -297,6 +297,7 @@ final class PdfEngineHandoff
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
+     *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
@@ -702,6 +703,7 @@ final class PdfEngineHandoff
         $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
+        $pdfAnnotations = [];
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
@@ -765,6 +767,7 @@ final class PdfEngineHandoff
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
+                $pdfAnnotations = $pdfInspection['annotations'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
@@ -1276,6 +1279,43 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-active-action-type:' . $actionType . ':' . $actionCount;
                     }
                 }
+                if ($pdfAnnotations !== []) {
+                    $diagnostics[] = 'pdf-byte-annotation-metadata:' . count($pdfAnnotations);
+                    $annotationContentCount = 0;
+                    $annotationActionCount = 0;
+                    $annotationDestinationCount = 0;
+                    $annotationFlagCount = 0;
+                    foreach ($pdfAnnotations as $annotation) {
+                        if (is_string($annotation['contents'] ?? null) && $annotation['contents'] !== '') {
+                            $annotationContentCount++;
+                        }
+                        if (is_string($annotation['actionType'] ?? null) && $annotation['actionType'] !== '') {
+                            $annotationActionCount++;
+                        }
+                        if (
+                            is_string($annotation['destPageObject'] ?? null)
+                            || is_string($annotation['destFit'] ?? null)
+                            || is_string($annotation['destTarget'] ?? null)
+                        ) {
+                            $annotationDestinationCount++;
+                        }
+                        if (($annotation['flags'] ?? 0) !== 0) {
+                            $annotationFlagCount++;
+                        }
+                    }
+                    if ($annotationContentCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-contents:' . $annotationContentCount;
+                    }
+                    if ($annotationActionCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-actions:' . $annotationActionCount;
+                    }
+                    if ($annotationDestinationCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-destinations:' . $annotationDestinationCount;
+                    }
+                    if ($annotationFlagCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-flags:' . $annotationFlagCount;
+                    }
+                }
                 if ($pdfAnnotationTypes !== []) {
                     $diagnostics[] = 'pdf-byte-annotations:' . array_sum($pdfAnnotationTypes);
                 }
@@ -1492,6 +1532,7 @@ final class PdfEngineHandoff
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
+            'pdfAnnotations' => $pdfAnnotations,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
@@ -1576,6 +1617,7 @@ final class PdfEngineHandoff
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
+     *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
@@ -1774,6 +1816,7 @@ final class PdfEngineHandoff
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
+            'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
@@ -2861,6 +2904,7 @@ final class PdfEngineHandoff
      *     signatureSubFilters:array<string, int>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
+     *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
@@ -2952,6 +2996,7 @@ final class PdfEngineHandoff
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
+            'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
             'embeddedFileNames' => $embeddedFileNames,
@@ -6780,6 +6825,27 @@ final class PdfEngineHandoff
         return $box;
     }
 
+    /**
+     * @return list<float>|null
+     */
+    private function extractPdfNumberArrayValues(string $dictionary, string $name): ?array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, $name);
+        if ($array === null) {
+            return null;
+        }
+        if (preg_match_all('/[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[Ee][-+]?\d+)?/', $array, $matches) < 1) {
+            return null;
+        }
+
+        $numbers = [];
+        foreach (array_slice($matches[0], 0, 128) as $number) {
+            $numbers[] = (float) $number;
+        }
+
+        return $numbers;
+    }
+
     private function extractPdfRotationValue(string $dictionary): ?int
     {
         $rotation = $this->extractPdfIntegerToken($dictionary, 'Rotate');
@@ -8441,6 +8507,265 @@ final class PdfEngineHandoff
             'Watermark',
             'Widget',
         ], true);
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>
+     */
+    private function extractPdfAnnotations(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $annotations = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfAnnotationsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $annotations,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($annotations !== []) {
+            return $annotations;
+        }
+
+        foreach ($objects as $reference => $body) {
+            $subtype = $this->extractPdfNameToken($body, 'Subtype');
+            if ($subtype === null || !$this->isPdfAnnotationSubtype($subtype)) {
+                continue;
+            }
+
+            $summary = $this->summarizePdfAnnotation($body, $reference . ' R', null, null, $objects);
+            if ($summary !== null) {
+                $annotations[] = $summary;
+            }
+        }
+
+        usort(
+            $annotations,
+            fn (array $left, array $right): int => $this->pdfReferenceSortKey($left['annotationObject'] ?? '')
+                <=> $this->pdfReferenceSortKey($right['annotationObject'] ?? '')
+        );
+
+        return $annotations;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}> $annotations
+     */
+    private function collectPdfAnnotationsFromPageTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$annotations,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $this->collectPdfAnnotationsFromPage($body, $reference, $pageNumber, $objects, $annotations);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfAnnotationsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $annotations,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}> $annotations
+     */
+    private function collectPdfAnnotationsFromPage(
+        string $pageDictionary,
+        string $pageReference,
+        int $pageNumber,
+        array $objects,
+        array &$annotations
+    ): void {
+        $array = $this->extractPdfArrayOrReferenceValue($pageDictionary, 'Annots', $objects);
+        if ($array === null) {
+            return;
+        }
+
+        $this->walkPdfArrayValues($array, function (array $value) use (&$annotations, $objects, $pageNumber, $pageReference): void {
+            if (!in_array($value['kind'], ['reference', 'dictionary'], true)) {
+                return;
+            }
+
+            $summary = $this->summarizePdfAnnotationValue(
+                $value,
+                $objects,
+                $pageNumber,
+                $pageReference . ' R'
+            );
+            if ($summary !== null) {
+                $annotations[] = $summary;
+            }
+        });
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}|null
+     */
+    private function summarizePdfAnnotationValue(array $value, array $objects, int $pageNumber, string $pageReference): ?array
+    {
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $dictionary = $objects[$reference] ?? null;
+
+            return $dictionary === null
+                ? null
+                : $this->summarizePdfAnnotation($dictionary, $reference . ' R', $pageNumber, $pageReference, $objects);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfAnnotation($value['value'], 'inline', $pageNumber, $pageReference, $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}|null
+     */
+    private function summarizePdfAnnotation(
+        string $dictionary,
+        ?string $annotationObject,
+        ?int $pageNumber,
+        ?string $pageReference,
+        array $objects
+    ): ?array {
+        $subtype = $this->extractPdfNameToken($dictionary, 'Subtype');
+        if ($subtype === null || !$this->isPdfAnnotationSubtype($subtype)) {
+            return null;
+        }
+
+        $action = $this->extractPdfAnnotationAction($dictionary, $objects);
+        $destination = $this->extractPdfAnnotationDestination($dictionary, $objects);
+        $flags = $this->extractPdfIntegerToken($dictionary, 'F') ?? 0;
+
+        return [
+            'page' => $pageNumber ?? 0,
+            'pageObject' => $pageReference,
+            'annotationObject' => $annotationObject,
+            'subtype' => $subtype,
+            'rect' => $this->extractPdfNumberArrayToken($dictionary, 'Rect', 4),
+            'quadPoints' => $this->extractPdfNumberArrayValues($dictionary, 'QuadPoints'),
+            'contents' => $this->extractPdfStringOrNameValue($dictionary, 'Contents'),
+            'title' => $this->extractPdfStringOrNameValue($dictionary, 'T'),
+            'name' => $this->extractPdfStringOrNameValue($dictionary, 'NM'),
+            'modified' => $this->extractPdfStringOrNameValue($dictionary, 'M'),
+            'iconName' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'flags' => $flags,
+            'flagNames' => $this->pdfAnnotationFlagNames($flags),
+            'color' => $this->extractPdfNumberArrayValues($dictionary, 'C'),
+            'border' => $this->extractPdfNumberArrayValues($dictionary, 'Border'),
+            'actionType' => is_string($action['type'] ?? null) ? $action['type'] : null,
+            'actionTarget' => is_string($action['target'] ?? null) ? $action['target'] : null,
+            'destPageObject' => is_string($destination['pageObject'] ?? null)
+                ? $destination['pageObject']
+                : (is_string($action['pageObject'] ?? null) ? $action['pageObject'] : null),
+            'destFit' => is_string($destination['fit'] ?? null)
+                ? $destination['fit']
+                : (is_string($action['fit'] ?? null) ? $action['fit'] : null),
+            'destTarget' => is_string($destination['target'] ?? null) ? $destination['target'] : null,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array<string, mixed>
+     */
+    private function extractPdfAnnotationAction(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'A');
+        if ($value === null) {
+            return [];
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfActionDictionary($value['value']) ?? [];
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return [];
+        }
+
+        $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+
+        return $body === null ? [] : ($this->summarizePdfActionDictionary($body) ?? []);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array<string, mixed>
+     */
+    private function extractPdfAnnotationDestination(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'Dest');
+        if ($value === null) {
+            return [];
+        }
+
+        return $this->summarizePdfNamedDestinationValue($value, $objects) ?? [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfAnnotationFlagNames(int $flags): array
+    {
+        if ($flags === 0) {
+            return [];
+        }
+
+        $definitions = [
+            0x001 => 'invisible',
+            0x002 => 'hidden',
+            0x004 => 'print',
+            0x008 => 'noZoom',
+            0x010 => 'noRotate',
+            0x020 => 'noView',
+            0x040 => 'readOnly',
+            0x080 => 'locked',
+            0x100 => 'toggleNoView',
+            0x200 => 'lockedContents',
+        ];
+
+        $names = [];
+        foreach ($definitions as $bit => $name) {
+            if (($flags & $bit) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**

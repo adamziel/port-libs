@@ -2429,6 +2429,131 @@ MARKDOWN);
         $t->same(['review-assets.zip'], $sequence['finalPdfEmbeddedFileNames']);
     },
 
+    'fake runner extracts bounded pdf annotation detail metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/annotation-details.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [5 0 R 6 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots 7 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Link /Rect [72 640 288 672] /F 4 /C [0 0 1] /Border [0 0 0] /A << /S /URI /URI (https://example.test/review?id=7) >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Highlight /Rect [72 600 360 620] /QuadPoints [72 620 360 620 72 600 360 600] /Contents (Reviewer highlight) /T (Migration Desk) /NM (annot-42) /M (D:20260606051200Z) /F 516 /C [1 0.92 0.2] /Dest /review-highlight >>',
+            'endobj',
+            '7 0 obj',
+            '[<< /Type /Annot /Subtype /Text /Rect [72 540 96 564] /Contents <FEFF0050006100670065002000320020006E006F00740065> /Name /Comment /F 32 /Dest [4 0 R /FitH 540] >>]',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/annotation-details.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/annotation-details.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '5 0 R',
+                'subtype' => 'Link',
+                'rect' => [72.0, 640.0, 288.0, 672.0],
+                'quadPoints' => null,
+                'contents' => null,
+                'title' => null,
+                'name' => null,
+                'modified' => null,
+                'iconName' => null,
+                'flags' => 4,
+                'flagNames' => ['print'],
+                'color' => [0.0, 0.0, 1.0],
+                'border' => [0.0, 0.0, 0.0],
+                'actionType' => 'URI',
+                'actionTarget' => 'https://example.test/review?id=7',
+                'destPageObject' => null,
+                'destFit' => null,
+                'destTarget' => null,
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '6 0 R',
+                'subtype' => 'Highlight',
+                'rect' => [72.0, 600.0, 360.0, 620.0],
+                'quadPoints' => [72.0, 620.0, 360.0, 620.0, 72.0, 600.0, 360.0, 600.0],
+                'contents' => 'Reviewer highlight',
+                'title' => 'Migration Desk',
+                'name' => 'annot-42',
+                'modified' => 'D:20260606051200Z',
+                'iconName' => null,
+                'flags' => 516,
+                'flagNames' => ['print', 'lockedContents'],
+                'color' => [1.0, 0.92, 0.2],
+                'border' => null,
+                'actionType' => null,
+                'actionTarget' => null,
+                'destPageObject' => null,
+                'destFit' => null,
+                'destTarget' => 'review-highlight',
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'annotationObject' => 'inline',
+                'subtype' => 'Text',
+                'rect' => [72.0, 540.0, 96.0, 564.0],
+                'quadPoints' => null,
+                'contents' => 'Page 2 note',
+                'title' => null,
+                'name' => null,
+                'modified' => null,
+                'iconName' => 'Comment',
+                'flags' => 32,
+                'flagNames' => ['noView'],
+                'color' => null,
+                'border' => null,
+                'actionType' => null,
+                'actionTarget' => null,
+                'destPageObject' => '4 0 R',
+                'destFit' => 'FitH',
+                'destTarget' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAnnotations']);
+        $t->contains('pdf-byte-annotation-metadata:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-contents:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-actions:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-destinations:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-flags:3', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfAnnotations']);
+    },
+
     'fake runner extracts bounded pdf embedded file metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/embedded-files.pdf']);
