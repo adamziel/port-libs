@@ -18,7 +18,7 @@ $outlineDestinationFitActionChainPdf = static function (): string {
         . "6 0 obj\n<< /Title (Direct FitR Destination Action) /Parent 5 0 R /Dest 12 0 R /Next 7 0 R >>\nendobj\n"
         . "7 0 obj\n<< /Title (Outline FitBH Action) /Parent 5 0 R /A 15 0 R /Next 9 0 R >>\nendobj\n"
         . "9 0 obj\n<< /Title (Named FitB Destination Action) /Parent 5 0 R /Dest /BoxAction >>\nendobj\n"
-        . "8 0 obj\n<< /Names [(BoxAction) 21 0 R (TopFit) [4 0 R /FitBH null 999] (BoxFit) [3 0 R /FitB 111 222]] >>\nendobj\n"
+        . "8 0 obj\n<< /Names [(BoxAction) 21 0 R (TopFit) [4 0 R /FitBH 680 999] (BoxFit) [3 0 R /FitB 111 222]] >>\nendobj\n"
         . "12 0 obj\n<< /S /GoTo /D [4 0 R /FitR 36 120 420 760] /Next [13 0 R 14 0 R 14 0 R] >>\nendobj\n"
         . "13 0 obj\n<< /S /URI /URI (https://example.com/fitr-followup) >>\nendobj\n"
         . "14 0 obj\n<< /S /JavaScript /JS (app.alert\\('hidden fitr action chain script'\\)) >>\nendobj\n"
@@ -50,7 +50,7 @@ return [
         $t->same(
             [
                 ['left' => 36.0, 'bottom' => 120.0, 'right' => 420.0, 'top' => 760.0],
-                ['top' => null],
+                ['top' => 680.0],
                 [],
             ],
             array_column($metadata['outline'], 'view_parameters')
@@ -86,8 +86,8 @@ return [
             $t->same(1, $action['destination_action_target_page']);
             $t->same('Target 3', $action['destination_action_target_page_label']);
             $t->same('FitBH', $action['destination_action_target_view_mode']);
-            $t->same([null], $action['destination_action_target_view_position']);
-            $t->same(['top' => null], $action['destination_action_target_view_parameters']);
+            $t->same([680.0], $action['destination_action_target_view_position']);
+            $t->same(['top' => 680.0], $action['destination_action_target_view_parameters']);
         }
 
         foreach (array_slice($actions, 5, 2) as $action) {

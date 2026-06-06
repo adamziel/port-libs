@@ -19,7 +19,7 @@ $pdf = "%PDF-1.4\n"
     . "10 0 obj\n<< /Limits [(N) (Z)] /Names [16 0 R 17 0 R] >>\nendobj\n"
     . "12 0 obj\n<FEFF0049006E0064006900720065006300740020005200650076006900650077>\nendobj\n"
     . "13 0 obj\n<< /D 14 0 R >>\nendobj\n"
-    . "14 0 obj\n[4 0 R /FitBH null]\nendobj\n"
+    . "14 0 obj\n[4 0 R /FitBH 620]\nendobj\n"
     . "16 0 obj\n(Page Four)\nendobj\n"
     . "17 0 obj\n<< /D [3 0 R /FitR 10 20 300 740] >>\nendobj\n"
     . "%%EOF";

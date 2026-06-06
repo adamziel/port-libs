@@ -39,7 +39,7 @@ $pdf .= "20 0 obj\n<< /Kids 21 0 R >>\nendobj\n"
     . "35 0 obj\n(front-)\nendobj\n"
     . "36 0 obj\n<< /S /Dissolve /D 1.25 >>\nendobj\n"
     . "37 0 obj\n<< /S /GoTo /D /ChapterStart >>\nendobj\n"
-    . "40 0 obj\n<< /Names [(ChapterStart) [4 0 R /FitH null]] >>\nendobj\n"
+    . "40 0 obj\n<< /Names [(ChapterStart) [4 0 R /FitH 640]] >>\nendobj\n"
     . "%%EOF";
 
 $textExtractor = new PdfTextExtractor();

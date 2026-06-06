@@ -5383,8 +5383,8 @@ final class PdfMetadataExtractor
 
         $requiredOperands = match ($viewMode) {
             'XYZ' => [2 => true, 3 => true, 4 => true],
-            'FitH', 'FitBH', 'FitV', 'FitBV' => [2 => true],
-            'FitR' => [2 => true, 3 => true, 4 => true, 5 => true],
+            'FitH', 'FitBH', 'FitV', 'FitBV' => [2 => false],
+            'FitR' => [2 => false, 3 => false, 4 => false, 5 => false],
             default => [],
         };
 
