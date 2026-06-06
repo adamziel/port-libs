@@ -17922,19 +17922,19 @@ final class PdfTextExtractor
      */
     private function simpleFontExplicitWidths(string $fontBody, array $objects): array
     {
-        $firstChar = $this->pdfNumberValueAfterNameResolvingObjects($fontBody, 'FirstChar', $objects);
+        $firstChar = $this->topLevelPdfNumberValueAfterName($fontBody, 'FirstChar', $objects);
         $firstCode = $this->simpleFontWidthRangeCode($firstChar);
         if ($firstCode === null) {
             return [];
         }
 
-        $lastChar = $this->pdfNumberValueAfterNameResolvingObjects($fontBody, 'LastChar', $objects);
+        $lastChar = $this->topLevelPdfNumberValueAfterName($fontBody, 'LastChar', $objects);
         $lastCode = $lastChar === null ? null : $this->simpleFontWidthRangeCode($lastChar);
         if ($lastChar !== null && ($lastCode === null || $lastCode < $firstCode)) {
             return [];
         }
 
-        $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
+        $widthArray = $this->topLevelPdfArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
         if ($widthArray === null) {
             return [];
         }
@@ -18640,6 +18640,19 @@ final class PdfTextExtractor
             $reference['objectNumber'],
             $reference['generation']
         );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfArrayValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfArrayFromValue($value, $objects);
     }
 
     /**

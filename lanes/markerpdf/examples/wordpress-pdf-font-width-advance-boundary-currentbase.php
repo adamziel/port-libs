@@ -238,6 +238,12 @@ $malformedRangePdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($malformedRangeContent) . " >>\nstream\n{$malformedRangeContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [67 /C /D /E /F] >>\nendobj\n%%EOF";
 
+$nestedEncodingWidthContent = 'BT /Fnest 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj ET';
+$nestedEncodingWidthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fnest 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+NestedWidthDecoy /FirstChar 65 /LastChar 68 /Encoding << /Widths [250 250 250 250] /Differences [65 /A /B /C /D] >> /Widths [1000 1000 1000 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($nestedEncodingWidthContent) . " >>\nstream\n{$nestedEncodingWidthContent}\nendstream\nendobj\n%%EOF";
+
 $nonFiniteWidth = str_repeat('9', 400);
 $nonFiniteWidthContent = 'BT /Finf 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 48 0 Td <4344> Tj ET';
 $nonFiniteWidthPdf = "%PDF-1.4\n"
@@ -696,6 +702,14 @@ $malformedRangeSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $malformedRangeFirstLine['spans'] ?? []
 );
+$nestedEncodingWidthLines = $extractor->extractTextLines($nestedEncodingWidthPdf);
+$nestedEncodingWidthPlainText = implode("\n", $nestedEncodingWidthLines);
+$nestedEncodingWidthPages = $extractor->extractStyledTextPages($nestedEncodingWidthPdf);
+$nestedEncodingWidthLine = $nestedEncodingWidthPages[0]['blocks'][0]['lines'][0] ?? [];
+$nestedEncodingWidthSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $nestedEncodingWidthLine['spans'] ?? []
+);
 $nonFiniteWidthLines = $extractor->extractTextLines($nonFiniteWidthPdf);
 $nonFiniteWidthPlainText = implode("\n", $nonFiniteWidthLines);
 $nonFiniteWidthPages = $extractor->extractStyledTextPages($nonFiniteWidthPdf);
@@ -850,7 +864,7 @@ $type3CharProcMatrixVectorSecondBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -945,6 +959,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'malformed_range_real_positioned_gap_preserved' => ($malformedRangeLines[1] ?? null) === 'CD EF',
     'malformed_range_double_gap_output_excluded' => !str_contains($malformedRangePlainText, 'CD EF' . "\n" . 'CD EF'),
     'malformed_range_styled_bboxes_preserved' => $malformedRangeSpanBboxes === [[0.0, 0.0, 12.0, 12.0], [12.0, 0.0, 24.0, 12.0]],
+    'nested_encoding_width_decoy_excluded' => $nestedEncodingWidthLines === ['ABCD'],
+    'nested_encoding_width_false_gap_excluded' => !str_contains($nestedEncodingWidthPlainText, 'AB CD'),
+    'nested_encoding_width_top_level_bboxes_preserved' => $nestedEncodingWidthSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'nested_encoding_width_decoy_bboxes_excluded' => $nestedEncodingWidthSpanBboxes !== [[0.0, 0.0, 6.0, 12.0], [24.0, 0.0, 30.0, 12.0]],
     'nonfinite_width_current_gap_preserved' => $nonFiniteWidthLines === ['AB CD'],
     'nonfinite_width_plain_text_preserved' => $nonFiniteWidthPlainText === 'AB CD',
     'nonfinite_width_infinite_bbox_excluded' => $nonFiniteWidthBboxesAreFinite,
@@ -1064,6 +1082,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'lastchar_span_bboxes' => $lastCharSpanBboxes,
     'malformed_range_lines' => $malformedRangeLines,
     'malformed_range_span_bboxes' => $malformedRangeSpanBboxes,
+    'nested_encoding_width_lines' => $nestedEncodingWidthLines,
+    'nested_encoding_width_span_bboxes' => $nestedEncodingWidthSpanBboxes,
     'nonfinite_width_lines' => $nonFiniteWidthLines,
     'nonfinite_width_span_bboxes' => $nonFiniteWidthSpanBboxes,
     'nonfinite_width_bboxes_are_finite' => $nonFiniteWidthBboxesAreFinite,
@@ -1099,7 +1119,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

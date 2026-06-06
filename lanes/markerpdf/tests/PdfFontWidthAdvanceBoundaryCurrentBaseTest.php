@@ -301,6 +301,15 @@ $fontWidthMalformedRangeBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [67 /C /D /E /F] >>\nendobj\n%%EOF";
 };
 
+$fontWidthNestedEncodingWidthDecoyBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fnest 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fnest 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+NestedWidthDecoy /FirstChar 65 /LastChar 68 /Encoding << /Widths [250 250 250 250] /Differences [65 /A /B /C /D] >> /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthNonFiniteWidthBoundaryCurrentBasePdf = static function (): string {
     $hugeWidth = str_repeat('9', 400);
     $content = 'BT /Finf 12 Tf 1 0 0 1 72 720 Tm <4142> Tj 48 0 Td <4344> Tj ET';
@@ -1269,6 +1278,28 @@ return [
         $t->true(str_contains($plainText, 'CD EF'));
         $t->true(!str_contains($plainText, 'MalformedRangeAdvance'));
         $t->true(!str_contains($plainText, 'Fbad'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'ignores nested Encoding Widths decoys before simple-font current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthNestedEncodingWidthDecoyBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthNestedEncodingWidthDecoyBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+        $spanBboxes = array_column($spans, 'bbox');
+
+        $t->same(['ABCD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same('ABCD', $plainText);
+        $t->same("ABCD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], $spanBboxes);
+        $t->same([0.0, 0.0, 48.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'AB CD'));
+        $t->true($spanBboxes !== [[0.0, 0.0, 6.0, 12.0], [24.0, 0.0, 30.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'NestedWidthDecoy'));
+        $t->true(!str_contains($plainText, 'Fnest'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'rejects negative simple-font Widths entries before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthNegativeWidthMetricBoundaryCurrentBasePdf): void {
