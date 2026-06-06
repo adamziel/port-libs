@@ -9725,6 +9725,9 @@ final class PdfTextExtractor
                     'filters_before_dctdecode' => $filters,
                     'native_prefix_filters' => $nativePrefix,
                     'preview_only_filters_before_dctdecode' => $previewOnly,
+                    ...($previewOnly !== [] ? [
+                        'pre_dctdecode_preview_filters_block_native_prefix_decode' => true,
+                    ] : []),
                     'filters_after_dctdecode' => $filtersAfterDctDecode,
                     'native_filters_after_dctdecode' => $nativeFiltersAfterDctDecode,
                     'preview_only_filters_after_dctdecode' => $previewOnlyFiltersAfterDctDecode,
