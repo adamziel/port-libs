@@ -78,6 +78,8 @@ $opfXml = <<<'XML'
     <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources" media-overlay="mo-chapter"/>
     <item id="slideshow" href="slides/source-slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler"/>
     <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="bound-tour" href="interactive/tour.bin" media-type="application/x-bound-tour"/>
+    <item id="bound-tour-handler" href="text/bound-tour-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
     <item id="audio-chapter" href="audio/chapter.mp3" media-type="audio/mpeg"/>
     <item id="remote-audio-note" href="https://cdn.example.test/audio/source-note.mp3" media-type="audio/mpeg"/>
@@ -90,6 +92,7 @@ $opfXml = <<<'XML'
   <spine id="source-spine" toc="toc" page-progression-direction="rtl">
     <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right"/>
     <itemref idref="slideshow" linear="no" properties="page-spread-left"/>
+    <itemref idref="bound-tour" linear="no"/>
   </spine>
   <guide>
     <reference type="text" title="Begin source" href="text/chapter.xhtml#source"/>
@@ -106,6 +109,7 @@ $opfXml = <<<'XML'
   <bindings>
     <mediaType media-type="application/x-demo-slideshow" handler="slideshow-handler"/>
     <mediaType media-type="application/x-review-widget" handler="missing-widget-handler"/>
+    <mediaType media-type="application/x-bound-tour" handler="bound-tour-handler"/>
   </bindings>
 </package>
 XML;
@@ -193,6 +197,15 @@ $slideshowFallbackXhtml = <<<'XML'
   <body>
     <h1>Source slideshow fallback</h1>
     <p>Scripted EPUB slideshow fallback is preserved for WordPress review.</p>
+  </body>
+</html>
+XML;
+
+$boundTourFallbackXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1>Bound tour fallback</h1>
+    <p>OPF media-type binding handler content is preserved for WordPress review.</p>
   </body>
 </html>
 XML;
@@ -328,7 +341,9 @@ $packageParts = [
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
     ['name' => 'EPUB/text/slideshow-fallback.xhtml', 'data' => $slideshowFallbackXhtml],
+    ['name' => 'EPUB/text/bound-tour-fallback.xhtml', 'data' => $boundTourFallbackXhtml],
     ['name' => 'EPUB/slides/source-slideshow.xml', 'data' => '<slides><slide src="../images/cover.png"/></slides>'],
+    ['name' => 'EPUB/interactive/tour.bin', 'data' => 'BOUND-TOUR'],
     ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smilXml],
     ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3-DATA'],
     ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
@@ -767,7 +782,7 @@ XML;
     if (($result['resourceProperties']['summary']['mathmlCount'] ?? null) !== 1 || ($result['resourceProperties']['summary']['svgCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB resource-property report to count MathML and SVG content markers');
     }
-    if (($result['resourceProperties']['summary']['remoteResourcesCount'] ?? null) !== 1 || ($result['resourceProperties']['summary']['scriptedCount'] ?? null) !== 1) {
+    if (($result['resourceProperties']['summary']['remoteResourcesCount'] ?? null) !== 1 || ($result['resourceProperties']['summary']['scriptedCount'] ?? null) !== 2) {
         throw new RuntimeException('Expected EPUB resource-property report to count remote-resource and scripted markers');
     }
     if (($result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'remote-resources']) {
@@ -775,6 +790,9 @@ XML;
     }
     if (($result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected EPUB fallback handler resource review flag for scripting');
+    }
+    if (($result['resourceProperties']['itemsById']['bound-tour-handler']['reviewFlags'] ?? []) !== ['scripted']) {
+        throw new RuntimeException('Expected EPUB binding-only handler resource review flag for scripting');
     }
     if (($result['document']->children[0]->attr('resourceReviewFlags') ?? []) !== ['mathml', 'svg', 'remote-resources']) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB resource review flags');
@@ -852,11 +870,23 @@ XML;
     if (($result['bindings']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'missing-binding-handler-manifest-item') {
         throw new RuntimeException('Expected missing EPUB OPF binding handler to remain a review diagnostic');
     }
+    if (($result['bindings']['items'][2]['handlerId'] ?? null) !== 'bound-tour-handler') {
+        throw new RuntimeException('Expected EPUB OPF binding-only handler to be reported');
+    }
     if (($result['spine'][1]['binding']['handlerId'] ?? null) !== 'slideshow-handler') {
         throw new RuntimeException('Expected custom media-type spine item to carry its OPF binding handler');
     }
     if (($result['document']->children[1]->attr('binding')['handlerId'] ?? null) !== 'slideshow-handler') {
         throw new RuntimeException('Expected WordPress fallback block to expose OPF binding metadata');
+    }
+    if (($result['spine'][2]['contentId'] ?? null) !== 'bound-tour-handler' || ($result['spine'][2]['fallbackChain'][0]['source'] ?? null) !== 'binding-handler') {
+        throw new RuntimeException('Expected EPUB binding-only spine item to resolve to its XHTML media handler');
+    }
+    if (($result['document']->children[2]->attr('source') ?? null) !== 'epub3-spine-fallback' || ($result['document']->children[2]->attr('binding')['handlerId'] ?? null) !== 'bound-tour-handler') {
+        throw new RuntimeException('Expected WordPress binding-only fallback block to expose OPF binding metadata');
+    }
+    if (!str_contains((string) $result['document']->children[2]->attr('html'), 'OPF media-type binding handler content is preserved')) {
+        throw new RuntimeException('Expected EPUB binding-only handler XHTML to remain reviewable in the AST');
     }
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');

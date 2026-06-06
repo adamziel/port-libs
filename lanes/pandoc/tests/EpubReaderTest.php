@@ -1764,6 +1764,74 @@ XML;
         $t->same('epub3-spine-fallback', $result['document']->children[1]->attr('source'));
         $t->contains('Scripted slideshow fallback remains reviewable.', $result['document']->children[1]->attr('html'));
     },
+    'uses OPF bindings as XHTML fallback handlers for custom spine media' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $tourFallbackXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Interactive tour fallback</title></head>
+  <body><h1>Interactive tour fallback</h1><p>Bound media handler content remains reviewable.</p></body>
+</html>
+XML;
+        $opfWithBoundSpine = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/><item id="interactive-tour" href="interactive/tour.bin" media-type="application/x-review-tour"/><item id="tour-handler" href="text/tour-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $opfXml
+        );
+        $opfWithBoundSpine = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="interactive-tour" linear="no"/><itemref idref="chapter-2" linear="no"/>',
+            $opfWithBoundSpine
+        );
+        $opfWithBoundSpine = str_replace(
+            '</package>',
+            '<bindings><mediaType media-type="application/x-review-tour" handler="tour-handler"/></bindings></package>',
+            $opfWithBoundSpine
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithBoundSpine,
+            null,
+            [
+                ['name' => 'OEBPS/interactive/tour.bin', 'data' => 'BOUND-TOUR'],
+                ['name' => 'OEBPS/text/tour-fallback.xhtml', 'data' => $tourFallbackXhtml],
+            ]
+        ));
+
+        $binding = $result['bindings']['items'][0];
+        $boundSpine = $result['spine'][1];
+        $t->same('application/x-review-tour', $binding['mediaType']);
+        $t->same('tour-handler', $binding['handlerId']);
+        $t->same('/OEBPS/text/tour-fallback.xhtml', $binding['handlerPart']);
+        $t->same([], $binding['diagnostics']);
+
+        $t->same('interactive-tour', $boundSpine['idref']);
+        $t->same('application/x-review-tour', $boundSpine['mediaType']);
+        $t->same('/OEBPS/interactive/tour.bin', $boundSpine['part']);
+        $t->same($binding, $boundSpine['binding']);
+        $t->same('tour-handler', $boundSpine['contentId']);
+        $t->same('/OEBPS/text/tour-fallback.xhtml', $boundSpine['contentPart']);
+        $t->same('application/xhtml+xml', $boundSpine['contentMediaType']);
+        $t->same(true, $boundSpine['contentIsFallback']);
+        $t->same([], $boundSpine['fallbackDiagnostics']);
+        $t->same(1, count($boundSpine['fallbackChain']));
+        $t->same('tour-handler', $boundSpine['fallbackChain'][0]['id']);
+        $t->same('binding-handler', $boundSpine['fallbackChain'][0]['source']);
+        $t->same('application/x-review-tour', $boundSpine['fallbackChain'][0]['bindingMediaType']);
+
+        $t->same(3, count($result['document']->children));
+        $fallbackBlock = $result['document']->children[1];
+        $t->same('epub3-spine-fallback', $fallbackBlock->attr('source'));
+        $t->same('interactive-tour', $fallbackBlock->attr('fallbackOf'));
+        $t->same('/OEBPS/interactive/tour.bin', $fallbackBlock->attr('spinePart'));
+        $t->same('application/x-review-tour', $fallbackBlock->attr('spineMediaType'));
+        $t->same('/OEBPS/text/tour-fallback.xhtml', $fallbackBlock->attr('part'));
+        $t->same('tour-handler', $fallbackBlock->attr('contentId'));
+        $t->same($binding, $fallbackBlock->attr('binding'));
+        $t->same($boundSpine['fallbackChain'], $fallbackBlock->attr('fallbackChain'));
+        $t->contains('Bound media handler content remains reviewable.', $fallbackBlock->attr('html'));
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Bound media handler content remains reviewable.', $blocks);
+    },
     'reports missing non-spine package assets without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithMissingAudio = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',

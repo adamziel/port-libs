@@ -3853,9 +3853,9 @@ final class EpubReader
                 throw new \RuntimeException('EPUB spine item is missing from the package: ' . $manifestItem['part']);
             }
 
-            $content = $this->resolveSpineContentItem($manifestItem, $manifestById);
-            $contentItem = $content['item'];
             $binding = self::bindingForMediaType($bindings, (string) $manifestItem['mediaType']);
+            $content = $this->resolveSpineContentItem($manifestItem, $manifestById, $binding);
+            $contentItem = $content['item'];
             $properties = self::spaceDelimited($itemref->getAttribute('properties'));
             $itemProperties = self::spineItemPropertyReport($properties);
             $linearProperties = self::spineItemLinearReport($itemref, $idref);
@@ -4110,6 +4110,7 @@ final class EpubReader
     /**
      * @param array<string, mixed> $manifestItem
      * @param array<string, array<string, mixed>> $manifestById
+     * @param ?array<string, mixed> $binding
      *
      * @return array{
      *     item:?array<string, mixed>,
@@ -4118,7 +4119,7 @@ final class EpubReader
      *     isFallback:bool
      * }
      */
-    private function resolveSpineContentItem(array $manifestItem, array $manifestById): array
+    private function resolveSpineContentItem(array $manifestItem, array $manifestById, ?array $binding = null): array
     {
         $current = $manifestItem;
         $visited = [(string) $manifestItem['id'] => true];
@@ -4138,6 +4139,26 @@ final class EpubReader
 
             $fallbackId = trim((string) ($current['fallback'] ?? ''));
             if ($fallbackId === '') {
+                $bindingContent = (string) ($current['id'] ?? '') === (string) ($manifestItem['id'] ?? '')
+                    ? self::spineBindingFallbackContentItem($binding, $manifestById, $visited)
+                    : null;
+                if ($bindingContent !== null) {
+                    $chain[] = self::bindingFallbackChainItem($bindingContent, $binding);
+
+                    return [
+                        'item' => $bindingContent,
+                        'chain' => $chain,
+                        'diagnostics' => $diagnostics,
+                        'isFallback' => true,
+                    ];
+                }
+
+                if ((string) ($current['id'] ?? '') === (string) ($manifestItem['id'] ?? '')) {
+                    array_push(
+                        $diagnostics,
+                        ...self::spineBindingFallbackDiagnostics($binding, $manifestById, $visited)
+                    );
+                }
                 $diagnostics[] = self::spineFallbackDiagnostic($current);
 
                 return [
@@ -4185,6 +4206,119 @@ final class EpubReader
             $chain[] = self::fallbackChainItem($current);
             $isFallback = true;
         }
+    }
+
+    /**
+     * @param ?array<string, mixed> $binding
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, bool> $visited
+     *
+     * @return ?array<string, mixed>
+     */
+    private static function spineBindingFallbackContentItem(?array $binding, array $manifestById, array $visited): ?array
+    {
+        if (!is_array($binding)) {
+            return null;
+        }
+
+        $handlerId = self::nullableManifestId($binding['handlerId'] ?? null);
+        if ($handlerId === null || isset($visited[$handlerId]) || !isset($manifestById[$handlerId])) {
+            return null;
+        }
+
+        $handler = $manifestById[$handlerId];
+
+        return self::canExposeXhtmlContent($handler) ? $handler : null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param ?array<string, mixed> $binding
+     *
+     * @return array<string, mixed>
+     */
+    private static function bindingFallbackChainItem(array $item, ?array $binding): array
+    {
+        return self::fallbackChainItem($item) + [
+            'source' => 'binding-handler',
+            'bindingMediaType' => is_string($binding['mediaType'] ?? null) ? $binding['mediaType'] : null,
+            'bindingHandlerId' => is_string($binding['handlerId'] ?? null) ? $binding['handlerId'] : null,
+        ];
+    }
+
+    /**
+     * @param ?array<string, mixed> $binding
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, bool> $visited
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function spineBindingFallbackDiagnostics(?array $binding, array $manifestById, array $visited): array
+    {
+        if (!is_array($binding)) {
+            return [];
+        }
+
+        $mediaType = is_string($binding['mediaType'] ?? null) ? $binding['mediaType'] : null;
+        $handlerId = self::nullableManifestId($binding['handlerId'] ?? null);
+        if ($handlerId === null) {
+            return [[
+                'type' => 'missing-spine-binding-handler',
+                'mediaType' => $mediaType,
+                'message' => 'EPUB OPF binding for a spine media type does not name a handler manifest item',
+            ]];
+        }
+
+        if (isset($visited[$handlerId])) {
+            return [[
+                'type' => 'cyclic-spine-binding-handler',
+                'mediaType' => $mediaType,
+                'handlerId' => $handlerId,
+                'message' => 'EPUB OPF binding handler points back into the current spine fallback chain',
+            ]];
+        }
+
+        $handler = $manifestById[$handlerId] ?? null;
+        if (!is_array($handler)) {
+            return [[
+                'type' => 'missing-spine-binding-handler-manifest-item',
+                'mediaType' => $mediaType,
+                'handlerId' => $handlerId,
+                'message' => 'EPUB OPF binding handler does not reference a manifest item available for spine fallback',
+            ]];
+        }
+
+        if (($handler['exists'] ?? false) !== true) {
+            return [[
+                'type' => 'missing-spine-binding-handler-part',
+                'mediaType' => $mediaType,
+                'handlerId' => $handlerId,
+                'part' => (string) ($handler['part'] ?? ''),
+                'message' => 'EPUB OPF binding handler part is missing from the package',
+            ]];
+        }
+
+        if (self::isEncryptedManifestItem($handler)) {
+            return [[
+                'type' => 'encrypted-spine-binding-handler',
+                'mediaType' => $mediaType,
+                'handlerId' => $handlerId,
+                'part' => (string) ($handler['part'] ?? ''),
+                'message' => 'EPUB OPF binding handler is encrypted and cannot be exposed as XHTML content',
+            ]];
+        }
+
+        if (($handler['mediaType'] ?? null) !== self::XHTML_MEDIA_TYPE) {
+            return [[
+                'type' => 'non-xhtml-spine-binding-handler',
+                'mediaType' => $mediaType,
+                'handlerId' => $handlerId,
+                'handlerMediaType' => (string) ($handler['mediaType'] ?? ''),
+                'message' => 'EPUB OPF binding handler must resolve to an XHTML content document before it can be used as a spine fallback',
+            ]];
+        }
+
+        return [];
     }
 
     /**
