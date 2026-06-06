@@ -18,7 +18,12 @@ final class ZipPackageEntry
     private const UNIX_REGULAR_FILE_TYPE = 0x8000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
     private const UNIX_SOCKET_TYPE = 0xc000;
+    private const DOS_READ_ONLY_ATTRIBUTE = 0x01;
+    private const DOS_HIDDEN_ATTRIBUTE = 0x02;
+    private const DOS_SYSTEM_ATTRIBUTE = 0x04;
+    private const DOS_VOLUME_LABEL_ATTRIBUTE = 0x08;
     private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
+    private const DOS_ARCHIVE_ATTRIBUTE = 0x20;
     private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
     private const WINZIP_AES_EXTRA_ID = 0x9901;
 
@@ -59,6 +64,59 @@ final class ZipPackageEntry
     public function hasDosDirectoryAttribute(): bool
     {
         return ($this->externalFileAttributes & self::DOS_DIRECTORY_ATTRIBUTE) !== 0;
+    }
+
+    public function hasDosReadOnlyAttribute(): bool
+    {
+        return ($this->externalFileAttributes & self::DOS_READ_ONLY_ATTRIBUTE) !== 0;
+    }
+
+    public function hasDosHiddenAttribute(): bool
+    {
+        return ($this->externalFileAttributes & self::DOS_HIDDEN_ATTRIBUTE) !== 0;
+    }
+
+    public function hasDosSystemAttribute(): bool
+    {
+        return ($this->externalFileAttributes & self::DOS_SYSTEM_ATTRIBUTE) !== 0;
+    }
+
+    public function hasDosVolumeLabelAttribute(): bool
+    {
+        return ($this->externalFileAttributes & self::DOS_VOLUME_LABEL_ATTRIBUTE) !== 0;
+    }
+
+    public function hasDosArchiveAttribute(): bool
+    {
+        return ($this->externalFileAttributes & self::DOS_ARCHIVE_ATTRIBUTE) !== 0;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function dosAttributeNames(): array
+    {
+        $names = [];
+        if ($this->hasDosReadOnlyAttribute()) {
+            $names[] = 'read-only';
+        }
+        if ($this->hasDosHiddenAttribute()) {
+            $names[] = 'hidden';
+        }
+        if ($this->hasDosSystemAttribute()) {
+            $names[] = 'system';
+        }
+        if ($this->hasDosVolumeLabelAttribute()) {
+            $names[] = 'volume-label';
+        }
+        if ($this->hasDosDirectoryAttribute()) {
+            $names[] = 'directory';
+        }
+        if ($this->hasDosArchiveAttribute()) {
+            $names[] = 'archive';
+        }
+
+        return $names;
     }
 
     public function crc32Hex(): string

@@ -1726,6 +1726,7 @@ $packageArchivePreflight = $package->archivePreflight();
 $packageSizePreflight = $package->sizePreflight();
 $packageCompressionPreflight = $package->compressionMethodPreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
+$packageDosAttributePreflight = $package->dosAttributePreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
@@ -2065,6 +2066,45 @@ try {
     $executableMediaPackage->assertNoExecutableFiles();
 } catch (RuntimeException $exception) {
     $executablePermissionRejected = str_contains($exception->getMessage(), 'Unix executable file entries');
+}
+$hiddenDosAttributePackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>DOS hidden media review source</w:p></w:body></w:document>',
+        'externalAttributes' => 0x81a40020,
+    ],
+    [
+        'name' => 'word/media/hidden-review.txt',
+        'data' => "hidden media bytes require explicit import review\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81a40022,
+    ],
+    [
+        'name' => 'word/media/system-review.txt',
+        'data' => "system media bytes require explicit import review\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81a40024,
+    ],
+    [
+        'name' => 'word/media/VOLUME',
+        'data' => '',
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x00000008,
+    ],
+]);
+$hiddenDosAttributePreflight = $hiddenDosAttributePackage->dosAttributePreflight();
+$hiddenDosAttributeStrictPreflight = $hiddenDosAttributePackage->strictImportPreflight(4096, 100.0, 4096);
+$hiddenDosAttributeRejected = false;
+try {
+    $hiddenDosAttributePackage->assertNoHiddenSystemOrVolumeLabelEntries();
+} catch (RuntimeException $exception) {
+    $hiddenDosAttributeRejected = str_contains($exception->getMessage(), 'DOS hidden, system, or volume-label entries');
+}
+$hiddenDosAttributeStrictRejected = false;
+try {
+    $hiddenDosAttributePackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $hiddenDosAttributeStrictRejected = str_contains($exception->getMessage(), 'hidden-system-or-volume-label-entries');
 }
 $compressedPackage = GzipStream::build($package->bytes(), [
     'modifiedAt' => $documentModifiedAt,
@@ -2864,6 +2904,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($strictImportPreflight['entryCount'] ?? null) !== 3
         || ($strictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
         || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
+        || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
     ) {
         throw new RuntimeException('Expected strict ZIP import preflight to accept the clean WordPress package');
     }
@@ -2942,6 +2983,27 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($package->assertNoExecutableFiles() !== $packagePermissionPreflight) {
         throw new RuntimeException('Expected ZIP package permission preflight to return the accepted summary');
+    }
+
+    if (
+        ($packageDosAttributePreflight['entryCount'] ?? null) !== 3
+        || ($packageDosAttributePreflight['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
+    ) {
+        throw new RuntimeException('Expected generated ZIP package DOS attributes to be safe for media import');
+    }
+
+    if ($package->assertNoHiddenSystemOrVolumeLabelEntries() !== $packageDosAttributePreflight) {
+        throw new RuntimeException('Expected generated ZIP package DOS attribute preflight to return the accepted summary');
+    }
+
+    if (
+        !$hiddenDosAttributeRejected
+        || !$hiddenDosAttributeStrictRejected
+        || ($hiddenDosAttributePreflight['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 3
+        || ($hiddenDosAttributePreflight['hiddenSystemOrVolumeLabelEntries'][0]['name'] ?? null) !== 'word/media/hidden-review.txt'
+        || ($hiddenDosAttributeStrictPreflight['diagnostics'] ?? null) !== ['hidden-system-or-volume-label-entries']
+    ) {
+        throw new RuntimeException('Expected ZIP DOS hidden/system/volume-label attributes to be rejected before media import');
     }
 
     if (
@@ -3861,6 +3923,10 @@ echo 'packageExtraField.mismatchedEntryCount=' . $packageExtraFieldPreflight['mi
 echo 'packageExtraField.valueMismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldValueEntryCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
+echo 'packageDosAttributes.hiddenSystemOrVolumeLabelEntryCount=' . $packageDosAttributePreflight['hiddenSystemOrVolumeLabelEntryCount'] . "\n";
+echo 'zipDosHiddenSystemVolumePolicy=' . ($hiddenDosAttributeRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDosHiddenSystemVolumeStrictPolicy=' . ($hiddenDosAttributeStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDosHiddenSystemVolumeEntry=' . ($hiddenDosAttributePreflight['hiddenSystemOrVolumeLabelEntries'][0]['name'] ?? 'none') . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";

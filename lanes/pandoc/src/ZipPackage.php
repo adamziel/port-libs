@@ -1884,6 +1884,7 @@ final class ZipPackage
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
+     *     dosAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
@@ -1913,6 +1914,7 @@ final class ZipPackage
         $pathHierarchy = $this->pathHierarchyPreflight();
         $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
         $permissions = $this->permissionPreflight();
+        $dosAttributes = $this->dosAttributePreflight();
         $creatorHostSystems = $this->creatorHostSystemPreflight();
         $localHeaders = $this->localHeaderPreflight();
         $dataDescriptors = $this->dataDescriptorPreflight();
@@ -1953,6 +1955,10 @@ final class ZipPackage
 
         if ($permissions['executableFileCount'] > 0) {
             $diagnostics[] = 'executable-file-entries';
+        }
+
+        if ($dosAttributes['hiddenSystemOrVolumeLabelEntryCount'] > 0) {
+            $diagnostics[] = 'hidden-system-or-volume-label-entries';
         }
 
         if ($creatorHostSystems['unknownHostSystemEntryCount'] > 0) {
@@ -1999,6 +2005,7 @@ final class ZipPackage
             'pathHierarchy' => $pathHierarchy,
             'caseInsensitiveNames' => $caseInsensitiveNames,
             'permissions' => $permissions,
+            'dosAttributes' => $dosAttributes,
             'creatorHostSystems' => $creatorHostSystems,
             'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
@@ -2022,6 +2029,7 @@ final class ZipPackage
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
+     *     dosAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
@@ -2204,6 +2212,134 @@ final class ZipPackage
 
             throw new \RuntimeException(
                 'ZIP package contains Unix executable file entries that require explicit import review: ' . $names
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     dosAttributeEntryCount:int,
+     *     readOnlyEntryCount:int,
+     *     hiddenEntryCount:int,
+     *     systemEntryCount:int,
+     *     volumeLabelEntryCount:int,
+     *     directoryAttributeEntryCount:int,
+     *     archiveEntryCount:int,
+     *     hiddenSystemOrVolumeLabelEntryCount:int,
+     *     hiddenSystemOrVolumeLabelEntries:list<array{name:string, isDirectory:bool, dosAttributes:int, dosAttributeNames:list<string>, hasReadOnlyAttribute:bool, hasHiddenAttribute:bool, hasSystemAttribute:bool, hasVolumeLabelAttribute:bool, hasDirectoryAttribute:bool, hasArchiveAttribute:bool, externalAttributes:int}>,
+     *     entries:list<array{name:string, isDirectory:bool, dosAttributes:int, dosAttributeNames:list<string>, hasReadOnlyAttribute:bool, hasHiddenAttribute:bool, hasSystemAttribute:bool, hasVolumeLabelAttribute:bool, hasDirectoryAttribute:bool, hasArchiveAttribute:bool, externalAttributes:int}>
+     * }
+     */
+    public function dosAttributePreflight(): array
+    {
+        $dosAttributeEntryCount = 0;
+        $readOnlyEntryCount = 0;
+        $hiddenEntryCount = 0;
+        $systemEntryCount = 0;
+        $volumeLabelEntryCount = 0;
+        $directoryAttributeEntryCount = 0;
+        $archiveEntryCount = 0;
+        $hiddenSystemOrVolumeLabelEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $hasReadOnly = $entry->hasDosReadOnlyAttribute();
+            $hasHidden = $entry->hasDosHiddenAttribute();
+            $hasSystem = $entry->hasDosSystemAttribute();
+            $hasVolumeLabel = $entry->hasDosVolumeLabelAttribute();
+            $hasDirectory = $entry->hasDosDirectoryAttribute();
+            $hasArchive = $entry->hasDosArchiveAttribute();
+            $dosAttributes = $entry->externalFileAttributes & 0xff;
+
+            if ($dosAttributes !== 0) {
+                $dosAttributeEntryCount++;
+            }
+            if ($hasReadOnly) {
+                $readOnlyEntryCount++;
+            }
+            if ($hasHidden) {
+                $hiddenEntryCount++;
+            }
+            if ($hasSystem) {
+                $systemEntryCount++;
+            }
+            if ($hasVolumeLabel) {
+                $volumeLabelEntryCount++;
+            }
+            if ($hasDirectory) {
+                $directoryAttributeEntryCount++;
+            }
+            if ($hasArchive) {
+                $archiveEntryCount++;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'isDirectory' => $entry->isDirectory(),
+                'dosAttributes' => $dosAttributes,
+                'dosAttributeNames' => $entry->dosAttributeNames(),
+                'hasReadOnlyAttribute' => $hasReadOnly,
+                'hasHiddenAttribute' => $hasHidden,
+                'hasSystemAttribute' => $hasSystem,
+                'hasVolumeLabelAttribute' => $hasVolumeLabel,
+                'hasDirectoryAttribute' => $hasDirectory,
+                'hasArchiveAttribute' => $hasArchive,
+                'externalAttributes' => $entry->externalFileAttributes,
+            ];
+            $entries[] = $summary;
+            if ($hasHidden || $hasSystem || $hasVolumeLabel) {
+                $hiddenSystemOrVolumeLabelEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'readOnlyEntryCount' => $readOnlyEntryCount,
+            'hiddenEntryCount' => $hiddenEntryCount,
+            'systemEntryCount' => $systemEntryCount,
+            'volumeLabelEntryCount' => $volumeLabelEntryCount,
+            'directoryAttributeEntryCount' => $directoryAttributeEntryCount,
+            'archiveEntryCount' => $archiveEntryCount,
+            'hiddenSystemOrVolumeLabelEntryCount' => count($hiddenSystemOrVolumeLabelEntries),
+            'hiddenSystemOrVolumeLabelEntries' => $hiddenSystemOrVolumeLabelEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     dosAttributeEntryCount:int,
+     *     readOnlyEntryCount:int,
+     *     hiddenEntryCount:int,
+     *     systemEntryCount:int,
+     *     volumeLabelEntryCount:int,
+     *     directoryAttributeEntryCount:int,
+     *     archiveEntryCount:int,
+     *     hiddenSystemOrVolumeLabelEntryCount:int,
+     *     hiddenSystemOrVolumeLabelEntries:list<array{name:string, isDirectory:bool, dosAttributes:int, dosAttributeNames:list<string>, hasReadOnlyAttribute:bool, hasHiddenAttribute:bool, hasSystemAttribute:bool, hasVolumeLabelAttribute:bool, hasDirectoryAttribute:bool, hasArchiveAttribute:bool, externalAttributes:int}>,
+     *     entries:list<array{name:string, isDirectory:bool, dosAttributes:int, dosAttributeNames:list<string>, hasReadOnlyAttribute:bool, hasHiddenAttribute:bool, hasSystemAttribute:bool, hasVolumeLabelAttribute:bool, hasDirectoryAttribute:bool, hasArchiveAttribute:bool, externalAttributes:int}>
+     * }
+     */
+    public function assertNoHiddenSystemOrVolumeLabelEntries(): array
+    {
+        $summary = $this->dosAttributePreflight();
+        if ($summary['hiddenSystemOrVolumeLabelEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' (' . implode('/', $entry['dosAttributeNames']) . ')',
+                    $summary['hiddenSystemOrVolumeLabelEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains DOS hidden, system, or volume-label entries that require explicit import review: '
+                . $entries
             );
         }
 
