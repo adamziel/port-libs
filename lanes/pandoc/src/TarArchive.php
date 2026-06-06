@@ -991,8 +991,10 @@ final class TarArchive
     private static function validateHeaderChecksum(string $header): void
     {
         $stored = self::readOctalField(substr($header, 148, 8), 'TAR header checksum');
-        $actual = self::checksum(substr_replace($header, str_repeat(' ', 8), 148, 8));
-        if ($stored !== $actual) {
+        $checksummedHeader = substr_replace($header, str_repeat(' ', 8), 148, 8);
+        $actual = self::checksum($checksummedHeader);
+        $signedActual = self::signedChecksum($checksummedHeader);
+        if ($stored !== $actual && $stored !== $signedActual) {
             throw new \RuntimeException('TAR header checksum does not match header bytes');
         }
 
@@ -1011,6 +1013,17 @@ final class TarArchive
         $sum = 0;
         for ($index = 0, $length = strlen($header); $index < $length; $index++) {
             $sum += ord($header[$index]);
+        }
+
+        return $sum;
+    }
+
+    private static function signedChecksum(string $header): int
+    {
+        $sum = 0;
+        for ($index = 0, $length = strlen($header); $index < $length; $index++) {
+            $byte = ord($header[$index]);
+            $sum += $byte < 128 ? $byte : $byte - 256;
         }
 
         return $sum;

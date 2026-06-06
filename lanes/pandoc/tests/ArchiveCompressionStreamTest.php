@@ -83,6 +83,19 @@ $rewriteTarHeaderFields = static function (string $archive, array $fields): stri
     return $header . substr($archive, 512);
 };
 
+$rewriteTarHeaderWithSignedChecksum = static function (string $archive): string {
+    $header = substr_replace(substr($archive, 0, 512), str_repeat(' ', 8), 148, 8);
+    $checksum = 0;
+    for ($index = 0; $index < strlen($header); $index++) {
+        $byte = ord($header[$index]);
+        $checksum += $byte < 128 ? $byte : $byte - 256;
+    }
+
+    $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
+
+    return $header . substr($archive, 512);
+};
+
 $paxPayload = static function (array $headers): string {
     $payload = '';
     foreach ($headers as $key => $value) {
@@ -657,6 +670,33 @@ return [
         $t->same(100002, $entry->gid);
         $t->same(1780479035, $entry->modifiedAt);
         $t->same($documentBytes, $roundTrip->read('/packet/base256/document.xml'));
+    },
+
+    'accepts historic signed tar header checksums for utf8 review packet paths' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderWithSignedChecksum): void {
+        $documentName = "packet/signed-\u{2603}-checksum.md";
+        $documentBytes = "# Signed checksum TAR packet\n\nReady for WordPress archive review.\n";
+        $archiveBytes = $rewriteTarHeaderWithSignedChecksum(
+            $rawTarHeader($documentName, '0', $documentBytes, 1780479083)
+        );
+        $corruptedHeader = substr_replace($archiveBytes, '7', 100, 1);
+
+        $archive = TarArchive::fromString($archiveBytes);
+        $entry = $archive->entry('/' . $documentName);
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $archiveBytes,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archiveBytes),
+            strlen($documentBytes)
+        );
+
+        $t->same([$documentName], $archive->names());
+        $t->true($entry->isRegularFile());
+        $t->same(1780479083, $entry->modifiedAt);
+        $t->same($documentBytes, $archive->read('/' . $documentName));
+        $t->same($documentName, $inspection['entryLayouts'][0]['name']);
+        $t->same(512, $inspection['entryLayouts'][0]['dataOffset']);
+        $t->same(strlen($documentBytes), $inspection['unpackedSize']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($corruptedHeader));
     },
 
     'reads legacy tar contiguous file entries as regular package files' => static function (TestRunner $t) use ($rawTarHeader): void {

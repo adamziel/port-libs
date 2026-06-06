@@ -79,6 +79,19 @@ $rewriteTarHeaderFields = static function (string $archive, array $fields): stri
     return $header . substr($archive, 512);
 };
 
+$rewriteTarHeaderWithSignedChecksum = static function (string $archive): string {
+    $header = substr_replace(substr($archive, 0, 512), str_repeat(' ', 8), 148, 8);
+    $checksum = 0;
+    for ($index = 0; $index < strlen($header); $index++) {
+        $byte = ord($header[$index]);
+        $checksum += $byte < 128 ? $byte : $byte - 256;
+    }
+
+    $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
+
+    return $header . substr($archive, 512);
+};
+
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
@@ -88,6 +101,7 @@ $paxInheritedContentBytes = "# PAX inherited packet\n\nReady for WordPress archi
 $linkPolicySourceBytes = "# Link target source\n\nReady for WordPress archive link policy review.\n";
 $sparsePolicyTypePayload = 'gnu sparse payload fragment';
 $sparsePolicyPaxPayload = 'schily sparse payload fragment';
+$signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
 
 $archive = TarArchive::fromEntries([
     [
@@ -230,6 +244,21 @@ try {
 } catch (RuntimeException) {
     $sparsePolicyExtractionBlocked = true;
 }
+$signedChecksumArchiveBytes = $rewriteTarHeaderWithSignedChecksum($rawTarHeader(
+    "packet/signed-\u{2603}-checksum.md",
+    '0',
+    $signedChecksumContentBytes,
+    1780479083
+));
+$signedChecksumGzip = GzipStream::build($signedChecksumArchiveBytes, [
+    'filename' => 'wordpress-signed-checksum.tar',
+    'comment' => 'historic signed TAR checksum preflight',
+]);
+$signedChecksumInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+    $signedChecksumGzip,
+    strlen($signedChecksumArchiveBytes),
+    strlen($signedChecksumContentBytes)
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -274,6 +303,9 @@ if (in_array('--self-test', $argv, true)) {
         'sparsePolicyGnuTypeName' => 'packet/gnu-type-sparse.bin',
         'sparsePolicySchilyName' => 'packet/schily-pax-sparse.bin',
         'sparsePolicyRealSize' => 8192,
+        'signedChecksumFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'signedChecksumName' => "packet/signed-\u{2603}-checksum.md",
+        'signedChecksumModifiedAt' => 1780479083,
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -333,6 +365,11 @@ if (in_array('--self-test', $argv, true)) {
         || ($sparsePolicyInspection['entries'][1]['sparseHeaderFamilies'] ?? []) !== ['schily-pax']
         || ($sparsePolicyInspection['entries'][1]['realSize'] ?? null) !== $expected['sparsePolicyRealSize']
         || ($sparsePolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-sparse-policy.tar'
+        || $signedChecksumInspection['format'] !== $expected['signedChecksumFormat']
+        || ($signedChecksumInspection['entryNames'][0] ?? null) !== $expected['signedChecksumName']
+        || ($signedChecksumInspection['entryLayouts'][0]['modifiedAt'] ?? null) !== $expected['signedChecksumModifiedAt']
+        || ($signedChecksumInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-signed-checksum.tar'
+        || $signedChecksumInspection['archive']->read('/' . $expected['signedChecksumName']) !== $signedChecksumContentBytes
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -378,3 +415,6 @@ echo 'sparsePolicy.extractionPolicy=' . $sparsePolicyInspection['extractionPolic
 echo 'sparsePolicy.sparseEntryCount=' . $sparsePolicyInspection['sparseEntryCount'] . "\n";
 echo 'sparsePolicy.gnuTypeName=' . $sparsePolicyInspection['entries'][0]['name'] . "\n";
 echo 'sparsePolicy.schilyName=' . $sparsePolicyInspection['entries'][1]['name'] . "\n";
+echo 'signedChecksum.format=' . $signedChecksumInspection['format'] . "\n";
+echo 'signedChecksum.entry=' . $signedChecksumInspection['entryNames'][0] . "\n";
+echo 'signedChecksum.modifiedAt=' . $signedChecksumInspection['entryLayouts'][0]['modifiedAt'] . "\n";
