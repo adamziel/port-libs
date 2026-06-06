@@ -103,6 +103,7 @@ $linkPolicySourceBytes = "# Link target source\n\nReady for WordPress archive li
 $sparsePolicyTypePayload = 'gnu sparse payload fragment';
 $sparsePolicyPaxPayload = 'schily sparse payload fragment';
 $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
+$charsetContentBytes = "# PAX charset source packet\n\nReady for WordPress archive charset review.\n";
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 
@@ -262,6 +263,39 @@ $signedChecksumInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($signedChecksumArchiveBytes),
     strlen($signedChecksumContentBytes)
 );
+$charsetArchiveBytes = $rawTarHeader('GlobalHead/charset', 'g', $paxPayload([
+    'hdrcharset' => 'ISO-IR 10646 2000 UTF-8',
+    'comment' => 'UTF-8 PAX metadata',
+]), 0, false)
+    . $rawTarHeader('PaxHeaders/local-charset', 'x', $paxPayload([
+        'path' => "packet/charset-\u{2603}.md",
+        'hdrcharset' => 'BINARY',
+        'size' => (string) strlen($charsetContentBytes),
+        'uname' => 'wp-reviewer',
+    ]), 0, false)
+    . $rawTarHeader('placeholder.md', '0', $charsetContentBytes, 1780479084, false)
+    . str_repeat("\0", 1024);
+$charsetGzip = GzipStream::build($charsetArchiveBytes, [
+    'filename' => 'wordpress-pax-hdrcharset.tar',
+    'comment' => 'PAX hdrcharset preflight',
+]);
+$charsetInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+    $charsetGzip,
+    strlen($charsetArchiveBytes),
+    strlen($charsetContentBytes)
+);
+$invalidCharsetBlocked = false;
+try {
+    TarArchive::fromString(
+        $rawTarHeader('GlobalHead/invalid-charset', 'g', $paxPayload([
+            'hdrcharset' => 'UTF-16LE',
+        ]), 0, false)
+        . $rawTarHeader('packet/invalid-charset.md', '0', $charsetContentBytes, 0, false)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException) {
+    $invalidCharsetBlocked = true;
+}
 $nestedZipPackage = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -361,6 +395,10 @@ if (in_array('--self-test', $argv, true)) {
         'signedChecksumFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'signedChecksumName' => "packet/signed-\u{2603}-checksum.md",
         'signedChecksumModifiedAt' => 1780479083,
+        'charsetFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'charsetName' => "packet/charset-\u{2603}.md",
+        'charsetGlobalHdrcharset' => 'ISO-IR 10646 2000 UTF-8',
+        'charsetLocalHdrcharset' => 'BINARY',
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'nestedCandidateCount' => 4,
@@ -433,6 +471,14 @@ if (in_array('--self-test', $argv, true)) {
         || ($signedChecksumInspection['entryLayouts'][0]['modifiedAt'] ?? null) !== $expected['signedChecksumModifiedAt']
         || ($signedChecksumInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-signed-checksum.tar'
         || $signedChecksumInspection['archive']->read('/' . $expected['signedChecksumName']) !== $signedChecksumContentBytes
+        || $charsetInspection['format'] !== $expected['charsetFormat']
+        || ($charsetInspection['entryNames'][0] ?? null) !== $expected['charsetName']
+        || ($charsetInspection['archive']->entry('/' . $expected['charsetName'])->globalPaxHeaders['hdrcharset'] ?? null) !== $expected['charsetGlobalHdrcharset']
+        || ($charsetInspection['archive']->entry('/' . $expected['charsetName'])->localPaxHeaders['hdrcharset'] ?? null) !== $expected['charsetLocalHdrcharset']
+        || ($charsetInspection['archive']->entry('/' . $expected['charsetName'])->paxHeaders['hdrcharset'] ?? null) !== $expected['charsetLocalHdrcharset']
+        || ($charsetInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-pax-hdrcharset.tar'
+        || $charsetInspection['archive']->read('/' . $expected['charsetName']) !== $charsetContentBytes
+        || !$invalidCharsetBlocked
         || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
@@ -496,6 +542,11 @@ echo 'sparsePolicy.schilyName=' . $sparsePolicyInspection['entries'][1]['name'] 
 echo 'signedChecksum.format=' . $signedChecksumInspection['format'] . "\n";
 echo 'signedChecksum.entry=' . $signedChecksumInspection['entryNames'][0] . "\n";
 echo 'signedChecksum.modifiedAt=' . $signedChecksumInspection['entryLayouts'][0]['modifiedAt'] . "\n";
+echo 'charset.format=' . $charsetInspection['format'] . "\n";
+echo 'charset.entry=' . $charsetInspection['entryNames'][0] . "\n";
+echo 'charset.globalHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->globalPaxHeaders['hdrcharset'] . "\n";
+echo 'charset.localHdrcharset=' . $charsetInspection['archive']->entry('/' . $charsetInspection['entryNames'][0])->localPaxHeaders['hdrcharset'] . "\n";
+echo 'charset.invalidBlocked=' . ($invalidCharsetBlocked ? 'yes' : 'no') . "\n";
 echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
 echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";

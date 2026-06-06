@@ -19,6 +19,9 @@ final class TarArchive
     private const TYPE_GNU_LONG_LINK = 'K';
     private const TYPE_GNU_SPARSE = 'S';
     private const TYPE_CONTIGUOUS_FILE = '7';
+    private const PAX_HDRCHARSET_BINARY = 'BINARY';
+    private const PAX_HDRCHARSET_UTF8 = 'ISO-IR 10646 2000 UTF-8';
+    private const PAX_HDRCHARSET_UTF8_SHORT = 'UTF-8';
 
     /**
      * @param array<string, TarArchiveEntry> $entriesByName
@@ -1318,6 +1321,10 @@ final class TarArchive
     private static function assertLocalPaxHeaders(array $headers): void
     {
         foreach ($headers as $key => $value) {
+            if ($key === 'hdrcharset') {
+                self::assertPaxHeaderCharsetValue($value, 'TAR local PAX hdrcharset metadata');
+            }
+
             if ($key === 'path') {
                 self::assertUtf8($value, 'TAR PAX path metadata');
             }
@@ -1334,6 +1341,10 @@ final class TarArchive
     private static function assertLinkPolicyLocalPaxHeaders(array $headers): void
     {
         foreach ($headers as $key => $value) {
+            if ($key === 'hdrcharset') {
+                self::assertPaxHeaderCharsetValue($value, 'TAR local PAX hdrcharset metadata');
+            }
+
             if ($key === 'path') {
                 self::assertUtf8($value, 'TAR PAX path metadata');
             }
@@ -1354,6 +1365,10 @@ final class TarArchive
                 continue;
             }
 
+            if ($key === 'hdrcharset') {
+                self::assertPaxHeaderCharsetValue($value, 'TAR global PAX hdrcharset metadata');
+            }
+
             if ($key === 'path' || $key === 'linkpath' || $key === 'size') {
                 throw new \RuntimeException("TAR global PAX header {$key} is per-entry metadata and is not supported");
             }
@@ -1365,6 +1380,21 @@ final class TarArchive
             if ($key === 'SCHILY.filetype' && strtolower(trim($value)) === 'sparse') {
                 throw new \RuntimeException('TAR global PAX sparse file metadata is not supported');
             }
+        }
+    }
+
+    private static function assertPaxHeaderCharsetValue(string $value, string $label): void
+    {
+        if ($value === '') {
+            return;
+        }
+
+        if (!in_array($value, [
+            self::PAX_HDRCHARSET_BINARY,
+            self::PAX_HDRCHARSET_UTF8,
+            self::PAX_HDRCHARSET_UTF8_SHORT,
+        ], true)) {
+            throw new \RuntimeException("{$label} is not supported by the pandoc archive reader");
         }
     }
 

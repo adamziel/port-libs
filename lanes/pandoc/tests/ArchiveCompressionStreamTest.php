@@ -480,6 +480,68 @@ return [
         $t->same('<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
     },
 
+    'enforces pax header charset policy before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $documentBytes = "# PAX header charset packet\n\nReady for WordPress archive review.\n";
+        $archive = $rawTarHeader('GlobalHead/charset', 'g', $paxPayload([
+            'hdrcharset' => 'ISO-IR 10646 2000 UTF-8',
+            'comment' => 'UTF-8 PAX metadata',
+        ]), 0, false)
+            . $rawTarHeader('PaxHeaders/local-charset', 'x', $paxPayload([
+                'path' => "packet/charset-\u{2603}.md",
+                'hdrcharset' => 'BINARY',
+                'size' => (string) strlen($documentBytes),
+                'uname' => 'wp-reviewer',
+            ]), 0, false)
+            . $rawTarHeader('placeholder.md', '0', $documentBytes, 1780479084, false, 0)
+            . str_repeat("\0", 1024);
+        $invalidGlobalCharset = $rawTarHeader('GlobalHead/invalid-charset', 'g', $paxPayload([
+            'hdrcharset' => 'UTF-16LE',
+        ]), 0, false)
+            . $rawTarHeader('packet/global-invalid.md', '0', $documentBytes, 0, false)
+            . str_repeat("\0", 1024);
+        $invalidLocalCharset = $rawTarHeader('PaxHeaders/invalid-charset', 'x', $paxPayload([
+            'path' => 'packet/local-invalid.md',
+            'hdrcharset' => 'UTF-16LE',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.md', '0', $documentBytes, 0, false)
+            . str_repeat("\0", 1024);
+        $invalidLinkPolicyCharset = $rawTarHeader('PaxHeaders/link-invalid-charset', 'x', $paxPayload([
+            'path' => 'packet/link-invalid.md',
+            'linkpath' => 'packet/source.md',
+            'hdrcharset' => 'UTF-16LE',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.md', '2', '', 0, false)
+            . str_repeat("\0", 1024);
+
+        $roundTrip = TarArchive::fromString($archive);
+        $entry = $roundTrip->entry("/packet/charset-\u{2603}.md");
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $archive,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archive),
+            strlen($documentBytes)
+        );
+
+        $t->same(["packet/charset-\u{2603}.md"], $roundTrip->names());
+        $t->same($documentBytes, $roundTrip->read("/packet/charset-\u{2603}.md"));
+        $t->same('BINARY', $entry->paxHeaders['hdrcharset'] ?? null);
+        $t->same('ISO-IR 10646 2000 UTF-8', $entry->globalPaxHeaders['hdrcharset'] ?? null);
+        $t->same('BINARY', $entry->localPaxHeaders['hdrcharset'] ?? null);
+        $t->same(['comment', 'hdrcharset', 'path', 'size', 'uname'], $inspection['entryLayouts'][0]['paxHeaderKeys']);
+        $t->same(['comment', 'hdrcharset'], $inspection['entryLayouts'][0]['paxGlobalHeaderKeys']);
+        $t->same(['hdrcharset', 'path', 'size', 'uname'], $inspection['entryLayouts'][0]['paxLocalHeaderKeys']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidGlobalCharset));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidLocalCharset));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::linkPolicyPreflight($invalidLinkPolicyCharset));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => 'packet/generated-invalid-charset.md', 'data' => $documentBytes],
+        ], [
+            'globalPaxHeaders' => [
+                'hdrcharset' => 'UTF-16LE',
+            ],
+        ]));
+    },
+
     'applies zero-length pax records as scoped metadata deletions' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $localDocument = '<w:document><w:body><w:p>Local PAX deletion source</w:p></w:body></w:document>';
         $inheritedDocument = '<w:document><w:body><w:p>Inherited PAX source</w:p></w:body></w:document>';
