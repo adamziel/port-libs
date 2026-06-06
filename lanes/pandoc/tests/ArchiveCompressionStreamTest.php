@@ -533,6 +533,44 @@ return [
         $t->same($documentBytes, $roundTrip->read('/packet/base256/document.xml'));
     },
 
+    'reads legacy tar contiguous file entries as regular package files' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $documentBytes = "# Legacy contiguous TAR entry\n\nReady for WordPress archive review.\n";
+        $archiveBytes = $rawTarHeader('packet/legacy-contiguous.md', '7', $documentBytes, 1780479069);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'legacy-contiguous-review.tar',
+            'comment' => 'legacy contiguous file entry',
+        ]);
+
+        $archive = TarArchive::fromString($archiveBytes);
+        $entry = $archive->entry('/packet/legacy-contiguous.md');
+        $plainInspection = ArchiveCompressionStream::inspectTarStream(
+            $archiveBytes,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archiveBytes),
+            strlen($documentBytes)
+        );
+        $gzipInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+            $gzip,
+            strlen($archiveBytes),
+            strlen($documentBytes)
+        );
+
+        $t->same(['packet/legacy-contiguous.md'], $archive->names());
+        $t->true($entry->isRegularFile());
+        $t->same(TarArchiveEntry::TYPE_FILE, $entry->type);
+        $t->same(strlen($documentBytes), $entry->size);
+        $t->same(1780479069, $entry->modifiedAt);
+        $t->same($documentBytes, $archive->read('/packet/legacy-contiguous.md'));
+        $t->same(1, $plainInspection['regularFileCount']);
+        $t->same(0, $plainInspection['directoryCount']);
+        $t->same(TarArchiveEntry::TYPE_FILE, $plainInspection['entryLayouts'][0]['type']);
+        $t->same(512 + strlen($documentBytes), $plainInspection['entryLayouts'][0]['dataEndOffset']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $gzipInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $gzipInspection['format']);
+        $t->same('legacy-contiguous-review.tar', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same($documentBytes, $gzipInspection['archive']->read('/packet/legacy-contiguous.md'));
+    },
+
     'rejects unsafe or unsupported tar archive entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $valid = TarArchive::build([
             ['name' => 'packet/document.xml', 'data' => '<w:document/>'],

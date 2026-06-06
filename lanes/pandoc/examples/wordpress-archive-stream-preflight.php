@@ -9,8 +9,44 @@ use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
 
+$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0): string {
+    $octal = static function (int $value, int $length): string {
+        return str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
+    };
+    $field = static fn (string $value, int $length): string => str_pad($value, $length, "\0");
+
+    $header = $field($name, 100)
+        . $octal(0644, 8)
+        . $octal(0, 8)
+        . $octal(0, 8)
+        . $octal(strlen($data), 12)
+        . $octal($modifiedAt, 12)
+        . str_repeat(' ', 8)
+        . $typeFlag
+        . $field('', 100)
+        . "ustar\0"
+        . '00'
+        . $field('', 32)
+        . $field('', 32)
+        . $octal(0, 8)
+        . $octal(0, 8)
+        . $field('', 155)
+        . str_repeat("\0", 12);
+
+    $checksum = 0;
+    for ($index = 0; $index < strlen($header); $index++) {
+        $checksum += ord($header[$index]);
+    }
+
+    $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
+    $padding = strlen($data) % 512 === 0 ? '' : str_repeat("\0", 512 - (strlen($data) % 512));
+
+    return $header . $data . $padding . str_repeat("\0", 1024);
+};
+
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
+$legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
 
 $archive = TarArchive::fromEntries([
     [
@@ -48,6 +84,22 @@ $inspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($manifestBytes) + strlen($contentBytes)
 );
 
+$legacyContiguousArchiveBytes = $rawTarHeader(
+    'packet/legacy-contiguous.md',
+    '7',
+    $legacyContentBytes,
+    1780479069
+);
+$legacyContiguousGzip = GzipStream::build($legacyContiguousArchiveBytes, [
+    'filename' => 'wordpress-legacy-contiguous.tar',
+    'comment' => 'legacy contiguous TAR preflight',
+]);
+$legacyContiguousInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+    $legacyContiguousGzip,
+    strlen($legacyContiguousArchiveBytes),
+    strlen($legacyContentBytes)
+);
+
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
         $layout['name'],
@@ -69,6 +121,9 @@ if (in_array('--self-test', $argv, true)) {
         'trailingZeroBytes' => 1024,
         'gzipFilename' => 'wordpress-archive-stream.tar',
         'content' => $contentBytes,
+        'legacyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'legacyEntryType' => TarArchiveEntry::TYPE_FILE,
+        'legacyContent' => $legacyContentBytes,
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -80,6 +135,9 @@ if (in_array('--self-test', $argv, true)) {
         || ($inspection['stream']['members'][0]['filename'] ?? null) !== $expected['gzipFilename']
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
         || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['atime', 'ctime']
+        || $legacyContiguousInspection['format'] !== $expected['legacyFormat']
+        || ($legacyContiguousInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyEntryType']
+        || $legacyContiguousInspection['archive']->read('/packet/legacy-contiguous.md') !== $expected['legacyContent']
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -99,3 +157,6 @@ echo 'gzip.filename=' . $inspection['stream']['members'][0]['filename'] . "\n";
 echo 'gzip.comment=' . $inspection['stream']['members'][0]['comment'] . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";
+echo 'legacyContiguous.format=' . $legacyContiguousInspection['format'] . "\n";
+echo 'legacyContiguous.entryType=' . $legacyContiguousInspection['entryLayouts'][0]['type'] . "\n";
+echo 'legacyContiguous.content.md=' . $legacyContiguousInspection['archive']->read('/packet/legacy-contiguous.md') . "\n";

@@ -18,6 +18,7 @@ final class TarArchive
     private const TYPE_GNU_LONG_NAME = 'L';
     private const TYPE_GNU_LONG_LINK = 'K';
     private const TYPE_GNU_SPARSE = 'S';
+    private const TYPE_CONTIGUOUS_FILE = '7';
 
     /**
      * @param array<string, TarArchiveEntry> $entriesByName
@@ -139,7 +140,10 @@ final class TarArchive
                 throw new \RuntimeException("TAR sparse file entries are not supported by the pandoc archive reader: {$name}");
             }
 
-            if ($typeFlag !== self::TYPE_REGULAR && $typeFlag !== self::TYPE_DIRECTORY) {
+            if ($typeFlag !== self::TYPE_REGULAR
+                && $typeFlag !== self::TYPE_DIRECTORY
+                && $typeFlag !== self::TYPE_CONTIGUOUS_FILE
+            ) {
                 throw new \RuntimeException("Unsupported TAR entry type {$typeFlag} for {$name}");
             }
 
