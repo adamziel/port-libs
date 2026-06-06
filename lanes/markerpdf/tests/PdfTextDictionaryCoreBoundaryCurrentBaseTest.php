@@ -673,6 +673,94 @@ return [
         $t->true(!str_contains($encoded, 'json explicit dictionary_output payload'));
         $t->true(!str_contains($encoded, 'json stale adapter pages payload'));
     },
+    'prefers explicit pdftext envelope over stale adapter pages at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $staleSelected = $pdftextLinkedPage();
+        $staleSelected['page'] = 810;
+        $staleSelected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Stale adapter pdftext page should not import';
+
+        $currentSelected = $pdftextLinkedPage();
+        $currentSelected['page'] = 910;
+        $currentSelected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Explicit pdftext envelope ';
+        $currentSelected['blocks'][0]['lines'][0]['spans'][1]['text'] = 'page link';
+        $currentSelected['blocks'][0]['lines'][0]['spans'][2]['text'] = ' wins before stale pages';
+        unset($currentSelected['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks(
+            [
+                'pages' => [
+                    810 => $staleSelected,
+                ],
+                'pdftext' => [
+                    'metadata' => [
+                        'source' => 'pdftext.dictionary_output',
+                        'raw_private_payload' => 'pdftext envelope metadata payload must not cross',
+                    ],
+                    'pages' => [
+                        910 => $currentSelected,
+                    ],
+                    'raw_pdftext_payload' => 'explicit pdftext envelope payload must not cross',
+                ],
+                'raw_adapter_payload' => 'stale adapter pdftext pages payload must not cross',
+            ],
+            maxPages: 1
+        );
+
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $document['page_range']);
+        $t->same(1, $document['metadata']['source_pages']);
+        $t->same(910, $page['pnum']);
+        $t->same('Explicit pdftext envelope [page link](https://example.com/import\\)docs) wins before stale pages', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($encoded, 'Stale adapter pdftext page should not import'));
+        $t->true(!str_contains($encoded, 'pdftext envelope metadata payload'));
+        $t->true(!str_contains($encoded, 'explicit pdftext envelope payload'));
+        $t->true(!str_contains($encoded, 'stale adapter pdftext pages payload'));
+    },
+    'unwraps json decoded pdftext page envelopes at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $selected = $pdftextLinkedPage();
+        $selected['page'] = 920;
+        $selected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'JSON pdftext envelope ';
+        $selected['blocks'][0]['lines'][0]['spans'][1]['text'] = 'page link';
+        $selected['blocks'][0]['lines'][0]['spans'][2]['text'] = ' remains authoritative';
+        unset($selected['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $envelope = (array) json_decode(json_encode([
+            'metadata' => [
+                'source' => 'native pdftext cache',
+                'raw_private_payload' => 'json pdftext envelope metadata must not cross',
+            ],
+            'pdftext' => [
+                'metadata' => [
+                    'source' => 'pdftext.dictionary_output',
+                    'raw_private_payload' => 'json nested pdftext metadata must not cross',
+                ],
+                'pages' => [
+                    920 => $selected,
+                ],
+                'raw_pdftext_payload' => 'json pdftext envelope payload must not cross',
+            ],
+            'raw_adapter_payload' => 'json pdftext adapter payload must not cross',
+        ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}');
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks($envelope, maxPages: 1);
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->true($envelope['pdftext'] instanceof stdClass);
+        $t->true($envelope['pdftext']->pages instanceof stdClass);
+        $t->same([0], $document['page_range']);
+        $t->same(920, $page['pnum']);
+        $t->same('JSON pdftext envelope [page link](https://example.com/import\\)docs) remains authoritative', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($encoded, 'json pdftext envelope metadata'));
+        $t->true(!str_contains($encoded, 'json nested pdftext metadata'));
+        $t->true(!str_contains($encoded, 'json pdftext envelope payload'));
+        $t->true(!str_contains($encoded, 'json pdftext adapter payload'));
+    },
     'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';
