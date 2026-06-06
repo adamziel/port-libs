@@ -6036,8 +6036,14 @@ final class PdfTextExtractor
     private function type3UsedGlyphNamesByFontResource(array $decodedContents, array $type3Fonts, array $objects): array
     {
         $glyphNamesByFont = [];
+        $cidEncodingMapsByFont = [];
+        $namedCMapBodies = $this->namedCMapBodies($objects);
         foreach ($type3Fonts as $fontResourceName => $font) {
             $glyphNamesByFont[$fontResourceName] = $this->type3EncodingGlyphNamesByCode($font['body'], $objects);
+            $cidEncodingMap = $this->fontCidEncodingMap($font['body'], $objects, $namedCMapBodies);
+            if ($this->type3CidEncodingMapHasGlyphBoundaries($cidEncodingMap)) {
+                $cidEncodingMapsByFont[$fontResourceName] = $cidEncodingMap;
+            }
         }
 
         $used = [];
@@ -6076,12 +6082,12 @@ final class PdfTextExtractor
                 && $this->isTextShowingOperator($token)
             ) {
                 foreach ($this->type3TextShowingOperands($token, $operands) as $operand) {
-                    $bytes = $this->type3TextOperandBytes($operand);
-                    for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
-                        $glyphName = $glyphNamesByFont[$currentFontResource][ord($bytes[$index])] ?? null;
-                        if ($glyphName !== null && $glyphName !== '') {
-                            $used[$currentFontResource][$glyphName] = true;
-                        }
+                    foreach ($this->type3GlyphNamesForTextOperand(
+                        $operand,
+                        $glyphNamesByFont[$currentFontResource] ?? [],
+                        $cidEncodingMapsByFont[$currentFontResource] ?? null
+                    ) as $glyphName) {
+                        $used[$currentFontResource][$glyphName] = true;
                     }
                 }
             }
@@ -6125,6 +6131,76 @@ final class PdfTextExtractor
         }
 
         return $textOperands;
+    }
+
+    private function type3CidEncodingMapHasGlyphBoundaries(?array $cidEncodingMap): bool
+    {
+        if ($cidEncodingMap === null) {
+            return false;
+        }
+
+        foreach (['cidMap', 'codeSpaceRanges', 'cidRanges'] as $key) {
+            $value = $cidEncodingMap[$key] ?? null;
+            if (is_array($value) && $value !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $glyphNamesByCode
+     * @return list<string>
+     */
+    private function type3GlyphNamesForTextOperand(
+        string $operand,
+        array $glyphNamesByCode,
+        ?array $cidEncodingMap
+    ): array {
+        $glyphNames = [];
+
+        if ($this->type3CidEncodingMapHasGlyphBoundaries($cidEncodingMap)) {
+            $hex = $this->textOperandSourceHex($operand);
+            $codeSpaceRanges = $cidEncodingMap['codeSpaceRanges'] ?? [];
+            $sourceMap = [
+                'map' => [],
+                'codeSpaceRanges' => is_array($codeSpaceRanges) ? $codeSpaceRanges : [],
+            ];
+
+            foreach (['cidMap', 'cidRanges'] as $key) {
+                $value = $cidEncodingMap[$key] ?? null;
+                if (is_array($value) && $value !== []) {
+                    $sourceMap[$key] = $value;
+                }
+            }
+
+            if ($sourceMap['codeSpaceRanges'] !== []) {
+                $sourceMap['cidCodeSpaceRanges'] = $sourceMap['codeSpaceRanges'];
+            }
+
+            if ($hex !== '') {
+                foreach ($this->textOperandSourceKeysForFontWidths($hex, $sourceMap) as $sourceKey) {
+                    $cid = $this->cidForWidthSourceKey($sourceKey, $sourceMap);
+                    $glyphName = $glyphNamesByCode[$cid] ?? null;
+                    if (is_string($glyphName) && $glyphName !== '') {
+                        $glyphNames[$glyphName] = true;
+                    }
+                }
+            }
+        }
+
+        if ($glyphNames === []) {
+            $bytes = $this->type3TextOperandBytes($operand);
+            for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
+                $glyphName = $glyphNamesByCode[ord($bytes[$index])] ?? null;
+                if (is_string($glyphName) && $glyphName !== '') {
+                    $glyphNames[$glyphName] = true;
+                }
+            }
+        }
+
+        return array_keys($glyphNames);
     }
 
     private function type3TextOperandBytes(string $operand): string
