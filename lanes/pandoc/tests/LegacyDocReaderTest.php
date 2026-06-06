@@ -912,6 +912,144 @@ $buildSubdocumentReferenceBodyDocStreams = static function () use ($utf16le, $u1
     ];
 };
 
+$buildSupplementalFieldTableDocStreams = static function () use ($utf16le, $u16, $u32, $plcfldMom): array {
+    $fieldBegin = "\x13";
+    $fieldSeparator = "\x14";
+    $fieldEnd = "\x15";
+    $fieldTypeCodes = [
+        'DATE' => 0x1f,
+        'PAGE' => 0x21,
+        'REF' => 0x03,
+    ];
+    $fieldRecordsForText = static function (string $text) use ($fieldBegin, $fieldSeparator, $fieldEnd, $fieldTypeCodes): array {
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($characters)) {
+            $characters = str_split($text);
+        }
+
+        $records = [];
+        for ($cp = 0, $count = count($characters); $cp < $count; $cp++) {
+            $character = $characters[$cp];
+            if ($character === $fieldBegin) {
+                $instruction = '';
+                for ($cursor = $cp + 1; $cursor < $count; $cursor++) {
+                    if ($characters[$cursor] === $fieldSeparator || $characters[$cursor] === $fieldEnd) {
+                        break;
+                    }
+                    $instruction .= $characters[$cursor];
+                }
+                $fieldName = strtoupper((string) (preg_split('/\s+/', trim($instruction))[0] ?? ''));
+                $records[] = [
+                    'cp' => $cp,
+                    'character' => 0x13,
+                    'typeCode' => $fieldTypeCodes[$fieldName] ?? 0x01,
+                ];
+                continue;
+            }
+
+            if ($character === $fieldSeparator) {
+                $records[] = [
+                    'cp' => $cp,
+                    'character' => 0x14,
+                ];
+                continue;
+            }
+
+            if ($character === $fieldEnd) {
+                $records[] = [
+                    'cp' => $cp,
+                    'character' => 0x15,
+                ];
+            }
+        }
+
+        return $records;
+    };
+
+    $mainText = "Main body stays rendered\r";
+    $separator = "\r";
+    $footnoteText = 'Footnote ' . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '2' . $fieldEnd . " metadata\r";
+    $headerText = 'Header ' . $fieldBegin . ' DATE \@ "yyyy-MM-dd" ' . $fieldSeparator . '2026-06-06' . $fieldEnd . "\r";
+    $commentText = 'Comment ' . $fieldBegin . ' REF "legacy_anchor" \h ' . $fieldSeparator . 'Legacy anchor' . $fieldEnd . "\r";
+    $pieces = [
+        $mainText,
+        $separator,
+        $footnoteText,
+        $headerText,
+        $commentText,
+    ];
+    $cpOffsets = [0];
+    foreach ($pieces as $piece) {
+        $cpOffsets[] = end($cpOffsets) + strlen($piece);
+    }
+
+    $pieceStart = 1536;
+    $wordDocument = str_repeat("\0", $pieceStart);
+    $pcds = '';
+    foreach ($pieces as $piece) {
+        $pieceBytes = $utf16le($piece);
+        $fc = strlen($wordDocument);
+        $wordDocument .= $pieceBytes;
+        $pcds .= $u16(0) . $u32($fc) . "\0\0";
+    }
+
+    $plc = '';
+    foreach ($cpOffsets as $cp) {
+        $plc .= $u32($cp);
+    }
+    $plc .= $pcds;
+    $clx = "\x02" . $u32(strlen($plc)) . $plc;
+
+    $headerFieldRecords = $fieldRecordsForText($headerText);
+    $footnoteFieldRecords = $fieldRecordsForText($footnoteText);
+    $commentFieldRecords = $fieldRecordsForText($commentText);
+    $plcfldHdr = $plcfldMom($headerFieldRecords, strlen($headerText));
+    $plcfldFtn = $plcfldMom($footnoteFieldRecords, strlen($footnoteText));
+    $plcfldAtn = $plcfldMom($commentFieldRecords, strlen($commentText));
+    $fcPlcfFldHdr = strlen($clx);
+    $fcPlcfFldFtn = $fcPlcfFldHdr + strlen($plcfldHdr);
+    $fcPlcfFldAtn = $fcPlcfFldFtn + strlen($plcfldFtn);
+    $tableStream = $clx . $plcfldHdr . $plcfldFtn . $plcfldAtn;
+
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x0204), 10, 2);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 28, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($mainText)), 0x004c, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($footnoteText)), 0x0050, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($headerText)), 0x0054, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($commentText)), 0x005c, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldHdr), 0x0122, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldHdr)), 0x0126, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldFtn), 0x012a, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldFtn)), 0x012e, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldAtn), 0x0132, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldAtn)), 0x0136, 4);
+
+    return [
+        'streams' => [
+            'WordDocument' => $wordDocument,
+            '1Table' => $tableStream,
+        ],
+        'mainText' => $mainText,
+        'footnoteText' => $footnoteText,
+        'headerText' => $headerText,
+        'commentText' => $commentText,
+        'headerFieldRecords' => $headerFieldRecords,
+        'footnoteFieldRecords' => $footnoteFieldRecords,
+        'commentFieldRecords' => $commentFieldRecords,
+        'fieldTableOffsets' => [
+            'header' => $fcPlcfFldHdr,
+            'footnote' => $fcPlcfFldFtn,
+            'comment' => $fcPlcfFldAtn,
+        ],
+    ];
+};
+
 $buildBookmarkTableDocStreams = static function () use ($buildSimpleWordDocument, $utf16le, $u16, $u32): array {
     $text = "Intro target text\rJump to anchor\r";
     $wordDocument = $buildSimpleWordDocument($text);
@@ -2409,6 +2547,64 @@ return [
         foreach (['footnoteText', 'headerText', 'commentText', 'endnoteText'] as $field) {
             $t->true(!str_contains($blocks, trim($fixture[$field])), 'Legacy DOC supplemental subdocument text should not render to WordPress blocks');
         }
+    },
+    'extracts legacy DOC supplemental story Plcfld field tables as metadata only' => static function (TestRunner $t) use ($buildCfb, $buildSupplementalFieldTableDocStreams, $u32): void {
+        $fixture = $buildSupplementalFieldTableDocStreams();
+        $result = (new LegacyDocReader())->readBytes($buildCfb($fixture['streams']));
+        $document = $result['document'];
+        $metadata = $result['metadata'];
+        $fields = $result['fields'];
+        $fieldCharacters = $result['fieldCharacters'];
+        $fieldStories = $result['fieldStories'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(9, $metadata['fieldCharacterCount']);
+        $t->same(3, $metadata['fieldCount']);
+        $t->same(3, $metadata['fieldStoryCount']);
+        $t->same($fields, $metadata['fields']);
+        $t->same($fieldCharacters, $metadata['fieldCharacters']);
+        $t->same($fieldStories, $metadata['fieldStories']);
+        $t->same($fieldStories, $document->attr('fieldStories'));
+        $t->same(['header', 'footnote', 'comment'], array_column($fieldStories, 'story'));
+        $t->same(['PlcfldHdr', 'PlcfldFtn', 'PlcfldAtn'], array_column($fieldStories, 'table'));
+        $t->same([strlen($fixture['headerText']), strlen($fixture['footnoteText']), strlen($fixture['commentText'])], array_column($fieldStories, 'characterCount'));
+        $t->same([3, 3, 3], array_column($fieldStories, 'fieldCharacterCount'));
+        $t->same([1, 1, 1], array_column($fieldStories, 'fieldCount'));
+
+        $t->same(['date', 'page', 'ref'], array_column($fields, 'type'));
+        $t->same(['header', 'footnote', 'comment'], array_column($fields, 'story'));
+        $t->same([1, 1, 1], array_column($fields, 'storyIndex'));
+        $t->same(strpos($fixture['headerText'], "\x13"), $fields[0]['beginCp']);
+        $t->same(strpos($fixture['headerText'], "\x14"), $fields[0]['separatorCp']);
+        $t->same(strpos($fixture['headerText'], "\x15"), $fields[0]['endCp']);
+        $t->same(strpos($fixture['footnoteText'], "\x13"), $fields[1]['beginCp']);
+        $t->same(strpos($fixture['footnoteText'], "\x14"), $fields[1]['separatorCp']);
+        $t->same(strpos($fixture['footnoteText'], "\x15"), $fields[1]['endCp']);
+        $t->same(strpos($fixture['commentText'], "\x13"), $fields[2]['beginCp']);
+        $t->same(strpos($fixture['commentText'], "\x14"), $fields[2]['separatorCp']);
+        $t->same(strpos($fixture['commentText'], "\x15"), $fields[2]['endCp']);
+        $t->same(array_merge(
+            array_fill(0, 3, 'header'),
+            array_fill(0, 3, 'footnote'),
+            array_fill(0, 3, 'comment')
+        ), array_column($fieldCharacters, 'story'));
+        $t->same([1, 2, 3, 1, 2, 3, 1, 2, 3], array_column($fieldCharacters, 'storyIndex'));
+        $t->same(['begin', 'separator', 'end', 'begin', 'separator', 'end', 'begin', 'separator', 'end'], array_column($fieldCharacters, 'kind'));
+
+        $t->contains('<p>Main body stays rendered</p>', $blocks);
+        foreach (['Header ', 'Footnote ', 'Comment ', '2026-06-06', 'Legacy anchor', 'PAGE', 'DATE', 'REF'] as $hiddenText) {
+            $t->true(!str_contains($blocks, $hiddenText), 'Legacy DOC supplemental field text should not render to WordPress blocks');
+        }
+
+        $badFixture = $fixture;
+        $headerFinalCpOffset = $badFixture['fieldTableOffsets']['header'] + (count($badFixture['headerFieldRecords']) * 4);
+        $badFixture['streams']['1Table'] = substr_replace(
+            $badFixture['streams']['1Table'],
+            $u32(strlen($badFixture['headerText']) + 1),
+            $headerFinalCpOffset,
+            4
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badFixture['streams'])));
     },
     'honors legacy DOC piece-table no-paragraph-last flags on non-paragraph pieces' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams(0x0001);
