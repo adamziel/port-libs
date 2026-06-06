@@ -600,7 +600,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function expectedRunnerArtifacts(): array
     {
-        return self::REQUIRED_RUNNER_ARTIFACTS;
+        return self::requiredRunnerArtifacts();
     }
 
     /**
@@ -1279,7 +1279,7 @@ final class UpstreamRunnerDependencyAudit
         $missing = [];
         $wrongType = [];
 
-        foreach (self::REQUIRED_RUNNER_ARTIFACTS as $relativePath => $expectedKind) {
+        foreach (self::requiredRunnerArtifacts() as $relativePath => $expectedKind) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
             $actualKind = self::filesystemArtifactKind($path);
             if ($actualKind === null) {
@@ -1299,11 +1299,39 @@ final class UpstreamRunnerDependencyAudit
         }
 
         return [
-            'expected' => self::REQUIRED_RUNNER_ARTIFACTS,
+            'expected' => self::requiredRunnerArtifacts(),
             'present' => $present,
             'missing' => $missing,
             'wrongType' => $wrongType,
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function requiredRunnerArtifacts(): array
+    {
+        $artifacts = self::REQUIRED_RUNNER_ARTIFACTS;
+
+        foreach (self::RUNNER_OTHER_MODULES as $target => $modules) {
+            $entryPoint = self::RUNNER_ENTRY_POINTS[$target] ?? null;
+            if ($entryPoint === null) {
+                continue;
+            }
+
+            $packageRoot = dirname($entryPoint['packageFile']);
+            $packagePrefix = $packageRoot === '.' ? '' : str_replace('\\', '/', $packageRoot) . '/';
+            $sourceDirectory = trim($entryPoint['sourceDirectory'], '/');
+            $sourcePrefix = $sourceDirectory === '' ? '' : $sourceDirectory . '/';
+
+            foreach ($modules as $module) {
+                $relativePath = $packagePrefix . $sourcePrefix . str_replace('.', '/', $module) . '.hs';
+                $artifacts[$relativePath] = 'file';
+            }
+        }
+
+        ksort($artifacts);
+        return $artifacts;
     }
 
     /**
