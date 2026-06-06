@@ -2375,11 +2375,15 @@ final class PdfOutlineExtractor
     private function readObjectStreamHeaderUnsignedInteger(string $header, int &$offset): ?int
     {
         $offset = $this->skipObjectStreamHeaderWhitespace($header, $offset);
-        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $header, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G\+?(\d+)/s', $header, $match, 0, $offset) !== 1) {
             return null;
         }
 
         $offset += strlen($match[0]);
+        if ($offset < strlen($header) && !$this->isObjectStreamHeaderDelimiter($header[$offset])) {
+            return null;
+        }
+
         return (int) $match[1];
     }
 
@@ -2387,7 +2391,7 @@ final class PdfOutlineExtractor
     {
         $length = strlen($header);
         while ($offset < $length) {
-            if (ctype_space($header[$offset])) {
+            if ($this->isPdfWhitespace($header[$offset])) {
                 $offset++;
                 continue;
             }
@@ -2403,6 +2407,11 @@ final class PdfOutlineExtractor
         }
 
         return $offset;
+    }
+
+    private function isObjectStreamHeaderDelimiter(string $char): bool
+    {
+        return $this->isPdfWhitespace($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**
@@ -2442,8 +2451,8 @@ final class PdfOutlineExtractor
         $previous = $memberTable['decoded'][$absoluteOffset - 1];
         $current = $memberTable['decoded'][$absoluteOffset];
 
-        return (ctype_space($previous) || str_contains('[]()<>{}/%', $previous))
-            && !ctype_space($current);
+        return $this->isObjectStreamHeaderDelimiter($previous)
+            && !$this->isPdfWhitespace($current);
     }
 
     private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
@@ -3110,6 +3119,11 @@ final class PdfOutlineExtractor
         }
 
         return $offset;
+    }
+
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || ctype_space($char);
     }
 
     private function bytesThroughCurrentEof(string $pdfBytes): string

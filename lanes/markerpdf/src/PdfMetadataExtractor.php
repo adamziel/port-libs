@@ -14961,18 +14961,27 @@ final class PdfMetadataExtractor
         }
 
         $before = $decoded[$absoluteOffset - 1];
-        return ctype_space($before) || str_contains('[]()<>{}%', $before);
+        return $this->isPdfWhitespace($before) || str_contains('[]()<>{}%', $before);
     }
 
     private function readUnsignedIntegerToken(string $value, int &$offset): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G\+?(\d+)/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
         $offset += strlen($match[0]);
+        if ($offset < strlen($value) && !$this->isPdfDelimiter($value[$offset])) {
+            return null;
+        }
+
         return (int) $match[1];
+    }
+
+    private function isPdfDelimiter(string $char): bool
+    {
+        return $this->isPdfWhitespace($char) || str_contains('[]()<>{}/%', $char);
     }
 
     private function safeXrefOperandHelperBody(string $body): bool
