@@ -880,6 +880,31 @@ $inlineImageTokenizerOuterCompatibilityClosePdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerType3MetricStrayEiPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Type3 Metric Stray) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI\n"
+        . "500 0 d0\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible d0 Before Stray) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After d0 Stray) Tj ET\n"
+        . "BT /F1 12 Tf 72 672 Td (Before Type3 BBox Metric Stray) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI\n"
+        . "500 0 0 0 12 16 d1\n"
+        . "BT /F1 12 Tf 72 656 Td (Visible d1 Before Stray) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 640 Td (Visible After d1 Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -1883,5 +1908,32 @@ return [
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'BX'));
         $t->true(!str_contains($plainText, 'EX'));
+    },
+    'closes preview-only fallback before Type3 glyph metric operators and text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerType3MetricStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerType3MetricStrayEiPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Type3 Metric Stray',
+            'Visible d0 Before Stray',
+            'Visible After d0 Stray',
+            'Before Type3 BBox Metric Stray',
+            'Visible d1 Before Stray',
+            'Visible After d1 Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible d0 Before Stray'));
+        $t->true(str_contains($plainText, 'Visible d1 Before Stray'));
+        $t->true(str_contains($plainText, 'Visible After d1 Stray'));
+        $t->true(!str_contains($plainText, "\x80 EI"));
+        $t->true(!str_contains($plainText, '500 0 d0'));
+        $t->true(!str_contains($plainText, '500 0 0 0 12 16 d1'));
+        $t->true(!str_contains($plainText, 'JBIG2Decode'));
     },
 ];

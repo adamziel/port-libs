@@ -33144,6 +33144,11 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($this->contentSegmentType3GlyphMetricOperatorOperands($token, $outsideTextOperands)) {
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
                 if ($this->numericOperand($token) !== null) {
                     if (count($outsideTextOperands) >= 6) {
                         return false;
@@ -33568,6 +33573,29 @@ final class PdfTextExtractor
         }
 
         return count($operands) === 1 && $this->numericOperand($operands[0]) !== null;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function contentSegmentType3GlyphMetricOperatorOperands(string $operator, array $operands): bool
+    {
+        $requiredOperands = match ($operator) {
+            'd0' => 2,
+            'd1' => 6,
+            default => null,
+        };
+        if ($requiredOperands === null || count($operands) !== $requiredOperands) {
+            return false;
+        }
+
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) === null) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function contentSegmentPathStateOperator(string $operator): bool
