@@ -831,6 +831,27 @@ final class PdfMetadataExtractor
             return $review;
         }
 
+        $dictionaryBoundaryReview = $this->metadataStreamDictionaryTypeBoundaryReview($stream['dictionary'], $objects);
+        if ($dictionaryBoundaryReview !== []) {
+            $review = $base + $dictionaryBoundaryReview + [
+                'object_number' => $objectNumber,
+                'bytes' => strlen($stream['content']),
+                'sha256' => hash('sha256', $stream['content']),
+            ];
+
+            $filters = $this->streamFilters($stream['dictionary'], $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+            if ($xmpSummary !== []) {
+                $review['xmp_summary'] = $xmpSummary;
+            }
+
+            return $review;
+        }
+
         if ($this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
             $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
             if (($xmpSummary['status'] ?? null) === 'rejected_dtd_or_entity_declaration') {
@@ -1116,8 +1137,50 @@ final class PdfMetadataExtractor
      */
     private function isDocumentXmpMetadataStream(string $dictionary, array $objects): bool
     {
-        return $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'Metadata'
+        return $this->metadataStreamDictionaryTypeBoundaryReview($dictionary, $objects) === []
+            && $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'Metadata'
             && $this->dictionaryNameValue($dictionary, 'Subtype', $objects) === 'XML';
+    }
+
+    /**
+     * Duplicate /Type or /Subtype keys make the stream-dictionary role
+     * ambiguous. Root Catalog /Metadata XMP is a trust boundary, so do not
+     * apply last-key-wins promotion for those stream dictionaries.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamDictionaryTypeBoundaryReview(string $dictionary, array $objects): array
+    {
+        $typeValues = $this->dictionaryTopLevelNameValues($dictionary, 'Type', $objects);
+        $subtypeValues = $this->dictionaryTopLevelNameValues($dictionary, 'Subtype', $objects);
+        $duplicateKeys = [];
+        if (count($typeValues) > 1) {
+            $duplicateKeys[] = 'Type';
+        }
+        if (count($subtypeValues) > 1) {
+            $duplicateKeys[] = 'Subtype';
+        }
+
+        if ($duplicateKeys === []) {
+            return [];
+        }
+
+        $review = [
+            'status' => 'rejected_duplicate_metadata_stream_type_keys',
+            'duplicate_keys' => $duplicateKeys,
+            'type_entry_count' => count($typeValues),
+            'subtype_entry_count' => count($subtypeValues),
+        ];
+
+        if ($typeValues !== []) {
+            $review['type_values'] = $this->uniqueStrings($typeValues);
+        }
+        if ($subtypeValues !== []) {
+            $review['subtype_values'] = $this->uniqueStrings($subtypeValues);
+        }
+
+        return $review;
     }
 
     /**
@@ -17152,6 +17215,28 @@ final class PdfMetadataExtractor
         }
 
         return $this->decodePdfName($match[1]);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function dictionaryTopLevelNameValues(string $dictionary, string $key, array $objects): array
+    {
+        $names = [];
+        foreach ($this->dictionaryTopLevelRawValues($dictionary, $key) as $rawValue) {
+            $resolved = $this->resolvePdfValue($rawValue, $objects) ?? $rawValue;
+            $resolved = trim($resolved);
+            if ($resolved === '' || $resolved[0] !== '/') {
+                continue;
+            }
+
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $resolved, $match) === 1) {
+                $names[] = $this->decodePdfName($match[1]);
+            }
+        }
+
+        return $names;
     }
 
     /**
