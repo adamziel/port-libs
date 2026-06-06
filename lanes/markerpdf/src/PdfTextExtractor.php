@@ -15870,10 +15870,6 @@ final class PdfTextExtractor
             }
 
             $name = $this->decodePdfName(substr($dict, $index + 1, $nameEnd - $index - 1));
-            if ($stopAtLength && $name === 'Length') {
-                return null;
-            }
-
             if ($this->streamFilterNameLooksLikeDecoder($name)) {
                 return [
                     'type' => 'name',
@@ -15902,6 +15898,11 @@ final class PdfTextExtractor
             $nextOffset = $this->skipPdfValueAt($dict, $valueOffset);
             if ($nextOffset <= $valueOffset) {
                 return null;
+            }
+
+            if ($stopAtLength && $name === 'Length') {
+                $index = $this->skipPdfWhitespace($dict, $nextOffset);
+                continue;
             }
 
             $index = $this->skipPdfWhitespace($dict, $nextOffset);

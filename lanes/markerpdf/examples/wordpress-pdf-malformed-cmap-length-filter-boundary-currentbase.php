@@ -58,26 +58,42 @@ $pdf = $buildPdf();
 $lines = $extractor->extractTextLines($pdf);
 $text = $extractor->extractPlainText($pdf);
 $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+$entry = $review['entries'][0] ?? [];
+$filterOperand = $entry['filter_operands'][0] ?? [];
 
 $evidence = [
     'scenario' => 'wordpress_pdf_malformed_cmap_length_filter_boundary_currentbase',
     'safe_lines' => $lines,
     'plain_text' => $text,
-    'malformed_cmap_stream_rejected_before_decode' => ($review['cmap_stream_count'] ?? null) === 0
-        && ($review['decoded_cmap_count'] ?? null) === 0,
+    'array_filter_post_length_operand_rejected' => ($review['cmap_stream_count'] ?? null) === 1
+        && ($review['decoded_cmap_count'] ?? null) === 0
+        && ($review['invalid_filter_operand_count'] ?? null) === 1
+        && ($review['malformed_filter_operand_count'] ?? null) === 1
+        && (($entry['filter_operand_policy'] ?? null) === 'reject_malformed_filter_operands')
+        && (($filterOperand['extra_filter_name_operand'] ?? null) === true)
+        && (($filterOperand['extra_filter_name'] ?? null) === 'ASCIIHexDecode'),
+    'cmap_review_entry_preserved' => ($entry['object_number'] ?? null) === 6
+        && ($entry['cmap_name'] ?? null) === 'WPLengthExtraFilterBoundary-H'
+        && ($entry['filter_resolution_failed'] ?? null) === true
+        && ($entry['decoded_with_current_operands'] ?? null) === false,
     'leaking_cmap_text_excluded' => !str_contains($text, 'Length Extra CMap Leak')
         && !str_contains($text, 'WPLengthExtraFilterBoundary-H')
         && !str_contains($text, 'ASCIIHexDecode'),
     'review_source' => $review['source'] ?? null,
     'cmap_stream_count' => $review['cmap_stream_count'] ?? null,
     'decoded_cmap_count' => $review['decoded_cmap_count'] ?? null,
+    'invalid_filter_operand_count' => $review['invalid_filter_operand_count'] ?? null,
+    'malformed_filter_operand_count' => $review['malformed_filter_operand_count'] ?? null,
+    'filter_operand_policy' => $entry['filter_operand_policy'] ?? null,
+    'extra_filter_name' => $filterOperand['extra_filter_name'] ?? null,
     'executes_python_or_models' => $review['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $review['executes_external_pdf_tools'] ?? null,
 ];
 
 if (in_array('--self-test', $argv, true)) {
     foreach ([
-        'malformed_cmap_stream_rejected_before_decode',
+        'array_filter_post_length_operand_rejected',
+        'cmap_review_entry_preserved',
         'leaking_cmap_text_excluded',
     ] as $key) {
         if (($evidence[$key] ?? false) !== true) {
