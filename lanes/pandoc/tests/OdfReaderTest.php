@@ -1422,6 +1422,40 @@ XML;
         $t->contains('<a href="media/source.odt?download=1#review" title="Parent source">review packet</a>', $blocksHtml);
         $t->contains('<a href="./local.odt">local packet</a>', $blocksHtml);
     },
+    'normalizes ODT parent relative frame image links like upstream fixRelativeLink' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithParentRelativeImage = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Parent image <draw:frame draw:name="Parent hero"><draw:image xlink:href="../Pictures/hero.png?download=1#hero"><svg:title>Parent hero title</svg:title><svg:desc>Parent hero alt</svg:desc></draw:image></draw:frame> survives.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithParentRelativeImage));
+        $paragraph = $result['document']->children[0];
+        $image = $paragraph->children[1];
+
+        $t->same('Parent image Parent hero alt survives.', $paragraph->attr('text'));
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png?download=1#hero', $image->attr('url'));
+        $t->same('Pictures/hero.png', $image->attr('sourcePart'));
+        $t->same(7, $image->attr('bytes'));
+        $t->same('Parent hero alt', $image->attr('alt'));
+        $t->same('Parent hero title', $image->attr('title'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('![Parent hero alt](Pictures/hero.png?download=1#hero "Parent hero title")', $markdown);
+        $t->contains('<img src="Pictures/hero.png?download=1#hero" alt="Parent hero alt" title="Parent hero title"/>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, '../Pictures/hero.png'), 'Parent-relative image href should not leak into WordPress output');
+    },
     'maps ODT annotation ranges into review spans and note handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnnotationRange = <<<'XML'
 <office:document-content

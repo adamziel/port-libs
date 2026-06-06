@@ -188,7 +188,7 @@ $contentXml = <<<'XML'
         <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
       </text:list>
       <draw:frame draw:name="Source hero" svg:width="6cm" svg:height="3.5cm">
-        <draw:image xlink:href="Pictures/source%20hero.png">
+        <draw:image xlink:href="../Pictures/source%20hero.png">
           <svg:title>Source hero</svg:title>
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
@@ -574,6 +574,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm"/>')) {
         throw new RuntimeException('Expected ODT image dimensions to render in WordPress blocks');
+    }
+    if (str_contains($blocks, '../Pictures/source%20hero.png')) {
+        throw new RuntimeException('Expected ODT parent-relative image hrefs to normalize before WordPress output');
     }
     if (!str_contains($blocks, '<annotation encoding="application/x-tex">p_i \to m_i</annotation>')) {
         throw new RuntimeException('Expected ODT MathML source annotation to survive WordPress handoff');

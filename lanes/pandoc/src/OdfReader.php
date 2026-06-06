@@ -3353,7 +3353,7 @@ final class OdfReader
             return null;
         }
 
-        $href = self::attr($image, self::XLINK_NS, 'href');
+        $href = self::fixRelativeLink(self::attr($image, self::XLINK_NS, 'href'));
         if ($href === '') {
             return null;
         }
