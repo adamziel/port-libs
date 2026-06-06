@@ -2068,6 +2068,14 @@ final class TableRecognizer
             ];
         }
 
+        $wrappedBbox = $this->bboxFromWrappedValue($table);
+        if ($wrappedBbox !== null) {
+            return [
+                'bbox' => $wrappedBbox,
+                'source' => $this->bboxWrappedFieldSource($table) ?? 'bbox_array',
+            ];
+        }
+
         return null;
     }
 
@@ -2108,7 +2116,7 @@ final class TableRecognizer
                 }
             }
 
-            foreach (['source_bbox', 'bbox', 'box'] as $bboxKey) {
+            foreach (array_merge(['source_bbox'], $this->wrappedGeometryKeys()) as $bboxKey) {
                 if (!array_key_exists($bboxKey, $container)) {
                     continue;
                 }
@@ -6026,6 +6034,7 @@ final class TableRecognizer
     {
         return $this->bboxFromValue($record['bbox'] ?? null)
             ?? $this->bboxFromNamedFields($record)
+            ?? $this->bboxFromWrappedValue($record)
             ?? $this->polygonBboxFromRecord($record)
             ?? $this->sourceBboxFromRecord($record);
     }
@@ -6067,15 +6076,15 @@ final class TableRecognizer
     }
 
     /**
-     * Upstream tabled/Surya Pydantic dumps can preserve geometry as
-     * {"bbox": [...]} or {"box": [...]} instead of a bare list.
+     * Upstream tabled/Surya Pydantic dumps and saved review sidecars can
+     * preserve geometry under generic wrapper keys instead of a bare list.
      *
      * @param array<string|int, mixed> $record
      * @return list<float>|null
      */
     private function bboxFromWrappedValue(array $record): ?array
     {
-        foreach (['bbox', 'box'] as $key) {
+        foreach ($this->wrappedGeometryKeys() as $key) {
             $value = $record[$key] ?? null;
             if (!is_array($value)) {
                 continue;
@@ -6092,6 +6101,21 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function wrappedGeometryKeys(): array
+    {
+        return [
+            'bbox',
+            'box',
+            'rect',
+            'rectangle',
+            'bounds',
+            'bounding_box',
+        ];
     }
 
     /**
@@ -6209,7 +6233,7 @@ final class TableRecognizer
     private function bboxCoordinateSourceFromRecord(array $record): string
     {
         $bbox = $record['bbox'] ?? null;
-        if (is_array($bbox)) {
+        if (is_array($bbox) && $this->bboxFromValue($bbox) !== null) {
             return $this->bboxNamedFieldSource($bbox)
                 ?? $this->bboxWrappedFieldSource($bbox)
                 ?? $this->bboxPolygonValueSource($bbox)
@@ -6217,6 +6241,7 @@ final class TableRecognizer
         }
 
         return $this->bboxNamedFieldSource($record)
+            ?? $this->bboxWrappedFieldSource($record)
             ?? $this->polygonCoordinateSourceFromRecord($record)
             ?? $this->sourceBboxCoordinateSourceFromRecord($record)
             ?? 'bbox_array';
@@ -6270,6 +6295,7 @@ final class TableRecognizer
     {
         $raw = $this->rawBboxCoordinatesFromValue($record['bbox'] ?? null)
             ?? $this->rawBboxCoordinatesFromNamedFields($record)
+            ?? $this->rawBboxCoordinatesFromWrappedValue($record)
             ?? $this->rawSourceBboxCoordinatesFromRecord($record);
         if ($raw === null) {
             return false;
@@ -6349,7 +6375,7 @@ final class TableRecognizer
      */
     private function bboxWrappedFieldSource(array $record): ?string
     {
-        foreach (['bbox', 'box'] as $key) {
+        foreach ($this->wrappedGeometryKeys() as $key) {
             $value = $record[$key] ?? null;
             if (!is_array($value)) {
                 continue;
@@ -6405,7 +6431,7 @@ final class TableRecognizer
      */
     private function rawBboxCoordinatesFromWrappedValue(array $record): ?array
     {
-        foreach (['bbox', 'box'] as $key) {
+        foreach ($this->wrappedGeometryKeys() as $key) {
             $value = $record[$key] ?? null;
             if (!is_array($value)) {
                 continue;
@@ -6413,6 +6439,7 @@ final class TableRecognizer
 
             $raw = $this->rawBboxCoordinatesFromNamedFields($value)
                 ?? $this->rawPolygonBboxCoordinates($value)
+                ?? $this->rawSourceBboxCoordinatesFromRecord($value)
                 ?? $this->rawBboxCoordinates(array_values($value));
             if ($raw !== null) {
                 return $raw;
