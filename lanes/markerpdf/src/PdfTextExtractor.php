@@ -17921,7 +17921,11 @@ final class PdfTextExtractor
 
     private function topLevelDirectDictionaryValueHasTrailingNonName(string $objectBody, string $name): bool
     {
-        $dictionary = $this->dictionaryObjectBody($objectBody) ?? $objectBody;
+        $dictionary = trim($objectBody);
+        if (str_starts_with($dictionary, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($dictionary, 0) ?? $dictionary;
+        }
+
         $offset = 0;
         $length = strlen($dictionary);
         $invalid = false;
@@ -20060,6 +20064,10 @@ final class PdfTextExtractor
             if ($dictionary === null) {
                 return null;
             }
+        }
+
+        if ($this->topLevelDirectDictionaryValueHasTrailingNonName($dictionary, $category)) {
+            return null;
         }
 
         $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $category);

@@ -1535,6 +1535,10 @@ final class PdfPagePropertyExtractor
      */
     private function resourceSubdictionaryNames(string $resourceDictionary, string $key, array $objects): array
     {
+        if ($this->topLevelDirectDictionaryValueHasTrailingNonName($resourceDictionary, $key)) {
+            return [];
+        }
+
         $value = $this->dictionaryRawValue($resourceDictionary, $key);
         if ($this->resourceCategoryValueResolvesToStreamObject($value, $objects)) {
             return [];
