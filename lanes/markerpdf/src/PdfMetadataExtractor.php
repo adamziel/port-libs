@@ -3334,6 +3334,10 @@ final class PdfMetadataExtractor
             $metadata['page_labels'] = $outlinePageLabels;
         }
 
+        foreach ($this->documentOutlineDuplicateKeySummary($items) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         foreach ($this->documentOutlineStructureElementSummary($items) as $key => $value) {
             $metadata[$key] = $value;
         }
@@ -3465,6 +3469,41 @@ final class PdfMetadataExtractor
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, mixed>
+     */
+    private function documentOutlineDuplicateKeySummary(array $items): array
+    {
+        $itemCount = 0;
+        $keys = [];
+
+        foreach ($items as $item) {
+            $review = $item['duplicate_key_review'] ?? null;
+            if (!is_array($review)) {
+                continue;
+            }
+
+            $itemCount++;
+            foreach (($review['keys'] ?? []) as $key) {
+                if (is_string($key) && $key !== '') {
+                    $keys[] = $key;
+                }
+            }
+        }
+
+        if ($itemCount === 0 || $keys === []) {
+            return [];
+        }
+
+        return [
+            'duplicate_item_key_count' => $itemCount,
+            'duplicate_item_keys' => $this->uniqueStrings($keys),
+            'duplicate_item_key_review_only' => true,
+            'duplicate_item_key_payload_included' => false,
+        ];
     }
 
     /**
@@ -3884,6 +3923,11 @@ final class PdfMetadataExtractor
             $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
         }
 
+        $duplicateKeyReview = $this->documentOutlineItemDuplicateKeyReview($dictionary, ['Title', 'Dest', 'A']);
+        if ($duplicateKeyReview !== []) {
+            $row['duplicate_key_review'] = $duplicateKeyReview;
+        }
+
         $metadataStreamValues = $this->dictionaryTopLevelRawValues($dictionary, 'Metadata');
         $metadataStreamReview = $this->documentOutlineItemMetadataStreamReview(
             $metadataStreamValues === [] ? null : $metadataStreamValues[array_key_last($metadataStreamValues)],
@@ -3949,6 +3993,44 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @return array<string, mixed>
+     */
+    private function documentOutlineItemDuplicateKeyReview(string $dictionary, array $keys): array
+    {
+        $duplicateKeys = [];
+        $declaredEntryCounts = [];
+        $selectedEntryIndexes = [];
+
+        foreach ($keys as $key) {
+            $values = $this->dictionaryTopLevelRawValues($dictionary, $key);
+            $count = count($values);
+            if ($count < 2) {
+                continue;
+            }
+
+            $duplicateKeys[] = $key;
+            $declaredEntryCounts[$key] = $count;
+            $selectedEntryIndexes[$key] = array_key_last($values);
+        }
+
+        if ($duplicateKeys === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'outline_item_duplicate_keys',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+            'selected_entry_policy' => 'last_top_level_entry',
+            'keys' => $duplicateKeys,
+            'declared_entry_counts' => $declaredEntryCounts,
+            'selected_entry_indexes' => $selectedEntryIndexes,
+        ];
     }
 
     /**
