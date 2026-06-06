@@ -35,6 +35,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/_xmlsignatures/sig-fragment.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-dot-segments.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-reference-uri-kinds.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-unsafe-reference.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -195,6 +196,77 @@ $referenceUriKindSignatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$unsafeReferenceSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document%ZZ.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/document%2Fhidden.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/document%5Chidden.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/document%00hidden.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/%2E%2E/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/raw space.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="../word/_rels/trailing./document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="../../evil/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $draftRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
@@ -229,6 +301,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/sig-fragment.xml', 'data' => $fragmentReferenceSignatureXml],
     ['name' => '_xmlsignatures/sig-dot-segments.xml', 'data' => $dotSegmentReferenceSignatureXml],
     ['name' => '_xmlsignatures/sig-reference-uri-kinds.xml', 'data' => $referenceUriKindSignatureXml],
+    ['name' => '_xmlsignatures/sig-unsafe-reference.xml', 'data' => $unsafeReferenceSignatureXml],
 ]);
 
 $aliasCollisionContentTypesXml = <<<'XML'
@@ -986,6 +1059,25 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-r
         'relationshipXml' => $transform['relationshipXml'],
     ];
 }
+$signatureUnsafeReferenceGuards = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-unsafe-reference.xml') as $transform) {
+    $signatureUnsafeReferenceGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'parseError' => $transform['parseError'],
+        'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
 
 $reachableTargets = [];
 foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -1190,6 +1282,7 @@ $summary = [
     'signatureFragmentReferenceGuards' => $signatureFragmentReferenceGuards,
     'signatureDotSegmentReferenceGuards' => $signatureDotSegmentReferenceGuards,
     'signatureReferenceUriKindGuards' => $signatureReferenceUriKindGuards,
+    'signatureUnsafeReferenceGuards' => $signatureUnsafeReferenceGuards,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -1805,6 +1898,30 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureReferenceUriKindGuards'][2]['issues'] ?? null) !== ['relationship-transform-reference-external-uri']
         || !array_key_exists('relationshipXml', $summary['signatureReferenceUriKindGuards'][2] ?? [])
         || $summary['signatureReferenceUriKindGuards'][2]['relationshipXml'] !== null
+        || count($summary['signatureUnsafeReferenceGuards'] ?? []) !== 8
+        || array_column($summary['signatureUnsafeReferenceGuards'] ?? [], 'issues', 'referenceUri') !== [
+            '/word/_rels/document%ZZ.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-malformed-percent-escape'],
+            '/word/_rels/document%2Fhidden.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-unsafe-percent-encoded-path-byte'],
+            '/word/_rels/document%5Chidden.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-unsafe-percent-encoded-path-byte'],
+            '/word/_rels/document%00hidden.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-unsafe-percent-encoded-path-byte'],
+            '/word/_rels/%2E%2E/document.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-unsafe-percent-encoded-dot-segment'],
+            '/word/_rels/raw space.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-invalid-uri-byte'],
+            '../word/_rels/trailing./document.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-trailing-dot-segment'],
+            '../../evil/_rels/document.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-package-root-traversal'],
+        ]
+        || ($summary['signatureUnsafeReferenceGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-unsafe-reference.xml'
+        || !array_key_exists('relationshipPartName', $summary['signatureUnsafeReferenceGuards'][0] ?? [])
+        || $summary['signatureUnsafeReferenceGuards'][0]['relationshipPartName'] !== null
+        || ($summary['signatureUnsafeReferenceGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureUnsafeReferenceGuards'][0]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureUnsafeReferenceGuards'][0]['relationshipCount'] ?? null) !== 0
+        || !array_key_exists('selectorValid', $summary['signatureUnsafeReferenceGuards'][0] ?? [])
+        || $summary['signatureUnsafeReferenceGuards'][0]['selectorValid'] !== null
+        || ($summary['signatureUnsafeReferenceGuards'][0]['valid'] ?? null) !== false
+        || !array_key_exists('relationshipXml', $summary['signatureUnsafeReferenceGuards'][0] ?? [])
+        || $summary['signatureUnsafeReferenceGuards'][0]['relationshipXml'] !== null
+        || !str_contains((string) ($summary['signatureUnsafeReferenceGuards'][6]['parseError'] ?? ''), 'segments must not end with a dot')
+        || !str_contains((string) ($summary['signatureUnsafeReferenceGuards'][7]['parseError'] ?? ''), 'traverse above the package root')
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'

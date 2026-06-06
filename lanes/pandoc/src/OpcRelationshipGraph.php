@@ -1557,6 +1557,7 @@ final class OpcRelationshipGraph
                         }
                     } catch (\InvalidArgumentException $exception) {
                         $issues[] = 'invalid-reference-uri';
+                        $issues = array_merge($issues, self::relationshipTransformReferenceUriIssues($referenceUri, $exception->getMessage()));
                         $parseError = $exception->getMessage();
                     }
                 }
@@ -2385,6 +2386,45 @@ final class OpcRelationshipGraph
 
         if (str_contains($parseError, 'target path must not be empty') || str_contains($parseError, 'target must not be empty')) {
             self::appendUniqueString($issues, 'internal-target-empty-path');
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function relationshipTransformReferenceUriIssues(string $referenceUri, string $parseError): array
+    {
+        $issues = [];
+        if (str_contains($referenceUri, "\0") || str_contains($referenceUri, '\\')) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-unsafe-path-byte');
+        }
+
+        if (preg_match('/[\x00-\x20\x7F]/', $referenceUri) === 1) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-invalid-uri-byte');
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $referenceUri) === 1) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-malformed-percent-escape');
+        } elseif (self::internalTargetContainsUnsafePercentEncodedPathByte($referenceUri)) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-unsafe-percent-encoded-path-byte');
+        }
+
+        if (str_contains($parseError, 'unsafe percent-encoded dot segment')) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-unsafe-percent-encoded-dot-segment');
+        }
+
+        if (str_contains($parseError, 'traverse above the package root')) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-package-root-traversal');
+        }
+
+        if (str_contains($parseError, 'segments must not end with a dot')) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-trailing-dot-segment');
+        }
+
+        if (str_contains($parseError, 'target path must not be empty') || str_contains($parseError, 'target must not be empty')) {
+            self::appendUniqueString($issues, 'relationship-transform-reference-empty-path');
         }
 
         return $issues;

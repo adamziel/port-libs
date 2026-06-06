@@ -2552,6 +2552,113 @@ XML;
             $t->contains('must not contain empty or dot path segments', $transforms[$index]['parseError'] ?? '');
         }
     },
+    'classifies unsafe OPC signature relationship transform reference URI paths' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-unsafe-reference.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $referenceUris = [
+            '/word/_rels/document%ZZ.xml.rels' => [
+                'relationship-transform-reference-malformed-percent-escape',
+                'malformed percent escape',
+            ],
+            '/word/_rels/document%2Fhidden.xml.rels' => [
+                'relationship-transform-reference-unsafe-percent-encoded-path-byte',
+                'unsafe percent-encoded path bytes',
+            ],
+            '/word/_rels/document%5Chidden.xml.rels' => [
+                'relationship-transform-reference-unsafe-percent-encoded-path-byte',
+                'unsafe percent-encoded path bytes',
+            ],
+            '/word/_rels/document%00hidden.xml.rels' => [
+                'relationship-transform-reference-unsafe-percent-encoded-path-byte',
+                'unsafe percent-encoded path bytes',
+            ],
+            '/word/_rels/%2E%2E/document.xml.rels' => [
+                'relationship-transform-reference-unsafe-percent-encoded-dot-segment',
+                'unsafe percent-encoded dot segment',
+            ],
+            '/word/_rels/raw space.xml.rels' => [
+                'relationship-transform-reference-invalid-uri-byte',
+                'invalid URI bytes',
+            ],
+            '../word/_rels/trailing./document.xml.rels' => [
+                'relationship-transform-reference-trailing-dot-segment',
+                'segments must not end with a dot',
+            ],
+            '../../evil/_rels/document.xml.rels' => [
+                'relationship-transform-reference-package-root-traversal',
+                'traverse above the package root',
+            ],
+        ];
+
+        $referencesXml = '';
+        foreach (array_keys($referenceUris) as $referenceUri) {
+            $referencesXml .= <<<XML
+    <ds:Reference URI="$referenceUri">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+XML;
+        }
+
+        $signatureXml = <<<XML
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+$referencesXml
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-unsafe-reference.xml', 'data' => $signatureXml],
+        ]));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-unsafe-reference.xml');
+
+        $t->same(count($referenceUris), count($transforms));
+        foreach (array_values($referenceUris) as $index => [$specificIssue, $parseErrorNeedle]) {
+            $t->same(null, $transforms[$index]['relationshipPartName']);
+            $t->same(null, $transforms[$index]['referenceRelationshipPartExists']);
+            $t->same(null, $transforms[$index]['source']);
+            $t->same(['rIdHero'], $transforms[$index]['sourceIds']);
+            $t->same([], $transforms[$index]['relationshipIds']);
+            $t->same(0, $transforms[$index]['relationshipCount']);
+            $t->same(null, $transforms[$index]['selectorValid']);
+            $t->same(null, $transforms[$index]['relationshipTargetsValid']);
+            $t->same(false, $transforms[$index]['valid']);
+            $t->same(['invalid-reference-uri', $specificIssue], $transforms[$index]['issues']);
+            $t->same(null, $transforms[$index]['relationshipXml']);
+            $t->contains($parseErrorNeedle, $transforms[$index]['parseError'] ?? '');
+        }
+    },
     'preflights missing OPC signature relationship transform reference parts' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
