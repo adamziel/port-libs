@@ -87,6 +87,17 @@ return [
         $t->contains('<mo fence="true" stretchy="true">[</mo><mfrac linethickness="0"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">]</mo>', $delimitedMathml);
         $t->contains('<mo fence="true" stretchy="true">{</mo><mfrac linethickness="0"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mi>z</mi></mfrac><mo fence="true" stretchy="true">}</mo>', $delimitedMathml);
     },
+    'converts bounded tex bangle infix fractions to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $mathml = $converter->texToMathMl('{n \\bangle k} + {p_i \\bangle m_i}', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">⟨</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo fence="true" stretchy="true">⟩</mo>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">⟨</mo><mfrac linethickness="0"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">⟩</mo>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">{n \\bangle k} + {p_i \\bangle m_i}</annotation>', $mathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\bangle}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{\\bangle k}'));
+    },
     'converts bounded tex infix fractions with explicit delimiters to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $withDelimsMathml = $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}', true);

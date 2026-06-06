@@ -102,6 +102,7 @@ final class MathTexConverter
     /** @var array<string, array{lineThickness?: string, open?: string, close?: string}> */
     private const INFIX_FRACTION_COMMANDS = [
         'atop' => ['lineThickness' => '0'],
+        'bangle' => ['lineThickness' => '0', 'open' => '⟨', 'close' => '⟩'],
         'brace' => ['lineThickness' => '0', 'open' => '{', 'close' => '}'],
         'brack' => ['lineThickness' => '0', 'open' => '[', 'close' => ']'],
         'choose' => ['lineThickness' => '0', 'open' => '(', 'close' => ')'],
