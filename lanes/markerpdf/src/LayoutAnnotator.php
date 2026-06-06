@@ -995,6 +995,9 @@ final class LayoutAnnotator
             ['x', 'y', 'width', 'height'],
             ['x0', 'y0', 'width', 'height'],
             ['left', 'top', 'width', 'height'],
+            ['x', 'y', 'w', 'h'],
+            ['x0', 'y0', 'w', 'h'],
+            ['left', 'top', 'w', 'h'],
         ] as $keys) {
             [$x, $y, $width, $height] = $keys;
             if (

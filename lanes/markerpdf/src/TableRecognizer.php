@@ -6270,6 +6270,9 @@ final class TableRecognizer
             ['x', 'y', 'width', 'height'],
             ['x0', 'y0', 'width', 'height'],
             ['left', 'top', 'width', 'height'],
+            ['x', 'y', 'w', 'h'],
+            ['x0', 'y0', 'w', 'h'],
+            ['left', 'top', 'w', 'h'],
         ] as $keys) {
             [$x, $y, $width, $height] = $keys;
             if (
@@ -6293,6 +6296,9 @@ final class TableRecognizer
             ['cx', 'cy', 'width', 'height'],
             ['center_x', 'center_y', 'width', 'height'],
             ['x_center', 'y_center', 'width', 'height'],
+            ['cx', 'cy', 'w', 'h'],
+            ['center_x', 'center_y', 'w', 'h'],
+            ['x_center', 'y_center', 'w', 'h'],
         ] as $keys) {
             [$centerX, $centerY, $width, $height] = $keys;
             if (
@@ -6455,6 +6461,12 @@ final class TableRecognizer
             'bbox_cx_cy_width_height_fields' => ['cx', 'cy', 'width', 'height'],
             'bbox_center_x_center_y_width_height_fields' => ['center_x', 'center_y', 'width', 'height'],
             'bbox_x_center_y_center_width_height_fields' => ['x_center', 'y_center', 'width', 'height'],
+            'bbox_xy_w_h_fields' => ['x', 'y', 'w', 'h'],
+            'bbox_x0_y0_w_h_fields' => ['x0', 'y0', 'w', 'h'],
+            'bbox_left_top_w_h_fields' => ['left', 'top', 'w', 'h'],
+            'bbox_cx_cy_w_h_fields' => ['cx', 'cy', 'w', 'h'],
+            'bbox_center_x_center_y_w_h_fields' => ['center_x', 'center_y', 'w', 'h'],
+            'bbox_x_center_y_center_w_h_fields' => ['x_center', 'y_center', 'w', 'h'],
         ];
 
         foreach ($sets as $source => $keys) {
@@ -6612,6 +6624,9 @@ final class TableRecognizer
             ['x', 'y', 'width', 'height'],
             ['x0', 'y0', 'width', 'height'],
             ['left', 'top', 'width', 'height'],
+            ['x', 'y', 'w', 'h'],
+            ['x0', 'y0', 'w', 'h'],
+            ['left', 'top', 'w', 'h'],
         ] as $keys) {
             [$x, $y, $width, $height] = $keys;
             if (
@@ -6635,6 +6650,9 @@ final class TableRecognizer
             ['cx', 'cy', 'width', 'height'],
             ['center_x', 'center_y', 'width', 'height'],
             ['x_center', 'y_center', 'width', 'height'],
+            ['cx', 'cy', 'w', 'h'],
+            ['center_x', 'center_y', 'w', 'h'],
+            ['x_center', 'y_center', 'w', 'h'],
         ] as $keys) {
             [$centerX, $centerY, $width, $height] = $keys;
             if (
