@@ -168,6 +168,19 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $trimmedDelimiterPacket = (new DocTemplate())->render(
+        "<div class=\"delimiter-trim\">\n"
+            . '$if(reviewStatus)$' . "   \t\n"
+            . '$reviewStatus$' . "   \t\n"
+            . '$endif$' . "   \t\n"
+            . '</div>',
+        ['reviewStatus' => 'Ready for import'],
+    );
+    if ($trimmedDelimiterPacket !== "<div class=\"delimiter-trim\">\nReady for import\n</div>") {
+        fwrite(STDERR, "Unexpected doctemplate delimiter whitespace output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\n\n</section>")) {
         fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
         exit(1);

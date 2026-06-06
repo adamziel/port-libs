@@ -1129,7 +1129,7 @@ CSS;
                 if ($directive === '~') {
                     $breakableSpaceStart = $breakableSpaces ? null : $index;
                     $breakableSpaces = !$breakableSpaces;
-                    $index = $closing;
+                    $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
                     continue;
                 }
 
@@ -1141,7 +1141,7 @@ CSS;
                     'line' => $location['line'],
                     'column' => $location['column'],
                 ];
-                $index = $closing;
+                $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
                 continue;
             }
 
@@ -1156,7 +1156,7 @@ CSS;
             if ($directive === '~') {
                 $breakableSpaceStart = $breakableSpaces ? null : $index;
                 $breakableSpaces = !$breakableSpaces;
-                $index = $closing;
+                $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
                 continue;
             }
 
@@ -1168,7 +1168,7 @@ CSS;
                 'line' => $location['line'],
                 'column' => $location['column'],
             ];
-            $index = $closing;
+            $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
         }
 
         if ($breakableSpaces) {
@@ -1183,6 +1183,21 @@ CSS;
         $this->appendTextToken($tokens, $buffer, $breakableSpaces);
 
         return $tokens;
+    }
+
+    private function skipDirectiveLineTrailingHorizontalWhitespace(string $template, int $closingOffset): int
+    {
+        $offset = $closingOffset;
+        $length = strlen($template);
+        while ($offset + 1 < $length && ($template[$offset + 1] === ' ' || $template[$offset + 1] === "\t")) {
+            $offset++;
+        }
+
+        if ($offset + 1 >= $length || $template[$offset + 1] === "\r" || $template[$offset + 1] === "\n") {
+            return $offset;
+        }
+
+        return $closingOffset;
     }
 
     private function findBracedDirectiveClosing(string $template, int $start): ?int

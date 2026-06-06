@@ -112,6 +112,49 @@ TPL, []);
         $t->same("A\r\n  \r\nB", $renderer->render("A\r\n  $-- CRLF comment\r\nB", []));
     },
 
+    'ignores pandoc doctemplate spaces and tabs after closing delimiters' => static function (TestRunner $t): void {
+        $template = "Before\n"
+            . '$if(title)$' . "   \t\n"
+            . 'Title: $ title $' . "   \t\n"
+            . '$elseif(fallback)$' . "\tno\n"
+            . '$else$' . "\tno\n"
+            . '$endif$' . "   \t\n"
+            . "Loop:\n"
+            . '$for(items)$' . " \t\n"
+            . '- $it$' . " \t\n"
+            . '$sep$' . " \t\n"
+            . "/\n"
+            . '$endfor$' . " \t\n"
+            . "Braced:\n"
+            . '${ author.name }' . " \t\n"
+            . "Partial:\n"
+            . '${ badge() }' . "\t\n"
+            . 'After';
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Review',
+            'fallback' => 'Fallback',
+            'items' => ['media', 'links'],
+            'author' => ['name' => 'Ada'],
+        ], [
+            'badge' => 'Migration desk' . "\n",
+        ]);
+
+        $t->same(implode("\n", [
+            'Before',
+            'Title: Review',
+            'Loop:',
+            '- media',
+            '/',
+            '- links',
+            'Braced:',
+            'Ada',
+            'Partial:',
+            'Migration desk',
+            'After',
+        ]), $output);
+    },
+
     'evaluates pandoc doctemplate conditionals elseif and truthiness' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 $if(title)$title:$title$$elseif(fallback)$fallback:$fallback$$else$untitled$endif$
