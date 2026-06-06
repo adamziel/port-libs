@@ -13135,7 +13135,7 @@ final class PdfTextExtractor
      */
     private function pageTreeKidObjectReferences(string $body, array $objects): array
     {
-        $value = $this->topLevelPdfValueAfterName($body, 'Kids');
+        $value = $this->topLevelPdfLastValueAfterName($body, 'Kids');
         if ($value === null) {
             return [];
         }
@@ -13184,7 +13184,8 @@ final class PdfTextExtractor
             return false;
         }
 
-        $kidsValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Kids');
+        $kidsValues = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Kids');
+        $kidsValue = $kidsValues === [] ? null : $kidsValues[count($kidsValues) - 1];
         if ($kidsValue === null) {
             return false;
         }
