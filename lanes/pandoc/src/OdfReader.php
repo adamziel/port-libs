@@ -41,6 +41,9 @@ final class OdfReader
 
     private int $currentListLevel = 0;
 
+    /** @var array<string, int> */
+    private array $headingAnchorUses = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -372,6 +375,7 @@ final class OdfReader
         $this->listContinuationStartCounters = [];
         $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
+        $this->headingAnchorUses = [];
 
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
@@ -655,16 +659,20 @@ final class OdfReader
         $style = $this->resolveStyle($styleName, $catalog);
         $level = self::intAttr($heading, self::TEXT_NS, 'outline-level', (int) ($style['headingLevel'] ?? 1));
         $level = max(1, min(6, $level));
+        $inlines = $this->coalesceTextNodes($this->inlineNodes($heading, $catalog, $package));
+        $text = $this->plainInlineText($inlines);
         $attrs = [
             'level' => $level,
             'sourceFormat' => 'odt',
+            'text' => $text,
+            'id' => $this->uniqueHeadingAnchor($text),
         ];
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
             $attrs['style'] = $style;
         }
 
-        return new AstNode('heading', $attrs, $this->coalesceTextNodes($this->inlineNodes($heading, $catalog, $package)));
+        return new AstNode('heading', $attrs, $inlines);
     }
 
     /**
@@ -705,6 +713,7 @@ final class OdfReader
         $headingLevel = (int) ($style['headingLevel'] ?? 0);
         if ($headingLevel > 0) {
             $attrs['level'] = max(1, min(6, $headingLevel));
+            $attrs['id'] = $this->uniqueHeadingAnchor($text);
 
             return new AstNode('heading', $attrs, $inlines);
         }
@@ -4870,6 +4879,24 @@ final class OdfReader
         $name = preg_replace('/(?<!^)[A-Z]/', '-$0', $name) ?? $name;
 
         return strtolower($name);
+    }
+
+    private function uniqueHeadingAnchor(string $text): string
+    {
+        $base = self::headingAnchorBase($text);
+        $seen = $this->headingAnchorUses[$base] ?? 0;
+        $this->headingAnchorUses[$base] = $seen + 1;
+
+        return $seen === 0 ? $base : $base . '-' . $seen;
+    }
+
+    private static function headingAnchorBase(string $text): string
+    {
+        $id = strtolower(trim($text));
+        $id = preg_replace('/[^\pL\pN]+/u', '-', $id) ?? '';
+        $id = trim($id, '-');
+
+        return $id === '' ? 'section' : $id;
     }
 
     private static function slug(string $value): string

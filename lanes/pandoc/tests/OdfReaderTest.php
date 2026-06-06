@@ -506,7 +506,7 @@ XML;
         $t->contains('Inline `wp_insert_post`{data-odf-style-name="Source_Text"} keeps `esc_html( $title)`{data-odf-style-name="Source_20_Text"}.', $markdown);
         $t->contains('## Use `do_shortcode`{data-odf-style-name="Source_Text"}', $markdown);
         $t->contains('<p>Inline <code data-odf-style-name="Source_Text">wp_insert_post</code> keeps <code data-odf-style-name="Source_20_Text">esc_html( $title)</code>.</p>', $blocksHtml);
-        $t->contains('<h2>Use <code data-odf-style-name="Source_Text">do_shortcode</code></h2>', $blocksHtml);
+        $t->contains('<h2 id="use-do-shortcode">Use <code data-odf-style-name="Source_Text">do_shortcode</code></h2>', $blocksHtml);
     },
     'maps ODT content XML blocks to the shared Pandoc-like AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage());
@@ -517,6 +517,8 @@ XML;
         $t->same('heading', $blocks[0]->type);
         $t->same(1, $blocks[0]->attr('level'));
         $t->same('AutoHeading', $blocks[0]->attr('styleName'));
+        $t->same('imported-odt-packet', $blocks[0]->attr('id'));
+        $t->same('Imported ODT Packet', $blocks[0]->attr('text'));
         $t->same('Imported ODT Packet', $blocks[0]->children[0]->attr('text'));
 
         $paragraph = $blocks[1];
@@ -575,6 +577,57 @@ XML;
         $t->same('table_body', $table->children[1]->type);
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('Ready for review', $table->children[1]->children[0]->children[0]->attr('text'));
+    },
+    'assigns Pandoc-style auto identifiers to ODT headings' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithParagraphHeading = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="StyledHeading" style:family="paragraph" style:display-name="Styled Heading" style:default-outline-level="2"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithHeadings = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1">ODT Source Packet</text:h>
+      <text:h text:outline-level="2">ODT Source Packet</text:h>
+      <text:p text:style-name="StyledHeading">Styled packet title</text:p>
+      <text:h text:outline-level="3">!!!</text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithHeadings, null, $stylesWithParagraphHeading));
+        $headings = $result['document']->children;
+
+        $t->same(4, count($headings));
+        $t->same('heading', $headings[0]->type);
+        $t->same('odt-source-packet', $headings[0]->attr('id'));
+        $t->same('ODT Source Packet', $headings[0]->attr('text'));
+        $t->same('odt-source-packet-1', $headings[1]->attr('id'));
+        $t->same(2, $headings[1]->attr('level'));
+        $t->same('styled-packet-title', $headings[2]->attr('id'));
+        $t->same(2, $headings[2]->attr('level'));
+        $t->same('StyledHeading', $headings[2]->attr('styleName'));
+        $t->same('section', $headings[3]->attr('id'));
+        $t->same(3, $headings[3]->attr('level'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('# ODT Source Packet {#odt-source-packet}', $markdown);
+        $t->contains('## ODT Source Packet {#odt-source-packet-1}', $markdown);
+        $t->contains('## Styled packet title {#styled-packet-title}', $markdown);
+        $t->contains('### !!! {#section}', $markdown);
+        $t->contains('<h1 id="odt-source-packet">ODT Source Packet</h1>', $blocksHtml);
+        $t->contains('<h2 id="odt-source-packet-1">ODT Source Packet</h2>', $blocksHtml);
+        $t->contains('<h2 id="styled-packet-title">Styled packet title</h2>', $blocksHtml);
+        $t->contains('<h3 id="section">!!!</h3>', $blocksHtml);
     },
     'maps ODT table names and protection metadata into review table handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedProtectedTable = <<<'XML'
@@ -1357,7 +1410,7 @@ XML;
         $t->contains('Caption [Figure 1]{.odf-sequence data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero"}: Hero image.', $markdown);
         $t->contains('## Appendix [A]{.odf-sequence data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1"}', $markdown);
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
-        $t->contains('<h2>Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
+        $t->contains('<h2 id="appendix-a">Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
     },
     'preserves ODT soft page breaks as review markers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSoftPageBreak = <<<'XML'
@@ -1396,7 +1449,7 @@ XML;
         $t->contains('Before source page boundary []{.odf-soft-page-break data-odf-soft-page-break="true"}after source page boundary.', $markdown);
         $t->contains('## Appendix marker[]{.odf-soft-page-break data-odf-soft-page-break="true"}continued heading', $markdown);
         $t->contains('<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>after source page boundary.', $blocksHtml);
-        $t->contains('<h2>Appendix marker<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>continued heading</h2>', $blocksHtml);
+        $t->contains('<h2 id="appendix-markercontinued-heading">Appendix marker<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>continued heading</h2>', $blocksHtml);
     },
     'maps ODT tab stops to Pandoc spaces in inline content' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTabs = <<<'XML'
@@ -1427,7 +1480,7 @@ XML;
         $t->contains('Before after and inner tab.', $markdown);
         $t->contains('## Heading tab', $markdown);
         $t->contains('<p>Before after and inner tab.</p>', $blocksHtml);
-        $t->contains('<h2>Heading tab</h2>', $blocksHtml);
+        $t->contains('<h2 id="heading-tab">Heading tab</h2>', $blocksHtml);
     },
     'maps ODT form controls into review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithForms = <<<'XML'

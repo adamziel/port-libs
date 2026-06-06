@@ -291,7 +291,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['encryption']['encryptedParts'][0] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT encrypted media to be listed in the import report');
     }
-    if (!str_contains($blocks, '<h1>ODT source packet</h1>')) {
+    if (($result['document']->children[0]->attr('id') ?? '') !== 'odt-source-packet') {
+        throw new RuntimeException('Expected ODT heading auto identifier to survive AST handoff');
+    }
+    if (!str_contains($blocks, '<h1 id="odt-source-packet">ODT source packet</h1>')) {
         throw new RuntimeException('Expected ODT heading to render as a WordPress heading block');
     }
     if (($result['importReport']['content']['tableOfContentsCount'] ?? 0) !== 1) {
