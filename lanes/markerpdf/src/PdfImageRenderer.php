@@ -7574,11 +7574,30 @@ final class PdfImageRenderer
      */
     private function numericArrayValue(?string $value): array
     {
-        if ($value === null || preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $value, $matches) === 0) {
+        if ($value === null) {
             return [];
         }
 
-        return array_map(static fn (string $number): float => (float) $number, $matches[0]);
+        $trimmed = trim($value);
+        if (!str_starts_with($trimmed, '[')) {
+            if (preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $trimmed, $matches) === 0) {
+                return [];
+            }
+
+            return array_map(static fn (string $number): float => (float) $number, $matches[0]);
+        }
+
+        $numbers = [];
+        foreach ($this->pdfArrayValues($trimmed) as $entry) {
+            $entry = trim($entry);
+            if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $entry) !== 1) {
+                return [];
+            }
+
+            $numbers[] = (float) $entry;
+        }
+
+        return $numbers;
     }
 
     /**

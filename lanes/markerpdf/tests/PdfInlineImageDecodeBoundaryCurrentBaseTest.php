@@ -1835,6 +1835,86 @@ return [
         $t->same([0.0, 1.0, 0.0, 1.0], array_column($preview['pixels'], 'opacity'));
         $t->contains('image_mask_decode_inverts_stencil', implode(',', $preview['notes']));
     },
+    'ignores PDF comment numbers inside inline image Decode arrays before preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+        $indexedDictionary = "/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3 % decoy 0 1 0 1\n]";
+        $maskDictionary = "/W 2 /H 1 /IM true /D [1 0 % decoy 0 1\n]";
+        $content = "BT /F1 12 Tf 72 720 Td (Before Comment Decode Inline) Tj ET\n"
+            . "BI {$indexedDictionary} ID\n\x00\nEI\n"
+            . "BI {$maskDictionary} ID\n\x80\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Comment Decode Inline) Tj ET";
+        $plainText = $extractor->extractPlainText($inlineImageDecodeBoundaryPdf($content));
+
+        $indexedPreview = $renderer->inlineIndexedImageStreamPreviewRows(
+            $indexedDictionary,
+            "\x00",
+            $objects,
+            1
+        );
+        $maskPreview = $renderer->inlineImageMaskPreviewRows(
+            $maskDictionary,
+            "\x80",
+            [],
+            2
+        );
+        $literalDecoyReview = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3 (0 1 0 1)]',
+            "\x00",
+            $objects
+        );
+        $hexDecoyReview = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3 <3031203031>]',
+            "\x00",
+            $objects
+        );
+
+        $t->same("Before Comment Decode Inline\nAfter Comment Decode Inline", $plainText);
+        $t->same(true, str_contains($indexedDictionary, '% decoy 0 1 0 1'));
+        $t->same(true, str_contains($maskDictionary, '% decoy 0 1'));
+        $t->same(false, $indexedPreview['review_only_image_stream']);
+        $t->same(true, $indexedPreview['inline_image']['native_raster_decode']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 3.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'explicit',
+        ], $indexedPreview['image_decode']);
+        $t->same(1, $indexedPreview['preview_pixel_count']);
+        $t->same([0.0], array_column($indexedPreview['pixels'], 'raw_sample'));
+        $t->same([0.0], array_column($indexedPreview['pixels'], 'decoded_index'));
+        $t->same([0], array_column($indexedPreview['pixels'], 'palette_index'));
+        $t->contains('image_decode_applied_before_rgb_conversion', implode(',', $indexedPreview['notes']));
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $maskPreview['image_mask']['decode']);
+        $t->same([1.0, 0.0], array_column($maskPreview['pixels'], 'raw_sample'));
+        $t->same([0.0, 1.0], array_column($maskPreview['pixels'], 'opacity'));
+        $t->contains('image_mask_decode_inverts_stencil', implode(',', $maskPreview['notes']));
+        foreach ([$literalDecoyReview, $hexDecoyReview] as $review) {
+            $t->same(true, $review['image_decode_component_mismatch']);
+            $t->same(0, $review['image_decode']['component_count']);
+            $t->same(false, $review['image_decode']['valid_for_components']);
+            $t->same(true, $review['inline_image_review_only']);
+            $t->contains('inline_image_decode_operand_review_only', implode(',', $review['notes']));
+        }
+    },
     'fails closed on malformed inline image Decode operands before RGB preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $renderer = new PdfImageRenderer();
         $extractor = new PdfTextExtractor();
