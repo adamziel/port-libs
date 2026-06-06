@@ -2380,6 +2380,98 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfOutputIntents']);
     },
 
+    'fake runner extracts bounded page-level pdf output intents from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-output-intent.pdf']);
+        $iccProfile = "fake page proof ICC profile bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /OutputIntents [8 0 R << /Type /OutputIntent /S /GTS_PDFX /OutputConditionIdentifier (FOGRA39) /RegistryName (https://www.color.org) /Info (Page proof intent) >>] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (sRGB page proof) /OutputCondition (Page-local display proof) /RegistryName (http://www.color.org) /Info (Page-level sRGB profile) /DestOutputProfile 9 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /N 3 /Alternate /DeviceRGB /Length ' . strlen($iccProfile) . ' >>',
+            'stream',
+            $iccProfile,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-output-intent.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-output-intent.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'source' => 'page:3 0 R.OutputIntents',
+                'type' => 'OutputIntent',
+                'subtype' => 'GTS_PDFA1',
+                'outputConditionIdentifier' => 'sRGB page proof',
+                'outputCondition' => 'Page-local display proof',
+                'registryName' => 'http://www.color.org',
+                'info' => 'Page-level sRGB profile',
+                'destOutputProfile' => '9 0 R',
+                'profileComponents' => 3,
+                'profileAlternate' => 'DeviceRGB',
+                'profileBytes' => strlen($iccProfile),
+                'profileSha256' => hash('sha256', $iccProfile),
+                'profileSkipped' => null,
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'source' => 'page:3 0 R.OutputIntents',
+                'type' => 'OutputIntent',
+                'subtype' => 'GTS_PDFX',
+                'outputConditionIdentifier' => 'FOGRA39',
+                'outputCondition' => null,
+                'registryName' => 'https://www.color.org',
+                'info' => 'Page proof intent',
+                'destOutputProfile' => null,
+                'profileComponents' => null,
+                'profileAlternate' => null,
+                'profileBytes' => null,
+                'profileSha256' => null,
+                'profileSkipped' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same([], $result['pdfOutputIntents']);
+        $t->same($expected, $result['pdfPageOutputIntents']);
+        $t->contains('pdf-byte-page-output-intents:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-output-profiles:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageOutputIntents']);
+    },
+
     'fake runner extracts bounded pdf catalog presentation preferences from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/presentation.pdf']);

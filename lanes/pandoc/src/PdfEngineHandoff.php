@@ -290,6 +290,7 @@ final class PdfEngineHandoff
      *     pdfPageMetadata: list<array<string, mixed>>,
      *     pdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
+     *     pdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
      *     pdfPageMode: string|null,
@@ -711,6 +712,7 @@ final class PdfEngineHandoff
         $pdfPageMetadata = [];
         $pdfPieceInfo = [];
         $pdfOutputIntents = [];
+        $pdfPageOutputIntents = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
         $pdfPageMode = null;
@@ -790,6 +792,7 @@ final class PdfEngineHandoff
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
                 $pdfPieceInfo = $pdfInspection['pieceInfo'];
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
+                $pdfPageOutputIntents = $pdfInspection['pageOutputIntents'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
                 $pdfPageMode = $pdfInspection['pageMode'];
@@ -1262,6 +1265,25 @@ final class PdfEngineHandoff
                     }
                     foreach (array_keys($profileSkips) as $skipReason) {
                         $diagnostics[] = 'pdf-byte-output-profile-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfPageOutputIntents !== []) {
+                    $diagnostics[] = 'pdf-byte-page-output-intents:' . count($pdfPageOutputIntents);
+                    $profileCount = 0;
+                    $profileSkips = [];
+                    foreach ($pdfPageOutputIntents as $intent) {
+                        if (($intent['destOutputProfile'] ?? null) !== null) {
+                            $profileCount++;
+                        }
+                        if (is_string($intent['profileSkipped'] ?? null) && $intent['profileSkipped'] !== '') {
+                            $profileSkips[$intent['profileSkipped']] = true;
+                        }
+                    }
+                    if ($profileCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-output-profiles:' . $profileCount;
+                    }
+                    foreach (array_keys($profileSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-page-output-profile-skipped:' . $skipReason;
                     }
                 }
                 if ($pdfLanguage !== null) {
@@ -1830,6 +1852,7 @@ final class PdfEngineHandoff
             'pdfPageMetadata' => $pdfPageMetadata,
             'pdfPieceInfo' => $pdfPieceInfo,
             'pdfOutputIntents' => $pdfOutputIntents,
+            'pdfPageOutputIntents' => $pdfPageOutputIntents,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
             'pdfPageMode' => $pdfPageMode,
@@ -1930,6 +1953,7 @@ final class PdfEngineHandoff
      *     finalPdfPageMetadata: list<array<string, mixed>>,
      *     finalPdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
+     *     finalPdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
      *     finalPdfPageMode: string|null,
@@ -2144,6 +2168,7 @@ final class PdfEngineHandoff
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
             'finalPdfPieceInfo' => is_array($finalRun) && is_array($finalRun['pdfPieceInfo'] ?? null) ? $finalRun['pdfPieceInfo'] : [],
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
+            'finalPdfPageOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfPageOutputIntents'] ?? null) ? $finalRun['pdfPageOutputIntents'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
@@ -3245,6 +3270,8 @@ final class PdfEngineHandoff
      *     xmpMetadata:array<string, mixed>,
      *     pageMetadata:list<array<string, mixed>>,
      *     pieceInfo:list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
+     *     outputIntents:list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
+     *     pageOutputIntents:list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     language:string|null,
      *     pageLayout:string|null,
      *     pageMode:string|null,
@@ -3352,6 +3379,7 @@ final class PdfEngineHandoff
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
             'pieceInfo' => $this->extractPdfPieceInfo($pdfBytes, $catalog),
             'outputIntents' => $this->extractPdfOutputIntents($pdfBytes, $catalog),
+            'pageOutputIntents' => $this->extractPdfPageOutputIntents($pdfBytes, $catalog),
             'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
@@ -4379,6 +4407,129 @@ final class PdfEngineHandoff
             return [];
         }
 
+        return $this->summarizePdfOutputIntentArray($array, $objects);
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>
+     */
+    private function extractPdfPageOutputIntents(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $intents = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageOutputIntentsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $intents,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($intents === []) {
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                array_push(
+                    $intents,
+                    ...$this->summarizePdfPageOutputIntents(
+                        $body,
+                        $reference,
+                        $objects,
+                        $pageNumber
+                    )
+                );
+            }
+        }
+
+        return $intents;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}> $intents
+     */
+    private function collectPdfPageOutputIntentsFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$intents,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            array_push(
+                $intents,
+                ...$this->summarizePdfPageOutputIntents($body, $reference, $objects, $pageNumber)
+            );
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageOutputIntentsFromTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $intents,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>
+     */
+    private function summarizePdfPageOutputIntents(string $pageDictionary, string $pageReference, array $objects, int $pageNumber): array
+    {
+        if (!str_contains($pageDictionary, '/OutputIntents')) {
+            return [];
+        }
+
+        $array = $this->extractPdfOutputIntentArrayValue($pageDictionary, $objects);
+        if ($array === null) {
+            return [];
+        }
+
+        $intents = [];
+        $source = 'page:' . $pageReference . ' R.OutputIntents';
+        foreach ($this->summarizePdfOutputIntentArray($array, $objects) as $intent) {
+            $intents[] = array_merge([
+                'page' => $pageNumber,
+                'pageObject' => $pageReference . ' R',
+                'source' => $source,
+            ], $intent);
+        }
+
+        return $intents;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>
+     */
+    private function summarizePdfOutputIntentArray(string $array, array $objects): array
+    {
         $intents = [];
         $cursor = 0;
         $length = strlen($array);
