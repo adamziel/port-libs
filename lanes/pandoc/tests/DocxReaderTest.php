@@ -928,6 +928,23 @@ $trackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$deletedFieldInstructionDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Deleted field audit keeps </w:t></w:r>
+      <w:del w:id="31" w:author="Source Editor" w:date="2026-06-05T12:15:00Z">
+        <w:r><w:delInstrText xml:space="preserve"> HYPERLINK "https://legacy.example.test/source" \o "Legacy source" </w:delInstrText></w:r>
+      </w:del>
+      <w:ins w:id="32" w:author="Migration Editor" w:date="2026-06-05T12:20:00Z">
+        <w:r><w:t>updated source link</w:t></w:r>
+      </w:ins>
+      <w:r><w:t xml:space="preserve"> for reviewer handoff.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $moveTrackedChangesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2176,6 +2193,14 @@ $buildTrackedChangesPackage = static function () use ($contentTypesXml, $package
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $trackedChangesDocumentXml],
+    ]);
+};
+
+$buildDeletedFieldInstructionPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $deletedFieldInstructionDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $deletedFieldInstructionDocumentXml],
     ]);
 };
 
@@ -3519,6 +3544,47 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-04T17:50:00Z', $revisions['items'][1]['date']);
         $t->same('approved copy', $revisions['items'][1]['text']);
+    },
+    'reports deleted DOCX field instructions without rendering them' => static function (TestRunner $t) use ($buildDeletedFieldInstructionPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildDeletedFieldInstructionPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Deleted field audit keeps ', $paragraph->children[0]->attr('text'));
+
+        $insertion = $paragraph->children[1];
+        $t->same('span', $insertion->type);
+        $t->same(['docx-insertion'], $insertion->attr('classes'));
+        $t->same('insertion', $insertion->attr('attributes')['data-docx-change']);
+        $t->same('32', $insertion->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $insertion->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-05T12:20:00Z', $insertion->attr('attributes')['data-docx-date']);
+        $t->same('updated source link', $insertion->children[0]->attr('text'));
+        $t->same(' for reviewer handoff.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Deleted field audit keeps [updated source link]{.docx-insertion data-docx-change="insertion" data-docx-change-id="32" data-docx-author="Migration Editor" data-docx-date="2026-06-05T12:20:00Z"} for reviewer handoff.', $markdown);
+        $t->true(!str_contains($markdown, 'legacy.example.test'), 'Deleted DOCX field instruction should not render to Markdown');
+        $t->contains('<p>Deleted field audit keeps <span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="32" data-docx-author="Migration Editor" data-docx-date="2026-06-05T12:20:00Z">updated source link</span> for reviewer handoff.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'legacy.example.test'), 'Deleted DOCX field instruction should not render to WordPress blocks');
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(1, $revisions['insertionCount']);
+        $t->same(1, $revisions['deletionCount']);
+        $t->same(2, count($revisions['items']));
+        $t->same('deletion', $revisions['items'][0]['type']);
+        $t->same(false, $revisions['items'][0]['accepted']);
+        $t->same('31', $revisions['items'][0]['id']);
+        $t->same('Source Editor', $revisions['items'][0]['author']);
+        $t->same('2026-06-05T12:15:00Z', $revisions['items'][0]['date']);
+        $t->same('HYPERLINK "https://legacy.example.test/source" \\o "Legacy source"', $revisions['items'][0]['text']);
+        $t->same('insertion', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('32', $revisions['items'][1]['id']);
+        $t->same('updated source link', $revisions['items'][1]['text']);
     },
     'preserves accepted DOCX moved text and reports suppressed move sources' => static function (TestRunner $t) use ($buildMoveTrackedChangesPackage): void {
         $reader = new DocxReader();

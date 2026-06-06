@@ -7137,7 +7137,11 @@ final class DocxReader
 
     private function trackedChangeTextRaw(\DOMElement $element): string
     {
-        if ($this->isWordElement($element, 't') || $this->isWordElement($element, 'delText')) {
+        if (
+            $this->isWordElement($element, 't')
+            || $this->isWordElement($element, 'delText')
+            || $this->isWordElement($element, 'delInstrText')
+        ) {
             return $element->textContent;
         }
         if ($this->isWordElement($element, 'tab')) {
