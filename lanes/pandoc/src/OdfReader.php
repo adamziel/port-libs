@@ -2733,6 +2733,8 @@ final class OdfReader
             'variable-get',
             'user-field-get',
             'expression',
+            'conditional-text',
+            'hidden-text',
             'page-number',
             'page-count',
             'date',
@@ -2881,13 +2883,20 @@ final class OdfReader
             $timeValue = self::attr($field, self::OFFICE_NS, 'time-value');
         }
         $fixed = self::attr($field, self::TEXT_NS, 'fixed');
+        $stringValue = self::attr($field, self::OFFICE_NS, 'string-value');
+        if ($stringValue === '') {
+            $stringValue = self::attr($field, self::TEXT_NS, 'string-value');
+        }
 
         $metadata = self::withoutEmpty([
             'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
+            'condition' => self::nullable(self::attr($field, self::TEXT_NS, 'condition')),
             'valueType' => self::nullable(self::attr($field, self::OFFICE_NS, 'value-type')),
             'value' => self::nullable(self::attr($field, self::OFFICE_NS, 'value')),
-            'stringValue' => self::nullable(self::attr($field, self::OFFICE_NS, 'string-value')),
+            'stringValue' => self::nullable($stringValue),
+            'stringValueIfTrue' => self::nullable(self::attr($field, self::TEXT_NS, 'string-value-if-true')),
+            'stringValueIfFalse' => self::nullable(self::attr($field, self::TEXT_NS, 'string-value-if-false')),
             'dateValue' => self::nullable($dateValue),
             'timeValue' => self::nullable($timeValue),
             'selectPage' => self::nullable(self::attr($field, self::TEXT_NS, 'select-page')),
@@ -2950,7 +2959,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['stringValue', 'value', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
+        foreach (['stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_scalar($value) && (string) $value !== '') {
                 return (string) $value;

@@ -2027,6 +2027,54 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps ODT conditional and hidden text fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithConditionalFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Conditional <text:conditional-text text:condition="ReviewStatus == &quot;ready&quot;" text:string-value-if-true="Ready to publish" text:string-value-if-false="Hold for review">Ready to publish</text:conditional-text> and hidden <text:hidden-text text:condition="NeedsReview == true" text:string-value="reviewer note">reviewer note</text:hidden-text> plus fallback <text:hidden-text text:condition="AuditOnly" text:string-value="fallback audit note"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithConditionalFields));
+        $paragraph = $result['document']->children[0];
+        $conditional = $paragraph->children[1];
+        $hidden = $paragraph->children[3];
+        $fallback = $paragraph->children[5];
+
+        $t->same('Conditional Ready to publish and hidden reviewer note plus fallback fallback audit note.', $paragraph->attr('text'));
+        $t->same('span', $conditional->type);
+        $t->same(['odf-field', 'odf-field-conditional-text'], $conditional->attr('classes'));
+        $t->same('conditional-text', $conditional->attr('fieldType'));
+        $t->same('ReviewStatus == "ready"', $conditional->attr('fieldMetadata')['condition']);
+        $t->same('Ready to publish', $conditional->attr('fieldMetadata')['stringValueIfTrue']);
+        $t->same('Hold for review', $conditional->attr('fieldMetadata')['stringValueIfFalse']);
+        $t->same('ReviewStatus == "ready"', $conditional->attr('attributes')['data-odf-field-condition']);
+        $t->same('Ready to publish', $conditional->attr('attributes')['data-odf-field-string-value-if-true']);
+        $t->same('Hold for review', $conditional->attr('attributes')['data-odf-field-string-value-if-false']);
+        $t->same('Ready to publish', $conditional->children[0]->attr('text'));
+
+        $t->same('hidden-text', $hidden->attr('fieldType'));
+        $t->same('NeedsReview == true', $hidden->attr('fieldMetadata')['condition']);
+        $t->same('reviewer note', $hidden->attr('fieldMetadata')['stringValue']);
+        $t->same('reviewer note', $hidden->children[0]->attr('text'));
+        $t->same('hidden-text', $fallback->attr('fieldType'));
+        $t->same('AuditOnly', $fallback->attr('fieldMetadata')['condition']);
+        $t->same('fallback audit note', $fallback->attr('fieldMetadata')['stringValue']);
+        $t->same('fallback audit note', $fallback->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Ready to publish]{.odf-field .odf-field-conditional-text data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == \"ready\"" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review"}', $markdown);
+        $t->contains('[fallback audit note]{.odf-field .odf-field-hidden-text data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-conditional-text" data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == &quot;ready&quot;" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review">Ready to publish</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-hidden-text" data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note">fallback audit note</span>', $blocksHtml);
+    },
     'maps ODT placeholders into review spans without dropping source text' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlaceholders = <<<'XML'
 <office:document-content
