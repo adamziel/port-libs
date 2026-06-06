@@ -176,7 +176,8 @@ final class SuppliedDocumentConverter
                 $lowresImages,
                 $pages,
                 $layoutResults,
-                $batchMultiplier
+                $batchMultiplier,
+                $pageRange
             );
             $pages = $layout['pages'];
             $metadata['layout_plan'] = $layout['plan'];
@@ -207,7 +208,8 @@ final class SuppliedDocumentConverter
                 $orderImages,
                 $pages,
                 $orderResults,
-                $batchMultiplier
+                $batchMultiplier,
+                $pageRange
             );
             $pages = $ordered['pages'];
             $metadata['order_plan'] = $ordered['plan'];

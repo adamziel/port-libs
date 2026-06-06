@@ -2243,6 +2243,93 @@ return [
         $t->same(0, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'filters stale row-level layout and order page markers before WordPress pdftext assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-row-page-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% row-level page marker layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(4200, [
+                        ['text' => 'Row marker converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(4201, [
+                        ['text' => 'Second converter row marker column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter row marker column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['metadata' => ['document_page' => 4201], 'image' => 'row-page-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'metadata' => ['document_page' => 4201],
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            [
+                                'label' => 'Title',
+                                'document_page' => 4200,
+                                'bbox' => [60.0, 92.0, 290.0, 150.0],
+                                'raw_payload' => 'stale row-level layout title payload must stay hidden',
+                            ],
+                            [
+                                'label' => 'Text',
+                                'document_page' => 4201,
+                                'bbox' => [60.0, 92.0, 290.0, 150.0],
+                            ],
+                            [
+                                'label' => 'Text',
+                                'document_page' => 4201,
+                                'bbox' => [318.0, 92.0, 570.0, 150.0],
+                            ],
+                        ],
+                    ]],
+                    'order_images' => [
+                        ['metadata' => ['document_page' => 4201], 'image' => 'row-page-order-render'],
+                    ],
+                    'order_results' => [[
+                        'metadata' => ['document_page' => 4201],
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            [
+                                'position' => 1,
+                                'document_page' => 4200,
+                                'bbox' => [318.0, 96.0, 570.0, 144.0],
+                                'raw_payload' => 'stale row-level order bbox payload must stay hidden',
+                            ],
+                            [
+                                'position' => 2,
+                                'document_page' => 4201,
+                                'bbox' => [60.0, 96.0, 290.0, 144.0],
+                            ],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('First converter row marker column.', $text);
+        $t->contains('Second converter row marker column.', $text);
+        $t->true(strpos($text, 'First converter row marker column.') < strpos($text, 'Second converter row marker column.'));
+        $t->true(!str_contains($text, '# First Converter Row Marker Column.'));
+        $t->true(!str_contains($text, 'Row marker converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'stale row-level layout title payload'));
+        $t->true(!str_contains($encoded, 'stale row-level order bbox payload'));
+    },
     'keeps zero-overlap blocks in the first upstream order group before selected pdftext merge' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

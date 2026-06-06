@@ -115,7 +115,8 @@ final class LayoutOrderer
         array $images,
         array $pages,
         array $orderResults,
-        float $batchMultiplier = 1.0
+        float $batchMultiplier = 1.0,
+        array $pageRange = []
     ): array {
         $pages = array_values($pages);
         $orderResults = array_values($orderResults);
@@ -141,7 +142,12 @@ final class LayoutOrderer
             if ($this->hasAmbiguousOrderPayloadWrapper($orderResults[$index]) || $this->hasMalformedOrderPageMarkers($orderResults[$index])) {
                 continue;
             }
-            $pages[$index]['order'] = $this->sanitizeSuppliedOrderResult($orderResults[$index]);
+            $pages[$index]['order'] = $this->sanitizeSuppliedOrderResult(
+                $orderResults[$index],
+                $pages[$index],
+                $index,
+                $this->integerValue($pageRange[$index] ?? null) ?? $index
+            );
             $assignedPages++;
         }
 
@@ -168,7 +174,12 @@ final class LayoutOrderer
      * @param array<string, mixed> $orderResult
      * @return array<string, mixed>
      */
-    private function sanitizeSuppliedOrderResult(array $orderResult): array
+    private function sanitizeSuppliedOrderResult(
+        array $orderResult,
+        ?array $page = null,
+        int $selectedIndex = 0,
+        ?int $sourceIndex = null
+    ): array
     {
         $sanitized = [];
         $payload = $this->orderResultPayloadSource($orderResult);
@@ -179,7 +190,7 @@ final class LayoutOrderer
         }
 
         if (array_key_exists('bboxes', $payload)) {
-            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes($payload['bboxes']);
+            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes($payload['bboxes'], $page, $selectedIndex, $sourceIndex);
         }
 
         foreach ($this->orderResultPageMarkerSources($orderResult) as $source) {
@@ -296,7 +307,12 @@ final class LayoutOrderer
      * @param mixed $boxes
      * @return list<array{position: int, bbox: list<float>}>
      */
-    private function sanitizeSuppliedOrderBboxes(mixed $boxes): array
+    private function sanitizeSuppliedOrderBboxes(
+        mixed $boxes,
+        ?array $page = null,
+        int $selectedIndex = 0,
+        ?int $sourceIndex = null
+    ): array
     {
         if (!is_array($boxes) || !array_is_list($boxes)) {
             return [];
@@ -305,6 +321,9 @@ final class LayoutOrderer
         $sanitized = [];
         foreach ($boxes as $index => $box) {
             if (!is_array($box)) {
+                continue;
+            }
+            if (!$this->pageMarkerSourcesMatchPage($this->orderResultPageMarkerSources($box), $page, $selectedIndex, $sourceIndex)) {
                 continue;
             }
 
@@ -332,6 +351,82 @@ final class LayoutOrderer
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Row-level page markers are adapter metadata. Upstream Surya order rows are
+     * zipped with the selected page after document trimming, so mixed cached row
+     * payloads from another source page must not influence current-page order.
+     *
+     * @param list<array<string, mixed>> $sources
+     */
+    private function pageMarkerSourcesMatchPage(array $sources, ?array $page, int $selectedIndex, ?int $sourceIndex): bool
+    {
+        $hasMarkers = false;
+        foreach ($sources as $source) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true || $this->orderResultPageMarkerSourceHasMalformedMarkers($source)) {
+                return false;
+            }
+
+            foreach (self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
+                if ($this->integerFields($source, $fields) !== []) {
+                    $hasMarkers = true;
+                }
+            }
+        }
+
+        if (!$hasMarkers) {
+            return true;
+        }
+
+        $sourceIndex ??= $selectedIndex;
+        $pageNumber = $this->pageMarkerNumber($page) ?? $sourceIndex;
+
+        foreach ($this->integerFieldsFromSources($sources, self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS[0]) as $marker) {
+            if ($marker !== $sourceIndex) {
+                return false;
+            }
+        }
+        foreach ($this->integerFieldsFromSources($sources, self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS[1]) as $marker) {
+            if ($marker !== $selectedIndex) {
+                return false;
+            }
+        }
+        foreach ($this->integerFieldsFromSources($sources, self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS[2]) as $marker) {
+            if ($marker !== $pageNumber) {
+                return false;
+            }
+        }
+        foreach ($this->integerFieldsFromSources($sources, self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS[3]) as $marker) {
+            if ($marker !== $pageNumber + 1) {
+                return false;
+            }
+        }
+        foreach ($this->integerFieldsFromSources($sources, self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS[4]) as $marker) {
+            if ($marker !== $selectedIndex + 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed>|null $page
+     */
+    private function pageMarkerNumber(?array $page): ?int
+    {
+        if ($page === null) {
+            return null;
+        }
+
+        $direct = $this->integerValue($page['pnum'] ?? $page['page'] ?? null);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $source = $page['pdftext_source'] ?? null;
+        return is_array($source) ? $this->integerValue($source['page'] ?? null) : null;
     }
 
     /**
@@ -495,6 +590,21 @@ final class LayoutOrderer
             }
 
             array_push($values, ...$this->integerValues($artifact[$field]));
+        }
+
+        return array_values(array_unique($values, SORT_REGULAR));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sources
+     * @param list<string> $fields
+     * @return list<int>
+     */
+    private function integerFieldsFromSources(array $sources, array $fields): array
+    {
+        $values = [];
+        foreach ($sources as $source) {
+            array_push($values, ...$this->integerFields($source, $fields));
         }
 
         return array_values(array_unique($values, SORT_REGULAR));

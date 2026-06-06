@@ -221,7 +221,8 @@ final class PdfTextDocumentExtractor
             $orderImages,
             $document['pages'],
             $orderResults,
-            $batchMultiplier
+            $batchMultiplier,
+            $document['page_range']
         );
         $document['pages'] = $orderer->sortBlocksInReadingOrder($ordered['pages']);
         $document['metadata']['order_plan'] = $ordered['plan'];
