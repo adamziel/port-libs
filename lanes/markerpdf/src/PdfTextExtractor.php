@@ -8235,12 +8235,21 @@ final class PdfTextExtractor
 
         if ($filter === 'DCTDecode' || $filter === 'DCT') {
             $colorTransform = $this->decodeParmsInt($value, 'ColorTransform', $objects);
+            $duplicateColorTransform = count($this->topLevelPdfValuesAfterNameInDictionaryBody($value, 'ColorTransform')) > 1;
 
-            return [
+            $review = [
                 'type' => 'DCTDecode',
                 'color_transform' => $colorTransform,
-                'valid_color_transform' => $colorTransform === null || in_array($colorTransform, [0, 1, 2], true),
+                'valid_color_transform' => !$duplicateColorTransform
+                    && ($colorTransform === null || in_array($colorTransform, [0, 1, 2], true)),
             ];
+            if ($duplicateColorTransform) {
+                $review['invalid_decode_parms_fields'] = ['color_transform'];
+                $review['duplicate_decode_parms_fields'] = ['color_transform'];
+                $review['decode_parms_review'] = 'duplicate_dctdecode_decodeparms_parameter_fail_closed';
+            }
+
+            return $review;
         }
 
         return ['type' => $filter];

@@ -147,7 +147,9 @@ final class PdfImageRenderer
         $dctFilter = $this->dctDecodeFilterName($imageDictionary, $objects);
         $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
         $decodeParmsAlignmentInvalid = $this->dctDecodeParmsAlignmentIsInvalid($imageDictionary, $objects);
+        $decodeParmsDuplicateColorTransform = $this->dctDecodeParmsColorTransformIsDuplicated($imageDictionary, $objects);
         $decodeParmsTransformValid = !$decodeParmsAlignmentInvalid
+            && !$decodeParmsDuplicateColorTransform
             && ($decodeParmsTransform === null || in_array($decodeParmsTransform, [0, 1, 2], true));
         $effectiveDecodeParmsTransform = $decodeParmsTransformValid ? $decodeParmsTransform : null;
         $effectiveTransform = $adobeTransform ?? $effectiveDecodeParmsTransform ?? ($components === 3 ? 1 : 0);
@@ -162,6 +164,8 @@ final class PdfImageRenderer
         }
         if ($decodeParmsAlignmentInvalid) {
             $notes[] = 'unaligned_dctdecode_decodeparms_fail_closed';
+        } elseif ($decodeParmsDuplicateColorTransform) {
+            $notes[] = 'duplicate_dctdecode_decodeparms_parameter_fail_closed';
         } elseif (!$decodeParmsTransformValid) {
             $notes[] = 'invalid_dctdecode_color_transform_ignored';
         }
@@ -604,6 +608,14 @@ final class PdfImageRenderer
                 'CCITTFaxDecode', 'CCF' => 'ccitt_fax_image_filter_review_only',
                 default => 'image_filter_review_only',
             };
+        }
+        foreach ($imageFilterDetails as $detail) {
+            $decodeParmsReview = is_array($detail['decode_parms'] ?? null)
+                ? ($detail['decode_parms']['decode_parms_review'] ?? null)
+                : null;
+            if (is_string($decodeParmsReview) && str_starts_with($decodeParmsReview, 'duplicate_dctdecode_')) {
+                $notes[] = $decodeParmsReview;
+            }
         }
         foreach ($operandBoundaryFilters as $filter) {
             $notes[] = $filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND
@@ -4537,12 +4549,21 @@ final class PdfImageRenderer
 
         if ($filter === 'DCTDecode' || $filter === 'DCT') {
             $colorTransform = $this->integerNameValue($resolved, 'ColorTransform');
+            $duplicateColorTransform = count($this->pdfDictionaryValuesForName($resolved, 'ColorTransform')) > 1;
 
-            return [
+            $review = [
                 'type' => 'DCTDecode',
                 'color_transform' => $colorTransform,
-                'valid_color_transform' => $colorTransform === null || in_array($colorTransform, [0, 1, 2], true),
+                'valid_color_transform' => !$duplicateColorTransform
+                    && ($colorTransform === null || in_array($colorTransform, [0, 1, 2], true)),
             ];
+            if ($duplicateColorTransform) {
+                $review['invalid_decode_parms_fields'] = ['color_transform'];
+                $review['duplicate_decode_parms_fields'] = ['color_transform'];
+                $review['decode_parms_review'] = 'duplicate_dctdecode_decodeparms_parameter_fail_closed';
+            }
+
+            return $review;
         }
 
         if ($filter === 'Crypt') {
@@ -5500,6 +5521,57 @@ final class PdfImageRenderer
         }
 
         return $colorTransform;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeParmsColorTransformIsDuplicated(string $dictionary, array $objects = []): bool
+    {
+        $filters = $this->imageFilterValues($dictionary, $objects);
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        foreach ($filters as $index => $filter) {
+            if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+                continue;
+            }
+
+            return $this->dctDecodeParmsColorTransformIsDuplicatedInValue(
+                $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index),
+                $objects
+            );
+        }
+
+        return $this->dctDecodeParmsColorTransformIsDuplicatedInValue(
+            $this->extractPdfNameValue($dictionary, 'DecodeParms'),
+            $objects
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeParmsColorTransformIsDuplicatedInValue(?string $value, array $objects): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        $decodeParms = trim($this->resolvePdfValue($value, $objects));
+        if (str_starts_with($decodeParms, '[')) {
+            foreach ($this->pdfArrayValues($decodeParms) as $entry) {
+                if ($this->dctDecodeParmsColorTransformIsDuplicatedInValue($entry, $objects)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!str_starts_with($decodeParms, '<<')) {
+            return false;
+        }
+
+        return count($this->pdfDictionaryValuesForName($decodeParms, 'ColorTransform')) > 1;
     }
 
     private function componentCountForColorSpace(string $colorSpace): ?int
