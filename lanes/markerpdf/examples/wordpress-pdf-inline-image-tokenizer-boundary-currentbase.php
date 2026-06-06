@@ -160,6 +160,16 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "Q\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 616 Td (Visible After Clip Path Stray) Tj ET\n"
+    . "BT /F1 12 Tf 72 615 Td (Before Even Odd Clip Stray) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 614 Td (Even Odd Clip Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "q\n"
+    . "60 596 260 60 re W* n\n"
+    . "BT /F1 12 Tf 72 613 Td (Visible Even Odd Clip Before Stray) Tj ET\n"
+    . "Q\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 612 Td (Visible After Even Odd Clip Stray) Tj ET\n"
     . "BT /F1 12 Tf 72 615 Td (Before XObject Do Stray) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 614 Td (XObject Do Payload Noise) Tj ET rawtail\n"
@@ -366,7 +376,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -464,6 +474,12 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'Visible Clip Path Before Stray')
         && str_contains($plainText, 'Visible After Clip Path Stray')
         && !str_contains($plainText, 'Clip Path Payload Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'preview_only_even_odd_clip_path_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before Even Odd Clip Stray')
+        && str_contains($plainText, 'Visible Even Odd Clip Before Stray')
+        && str_contains($plainText, 'Visible After Even Odd Clip Stray')
+        && !str_contains($plainText, 'Even Odd Clip Payload Noise')
+        && !str_contains($plainText, 'W* n')
         && !str_contains($plainText, 'rawtail'),
     'preview_only_xobject_do_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before XObject Do Stray')
         && str_contains($plainText, 'Visible XObject Do Before Stray')
