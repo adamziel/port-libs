@@ -862,6 +862,68 @@ XML;
         $t->same('Media audit', $ncx['items'][1]['children'][0]['title']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $ncx['items'][1]['children'][0]['target']);
     },
+    'reports NCX head title and author metadata for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $ncxWithMetadata = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:wp-epub-source-42"/>
+    <meta name="dtb:depth" content="2"/>
+    <meta name="dtb:totalPageCount" content="24"/>
+    <meta name="dtb:maxPageNumber" content="xii"/>
+    <meta name="review:source" content="wordpress-import"/>
+    <meta content="missing-name"/>
+    <meta name="missing-content"/>
+  </head>
+  <docTitle id="source-title" xml:lang="en">
+    <text>WordPress Import EPUB</text>
+  </docTitle>
+  <docAuthor id="primary-author">
+    <text>Migration Desk</text>
+  </docAuthor>
+  <docAuthor xml:lang="fr">
+    <text>Bureau de revue</text>
+  </docAuthor>
+  <navMap>
+    <navPoint id="navpoint-1" playOrder="1">
+      <navLabel><text>Imported packet</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNcxXml: $ncxWithMetadata,
+        ));
+
+        $ncx = $result['ncx'];
+        $t->same('/OEBPS/toc.ncx', $ncx['part']);
+        $t->same('2005-1', $ncx['version']);
+        $t->same('en', $ncx['language']);
+        $t->same('WordPress Import EPUB', $ncx['docTitle']);
+        $t->same(1, count($ncx['docTitleEntries']));
+        $t->same('source-title', $ncx['docTitleEntries'][0]['id']);
+        $t->same('en', $ncx['docTitleEntries'][0]['language']);
+        $t->same(['Migration Desk', 'Bureau de revue'], $ncx['docAuthors']);
+        $t->same(2, count($ncx['docAuthorDetails']));
+        $t->same('primary-author', $ncx['docAuthorDetails'][0]['id']);
+        $t->same('fr', $ncx['docAuthorDetails'][1]['language']);
+
+        $head = $ncx['head'];
+        $t->same(true, $head['present']);
+        $t->same(7, $head['metaCount']);
+        $t->same('urn:uuid:wp-epub-source-42', $head['uid']);
+        $t->same('2', $head['depth']);
+        $t->same('24', $head['totalPageCount']);
+        $t->same('xii', $head['maxPageNumber']);
+        $t->same('wordpress-import', $head['byName']['review:source'][0]['content']);
+        $t->same('missing-ncx-head-meta-name', $head['diagnostics'][0]['type']);
+        $t->same(5, $head['diagnostics'][0]['index']);
+        $t->same('missing-ncx-head-meta-content', $head['diagnostics'][1]['type']);
+        $t->same(6, $head['diagnostics'][1]['index']);
+
+        $t->same($ncx, $result['importReport']['ncx']);
+    },
     'preserves EPUB3 nav section and item provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $navWithProvenance = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

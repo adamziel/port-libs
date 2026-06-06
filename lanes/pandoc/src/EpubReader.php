@@ -4681,6 +4681,13 @@ final class EpubReader
         if (self::isEncryptedManifestItem($item)) {
             return [
                 'part' => (string) $item['part'],
+                'version' => null,
+                'language' => null,
+                'head' => self::emptyNcxHeadReport(),
+                'docTitle' => null,
+                'docTitleEntries' => [],
+                'docAuthors' => [],
+                'docAuthorDetails' => [],
                 'items' => [],
                 'pageList' => [],
                 'encrypted' => true,
@@ -4696,12 +4703,161 @@ final class EpubReader
 
         $navMap = self::firstChildElement($root, 'navMap', self::NCX_NS);
         $pageList = self::firstChildElement($root, 'pageList', self::NCX_NS);
+        $docTitleEntries = self::readNcxTextElementEntries($root, 'docTitle');
+        $docAuthorDetails = self::readNcxTextElementEntries($root, 'docAuthor');
 
         return [
             'part' => (string) $item['part'],
+            'version' => self::nullableAttribute($root, 'version'),
+            'language' => self::xmlLang($root),
+            'head' => self::readNcxHeadReport(self::firstChildElement($root, 'head', self::NCX_NS)),
+            'docTitle' => $docTitleEntries[0]['text'] ?? null,
+            'docTitleEntries' => $docTitleEntries,
+            'docAuthors' => array_map(
+                static fn (array $entry): string => (string) $entry['text'],
+                $docAuthorDetails
+            ),
+            'docAuthorDetails' => $docAuthorDetails,
             'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part']) : [],
             'pageList' => $pageList instanceof \DOMElement ? $this->readNcxPageTargets($package, $pageList, (string) $item['part']) : [],
         ];
+    }
+
+    /**
+     * @return array{
+     *     present:bool,
+     *     metaCount:int,
+     *     items:list<array<string, mixed>>,
+     *     byName:array<string, list<array<string, mixed>>>,
+     *     uid:?string,
+     *     depth:?string,
+     *     totalPageCount:?string,
+     *     maxPageNumber:?string,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function emptyNcxHeadReport(): array
+    {
+        return [
+            'present' => false,
+            'metaCount' => 0,
+            'items' => [],
+            'byName' => [],
+            'uid' => null,
+            'depth' => null,
+            'totalPageCount' => null,
+            'maxPageNumber' => null,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     present:bool,
+     *     metaCount:int,
+     *     items:list<array<string, mixed>>,
+     *     byName:array<string, list<array<string, mixed>>>,
+     *     uid:?string,
+     *     depth:?string,
+     *     totalPageCount:?string,
+     *     maxPageNumber:?string,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function readNcxHeadReport(?\DOMElement $head): array
+    {
+        if (!$head instanceof \DOMElement) {
+            return self::emptyNcxHeadReport();
+        }
+
+        $items = [];
+        $byName = [];
+        $diagnostics = [];
+        foreach (self::childElements($head, 'meta', self::NCX_NS) as $index => $meta) {
+            $name = self::nullableAttribute($meta, 'name');
+            $content = self::nullableAttribute($meta, 'content');
+            $entry = [
+                'index' => $index,
+                'id' => self::nullableAttribute($meta, 'id'),
+                'name' => $name,
+                'content' => $content,
+                'scheme' => self::nullableAttribute($meta, 'scheme'),
+                'attributes' => self::elementAttributes($meta),
+            ];
+
+            if ($name === null) {
+                $diagnostics[] = [
+                    'type' => 'missing-ncx-head-meta-name',
+                    'index' => $index,
+                    'content' => $content,
+                    'message' => 'EPUB NCX head meta entry is missing a name attribute',
+                ];
+            } else {
+                $byName[$name][] = $entry;
+            }
+
+            if ($content === null) {
+                $diagnostics[] = [
+                    'type' => 'missing-ncx-head-meta-content',
+                    'index' => $index,
+                    'name' => $name,
+                    'message' => 'EPUB NCX head meta entry is missing a content attribute',
+                ];
+            }
+
+            $items[] = $entry;
+        }
+
+        return [
+            'present' => true,
+            'metaCount' => count($items),
+            'items' => $items,
+            'byName' => $byName,
+            'uid' => self::firstNcxHeadMetaContent($byName, 'dtb:uid'),
+            'depth' => self::firstNcxHeadMetaContent($byName, 'dtb:depth'),
+            'totalPageCount' => self::firstNcxHeadMetaContent($byName, 'dtb:totalPageCount'),
+            'maxPageNumber' => self::firstNcxHeadMetaContent($byName, 'dtb:maxPageNumber'),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $byName
+     */
+    private static function firstNcxHeadMetaContent(array $byName, string $name): ?string
+    {
+        foreach ($byName[$name] ?? [] as $entry) {
+            if (is_string($entry['content'] ?? null) && $entry['content'] !== '') {
+                return $entry['content'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function readNcxTextElementEntries(\DOMElement $root, string $localName): array
+    {
+        $items = [];
+        foreach (self::childElements($root, $localName, self::NCX_NS) as $index => $element) {
+            $textElement = self::firstDescendantElement($element, 'text', self::NCX_NS);
+            $items[] = [
+                'index' => $index,
+                'id' => self::nullableAttribute($element, 'id'),
+                'class' => self::nullableAttribute($element, 'class'),
+                'classes' => self::spaceDelimited($element->getAttribute('class')),
+                'language' => self::xmlLang($element),
+                'direction' => self::direction($element),
+                'text' => $textElement instanceof \DOMElement
+                    ? self::normalizedText($textElement)
+                    : self::normalizedText($element),
+                'attributes' => self::elementAttributes($element),
+            ];
+        }
+
+        return $items;
     }
 
     /**

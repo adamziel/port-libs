@@ -211,7 +211,20 @@ $smilXml = <<<'XML'
 XML;
 
 $ncxXml = <<<'XML'
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:wordpress-epub-source"/>
+    <meta name="dtb:depth" content="2"/>
+    <meta name="dtb:totalPageCount" content="1"/>
+    <meta name="dtb:maxPageNumber" content="1"/>
+    <meta name="review:source" content="wordpress-import"/>
+  </head>
+  <docTitle id="source-ncx-title">
+    <text>WordPress EPUB source packet</text>
+  </docTitle>
+  <docAuthor id="source-ncx-author">
+    <text>Migration Desk</text>
+  </docAuthor>
   <navMap>
     <navPoint id="source" playOrder="1">
       <navLabel><text>Source chapter</text></navLabel>
@@ -486,6 +499,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['ncx']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected NCX content src to resolve to the chapter fragment');
+    }
+    if (($result['ncx']['docTitle'] ?? null) !== 'WordPress EPUB source packet') {
+        throw new RuntimeException('Expected NCX docTitle metadata to remain visible for review');
+    }
+    if (($result['ncx']['docAuthors'] ?? []) !== ['Migration Desk']) {
+        throw new RuntimeException('Expected NCX docAuthor metadata to remain visible for review');
+    }
+    if (($result['ncx']['head']['uid'] ?? null) !== 'urn:uuid:wordpress-epub-source' || ($result['ncx']['head']['depth'] ?? null) !== '2') {
+        throw new RuntimeException('Expected NCX head metadata to expose dtb uid/depth values');
+    }
+    if (($result['importReport']['ncx']['head']['byName']['review:source'][0]['content'] ?? null) !== 'wordpress-import') {
+        throw new RuntimeException('Expected EPUB import report to expose NCX head meta records');
     }
     if (($result['ncx']['items'][1]['external'] ?? null) !== true || ($result['ncx']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'external-ncx-reference') {
         throw new RuntimeException('Expected remote NCX reference to stay unfetched for review');
@@ -930,6 +955,11 @@ echo 'navItemId=' . ($result['nav']['items'][0]['id'] ?? '') . "\n";
 echo 'navItemClass=' . ($result['nav']['items'][0]['class'] ?? '') . "\n";
 echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'navCfiPath=' . ($result['nav']['items'][0]['children'][0]['epubCfi']['path'] ?? '') . "\n";
+echo 'ncxTitle=' . ($result['ncx']['docTitle'] ?? '') . "\n";
+echo 'ncxAuthors=' . implode(',', $result['ncx']['docAuthors'] ?? []) . "\n";
+echo 'ncxUid=' . ($result['ncx']['head']['uid'] ?? '') . "\n";
+echo 'ncxDepth=' . ($result['ncx']['head']['depth'] ?? '') . "\n";
+echo 'ncxHeadMeta=' . ($result['ncx']['head']['metaCount'] ?? 0) . "\n";
 echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";
 echo 'navigationMappedTargets=' . ($result['navigation']['mappedSpineTargetCount'] ?? 0) . "\n";
 echo 'navigationCfiTargets=' . ($result['navigation']['cfiTargetCount'] ?? 0) . "\n";
