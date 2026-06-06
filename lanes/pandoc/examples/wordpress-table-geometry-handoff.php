@@ -801,7 +801,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source-to-visual coverage coordinates');
     }
     $writerDowngrades = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'markdown');
-    if (array_map(static fn (array $diagnostic): string => $diagnostic['code'], $writerDowngrades) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
+    if (array_map(static fn (array $diagnostic): string => $diagnostic['code'], $writerDowngrades) !== ['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing Markdown writer downgrade diagnostics');
     }
     $rstWriterRequirements = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'rst-grid-table');
@@ -813,10 +813,10 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing RST grid-table writer requirement diagnostics');
     }
     $migrationPacket = TableGeometry::reviewPacket($document->children[0], ['idPrefix' => 'Migration Grid']);
-    if (($migrationPacket['summary']['writerDowngradeCount'] ?? null) !== 2 || ($migrationPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
+    if (($migrationPacket['summary']['writerDowngradeCount'] ?? null) !== 3 || ($migrationPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing review-packet writer downgrade summary');
     }
-    if (($migrationPacket['writerDowngrades']['markdown'][0]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
+    if (($migrationPacket['writerDowngrades']['markdown'][1]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
         throw new RuntimeException('Table geometry self-test missing flattened span slot report');
     }
     $multiWriterPacket = TableGeometry::reviewPacket($document->children[0], [
@@ -824,8 +824,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'writers' => ['markdown', 'restructuredtext'],
     ]);
     if (
-        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 3
-        || ($multiWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required']
+        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 4
+        || ($multiWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required']
         || ($multiWriterPacket['summary']['writerDowngradeWriters'] ?? null) !== ['markdown', 'rst']
     ) {
         throw new RuntimeException('Table geometry self-test missing multi-writer downgrade summary');
@@ -1116,7 +1116,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($rowspanZeroPacket['rowGroups'][1]['sourceAttributes']['id'] ?? null) !== 'posts-body' || ($rowspanZeroPacket['rowGroups'][2]['sourceAttributes']['id'] ?? null) !== 'pages-body') {
         throw new RuntimeException('Table geometry self-test missing HTML row-group source attributes');
     }
-    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-rowspan-flattened']) {
+    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero Markdown downgrade packet');
     }
     if (!str_contains($blocks, '<tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody>')) {

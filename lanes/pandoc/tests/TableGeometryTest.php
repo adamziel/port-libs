@@ -695,6 +695,52 @@ return [
         $t->contains('<colgroup><col style="width:20%"/><col style="width:25%"/><col style="width:25%"/><col style="width:30%"/></colgroup>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Import queue with reserved audit column</figcaption>', $blocks);
     },
+    'reports markdown pipe-table width approximation for explicit colspecs' => static function (TestRunner $t) use ($buildColspecTableDocument, $buildDefaultColumnSpecDocument): void {
+        $table = $buildColspecTableDocument()->children[0];
+        $diagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown'],
+        ]);
+        $partialTable = $buildDefaultColumnSpecDocument()->children[0];
+
+        $t->same(['markdown-column-widths-approximated'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same('markdown', $diagnostics[0]['writer'] ?? null);
+        $t->same('column-widths', $diagnostics[0]['reason'] ?? null);
+        $t->same('pipe-table-character-padding', $diagnostics[0]['requiredFeature'] ?? null);
+        $t->same('table-widths', $diagnostics[0]['source'] ?? null);
+        $t->same(4, $diagnostics[0]['columnCount'] ?? null);
+        $t->same(4, $diagnostics[0]['explicitWidthCount'] ?? null);
+        $t->same(4, $diagnostics[0]['validWidthCount'] ?? null);
+        $t->same(0, $diagnostics[0]['missingWidthCount'] ?? null);
+        $t->same([0, 1, 2, 3], $diagnostics[0]['validWidthColumns'] ?? null);
+        $t->same([], $diagnostics[0]['missingColumns'] ?? null);
+        $t->same(1.0, $diagnostics[0]['widthTotal'] ?? null);
+        $t->same([0.2, 0.25, 0.25, 0.3], $diagnostics[0]['normalizedWidths'] ?? null);
+        $t->same([20.0, 25.0, 25.0, 30.0], $diagnostics[0]['percentWidths'] ?? null);
+        $t->same([8, 10, 10, 12], $diagnostics[0]['pipeCharacterWidths'] ?? null);
+        $t->same(true, $diagnostics[0]['hasCompleteWidths'] ?? null);
+        $t->same(false, $diagnostics[0]['hasPartialWidths'] ?? null);
+        $t->same(false, $diagnostics[0]['overfull'] ?? null);
+        $t->same(false, $diagnostics[0]['underfull'] ?? null);
+        $t->same($diagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same(1, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['markdown-column-widths-approximated'], $packet['summary']['writerDowngradeCodes'] ?? null);
+
+        $partialDiagnostics = TableGeometry::writerDowngradeDiagnostics($partialTable, 'markdown');
+        $t->same(['markdown-column-widths-approximated'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $partialDiagnostics));
+        $t->same(3, $partialDiagnostics[0]['explicitWidthCount'] ?? null);
+        $t->same(2, $partialDiagnostics[0]['validWidthCount'] ?? null);
+        $t->same(2, $partialDiagnostics[0]['missingWidthCount'] ?? null);
+        $t->same([0, 2], $partialDiagnostics[0]['validWidthColumns'] ?? null);
+        $t->same([1, 3], $partialDiagnostics[0]['missingColumns'] ?? null);
+        $t->same([4, null, 18, null], $partialDiagnostics[0]['pipeCharacterWidths'] ?? null);
+        $t->same(false, $partialDiagnostics[0]['hasCompleteWidths'] ?? null);
+        $t->same(true, $partialDiagnostics[0]['hasPartialWidths'] ?? null);
+        json_encode($diagnostics, JSON_THROW_ON_ERROR);
+        json_encode($partialDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'normalizes declared and implicit pandoc column specs for review handoff' => static function (TestRunner $t) use ($buildDefaultColumnSpecDocument): void {
         $document = $buildDefaultColumnSpecDocument();
         $table = $document->children[0];
@@ -1114,27 +1160,29 @@ return [
         $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Downgrade Grid']);
         $plainTable = $buildSpannedTableDocument()->children[0];
 
-        $t->same(['markdown-colspan-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
+        $t->same(['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
         $t->same(['markdown'], array_values(array_unique(array_map(static fn (array $diagnostic): string => $diagnostic['writer'], $diagnostics))));
-        $t->same('head', $diagnostics[0]['section']);
-        $t->same(0, $diagnostics[0]['row']);
-        $t->same(0, $diagnostics[0]['column']);
-        $t->same([0, 1], $diagnostics[0]['columns']);
-        $t->same(2, $diagnostics[0]['rawColspan']);
-        $t->same(1, $diagnostics[0]['rawRowspan']);
-        $t->same([['row' => 0, 'column' => 1, 'covering' => 'colspan']], $diagnostics[0]['flattenedSlots']);
-        $t->same('body', $diagnostics[1]['section']);
+        $t->same('column-widths', $diagnostics[0]['reason']);
+        $t->same([10, 10, 10, 10], $diagnostics[0]['pipeCharacterWidths']);
+        $t->same('head', $diagnostics[1]['section']);
+        $t->same(0, $diagnostics[1]['row']);
+        $t->same(0, $diagnostics[1]['column']);
         $t->same([0, 1], $diagnostics[1]['columns']);
+        $t->same(2, $diagnostics[1]['rawColspan']);
+        $t->same(1, $diagnostics[1]['rawRowspan']);
         $t->same([['row' => 0, 'column' => 1, 'covering' => 'colspan']], $diagnostics[1]['flattenedSlots']);
-        $t->same('markdown-rowspan-flattened', $diagnostics[2]['code']);
-        $t->same(2, $diagnostics[2]['rawRowspan']);
+        $t->same('body', $diagnostics[2]['section']);
+        $t->same([0, 1], $diagnostics[2]['columns']);
+        $t->same([['row' => 0, 'column' => 1, 'covering' => 'colspan']], $diagnostics[2]['flattenedSlots']);
+        $t->same('markdown-rowspan-flattened', $diagnostics[3]['code']);
+        $t->same(2, $diagnostics[3]['rawRowspan']);
         $t->same([
             ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
             ['row' => 1, 'column' => 1, 'covering' => 'rowspan-colspan'],
-        ], $diagnostics[2]['flattenedSlots']);
+        ], $diagnostics[3]['flattenedSlots']);
         $t->same($diagnostics, $packet['writerDowngrades']['markdown'] ?? null);
-        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
-        $t->same(['markdown-colspan-flattened', 'markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(4, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'wordpress'));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
@@ -1162,8 +1210,8 @@ return [
         $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'rst-grid-table'));
         $t->same(['markdown', 'rst'], array_keys($packet['writerDowngrades']));
         $t->same($diagnostics, $packet['writerDowngrades']['rst'] ?? null);
-        $t->same(4, $packet['summary']['writerDowngradeCount'] ?? null);
-        $t->same(['markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(5, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same(['markdown', 'rst'], $packet['summary']['writerDowngradeWriters'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },

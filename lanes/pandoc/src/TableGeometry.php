@@ -2463,6 +2463,7 @@ final class TableGeometry
         $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
         if ($table instanceof AstNode) {
             array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::markdownColumnWidthDiagnostics($table, $writer));
         }
         foreach ($coverage as $record) {
             $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -2503,6 +2504,49 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function markdownColumnWidthDiagnostics(AstNode $table, string $writer): array
+    {
+        if ($writer !== 'markdown') {
+            return [];
+        }
+
+        $summary = self::columnWidthSummary($table);
+        if (($summary['hasExplicitWidths'] ?? false) !== true || (int) ($summary['validWidthCount'] ?? 0) <= 0) {
+            return [];
+        }
+
+        $percentWidths = $summary['percentWidths'] ?? [];
+        $pipeWidths = [];
+        foreach (is_array($percentWidths) ? $percentWidths : [] as $percentWidth) {
+            $pipeWidths[] = $percentWidth === null ? null : max(1, (int) ceil(((float) $percentWidth / 100.0) * 40.0));
+        }
+
+        return [[
+            'code' => 'markdown-column-widths-approximated',
+            'writer' => $writer,
+            'reason' => 'column-widths',
+            'requiredFeature' => 'pipe-table-character-padding',
+            'source' => 'table-widths',
+            'columnCount' => (int) $summary['columnCount'],
+            'explicitWidthCount' => (int) $summary['explicitWidthCount'],
+            'validWidthCount' => (int) $summary['validWidthCount'],
+            'missingWidthCount' => (int) $summary['missingWidthCount'],
+            'validWidthColumns' => self::intList($summary['validWidthColumns'] ?? []),
+            'missingColumns' => self::intList($summary['missingColumns'] ?? []),
+            'widthTotal' => (float) $summary['widthTotal'],
+            'normalizedWidths' => $summary['normalizedWidths'],
+            'percentWidths' => $summary['percentWidths'],
+            'pipeCharacterWidths' => $pipeWidths,
+            'hasCompleteWidths' => (bool) ($summary['hasCompleteWidths'] ?? false),
+            'hasPartialWidths' => (bool) ($summary['hasPartialWidths'] ?? false),
+            'overfull' => (bool) ($summary['overfull'] ?? false),
+            'underfull' => (bool) ($summary['underfull'] ?? false),
+        ]];
     }
 
     /**
