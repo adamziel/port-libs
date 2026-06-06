@@ -2786,8 +2786,17 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $bytes = $streamObject['stream'];
         $dict = $this->dict($streamObject['value']) ?? [];
+
+        return $this->decodedStreamBytesForDictionary($streamObject['stream'], $dict, $objects);
+    }
+
+    /**
+     * @param array<string, mixed> $dict
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function decodedStreamBytesForDictionary(string $bytes, array $dict, array $objects): ?string
+    {
         $filters = $this->filterSlots($dict['Filter'] ?? null, $objects);
         if ($filters === null) {
             return null;
@@ -2828,6 +2837,33 @@ final class PdfAttachmentExtractor
         }
 
         return $bytes;
+    }
+
+    /**
+     * @param array<string, mixed> $dict
+     */
+    private function hasDirectDecodableStreamFilterStack(string $bytes, array $dict): bool
+    {
+        $filters = $this->filterSlots($dict['Filter'] ?? null, []);
+        if ($filters === null || !$this->filterSlotsContainFilter($filters)) {
+            return false;
+        }
+
+        return $this->decodedStreamBytesForDictionary($bytes, $dict, []) !== null;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function filterSlotsContainFilter(array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decodePdfDocEncoding(string $bytes): string
@@ -6521,11 +6557,21 @@ final class PdfAttachmentExtractor
 
         $stream = substr($body, $index, $end - $index);
         $length = $this->intValue($dict['Length'] ?? null);
+        $streamWithoutTrailingLineEnding = preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
         if ($length !== null && $length >= 0 && $length <= strlen($stream)) {
-            return substr($stream, 0, $length);
+            $declaredStream = substr($stream, 0, $length);
+            if (
+                $streamWithoutTrailingLineEnding !== $declaredStream
+                && !$this->hasDirectDecodableStreamFilterStack($declaredStream, $dict)
+                && $this->hasDirectDecodableStreamFilterStack($streamWithoutTrailingLineEnding, $dict)
+            ) {
+                return $streamWithoutTrailingLineEnding;
+            }
+
+            return $declaredStream;
         }
 
-        return preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
+        return $streamWithoutTrailingLineEnding;
     }
 
     private function topLevelDictionaryBodyFromObjectBody(string $body): ?string

@@ -242,6 +242,40 @@ if ($indirectOperandSummaryJson === false || $indirectOperandFilesJson === false
     throw new RuntimeException('Expected indirect filter operand attachment summary JSON.');
 }
 
+$shortLengthVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Short Length Stack Review) Tj ET';
+$shortLengthPayload = "Title,Status\nShort Length Stacked Attachment,Ready\n";
+$shortLengthCompressed = gzcompress($shortLengthPayload);
+$shortLengthSurplusPayload = "Title,Status\nShort Length Surplus Stacked Attachment,Blocked\n";
+$shortLengthSurplusCompressed = gzcompress($shortLengthSurplusPayload);
+if (!is_string($shortLengthCompressed) || !is_string($shortLengthSurplusCompressed)) {
+    throw new RuntimeException('Unable to compress short-length attachment smoke payloads.');
+}
+$shortLengthEncoded = $ascii85Encode($shortLengthCompressed);
+$shortLengthSurplusCleanEncoded = $ascii85Encode($shortLengthSurplusCompressed);
+$shortLengthSurplusEncoded = $shortLengthSurplusCleanEncoded
+    . 'BT /F1 12 Tf 72 680 Td (short length attachment surplus smoke bytes) Tj ET';
+$shortLengthPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($shortLengthVisible) . " >>\nstream\n{$shortLengthVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(short-length-stack.csv) 10 0 R (short-length-surplus.csv) 12 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (short-length-stack.csv) /Desc (Short declared attachment stream length) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($shortLengthPayload) . " /CheckSum <" . md5($shortLengthPayload) . "> >> /Length " . max(0, strlen($shortLengthEncoded) - 7) . " >>\nstream\n{$shortLengthEncoded}\nendstream\nendobj\n"
+    . "12 0 obj\n<< /Type /Filespec /F (short-length-surplus.csv) /Desc (Short declared surplus attachment stream length) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($shortLengthSurplusPayload) . " /CheckSum <" . md5($shortLengthSurplusPayload) . "> >> /Length " . max(0, strlen($shortLengthSurplusCleanEncoded) - 7) . " >>\nstream\n{$shortLengthSurplusEncoded}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$shortLengthSummary = (new PdfAttachmentExtractor())->attachmentSummary($shortLengthPdf);
+$shortLengthFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($shortLengthPdf);
+$shortLengthText = (new PdfTextExtractor())->extractPlainText($shortLengthPdf);
+$shortLengthSummaryJson = json_encode($shortLengthSummary, JSON_UNESCAPED_SLASHES);
+$shortLengthFilesJson = json_encode($shortLengthFiles, JSON_UNESCAPED_SLASHES);
+if ($shortLengthSummaryJson === false || $shortLengthFilesJson === false) {
+    throw new RuntimeException('Expected short-length attachment summary JSON.');
+}
+
 $metadata = [
     'native_boundary' => 'WordPress attachment preflight stream-filter stack decoding',
     'attachment_count' => $summary['attachment_count'] ?? null,
@@ -310,6 +344,19 @@ $metadata = [
         && !str_contains($indirectOperandFilesJson, 'Cyclic Filter Operand Attachment Leak')
         && !str_contains($indirectOperandText, 'Cyclic Filter Operand Attachment Leak'),
     'indirect_operand_visible_text_preserved' => $indirectOperandText === 'Visible Attachment Indirect Operand Review',
+    'short_length_attachment_recovered' => ($shortLengthSummary['attachment_count'] ?? null) === 1
+        && ($shortLengthSummary['attachments'][0]['filename'] ?? null) === 'short-length-stack.csv'
+        && ($shortLengthSummary['attachments'][0]['checksum_matches'] ?? false) === true
+        && (($shortLengthFiles[0]['content'] ?? null) === $shortLengthPayload),
+    'short_length_filters' => $shortLengthSummary['attachments'][0]['filters'] ?? [],
+    'short_length_payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $shortLengthSummary['attachments'][0] ?? []),
+    'short_length_surplus_attachment_rejected' => !str_contains($shortLengthSummaryJson, 'short-length-surplus.csv')
+        && !str_contains($shortLengthFilesJson, 'short-length-surplus.csv'),
+    'short_length_surplus_payload_excluded' => !str_contains($shortLengthSummaryJson, 'Short Length Surplus Stacked Attachment')
+        && !str_contains($shortLengthFilesJson, 'Short Length Surplus Stacked Attachment')
+        && !str_contains($shortLengthText, 'Short Length Surplus Stacked Attachment')
+        && !str_contains($shortLengthText, 'short length attachment surplus smoke bytes'),
+    'short_length_visible_text_preserved' => $shortLengthText === 'Visible Attachment Short Length Stack Review',
     'executes_python_or_models' => $summary['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $summary['executes_external_pdf_tools'] ?? null,
 ];

@@ -173,6 +173,44 @@ $attachmentStreamFilterStackBoundaryCurrentBaseLzwPdf = static function () use (
     ];
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseShortLengthPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Short Length Stack Review) Tj ET';
+    $payload = "Title,Status\nShort Length Attachment,Ready\n";
+    $compressed = gzcompress($payload);
+    if (!is_string($compressed)) {
+        throw new RuntimeException('Unable to compress focused attachment short-length stack payload.');
+    }
+    $encoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85($compressed);
+
+    $surplusPayload = "Title,Status\nShort Length Surplus Attachment,Blocked\n";
+    $surplusCompressed = gzcompress($surplusPayload);
+    if (!is_string($surplusCompressed)) {
+        throw new RuntimeException('Unable to compress focused attachment short-length surplus payload.');
+    }
+    $surplusCleanEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85($surplusCompressed);
+    $surplusEncoded = $surplusCleanEncoded
+        . 'BT /F1 12 Tf 72 680 Td (short length attachment surplus bytes) Tj ET';
+
+    return [
+        'payload' => $payload,
+        'excluded_payload' => $surplusPayload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(short-length-stack.csv) 10 0 R (short-length-surplus.csv) 12 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (short-length-stack.csv) /Desc (Short declared attachment stream length) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($payload) . " /CheckSum <" . md5($payload) . "> >> /Length " . max(0, strlen($encoded) - 7) . " >>\nstream\n{$encoded}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /F (short-length-surplus.csv) /Desc (Short declared surplus attachment stream length) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($surplusPayload) . " /CheckSum <" . md5($surplusPayload) . "> >> /Length " . max(0, strlen($surplusCleanEncoded) - 7) . " >>\nstream\n{$surplusEncoded}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 $attachmentStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf = static function () use (
     $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
 ): string {
@@ -415,6 +453,57 @@ return [
         $t->true(!str_contains($plainText, 'LZW Flate Attachment'));
         $t->true(!str_contains($plainText, 'LZW Surplus Attachment'));
         $t->true(!str_contains($plainText, 'LZW attachment surplus bytes'));
+    },
+    'recovers short declared attachment lengths only when the complete filter stack reaches endstream' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseShortLengthPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseShortLengthPdf();
+        $pdf = $fixture['pdf'];
+        $payload = $fixture['payload'];
+        $excludedPayload = $fixture['excluded_payload'];
+        $checksum = md5($payload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['short-length-stack.csv'], $summary['filenames']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('short-length-stack.csv', $attachment['filename'] ?? null);
+        $t->same('Short declared attachment stream length', $attachment['description'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($payload), $attachment['declared_size'] ?? null);
+        $t->same(true, $attachment['declared_size_matches'] ?? null);
+        $t->same(strlen($payload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['checksum_hex'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('short-length-stack.csv', $files[0]['filename'] ?? null);
+        $t->same($payload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same(strlen($payload), $files[0]['size'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Short Length Stack Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $payload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'short-length-surplus.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $excludedPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'short-length-surplus.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $excludedPayload));
+        $t->true(!str_contains($plainText, 'Short Length Attachment'));
+        $t->true(!str_contains($plainText, 'Short Length Surplus Attachment'));
+        $t->true(!str_contains($plainText, 'short length attachment surplus bytes'));
     },
     'rejects extra non-null DecodeParms entries in attachment filter stacks before summary or payload extraction' => static function (
         TestRunner $t
