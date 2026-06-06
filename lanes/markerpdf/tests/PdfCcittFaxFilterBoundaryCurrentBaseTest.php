@@ -2840,4 +2840,120 @@ return [
         $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encodedReview, $faxPayload));
     },
+    'resolves chained indirect renderer CCITT Fax Filter and DecodeParms operands before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $payload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Renderer chained indirect CCITT payload noise) Tj ET final";
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 16 /Height 2 /ImageMask true /BitsPerComponent 1 /Filter 20 0 R /DecodeParms 30 0 R /Decode [1 0] >>',
+            [
+                20 => '21 0 R',
+                21 => '/CCF',
+                30 => '31 0 R',
+                31 => '<< /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EncodedByteAlign true /EndOfBlock false >>',
+            ]
+        );
+
+        $t->same(['CCF'], $plan['image_filters']);
+        $t->same(['CCF'], $plan['image_filter_boundary']['preview_only_filters'] ?? null);
+        $t->same(false, $plan['image_filter_boundary']['native_raster_decode'] ?? null);
+        $t->same([
+            [
+                'filter' => 'CCF',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 16,
+                    'rows' => 2,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => true,
+                    'end_of_line' => null,
+                    'end_of_block' => false,
+                    'damaged_rows_before_error' => null,
+                ],
+            ],
+        ], $plan['image_filter_details']);
+        $t->same([
+            'filter' => 'CCF',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'invalid_decode_parms_fields' => [],
+            'effective_decode_parms' => [
+                'k' => -1,
+                'columns' => 16,
+                'rows' => 2,
+                'black_is_1' => true,
+                'encoded_byte_align' => true,
+                'end_of_line' => false,
+                'end_of_block' => false,
+                'damaged_rows_before_error' => 0,
+            ],
+            'defaults_applied' => ['end_of_line', 'damaged_rows_before_error'],
+            'dictionary_width' => 16,
+            'dictionary_height' => 2,
+            'effective_width' => 16,
+            'effective_height' => 2,
+            'width_source' => 'image_dictionary',
+            'height_source' => 'image_dictionary',
+            'columns_match_width' => true,
+            'rows_match_height' => true,
+            'dimension_mismatch' => false,
+        ], $plan['ccitt_fax_decode_boundary']);
+        $t->same([
+            'declared_filter' => 'CCF',
+            'canonical_filter' => 'CCITTFaxDecode',
+            'alias_used' => true,
+            'non_null_filter_index' => 0,
+            'filters_before_ccitt' => [],
+            'native_prefix_filters' => [],
+            'preview_only_filters_before_ccitt' => [],
+            'filters_after_ccitt' => [],
+            'native_filters_after_ccitt' => [],
+            'preview_only_filters_after_ccitt' => [],
+            'ccitt_is_terminal_filter' => true,
+            'post_ccitt_filters_present' => false,
+            'post_ccitt_filters_block_native_decode' => false,
+            'source_filter_preserved' => true,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ], $plan['ccitt_fax_filter_boundary']);
+        $t->same('group4_two_dimensional', $plan['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+        $t->same(null, $plan['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+        $t->same([
+            'filter' => 'CCF',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => true,
+            'black_sample_value' => 1,
+            'white_sample_value' => 0,
+            'image_mask_decode_source' => 'explicit',
+            'decode_inverts_stencil' => true,
+            'black_sample_opacity' => 0.0,
+            'white_sample_opacity' => 1.0,
+            'black_sample_is_visible' => false,
+            'white_sample_is_visible' => true,
+        ], $plan['ccitt_fax_imagemask_polarity_boundary']);
+        $t->contains('ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
+        $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Renderer chained indirect CCITT payload noise'));
+        $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', $payload));
+
+        $cyclicPlan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter 40 0 R /DecodeParms 50 0 R >>',
+            [
+                40 => '41 0 R',
+                41 => '40 0 R',
+                50 => '51 0 R',
+                51 => '50 0 R',
+            ]
+        );
+
+        $t->same(['UnresolvedFilterOperand'], $cyclicPlan['image_filters']);
+        $t->same(null, $cyclicPlan['ccitt_fax_decode_boundary'] ?? null);
+        $t->same(null, $cyclicPlan['ccitt_fax_filter_boundary'] ?? null);
+        $t->same(false, $cyclicPlan['image_filter_boundary']['native_raster_decode'] ?? null);
+        $t->contains('unresolved_image_filter_operand_fail_closed', implode(',', $cyclicPlan['notes']));
+    },
 ];

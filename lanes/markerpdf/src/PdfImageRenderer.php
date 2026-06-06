@@ -8577,7 +8577,7 @@ final class PdfImageRenderer
 
         $seenObjects[$objectNumber] = true;
 
-        return ['value' => trim($objects[$objectNumber]), 'seen' => $seenObjects];
+        return $this->resolvePdfValueWithSeen(trim($objects[$objectNumber]), $objects, $seenObjects);
     }
 
     /**
