@@ -3062,6 +3062,94 @@ return [
         $t->true(str_contains($encoded, hash('sha256', $tilePayload)));
         $t->true(str_contains($encoded, hash('sha256', $unusedPayload)));
     },
+    'propagates marked-content metadata from pattern paints to image XObject review entries' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before marked pattern image) Tj ET\n"
+            . "/Figure << /MCID 17 >> BDC /Pattern cs /Figure#20Tile scn 0 0 20 10 re f EMC\n"
+            . "/Figure /Pattern#20Props BDC /Pattern cs /Property#20Tile scn 0 0 20 10 re f EMC\n"
+            . 'BT /F1 12 Tf 72 660 Td (After marked pattern image) Tj ET';
+        $figurePatternContent = 'q 6 0 0 3 1 2 cm /Figure#20Pattern#20Image Do Q';
+        $propertyPatternContent = 'q 4 0 0 2 2 1 cm /Property#20Pattern#20Image Do Q';
+        $figurePayload = 'BT /F1 12 Tf 72 720 Td (Figure Pattern Image Payload Noise) Tj ET';
+        $propertyPayload = 'BT /F1 12 Tf 72 720 Td (Property Pattern Image Payload Noise) Tj ET';
+        $figureCompressed = gzcompress($figurePayload);
+        $propertyCompressed = gzcompress($propertyPayload);
+        if (!is_string($figureCompressed) || !is_string($propertyCompressed)) {
+            throw new RuntimeException('Unable to compress marked pattern image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Properties << /Pattern#20Props << /MCID 18 >> >> /Pattern << /Figure#20Tile 11 0 R /Property#20Tile 12 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 6 /Height 3 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($figureCompressed) . " >>\nstream\n{$figureCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($propertyCompressed) . " >>\nstream\n{$propertyCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "11 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 20 20] /XStep 20 /YStep 20 /Matrix [1 0 0 1 3 4] /Resources << /XObject << /Figure#20Pattern#20Image 5 0 R >> >> /Length " . strlen($figurePatternContent) . " >>\nstream\n{$figurePatternContent}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 20 20] /XStep 20 /YStep 20 /Matrix [1 0 0 1 5 6] /Resources << /XObject << /Property#20Pattern#20Image 6 0 R >> >> /Length " . strlen($propertyPatternContent) . " >>\nstream\n{$propertyPatternContent}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $figure = $entriesByName['Figure Pattern Image'];
+        $t->same('Figure Tile', $figure['pattern_resource_name'] ?? null);
+        $t->same(true, $figure['pattern_review_only'] ?? null);
+        $t->same(true, $figure['marked_content_review_only']);
+        $t->same([['Figure']], array_column($figure['invocation_marked_content'], 'tags'));
+        $t->same([[17]], array_column($figure['invocation_marked_content'], 'mcids'));
+        $t->same([
+            [
+                'tag' => 'Figure',
+                'mcid' => 17,
+                'property_resource_name' => null,
+                'property_source' => 'direct',
+                'actual_text' => null,
+                'alt_text' => null,
+                'review_only' => true,
+            ],
+        ], $figure['invocation_marked_content'][0]['stack']);
+        $t->same(hash('sha256', $figurePayload), $figure['decoded_sha256']);
+
+        $property = $entriesByName['Property Pattern Image'];
+        $t->same('Property Tile', $property['pattern_resource_name'] ?? null);
+        $t->same(true, $property['pattern_review_only'] ?? null);
+        $t->same(true, $property['marked_content_review_only']);
+        $t->same([['Figure']], array_column($property['invocation_marked_content'], 'tags'));
+        $t->same([[18]], array_column($property['invocation_marked_content'], 'mcids'));
+        $t->same([
+            [
+                'tag' => 'Figure',
+                'mcid' => 18,
+                'property_resource_name' => 'Pattern Props',
+                'property_source' => 'Resources.Properties',
+                'actual_text' => null,
+                'alt_text' => null,
+                'review_only' => true,
+            ],
+        ], $property['invocation_marked_content'][0]['stack']);
+        $t->same(hash('sha256', $propertyPayload), $property['decoded_sha256']);
+
+        $t->same(['Before marked pattern image', 'After marked pattern image'], $extractor->extractTextLines($pdf));
+        $t->same("Before marked pattern image\nAfter marked pattern image", $plainText);
+        $t->true(!str_contains($plainText, 'Figure Pattern Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Property Pattern Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $figurePayload));
+        $t->true(!str_contains($encoded, $propertyPayload));
+        $t->true(str_contains($encoded, hash('sha256', $figurePayload)));
+        $t->true(str_contains($encoded, hash('sha256', $propertyPayload)));
+    },
     'maps image XObjects painted from stroking tiling pattern streams as review-only metadata' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before stroking pattern image) Tj ET\n"
             . "2 w /Pattern CS /Stroke#20Tile SCN 0 0 m 20 0 l 20 10 l S\n"

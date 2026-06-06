@@ -5053,12 +5053,14 @@ final class PdfTextExtractor
     /**
      * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, form_transparency_groups?: list<array<string, mixed>>}>>
+     * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
      */
     private function contentPatternPaintInvocationDetails(
         string $content,
         array $baseStates = [],
-        array $graphicsStateResourceReviews = []
+        array $graphicsStateResourceReviews = [],
+        array $markedContentProperties = []
     ): array
     {
         $currentStates = $this->normalizedInvocationBaseStates($baseStates);
@@ -5108,6 +5110,33 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'BMC' || $token === 'BDC') {
+                $markedContent = $this->imageInvocationMarkedContentFromOperands(
+                    $operands,
+                    $markedContentProperties,
+                    $token === 'BDC'
+                );
+                foreach ($currentStates as $index => $state) {
+                    $stack = $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []);
+                    if ($markedContent !== null) {
+                        $stack[] = $markedContent;
+                    }
+                    $currentStates[$index]['marked_content'] = $stack;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                foreach ($currentStates as $index => $state) {
+                    $stack = $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []);
+                    array_pop($stack);
+                    $currentStates[$index]['marked_content'] = $stack;
+                }
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'q') {
                 $graphicsStateStack[] = $currentStates;
                 $operands = [];
@@ -5152,6 +5181,7 @@ final class PdfTextExtractor
                                 'clipped' => $clipRectangle !== null
                                     && ($visibleBbox === null || !$this->pdfRectanglesEqual($pathBbox, $visibleBbox)),
                                 'graphics_state' => $graphicsState,
+                                'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                                 'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
                             ];
                         }
@@ -6419,7 +6449,12 @@ final class PdfTextExtractor
             ) as $resourceName => $details) {
                 $invocations[$resourceName] = array_merge($invocations[$resourceName] ?? [], $details);
             }
-            foreach ($this->contentPatternPaintInvocationDetails($content, $ownerInvocationMatrices, $graphicsStateResourceReviews) as $resourceName => $details) {
+            foreach ($this->contentPatternPaintInvocationDetails(
+                $content,
+                $ownerInvocationMatrices,
+                $graphicsStateResourceReviews,
+                $markedContentProperties
+            ) as $resourceName => $details) {
                 $patternPaints[$resourceName] = array_merge($patternPaints[$resourceName] ?? [], $details);
             }
         }
