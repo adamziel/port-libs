@@ -583,6 +583,7 @@ final class UnicodeText
     /** @var array<int, int> */
     private const GBK_PAIRS = [
         0xa1a3 => 0x3002,
+        0xa2e3 => 0x20ac,
         0xa3ac => 0xff0c,
         0xb1b1 => 0x5317,
         0xb2e2 => 0x6d4b,
@@ -592,6 +593,13 @@ final class UnicodeText
         0xcce5 => 0x4f53,
         0xcec4 => 0x6587,
         0xd6d0 => 0x4e2d,
+    ];
+
+    /** @var array<int, int> */
+    private const GB18030_FOUR_BYTE_SEQUENCES = [
+        0x81308b38 => 0x0100,
+        0x9439fc36 => 0x1f600,
+        0x95328236 => 0x20000,
     ];
 
     /** @var array<int, int> */
@@ -712,6 +720,7 @@ final class UnicodeText
             || $normalized === 'iso-2022-jp'
             || $normalized === 'big5'
             || $normalized === 'gbk'
+            || $normalized === 'gb18030'
             || $normalized === 'euc-kr'
             || $normalized === 'hz-gb-2312'
         ) {
@@ -721,6 +730,7 @@ final class UnicodeText
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
                 'big5' => self::decodeBig5($bytes),
                 'gbk' => self::decodeGbk($bytes),
+                'gb18030' => self::decodeGb18030($bytes),
                 'euc-kr' => self::decodeEucKr($bytes),
                 default => self::decodeHzGb2312($bytes),
             };
@@ -1178,7 +1188,8 @@ final class UnicodeText
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
             'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
             'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
-            'gbk', 'gb18030', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
+            'gb18030' => 'gb18030',
+            'gbk', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
             'euckr', 'cseuckr', 'csksc56011987', 'korean', 'isoir149', 'ksc5601', 'ksc56011987',
             'ksc56011989', 'windows949', 'cp949', 'ms949', 'uhc' => 'euc-kr',
@@ -1893,6 +1904,74 @@ final class UnicodeText
             }
 
             $pair = ($byte << 8) | $trail;
+            if (!isset(self::GBK_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::GBK_PAIRS[$pair]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeGb18030(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+
+            if ($byte < 0x81 || $byte > 0xfe || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $second = ord($bytes[$offset + 1]);
+            if ($second >= 0x30 && $second <= 0x39) {
+                if ($offset + 3 < $length) {
+                    $third = ord($bytes[$offset + 2]);
+                    $fourth = ord($bytes[$offset + 3]);
+                    if ($third >= 0x81 && $third <= 0xfe && $fourth >= 0x30 && $fourth <= 0x39) {
+                        $sequence = ($byte << 24) | ($second << 16) | ($third << 8) | $fourth;
+                        if (isset(self::GB18030_FOUR_BYTE_SEQUENCES[$sequence])) {
+                            $out .= self::fromCodepoint(self::GB18030_FOUR_BYTE_SEQUENCES[$sequence]);
+                        } else {
+                            $out .= self::REPLACEMENT;
+                            $repairs++;
+                        }
+                        $offset += 3;
+                        continue;
+                    }
+                }
+
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            if (!(($second >= 0x40 && $second <= 0x7e) || ($second >= 0x80 && $second <= 0xfe))) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($second > 0x7f) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $pair = ($byte << 8) | $second;
             if (!isset(self::GBK_PAIRS[$pair])) {
                 $out .= self::REPLACEMENT;
                 $repairs++;

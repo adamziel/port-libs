@@ -266,7 +266,7 @@ return [
     },
     'decodes bounded gbk simplified chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
-        $decoded = UnicodeText::decodeBytes($bytes, 'gb18030');
+        $decoded = UnicodeText::decodeBytes($bytes, 'gbk');
         $document = (new MarkdownReader())->readBytes($bytes, 'gb2312');
         $blocks = (new WordPressBlockWriter())->write($document);
         $malformedLead = UnicodeText::decodeBytes("\xD6\"A", 'gbk');
@@ -285,6 +285,28 @@ return [
         $t->same(1, $malformedLead['repairs']);
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
+    },
+    'decodes bounded gb18030 four byte source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# GB18030\n\nEmoji \x94\x39\xFC\x36 CJK \x95\x32\x82\x36 Latin \x81\x30\x8B\x38 Euro \xA2\xE3.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'gb18030');
+        $document = (new MarkdownReader())->readBytes($bytes, 'gb-18030');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedFourByte = UnicodeText::decodeBytes("\x94\x39\"A", 'gb18030');
+        $unsupportedFourByte = UnicodeText::decodeBytes("\x81\x30\x81\x30A", 'gb18030');
+
+        $t->same('gb18030', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# GB18030\n\nEmoji \u{1F600} CJK \u{20000} Latin \u{0100} Euro \u{20AC}.", $decoded['text']);
+        $t->same(['encoding' => 'gb18030', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('GB18030', $document->children[0]->attr('text'));
+        $t->same("Emoji \u{1F600} CJK \u{20000} Latin \u{0100} Euro \u{20AC}.", $document->children[1]->attr('text'));
+        $t->same(31, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="gb18030">GB18030</h1>', $blocks);
+        $t->contains("<p>Emoji \u{1F600} CJK \u{20000} Latin \u{0100} Euro \u{20AC}.</p>", $blocks);
+        $t->same("\u{FFFD}9\"A", $malformedFourByte['text']);
+        $t->same(1, $malformedFourByte['repairs']);
+        $t->same("\u{FFFD}A", $unsupportedFourByte['text']);
+        $t->same(1, $unsupportedFourByte['repairs']);
     },
     'decodes bounded euc kr korean source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');

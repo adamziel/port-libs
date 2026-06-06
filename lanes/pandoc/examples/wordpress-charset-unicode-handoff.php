@@ -51,8 +51,11 @@ $big5Bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141a
 $big5Source = (new MarkdownReader())->readBytes($big5Bytes, 'big5-hkscs');
 $big5Text = (string) $big5Source->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
-$gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gb18030');
+$gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
+$gb18030Bytes = "# GB18030\n\nEmoji \x94\x39\xFC\x36 CJK \x95\x32\x82\x36 Latin \x81\x30\x8B\x38 Euro \xA2\xE3.";
+$gb18030Source = (new MarkdownReader())->readBytes($gb18030Bytes, 'gb18030');
+$gb18030Text = (string) $gb18030Source->children[1]->attr('text');
 $eucKrBytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
 $eucKrSource = (new MarkdownReader())->readBytes($eucKrBytes, 'ks_c_5601-1987');
 $eucKrText = (string) $eucKrSource->children[1]->attr('text');
@@ -352,6 +355,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GB18030 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $gb18030Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb18030Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb18030Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'EUC-KR source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $eucKrText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucKrText)])]),
@@ -550,6 +558,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>GBK source</td><td>中文 GBK 测试，北京。</td><td>gbk:21</td>')) {
         throw new RuntimeException('charset handoff self-test missing GBK decode audit row');
+    }
+    if (($gb18030Source->attr('sourceEncoding')['encoding'] ?? '') !== 'gb18030') {
+        throw new RuntimeException('charset handoff self-test missing GB18030 source encoding');
+    }
+    if (!str_contains($blocks, "<td>GB18030 source</td><td>Emoji \u{1F600} CJK \u{20000} Latin \u{0100} Euro \u{20AC}.</td><td>gb18030:31</td>")) {
+        throw new RuntimeException('charset handoff self-test missing GB18030 four-byte decode audit row');
     }
     if (($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') !== 'euc-kr') {
         throw new RuntimeException('charset handoff self-test missing EUC-KR source encoding');
