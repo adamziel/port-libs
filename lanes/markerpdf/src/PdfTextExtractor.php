@@ -29668,7 +29668,8 @@ final class PdfTextExtractor
         array $codeSpaceRanges = []
     ): void
     {
-        if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*(?:\[(.*?)\]|<([\da-fA-F\s]+)>)/s', $block, $ranges, PREG_SET_ORDER)) {
+        $ranges = $this->cMapTopLevelBfRangeRows($block);
+        if ($ranges === []) {
             return;
         }
 
@@ -29677,8 +29678,8 @@ final class PdfTextExtractor
         }
 
         foreach ($ranges as $range) {
-            $start = $this->normalizeHexKey($range[1]);
-            $end = $this->normalizeHexKey($range[2]);
+            $start = $this->normalizeHexKey($range['start']);
+            $end = $this->normalizeHexKey($range['end']);
             if ($start === '' || $end === '' || strlen($start) !== strlen($end)) {
                 continue;
             }
@@ -29691,15 +29692,8 @@ final class PdfTextExtractor
             }
             $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);
 
-            $arrayTargets = $range[3] ?? '';
-            if ($arrayTargets !== '') {
-                $targets = array_values(array_filter(
-                    array_map(
-                        fn (string $target): string => $this->normalizeHexKey($target),
-                        $this->cMapTopLevelHexTokens($arrayTargets)
-                    ),
-                    static fn (string $target): bool => $target !== ''
-                ));
+            if (array_key_exists('targets', $range)) {
+                $targets = $range['targets'];
                 if ($targets === []) {
                     continue;
                 }
@@ -29742,7 +29736,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $target = $this->normalizeHexKey($range[4] ?? '');
+            $target = $this->normalizeHexKey($range['target'] ?? '');
             if ($target === '') {
                 continue;
             }
@@ -29781,6 +29775,122 @@ final class PdfTextExtractor
                 $targetHex = $this->incrementFixedWidthHex($targetHex);
             }
         }
+    }
+
+    /**
+     * @return list<array{start: string, end: string, target?: string, targets?: list<string>}>
+     */
+    private function cMapTopLevelBfRangeRows(string $source): array
+    {
+        $tokens = $this->cMapTopLevelBfRangeTokens($source);
+        $rows = [];
+
+        for ($index = 0, $count = count($tokens); $index + 2 < $count;) {
+            if (($tokens[$index]['type'] ?? null) !== 'hex' || ($tokens[$index + 1]['type'] ?? null) !== 'hex') {
+                $index++;
+                continue;
+            }
+
+            $target = $tokens[$index + 2];
+            if ($target['type'] === 'hex') {
+                $rows[] = [
+                    'start' => $tokens[$index]['value'],
+                    'end' => $tokens[$index + 1]['value'],
+                    'target' => $target['value'],
+                ];
+                $index += 3;
+                continue;
+            }
+
+            if ($target['type'] === 'array') {
+                $targets = array_values(array_filter(
+                    array_map(
+                        fn (string $candidate): string => $this->normalizeHexKey($candidate),
+                        $this->cMapTopLevelHexTokens($target['value'])
+                    ),
+                    static fn (string $candidate): bool => $candidate !== ''
+                ));
+                $rows[] = [
+                    'start' => $tokens[$index]['value'],
+                    'end' => $tokens[$index + 1]['value'],
+                    'targets' => $targets,
+                ];
+                $index += 3;
+                continue;
+            }
+
+            $index++;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{type: 'hex'|'array'|'other', value: string}>
+     */
+    private function cMapTopLevelBfRangeTokens(string $source): array
+    {
+        $tokens = [];
+        $index = 0;
+        $length = strlen($source);
+
+        while ($index < $length) {
+            $char = $source[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($source, $index);
+                continue;
+            }
+
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->skipPdfLiteralStringAt($source, $index);
+                if ($end === null) {
+                    break;
+                }
+                $tokens[] = ['type' => 'other', 'value' => ''];
+                $index = $end + 1;
+                continue;
+            }
+
+            if ($char === '[') {
+                $body = $this->readPdfArrayAt($source, $index);
+                if ($body === null) {
+                    break;
+                }
+                $tokens[] = ['type' => 'array', 'value' => $body];
+                $index += strlen($body) + 2;
+                continue;
+            }
+
+            if ($char === '<' && ($source[$index + 1] ?? '') === '<') {
+                $end = $this->pdfDictionaryEndOffset($source, $index);
+                if ($end === null) {
+                    break;
+                }
+                $tokens[] = ['type' => 'other', 'value' => ''];
+                $index = $end + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                $token = $this->readHexToken($source, $index);
+                $hex = substr($token, 1, -1);
+                $tokens[] = $this->normalizeHexKey($hex) === ''
+                    ? ['type' => 'other', 'value' => '']
+                    : ['type' => 'hex', 'value' => $hex];
+                continue;
+            }
+
+            $next = $this->skipPdfValueAt($source, $index);
+            $tokens[] = ['type' => 'other', 'value' => ''];
+            $index = $next > $index ? $next : $index + 1;
+        }
+
+        return $tokens;
     }
 
     /**
