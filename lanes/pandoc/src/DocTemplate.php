@@ -363,6 +363,7 @@ final class DocTemplate
             'templates/default.html5' => $this->defaultHtml5Template(),
             'templates/default.markdown', 'templates/default.commonmark' => $this->defaultMarkdownTemplate(),
             'templates/default.latex' => $this->defaultLatexTemplate(),
+            'templates/default.beamer' => $this->defaultBeamerTemplate(),
             'templates/default.openxml' => $this->defaultOpenXmlTemplate(),
             'templates/default.opendocument' => $this->defaultOpenDocumentTemplate(),
             'templates/default.epub3' => $this->defaultEpub3Template(),
@@ -481,6 +482,149 @@ $include-after$
 $endfor$
 \end{document}
 LATEX;
+    }
+
+    private function defaultBeamerTemplate(): string
+    {
+        return <<<'BEAMER'
+\documentclass[$if(fontsize)$$fontsize$, $endif$ignorenonframetext$if(handout)$, handout$endif$$if(aspectratio)$, aspectratio=$aspectratio$$endif$$for(classoption)$, $classoption$$endfor$]{$if(documentclass)$$documentclass$$else$beamer$endif$}
+$if(geometry)$
+\geometry{$for(geometry)$$geometry$$sep$,$endfor$}
+$endif$
+\newif\ifbibliography
+$if(background-image)$
+\usebackgroundtemplate{%
+\includegraphics[width=\paperwidth]{$background-image$}%
+}
+$endif$
+\usepackage{pgfpages}
+$if(linestretch)$
+\usepackage{setspace}
+$endif$
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbols$if(navigation)$$navigation$$else$empty$endif$
+$if(numbersections)$
+$else$
+\setbeamertemplate{section page}{\centering\insertsection\par}
+\setbeamertemplate{subsection page}{\centering\insertsubsection\par}
+$endif$
+$for(beameroption)$
+\setbeameroption{$beameroption$}
+$endfor$
+\widowpenalties 1 10000
+\raggedbottom
+$if(section-titles)$
+\AtBeginPart{\frame{\partpage}}
+\AtBeginSection{
+\ifbibliography
+\else
+\frame{\sectionpage}
+\fi
+}
+\AtBeginSubsection{\frame{\subsectionpage}}
+$endif$
+$if(theme)$
+\usetheme$if(themeoptions)$[$for(themeoptions)$$themeoptions$$sep$,$endfor$]$endif${$theme$}
+$endif$
+$if(colortheme)$
+\usecolortheme$if(colorthemeoptions)$[$for(colorthemeoptions)$$colorthemeoptions$$sep$,$endfor$]$endif${$colortheme$}
+$endif$
+$if(fonttheme)$
+\usefonttheme$if(fontthemeoptions)$[$for(fontthemeoptions)$$fontthemeoptions$$sep$,$endfor$]$endif${$fonttheme$}
+$endif$
+$if(innertheme)$
+\useinnertheme$if(innerthemeoptions)$[$for(innerthemeoptions)$$innerthemeoptions$$sep$,$endfor$]$endif${$innertheme$}
+$endif$
+$if(outertheme)$
+\useoutertheme$if(outerthemeoptions)$[$for(outerthemeoptions)$$outerthemeoptions$$sep$,$endfor$]$endif${$outertheme$}
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$if(title)$
+\title$if(shorttitle)$[$shorttitle$]$endif${$title$$if(thanks)$\thanks{$thanks$}$endif$}
+$endif$
+$if(subtitle)$
+\subtitle$if(shortsubtitle)$[$shortsubtitle$]$endif${$subtitle$}
+$endif$
+\author$if(shortauthor)$[$shortauthor$]$endif${$for(author)$$author$$sep$ \and $endfor$}
+\date$if(shortdate)$[$shortdate$]$endif${$date$}
+$if(institute)$
+\institute$if(shortinstitute)$[$shortinstitute$]$endif${$for(institute)$$institute$$sep$ \and $endfor$}
+$endif$
+$if(titlegraphic)$
+\titlegraphic{$for(titlegraphic)$\includegraphics$if(titlegraphicoptions)$[$for(titlegraphicoptions)$$titlegraphicoptions$$sep$, $endfor$]$endif${$titlegraphic$}$sep$\enspace $endfor$}
+$endif$
+$if(logo)$
+\logo{\includegraphics$if(logooptions)$[$for(logooptions)$$logooptions$$sep$, $endfor$]$endif${$logo$}}
+$endif$
+\begin{document}
+$if(title)$
+\frame{\titlepage}
+$if(abstract)$
+\begin{abstract}
+$abstract$
+\end{abstract}
+$endif$
+$endif$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+$if(toc-title)$
+\renewcommand*\contentsname{$toc-title$}
+$endif$
+\begin{frame}[allowframebreaks]
+$if(toc-title)$
+\frametitle{$toc-title$}
+$endif$
+\setcounter{tocdepth}{$if(toc-depth)$$toc-depth$$else$3$endif$}
+\tableofcontents
+\end{frame}
+$endif$
+$if(lof)$
+\listoffigures
+$endif$
+$if(lot)$
+\listoftables
+$endif$
+$if(linestretch)$
+\setstretch{$linestretch$}
+$endif$
+$body$
+$if(natbib)$
+$if(bibliography)$
+$if(biblio-title)$
+\renewcommand\refname{$biblio-title$}
+$endif$
+\begin{frame}[allowframebreaks]{$biblio-title$}
+$if(nocite-ids)$
+\nocite{$for(nocite-ids)$$it$$sep$, $endfor$}
+$endif$
+\bibliographytrue
+\bibliography{$for(bibliography)$$bibliography$$sep$,$endfor$}
+\end{frame}
+$endif$
+$endif$
+$if(biblatex)$
+\begin{frame}[allowframebreaks]{$biblio-title$}
+$if(nocite-ids)$
+\nocite{$for(nocite-ids)$$it$$sep$, $endfor$}
+$endif$
+\bibliographytrue
+\printbibliography[heading=none]
+\end{frame}
+$endif$
+$for(include-after)$
+$include-after$
+
+$endfor$
+\end{document}
+BEAMER;
     }
 
     private function defaultOpenXmlTemplate(): string

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 20:40:23 UTC",
-    "sourceCommit": "a34ba8cb6201ea2578ba3044956f204a64167c72",
-    "sourceCommitShort": "a34ba8cb6201",
+    "generated": "2026-06-06 20:40:33 UTC",
+    "sourceCommit": "a4926dcf65f4448250ef3ee1c9387f1ec17be6d7",
+    "sourceCommitShort": "a4926dcf65f4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a34ba8cb6201ea2578ba3044956f204a64167c72",
-    "dashboardCommitShort": "a34ba8cb6201",
+    "dashboardCommit": "a4926dcf65f4448250ef3ee1c9387f1ec17be6d7",
+    "dashboardCommitShort": "a4926dcf65f4",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1812",
-            "coverage": "1,812 / 2,276 (79.6%)",
-            "mapPercent": "79.6%",
-            "unmapped": "464",
-            "php": "1,399 pass / 0 fail",
+            "mapped": "1813",
+            "coverage": "1,813 / 2,276 (79.7%)",
+            "mapPercent": "79.7%",
+            "unmapped": "463",
+            "php": "1,400 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC ODF/OpenDocument current-base heading source-id slice...",
+            "audit": "2026-06-06 UTC Doctemplate current-base Beamer default fallback slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Continue bounded YAML metadata closure with non-overlapping Y...",
+            "nextTarget": "Continue bounded doctemplate closure with non-overlapping def...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending pandoc-..."
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

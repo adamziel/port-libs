@@ -1378,6 +1378,118 @@ HTML,
         ], null, 'latex'));
     },
 
+    'renders bounded pandoc default beamer template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $beamer = $renderer->renderResource('templates/default', [], [
+            'documentclass' => 'beamer',
+            'fontsize' => '10pt',
+            'handout' => true,
+            'aspectratio' => '169',
+            'classoption' => ['professionalfonts'],
+            'geometry' => ['paperwidth=16cm', 'paperheight=9cm'],
+            'theme' => 'Madrid',
+            'themeoptions' => ['progressbar=frametitle'],
+            'colortheme' => 'dolphin',
+            'fonttheme' => 'professionalfonts',
+            'innertheme' => 'rounded',
+            'outertheme' => 'infolines',
+            'navigation' => 'vertical',
+            'title' => 'Batch 42 Slides',
+            'shorttitle' => 'Batch 42',
+            'subtitle' => 'Reviewer packet',
+            'shortsubtitle' => 'Review',
+            'thanks' => 'Internal migration packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'shortauthor' => 'Migration desk',
+            'date' => '2026-06-06',
+            'shortdate' => '2026',
+            'institute' => ['WordPress Migration', 'Content Review'],
+            'shortinstitute' => 'WP',
+            'titlegraphic' => ['review-cover.png', 'review-logo.png'],
+            'titlegraphicoptions' => ['width=2cm'],
+            'logo' => 'wp-logo.png',
+            'logooptions' => ['height=1cm'],
+            'section-titles' => true,
+            'beameroption' => ['show notes'],
+            'header-includes' => ['\\usepackage{booktabs}'],
+            'include-before' => ['\\begin{frame}{Queue}\\end{frame}'],
+            'toc' => true,
+            'toc-title' => 'Deck Contents',
+            'toc-depth' => 2,
+            'lof' => true,
+            'lot' => true,
+            'linestretch' => '1.1',
+            'body' => '\\begin{frame}{Imported Body}Body\\end{frame}',
+            'nocite-ids' => ['doe2024'],
+            'natbib' => true,
+            'bibliography' => ['review'],
+            'biblio-title' => 'Sources',
+            'include-after' => ['\\appendix'],
+        ], null, 'beamer');
+
+        foreach ([
+            '\\documentclass[10pt, ignorenonframetext, handout, aspectratio=169, professionalfonts]{beamer}',
+            '\\geometry{paperwidth=16cm,paperheight=9cm}',
+            '\\usepackage{pgfpages}',
+            '\\setbeamertemplate{caption}[numbered]',
+            '\\beamertemplatenavigationsymbolsvertical',
+            '\\setbeameroption{show notes}',
+            '\\AtBeginSection{',
+            '\\usetheme[progressbar=frametitle]{Madrid}',
+            '\\usecolortheme{dolphin}',
+            '\\usefonttheme{professionalfonts}',
+            '\\useinnertheme{rounded}',
+            '\\useoutertheme{infolines}',
+            '\\usepackage{booktabs}',
+            '\\title[Batch 42]{Batch 42 Slides\\thanks{Internal migration packet}}',
+            '\\subtitle[Review]{Reviewer packet}',
+            '\\author[Migration desk]{Migration bot \\and Content editor}',
+            '\\date[2026]{2026-06-06}',
+            '\\institute[WP]{WordPress Migration \\and Content Review}',
+            '\\includegraphics[width=2cm]{review-cover.png}\\enspace',
+            '\\includegraphics[width=2cm]{review-logo.png}',
+            '\\logo{\\includegraphics[height=1cm]{wp-logo.png}}',
+            '\\begin{document}',
+            '\\frame{\\titlepage}',
+            '\\begin{frame}{Queue}\\end{frame}',
+            '\\renewcommand*\\contentsname{Deck Contents}',
+            '\\begin{frame}[allowframebreaks]',
+            '\\frametitle{Deck Contents}',
+            '\\setcounter{tocdepth}{2}',
+            '\\tableofcontents',
+            '\\listoffigures',
+            '\\listoftables',
+            '\\setstretch{1.1}',
+            '\\begin{frame}{Imported Body}Body\\end{frame}',
+            '\\begin{frame}[allowframebreaks]{Sources}',
+            '\\nocite{doe2024}',
+            '\\bibliographytrue',
+            '\\bibliography{review}',
+            '\\appendix',
+            '\\end{document}',
+        ] as $needle) {
+            $t->contains($needle, $beamer);
+        }
+
+        $biblatex = $renderer->renderResource('templates/default.beamer', [], [
+            'documentclass' => 'beamer',
+            'body' => '\\begin{frame}{Body}\\end{frame}',
+            'biblatex' => true,
+            'biblio-title' => 'Imported Sources',
+            'nocite-ids' => ['doe2024', 'roe2025'],
+        ]);
+
+        $t->contains('\\begin{frame}[allowframebreaks]{Imported Sources}', $biblatex);
+        $t->contains('\\nocite{doe2024, roe2025}', $biblatex);
+        $t->contains('\\printbibliography[heading=none]', $biblatex);
+        $t->same('custom beamer', $renderer->renderResource('templates/default', [
+            'templates/default.beamer' => 'custom $body$',
+        ], [
+            'body' => 'beamer',
+        ], null, 'beamer'));
+    },
+
     'renders bounded pandoc default office and epub template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

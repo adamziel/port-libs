@@ -380,6 +380,41 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $beamerFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'documentclass' => 'beamer',
+        'fontsize' => '10pt',
+        'theme' => 'Madrid',
+        'colortheme' => 'dolphin',
+        'title' => 'Beamer Default Review',
+        'shorttitle' => 'Beamer Review',
+        'author' => ['Migration bot'],
+        'shortauthor' => 'Migration desk',
+        'date' => '2026-06-06',
+        'toc' => true,
+        'toc-title' => 'Deck Contents',
+        'body' => '\\begin{frame}{Imported Body}Review queue.\\end{frame}',
+        'biblatex' => true,
+        'biblio-title' => 'Imported Sources',
+    ], null, 'beamer');
+    foreach ([
+        '\\documentclass[10pt, ignorenonframetext]{beamer}',
+        '\\usetheme{Madrid}',
+        '\\usecolortheme{dolphin}',
+        '\\title[Beamer Review]{Beamer Default Review}',
+        '\\author[Migration desk]{Migration bot}',
+        '\\date{2026-06-06}',
+        '\\frame{\\titlepage}',
+        '\\frametitle{Deck Contents}',
+        '\\begin{frame}{Imported Body}Review queue.\\end{frame}',
+        '\\begin{frame}[allowframebreaks]{Imported Sources}',
+        '\\printbibliography[heading=none]',
+    ] as $needle) {
+        if (!str_contains($beamerFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate beamer default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $typstFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'title' => 'Typst Default Review',
         'subtitle' => 'Native metadata handoff',
