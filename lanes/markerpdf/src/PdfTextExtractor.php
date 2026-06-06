@@ -11781,6 +11781,10 @@ final class PdfTextExtractor
             }
 
             $kidMergedLimits = $this->pageLabelMergedLimits($limits, $kidLocalLimits);
+            if ($kidLocalLimits !== null && $kidMergedLimits === null) {
+                continue;
+            }
+
             $kidNodes[] = [
                 'dictionary' => $kidDictionary,
                 'seen' => $kidDictionaryNode['seen'],

@@ -1679,6 +1679,10 @@ final class MarkerAppPreview
                     }
 
                     $kidMergedLimits = $this->mergePageLabelLimits($limits, $kidLocalLimits);
+                    if ($kidLocalLimits !== null && $kidMergedLimits === null) {
+                        continue;
+                    }
+
                     $kidNodes[] = [
                         'body' => $directKidBody,
                         'seen' => $seen,
@@ -1708,6 +1712,10 @@ final class MarkerAppPreview
                 }
 
                 $kidMergedLimits = $this->mergePageLabelLimits($limits, $kidLocalLimits);
+                if ($kidLocalLimits !== null && $kidMergedLimits === null) {
+                    continue;
+                }
+
                 $kidNodes[] = [
                     'body' => $kidBody,
                     'seen' => $kidSeen,
