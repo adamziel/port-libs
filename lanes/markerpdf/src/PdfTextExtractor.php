@@ -9098,7 +9098,7 @@ final class PdfTextExtractor
      */
     private function decodedFormXObjectBody(?string $objectBody, array $objects): ?array
     {
-        if ($objectBody === null || preg_match('/\/Subtype\s*\/Form\b/', $objectBody) !== 1) {
+        if ($objectBody === null || !$this->isFormXObjectBody($objectBody, $objects)) {
             return null;
         }
 
@@ -9649,7 +9649,7 @@ final class PdfTextExtractor
         array $fontToUnicodeMaps,
         array $optionalContentStates = []
     ): ?array {
-        if (!isset($objects[$appearanceObjectNumber]) || preg_match('/\/Subtype\s*\/Form\b/', $objects[$appearanceObjectNumber]) !== 1) {
+        if (!isset($objects[$appearanceObjectNumber]) || !$this->isFormXObjectBody($objects[$appearanceObjectNumber], $objects)) {
             return null;
         }
 
