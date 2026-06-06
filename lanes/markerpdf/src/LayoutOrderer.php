@@ -584,9 +584,6 @@ final class LayoutOrderer
                     $position = (int) ($orderBox['position'] ?? 0);
                     $orderBbox = $this->rescaleOrderBbox($page, $this->bbox($orderBox));
                     $intersection = $this->intersectionPct($blockBbox, $orderBbox);
-                    if ($intersection <= 0.0) {
-                        continue;
-                    }
 
                     if (!isset($blockPositions[$blockIndex]) || $intersection > $blockPositions[$blockIndex][0]) {
                         $blockPositions[$blockIndex] = [$intersection, $position];

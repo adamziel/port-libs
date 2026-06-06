@@ -1817,8 +1817,8 @@ return [
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
                 $pdftextLinesPage(3401, [
-                    ['text' => 'Second finite order row remains first', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
-                    ['text' => 'First nonfinite order row remains fallback', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                    ['text' => 'Right finite order row has the only trusted bbox', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'Left nonfinite order row shares the first upstream group', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
                 ]),
             ],
             [
@@ -1844,11 +1844,14 @@ return [
 
         $t->same([0], $result['page_range']);
         $t->same(3401, $result['pages'][0]['pnum']);
-        $t->same(['Second finite order row remains first', 'First nonfinite order row remains fallback'], array_map(
+        $t->same([
+            'Left nonfinite order row shares the first upstream group',
+            'Right finite order row has the only trusted bbox',
+        ], array_map(
             static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
             $result['pages'][0]['blocks']
         ));
-        $t->same('Second finite order row remains first First nonfinite order row remains fallback', $blocks[0]['text']);
+        $t->same('Left nonfinite order row shares the first upstream group Right finite order row has the only trusted bbox', $blocks[0]['text']);
         $t->same([
             ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
         ], $order['bboxes'] ?? []);
@@ -1889,8 +1892,8 @@ return [
                 $path,
                 [
                     $pdftextLinesPage(3501, [
-                        ['text' => 'Second converter finite geometry column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
-                        ['text' => 'First converter nonfinite geometry fallback.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                        ['text' => 'Right converter finite geometry column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'Left converter nonfinite geometry row shares upstream group.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
                     ]),
                 ],
                 [
@@ -1937,10 +1940,10 @@ return [
         $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
         $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
-        $t->contains('Second converter finite geometry column.', $text);
-        $t->contains('First converter nonfinite geometry fallback.', $text);
-        $t->true(strpos($text, 'Second converter finite geometry column.') < strpos($text, 'First converter nonfinite geometry fallback.'));
-        $t->true(!str_contains($text, '# First Converter Nonfinite Geometry Fallback.'));
+        $t->contains('Right converter finite geometry column.', $text);
+        $t->contains('Left converter nonfinite geometry row shares upstream group.', $text);
+        $t->true(strpos($text, 'Left converter nonfinite geometry row shares upstream group.') < strpos($text, 'Right converter finite geometry column.'));
+        $t->true(!str_contains($text, '# Left Converter Nonfinite Geometry Row Shares Upstream Group.'));
         $t->true(!str_contains($encoded, 'INF'));
         $t->true(!str_contains($encoded, 'nonfinite layout bbox payload'));
         $t->true(!str_contains($encoded, 'nonfinite converter order bbox payload'));
@@ -2239,5 +2242,48 @@ return [
         $t->same(0, $result['metadata']['order_plan']['image_count']);
         $t->same(0, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'keeps zero-overlap blocks in the first upstream order group before selected pdftext merge' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(4100, [
+                    ['text' => 'Partial order cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(4101, [
+                    ['text' => 'Right partial order column has the only supplied bbox', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'Left partial order column has zero overlap but same upstream group', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 4101,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 4101, 'image' => 'partial-order-single-bbox-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(4101, $result['pages'][0]['pnum']);
+        $t->same([
+            'Left partial order column has zero overlap but same upstream group',
+            'Right partial order column has the only supplied bbox',
+        ], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Left partial order column has zero overlap but same upstream group Right partial order column has the only supplied bbox', $blocks[0]['text']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
 ];

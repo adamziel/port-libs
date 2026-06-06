@@ -32,8 +32,8 @@ $page = static function (int $page, array $lines): array {
 
 $pdftextPages = [
     $page(3601, [
-        ['text' => 'Second finite geometry column remains first.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
-        ['text' => 'First nonfinite geometry row remains fallback.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+        ['text' => 'Right finite geometry column has the supplied bbox.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+        ['text' => 'Left nonfinite geometry row shares the upstream group.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
     ]),
 ];
 
@@ -91,8 +91,8 @@ $flags = [
     'layout_artifact_assigned' => ($result['metadata']['layout_plan']['assigned_pages'] ?? null) === 1,
     'order_artifact_assigned' => ($result['metadata']['order_plan']['assigned_pages'] ?? null) === 1,
     'finite_order_row_preserved' => ($result['metadata']['order_plan']['layout_bbox_counts'][0] ?? null) === 1,
-    'source_order_preserved_after_bad_row_drop' => strpos($text, 'Second finite geometry column remains first.') < strpos($text, 'First nonfinite geometry row remains fallback.'),
-    'invalid_title_not_promoted' => !str_contains($text, '# First Nonfinite Geometry Row Remains Fallback.'),
+    'zero_overlap_block_grouped_with_first_order_position' => strpos($text, 'Left nonfinite geometry row shares the upstream group.') < strpos($text, 'Right finite geometry column has the supplied bbox.'),
+    'invalid_title_not_promoted' => !str_contains($text, '# Left Nonfinite Geometry Row Shares The Upstream Group.'),
     'nonfinite_metadata_json_safe' => !str_contains($encoded, 'INF') && !str_contains($encoded, 'nonfinite layout bbox payload') && !str_contains($encoded, 'nonfinite order bbox payload'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
@@ -102,7 +102,7 @@ if (
     !$flags['layout_artifact_assigned']
     || !$flags['order_artifact_assigned']
     || !$flags['finite_order_row_preserved']
-    || !$flags['source_order_preserved_after_bad_row_drop']
+    || !$flags['zero_overlap_block_grouped_with_first_order_position']
     || !$flags['invalid_title_not_promoted']
     || !$flags['nonfinite_metadata_json_safe']
 ) {
