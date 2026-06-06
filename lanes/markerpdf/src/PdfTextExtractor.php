@@ -11502,6 +11502,10 @@ final class PdfTextExtractor
         foreach ($this->type3PrivateShadingResourceValues($resourceOwnerBody, $objects) as $value) {
             $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
         }
+
+        foreach ($this->type3PrivatePropertiesResourceValues($resourceOwnerBody, $objects) as $value) {
+            $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+        }
     }
 
     /**
@@ -11520,6 +11524,15 @@ final class PdfTextExtractor
     private function type3PrivateShadingResourceValues(string $resourceOwnerBody, array $objects): array
     {
         return $this->type3PrivateResourceCategoryValues($resourceOwnerBody, $objects, 'Shading');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function type3PrivatePropertiesResourceValues(string $resourceOwnerBody, array $objects): array
+    {
+        return $this->type3PrivateResourceCategoryValues($resourceOwnerBody, $objects, 'Properties');
     }
 
     /**
@@ -11616,8 +11629,10 @@ final class PdfTextExtractor
             }
 
             $seen[$key] = true;
-            if ($this->streamDictionaryAndPayload($body, $objects) !== null) {
+            $stream = $this->streamDictionaryAndPayload($body, $objects);
+            if ($stream !== null) {
                 $references[$reference['objectNumber']][$reference['generation']] = true;
+                $this->collectType3PrivateStreamGenerationsFromValue($stream['dict'], $objects, $references, $seen);
                 continue;
             }
 
