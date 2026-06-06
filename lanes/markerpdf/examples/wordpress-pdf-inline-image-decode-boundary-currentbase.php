@@ -197,6 +197,10 @@ if (!is_string($identityCryptFlateCompressed)) {
 $identityCryptFlatePostStreamSurplusPayload = $identityCryptFlateCompressed
     . 'ZZ EI BT /F1 12 Tf 72 502 Td (Identity Crypt Flate Inline Noise) Tj ET rawtail';
 $identityCryptFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/Crypt /Fl] /DP [<< /Name /Identity >> null] /D [0 1]';
+$identityCryptJpxBytes = "\xFF\x4F\xFF\xD9";
+$identityCryptJpxPostEocSurplusPayload = $identityCryptJpxBytes
+    . 'ZZ EI BT /F1 12 Tf 72 494 Td (Identity Crypt JPX Inline Noise) Tj ET rawtail';
+$identityCryptJpxDictionary = '/W 1 /H 1 /CS /RGB /BPC 8 /F [/Crypt /JPXDecode] /DP [<< /Name /Identity >> null] /D [0 1 0 1 0 1] /Mask [0 0 0 0 0 0]';
 $directNullFilterSamples = 'A EI BT Z';
 $directNullFilterDictionary = '/W ' . strlen($directNullFilterSamples) . ' /H 1 /CS /G /BPC 8 /F null /DP << /Predictor 12 /Columns 0 >> /D [0 1]';
 $deviceNArrayColorSpacePayload = "\x01EI BT /F1 12 Tf 72 506 Td (DeviceN Array Inline Noise) Tj ET \x02";
@@ -327,7 +331,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 508 Td (Before Identity Crypt Flate Inline) Tj ET\n"
     . "BI {$identityCryptFlateDictionary} ID "
     . $identityCryptFlatePostStreamSurplusPayload . "\nEI\n"
-    . "BT /F1 12 Tf 72 500 Td (After Identity Crypt Flate Inline) Tj ET";
+    . "BT /F1 12 Tf 72 500 Td (After Identity Crypt Flate Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 496 Td (Before Identity Crypt JPX Inline) Tj ET\n"
+    . "BI {$identityCryptJpxDictionary} ID\n"
+    . $identityCryptJpxPostEocSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 492 Td (After Identity Crypt JPX Inline) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -669,6 +677,25 @@ $identityCryptFlateCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPrev
     [],
     1
 );
+$identityCryptJpxPreviewRejected = false;
+try {
+    $renderer->inlineJpxColorKeyOutputPreviewRows(
+        $identityCryptJpxDictionary,
+        $identityCryptJpxPostEocSurplusPayload,
+        [[0, 128, 255]],
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $identityCryptJpxPreviewRejected = true;
+}
+$identityCryptJpxCleanPreview = $renderer->inlineJpxColorKeyOutputPreviewRows(
+    $identityCryptJpxDictionary,
+    $identityCryptJpxBytes,
+    [[0, 128, 255]],
+    [],
+    1
+);
 $unsupportedCryptFilterPreviewRejected = false;
 try {
     $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
@@ -723,6 +750,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_stacked_native_filter_surplus_payload' => str_contains($stackedNativeFilterSurplusPayload, ' EI '),
     'fake_ei_inside_runlength_post_eod_surplus_payload' => str_contains($runLengthPostEodSurplusPayload, ' EI '),
     'fake_ei_inside_identity_crypt_flate_post_stream_surplus_payload' => str_contains($identityCryptFlatePostStreamSurplusPayload, ' EI '),
+    'fake_ei_inside_identity_crypt_jpx_post_eoc_surplus_payload' => str_contains($identityCryptJpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_direct_null_filter_samples' => str_contains($directNullFilterSamples, ' EI '),
     'asciihex_surplus_eod_present' => str_contains($asciiHexSurplusPayload, '>'),
     'wrapped_jpx_prefix_surplus_first_eod_present' => str_contains($wrappedJpxPrefixSurplusPayload, '>ZZ EI'),
@@ -785,6 +813,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Identity Crypt Inline',
         'Before Identity Crypt Flate Inline',
         'After Identity Crypt Flate Inline',
+        'Before Identity Crypt JPX Inline',
+        'After Identity Crypt JPX Inline',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
     'ascii85_post_eod_surplus_payload_excluded_until_real_ei' => in_array('After A85 Post EOD Inline Image', $lines, true)
@@ -941,6 +971,15 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && ($identityCryptFlateCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $identityCryptFlateImageByte),
     'identity_crypt_flate_clean_preview_filters' => $identityCryptFlateCleanPreview['image_stream']['filters'] ?? [],
     'identity_crypt_flate_clean_preview_first_sample' => $identityCryptFlateCleanPreview['pixels'][0]['raw_sample'] ?? null,
+    'identity_crypt_jpx_post_eoc_payload_excluded_until_real_ei' => in_array('After Identity Crypt JPX Inline', $lines, true)
+        && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'identity_crypt_jpx_post_eoc_preview_rejected' => $identityCryptJpxPreviewRejected,
+    'identity_crypt_jpx_clean_preview_native_prefix_decoded' => ($identityCryptJpxCleanPreview['image_stream']['native_prefix_decoded'] ?? false) === true
+        && ($identityCryptJpxCleanPreview['image_stream']['native_prefix_decoded_sha256'] ?? null) === hash('sha256', $identityCryptJpxBytes),
+    'identity_crypt_jpx_clean_preview_filters' => $identityCryptJpxCleanPreview['image_stream']['filters'] ?? [],
+    'identity_crypt_jpx_clean_preview_stopped_before_filter' => $identityCryptJpxCleanPreview['image_stream']['stopped_before_filter'] ?? null,
+    'identity_crypt_jpx_clean_preview_first_pixel' => $identityCryptJpxCleanPreview['pixels'][0]['output_rgba'] ?? null,
     'invalid_lzw_earlychange_decode_failed' => $invalidLzwEarlyChangeDecodeFailed,
     'malformed_inline_decode_source' => $malformedInlineDecodeReview['image_decode']['source'] ?? null,
     'malformed_inline_decode_component_mismatch' => $malformedInlineDecodeReview['image_decode_component_mismatch'] ?? null,
@@ -986,6 +1025,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Crypt Inline Decode Noise')
         && !str_contains($plainText, 'Identity Crypt Inline Noise')
         && !str_contains($plainText, 'Identity Crypt Flate Inline Noise')
+        && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
         && !str_contains($plainText, 'rawtail'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 

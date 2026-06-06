@@ -6671,10 +6671,13 @@ final class PdfImageRenderer
             $isPreviewOnlyFilter = $this->isPreviewOnlyStreamFilter($filter);
             if ($isPreviewOnlyFilter || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
                 $unsupportedFilters[] = $filter;
+                $previewBoundaryFailed = $isPreviewOnlyFilter
+                    && $requireExplicitFilterEndMarkers
+                    && !$this->previewOnlyImageFilterInputHasCleanBoundary($filter, $stream);
                 $result = [
                     'decoded' => null,
                     'unsupported_filters' => $unsupportedFilters,
-                    'decode_failed' => !$isPreviewOnlyFilter,
+                    'decode_failed' => !$isPreviewOnlyFilter || $previewBoundaryFailed,
                 ];
                 if ($recordPreviewOnlyPrefix && $decodedNativeFilterCount > 0) {
                     $result['native_prefix_decoded_bytes'] = $stream;
@@ -6756,6 +6759,35 @@ final class PdfImageRenderer
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             default => true,
         };
+    }
+
+    private function previewOnlyImageFilterInputHasCleanBoundary(string $filter, string $stream): bool
+    {
+        if ($filter !== 'JPXDecode') {
+            return true;
+        }
+
+        return $this->jpxPreviewInputHasCleanEocBoundary($stream);
+    }
+
+    private function jpxPreviewInputHasCleanEocBoundary(string $stream): bool
+    {
+        $start = 0;
+        $length = strlen($stream);
+        while ($start < $length && $this->isPdfWhitespace($stream[$start])) {
+            $start++;
+        }
+
+        if (substr($stream, $start, 2) !== "\xff\x4f") {
+            return true;
+        }
+
+        $eocOffset = strrpos($stream, "\xff\xd9");
+        if ($eocOffset === false) {
+            return true;
+        }
+
+        return $this->streamHasOnlyWhitespaceAfterOffset($stream, $eocOffset + 2);
     }
 
     private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool

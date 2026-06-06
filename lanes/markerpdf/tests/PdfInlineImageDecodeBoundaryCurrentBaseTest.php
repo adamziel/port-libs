@@ -1383,6 +1383,57 @@ return [
         $t->same(false, $preview['image_stream']['decode_failed']);
         $t->same([75.0], $preview['pixels'][0]['raw_sample']);
     },
+    'rejects Identity Crypt JPX post-EOC surplus before supplied preview handoff' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $jpxBytes = "\xFF\x4F\xFF\xD9";
+        $postEocSurplus = 'ZZ EI BT /F1 12 Tf 72 660 Td (Identity Crypt JPX Inline Noise) Tj ET rawtail';
+        $payload = $jpxBytes . $postEocSurplus;
+        $dictionary = '/W 1 /H 1 /CS /RGB /BPC 8 /F [/Crypt /JPXDecode] /DP [<< /Name /Identity >> null] /D [0 1 0 1 0 1] /Mask [0 0 0 0 0 0]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Identity Crypt JPX Inline) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Identity Crypt JPX Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before Identity Crypt JPX Inline',
+            'After Identity Crypt JPX Inline',
+        ];
+        $t->true(str_contains($postEocSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Identity Crypt JPX Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineJpxColorKeyOutputPreviewRows(
+                $dictionary,
+                $payload,
+                [[0, 128, 255]],
+                [],
+                1
+            )
+        );
+
+        $preview = $renderer->inlineJpxColorKeyOutputPreviewRows($dictionary, $jpxBytes, [[0, 128, 255]], [], 1);
+        $t->same(['Crypt', 'JPXDecode'], $preview['image_stream']['filters']);
+        $t->same(['JPXDecode'], $preview['image_stream']['preview_only_filters']);
+        $t->same(['JPXDecode'], $preview['image_stream']['unsupported_filters']);
+        $t->same(false, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(true, $preview['image_stream']['native_prefix_decoded']);
+        $t->same(strlen($jpxBytes), $preview['image_stream']['native_prefix_decoded_length']);
+        $t->same(hash('sha256', $jpxBytes), $preview['image_stream']['native_prefix_decoded_sha256']);
+        $t->same('JPXDecode', $preview['image_stream']['stopped_before_filter']);
+        $t->same(['red' => 0, 'green' => 128, 'blue' => 255, 'alpha' => 1.0], $preview['pixels'][0]['output_rgba']);
+    },
     'closes malformed inline image filter fallbacks before the next inline image preamble' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $malformedPayload = 'abcdefgh EI BT /F1 12 Tf 72 660 Td (First Malformed Inline Noise) Tj ET rawtail';
