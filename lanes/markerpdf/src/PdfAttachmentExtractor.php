@@ -144,7 +144,8 @@ final class PdfAttachmentExtractor
                     'associated_file_index' => $entry['associatedFileIndex'],
                     'catalog_object_id' => $entry['catalogObjectId'],
                 ] + (($entry['portfolio'] ?? []) !== [] ? ['portfolio' => $entry['portfolio']] : []),
-                $encryptionPolicy
+                $encryptionPolicy,
+                isset($entry['fileSpecRaw']) && is_string($entry['fileSpecRaw']) ? $entry['fileSpecRaw'] : null
             );
             if ($attachment === null) {
                 continue;
@@ -174,7 +175,8 @@ final class PdfAttachmentExtractor
                     'page_number' => $entry['pageNumber'],
                     'page_object_id' => $entry['pageObjectId'],
                 ],
-                $encryptionPolicy
+                $encryptionPolicy,
+                isset($entry['fileSpecRaw']) && is_string($entry['fileSpecRaw']) ? $entry['fileSpecRaw'] : null
             );
             if ($attachment === null) {
                 continue;
@@ -494,7 +496,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @param list<int>|null $catalogObjectIds
-     * @return list<array{catalogObjectId: int, associatedFileIndex: int, fileSpec: mixed}>
+     * @return list<array{catalogObjectId: int, associatedFileIndex: int, fileSpec: mixed, fileSpecRaw?: string}>
      */
     private function catalogAssociatedFileEntries(array $objects, ?array $catalogObjectIds = null): array
     {
@@ -515,13 +517,27 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
+            $rawAssociatedFiles = [];
+            $catalogDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
+            if ($catalogDictionaryBody !== null) {
+                $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($catalogDictionaryBody, 'AF');
+                if ($rawAssociatedFilesValue !== null) {
+                    $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                }
+            }
+
             foreach ($associatedFiles as $index => $fileSpec) {
-                $entries[] = [
+                $entry = [
                     'catalogObjectId' => $objectId,
                     'associatedFileIndex' => $index,
                     'fileSpec' => $fileSpec,
                     'portfolio' => $portfolio,
                 ];
+                if (isset($rawAssociatedFiles[$index]) && is_string($rawAssociatedFiles[$index])) {
+                    $entry['fileSpecRaw'] = $rawAssociatedFiles[$index];
+                }
+
+                $entries[] = $entry;
             }
         }
 
@@ -698,7 +714,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @param list<int>|null $catalogObjectIds
-     * @return list<array{pageNumber: int, pageObjectId: int, associatedFileIndex: int, fileSpec: mixed}>
+     * @return list<array{pageNumber: int, pageObjectId: int, associatedFileIndex: int, fileSpec: mixed, fileSpecRaw?: string}>
      */
     private function pageAssociatedFileEntries(array $objects, ?array $catalogObjectIds = null): array
     {
@@ -718,13 +734,27 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
+            $rawAssociatedFiles = [];
+            $pageDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($objects[$pageObjectId]['body']);
+            if ($pageDictionaryBody !== null) {
+                $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($pageDictionaryBody, 'AF');
+                if ($rawAssociatedFilesValue !== null) {
+                    $rawAssociatedFiles = $this->rawArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                }
+            }
+
             foreach ($associatedFiles as $index => $fileSpec) {
-                $entries[] = [
+                $entry = [
                     'pageNumber' => $pageIndex + 1,
                     'pageObjectId' => $pageObjectId,
                     'associatedFileIndex' => $index,
                     'fileSpec' => $fileSpec,
                 ];
+                if (isset($rawAssociatedFiles[$index]) && is_string($rawAssociatedFiles[$index])) {
+                    $entry['fileSpecRaw'] = $rawAssociatedFiles[$index];
+                }
+
+                $entries[] = $entry;
             }
         }
 
