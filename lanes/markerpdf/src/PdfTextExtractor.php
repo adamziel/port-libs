@@ -6070,7 +6070,10 @@ final class PdfTextExtractor
             ));
         }
         if (($review['has_soft_mask'] ?? false) === true) {
-            $state['soft_mask'] = is_array($review['soft_mask'] ?? null) ? $review['soft_mask'] : null;
+            $softMask = is_array($review['soft_mask'] ?? null) ? $review['soft_mask'] : null;
+            $state['soft_mask'] = is_array($softMask) && ($softMask['type'] ?? null) === 'graphics_state_soft_mask_none'
+                ? null
+                : $softMask;
         }
 
         return $state;
