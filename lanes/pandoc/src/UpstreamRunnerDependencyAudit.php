@@ -303,6 +303,11 @@ final class UpstreamRunnerDependencyAudit
                 'sets locale encoding to utf8' => 'setLocaleEncoding utf8',
                 'offers --emulate command runner path' => '"--emulate"',
                 'uses noEngine for command emulation' => 'convertWithOpts noEngine',
+                'catches command emulation exceptions' => 'E.catch',
+                'parses --emulate args with default pandoc options' => "parseOptionsFromArgs options defaultOpts \"pandoc\" args'",
+                'handles command option info with noEngine' => 'Left e -> handleOptInfo noEngine e',
+                'converts parsed command options with noEngine' => 'Right opts -> convertWithOpts noEngine opts',
+                'handles emulation errors through pandoc error handler' => '(handleError . Left)',
                 'runs from upstream test directory' => 'inDirectory "test"',
                 'passes executable path into old command tests' => 'getExecutablePath',
                 'runs tasty defaultMain' => 'defaultMain $ tests fp',
@@ -313,25 +318,44 @@ final class UpstreamRunnerDependencyAudit
                 'loads xml tests' => 'Tests.XML.tests',
                 'loads markdown reader tests' => 'Tests.Readers.Markdown.tests',
                 'loads html reader tests' => 'Tests.Readers.HTML.tests',
+                'loads jats reader tests' => 'Tests.Readers.JATS.tests',
+                'loads jira reader tests' => 'Tests.Readers.Jira.tests',
+                'loads org reader tests' => 'Tests.Readers.Org.tests',
                 'loads latex reader tests' => 'Tests.Readers.LaTeX.tests',
                 'loads rst reader tests' => 'Tests.Readers.RST.tests',
+                'loads rtf reader tests' => 'Tests.Readers.RTF.tests',
                 'loads docx reader tests' => 'Tests.Readers.Docx.tests',
                 'loads pptx reader tests' => 'Tests.Readers.Pptx.tests',
                 'loads xlsx reader tests' => 'Tests.Readers.Xlsx.tests',
                 'loads odt reader tests' => 'Tests.Readers.ODT.tests',
+                'loads txt2tags reader tests' => 'Tests.Readers.Txt2Tags.tests',
                 'loads epub reader tests' => 'Tests.Readers.EPUB.tests',
+                'loads muse reader tests' => 'Tests.Readers.Muse.tests',
+                'loads creole reader tests' => 'Tests.Readers.Creole.tests',
+                'loads man reader tests' => 'Tests.Readers.Man.tests',
+                'loads mdoc reader tests' => 'Tests.Readers.Mdoc.tests',
                 'loads fb2 reader tests' => 'Tests.Readers.FB2.tests',
+                'loads dokuwiki reader tests' => 'Tests.Readers.DokuWiki.tests',
                 'loads pod reader tests' => 'Tests.Readers.Pod.tests',
                 'loads native writer tests' => 'Tests.Writers.Native.tests',
+                'loads context writer tests' => 'Tests.Writers.ConTeXt.tests',
                 'loads html writer tests' => 'Tests.Writers.HTML.tests',
+                'loads jats writer tests' => 'Tests.Writers.JATS.tests',
+                'loads jira writer tests' => 'Tests.Writers.Jira.tests',
                 'loads latex writer tests' => 'Tests.Writers.LaTeX.tests',
                 'loads markdown writer tests' => 'Tests.Writers.Markdown.tests',
+                'loads org writer tests' => 'Tests.Writers.Org.tests',
+                'loads plain writer tests' => 'Tests.Writers.Plain.tests',
                 'loads docx writer tests' => 'Tests.Writers.Docx.tests',
                 'loads rst writer tests' => 'Tests.Writers.RST.tests',
                 'loads asciidoc writer tests' => 'Tests.Writers.AsciiDoc.tests',
                 'loads docbook writer tests' => 'Tests.Writers.DocBook.tests',
                 'loads tei writer tests' => 'Tests.Writers.TEI.tests',
+                'loads markua writer tests' => 'Tests.Writers.Markua.tests',
+                'loads muse writer tests' => 'Tests.Writers.Muse.tests',
+                'loads fb2 writer tests' => 'Tests.Writers.FB2.tests',
                 'loads powerpoint writer tests' => 'Tests.Writers.Powerpoint.tests',
+                'loads ms writer tests' => 'Tests.Writers.Ms.tests',
                 'loads annotated table writer tests' => 'Tests.Writers.AnnotatedTable.tests',
                 'loads bbcode writer tests' => 'Tests.Writers.BBCode.tests',
             ],
@@ -659,7 +683,7 @@ final class UpstreamRunnerDependencyAudit
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
-                'record pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics, and package-file hashes before any solver/build command',
+                'record pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
                 'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
                 'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
@@ -2644,10 +2668,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

@@ -200,49 +200,135 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
 $testPandocEntryPoint = static function (): string {
     return implode("\n", [
         'module Main (main) where',
+        '',
+        'import System.Environment (getArgs, getExecutablePath)',
+        'import qualified Control.Exception as E',
+        'import Text.Pandoc.App (convertWithOpts, handleOptInfo, defaultOpts, options,',
+        '                        parseOptionsFromArgs)',
+        'import Text.Pandoc.Error (handleError)',
+        'import Text.Pandoc.Scripting (noEngine)',
         'import GHC.IO.Encoding',
         'import Test.Tasty',
-        'import Text.Pandoc.App (convertWithOpts)',
-        'import Text.Pandoc.Scripting (noEngine)',
-        'import Text.Pandoc.Shared (inDirectory)',
-        'import System.Environment (getArgs, getExecutablePath)',
         'import qualified Tests.Command',
         'import qualified Tests.Old',
-        'import qualified Tests.Shared',
-        'import qualified Tests.MediaBag',
-        'import qualified Tests.XML',
-        'import qualified Tests.Readers.LaTeX',
-        'import qualified Tests.Readers.HTML',
-        'import qualified Tests.Readers.Markdown',
-        'import qualified Tests.Readers.RST',
+        'import qualified Tests.Readers.Creole',
         'import qualified Tests.Readers.Docx',
         'import qualified Tests.Readers.Pptx',
         'import qualified Tests.Readers.Xlsx',
-        'import qualified Tests.Readers.ODT',
+        'import qualified Tests.Readers.DokuWiki',
         'import qualified Tests.Readers.EPUB',
         'import qualified Tests.Readers.FB2',
+        'import qualified Tests.Readers.HTML',
+        'import qualified Tests.Readers.JATS',
+        'import qualified Tests.Readers.Jira',
+        'import qualified Tests.Readers.LaTeX',
+        'import qualified Tests.Readers.Markdown',
+        'import qualified Tests.Readers.Muse',
+        'import qualified Tests.Readers.ODT',
+        'import qualified Tests.Readers.Org',
+        'import qualified Tests.Readers.RST',
+        'import qualified Tests.Readers.RTF',
+        'import qualified Tests.Readers.Txt2Tags',
+        'import qualified Tests.Readers.Man',
+        'import qualified Tests.Readers.Mdoc',
         'import qualified Tests.Readers.Pod',
+        'import qualified Tests.Shared',
         'import qualified Tests.Writers.AsciiDoc',
+        'import qualified Tests.Writers.ConTeXt',
         'import qualified Tests.Writers.DocBook',
         'import qualified Tests.Writers.Docx',
+        'import qualified Tests.Writers.FB2',
         'import qualified Tests.Writers.HTML',
+        'import qualified Tests.Writers.JATS',
+        'import qualified Tests.Writers.Jira',
         'import qualified Tests.Writers.LaTeX',
         'import qualified Tests.Writers.Markdown',
+        'import qualified Tests.Writers.Ms',
+        'import qualified Tests.Writers.Muse',
         'import qualified Tests.Writers.Native',
+        'import qualified Tests.Writers.Org',
+        'import qualified Tests.Writers.Plain',
         'import qualified Tests.Writers.Powerpoint',
         'import qualified Tests.Writers.RST',
-        'import qualified Tests.Writers.TEI',
         'import qualified Tests.Writers.AnnotatedTable',
+        'import qualified Tests.Writers.TEI',
+        'import qualified Tests.Writers.Markua',
         'import qualified Tests.Writers.BBCode',
+        'import qualified Tests.XML',
+        'import qualified Tests.MediaBag',
+        'import Text.Pandoc.Shared (inDirectory)',
+        '',
+        'tests :: FilePath -> TestTree',
+        'tests pandocPath = testGroup "pandoc tests"',
+        '        [ Tests.Command.tests',
+        '        , testGroup "Old" (Tests.Old.tests pandocPath)',
+        '        , testGroup "Shared" Tests.Shared.tests',
+        '        , testGroup "MediaBag" Tests.MediaBag.tests',
+        '        , testGroup "XML" Tests.XML.tests',
+        '        , testGroup "Writers"',
+        '          [ testGroup "Native" Tests.Writers.Native.tests',
+        '          , testGroup "ConTeXt" Tests.Writers.ConTeXt.tests',
+        '          , testGroup "LaTeX" Tests.Writers.LaTeX.tests',
+        '          , testGroup "HTML" Tests.Writers.HTML.tests',
+        '          , testGroup "JATS" Tests.Writers.JATS.tests',
+        '          , testGroup "Jira" Tests.Writers.Jira.tests',
+        '          , testGroup "Docbook" Tests.Writers.DocBook.tests',
+        '          , testGroup "Markdown" Tests.Writers.Markdown.tests',
+        '          , testGroup "Org" Tests.Writers.Org.tests',
+        '          , testGroup "Plain" Tests.Writers.Plain.tests',
+        '          , testGroup "AsciiDoc" Tests.Writers.AsciiDoc.tests',
+        '          , testGroup "Docx" Tests.Writers.Docx.tests',
+        '          , testGroup "RST" Tests.Writers.RST.tests',
+        '          , testGroup "TEI" Tests.Writers.TEI.tests',
+        '          , testGroup "markua" Tests.Writers.Markua.tests',
+        '          , testGroup "Muse" Tests.Writers.Muse.tests',
+        '          , testGroup "FB2" Tests.Writers.FB2.tests',
+        '          , testGroup "PowerPoint" Tests.Writers.Powerpoint.tests',
+        '          , testGroup "Ms" Tests.Writers.Ms.tests',
+        '          , testGroup "AnnotatedTable" Tests.Writers.AnnotatedTable.tests',
+        '          , testGroup "BBCode" Tests.Writers.BBCode.tests',
+        '          ]',
+        '        , testGroup "Readers"',
+        '          [ testGroup "LaTeX" Tests.Readers.LaTeX.tests',
+        '          , testGroup "Markdown" Tests.Readers.Markdown.tests',
+        '          , testGroup "HTML" Tests.Readers.HTML.tests',
+        '          , testGroup "JATS" Tests.Readers.JATS.tests',
+        '          , testGroup "Jira" Tests.Readers.Jira.tests',
+        '          , testGroup "Org" Tests.Readers.Org.tests',
+        '          , testGroup "RST" Tests.Readers.RST.tests',
+        '          , testGroup "RTF" Tests.Readers.RTF.tests',
+        '          , testGroup "Docx" Tests.Readers.Docx.tests',
+        '          , testGroup "Pptx" Tests.Readers.Pptx.tests',
+        '          , testGroup "Xlsx" Tests.Readers.Xlsx.tests',
+        '          , testGroup "ODT" Tests.Readers.ODT.tests',
+        '          , testGroup "Txt2Tags" Tests.Readers.Txt2Tags.tests',
+        '          , testGroup "EPUB" Tests.Readers.EPUB.tests',
+        '          , testGroup "Muse" Tests.Readers.Muse.tests',
+        '          , testGroup "Creole" Tests.Readers.Creole.tests',
+        '          , testGroup "Man" Tests.Readers.Man.tests',
+        '          , testGroup "Mdoc" Tests.Readers.Mdoc.tests',
+        '          , testGroup "FB2" Tests.Readers.FB2.tests',
+        '          , testGroup "DokuWiki" Tests.Readers.DokuWiki.tests',
+        '          , testGroup "Pod" Tests.Readers.Pod.tests',
+        '          ]',
+        '        ]',
+        '',
+        'main :: IO ()',
         'main = do',
         '  setLocaleEncoding utf8',
         '  args <- getArgs',
         '  case args of',
-        '    "--emulate":args\' -> convertWithOpts noEngine undefined',
+        '    "--emulate":args\' -> -- emulate pandoc executable',
+        '          E.catch',
+        '            (do',
+        '              res <- parseOptionsFromArgs options defaultOpts "pandoc" args\'',
+        '              case res of',
+        '                Left e -> handleOptInfo noEngine e',
+        '                Right opts -> convertWithOpts noEngine opts)',
+        '            (handleError . Left)',
         '    _ -> inDirectory "test" $ do',
-        '      fp <- getExecutablePath',
-        '      defaultMain $ tests fp',
-        'tests fp = testGroup "pandoc tests" [Tests.Command.tests, testGroup "Old" (Tests.Old.tests fp), testGroup "Shared" Tests.Shared.tests, testGroup "MediaBag" Tests.MediaBag.tests, testGroup "XML" Tests.XML.tests, testGroup "Readers" [Tests.Readers.LaTeX.tests, Tests.Readers.Markdown.tests, Tests.Readers.HTML.tests, Tests.Readers.RST.tests, Tests.Readers.Docx.tests, Tests.Readers.Pptx.tests, Tests.Readers.Xlsx.tests, Tests.Readers.ODT.tests, Tests.Readers.EPUB.tests, Tests.Readers.FB2.tests, Tests.Readers.Pod.tests], testGroup "Writers" [Tests.Writers.Native.tests, Tests.Writers.HTML.tests, Tests.Writers.LaTeX.tests, Tests.Writers.Markdown.tests, Tests.Writers.Docx.tests, Tests.Writers.RST.tests, Tests.Writers.AsciiDoc.tests, Tests.Writers.DocBook.tests, Tests.Writers.TEI.tests, Tests.Writers.Powerpoint.tests, Tests.Writers.AnnotatedTable.tests, Tests.Writers.BBCode.tests]]',
+        '           fp <- getExecutablePath',
+        '           defaultMain $ tests fp',
     ]);
 };
 
@@ -1153,6 +1239,75 @@ return [
         $t->contains('loads docx writer tests', $missing);
         $t->contains('loads rst writer tests', $missing);
         $t->contains('loads bbcode writer tests', $missing);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing runner entry point source semantics', $blocked);
+        $t->contains('runner entry-point source semantics', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks stripped command emulation parser and extended tasty groups before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $testPandocEntryPoint): void {
+        $files = $requiredFiles($pinnedProject());
+        $entryPoint = $testPandocEntryPoint();
+        foreach ([
+            'E.catch',
+            'parseOptionsFromArgs options defaultOpts "pandoc" args\'',
+            'Left e -> handleOptInfo noEngine e',
+            'Right opts -> convertWithOpts noEngine opts',
+            '(handleError . Left)',
+            'Tests.Readers.JATS.tests',
+            'Tests.Readers.Jira.tests',
+            'Tests.Readers.Org.tests',
+            'Tests.Readers.RTF.tests',
+            'Tests.Readers.Txt2Tags.tests',
+            'Tests.Readers.Muse.tests',
+            'Tests.Readers.Creole.tests',
+            'Tests.Readers.Man.tests',
+            'Tests.Readers.Mdoc.tests',
+            'Tests.Readers.DokuWiki.tests',
+            'Tests.Writers.ConTeXt.tests',
+            'Tests.Writers.JATS.tests',
+            'Tests.Writers.Jira.tests',
+            'Tests.Writers.Org.tests',
+            'Tests.Writers.Plain.tests',
+            'Tests.Writers.Markua.tests',
+            'Tests.Writers.Muse.tests',
+            'Tests.Writers.FB2.tests',
+            'Tests.Writers.Ms.tests',
+        ] as $snippet) {
+            $entryPoint = str_replace($snippet, 'omitted_' . preg_replace('/[^A-Za-z0-9_]+/', '_', $snippet), $entryPoint);
+        }
+        $files['test/test-pandoc.hs'] = $entryPoint;
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['runnerEntrySourceClosure']['missingTargets']);
+        $missing = implode("\n", $audit['runnerEntrySourceClosure']['missingSemantics']['test:test-pandoc']);
+        $t->contains('catches command emulation exceptions', $missing);
+        $t->contains('parses --emulate args with default pandoc options', $missing);
+        $t->contains('handles command option info with noEngine', $missing);
+        $t->contains('converts parsed command options with noEngine', $missing);
+        $t->contains('handles emulation errors through pandoc error handler', $missing);
+        $t->contains('loads jats reader tests', $missing);
+        $t->contains('loads org reader tests', $missing);
+        $t->contains('loads dokuwiki reader tests', $missing);
+        $t->contains('loads context writer tests', $missing);
+        $t->contains('loads plain writer tests', $missing);
+        $t->contains('loads ms writer tests', $missing);
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing runner entry point source semantics', $blocked);
         $t->contains('runner entry-point source semantics', $audit['activationGate']);
