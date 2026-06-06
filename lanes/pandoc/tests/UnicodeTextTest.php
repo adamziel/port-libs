@@ -188,6 +188,27 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка; ┌─┐.</p>', $blocks);
     },
+    'decodes iso 8859 5 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-144');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csisolatincyrillic');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xF1\xF2\xF3\xF4\xF5\xF6\xF7\xF8\xF9\xFA\xFB\xFC\xFD\xFE\xFF", 'iso-8859-5');
+        $softHyphen = UnicodeText::decodeBytes("A\xADB", 'cyrillic');
+
+        $t->same('iso-8859-5', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Импорт\n\nРедактор привет; Ёлка № 7.", $decoded['text']);
+        $t->same("ёђѓєѕіїјљњћќ§ўџ", $specials['text']);
+        $t->same("A\u{00AD}B", $softHyphen['text']);
+        $t->same(2, UnicodeText::displayWidth($softHyphen['text']));
+        $t->same(['encoding' => 'iso-8859-5', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Импорт', $document->children[0]->attr('text'));
+        $t->same('Редактор привет; Ёлка № 7.', $document->children[1]->attr('text'));
+        $t->same(26, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
+        $t->contains('<p>Редактор привет; Ёлка № 7.</p>', $blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');

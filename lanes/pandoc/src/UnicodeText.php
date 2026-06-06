@@ -841,6 +841,7 @@ final class UnicodeText
             || $normalized === 'koi8-r'
             || $normalized === 'iso-8859-1'
             || $normalized === 'iso-8859-2'
+            || $normalized === 'iso-8859-5'
             || $normalized === 'iso-8859-15'
             || $normalized === 'macintosh'
         ) {
@@ -1316,6 +1317,7 @@ final class UnicodeText
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
+            'iso88595', 'iso88595:1988', 'latin5cyrillic', 'isoir144', 'cyrillic', 'csisolatincyrillic' => 'iso-8859-5',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
@@ -1711,6 +1713,49 @@ final class UnicodeText
             }
             if ($encoding === 'iso-8859-2' && isset(self::ISO_8859_2_REPLACEMENTS[$byte])) {
                 $out .= self::fromCodepoint(self::ISO_8859_2_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'iso-8859-5' && $byte >= 0xa1) {
+                if ($byte === 0xad) {
+                    $out .= "\u{00AD}";
+                    continue;
+                }
+                if ($byte >= 0xb0 && $byte <= 0xef) {
+                    $out .= self::fromCodepoint(0x0410 + ($byte - 0xb0));
+                    continue;
+                }
+                $out .= self::fromCodepoint(match ($byte) {
+                    0xa1 => 0x0401,
+                    0xa2 => 0x0402,
+                    0xa3 => 0x0403,
+                    0xa4 => 0x0404,
+                    0xa5 => 0x0405,
+                    0xa6 => 0x0406,
+                    0xa7 => 0x0407,
+                    0xa8 => 0x0408,
+                    0xa9 => 0x0409,
+                    0xaa => 0x040a,
+                    0xab => 0x040b,
+                    0xac => 0x040c,
+                    0xae => 0x040e,
+                    0xaf => 0x040f,
+                    0xf0 => 0x2116,
+                    0xf1 => 0x0451,
+                    0xf2 => 0x0452,
+                    0xf3 => 0x0453,
+                    0xf4 => 0x0454,
+                    0xf5 => 0x0455,
+                    0xf6 => 0x0456,
+                    0xf7 => 0x0457,
+                    0xf8 => 0x0458,
+                    0xf9 => 0x0459,
+                    0xfa => 0x045a,
+                    0xfb => 0x045b,
+                    0xfc => 0x045c,
+                    0xfd => 0x00a7,
+                    0xfe => 0x045e,
+                    0xff => 0x045f,
+                });
                 continue;
             }
             if ($encoding === 'macintosh' && $byte >= 0x80) {
