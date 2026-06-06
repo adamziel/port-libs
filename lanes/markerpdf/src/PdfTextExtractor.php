@@ -6939,6 +6939,13 @@ final class PdfTextExtractor
         }
         $imageWidth = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
         $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
+        $imageDimensionBoundary = $this->imageXObjectDimensionBoundaryReview(
+            $stream['dict'],
+            $objects,
+            $imageWidth,
+            $imageHeight
+        );
+        $imageDimensionsValid = $imageDimensionBoundary === null;
         $effectiveBitsPerComponent = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $imageDecode = $this->imageXObjectDecodeReview(
             $stream['dict'],
@@ -7049,6 +7056,10 @@ final class PdfTextExtractor
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $imageWidth,
             'height' => $imageHeight,
+            'image_dimensions_valid' => $imageDimensionsValid,
+            ...($imageDimensionBoundary === null ? [] : [
+                'image_dimension_boundary' => $imageDimensionBoundary,
+            ]),
             'color_space' => $colorSpace,
             'color_space_resource_name' => $colorSpaceReview['resource_name'],
             'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
@@ -7108,7 +7119,7 @@ final class PdfTextExtractor
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
             'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
-            'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
+            'native_raster_decode' => $filters !== null && $previewOnlyFilters === [] && $imageDimensionsValid,
             'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
@@ -7672,6 +7683,54 @@ final class PdfTextExtractor
             'identity' => $identity,
             'inverted_components' => $inverted,
             'source' => $source,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{
+     *     width: float|null,
+     *     height: float|null,
+     *     width_integer: bool,
+     *     height_integer: bool,
+     *     width_positive: bool,
+     *     height_positive: bool,
+     *     dimensions_valid: false,
+     *     native_raster_decode_blocked: true,
+     *     policy: string,
+     *     review_only: true
+     * }|null
+     */
+    private function imageXObjectDimensionBoundaryReview(
+        string $dictionary,
+        array $objects,
+        ?int $resolvedWidth,
+        ?int $resolvedHeight
+    ): ?array {
+        $widthNumber = $this->topLevelPdfNumberValueAfterName($dictionary, 'Width', $objects);
+        $heightNumber = $this->topLevelPdfNumberValueAfterName($dictionary, 'Height', $objects);
+        $width = $widthNumber ?? ($resolvedWidth === null ? null : (float) $resolvedWidth);
+        $height = $heightNumber ?? ($resolvedHeight === null ? null : (float) $resolvedHeight);
+        $widthInteger = $width !== null && abs($width - round($width)) < 0.000001;
+        $heightInteger = $height !== null && abs($height - round($height)) < 0.000001;
+        $widthPositive = $widthInteger && $width > 0.0;
+        $heightPositive = $heightInteger && $height > 0.0;
+
+        if ($widthPositive && $heightPositive) {
+            return null;
+        }
+
+        return [
+            'width' => $width === null ? null : $this->normalizedPdfReviewNumbers([$width])[0],
+            'height' => $height === null ? null : $this->normalizedPdfReviewNumbers([$height])[0],
+            'width_integer' => $widthInteger,
+            'height_integer' => $heightInteger,
+            'width_positive' => $widthPositive,
+            'height_positive' => $heightPositive,
+            'dimensions_valid' => false,
+            'native_raster_decode_blocked' => true,
+            'policy' => 'reject_missing_or_nonpositive_image_dimensions',
+            'review_only' => true,
         ];
     }
 

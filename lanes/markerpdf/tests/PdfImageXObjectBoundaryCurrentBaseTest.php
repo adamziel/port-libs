@@ -106,6 +106,90 @@ return [
         $t->true(!str_contains($plainText, 'Preview Only Mask Noise'));
         $t->true(!str_contains($plainText, 'Decoy Form Text'));
     },
+    'marks malformed image XObject dimensions as review-only before native raster handoff' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before malformed dimensions) Tj ET\n"
+            . "q 12 0 0 6 72 690 cm /Zero#20Width Do Q\n"
+            . "q 10 0 0 5 96 690 cm /Decimal#20Height Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After malformed dimensions) Tj ET';
+        $zeroWidthPayload = 'BT /F1 12 Tf 72 720 Td (Zero Width Image Payload Noise) Tj ET';
+        $decimalHeightPayload = 'BT /F1 12 Tf 72 720 Td (Decimal Height Image Payload Noise) Tj ET';
+        $compressedZeroWidthPayload = gzcompress($zeroWidthPayload);
+        $compressedDecimalHeightPayload = gzcompress($decimalHeightPayload);
+        if (!is_string($compressedZeroWidthPayload) || !is_string($compressedDecimalHeightPayload)) {
+            throw new RuntimeException('Unable to compress malformed dimension image payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Zero#20Width 5 0 R /Decimal#20Height 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 0 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedZeroWidthPayload) . " >>\nstream\n{$compressedZeroWidthPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1.5 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedDecimalHeightPayload) . " >>\nstream\n{$compressedDecimalHeightPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $zeroWidth = $entriesByName['Zero Width'];
+        $t->same(true, $zeroWidth['invoked']);
+        $t->same(0, $zeroWidth['width']);
+        $t->same(2, $zeroWidth['height']);
+        $t->same(false, $zeroWidth['image_dimensions_valid']);
+        $t->same(false, $zeroWidth['native_raster_decode']);
+        $t->same(true, $zeroWidth['decoded_with_current_filters']);
+        $t->same(hash('sha256', $zeroWidthPayload), $zeroWidth['decoded_sha256']);
+        $t->same(false, $zeroWidth['payload_in_visible_text']);
+        $t->same(0.0, $zeroWidth['image_dimension_boundary']['width']);
+        $t->same(2.0, $zeroWidth['image_dimension_boundary']['height']);
+        $t->same(true, $zeroWidth['image_dimension_boundary']['width_integer']);
+        $t->same(true, $zeroWidth['image_dimension_boundary']['height_integer']);
+        $t->same(false, $zeroWidth['image_dimension_boundary']['width_positive']);
+        $t->same(true, $zeroWidth['image_dimension_boundary']['height_positive']);
+        $t->same(false, $zeroWidth['image_dimension_boundary']['dimensions_valid']);
+        $t->same(true, $zeroWidth['image_dimension_boundary']['native_raster_decode_blocked']);
+        $t->same('reject_missing_or_nonpositive_image_dimensions', $zeroWidth['image_dimension_boundary']['policy']);
+        $t->same(true, $zeroWidth['image_dimension_boundary']['review_only']);
+
+        $decimalHeight = $entriesByName['Decimal Height'];
+        $t->same(true, $decimalHeight['invoked']);
+        $t->same(2, $decimalHeight['width']);
+        $t->same(1, $decimalHeight['height']);
+        $t->same(false, $decimalHeight['image_dimensions_valid']);
+        $t->same(false, $decimalHeight['native_raster_decode']);
+        $t->same(true, $decimalHeight['decoded_with_current_filters']);
+        $t->same(hash('sha256', $decimalHeightPayload), $decimalHeight['decoded_sha256']);
+        $t->same(false, $decimalHeight['payload_in_visible_text']);
+        $t->same(2.0, $decimalHeight['image_dimension_boundary']['width']);
+        $t->same(1.5, $decimalHeight['image_dimension_boundary']['height']);
+        $t->same(true, $decimalHeight['image_dimension_boundary']['width_integer']);
+        $t->same(false, $decimalHeight['image_dimension_boundary']['height_integer']);
+        $t->same(true, $decimalHeight['image_dimension_boundary']['width_positive']);
+        $t->same(false, $decimalHeight['image_dimension_boundary']['height_positive']);
+        $t->same(false, $decimalHeight['image_dimension_boundary']['dimensions_valid']);
+        $t->same(true, $decimalHeight['image_dimension_boundary']['native_raster_decode_blocked']);
+        $t->same('reject_missing_or_nonpositive_image_dimensions', $decimalHeight['image_dimension_boundary']['policy']);
+        $t->same(true, $decimalHeight['image_dimension_boundary']['review_only']);
+
+        $t->same(['Before malformed dimensions', 'After malformed dimensions'], $extractor->extractTextLines($pdf));
+        $t->same("Before malformed dimensions\nAfter malformed dimensions", $plainText);
+        $t->true(!str_contains($plainText, 'Zero Width Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Decimal Height Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $zeroWidthPayload));
+        $t->true(!str_contains($encoded, $decimalHeightPayload));
+    },
     'maps image XObjects invoked inside Form XObject resources as review-only metadata' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before nested form image) Tj ET\n"
             . "q 48 0 0 24 72 680 cm /Logo#20Form Do Q\n"
