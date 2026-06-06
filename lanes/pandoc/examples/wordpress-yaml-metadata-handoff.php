@@ -422,6 +422,37 @@ MARKDOWN;
 $specialFloatDocument = (new MarkdownReader())->read($specialFloatMarkdown);
 $specialFloatMeta = $specialFloatDocument->attr('meta', []);
 
+$plainNumericMarkdown = <<<'MARKDOWN'
+---
+title: Plain numeric packet
+review:
+  decimal: 1_024
+  signed-decimal: -1_024
+  hexadecimal: 0x2A
+  negative-hexadecimal: -0x2a
+  binary: 0b101010
+  octal: 0o52
+  legacy-octal: 052
+  sexagesimal: 1:20:30
+  invalid-sexagesimal: 1:60
+  decimal-float: 1_024.5
+  exponent: 1.2e2
+  positive-infinity: .inf
+  negative-infinity: -.INF
+  not-a-number: .NaN
+  quoted-decimal: "1_024"
+flow-review: {priority: 0o52, bits: 0b101010, score: +.INF, quoted-hex: "0x2A"}
+references:
+  - id: plain-numeric-ref
+    metadata: {duration: 2:03, ratio: .5, quoted-ratio: ".5"}
+...
+
+# Plain numeric body
+MARKDOWN;
+
+$plainNumericDocument = (new MarkdownReader())->read($plainNumericMarkdown);
+$plainNumericMeta = $plainNumericDocument->attr('meta', []);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -1055,6 +1086,48 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!is_nan($specialFloatMeta['flow-review']['missing'] ?? null)) {
         throw new RuntimeException('YAML metadata self-test missing flow NaN float metadata');
     }
+    if (($plainNumericMeta['review']['decimal'] ?? null) !== 1024) {
+        throw new RuntimeException('YAML metadata self-test missing plain decimal underscore numeric metadata');
+    }
+    if (($plainNumericMeta['review']['signed-decimal'] ?? null) !== -1024) {
+        throw new RuntimeException('YAML metadata self-test missing plain signed decimal underscore metadata');
+    }
+    if (($plainNumericMeta['review']['hexadecimal'] ?? null) !== 42 || ($plainNumericMeta['review']['negative-hexadecimal'] ?? null) !== -42) {
+        throw new RuntimeException('YAML metadata self-test missing plain hexadecimal numeric metadata');
+    }
+    if (($plainNumericMeta['review']['binary'] ?? null) !== 42 || ($plainNumericMeta['review']['octal'] ?? null) !== 42 || ($plainNumericMeta['review']['legacy-octal'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing plain binary/octal numeric metadata');
+    }
+    if (($plainNumericMeta['review']['sexagesimal'] ?? null) !== 4830 || ($plainNumericMeta['review']['invalid-sexagesimal'] ?? null) !== '1:60') {
+        throw new RuntimeException('YAML metadata self-test missing plain sexagesimal numeric metadata');
+    }
+    if (($plainNumericMeta['review']['decimal-float'] ?? null) !== 1024.5 || ($plainNumericMeta['review']['exponent'] ?? null) !== 120.0) {
+        throw new RuntimeException('YAML metadata self-test missing plain float numeric metadata');
+    }
+    if (!is_infinite($plainNumericMeta['review']['positive-infinity'] ?? null) || ($plainNumericMeta['review']['positive-infinity'] ?? 0.0) < 0) {
+        throw new RuntimeException('YAML metadata self-test missing plain positive infinity metadata');
+    }
+    if (!is_infinite($plainNumericMeta['review']['negative-infinity'] ?? null) || ($plainNumericMeta['review']['negative-infinity'] ?? 0.0) > 0) {
+        throw new RuntimeException('YAML metadata self-test missing plain negative infinity metadata');
+    }
+    if (!is_nan($plainNumericMeta['review']['not-a-number'] ?? null)) {
+        throw new RuntimeException('YAML metadata self-test missing plain NaN metadata');
+    }
+    if (($plainNumericMeta['review']['quoted-decimal'] ?? null) !== '1_024' || ($plainNumericMeta['flow-review']['quoted-hex'] ?? null) !== '0x2A') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve quoted numeric-looking metadata');
+    }
+    if (($plainNumericMeta['flow-review']['priority'] ?? null) !== 42 || ($plainNumericMeta['flow-review']['bits'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing flow plain numeric metadata');
+    }
+    if (!is_infinite($plainNumericMeta['flow-review']['score'] ?? null) || ($plainNumericMeta['flow-review']['score'] ?? 0.0) < 0) {
+        throw new RuntimeException('YAML metadata self-test missing flow plain infinity metadata');
+    }
+    if (($plainNumericMeta['references'][0]['metadata']['duration'] ?? null) !== 123 || ($plainNumericMeta['references'][0]['metadata']['ratio'] ?? null) !== 0.5) {
+        throw new RuntimeException('YAML metadata self-test missing nested plain numeric metadata');
+    }
+    if (($plainNumericMeta['references'][0]['metadata']['quoted-ratio'] ?? null) !== '.5') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve nested quoted numeric metadata');
+    }
 
     echo "yaml metadata handoff self-test ok\n";
     return;
@@ -1122,4 +1195,11 @@ echo 'Special float review: '
     . (is_infinite($specialFloatMeta['review']['negative-infinity'] ?? null) ? '-inf' : 'missing')
     . ' / '
     . (is_nan($specialFloatMeta['review']['not-a-number'] ?? null) ? 'nan' : 'missing')
+    . "\n";
+echo 'Plain numeric review: '
+    . ($plainNumericMeta['review']['decimal'] ?? '')
+    . ' / hex '
+    . ($plainNumericMeta['review']['hexadecimal'] ?? '')
+    . ' / flow '
+    . ($plainNumericMeta['flow-review']['priority'] ?? '')
     . "\n";

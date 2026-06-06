@@ -1923,10 +1923,11 @@ final class MarkdownReader
         }
 
         $boolean = $this->parseYamlBooleanScalar($value);
+        $numeric = $this->parseYamlPlainNumericScalar($value);
         $parsed = match (true) {
             $boolean !== null => $boolean,
             strtolower($value) === 'null' || $value === '~' => null,
-            is_numeric($value) => $this->parseYamlNumericScalar($value),
+            $numeric !== null => $numeric,
             default => $value,
         };
         $this->rememberYamlAnchor($anchorName, $parsed);
@@ -2877,9 +2878,24 @@ final class MarkdownReader
             . chr(0x80 | ($codepoint & 0x3F));
     }
 
-    private function parseYamlNumericScalar(string $value): int|float
+    private function parseYamlPlainNumericScalar(string $value): int|float|null
     {
-        return str_contains($value, '.') || stripos($value, 'e') !== false ? (float) $value : (int) $value;
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $integer = $this->parseYamlExplicitIntegerScalar($trimmed);
+        if (is_int($integer)) {
+            return $integer;
+        }
+
+        $float = $this->parseYamlExplicitFloatScalar($trimmed);
+        if (is_float($float)) {
+            return $float;
+        }
+
+        return null;
     }
 
     /**

@@ -2045,6 +2045,73 @@ return [
         $t->same('special-float-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="special-float-yaml-body">Special float YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml plain numeric metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Plain numeric **Packet**',
+            'review:',
+            '  decimal: 1_024',
+            '  signed-decimal: -1_024',
+            '  hexadecimal: 0x2A',
+            '  negative-hexadecimal: -0x2a',
+            '  binary: 0b101010',
+            '  octal: 0o52',
+            '  legacy-octal: 052',
+            '  sexagesimal: 1:20:30',
+            '  invalid-sexagesimal: 1:60',
+            '  decimal-float: 1_024.5',
+            '  exponent: 1.2e2',
+            '  positive-infinity: .inf',
+            '  negative-infinity: -.INF',
+            '  not-a-number: .NaN',
+            '  quoted-decimal: "1_024"',
+            'flow-review: {priority: 0o52, bits: 0b101010, score: +.INF, quoted-hex: "0x2A"}',
+            'references:',
+            '  - id: plain-numeric-ref',
+            '    issued:',
+            '      date-parts:',
+            '        - - 2026',
+            '          - 0b110',
+            '          - 0o5',
+            '    metadata: {duration: 2:03, ratio: .5, quoted-ratio: ".5"}',
+            '...',
+            '',
+            '# Plain numeric YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Plain numeric **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(1024, $meta['review']['decimal']);
+        $t->same(-1024, $meta['review']['signed-decimal']);
+        $t->same(42, $meta['review']['hexadecimal']);
+        $t->same(-42, $meta['review']['negative-hexadecimal']);
+        $t->same(42, $meta['review']['binary']);
+        $t->same(42, $meta['review']['octal']);
+        $t->same(42, $meta['review']['legacy-octal']);
+        $t->same(4830, $meta['review']['sexagesimal']);
+        $t->same('1:60', $meta['review']['invalid-sexagesimal']);
+        $t->same(1024.5, $meta['review']['decimal-float']);
+        $t->same(120.0, $meta['review']['exponent']);
+        $t->true(is_infinite($meta['review']['positive-infinity']) && $meta['review']['positive-infinity'] > 0, 'plain .inf should parse to +INF');
+        $t->true(is_infinite($meta['review']['negative-infinity']) && $meta['review']['negative-infinity'] < 0, 'plain -.INF should parse to -INF');
+        $t->true(is_nan($meta['review']['not-a-number']), 'plain .NaN should parse to NAN');
+        $t->same('1_024', $meta['review']['quoted-decimal']);
+        $t->same(42, $meta['flow-review']['priority']);
+        $t->same(42, $meta['flow-review']['bits']);
+        $t->true(is_infinite($meta['flow-review']['score']) && $meta['flow-review']['score'] > 0, 'flow +.INF should parse to +INF');
+        $t->same('0x2A', $meta['flow-review']['quoted-hex']);
+        $t->same('plain-numeric-ref', $meta['references'][0]['id']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same(123, $meta['references'][0]['metadata']['duration']);
+        $t->same(0.5, $meta['references'][0]['metadata']['ratio']);
+        $t->same('.5', $meta['references'][0]['metadata']['quoted-ratio']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('plain-numeric-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="plain-numeric-yaml-body">Plain numeric YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit integer base metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
