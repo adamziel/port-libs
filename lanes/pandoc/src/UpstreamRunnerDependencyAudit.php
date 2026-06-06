@@ -128,6 +128,11 @@ final class UpstreamRunnerDependencyAudit
         'test:test-pandoc-lua-engine' => [],
     ];
 
+    private const RUNNER_EXPECTED_BUILD_TOOLS = [
+        'test:test-pandoc' => [],
+        'test:test-pandoc-lua-engine' => [],
+    ];
+
     private const BENCHMARK_ENTRY_POINTS = [
         'benchmark:benchmark-pandoc' => [
             'packageFile' => 'pandoc.cabal',
@@ -171,6 +176,10 @@ final class UpstreamRunnerDependencyAudit
     ];
 
     private const BENCHMARK_EXPECTED_MIXINS = [
+        'benchmark:benchmark-pandoc' => [],
+    ];
+
+    private const BENCHMARK_EXPECTED_BUILD_TOOLS = [
         'benchmark:benchmark-pandoc' => [],
     ];
 
@@ -440,8 +449,8 @@ final class UpstreamRunnerDependencyAudit
      *   projectSourceRepositoryClosure:array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>},
      *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
      *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
-     *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, otherModules:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, missingOtherModules:array<string, list<string>>},
-     *   benchmarkDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>},
+     *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, otherModules:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, missingOtherModules:array<string, list<string>>},
+     *   benchmarkDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>},
      *   luaEngineLibraryClosure:array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, missingDependencies:list<string>},
      *   runnerEntrySourceClosure:array{expected:array<string, array{entryFile:string, requiredSnippets:array<string, string>}>, present:array<string, array{entryFile:string, matchedSnippets:list<string>}>, missingTargets:list<string>, missingSemantics:array<string, list<string>>},
      *   runnerArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>},
@@ -541,6 +550,9 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerDependencyClosure['unexpectedMixins'] !== []) {
             $blockedReasons[] = 'unexpected Cabal runner mixins: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedMixins']);
         }
+        if ($runnerDependencyClosure['unexpectedBuildTools'] !== []) {
+            $blockedReasons[] = 'unexpected Cabal runner build-tool dependencies: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedBuildTools']);
+        }
         if ($runnerDependencyClosure['missingOtherModules'] !== []) {
             $blockedReasons[] = 'missing Cabal runner other-modules: ' . self::formatTargetFailures($runnerDependencyClosure['missingOtherModules']);
         }
@@ -564,6 +576,9 @@ final class UpstreamRunnerDependencyAudit
         }
         if ($benchmarkDependencyClosure['unexpectedMixins'] !== []) {
             $blockedReasons[] = 'unexpected Cabal benchmark mixins: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedMixins']);
+        }
+        if ($benchmarkDependencyClosure['unexpectedBuildTools'] !== []) {
+            $blockedReasons[] = 'unexpected Cabal benchmark build-tool dependencies: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedBuildTools']);
         }
         if ($luaEngineLibraryClosure['missingDependencies'] !== []) {
             $blockedReasons[] = 'missing pandoc-lua-engine library build-depends: ' . implode(', ', $luaEngineLibraryClosure['missingDependencies']);
@@ -630,8 +645,8 @@ final class UpstreamRunnerDependencyAudit
             'nonMutatingPlan' => $ready ? [
                 'record cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
-                'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
-                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
+                'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
+                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins or build-tool dependencies, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
@@ -722,6 +737,14 @@ final class UpstreamRunnerDependencyAudit
     /**
      * @return array<string, list<string>>
      */
+    public static function expectedRunnerBuildTools(): array
+    {
+        return self::RUNNER_EXPECTED_BUILD_TOOLS;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
     public static function expectedBenchmarkDependencies(): array
     {
         return self::BENCHMARK_DIRECT_DEPENDENCIES;
@@ -757,6 +780,14 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedBenchmarkMixins(): array
     {
         return self::BENCHMARK_EXPECTED_MIXINS;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function expectedBenchmarkBuildTools(): array
+    {
+        return self::BENCHMARK_EXPECTED_BUILD_TOOLS;
     }
 
     /**
@@ -1051,7 +1082,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, otherModules:list<string>}>
+     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, otherModules:list<string>}>
      */
     public static function parseCabalTestSuites(string $contents): array
     {
@@ -1070,6 +1101,8 @@ final class UpstreamRunnerDependencyAudit
             $ghcOptions = self::splitWords($fields['ghc-options'] ?? '');
             $defaultLanguage = self::firstFieldValue($fields['default-language'] ?? null);
             $mixins = self::extractCabalMixinSpecs($fields['mixins'] ?? '');
+            $buildToolDepends = self::extractCabalBuildToolDepends($fields['build-tool-depends'] ?? '');
+            $buildTools = self::extractCabalBuildTools($fields['build-tools'] ?? '');
             $otherModules = self::extractCabalModuleNames($fields['other-modules'] ?? '');
 
             $suites[$stanza['name']] = [
@@ -1082,6 +1115,8 @@ final class UpstreamRunnerDependencyAudit
                 'ghcOptions' => $ghcOptions,
                 'defaultLanguage' => $defaultLanguage,
                 'mixins' => $mixins,
+                'buildToolDepends' => $buildToolDepends,
+                'buildTools' => $buildTools,
                 'otherModules' => $otherModules,
             ];
         }
@@ -1091,7 +1126,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>}>
+     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>}>
      */
     public static function parseCabalBenchmarks(string $contents): array
     {
@@ -1114,6 +1149,8 @@ final class UpstreamRunnerDependencyAudit
                 'ghcOptions' => self::splitWords($fields['ghc-options'] ?? ''),
                 'defaultLanguage' => self::firstFieldValue($fields['default-language'] ?? null),
                 'mixins' => self::extractCabalMixinSpecs($fields['mixins'] ?? ''),
+                'buildToolDepends' => self::extractCabalBuildToolDepends($fields['build-tool-depends'] ?? ''),
+                'buildTools' => self::extractCabalBuildTools($fields['build-tools'] ?? ''),
             ];
         }
 
@@ -1312,7 +1349,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, otherModules:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, missingOtherModules:array<string, list<string>>}
+     * @return array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, otherModules:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, missingOtherModules:array<string, list<string>>}
      */
     private static function auditRunnerDependencyClosure(string $root): array
     {
@@ -1340,6 +1377,8 @@ final class UpstreamRunnerDependencyAudit
                 'ghcOptions' => $suites[$suiteName]['ghcOptions'],
                 'defaultLanguage' => $suites[$suiteName]['defaultLanguage'],
                 'mixins' => $suites[$suiteName]['mixins'],
+                'buildToolDepends' => $suites[$suiteName]['buildToolDepends'],
+                'buildTools' => $suites[$suiteName]['buildTools'],
                 'otherModules' => $suites[$suiteName]['otherModules'],
             ];
         }
@@ -1351,6 +1390,7 @@ final class UpstreamRunnerDependencyAudit
         $missingExecutableOptions = [];
         $mismatchedDefaultLanguages = [];
         $unexpectedMixins = [];
+        $unexpectedBuildTools = [];
         $missingOtherModules = [];
 
         foreach (self::RUNNER_ENTRY_POINTS as $target => $entryPoint) {
@@ -1416,6 +1456,11 @@ final class UpstreamRunnerDependencyAudit
                 }
             }
 
+            $unexpectedBuildTools[$target] = self::unexpectedCabalBuildTools($present[$target]['buildToolDepends'], $present[$target]['buildTools']);
+            if ($unexpectedBuildTools[$target] === []) {
+                unset($unexpectedBuildTools[$target]);
+            }
+
             foreach (self::RUNNER_OTHER_MODULES[$target] as $module) {
                 if (!in_array($module, $present[$target]['otherModules'], true)) {
                     $missingOtherModules[$target][] = $module;
@@ -1429,6 +1474,7 @@ final class UpstreamRunnerDependencyAudit
             'expectedExecutableOptions' => self::RUNNER_EXECUTABLE_OPTIONS,
             'expectedDefaultLanguages' => self::RUNNER_DEFAULT_LANGUAGES,
             'expectedMixins' => self::RUNNER_EXPECTED_MIXINS,
+            'expectedBuildTools' => self::RUNNER_EXPECTED_BUILD_TOOLS,
             'expectedOtherModules' => self::RUNNER_OTHER_MODULES,
             'present' => $present,
             'missingTargets' => $missingTargets,
@@ -1438,12 +1484,13 @@ final class UpstreamRunnerDependencyAudit
             'missingExecutableOptions' => $missingExecutableOptions,
             'mismatchedDefaultLanguages' => $mismatchedDefaultLanguages,
             'unexpectedMixins' => $unexpectedMixins,
+            'unexpectedBuildTools' => $unexpectedBuildTools,
             'missingOtherModules' => $missingOtherModules,
         ];
     }
 
     /**
-     * @return array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>}
+     * @return array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>}
      */
     private static function auditBenchmarkDependencyClosure(string $root): array
     {
@@ -1471,6 +1518,8 @@ final class UpstreamRunnerDependencyAudit
                 'ghcOptions' => $benchmarks[$benchmarkName]['ghcOptions'],
                 'defaultLanguage' => $benchmarks[$benchmarkName]['defaultLanguage'],
                 'mixins' => $benchmarks[$benchmarkName]['mixins'],
+                'buildToolDepends' => $benchmarks[$benchmarkName]['buildToolDepends'],
+                'buildTools' => $benchmarks[$benchmarkName]['buildTools'],
             ];
         }
 
@@ -1481,6 +1530,7 @@ final class UpstreamRunnerDependencyAudit
         $missingExecutableOptions = [];
         $mismatchedDefaultLanguages = [];
         $unexpectedMixins = [];
+        $unexpectedBuildTools = [];
 
         foreach (self::BENCHMARK_ENTRY_POINTS as $target => $entryPoint) {
             if (!array_key_exists($target, $present)) {
@@ -1544,6 +1594,11 @@ final class UpstreamRunnerDependencyAudit
                     $unexpectedMixins[$target][] = $mixin;
                 }
             }
+
+            $unexpectedBuildTools[$target] = self::unexpectedCabalBuildTools($present[$target]['buildToolDepends'], $present[$target]['buildTools']);
+            if ($unexpectedBuildTools[$target] === []) {
+                unset($unexpectedBuildTools[$target]);
+            }
         }
 
         return [
@@ -1552,6 +1607,7 @@ final class UpstreamRunnerDependencyAudit
             'expectedExecutableOptions' => self::BENCHMARK_EXECUTABLE_OPTIONS,
             'expectedDefaultLanguages' => self::BENCHMARK_DEFAULT_LANGUAGES,
             'expectedMixins' => self::BENCHMARK_EXPECTED_MIXINS,
+            'expectedBuildTools' => self::BENCHMARK_EXPECTED_BUILD_TOOLS,
             'present' => $present,
             'missingTargets' => $missingTargets,
             'mismatchedEntryPoints' => $mismatchedEntryPoints,
@@ -1560,6 +1616,7 @@ final class UpstreamRunnerDependencyAudit
             'missingExecutableOptions' => $missingExecutableOptions,
             'mismatchedDefaultLanguages' => $mismatchedDefaultLanguages,
             'unexpectedMixins' => $unexpectedMixins,
+            'unexpectedBuildTools' => $unexpectedBuildTools,
         ];
     }
 
@@ -1838,6 +1895,7 @@ final class UpstreamRunnerDependencyAudit
         $stanzas = [];
         $currentKey = null;
         $lastField = null;
+        $lastFieldIndent = null;
         $conditionalIndent = null;
 
         foreach (preg_split('/\R/', $contents) ?: [] as $line) {
@@ -1849,6 +1907,7 @@ final class UpstreamRunnerDependencyAudit
                     'fields' => [],
                 ];
                 $lastField = null;
+                $lastFieldIndent = null;
                 $conditionalIndent = null;
                 continue;
             }
@@ -1863,6 +1922,7 @@ final class UpstreamRunnerDependencyAudit
                         'fields' => [],
                     ];
                     $lastField = null;
+                    $lastFieldIndent = null;
                     $conditionalIndent = null;
                     continue;
                 }
@@ -1875,6 +1935,7 @@ final class UpstreamRunnerDependencyAudit
             if (preg_match('/^\S/', $line) === 1) {
                 $currentKey = null;
                 $lastField = null;
+                $lastFieldIndent = null;
                 $conditionalIndent = null;
                 continue;
             }
@@ -1893,6 +1954,7 @@ final class UpstreamRunnerDependencyAudit
 
                 if ($indent === $conditionalIndent && preg_match('/^(?:elif|else)\b/i', $trimmed) === 1) {
                     $lastField = null;
+                    $lastFieldIndent = null;
                     continue;
                 }
 
@@ -1902,11 +1964,21 @@ final class UpstreamRunnerDependencyAudit
             if (preg_match('/^(?:if|elif|else)\b/i', $trimmed) === 1) {
                 $conditionalIndent = $indent;
                 $lastField = null;
+                $lastFieldIndent = null;
+                continue;
+            }
+
+            if ($lastField !== null && $lastFieldIndent !== null && $indent > $lastFieldIndent && preg_match('/^\s+(.*?)\s*$/', $line, $match) === 1) {
+                $continuation = trim($match[1]);
+                if ($continuation !== '') {
+                    $stanzas[$currentKey]['fields'][$lastField] .= "\n" . $continuation;
+                }
                 continue;
             }
 
             if (preg_match('/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/', $line, $match) === 1) {
                 $lastField = strtolower($match[1]);
+                $lastFieldIndent = $indent;
                 $stanzas[$currentKey]['fields'][$lastField] = trim($match[2]);
                 continue;
             }
@@ -1967,7 +2039,7 @@ final class UpstreamRunnerDependencyAudit
     private static function mergeCabalFields(array $base, array $next): array
     {
         foreach ($next as $field => $value) {
-            if (in_array($field, ['build-depends', 'other-modules', 'mixins'], true) && array_key_exists($field, $base) && $base[$field] !== '') {
+            if (in_array($field, ['build-depends', 'build-tool-depends', 'build-tools', 'other-modules', 'mixins'], true) && array_key_exists($field, $base) && $base[$field] !== '') {
                 $base[$field] .= ",\n" . $value;
                 continue;
             }
@@ -2099,6 +2171,65 @@ final class UpstreamRunnerDependencyAudit
 
         sort($mixins);
         return $mixins;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extractCabalBuildToolDepends(string $raw): array
+    {
+        $raw = self::stripCabalLineComments($raw);
+        $tools = [];
+
+        foreach (self::splitCabalCommaList($raw) as $part) {
+            if ($part !== '' && !in_array($part, $tools, true)) {
+                $tools[] = $part;
+            }
+        }
+
+        return $tools;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extractCabalBuildTools(string $raw): array
+    {
+        $raw = self::stripCabalLineComments($raw);
+        $tools = [];
+
+        foreach (self::splitCabalCommaList($raw) as $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            $items = preg_match('/[<>=:]/', $part) === 1 ? [$part] : self::splitWords($part);
+            foreach ($items as $item) {
+                if ($item !== '' && !in_array($item, $tools, true)) {
+                    $tools[] = $item;
+                }
+            }
+        }
+
+        return $tools;
+    }
+
+    /**
+     * @param list<string> $buildToolDepends
+     * @param list<string> $buildTools
+     * @return list<string>
+     */
+    private static function unexpectedCabalBuildTools(array $buildToolDepends, array $buildTools): array
+    {
+        $unexpected = [];
+        foreach ($buildToolDepends as $tool) {
+            $unexpected[] = 'build-tool-depends: ' . $tool;
+        }
+        foreach ($buildTools as $tool) {
+            $unexpected[] = 'build-tools: ' . $tool;
+        }
+
+        return $unexpected;
     }
 
     /**
@@ -2341,8 +2472,8 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>} $projectSourceRepositoryClosure
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
      * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
-     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
-     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>} $benchmarkDependencyClosure
+     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
+     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>} $benchmarkDependencyClosure
      * @param array{missingDependencies:list<string>} $luaEngineLibraryClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $runnerEntrySourceClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $runnerArtifactClosure
@@ -2370,6 +2501,7 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['missingExecutableOptions'] === []
             && $runnerDependencyClosure['mismatchedDefaultLanguages'] === []
             && $runnerDependencyClosure['unexpectedMixins'] === []
+            && $runnerDependencyClosure['unexpectedBuildTools'] === []
             && $runnerDependencyClosure['missingOtherModules'] === []
             && $benchmarkDependencyClosure['missingTargets'] === []
             && $benchmarkDependencyClosure['mismatchedEntryPoints'] === []
@@ -2378,6 +2510,7 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkDependencyClosure['missingExecutableOptions'] === []
             && $benchmarkDependencyClosure['mismatchedDefaultLanguages'] === []
             && $benchmarkDependencyClosure['unexpectedMixins'] === []
+            && $benchmarkDependencyClosure['unexpectedBuildTools'] === []
             && $luaEngineLibraryClosure['missingDependencies'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
             && $runnerEntrySourceClosure['missingSemantics'] === []
@@ -2390,10 +2523,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }
