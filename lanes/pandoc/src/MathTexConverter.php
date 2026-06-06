@@ -250,6 +250,18 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const MATH_CLASS_COMMANDS = [
+        'mathbin' => 'binary',
+        'mathclose' => 'close',
+        'mathinner' => 'inner',
+        'mathop' => 'operator',
+        'mathopen' => 'open',
+        'mathord' => 'ordinary',
+        'mathpunct' => 'punctuation',
+        'mathrel' => 'relation',
+    ];
+
+    /** @var array<string, string> */
     private const DELIMITER_COMMANDS = [
         '|' => '‖',
         '{' => '{',
@@ -1524,6 +1536,10 @@ final class MathTexConverter
             return $this->parseMathVariantCommand($source, $offset, $command);
         }
 
+        if (isset(self::MATH_CLASS_COMMANDS[$command])) {
+            return $this->parseMathClassCommand($source, $offset, $command);
+        }
+
         if ($command === 'hspace' || $command === 'mspace') {
             return $this->parseExplicitSpaceCommand($source, $offset, $command);
         }
@@ -2161,6 +2177,30 @@ final class MathTexConverter
         return '<mstyle mathvariant="' . $variant . '">'
             . $this->rewriteMathVariantIdentifiers($this->parseMathVariantArgument($source, $offset, $command), $variant)
             . '</mstyle>';
+    }
+
+    private function parseMathClassCommand(string $source, int &$offset, string $command): string
+    {
+        return '<mrow data-tex-math-class="' . self::MATH_CLASS_COMMANDS[$command] . '">'
+            . $this->parseMathClassArgument($source, $offset, $command)
+            . '</mrow>';
+    }
+
+    private function parseMathClassArgument(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX math class argument for \\' . $command . ' at offset ' . $offset);
+        }
+
+        if ($char === '{') {
+            return $this->parseRequiredNonEmptyGroup($source, $offset, 'math class');
+        }
+
+        $defaultScriptPlacement = null;
+
+        return $this->parseAtom($source, $offset, $defaultScriptPlacement);
     }
 
     private function rewriteMathVariantIdentifiers(string $mathml, string $variant): string

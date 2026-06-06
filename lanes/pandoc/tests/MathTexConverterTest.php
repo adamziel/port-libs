@@ -286,6 +286,23 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j</annotation>', $displayLimitsMathml);
         $t->contains('<mi>review</mi><mo>+</mo><mi>x</mi>', $plainStarredMathml);
     },
+    'converts bounded tex math class wrappers to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $classMathml = $converter->texToMathMl('\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathord{0}', true);
+        $fenceClassMathml = $converter->texToMathMl('\\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g + \\mathinner{\\frac{a}{b}}');
+        $noLimitsMathml = $converter->texToMathMl('\\mathop{\\operatorname{rank}}\\nolimits_i q_i');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $classMathml);
+        $t->contains('<munderover><mrow data-tex-math-class="operator"><mi>argmax</mi></mrow><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $classMathml);
+        $t->contains('<mi>a</mi><mrow data-tex-math-class="relation"><mo>≈</mo></mrow><mi>b</mi><mo>+</mo><mi>x</mi><mrow data-tex-math-class="binary"><mo>⋅</mo></mrow><mi>y</mi><mo>+</mo><mrow data-tex-math-class="ordinary"><mn>0</mn></mrow>', $classMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathord{0}</annotation>', $classMathml);
+        $t->contains('<mrow data-tex-math-class="open"><mo>[</mo></mrow><msub><mi>q</mi><mi>i</mi></msub><mrow data-tex-math-class="close"><mo>]</mo></mrow>', $fenceClassMathml);
+        $t->contains('<mi>f</mi><mrow data-tex-math-class="punctuation"><mo>,</mo></mrow><mi>g</mi><mo>+</mo><mrow data-tex-math-class="inner"><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow>', $fenceClassMathml);
+        $t->contains('<msub><mrow data-tex-math-class="operator"><mi>rank</mi></mrow><mi>i</mi></msub><msub><mi>q</mi><mi>i</mi></msub>', $noLimitsMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathop'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathrel{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathbin_1'));
+    },
     'converts bounded tex substack limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $substackMathml = $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)', true);
