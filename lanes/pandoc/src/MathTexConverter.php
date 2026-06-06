@@ -2511,7 +2511,7 @@ final class MathTexConverter
 
     private function arrayColumnAlign(string $columnSpec): string
     {
-        return $this->arrayColumnSpec($columnSpec)['columnalign'];
+        return $this->arrayColumnSpec($columnSpec, false)['columnalign'];
     }
 
     private function arrayColumnAttributes(string $columnSpec): string
@@ -2522,11 +2522,17 @@ final class MathTexConverter
     }
 
     /**
-     * @param array{columnalign:string, columnlines:list<string>, columns:int} $spec
+     * @param array{columnalign:string, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int} $spec
      */
     private function arrayColumnAttributesFromSpec(array $spec): string
     {
         $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
+        if (in_array(false, array_map(static fn (string $width): bool => $width === 'auto', $spec['columnwidths']), true)) {
+            $attributes .= ' columnwidth="' . $this->esc(implode(' ', $spec['columnwidths'])) . '"';
+        }
+        if (in_array(false, array_map(static fn (string $valign): bool => $valign === 'baseline', $spec['columnvaligns']), true)) {
+            $attributes .= ' data-tex-column-valign="' . $this->esc(implode(' ', $spec['columnvaligns'])) . '"';
+        }
         if ($spec['columnlines'] !== []) {
             $attributes .= ' columnlines="' . $this->esc(implode(' ', $spec['columnlines'])) . '"';
         }
@@ -2535,12 +2541,14 @@ final class MathTexConverter
     }
 
     /**
-     * @return array{columnalign:string, columnlines:list<string>, columns:int}
+     * @return array{columnalign:string, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int}
      */
-    private function arrayColumnSpec(string $columnSpec): array
+    private function arrayColumnSpec(string $columnSpec, bool $allowWidthColumns = true): array
     {
         $alignments = [];
         $columnLines = [];
+        $columnWidths = [];
+        $columnVerticalAlignments = [];
         $lineBeforeNextColumn = false;
         $length = strlen($columnSpec);
         for ($offset = 0; $offset < $length; $offset++) {
@@ -2557,29 +2565,44 @@ final class MathTexConverter
             }
 
             if ($char === 'l') {
-                if ($alignments !== []) {
-                    $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
-                }
-                $alignments[] = 'left';
+                $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'left', 'auto', 'baseline');
                 $lineBeforeNextColumn = false;
                 continue;
             }
 
             if ($char === 'c') {
-                if ($alignments !== []) {
-                    $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
-                }
-                $alignments[] = 'center';
+                $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'center', 'auto', 'baseline');
                 $lineBeforeNextColumn = false;
                 continue;
             }
 
             if ($char === 'r') {
-                if ($alignments !== []) {
-                    $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
-                }
-                $alignments[] = 'right';
+                $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'right', 'auto', 'baseline');
                 $lineBeforeNextColumn = false;
+                continue;
+            }
+
+            if ($char === 'p' || $char === 'm' || $char === 'b') {
+                if (!$allowWidthColumns) {
+                    throw new \InvalidArgumentException('Unsupported TeX array column specifier ' . $char . ' at offset ' . $offset);
+                }
+
+                $argumentOffset = $offset + 1;
+                $this->skipWhitespace($columnSpec, $argumentOffset);
+                $argument = $this->readTexBraceArgument($columnSpec, $argumentOffset);
+                if ($argument === null) {
+                    throw new \InvalidArgumentException('Expected TeX array ' . $char . '-column width at offset ' . ($offset + 1));
+                }
+
+                $width = $this->normalizeArrayColumnWidth($argument['value']);
+                $verticalAlignment = match ($char) {
+                    'p' => 'top',
+                    'm' => 'middle',
+                    'b' => 'bottom',
+                };
+                $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'left', $width, $verticalAlignment);
+                $lineBeforeNextColumn = false;
+                $offset = $argument['next'] - 1;
                 continue;
             }
 
@@ -2597,8 +2620,49 @@ final class MathTexConverter
         return [
             'columnalign' => implode(' ', $alignments),
             'columnlines' => $columnLines,
+            'columnwidths' => $columnWidths,
+            'columnvaligns' => $columnVerticalAlignments,
             'columns' => count($alignments),
         ];
+    }
+
+    /**
+     * @param list<string> $alignments
+     * @param list<string> $columnLines
+     * @param list<string> $columnWidths
+     * @param list<string> $columnVerticalAlignments
+     */
+    private function appendArrayColumnSpec(
+        array &$alignments,
+        array &$columnLines,
+        array &$columnWidths,
+        array &$columnVerticalAlignments,
+        bool $lineBeforeNextColumn,
+        string $alignment,
+        string $width,
+        string $verticalAlignment
+    ): void {
+        if ($alignments !== []) {
+            $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
+        }
+
+        $alignments[] = $alignment;
+        $columnWidths[] = $width;
+        $columnVerticalAlignments[] = $verticalAlignment;
+    }
+
+    private function normalizeArrayColumnWidth(string $width): string
+    {
+        $width = trim($width);
+        if ($width === '') {
+            throw new \InvalidArgumentException('Expected TeX array column width');
+        }
+
+        if (preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)(?:em|ex|px|pt|pc|in|cm|mm)$/', $width) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX array column width ' . $width);
+        }
+
+        return $width;
     }
 
     /**

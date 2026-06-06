@@ -737,6 +737,17 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{rl}x_i &amp;= p_i \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{array}</annotation>', $arrayMathml);
         $t->contains('<mtable columnalign="left center right" columnlines="solid solid"><mtr><mtd><mi>α</mi></mtd><mtd><mi>β</mi></mtd><mtd><mi>ω</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $ruledArrayMathml);
     },
+    'converts bounded tex array paragraph width columns to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $widthMathml = $converter->texToMathMl('\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i & \\text{middle review} & 1 \\\\ q_i & n_i & 2\\end{array}', true);
+        $mixedMathml = $converter->texToMathMl('\\begin{array}{l|p{3em}r}a & \\text{wrapped note} & b\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $widthMathml);
+        $t->contains('<mtable columnalign="left left left" columnwidth="2cm 1.5em 8pt" data-tex-column-valign="top middle bottom" columnlines="solid solid"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mtext>middle review</mtext></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd><mtd><mn>2</mn></mtd></mtr></mtable>', $widthMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i &amp; \\text{middle review} &amp; 1 \\\\ q_i &amp; n_i &amp; 2\\end{array}</annotation>', $widthMathml);
+        $t->contains('<mtable columnalign="left left right" columnwidth="auto 3em auto" data-tex-column-valign="baseline top baseline" columnlines="solid none"><mtr><mtd><mi>a</mi></mtd><mtd><mtext>wrapped note</mtext></mtd><mtd><mi>b</mi></mtd></mtr></mtable>', $mixedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|p{3em}r}a &amp; \\text{wrapped note} &amp; b\\end{array}</annotation>', $mixedMathml);
+    },
     'converts bounded tex array rule commands to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $ruleMathml = $converter->texToMathMl('\\begin{array}{l|c|r}\\hline p_i & m_i & 1 \\\\ \\hline q_i & n_i & 2 \\\\ \\hline\\end{array}', true);
@@ -900,7 +911,9 @@ return [
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}a & b\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{}a & b\\end{array}'));
-        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{p{2cm}}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\bfseries}l}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{p{}}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{m{-1cm}}a\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}a & b'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\frac{a}{b & c\\end{matrix}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\end{matrix}'));
