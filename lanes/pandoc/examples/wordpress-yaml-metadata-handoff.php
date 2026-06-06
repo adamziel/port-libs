@@ -803,6 +803,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_slice(array_column($yamlDiagnostics, 'reason'), 4) !== ['self-reference', 'unresolved-alias', 'unresolved-alias']) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic reasons');
     }
+    if (array_column(array_slice($yamlDiagnostics, 4), 'path') !== ['/alias-diagnostics/self', '/alias-diagnostics/missing', '/flow-alias-diagnostics/owner']) {
+        throw new RuntimeException('YAML metadata self-test missing alias diagnostic metadata paths');
+    }
     if (($yamlDiagnostics[4]['definedAnchor'] ?? '') !== 'alias_diag_self') {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic anchor provenance');
     }
@@ -905,6 +908,7 @@ echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') 
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 0, 4), 'field')) . "\n";
 echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?? '') . ' / ' . ($meta['3.14'] ?? '') . ' / ' . ($meta['0o52'] ?? '') . "\n";
 echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
+echo 'YAML alias diagnostic paths: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 4), 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";

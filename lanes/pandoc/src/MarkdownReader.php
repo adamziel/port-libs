@@ -29,6 +29,9 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataDiagnostics = [];
 
+    /** @var list<string> */
+    private array $yamlMetadataDiagnosticPath = [];
+
     /** @var list<array<string, string>> */
     private array $yamlMetadataTagProvenance = [];
 
@@ -492,11 +495,13 @@ final class MarkdownReader
     {
         $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
         $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
+        $previousYamlMetadataDiagnosticPath = $this->yamlMetadataDiagnosticPath;
         $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
         $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
         $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
         $this->yamlMetadataAnchors = [];
         $this->yamlMetadataDiagnostics = [];
+        $this->yamlMetadataDiagnosticPath = [];
         $this->yamlMetadataTagProvenance = [];
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
@@ -516,6 +521,7 @@ final class MarkdownReader
         } finally {
             $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
             $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
+            $this->yamlMetadataDiagnosticPath = $previousYamlMetadataDiagnosticPath;
             $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
@@ -624,6 +630,28 @@ final class MarkdownReader
         return $map;
     }
 
+    private function withYamlMetadataPathSegment(int|string $segment, callable $callback): mixed
+    {
+        $this->yamlMetadataDiagnosticPath[] = (string) $segment;
+        try {
+            return $callback();
+        } finally {
+            array_pop($this->yamlMetadataDiagnosticPath);
+        }
+    }
+
+    private function currentYamlMetadataDiagnosticPath(): ?string
+    {
+        if ($this->yamlMetadataDiagnosticPath === []) {
+            return null;
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $segment): string => str_replace(['~', '/'], ['~0', '~1'], $segment),
+            $this->yamlMetadataDiagnosticPath
+        ));
+    }
+
     /**
      * @param list<string> $lines
      * @return array<string, mixed>
@@ -671,7 +699,10 @@ final class MarkdownReader
             $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index);
             if ($explicitMapping !== null) {
                 [$key, $sourceValue, $children, $nextIndex, $quotedKey] = $explicitMapping;
-                [$value] = $this->parseYamlMetadataValue($sourceValue, $children);
+                [$value] = $this->withYamlMetadataPathSegment(
+                    (string) $key,
+                    fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
+                );
                 if ($key === '<<') {
                     $metadata = $this->mergeYamlMapValue($metadata, $value);
                 } else {
@@ -693,7 +724,10 @@ final class MarkdownReader
 
             [$key, $sourceValue, $quotedKey] = $mapping;
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
-            [$value] = $this->parseYamlMetadataValue($sourceValue, $children);
+            [$value] = $this->withYamlMetadataPathSegment(
+                (string) $key,
+                fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
+            );
             if ($key === '<<') {
                 $metadata = $this->mergeYamlMapValue($metadata, $value);
             } else {
@@ -1259,6 +1293,7 @@ final class MarkdownReader
             }
 
             $sourceValue = rtrim($m[1]);
+            $itemPath = (string) count($items);
             [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
             $children = [];
             $index++;
@@ -1268,21 +1303,30 @@ final class MarkdownReader
             }
 
             if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
-                $value = $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children);
+                $value = $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): array => $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children)
+                );
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
             }
 
             if ($this->yamlHasExplicitTag($tags, 'set')) {
-                $value = $this->parseYamlExplicitSetValue($sourceValue, $children);
+                $value = $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): array => $this->parseYamlExplicitSetValue($sourceValue, $children)
+                );
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
             }
 
             $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
-            $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
+            $multilineFlow = $this->withYamlMetadataPathSegment(
+                $itemPath,
+                fn (): mixed => $this->parseYamlMultilineFlowCollection($sourceValue, $children)
+            );
             if ($multilineFlow !== null) {
                 $multilineFlow = $this->applyYamlExplicitScalarTagToParsedValue($multilineFlow, $tags);
                 $this->rememberYamlAnchor($anchorName, $multilineFlow);
@@ -1318,7 +1362,10 @@ final class MarkdownReader
             }
 
             if ($sourceValue === '') {
-                $value = $this->parseYamlIndentedValue($children);
+                $value = $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): mixed => $this->parseYamlIndentedValue($children)
+                );
                 $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
@@ -1327,21 +1374,30 @@ final class MarkdownReader
 
             $childLines = $children === [] ? [] : $this->stripYamlCommonIndent($children);
             if (preg_match('/^-[ \t]+/', $sourceValue) === 1) {
-                $value = $this->parseYamlSequence(array_merge([$sourceValue], $childLines));
+                $value = $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): array => $this->parseYamlSequence(array_merge([$sourceValue], $childLines))
+                );
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
             }
 
             if ($this->isYamlCompactSequenceMappingSource($sourceValue)) {
-                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false);
+                $value = $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): array => $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false)
+                );
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
             }
 
             if ($childLines !== [] && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))) {
-                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false);
+                $value = $this->withYamlMetadataPathSegment(
+                    $itemPath,
+                    fn (): array => $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false)
+                );
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
@@ -1355,7 +1411,10 @@ final class MarkdownReader
                 continue;
             }
 
-            $value = $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags);
+            $value = $this->withYamlMetadataPathSegment(
+                $itemPath,
+                fn (): mixed => $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags)
+            );
             $this->rememberYamlAnchor($anchorName, $value);
             $items[] = $value;
         }
@@ -1677,10 +1736,13 @@ final class MarkdownReader
         }
 
         if ($value[0] === '[' && str_ends_with($value, ']')) {
-            $parsed = array_map(
-                fn (string $item): mixed => $this->parseYamlScalarValue($item),
-                $this->splitYamlInlineList(substr($value, 1, -1))
-            );
+            $parsed = [];
+            foreach ($this->splitYamlInlineList(substr($value, 1, -1)) as $item) {
+                $parsed[] = $this->withYamlMetadataPathSegment(
+                    (string) count($parsed),
+                    fn (): mixed => $this->parseYamlScalarValue($item)
+                );
+            }
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -1937,7 +1999,10 @@ final class MarkdownReader
                 continue;
             }
 
-            $value = $this->parseYamlScalarValue($value);
+            $value = $this->withYamlMetadataPathSegment(
+                (string) $key,
+                fn (): mixed => $this->parseYamlScalarValue($value)
+            );
             if ($key === '<<') {
                 $map = $this->mergeYamlMapValue($map, $value);
             } else {
@@ -2986,6 +3051,10 @@ final class MarkdownReader
         ];
         if ($currentAnchorName !== null && $currentAnchorName !== '') {
             $diagnostic['definedAnchor'] = $currentAnchorName;
+        }
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $diagnostic['path'] = $path;
         }
         if ($resolvedAliasName !== null && $resolvedAliasName !== '') {
             $diagnostic['resolvedAlias'] = '*' . $resolvedAliasName;

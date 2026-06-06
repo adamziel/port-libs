@@ -1525,6 +1525,37 @@ return [
         $t->same('alias-diagnostic-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="alias-diagnostic-yaml-body">Alias diagnostic YAML body</h1>', $blocks);
     },
+    'records pandoc yaml alias diagnostics with metadata paths' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Alias path **Packet**',
+            'review-list:',
+            '  - *missing_item',
+            'flow-review: {owner: *missing_flow_owner, labels: [approved, *missing_flow_label]}',
+            'references:',
+            '  - id: path-ref',
+            '    metadata:',
+            '      source: *missing_source',
+            '...',
+            '',
+            '# Alias path body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Alias path **Packet**', $meta['title']);
+        $t->same('*missing_item', $meta['review-list'][0]);
+        $t->same('*missing_flow_owner', $meta['flow-review']['owner']);
+        $t->same('*missing_flow_label', $meta['flow-review']['labels'][1]);
+        $t->same('*missing_source', $meta['references'][0]['metadata']['source']);
+        $t->same(['unresolved-alias', 'unresolved-alias', 'unresolved-alias', 'unresolved-alias'], array_column($diagnostics, 'reason'));
+        $t->same(['*missing_item', '*missing_flow_owner', '*missing_flow_label', '*missing_source'], array_column($diagnostics, 'alias'));
+        $t->same(['/review-list/0', '/flow-review/owner', '/flow-review/labels/1', '/references/0/metadata/source'], array_column($diagnostics, 'path'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same('alias-path-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="alias-path-body">Alias path body</h1>', $blocks);
+    },
     'maps pandoc yaml merge sequences with earlier map precedence' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
