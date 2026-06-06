@@ -1164,6 +1164,7 @@ final class PdfNamedDestinationExtractor
                 ? $limits
                 : $inheritedLimits;
 
+            $leafEntries = [];
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects, $cache);
                 if ($name === null || $name['text'] === '') {
@@ -1176,11 +1177,20 @@ final class PdfNamedDestinationExtractor
                     continue;
                 }
 
-                $entries[] = [
+                $leafEntries[] = [
                     'name' => $name['text'],
+                    'name_bytes' => $name['bytes'],
                     'value' => $names[$index + 1],
+                    'order' => count($leafEntries),
                 ];
                 $index += 2;
+            }
+
+            foreach ($this->nameTreeLeafEntriesSortedByNameBytes($leafEntries) as $entry) {
+                $entries[] = [
+                    'name' => $entry['name'],
+                    'value' => $entry['value'],
+                ];
             }
         }
 
@@ -1196,6 +1206,43 @@ final class PdfNamedDestinationExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{name: string, name_bytes: string, value: mixed, order: int}> $entries
+     * @return list<array{name: string, name_bytes: string, value: mixed, order: int}>
+     */
+    private function nameTreeLeafEntriesSortedByNameBytes(array $entries): array
+    {
+        if (count($entries) < 2 || !$this->nameTreeLeafEntriesContainDuplicateName($entries)) {
+            return $entries;
+        }
+
+        usort(
+            $entries,
+            static function (array $left, array $right): int {
+                return strcmp($left['name_bytes'], $right['name_bytes'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{name: string, name_bytes: string, value: mixed, order: int}> $entries
+     */
+    private function nameTreeLeafEntriesContainDuplicateName(array $entries): bool
+    {
+        $seen = [];
+        foreach ($entries as $entry) {
+            if (isset($seen[$entry['name']])) {
+                return true;
+            }
+            $seen[$entry['name']] = true;
+        }
+
+        return false;
     }
 
     /**
