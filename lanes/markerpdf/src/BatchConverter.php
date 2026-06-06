@@ -1103,6 +1103,20 @@ final class BatchConverter
             $processSinglePdfPreflight,
             $poolErrorBoundary
         );
+        $consoleSummary = $this->conversionSummaryPlan(
+            count($taskArgs),
+            $chunkIndex,
+            $numChunks,
+            $totalProcesses,
+            $absoluteOutputFolder
+        );
+        $emptyTaskQueueModelHandoff = $this->runtimeEmptyTaskQueueModelHandoffReview(
+            $taskArgs,
+            $poolErrorBoundary,
+            $spawnStartMethod,
+            $modelHandoff,
+            $consoleSummary
+        );
 
         return [
             'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
@@ -1222,18 +1236,13 @@ final class BatchConverter
                 'pool_context_manager' => $this->convertMainPoolContextManagerPlan($totalProcesses, $modelHandoff),
                 'worker_initializer' => $this->convertMainWorkerInitializerPlan($totalProcesses, $modelHandoff),
                 'task_arg_identity_review' => $taskArgIdentityReview,
+                'empty_task_queue_model_handoff' => $emptyTaskQueueModelHandoff,
                 'process_single_pdf_preflight' => $processSinglePdfPreflight,
                 'pool_result_drain' => $poolResultDrain,
                 'pool_cleanup' => $this->convertMainPoolCleanupPlan($totalProcesses, $modelHandoff),
                 'progress_iterator' => $this->progressIterator(),
             ],
-            'console_summary' => $this->conversionSummaryPlan(
-                count($taskArgs),
-                $chunkIndex,
-                $numChunks,
-                $totalProcesses,
-                $absoluteOutputFolder
-            ),
+            'console_summary' => $consoleSummary,
             'conversion_boundary' => [
                 'min_length' => $minLength,
                 'per_file_preflight_function' => 'process_single_pdf',
@@ -1801,6 +1810,77 @@ final class BatchConverter
             'none_return_filenames' => $noneReturnFilenames,
             'non_null_return_filenames' => $nonNullReturnFilenames,
             'cleanup_after_result_drain' => $reached,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}> $taskArgs
+     * @param array<string, mixed> $spawnStartMethod
+     * @param array<string, mixed> $modelHandoff
+     * @param array<string, mixed> $consoleSummary
+     * @return array<string, mixed>
+     */
+    private function runtimeEmptyTaskQueueModelHandoffReview(
+        array $taskArgs,
+        ?string $poolErrorBoundary,
+        array $spawnStartMethod,
+        array $modelHandoff,
+        array $consoleSummary
+    ): array {
+        $taskArgCount = count($taskArgs);
+        $emptyQueue = $taskArgCount === 0;
+        $reviewReached = $emptyQueue && $poolErrorBoundary === 'empty-task-queue';
+        $shareMemoryReview = is_array($modelHandoff['model_share_memory_review'] ?? null)
+            ? $modelHandoff['model_share_memory_review']
+            : [];
+        $workerModelLoadPlanned = $reviewReached
+            && (bool) ($modelHandoff['worker_loads_models_when_init_arg_null'] ?? false);
+
+        return [
+            'source' => 'convert.py empty files_to_convert model handoff boundary',
+            'order' => 'after_metadata_spawn_model_handoff_summary_and_task_args_before_pool_creation_error',
+            'review_reached' => $reviewReached,
+            'blocked_by' => $reviewReached ? null : ($emptyQueue ? $poolErrorBoundary : 'not-empty-task-queue'),
+            'selected_count' => $taskArgCount,
+            'task_args_count' => $taskArgCount,
+            'empty_files_to_convert' => $emptyQueue,
+            'empty_queue_short_circuits_before_spawn' => false,
+            'spawn_start_method_reached_before_empty_pool_failure' => $reviewReached
+                && (bool) ($spawnStartMethod['start_method_reached'] ?? false),
+            'spawn_start_method_success_before_empty_pool_failure' => $reviewReached
+                && (bool) ($spawnStartMethod['start_method_success'] ?? false),
+            'total_processes_computed_before_spawn' => $reviewReached
+                ? (int) ($spawnStartMethod['total_processes_computed_before_spawn'] ?? 0)
+                : 0,
+            'model_handoff_reached_before_empty_pool_failure' => $reviewReached
+                && (bool) ($modelHandoff['model_handoff_reached'] ?? false),
+            'parent_load_all_models_before_empty_pool_failure' => $reviewReached
+                && (bool) ($modelHandoff['main_load_all_models'] ?? false),
+            'parent_share_memory_before_empty_pool_failure' => $reviewReached
+                && (bool) ($modelHandoff['share_memory_before_pool'] ?? false),
+            'share_memory_loop_reached_before_empty_pool_failure' => $reviewReached
+                && (bool) ($modelHandoff['model_share_memory_loop_reached'] ?? false),
+            'share_memory_model_slot_indexes_before_empty_pool_failure' => $reviewReached
+                ? ($shareMemoryReview['share_memory_model_slot_indexes'] ?? [])
+                : [],
+            'none_model_slot_indexes_before_empty_pool_failure' => $reviewReached
+                ? ($shareMemoryReview['none_model_slot_indexes'] ?? [])
+                : [],
+            'mps_worker_model_load_planned_before_empty_pool_failure' => $workerModelLoadPlanned,
+            'mps_worker_model_load_blocked_by_empty_pool' => $workerModelLoadPlanned,
+            'conversion_summary_reached_before_empty_pool_failure' => $reviewReached
+                && (bool) ($consoleSummary['summary_reached'] ?? false),
+            'conversion_summary_line' => $reviewReached ? ($consoleSummary['message_line'] ?? null) : null,
+            'task_args_built_before_empty_pool_failure' => $reviewReached,
+            'pool_creation_reached_after_empty_summary' => $reviewReached,
+            'worker_pool_error_boundary' => $poolErrorBoundary,
+            'pool_creation_error_boundary' => $reviewReached ? 'pool-process-count-failed' : null,
+            'pool_imap_reached' => false,
+            'worker_initializer_reached' => false,
+            'cleanup_reached' => false,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,
