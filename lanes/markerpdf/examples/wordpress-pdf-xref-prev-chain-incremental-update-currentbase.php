@@ -708,6 +708,102 @@ $infoNullPdf .= "20 0 obj\n"
     . "stream\n{$infoNullCompressedRows}\nendstream\nendobj\n"
     . "startxref\n{$infoNullCurrentXrefOffset}\n%%EOF";
 
+$compressedPrevAttachmentPayload = '<wp-export><post id="current-compressed-prev-smoke"/></wp-export>';
+$compressedPrevAttachmentPdf = "%PDF-1.7\n";
+$compressedPrevAttachmentOffsets = [];
+$addCompressedPrevAttachmentObject = static function (
+    int $objectNumber,
+    int $generation,
+    string $body
+) use (&$compressedPrevAttachmentPdf, &$compressedPrevAttachmentOffsets): int {
+    $offset = strlen($compressedPrevAttachmentPdf);
+    $compressedPrevAttachmentOffsets[$objectNumber . ':' . $generation] = $offset;
+    $compressedPrevAttachmentPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+$compressedPrevObjectStream = static function (array $members): array {
+    $headerPairs = [];
+    $memberIndexes = [];
+    $objectData = '';
+    foreach ($members as $objectNumber => $body) {
+        $headerPairs[] = $objectNumber . ' ' . strlen($objectData);
+        $memberIndexes[$objectNumber] = count($memberIndexes);
+        $objectData .= $body . "\n";
+    }
+
+    $header = implode(' ', $headerPairs);
+    $plain = $header . "\n" . $objectData;
+    $compressed = gzcompress($plain);
+    if (!is_string($compressed)) {
+        throw new RuntimeException('Unable to compress compressed-Prev attachment helper object stream.');
+    }
+
+    return [
+        'first' => strlen($header) + 1,
+        'indexes' => $memberIndexes,
+        'content' => $compressed,
+        'count' => count($members),
+    ];
+};
+
+$addCompressedPrevAttachmentObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addCompressedPrevAttachmentObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+$addCompressedPrevAttachmentObject(8, 0, '<< /Names [(previous-compressed-prev-smoke.xml) 10 0 R] >>');
+$addCompressedPrevAttachmentObject(10, 0, '<< /Type /Filespec /F (previous-compressed-prev-smoke.xml) /Desc (Previous compressed Prev smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addCompressedPrevAttachmentObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length 0 >>' . "\nstream\n\nendstream");
+
+$compressedPrevAttachmentPreviousXrefOffset = strlen($compressedPrevAttachmentPdf);
+$compressedPrevAttachmentPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($compressedPrevAttachmentOffsets['1:0'])
+    . $xrefTableRow($compressedPrevAttachmentOffsets['2:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($compressedPrevAttachmentOffsets['8:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($compressedPrevAttachmentOffsets['10:0'])
+    . $xrefTableRow($compressedPrevAttachmentOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+    . "startxref\n{$compressedPrevAttachmentPreviousXrefOffset}\n%%EOF\n";
+
+$addCompressedPrevAttachmentObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addCompressedPrevAttachmentObject(8, 0, '<< /Names [(current-compressed-prev-smoke.xml) 10 0 R] >>');
+$addCompressedPrevAttachmentObject(10, 0, '<< /Type /Filespec /F (current-compressed-prev-smoke.xml) /Desc (Current compressed Prev smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addCompressedPrevAttachmentObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($compressedPrevAttachmentPayload) . " >>\nstream\n{$compressedPrevAttachmentPayload}\nendstream");
+
+$compressedPrevHelperStream = $compressedPrevObjectStream([30 => (string) $compressedPrevAttachmentPreviousXrefOffset]);
+$compressedPrevHelperCarrierOffset = $addCompressedPrevAttachmentObject(
+    90,
+    0,
+    '<< /Type /ObjStm /N ' . $compressedPrevHelperStream['count']
+        . ' /First ' . $compressedPrevHelperStream['first']
+        . ' /Filter /FlateDecode /Length ' . strlen($compressedPrevHelperStream['content']) . " >>\n"
+        . "stream\n{$compressedPrevHelperStream['content']}\nendstream"
+);
+
+$compressedPrevAttachmentRows = ''
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(1, 0, 0)
+    . $xrefStreamRow(2, 90, $compressedPrevHelperStream['indexes'][30])
+    . $xrefStreamRow(1, $compressedPrevHelperCarrierOffset, 0);
+$compressedPrevAttachmentRowsCompressed = gzcompress($compressedPrevAttachmentRows);
+if (!is_string($compressedPrevAttachmentRowsCompressed)) {
+    throw new RuntimeException('Unable to compress compressed-Prev attachment smoke xref rows.');
+}
+
+$compressedPrevAttachmentCurrentXrefOffset = strlen($compressedPrevAttachmentPdf);
+$compressedPrevAttachmentPdf .= "40 0 obj\n"
+    . '<< /Type /XRef /Size 91 /Root 1 0 R /Prev 30 0 R /Index [1 1 8 1 10 2 30 1 90 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedPrevAttachmentRowsCompressed) . " >>\n"
+    . "stream\n{$compressedPrevAttachmentRowsCompressed}\nendstream\nendobj\n"
+    . "startxref\n{$compressedPrevAttachmentCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -780,6 +876,8 @@ $infoNullEncoded = json_encode([
     'text' => $infoNullPlainText,
     'outline' => $infoNullOutline,
 ], JSON_UNESCAPED_SLASHES);
+$compressedPrevAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($compressedPrevAttachmentPdf);
+$compressedPrevAttachmentSummaryEncoded = json_encode($compressedPrevAttachmentSummary, JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF xref /Prev chain current trailer generations repair damaged current in-use offsets before metadata import',
@@ -870,6 +968,16 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'info_null_latest_xref_stream_stale_prev_excluded' => is_string($infoNullEncoded)
         && !str_contains($infoNullEncoded, 'Stale Info Null')
         && !str_contains($infoNullEncoded, 'Stale Info null smoke page'),
+    'compressed_object_stream_prev_attachment_summary_selected' => ($compressedPrevAttachmentSummary['filenames'] ?? []) === ['current-compressed-prev-smoke.xml']
+        && ($compressedPrevAttachmentSummary['total_bytes'] ?? null) === strlen($compressedPrevAttachmentPayload),
+    'compressed_object_stream_prev_attachment_description_selected' => ($compressedPrevAttachmentSummary['attachments'][0]['description'] ?? null) === 'Current compressed Prev smoke attachment',
+    'compressed_object_stream_prev_helper_used' => str_contains($compressedPrevAttachmentPdf, '/Prev 30 0 R')
+        && str_contains($compressedPrevAttachmentPdf, '/Type /ObjStm'),
+    'compressed_object_stream_prev_attachment_no_runtime_execution' => ($compressedPrevAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($compressedPrevAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
+    'compressed_object_stream_prev_stale_attachment_excluded' => is_string($compressedPrevAttachmentSummaryEncoded)
+        && !str_contains($compressedPrevAttachmentSummaryEncoded, 'previous-compressed-prev-smoke')
+        && !str_contains($compressedPrevAttachmentSummaryEncoded, 'Previous compressed Prev smoke'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

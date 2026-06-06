@@ -4061,7 +4061,7 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $decoded = $this->decodedStreamBytes($objectStream, $objects);
+        $decoded = $this->decodedObjectStreamBytes($objectStream, $objects);
         if ($decoded === null || $firstOffset > strlen($decoded)) {
             return null;
         }
@@ -4101,6 +4101,24 @@ final class PdfAttachmentExtractor
         }
 
         return substr($data, $start, $end - $start);
+    }
+
+    /**
+     * @param array{generation: int, body: string, value: mixed, stream: string|null} $streamObject
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function decodedObjectStreamBytes(array $streamObject, array $objects): ?string
+    {
+        if ($streamObject['stream'] === null) {
+            return null;
+        }
+
+        $dict = $this->dict($streamObject['value']);
+        if ($dict === null || $this->nameValue($this->resolveValue($dict['Type'] ?? null, $objects)) !== 'ObjStm') {
+            return null;
+        }
+
+        return $this->decodedStreamBytesForDictionary($streamObject['stream'], $dict, $objects);
     }
 
     private function objectStreamMemberOffsetHasTokenBoundary(string $data, int $offset): bool
