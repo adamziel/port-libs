@@ -3655,6 +3655,21 @@ final class PdfEmbeddedFileExtractor
                     foreach ($this->objectReferencesInBody($definition['body']) as $nestedReference) {
                         $pending[] = $nestedReference;
                     }
+                } else {
+                    $memberBody = $this->currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
+                        $objectNumber,
+                        $generation,
+                        $entries[$objectNumber],
+                        $entries,
+                        $previousOffset,
+                        $currentXrefOffset,
+                        $definitions
+                    );
+                    if ($memberBody !== null) {
+                        foreach ($this->objectReferencesInBody($memberBody) as $nestedReference) {
+                            $pending[] = $nestedReference;
+                        }
+                    }
                 }
 
                 continue;
@@ -3722,6 +3737,52 @@ final class PdfEmbeddedFileExtractor
             'offset' => $definition['offset'],
             'body' => $definition['body'],
         ];
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
+        int $objectNumber,
+        int $generation,
+        array $entry,
+        array $entries,
+        int $previousOffset,
+        int $currentXrefOffset,
+        array $definitions
+    ): ?string {
+        if ($generation !== 0 || ($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
+            return null;
+        }
+
+        $carrierObjectNumber = (int) $entry['objectStream'];
+        $carrierEntry = $entries[$carrierObjectNumber] ?? null;
+        if ($carrierEntry === null || ($carrierEntry['type'] ?? null) !== 1) {
+            return null;
+        }
+
+        $carrierDefinition = $this->xrefEntrySelectedDirectDefinition($carrierObjectNumber, $carrierEntry, $definitions);
+        if (
+            $carrierDefinition === null
+            || $carrierDefinition['offset'] <= $previousOffset
+            || $carrierDefinition['offset'] >= $currentXrefOffset
+            || !$this->objectBodyHasTypeName($carrierDefinition['body'], 'ObjStm')
+        ) {
+            return null;
+        }
+
+        $body = $this->objectStreamMemberBodyForXrefEntry(
+            [$carrierObjectNumber => $carrierDefinition['body']],
+            $entry,
+            $objectNumber
+        );
+        if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+            return null;
+        }
+
+        return $body;
     }
 
     /**

@@ -26951,6 +26951,22 @@ final class PdfTextExtractor
                     foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
                         $pending[] = $nestedReference;
                     }
+                } else {
+                    $memberBody = $this->currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
+                        $objectNumber,
+                        $generation,
+                        $entries[$objectNumber],
+                        $entries,
+                        $previousOffset,
+                        $currentXrefOffset,
+                        $definitions
+                    );
+                    if ($memberBody !== null) {
+                        $body = $this->dictionaryObjectBody($memberBody) ?? $memberBody;
+                        foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
+                            $pending[] = $nestedReference;
+                        }
+                    }
                 }
 
                 continue;
@@ -27019,6 +27035,92 @@ final class PdfTextExtractor
             'offset' => $definition['offset'],
             'body' => $definition['body'],
         ];
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
+        int $objectNumber,
+        int $generation,
+        array $entry,
+        array $entries,
+        int $previousOffset,
+        int $currentXrefOffset,
+        array $definitions
+    ): ?string {
+        if ($generation !== 0 || ($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
+            return null;
+        }
+
+        $carrierObjectNumber = (int) $entry['objectStream'];
+        $carrierEntry = $entries[$carrierObjectNumber] ?? null;
+        if ($carrierEntry === null || ($carrierEntry['type'] ?? null) !== 1) {
+            return null;
+        }
+
+        $carrierDefinition = $this->xrefEntrySelectedDirectDefinition($carrierObjectNumber, $carrierEntry, $definitions);
+        if (
+            $carrierDefinition === null
+            || $carrierDefinition['offset'] <= $previousOffset
+            || $carrierDefinition['offset'] >= $currentXrefOffset
+            || !$this->objectBodyHasTypeName($carrierDefinition['body'], 'ObjStm')
+        ) {
+            return null;
+        }
+
+        $memberTable = $this->decodedObjectStreamMemberTable($carrierDefinition['body'], []);
+        if ($memberTable === null) {
+            return null;
+        }
+
+        $member = $this->selectedObjectStreamGraphMember($memberTable['members'], $entry, $objectNumber);
+        if ($member === null) {
+            return null;
+        }
+
+        $body = $this->objectStreamMemberBody($memberTable, $member);
+        if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+            return null;
+        }
+
+        return $body;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @param array{type: int, index?: int, indexIsExplicit?: bool} $xrefEntry
+     * @return array{objectNumber: int, offset: int, index: int}|null
+     */
+    private function selectedObjectStreamGraphMember(array $members, array $xrefEntry, int $requestedObjectNumber): ?array
+    {
+        $requestedIndex = $xrefEntry['index'] ?? null;
+        if (is_int($requestedIndex) && ($xrefEntry['indexIsExplicit'] ?? true) === true) {
+            foreach ($members as $member) {
+                if ($member['index'] === $requestedIndex && $member['objectNumber'] === $requestedObjectNumber) {
+                    return $member;
+                }
+            }
+
+            return null;
+        }
+
+        $selected = null;
+        foreach ($members as $member) {
+            if ($member['objectNumber'] !== $requestedObjectNumber) {
+                continue;
+            }
+
+            if ($selected !== null) {
+                return null;
+            }
+
+            $selected = $member;
+        }
+
+        return $selected;
     }
 
     /**
