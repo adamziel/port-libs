@@ -1294,7 +1294,10 @@ final class MarkdownReader
 
             $sourceValue = rtrim($m[1]);
             $itemPath = (string) count($items);
-            [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
+            [$sourceValue, $anchorName, $tags] = $this->withYamlMetadataPathSegment(
+                $itemPath,
+                fn (): array => $this->parseYamlValueDirectives($sourceValue)
+            );
             $children = [];
             $index++;
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
@@ -2829,12 +2832,18 @@ final class MarkdownReader
             return;
         }
 
-        $this->yamlMetadataTagProvenance[] = [
+        $provenance = [
             'type' => 'yaml-tag',
             'tag' => str_starts_with($tag, '!') ? $tag : '!<' . $tag . '>',
             'normalizedTag' => $normalized,
             'kind' => str_starts_with($tag, '!') ? 'local' : 'verbatim',
         ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $provenance['path'] = $path;
+        }
+
+        $this->yamlMetadataTagProvenance[] = $provenance;
     }
 
     private function parseYamlExplicitTaggedScalar(string $value, string $tag): mixed

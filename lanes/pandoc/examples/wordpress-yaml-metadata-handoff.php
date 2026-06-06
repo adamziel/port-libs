@@ -479,6 +479,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (in_array('!!str', $yamlTags, true) || in_array('!', $yamlTags, true)) {
         throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
     }
+    $yamlTagPaths = array_column($yamlTagProvenance, 'path');
+    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/verbatim-tag-review/source-uri'] as $expectedPath) {
+        if (!in_array($expectedPath, $yamlTagPaths, true)) {
+            throw new RuntimeException('YAML metadata self-test missing custom tag provenance path ' . $expectedPath);
+        }
+    }
     if (str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wpd!')) {
         throw new RuntimeException('YAML metadata self-test leaked raw tag directive handle text');
     }
@@ -926,6 +932,7 @@ echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?
 echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 4), 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
+echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";

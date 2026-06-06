@@ -1950,6 +1950,60 @@ return [
         $t->same('tag-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-provenance-body">Tag provenance body</h1>', $blocks);
     },
+    'records pandoc yaml custom tag provenance with metadata paths' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Tag path **Packet**',
+            'review:',
+            '  owner: !<tag:example.test,2026:reviewer> Import Desk',
+            '  labels: [!<tag:example.test,2026:label> migration, wordpress]',
+            'flow-review: {owner: !wp-flow-owner Flow Desk, labels: [!wp-label qa]}',
+            'tagged-sequence:',
+            '  - !<tag:example.test,2026:sequence-label> queued',
+            'references:',
+            '  - id: tagged-path-ref',
+            '    title: !<tag:example.test,2026:title> Source Metadata',
+            '    metadata:',
+            '      source-uri: !wp-uri https://example.test/source#tag-path',
+            '...',
+            '',
+            '# Tag path body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Tag path **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('Flow Desk', $meta['flow-review']['owner']);
+        $t->same(['qa'], $meta['flow-review']['labels']);
+        $t->same(['queued'], $meta['tagged-sequence']);
+        $t->same('Source Metadata', $meta['references'][0]['title']);
+        $t->same('https://example.test/source#tag-path', $meta['references'][0]['metadata']['source-uri']);
+        $t->same([
+            '!<tag:example.test,2026:reviewer>',
+            '!<tag:example.test,2026:label>',
+            '!wp-flow-owner',
+            '!wp-label',
+            '!<tag:example.test,2026:sequence-label>',
+            '!<tag:example.test,2026:title>',
+            '!wp-uri',
+        ], array_column($provenance, 'tag'));
+        $t->same([
+            '/review/owner',
+            '/review/labels/0',
+            '/flow-review/owner',
+            '/flow-review/labels/0',
+            '/tagged-sequence/0',
+            '/references/0/title',
+            '/references/0/metadata/source-uri',
+        ], array_column($provenance, 'path'));
+        $t->same(false, array_key_exists('__yamlMetadataTagProvenance', $meta));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('tag-path-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="tag-path-body">Tag path body</h1>', $blocks);
+    },
     'maps pandoc yaml tag directives in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
