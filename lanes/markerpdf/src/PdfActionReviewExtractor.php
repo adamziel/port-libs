@@ -707,6 +707,10 @@ final class PdfActionReviewExtractor
 
         $first = $this->resolveValue($array[0]);
         if (is_int($first) && $first >= 0) {
+            if (!$this->destinationArrayViewModeIsValid($array)) {
+                return null;
+            }
+
             $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null));
             $viewPosition = [];
             for ($index = 2, $count = count($array); $index < $count; $index++) {
