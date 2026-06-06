@@ -28057,6 +28057,10 @@ final class PdfTextExtractor
         ?array $definition,
         ?array $selected
     ): ?string {
+        if (($xrefEntry['type'] ?? null) === 0) {
+            return null;
+        }
+
         if (($xrefEntry['type'] ?? null) === 2) {
             return $objects[$objectNumber] ?? null;
         }
