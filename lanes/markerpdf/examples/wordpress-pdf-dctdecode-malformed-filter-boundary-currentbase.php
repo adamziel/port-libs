@@ -44,6 +44,11 @@ $payloadExcluded = !str_contains($plainText, 'WordPress Malformed DCT Leak')
     && !str_contains($plainText, 'endstream');
 $recoveredLength = ($photoReview['raw_length'] ?? null) === strlen($jpegPayload)
     && ($photoReview['raw_length'] ?? 0) > $fakeTerminatorOffset;
+$malformedOperandRejected = ($photoReview['filter_operand_policy'] ?? null) === 'reject_malformed_filter_operands'
+    && ($photoReview['malformed_filter_operand_count'] ?? null) === 1
+    && ($photoReview['unresolved_filter_operand_count'] ?? null) === 0
+    && ($photoReview['filters'] ?? []) === ['MalformedFilterOperand'];
+$xobjectRawBoundary = ($photoReview['raw_dct_preview_boundary'] ?? false) === true;
 $failedClosed = ($photoReview['filters_resolved'] ?? true) === false
     && ($photoReview['native_raster_decode'] ?? true) === false
     && ($photoReview['decoded_with_current_filters'] ?? true) === false;
@@ -57,6 +62,8 @@ if (
     $lines !== ['Before Malformed DCT Import', 'After Malformed DCT Import']
     || !$payloadExcluded
     || !$recoveredLength
+    || !$malformedOperandRejected
+    || !$xobjectRawBoundary
     || !$failedClosed
     || !$rendererRawBoundary
 ) {
@@ -68,7 +75,12 @@ echo '<!-- markerpdf:pdf-dctdecode-malformed-filter-boundary-currentbase ' . htm
     'upstream_boundary' => 'marker.pdf.extract_text.get_text_blocks + marker.pdf.images.render_image',
     'stream_filters_resolved' => $photoReview['filters_resolved'] ?? null,
     'malformed_filter_operand_fail_closed' => $failedClosed,
+    'malformed_filter_operand_rejected' => $malformedOperandRejected,
     'raw_jpeg_owner_boundary_used_for_review_only_stream' => true,
+    'xobject_raw_dct_preview_boundary' => $xobjectRawBoundary,
+    'xobject_filter_operand_policy' => $photoReview['filter_operand_policy'] ?? null,
+    'xobject_malformed_filter_operand_count' => $photoReview['malformed_filter_operand_count'] ?? null,
+    'xobject_unresolved_filter_operand_count' => $photoReview['unresolved_filter_operand_count'] ?? null,
     'renderer_raw_dct_preview_boundary' => $rendererRawBoundary,
     'stale_length_fake_endstream_rejected' => $recoveredLength,
     'embedded_fake_object_rejected' => $payloadExcluded,

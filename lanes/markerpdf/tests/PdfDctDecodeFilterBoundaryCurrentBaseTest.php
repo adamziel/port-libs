@@ -1720,9 +1720,19 @@ return [
 
         $t->true(is_array($entry), 'Image XObject review row should be present.');
         $t->same(false, $entry['filters_resolved'] ?? null);
-        $t->same([], $entry['filters'] ?? null);
+        $t->same(['MalformedFilterOperand'], $entry['filters'] ?? null);
         $t->same([], $entry['preview_only_filters'] ?? null);
-        $t->same([], $entry['filter_details'] ?? null);
+        $t->same([
+            [
+                'filter' => 'MalformedFilterOperand',
+                'preview_only' => false,
+                'decode_parms' => null,
+            ],
+        ], $entry['filter_details'] ?? null);
+        $t->same('reject_malformed_filter_operands', $entry['filter_operand_policy'] ?? null);
+        $t->same(1, $entry['malformed_filter_operand_count'] ?? null);
+        $t->same(0, $entry['unresolved_filter_operand_count'] ?? null);
+        $t->same(true, $entry['raw_dct_preview_boundary'] ?? null);
         $t->same(strlen($fixture['jpeg_payload']), $entry['raw_length'] ?? null);
         $t->true(($entry['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
         $t->same(false, $entry['native_raster_decode'] ?? null);

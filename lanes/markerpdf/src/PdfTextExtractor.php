@@ -7166,6 +7166,8 @@ final class PdfTextExtractor
             $resolvedFilters,
             $reviewStream
         );
+        $rawDctPreviewBoundary = $filterOperandBoundaryFilters !== []
+            && $this->dctPreviewBytesAreCompleteJpeg($reviewStream);
         $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
             $stream['dict'],
             $stream['stream'],
@@ -7317,6 +7319,9 @@ final class PdfTextExtractor
             ...$this->imageXObjectFilterOperandBoundaryMetadata($filterOperandBoundaryFilters),
             'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'dctdecode_stream_boundary' => $dctStreamBoundary,
+            ...($rawDctPreviewBoundary ? [
+                'raw_dct_preview_boundary' => true,
+            ] : []),
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
