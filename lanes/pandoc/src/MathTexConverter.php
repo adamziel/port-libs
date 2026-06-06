@@ -1824,9 +1824,10 @@ final class MathTexConverter
 
     private function parseArrayEnvironment(string $source, int &$offset): string
     {
-        $columnAttributes = $this->arrayColumnAttributes($this->readRequiredGroupText($source, $offset));
+        $columnSpec = $this->arrayColumnSpec($this->readRequiredGroupText($source, $offset));
+        $columnAttributes = $this->arrayColumnAttributesFromSpec($columnSpec);
         $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
-        $rowRules = $this->stripArrayRowRules($rows);
+        $rowRules = $this->stripArrayRowRules($rows, $columnSpec['columns']);
 
         return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes']);
     }
@@ -2516,6 +2517,15 @@ final class MathTexConverter
     private function arrayColumnAttributes(string $columnSpec): string
     {
         $spec = $this->arrayColumnSpec($columnSpec);
+
+        return $this->arrayColumnAttributesFromSpec($spec);
+    }
+
+    /**
+     * @param array{columnalign:string, columnlines:list<string>, columns:int} $spec
+     */
+    private function arrayColumnAttributesFromSpec(array $spec): string
+    {
         $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
         if ($spec['columnlines'] !== []) {
             $attributes .= ' columnlines="' . $this->esc(implode(' ', $spec['columnlines'])) . '"';
@@ -2525,7 +2535,7 @@ final class MathTexConverter
     }
 
     /**
-     * @return array{columnalign:string, columnlines:list<string>}
+     * @return array{columnalign:string, columnlines:list<string>, columns:int}
      */
     private function arrayColumnSpec(string $columnSpec): array
     {
@@ -2587,6 +2597,7 @@ final class MathTexConverter
         return [
             'columnalign' => implode(' ', $alignments),
             'columnlines' => $columnLines,
+            'columns' => count($alignments),
         ];
     }
 
@@ -2594,10 +2605,12 @@ final class MathTexConverter
      * @param list<list<string>> $rows
      * @return array{rows:list<list<string>>, attributes:string}
      */
-    private function stripArrayRowRules(array $rows): array
+    private function stripArrayRowRules(array $rows, int $columns): array
     {
         $strippedRows = [];
         $lineBeforeRow = [];
+        $clineAfterRows = [];
+        $topClines = [];
         $topLine = false;
         $bottomLine = false;
         $lastRowIndex = count($rows) - 1;
@@ -2608,7 +2621,8 @@ final class MathTexConverter
             }
 
             $hlineCount = 0;
-            $row[0] = $this->stripLeadingArrayHlines($row[0], $hlineCount);
+            $clineRanges = [];
+            $row[0] = $this->stripLeadingArrayRules($row[0], $hlineCount, $clineRanges, $columns);
             if ($hlineCount > 0) {
                 if ($rowIndex === 0) {
                     $topLine = true;
@@ -2616,10 +2630,22 @@ final class MathTexConverter
                     $lineBeforeRow[count($strippedRows)] = true;
                 }
             }
+            if ($clineRanges !== []) {
+                if ($rowIndex === 0) {
+                    $topClines = array_merge($topClines, $clineRanges);
+                } else {
+                    $afterRow = count($strippedRows);
+                    $clineAfterRows[$afterRow] = array_merge($clineAfterRows[$afterRow] ?? [], $clineRanges);
+                }
+            }
 
             if ($this->arrayRowIsEmpty($row)) {
                 if ($hlineCount > 0 && $rowIndex === $lastRowIndex) {
                     $bottomLine = true;
+                    continue;
+                }
+
+                if ($clineRanges !== [] && $rowIndex === $lastRowIndex && $strippedRows !== []) {
                     continue;
                 }
 
@@ -2637,6 +2663,9 @@ final class MathTexConverter
         if ($topLine) {
             $attributes .= ' data-tex-topline="solid"';
         }
+        if ($topClines !== []) {
+            $attributes .= ' data-tex-topclines="' . $this->esc(implode(',', $topClines)) . '"';
+        }
 
         $rowLines = [];
         for ($rowIndex = 1; $rowIndex < count($strippedRows); $rowIndex++) {
@@ -2644,6 +2673,9 @@ final class MathTexConverter
         }
         if (in_array('solid', $rowLines, true)) {
             $attributes .= ' rowlines="' . $this->esc(implode(' ', $rowLines)) . '"';
+        }
+        if ($clineAfterRows !== []) {
+            $attributes .= ' data-tex-clines="' . $this->esc($this->formatArrayClineMetadata($clineAfterRows)) . '"';
         }
 
         if ($bottomLine) {
@@ -2656,9 +2688,13 @@ final class MathTexConverter
         ];
     }
 
-    private function stripLeadingArrayHlines(string $cell, int &$hlineCount): string
+    /**
+     * @param list<string> $clineRanges
+     */
+    private function stripLeadingArrayRules(string $cell, int &$hlineCount, array &$clineRanges, int $columns): string
     {
         $hlineCount = 0;
+        $clineRanges = [];
         $offset = 0;
         $length = strlen($cell);
 
@@ -2670,15 +2706,59 @@ final class MathTexConverter
 
             $commandOffset = $offset + 1;
             $command = $this->readCommandName($cell, $commandOffset);
-            if ($command !== 'hline') {
-                break;
+            if ($command === 'hline') {
+                $hlineCount++;
+                $offset = $commandOffset;
+                continue;
             }
 
-            $hlineCount++;
-            $offset = $commandOffset;
+            if ($command === 'cline') {
+                $clineRanges[] = $this->normalizeArrayClineRange(
+                    $this->readRequiredGroupText($cell, $commandOffset),
+                    $columns
+                );
+                $offset = $commandOffset;
+                continue;
+            }
+
+            break;
         }
 
         return ltrim(substr($cell, $offset));
+    }
+
+    private function normalizeArrayClineRange(string $range, int $columns): string
+    {
+        $range = trim($range);
+        if (preg_match('/^([1-9][0-9]*)\s*-\s*([1-9][0-9]*)$/', $range, $matches) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\cline range ' . $range);
+        }
+
+        $start = (int) $matches[1];
+        $end = (int) $matches[2];
+        if ($start > $end || $end > $columns) {
+            throw new \InvalidArgumentException('Unsupported TeX \\cline range ' . $range);
+        }
+
+        return $start . '-' . $end;
+    }
+
+    /**
+     * @param array<int, list<string>> $clineAfterRows
+     */
+    private function formatArrayClineMetadata(array $clineAfterRows): string
+    {
+        ksort($clineAfterRows);
+        $segments = [];
+        foreach ($clineAfterRows as $rowNumber => $ranges) {
+            if ($rowNumber < 1 || $ranges === []) {
+                continue;
+            }
+
+            $segments[] = 'after-row-' . $rowNumber . ':' . implode(',', $ranges);
+        }
+
+        return implode(' ', $segments);
     }
 
     /**

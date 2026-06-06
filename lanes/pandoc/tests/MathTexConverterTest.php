@@ -748,6 +748,15 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|c|r}\\hline p_i &amp; m_i &amp; 1 \\\\ \\hline q_i &amp; n_i &amp; 2 \\\\ \\hline\\end{array}</annotation>', $ruleMathml);
         $t->contains('<mtable columnalign="left center right" columnlines="none solid"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd><mtd><mi>c</mi></mtd></mtr><mtr><mtd><mi>x</mi></mtd><mtd><mi>y</mi></mtd><mtd><mi>z</mi></mtd></mtr></mtable>', $sparseRulesMathml);
     },
+    'converts bounded tex array cline commands to partial rule metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $clineMathml = $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $clineMathml);
+        $t->contains('<mtable columnalign="left center right" columnlines="solid solid" data-tex-clines="after-row-1:2-3 after-row-2:1-1,3-3"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><msub><mi>r</mi><mi>i</mi></msub></mtd><mtd><msub><mi>s</mi><mi>i</mi></msub></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $clineMathml);
+        $t->true(!str_contains($clineMathml, '<mi>\\cline</mi>'), 'Expected TeX \\cline to become array partial-rule metadata');
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|c|r}p_i &amp; m_i &amp; 1 \\\\ \\cline{2-3} q_i &amp; n_i &amp; 2 \\\\ \\cline{1-1}\\cline{3-3} r_i &amp; s_i &amp; 3\\end{array}</annotation>', $clineMathml);
+    },
     'converts bounded tex compact matrix and subarray environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $compactMathml = $converter->texToMathMl('\\left(\\begin{smallmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i', true);
@@ -914,6 +923,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multline}a & b\\end{multline}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multlined}a \\\\\\end{multlined}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multline}a \\\\[.5em \\end{multline}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}a & b \\\\ \\cline{} c & d\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}a & b \\\\ \\cline{0-1} c & d\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}a & b \\\\ \\cline{2-1} c & d\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}a & b \\\\ \\cline{2-3} c & d\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\tag{}\\end{align}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\tag{A} \\tag{B}\\end{align}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}\\tag{A}\\end{align}'));
