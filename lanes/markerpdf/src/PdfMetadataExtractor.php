@@ -710,6 +710,9 @@ final class PdfMetadataExtractor
             if ($this->metadataStreamDecodeParmsOperandBoundaryReview($dictionary, $objects) !== []) {
                 return [];
             }
+            if ($this->metadataStreamCcittFaxFilterBoundaryReview($dictionary, $objects) !== []) {
+                return [];
+            }
         }
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
@@ -811,6 +814,24 @@ final class PdfMetadataExtractor
                 $filters = $this->streamFilters($dictionary, $objects);
                 if ($filters !== []) {
                     $review['filters'] = $filters;
+                }
+
+                $declaredLength = $this->streamLength($dictionary, $objects);
+                if ($declaredLength !== null) {
+                    $review['declared_length'] = $declaredLength;
+                }
+
+                return $review;
+            }
+
+            $ccittFaxBoundaryReview = $this->metadataStreamCcittFaxFilterBoundaryReview($dictionary, $objects);
+            if ($ccittFaxBoundaryReview !== []) {
+                $review = $base + $ccittFaxBoundaryReview + [
+                    'object_number' => $objectNumber,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
                 }
 
                 $declaredLength = $this->streamLength($dictionary, $objects);
@@ -1680,6 +1701,37 @@ final class PdfMetadataExtractor
         }
 
         return 'filters_resolved';
+    }
+
+    /**
+     * Catalog XMP streams are text metadata. CCITT Fax filters are image-raster
+     * filters in this lane and must not be passed through as raw XML bytes.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamCcittFaxFilterBoundaryReview(string $dictionary, array $objects): array
+    {
+        $filters = $this->streamFilters($dictionary, $objects);
+        $ccittFilters = [];
+        foreach ($filters as $filter) {
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                $ccittFilters[] = $filter;
+            }
+        }
+
+        if ($ccittFilters === []) {
+            return [];
+        }
+
+        return [
+            'status' => 'rejected_ccitt_fax_metadata_stream_filter',
+            'filter_operand_policy' => 'reject_ccitt_fax_metadata_stream_filter',
+            'filters' => $filters,
+            'preview_only_filters' => $ccittFilters,
+            'decoded_with_current_filters' => false,
+            'native_metadata_decode' => false,
+        ];
     }
 
     /**

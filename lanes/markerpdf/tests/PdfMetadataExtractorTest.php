@@ -477,6 +477,51 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Embedded XML payload is not a document metadata stream'));
         $t->true(!str_contains($plainText, 'Hidden Embedded XML XMP Title'));
     },
+    'rejects CCITT Fax filtered catalog Metadata streams before XMP promotion' => static function (TestRunner $t) use ($xmpPacket): void {
+        $hiddenXmp = $xmpPacket([
+            'title' => 'CCITT Filtered XMP Payload Title',
+            'description' => 'Fax image filter bytes must not become document metadata',
+            'create_date' => '2026-06-06T21:23:09Z',
+        ]);
+        $bodyText = 'CCITT filtered metadata boundary body';
+        $pageContent = 'BT /F1 12 Tf 72 720 Td (' . $bodyText . ') Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /CCF /DecodeParms << /K 0 /Columns 8 /Rows 1 /BlackIs1 true >> /Length " . strlen($hiddenXmp) . " >>\nstream\n{$hiddenXmp}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Title (Info Fallback Title) /Producer (Info Producer) >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Info Fallback Title', $metadata['title']);
+        $t->same('Info Producer', $metadata['producer']);
+        $t->same($bodyText, $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_ccitt_fax_metadata_stream_filter', $review['status'] ?? null);
+        $t->same('reject_ccitt_fax_metadata_stream_filter', $review['filter_operand_policy'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same(true, $review['review_only'] ?? null);
+        $t->same(5, $review['object_number'] ?? null);
+        $t->same('Metadata', $review['type'] ?? null);
+        $t->same('XML', $review['subtype'] ?? null);
+        $t->same(['CCF'], $review['filters'] ?? null);
+        $t->same(['CCF'], $review['preview_only_filters'] ?? null);
+        $t->same(false, $review['decoded_with_current_filters'] ?? null);
+        $t->same(false, $review['native_metadata_decode'] ?? null);
+        $t->same(strlen($hiddenXmp), $review['declared_length'] ?? null);
+        $t->true(!str_contains($encoded, 'CCITT Filtered XMP Payload Title'));
+        $t->true(!str_contains($encoded, 'Fax image filter bytes must not become document metadata'));
+        $t->true(!str_contains($plainText, 'CCITT Filtered XMP Payload Title'));
+    },
     'keeps XMP and DocInfo metadata distinct from catalog destination names' => static function (TestRunner $t): void {
         $xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
             . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
