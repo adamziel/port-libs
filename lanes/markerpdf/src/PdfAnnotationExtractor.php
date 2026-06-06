@@ -250,6 +250,10 @@ final class PdfAnnotationExtractor
         if ($actionReview['previous_uri_actions'] !== []) {
             $row['previous_uri_actions'] = $actionReview['previous_uri_actions'];
         }
+        if (is_array($actionReview['duplicate_key_review'] ?? null)) {
+            $row['duplicate_action_key_review'] = $actionReview['duplicate_key_review'];
+            $row['duplicate_action_keys'] = $actionReview['duplicate_keys'] ?? $actionReview['duplicate_key_review']['keys'] ?? [];
+        }
 
         if ($structParent !== null) {
             $row['struct_parent'] = $structParent;

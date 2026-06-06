@@ -201,6 +201,10 @@ final class PdfLinkAnnotationExtractor
                         if (array_key_exists('previous_uri_actions', $link)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_previous_uri_actions'] = $link['previous_uri_actions'];
                         }
+                        if (array_key_exists('duplicate_action_key_review', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_duplicate_action_key_review'] = $link['duplicate_action_key_review'];
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_duplicate_action_keys'] = $link['duplicate_action_keys'] ?? [];
+                        }
                         if (array_key_exists('struct_parent', $link)) {
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_struct_parent'] = $link['struct_parent'];
                         }
@@ -753,6 +757,10 @@ final class PdfLinkAnnotationExtractor
             + $this->presentationReviewFromAnnotation($annotationBody, $objects);
         if ($review['previous_uri_actions'] !== []) {
             $link['previous_uri_actions'] = $review['previous_uri_actions'];
+        }
+        if (is_array($review['duplicate_key_review'] ?? null)) {
+            $link['duplicate_action_key_review'] = $review['duplicate_key_review'];
+            $link['duplicate_action_keys'] = $review['duplicate_keys'] ?? $review['duplicate_key_review']['keys'] ?? [];
         }
         if ($quadPoints !== []) {
             $link['quad_points'] = $quadPoints;

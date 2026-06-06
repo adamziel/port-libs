@@ -131,7 +131,8 @@ final class PdfActionReviewExtractor
      */
     public function reviewAnnotationActions(string $annotationBody): array
     {
-        $dict = $this->dictionaryFromBody($annotationBody);
+        $dictValue = $this->dictionaryValueFromBody($annotationBody);
+        $dict = $this->dictionaryItems($dictValue);
         if ($dict === null) {
             return [
                 'actions' => [],
@@ -166,7 +167,7 @@ final class PdfActionReviewExtractor
             'additional_actions' => $this->additionalActionMetadata($dict['AA'] ?? null),
             'previous_uri_actions' => $previousUriActions,
             'executes_actions_on_import' => false,
-        ];
+        ] + $this->duplicateKeyReviewFields($dictValue, 'annotation_action_duplicate_keys');
     }
 
     /**
@@ -346,6 +347,7 @@ final class PdfActionReviewExtractor
             if ($actionObject !== null) {
                 $action['action_object'] = $actionObject;
             }
+            $action += $this->duplicateKeyReviewFields($resolved, 'action_dictionary_duplicate_keys');
             if ($depth > 0) {
                 $action['chained'] = true;
                 $action['chain_index'] = $depth;
@@ -2136,12 +2138,38 @@ final class PdfActionReviewExtractor
     /**
      * @return array<string, mixed>|null
      */
-    private function dictionaryFromBody(string $body): ?array
+    private function dictionaryValueFromBody(string $body): mixed
     {
         $tokens = $this->tokens('<< ' . $body . ' >>');
         $index = 0;
 
-        return $this->dictionaryItems($this->parseValue($tokens, $index));
+        return $this->parseValue($tokens, $index);
+    }
+
+    /**
+     * @return array{duplicate_key_review?: array<string, mixed>, duplicate_keys?: list<string>}
+     */
+    private function duplicateKeyReviewFields(mixed $value, string $source): array
+    {
+        if (
+            !is_array($value)
+            || ($value['pdfType'] ?? null) !== 'dict'
+            || !is_array($value['duplicateKeyReview'] ?? null)
+        ) {
+            return [];
+        }
+
+        $review = $value['duplicateKeyReview'];
+        if (($review['keys'] ?? []) === []) {
+            return [];
+        }
+
+        $review['source'] = $source;
+
+        return [
+            'duplicate_key_review' => $review,
+            'duplicate_keys' => $review['keys'],
+        ];
     }
 
     /**
@@ -2637,6 +2665,8 @@ final class PdfActionReviewExtractor
         if ($token === '<<') {
             $index++;
             $items = [];
+            $entryCounts = [];
+            $selectedEntryIndexes = [];
             while (($tokens[$index] ?? null) !== null && $tokens[$index] !== '>>') {
                 $key = $tokens[$index] ?? '';
                 $index++;
@@ -2644,13 +2674,44 @@ final class PdfActionReviewExtractor
                     continue;
                 }
 
-                $items[$this->decodePdfName(substr($key, 1))] = $this->parseValue($tokens, $index);
+                $decodedKey = $this->decodePdfName(substr($key, 1));
+                $entryIndex = $entryCounts[$decodedKey] ?? 0;
+                $entryCounts[$decodedKey] = $entryIndex + 1;
+                $selectedEntryIndexes[$decodedKey] = $entryIndex;
+                $items[$decodedKey] = $this->parseValue($tokens, $index);
             }
             if (($tokens[$index] ?? null) === '>>') {
                 $index++;
             }
 
-            return ['pdfType' => 'dict', 'items' => $items];
+            $duplicateKeys = [];
+            $duplicateEntryCounts = [];
+            $duplicateSelectedEntryIndexes = [];
+            foreach ($entryCounts as $key => $count) {
+                if ($count <= 1) {
+                    continue;
+                }
+
+                $duplicateKeys[] = $key;
+                $duplicateEntryCounts[$key] = $count;
+                $duplicateSelectedEntryIndexes[$key] = $selectedEntryIndexes[$key];
+            }
+
+            $dictionary = ['pdfType' => 'dict', 'items' => $items];
+            if ($duplicateKeys !== []) {
+                $dictionary['duplicateKeyReview'] = [
+                    'source' => 'dictionary_duplicate_keys',
+                    'review_only' => true,
+                    'payload_included' => false,
+                    'visible_text_source' => false,
+                    'selected_entry_policy' => 'last_top_level_entry',
+                    'keys' => $duplicateKeys,
+                    'declared_entry_counts' => $duplicateEntryCounts,
+                    'selected_entry_indexes' => $duplicateSelectedEntryIndexes,
+                ];
+            }
+
+            return $dictionary;
         }
 
         if ($token === '[') {
