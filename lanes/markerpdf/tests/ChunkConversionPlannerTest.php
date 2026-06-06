@@ -70,6 +70,48 @@ return [
         $t->same(true, $extra['subprocess']['blocked']);
         $t->same(false, $extra['executes_subprocess']);
     },
+    'requires argparse separator for chunk_convert.py wrapper option-looking folder paths' => static function (TestRunner $t): void {
+        $planner = new ChunkConversionPlanner();
+        $blocked = $planner->wrapperRuntimePreflightPlan([
+            '--wp-source',
+            '/wp/uploads/marker-output',
+        ], '/opt/marker/chunk_convert.sh');
+        $allowed = $planner->wrapperRuntimePreflightPlan([
+            '--',
+            '--wp-source',
+            '/wp/uploads/marker-output',
+        ], '/opt/marker/chunk_convert.sh');
+
+        $t->same(false, $blocked['parse_args']['parse_args_success']);
+        $t->same('argparse-system-exit', $blocked['parse_args']['error_boundary']);
+        $t->same('SystemExit', $blocked['parse_args']['error_class']);
+        $t->same('--wp-source', $blocked['parse_args']['error_argument']);
+        $t->same('the following arguments are required: out_folder', $blocked['parse_args']['error_message']);
+        $t->same(['out_folder'], $blocked['parse_args']['missing_required_arguments']);
+        $t->same(false, $blocked['parse_args']['argv_separator_used']);
+        $t->same(true, $blocked['resource_script']['blocked']);
+        $t->same(true, $blocked['subprocess']['blocked']);
+        $t->same('/wp/uploads/marker-output', $blocked['subprocess']['raw_in_folder_fragment']);
+        $t->same(null, $blocked['subprocess']['raw_out_folder_fragment']);
+        $t->same(null, $blocked['next_stage']);
+        $t->same(false, $blocked['executes_subprocess']);
+
+        $t->same(true, $allowed['parse_args']['parse_args_success']);
+        $t->same(true, $allowed['parse_args']['argv_separator_used']);
+        $t->same(true, $allowed['parse_args']['option_like_positionals_allowed_after_separator']);
+        $t->same('--wp-source', $allowed['arguments']['in_folder']);
+        $t->same('/wp/uploads/marker-output', $allowed['arguments']['out_folder']);
+        $t->same(true, $allowed['arguments']['argv_separator_used']);
+        $t->same('/opt/marker/chunk_convert.sh --wp-source /wp/uploads/marker-output', $allowed['subprocess']['command']);
+        $t->same(false, $allowed['subprocess']['argument_escaping_applied']);
+        $t->same(false, $allowed['subprocess']['blocked']);
+        $t->same(true, $allowed['shell_boundary']['argv_separator_used']);
+        $t->same(true, $allowed['shell_boundary']['option_like_positionals_require_separator']);
+        $t->same(true, $allowed['shell_boundary']['option_like_positionals_allowed_after_separator']);
+        $t->same('chunk_convert.sh', $allowed['next_stage']);
+        $t->same(false, $allowed['executes_subprocess']);
+        $t->same(false, $allowed['executes_python_or_models']);
+    },
     'plans chunk_convert.sh marker jobs across CUDA devices' => static function (TestRunner $t): void {
         $plan = (new ChunkConversionPlanner())->planFromEnvironment('/srv/incoming-pdfs', '/srv/marker-output', [
             'NUM_DEVICES' => '3',

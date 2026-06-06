@@ -25,40 +25,58 @@ final class ChunkConversionPlanner
     {
         $tokens = $this->normalizeWrapperArgv($argv);
         $parser = $this->wrapperRuntimeParserPlan();
+        $argparse = $this->wrapperRuntimeArgparsePositionals($tokens);
+        $positionals = $argparse['positionals'];
 
-        if (count($tokens) < 2) {
+        if (count($positionals) < 2) {
             $missing = [];
-            if (!array_key_exists(0, $tokens)) {
+            if (!array_key_exists(0, $positionals)) {
                 $missing[] = 'in_folder';
             }
-            if (!array_key_exists(1, $tokens)) {
+            if (!array_key_exists(1, $positionals)) {
                 $missing[] = 'out_folder';
             }
 
             return $this->wrapperRuntimeErrorPlan(
                 $tokens,
                 'the following arguments are required: ' . implode(', ', $missing),
-                null,
+                $argparse['unknown_options'][0] ?? null,
                 $missing,
-                $parser
+                $parser,
+                $positionals,
+                $argparse
             );
         }
 
-        if (count($tokens) > 2) {
-            $extra = array_slice($tokens, 2);
+        if (count($positionals) > 2) {
+            $extra = array_slice($positionals, 2);
 
             return $this->wrapperRuntimeErrorPlan(
                 $tokens,
                 'unrecognized arguments: ' . implode(' ', $extra),
                 $extra[0] ?? null,
                 [],
-                $parser
+                $parser,
+                $positionals,
+                $argparse
+            );
+        }
+
+        if ($argparse['unknown_options'] !== []) {
+            return $this->wrapperRuntimeErrorPlan(
+                $tokens,
+                'unrecognized arguments: ' . implode(' ', $argparse['unknown_options']),
+                $argparse['unknown_options'][0] ?? null,
+                [],
+                $parser,
+                $positionals,
+                $argparse
             );
         }
 
         $scriptPath ??= 'chunk_convert.sh';
-        $inputFolder = $tokens[0];
-        $outputFolder = $tokens[1];
+        $inputFolder = $positionals[0];
+        $outputFolder = $positionals[1];
         $command = $scriptPath . ' ' . $inputFolder . ' ' . $outputFolder;
         $whitespacePaths = $this->containsShellWhitespace($inputFolder) || $this->containsShellWhitespace($outputFolder);
         $metacharacterPaths = $this->containsShellMetacharacter($inputFolder) || $this->containsShellMetacharacter($outputFolder);
@@ -80,10 +98,13 @@ final class ChunkConversionPlanner
                 'missing_required_arguments' => [],
                 'blocks_resource_lookup' => false,
                 'blocks_subprocess' => false,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
             ],
             'arguments' => [
                 'in_folder' => $inputFolder,
                 'out_folder' => $outputFolder,
+                'argv_separator_used' => $argparse['argv_separator_used'],
                 'positionals' => [
                     'in_folder' => $inputFolder,
                     'out_folder' => $outputFolder,
@@ -120,6 +141,9 @@ final class ChunkConversionPlanner
                 'raw_command_source' => 'f"{script_path} {args.in_folder} {args.out_folder}"',
                 'positionals_contain_shell_whitespace' => $whitespacePaths,
                 'positionals_contain_shell_metacharacters' => $metacharacterPaths,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_require_separator' => true,
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
                 'raw_shell_command_path_hazard' => $whitespacePaths || $metacharacterPaths,
                 'native_plan_executes_shell' => false,
             ],
@@ -332,13 +356,70 @@ final class ChunkConversionPlanner
             ],
             'options' => [],
             'allow_abbrev' => true,
+            'double_dash_terminates_options' => true,
+            'option_like_positionals_require_separator' => true,
             'error_exit_code' => 2,
         ];
     }
 
     /**
+     * @param list<string> $tokens
+     * @return array{positionals: list<string>, unknown_options: list<string>, argv_separator_used: bool, option_like_positionals_after_separator: bool}
+     */
+    private function wrapperRuntimeArgparsePositionals(array $tokens): array
+    {
+        $positionals = [];
+        $unknownOptions = [];
+        $separatorUsed = false;
+        $optionLikeAfterSeparator = false;
+
+        foreach ($tokens as $token) {
+            if (!$separatorUsed && $token === '--') {
+                $separatorUsed = true;
+                continue;
+            }
+
+            if (!$separatorUsed && $this->wrapperRuntimeArgparseUnknownOptionToken($token)) {
+                $unknownOptions[] = $token;
+                continue;
+            }
+
+            if ($separatorUsed && $this->wrapperRuntimeLooksOptionLike($token)) {
+                $optionLikeAfterSeparator = true;
+            }
+            $positionals[] = $token;
+        }
+
+        return [
+            'positionals' => $positionals,
+            'unknown_options' => $unknownOptions,
+            'argv_separator_used' => $separatorUsed,
+            'option_like_positionals_after_separator' => $optionLikeAfterSeparator,
+        ];
+    }
+
+    private function wrapperRuntimeArgparseUnknownOptionToken(string $token): bool
+    {
+        if ($token === '' || $token === '-') {
+            return false;
+        }
+        if (preg_match('/^-\d+(?:\.\d+)?$/', $token) === 1) {
+            return false;
+        }
+
+        return str_starts_with($token, '-');
+    }
+
+    private function wrapperRuntimeLooksOptionLike(string $token): bool
+    {
+        return $token !== '' && $token !== '-' && str_starts_with($token, '-');
+    }
+
+    /**
      * @param list<string> $argv
      * @param list<string> $missingRequiredArguments
+     * @param list<string>|null $positionals
+     * @param array{positionals: list<string>, unknown_options: list<string>, argv_separator_used: bool, option_like_positionals_after_separator: bool}|null $argparse
      * @return array<string, mixed>
      */
     private function wrapperRuntimeErrorPlan(
@@ -346,8 +427,16 @@ final class ChunkConversionPlanner
         string $message,
         ?string $errorArgument,
         array $missingRequiredArguments,
-        array $parser
+        array $parser,
+        ?array $positionals = null,
+        ?array $argparse = null
     ): array {
+        $positionals ??= $argv;
+        $argparse ??= [
+            'argv_separator_used' => false,
+            'option_like_positionals_after_separator' => false,
+        ];
+
         return [
             'schema' => 'markerpdf.chunk_convert_wrapper_preflight.v1',
             'source' => 'sddai/markerPDF chunk_convert.py::main argparse + pkg_resources.resource_filename + subprocess.run',
@@ -365,6 +454,8 @@ final class ChunkConversionPlanner
                 'missing_required_arguments' => $missingRequiredArguments,
                 'blocks_resource_lookup' => true,
                 'blocks_subprocess' => true,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
             ],
             'arguments' => null,
             'resource_script' => [
@@ -386,8 +477,8 @@ final class ChunkConversionPlanner
                 'argv_list_used' => false,
                 'argument_escaping_applied' => false,
                 'quotes_positionals' => false,
-                'raw_in_folder_fragment' => $argv[0] ?? null,
-                'raw_out_folder_fragment' => $argv[1] ?? null,
+                'raw_in_folder_fragment' => $positionals[0] ?? null,
+                'raw_out_folder_fragment' => $positionals[1] ?? null,
                 'blocks_on_nonzero_exit' => true,
                 'blocked' => true,
                 'blocks_chunk_shell' => true,
@@ -398,6 +489,9 @@ final class ChunkConversionPlanner
                 'raw_command_source' => 'f"{script_path} {args.in_folder} {args.out_folder}"',
                 'positionals_contain_shell_whitespace' => false,
                 'positionals_contain_shell_metacharacters' => false,
+                'argv_separator_used' => $argparse['argv_separator_used'],
+                'option_like_positionals_require_separator' => true,
+                'option_like_positionals_allowed_after_separator' => $argparse['option_like_positionals_after_separator'],
                 'raw_shell_command_path_hazard' => false,
                 'native_plan_executes_shell' => false,
             ],

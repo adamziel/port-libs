@@ -14,9 +14,30 @@ $plan = $planner->wrapperRuntimePreflightPlan(
     ],
     '/opt/marker/chunk_convert.sh'
 );
+$optionPathBlocked = $planner->wrapperRuntimePreflightPlan(
+    [
+        '--wp-source',
+        '/var/www/html/wp-content/uploads/marker-output',
+    ],
+    '/opt/marker/chunk_convert.sh'
+);
+$optionPathAllowed = $planner->wrapperRuntimePreflightPlan(
+    [
+        '--',
+        '--wp-source',
+        '/var/www/html/wp-content/uploads/marker-output',
+    ],
+    '/opt/marker/chunk_convert.sh'
+);
 
 if ($plan['executes_subprocess'] !== false || $plan['executes_python_or_models'] !== false) {
     throw new RuntimeException('Chunk wrapper preflight smoke must not execute subprocesses, Python, or model workers.');
+}
+if ($optionPathBlocked['parse_args']['parse_args_success'] !== false || $optionPathBlocked['resource_script']['blocked'] !== true) {
+    throw new RuntimeException('Expected option-looking WordPress input folder to stop at chunk_convert.py argparse before resource lookup.');
+}
+if ($optionPathAllowed['parse_args']['parse_args_success'] !== true || $optionPathAllowed['arguments']['in_folder'] !== '--wp-source') {
+    throw new RuntimeException('Expected -- separator to allow option-looking WordPress folder names as argparse positionals.');
 }
 if ($plan['shell_boundary']['raw_shell_command_path_hazard'] !== true) {
     throw new RuntimeException('Expected raw chunk_convert.py shell command hazard to be review metadata.');
@@ -30,6 +51,11 @@ echo json_encode([
     'purpose' => 'Review chunk_convert.py wrapper raw shell-command construction for WordPress batch import paths before the shell script validates NUM_DEVICES/NUM_WORKERS, without executing the upstream marker subprocess.',
     'source' => $plan['source'],
     'parse_args_success' => $plan['parse_args']['parse_args_success'],
+    'option_like_path_without_separator_blocks' => $optionPathBlocked['resource_script']['blocked'],
+    'option_like_path_without_separator_error' => $optionPathBlocked['parse_args']['error_message'],
+    'option_like_path_without_separator_argument' => $optionPathBlocked['parse_args']['error_argument'],
+    'option_like_path_with_separator_parse_args_success' => $optionPathAllowed['parse_args']['parse_args_success'],
+    'option_like_path_with_separator_command' => $optionPathAllowed['subprocess']['command'],
     'script_path' => $plan['resource_script']['script_path'],
     'subprocess_call' => $plan['subprocess']['call'],
     'raw_command' => $plan['subprocess']['command'],
