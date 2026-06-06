@@ -571,6 +571,44 @@ return [
         $t->same($documentBytes, $gzipInspection['archive']->read('/packet/legacy-contiguous.md'));
     },
 
+    'normalizes zero-size regular tar entries with trailing slash as legacy directories' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $documentBytes = "# Legacy directory marker\n\nReady for WordPress archive review.\n";
+        $archiveBytes = $rawTarHeader('packet/legacy-directory/', '0', '', 1780479070, false)
+            . $rawTarHeader('packet/legacy-directory/content.md', '0', $documentBytes, 1780479071, false)
+            . str_repeat("\0", 1024);
+        $payloadDirectoryBytes = $rawTarHeader('packet/payload-directory/', '0', 'not a directory', 1780479072);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'legacy-directory-review.tar',
+            'comment' => 'legacy trailing-slash directory entry',
+        ]);
+
+        $archive = TarArchive::fromString($archiveBytes);
+        $directory = $archive->entry('/packet/legacy-directory/');
+        $inspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+            $gzip,
+            strlen($archiveBytes),
+            strlen($documentBytes)
+        );
+
+        $t->same(['packet/legacy-directory/', 'packet/legacy-directory/content.md'], $archive->names());
+        $t->true($directory->isDirectory());
+        $t->same(TarArchiveEntry::TYPE_DIRECTORY, $directory->type);
+        $t->same(0, $directory->size);
+        $t->same(1780479070, $directory->modifiedAt);
+        $t->same('', $archive->read('/packet/legacy-directory/'));
+        $t->same($documentBytes, $archive->read('/packet/legacy-directory/content.md'));
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $inspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(1, $inspection['directoryCount']);
+        $t->same(1, $inspection['regularFileCount']);
+        $t->same(TarArchiveEntry::TYPE_DIRECTORY, $inspection['entryLayouts'][0]['type']);
+        $t->same(TarArchiveEntry::TYPE_FILE, $inspection['entryLayouts'][1]['type']);
+        $t->same('legacy-directory-review.tar', $inspection['stream']['members'][0]['filename']);
+        $t->same('legacy trailing-slash directory entry', $inspection['stream']['members'][0]['comment']);
+        $t->same($documentBytes, $inspection['archive']->read('/packet/legacy-directory/content.md'));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($payloadDirectoryBytes));
+    },
+
     'rejects unsafe or unsupported tar archive entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $valid = TarArchive::build([
             ['name' => 'packet/document.xml', 'data' => '<w:document/>'],

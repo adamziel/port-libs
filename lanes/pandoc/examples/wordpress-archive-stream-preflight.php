@@ -47,6 +47,7 @@ $rawTarHeader = static function (string $name, string $typeFlag, string $data = 
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
+$legacyDirectoryBytes = '';
 
 $archive = TarArchive::fromEntries([
     [
@@ -99,6 +100,21 @@ $legacyContiguousInspection = ArchiveCompressionStream::inspectPackageStreamAuto
     strlen($legacyContiguousArchiveBytes),
     strlen($legacyContentBytes)
 );
+$legacyDirectoryArchiveBytes = $rawTarHeader(
+    'packet/legacy-directory/',
+    '0',
+    $legacyDirectoryBytes,
+    1780479070
+);
+$legacyDirectoryGzip = GzipStream::build($legacyDirectoryArchiveBytes, [
+    'filename' => 'wordpress-legacy-directory.tar',
+    'comment' => 'legacy trailing-slash TAR directory preflight',
+]);
+$legacyDirectoryInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+    $legacyDirectoryGzip,
+    strlen($legacyDirectoryArchiveBytes),
+    strlen($legacyDirectoryBytes)
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -124,6 +140,8 @@ if (in_array('--self-test', $argv, true)) {
         'legacyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'legacyEntryType' => TarArchiveEntry::TYPE_FILE,
         'legacyContent' => $legacyContentBytes,
+        'legacyDirectoryType' => TarArchiveEntry::TYPE_DIRECTORY,
+        'legacyDirectoryCount' => 1,
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -138,6 +156,9 @@ if (in_array('--self-test', $argv, true)) {
         || $legacyContiguousInspection['format'] !== $expected['legacyFormat']
         || ($legacyContiguousInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyEntryType']
         || $legacyContiguousInspection['archive']->read('/packet/legacy-contiguous.md') !== $expected['legacyContent']
+        || ($legacyDirectoryInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyDirectoryType']
+        || $legacyDirectoryInspection['directoryCount'] !== $expected['legacyDirectoryCount']
+        || $legacyDirectoryInspection['archive']->read('/packet/legacy-directory/') !== $legacyDirectoryBytes
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -160,3 +181,6 @@ echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";
 echo 'legacyContiguous.format=' . $legacyContiguousInspection['format'] . "\n";
 echo 'legacyContiguous.entryType=' . $legacyContiguousInspection['entryLayouts'][0]['type'] . "\n";
 echo 'legacyContiguous.content.md=' . $legacyContiguousInspection['archive']->read('/packet/legacy-contiguous.md') . "\n";
+echo 'legacyDirectory.format=' . $legacyDirectoryInspection['format'] . "\n";
+echo 'legacyDirectory.entryType=' . $legacyDirectoryInspection['entryLayouts'][0]['type'] . "\n";
+echo 'legacyDirectory.directoryCount=' . $legacyDirectoryInspection['directoryCount'] . "\n";

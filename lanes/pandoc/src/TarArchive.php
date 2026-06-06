@@ -147,9 +147,16 @@ final class TarArchive
                 throw new \RuntimeException("Unsupported TAR entry type {$typeFlag} for {$name}");
             }
 
-            $entryType = $typeFlag === self::TYPE_DIRECTORY
-                ? TarArchiveEntry::TYPE_DIRECTORY
-                : TarArchiveEntry::TYPE_FILE;
+            $entryType = TarArchiveEntry::TYPE_FILE;
+            if ($typeFlag === self::TYPE_DIRECTORY) {
+                $entryType = TarArchiveEntry::TYPE_DIRECTORY;
+            } elseif ($typeFlag === self::TYPE_REGULAR && str_ends_with($name, '/')) {
+                if ($size !== 0) {
+                    throw new \RuntimeException("TAR directory-like regular entry {$name} must not contain payload bytes");
+                }
+                $entryType = TarArchiveEntry::TYPE_DIRECTORY;
+            }
+
             if ($entryType === TarArchiveEntry::TYPE_DIRECTORY && $size !== 0) {
                 throw new \RuntimeException("TAR directory entry {$name} must not contain payload bytes");
             }
