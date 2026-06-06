@@ -276,6 +276,28 @@ $relationshipTargetModePackage = ZipPackage::fromParts([
     ['name' => 'word/_rels/targetmode.xml.rels', 'data' => $targetModeDiagnosticRelationshipsXml],
 ]);
 
+$fixedContentTypesItemContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/[Content_Types].xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$fixedContentTypesItemRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdContentTypes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="[Content_Types].xml"/>
+</Relationships>
+XML;
+
+$fixedContentTypesItemPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $fixedContentTypesItemContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $fixedContentTypesItemRootRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+]);
+
 $caseCollisionContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -648,6 +670,38 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
         'parseError' => $part['parseError'],
     ];
 }
+
+$fixedContentTypesItemGraph = OpcRelationshipGraph::fromPackage($fixedContentTypesItemPackage);
+$fixedContentTypesItemConsistency = $fixedContentTypesItemGraph->preflightPackageConsistency();
+$fixedContentTypesItemOverride = null;
+foreach ($fixedContentTypesItemConsistency['contentTypeOverrides'] as $override) {
+    if ($override['partName'] === '/[Content_Types].xml') {
+        $fixedContentTypesItemOverride = $override;
+        break;
+    }
+}
+$fixedContentTypesItemTarget = null;
+foreach ($fixedContentTypesItemConsistency['relationshipTargets'] as $target) {
+    if ($target['id'] === 'rIdContentTypes') {
+        $fixedContentTypesItemTarget = $target;
+        break;
+    }
+}
+$fixedContentTypesItemGuard = [
+    'overridePart' => $fixedContentTypesItemOverride['partName'] ?? null,
+    'overrideExists' => $fixedContentTypesItemOverride['exists'] ?? null,
+    'overrideValid' => $fixedContentTypesItemOverride['valid'] ?? null,
+    'overrideIssues' => $fixedContentTypesItemOverride['issues'] ?? null,
+    'targetId' => $fixedContentTypesItemTarget['id'] ?? null,
+    'targetPart' => $fixedContentTypesItemTarget['targetPart'] ?? null,
+    'targetExists' => $fixedContentTypesItemTarget['exists'] ?? null,
+    'targetContentType' => $fixedContentTypesItemTarget['contentType'] ?? null,
+    'targetValid' => $fixedContentTypesItemTarget['valid'] ?? null,
+    'targetIssues' => $fixedContentTypesItemTarget['issues'] ?? null,
+    'packageConsistencyValid' => $fixedContentTypesItemConsistency['valid'],
+    'contentTypeOverridesValid' => $fixedContentTypesItemConsistency['contentTypeOverridesValid'],
+    'relationshipTargetsValid' => $fixedContentTypesItemConsistency['relationshipTargetsValid'],
+];
 
 $relationshipPartLoads = [];
 foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
@@ -1122,6 +1176,7 @@ $summary = [
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
+    'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
@@ -1386,6 +1441,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'invalid-relationship-target-mode']
         || !str_contains((string) ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['parseError'] ?? ''), 'Unsupported OPC relationship TargetMode: external')
+        || ($summary['fixedContentTypesItemGuard']['overridePart'] ?? null) !== '/[Content_Types].xml'
+        || ($summary['fixedContentTypesItemGuard']['overrideExists'] ?? null) !== true
+        || ($summary['fixedContentTypesItemGuard']['overrideValid'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['overrideIssues'] ?? null) !== ['content-types-override-target']
+        || ($summary['fixedContentTypesItemGuard']['targetId'] ?? null) !== 'rIdContentTypes'
+        || ($summary['fixedContentTypesItemGuard']['targetPart'] ?? null) !== '/[Content_Types].xml'
+        || ($summary['fixedContentTypesItemGuard']['targetExists'] ?? null) !== true
+        || ($summary['fixedContentTypesItemGuard']['targetContentType'] ?? null) !== 'application/xml'
+        || ($summary['fixedContentTypesItemGuard']['targetValid'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['targetIssues'] ?? null) !== ['targets-content-types-item']
+        || ($summary['fixedContentTypesItemGuard']['packageConsistencyValid'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['contentTypeOverridesValid'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['relationshipTargetsValid'] ?? null) !== false
         || array_keys($summary['partNameCaseCollisionGuards'] ?? []) !== [
             '/Word/Document.XML',
             '/word/document.xml',

@@ -466,6 +466,10 @@ final class OpcRelationshipGraph
                 $issues[] = 'targets-relationship-part';
             }
 
+            if (self::isContentTypesItemName($targetPartName)) {
+                $issues[] = 'targets-content-types-item';
+            }
+
             $preflight[] = [
                 'id' => $relationship->id,
                 'type' => $relationship->type,
@@ -579,6 +583,10 @@ final class OpcRelationshipGraph
 
             if (!$exists) {
                 $issues[] = 'override-target-missing-part';
+            }
+
+            if (self::isContentTypesItemName($partName)) {
+                $issues[] = 'content-types-override-target';
             }
 
             if ($relationshipPart) {
@@ -1894,6 +1902,11 @@ final class OpcRelationshipGraph
     private static function isRelationshipPartName(string $name): bool
     {
         return OpcRelationships::isRelationshipPartName($name);
+    }
+
+    private static function isContentTypesItemName(string $partName): bool
+    {
+        return self::partNameEquivalenceKey(OpcPackagePath::canonicalPartName($partName)) === '/[content_types].xml';
     }
 
     private static function partNameEquivalenceKey(string $partName): string

@@ -3007,6 +3007,71 @@ XML;
         $t->same(['missing-in-package'], $inventory[$imageType]['relationshipTargetReferences'][1]['issues']);
         $t->same(['missing-in-package', 'override-target-missing-part'], $inventory[$imageType]['issues']);
     },
+    'preflights fixed OPC content types item references' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/[Content_Types].xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdContentTypes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="[Content_Types].xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+
+        $overrides = [];
+        foreach ($graph->preflightContentTypeOverrides() as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/') as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $inventory = [];
+        foreach ($graph->contentTypeInventory() as $contentType) {
+            $inventory[$contentType['contentType']] = $contentType;
+        }
+
+        $consistency = $graph->preflightPackageConsistency();
+
+        $t->same(true, $overrides['/[Content_Types].xml']['exists']);
+        $t->same(false, $overrides['/[Content_Types].xml']['relationshipPart']);
+        $t->same(false, $overrides['/[Content_Types].xml']['valid']);
+        $t->same(['content-types-override-target'], $overrides['/[Content_Types].xml']['issues']);
+        $t->same(true, $overrides['/word/document.xml']['valid']);
+
+        $t->same('/[Content_Types].xml', $targets['rIdContentTypes']['target']);
+        $t->same('/[Content_Types].xml', OpcPackagePath::stripQueryAndFragment($targets['rIdContentTypes']['target']));
+        $t->same(true, $targets['rIdContentTypes']['exists']);
+        $t->same('application/xml', $targets['rIdContentTypes']['contentType']);
+        $t->same(false, $targets['rIdContentTypes']['relationshipPartTarget']);
+        $t->same(false, $targets['rIdContentTypes']['valid']);
+        $t->same(['targets-content-types-item'], $targets['rIdContentTypes']['issues']);
+        $t->same(true, $targets['rIdDocument']['valid']);
+
+        $t->same(false, $consistency['valid']);
+        $t->same(false, $consistency['contentTypeOverridesValid']);
+        $t->same(false, $consistency['relationshipTargetsValid']);
+        $t->same(true, $consistency['packagePartsValid']);
+
+        $t->same(['/word/document.xml'], $inventory['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml']['parts']);
+        $t->same(['/[Content_Types].xml'], $inventory['application/xml']['overrideParts']);
+        $t->same(['/[Content_Types].xml'], $inventory['application/xml']['relationshipTargetParts']);
+        $t->same(['content-types-override-target', 'targets-content-types-item'], $inventory['application/xml']['issues']);
+    },
     'preflights DOCX officeDocument relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
