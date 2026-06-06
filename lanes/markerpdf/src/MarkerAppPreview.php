@@ -1911,8 +1911,9 @@ final class MarkerAppPreview
     private function pageLabelIndexOperand(string $value, array $objects, array $seen): ?int
     {
         $value = trim($value);
-        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
-            return (int) $value;
+        $integer = $this->pageLabelIntegerTokenValue($value);
+        if ($integer !== null) {
+            return $integer;
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -2057,8 +2058,9 @@ final class MarkerAppPreview
     private function pageLabelLimitOperand(string $value, array $objects, array $seen): ?int
     {
         $value = trim($value);
-        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
-            return (int) $value;
+        $integer = $this->pageLabelIntegerTokenValue($value);
+        if ($integer !== null) {
+            return $integer;
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -2103,8 +2105,9 @@ final class MarkerAppPreview
         $start = 1;
         $startValue = $this->resolvedPageLabelValueAfterName($dict, 'St', $objects, $seen);
         $startValue = $startValue === null ? null : $this->pageLabelSinglePdfToken($startValue);
-        if ($startValue !== null && preg_match('/^[+-]?\d+$/', $startValue) === 1) {
-            $start = max(1, (int) $startValue);
+        $startInteger = $startValue === null ? null : $this->pageLabelIntegerTokenValue($startValue);
+        if ($startInteger !== null) {
+            $start = max(1, $startInteger);
         }
 
         $prefix = '';
@@ -2157,6 +2160,34 @@ final class MarkerAppPreview
         }
 
         return $this->skipPdfWhitespace($value, $array[1]) >= strlen($value) ? $array[0] : null;
+    }
+
+    private function pageLabelIntegerTokenValue(string $value): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        $digits = $value;
+        if ($digits[0] === '+' || $digits[0] === '-') {
+            $digits = substr($digits, 1);
+        }
+
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $max = (string) PHP_INT_MAX;
+        if (
+            strlen($digits) > strlen($max)
+            || (strlen($digits) === strlen($max) && strcmp($digits, $max) > 0)
+        ) {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /**

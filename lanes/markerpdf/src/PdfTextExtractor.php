@@ -12999,7 +12999,35 @@ final class PdfTextExtractor
             return null;
         }
 
-        return (int) $match[0];
+        return $this->pageLabelBoundedIntegerToken($match[0]);
+    }
+
+    private function pageLabelBoundedIntegerToken(string $token): ?int
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?\d+$/', $token) !== 1) {
+            return null;
+        }
+
+        $digits = $token;
+        if ($digits[0] === '+' || $digits[0] === '-') {
+            $digits = substr($digits, 1);
+        }
+
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $max = (string) PHP_INT_MAX;
+        if (
+            strlen($digits) > strlen($max)
+            || (strlen($digits) === strlen($max) && strcmp($digits, $max) > 0)
+        ) {
+            return null;
+        }
+
+        return (int) $token;
     }
 
     /**
