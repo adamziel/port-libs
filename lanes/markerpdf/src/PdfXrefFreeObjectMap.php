@@ -703,6 +703,10 @@ final class PdfXrefFreeObjectMap
                 $fieldTwo = self::xrefFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = self::xrefFieldValue($decoded, $fieldOffset, $widths[2]);
                 $objectNumber = $startObject + $index;
+                if (isset($entries[$objectNumber])) {
+                    $offset += $entryWidth;
+                    continue;
+                }
 
                 $entries[$objectNumber] = [
                     'state' => ($type === 0 || $type > 2) ? 'f' : 'n',
