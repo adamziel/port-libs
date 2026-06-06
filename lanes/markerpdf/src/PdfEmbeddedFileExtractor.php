@@ -323,6 +323,9 @@ final class PdfEmbeddedFileExtractor
         if ($this->dictionaryHasDuplicateKeys($body, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)) {
             return null;
         }
+        if (!$this->isFileSpecDictionaryBody($body, $objects)) {
+            return null;
+        }
 
         $ef = $this->resolveDictionaryFromValue($this->dictionaryRawValue($body, 'EF'), $objects);
         if ($ef === null) {
@@ -457,6 +460,19 @@ final class PdfEmbeddedFileExtractor
         }
 
         return null;
+    }
+
+    /**
+     * FileSpec dictionaries commonly omit /Type in legacy PDFs. If /Type is
+     * present, it must identify a FileSpec before /EF streams are trusted.
+     *
+     * @param array<int, string> $objects
+     */
+    private function isFileSpecDictionaryBody(string $body, array $objects): bool
+    {
+        $type = $this->dictionaryNameValue($body, 'Type', $objects);
+
+        return $type === null || in_array($type, ['Filespec', 'FileSpec'], true);
     }
 
     /**

@@ -1026,6 +1026,9 @@ final class PdfAttachmentExtractor
         if ($fileSpec === null) {
             return null;
         }
+        if (!$this->isFileSpecDictionary($fileSpec, $objects)) {
+            return null;
+        }
 
         $nameKey = isset($context['name_key']) && is_string($context['name_key']) ? $context['name_key'] : null;
         [$filename, $filenameSource] = $this->filenameWithSource($fileSpec, $objects, $nameKey, null);
@@ -1177,6 +1180,24 @@ final class PdfAttachmentExtractor
         return $encryptionPolicy === null
             ? $attachment
             : $this->redactEncryptedAttachmentRow($attachment, $encryptionPolicy);
+    }
+
+    /**
+     * Legacy file specifications may omit /Type. A typed dictionary must be a
+     * FileSpec before its /EF entries are treated as attachment streams.
+     *
+     * @param array<string, mixed> $fileSpec
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function isFileSpecDictionary(array $fileSpec, array $objects): bool
+    {
+        if (!array_key_exists('Type', $fileSpec)) {
+            return true;
+        }
+
+        $type = $this->nameValue($this->resolveValue($fileSpec['Type'], $objects));
+
+        return in_array($type, ['Filespec', 'FileSpec'], true);
     }
 
     /**
