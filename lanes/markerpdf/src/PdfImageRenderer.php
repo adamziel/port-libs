@@ -632,6 +632,9 @@ final class PdfImageRenderer
         }
         if ($duplicateFilterDeclarationCount > 0) {
             $notes[] = 'duplicate_image_filter_declarations_fail_closed';
+            if ($ccittFilterBoundary !== null) {
+                $notes[] = 'ccitt_fax_duplicate_filter_declarations_fail_closed';
+            }
         }
         if (
             $dctDecodeFilterBoundary !== null
