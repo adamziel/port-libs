@@ -772,6 +772,9 @@ final class XmlHtmlDom
         if ($name === 'foreignobject') {
             return true;
         }
+        if (self::isMathMlTextIntegrationPointName($name)) {
+            return true;
+        }
         if ($name !== 'annotation-xml') {
             return false;
         }
@@ -779,6 +782,11 @@ final class XmlHtmlDom
         $encoding = strtolower(trim($element->getAttribute('encoding')));
 
         return $encoding === 'text/html' || $encoding === 'application/xhtml+xml';
+    }
+
+    private static function isMathMlTextIntegrationPointName(string $name): bool
+    {
+        return in_array($name, ['mi', 'mn', 'mo', 'ms', 'mtext'], true);
     }
 
     /**

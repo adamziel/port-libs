@@ -861,6 +861,44 @@ return [
         $t->same('/migration/foreign-content-review.html', $document->children[0]->attr('part'));
         $t->same([], $summary['blockedTags']);
     },
+    'keeps mathml token text integration descendants lowercase in sanitized fragments' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><math><mtext><span viewBox="html attr"><textPath>HTML text</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext>'
+                . '<mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $article = $nodes[0];
+        $math = $article['children'][0];
+        $mtext = $math['children'][0];
+        $span = $mtext['children'][0];
+        $nestedSvg = $span['children'][1];
+        $mi = $math['children'][1];
+        $mo = $math['children'][2];
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/mathml-text-integration-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><math><mtext><span viewbox="html attr"><textpath>HTML text</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext><mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math></article>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('HTML textlink', $fragment->textContent());
+        $t->true(in_array('textpath', $summary['elementNames'], true), 'Expected HTML descendant in mtext to stay lowercase');
+        $t->true(in_array('linearGradient', $summary['elementNames'], true), 'Expected nested SVG in mtext to retain foreign-content casing');
+        $t->same('mtext', $mtext['name']);
+        $t->same(['viewbox' => 'html attr'], $span['attrs']);
+        $t->same('textpath', $span['children'][0]['name']);
+        $t->same('svg', $nestedSvg['name']);
+        $t->same(['viewBox' => '0 0 1 1'], $nestedSvg['attrs']);
+        $t->same('linearGradient', $nestedSvg['children'][0]['name']);
+        $t->same(['href' => '/review'], $mi['children'][0]['attrs']);
+        $t->same('mglyph', $mo['children'][0]['name']);
+        $t->same('/migration/mathml-text-integration-review.html', $document->children[0]->attr('part'));
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+    },
     'preserves foreign-content cdata text before sanitized WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<figure><svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'

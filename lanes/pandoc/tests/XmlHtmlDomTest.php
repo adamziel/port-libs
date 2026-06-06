@@ -187,6 +187,34 @@ return [
         $t->same(['definitionURL' => '#x'], $mathContentAnnotation['children'][0]['attributes']);
         $t->same('<svg><foreignObject><div viewbox="html attr"><lineargradient data-review="html child">HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math>', $html);
     },
+    'keeps mathml token text integration descendants in html casing' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<math><mtext><span viewBox="html attr"><textPath>HTML text</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext>'
+                . '<mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math>',
+            'mathml text integration-point fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $math = $summary[0];
+        $mtext = $math['children'][0];
+        $span = $mtext['children'][0];
+        $nestedSvg = $span['children'][1];
+        $mi = $math['children'][1];
+        $mo = $math['children'][2];
+
+        $t->same('math', $math['name']);
+        $t->same('mtext', $mtext['name']);
+        $t->same(['viewbox' => 'html attr'], $span['attributes']);
+        $t->same('textpath', $span['children'][0]['name']);
+        $t->same('svg', $nestedSvg['name']);
+        $t->same(['viewBox' => '0 0 1 1'], $nestedSvg['attributes']);
+        $t->same('linearGradient', $nestedSvg['children'][0]['name']);
+        $t->same('a', $mi['children'][0]['name']);
+        $t->same(['href' => '/review'], $mi['children'][0]['attributes']);
+        $t->same('mglyph', $mo['children'][0]['name']);
+        $t->same('<math><mtext><span viewbox="html attr"><textpath>HTML text</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext><mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math>', $html);
+    },
     'preserves html foreign-content cdata sections as escaped text' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'

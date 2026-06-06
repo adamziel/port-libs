@@ -148,6 +148,30 @@ return [
         $t->contains('<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>', $serialized);
         $t->contains('<annotation-xml encoding="application/xhtml+xml"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>', $serialized);
     },
+    'treats mathml token text descendants as html integration points' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<math><mtext><span viewBox="html attr"><textPath>HTML text</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext>'
+                . '<mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math>'
+        );
+        $math = Html5Dom::firstChildElement($body, 'math');
+        $mtext = $math instanceof DOMElement ? Html5Dom::firstChildElement($math, 'mtext') : null;
+        $span = $mtext instanceof DOMElement ? Html5Dom::firstChildElement($mtext, 'span') : null;
+        $textPath = $span instanceof DOMElement ? Html5Dom::firstChildElement($span, 'textpath') : null;
+        $nestedSvg = $span instanceof DOMElement ? Html5Dom::firstChildElement($span, 'svg') : null;
+        $nestedGradient = $nestedSvg instanceof DOMElement ? Html5Dom::firstChildElement($nestedSvg, 'linearGradient') : null;
+        $mi = $math instanceof DOMElement ? Html5Dom::firstChildElement($math, 'mi') : null;
+        $link = $mi instanceof DOMElement ? Html5Dom::firstChildElement($mi, 'a') : null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($mtext instanceof DOMElement, 'Expected MathML mtext token');
+        $t->true($span instanceof DOMElement, 'Expected HTML span descendant inside mtext');
+        $t->same(['viewbox' => 'html attr'], $span instanceof DOMElement ? Html5Dom::attributes($span) : []);
+        $t->true($textPath instanceof DOMElement, 'Expected textPath descendant to remain HTML lowercase textpath');
+        $t->true($nestedGradient instanceof DOMElement, 'Expected nested SVG to re-enter foreign-content casing');
+        $t->true($link instanceof DOMElement, 'Expected HTML link descendant inside mi');
+        $t->same(['href' => '/review'], $link instanceof DOMElement ? Html5Dom::attributes($link) : []);
+        $t->same('<math><mtext><span viewbox="html attr"><textpath>HTML text</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext><mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math>', $serialized);
+    },
     'parses html foreign-content cdata sections as text for reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'

@@ -707,6 +707,9 @@ final class Html5DomFragment
         if ($elementForeignContext === 'svg' && $rawName === 'foreignobject') {
             return null;
         }
+        if ($elementForeignContext === 'math' && self::isMathMlTextIntegrationPointName($rawName)) {
+            return null;
+        }
         if ($elementForeignContext === 'math' && $rawName === 'annotation-xml') {
             $encoding = strtolower(trim($element->getAttribute('encoding')));
             if ($encoding === 'text/html' || $encoding === 'application/xhtml+xml') {
@@ -715,6 +718,11 @@ final class Html5DomFragment
         }
 
         return $elementForeignContext;
+    }
+
+    private static function isMathMlTextIntegrationPointName(string $name): bool
+    {
+        return in_array($name, ['mi', 'mn', 'mo', 'ms', 'mtext'], true);
     }
 
     private static function isSafeElementName(string $name): bool
