@@ -82,6 +82,7 @@ final class LayoutOrderer
     private const ORDER_RESULT_DIRECT_PAYLOAD_ENVELOPES = [
         'pages',
         'dictionary_output',
+        'pdftext',
     ];
     private const ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS = [
         ['page_index', 'page_idx', 'doc_page_index', 'doc_page_idx', 'document_page_index', 'document_page_idx', 'source_page_index', 'source_page_idx', 'page_range', 'source_page_range', 'document_page_range', 'page_indices', 'source_page_indices', 'document_page_indices'],
@@ -259,7 +260,7 @@ final class LayoutOrderer
     /**
      * Cached supplied artifacts sometimes keep selected page identity at the
      * top level and store the single order-result payload inside a pdftext-like
-     * pages/dictionary_output envelope. Only accept a single direct payload;
+     * pages/dictionary_output/pdftext envelope. Only accept a single direct payload;
      * multi-dictionary envelopes stay fail-closed through the empty payload path.
      *
      * @param array<string, mixed> $orderResult
