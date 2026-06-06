@@ -14527,7 +14527,15 @@ final class PdfTextExtractor
             }
 
             if (($dict[$index] ?? '') !== '/') {
-                return null;
+                $token = $this->pdfValueAtOffset($dict, $index);
+                if ($token === null) {
+                    return null;
+                }
+
+                return [
+                    'type' => $this->pdfOperandTokenType($token),
+                    'preview' => $this->xrefStreamOperandValuePreview($token),
+                ];
             }
 
             $nameEnd = $this->pdfNameTokenEndOffset($dict, $index);
@@ -14536,10 +14544,6 @@ final class PdfTextExtractor
             }
 
             $name = $this->decodePdfName(substr($dict, $index + 1, $nameEnd - $index - 1));
-            if ($name === 'Length') {
-                return null;
-            }
-
             if ($this->streamFilterNameLooksLikeDecoder($name)) {
                 return [
                     'type' => 'name',
