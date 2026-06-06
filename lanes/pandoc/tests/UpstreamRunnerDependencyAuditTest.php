@@ -1478,6 +1478,54 @@ return [
         $t->contains('no unexpected runner or benchmark mixins', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks empty runner and benchmark artifacts before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['test/Tests/Command.hs'] = '';
+        $files['test/testsuite.txt'] = '';
+        $files['pandoc-lua-engine/test/Tests/Lua/Writer.hs'] = '';
+        $files['benchmark/benchmark-pandoc.hs'] = '';
+        $files['test/movie.jpg'] = '';
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['runnerArtifactClosure']['missing']);
+        $t->same([], $audit['runnerArtifactClosure']['wrongType']);
+        $t->same([
+            'pandoc-lua-engine/test/Tests/Lua/Writer.hs',
+            'test/Tests/Command.hs',
+            'test/testsuite.txt',
+        ], $audit['runnerArtifactClosure']['emptyFiles']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkArtifactClosure']['wrongType']);
+        $t->same([
+            'benchmark/benchmark-pandoc.hs',
+            'test/testsuite.txt',
+            'test/movie.jpg',
+        ], $audit['benchmarkArtifactClosure']['emptyFiles']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('empty upstream runner source/golden fixture artifacts: pandoc-lua-engine/test/Tests/Lua/Writer.hs, test/Tests/Command.hs, test/testsuite.txt', $blocked);
+        $t->contains('empty upstream benchmark source/data artifacts: benchmark/benchmark-pandoc.hs, test/testsuite.txt, test/movie.jpg', $blocked);
+        $t->contains('non-empty runner source/golden fixtures', $audit['activationGate']);
+        $t->contains('non-empty benchmark source/data artifacts', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'normalizes cabal line comments before resolving runner fields' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(
