@@ -2589,9 +2589,250 @@ final class PdfPagePropertyExtractor
             $objects[$objectNumber] = $definition['body'];
             $this->currentObjectGenerations[$objectNumber] = $definition['generation'];
         }
+
+        $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withObjectStreamObjects(array $objects, array $xrefEntries): array
+    {
+        if ($xrefEntries === []) {
+            return $objects;
+        }
+
+        $expanded = $objects;
+        $remaining = [];
+        foreach ($xrefEntries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'], $entry['index'])) {
+                continue;
+            }
+
+            $remaining[$objectNumber] = $entry;
+        }
+
+        for ($pass = 0; $pass < 4 && $remaining !== []; $pass++) {
+            $resolvedThisPass = 0;
+            foreach ($expanded as $objectStreamNumber => $body) {
+                if (!$this->objectBodyHasTypeName($body, 'ObjStm')) {
+                    continue;
+                }
+
+                $memberTable = $this->decodedObjectStreamMemberTable($body, $expanded);
+                if ($memberTable === null) {
+                    continue;
+                }
+
+                $memberObjectNumberCounts = $this->objectStreamMemberObjectNumberCounts($memberTable['members']);
+                $memberOffsetCounts = $this->objectStreamMemberOffsetCounts($memberTable['members']);
+                foreach ($remaining as $objectNumber => $entry) {
+                    if (($entry['objectStream'] ?? null) !== $objectStreamNumber) {
+                        continue;
+                    }
+
+                    if (($memberObjectNumberCounts[$objectNumber] ?? 0) !== 1) {
+                        continue;
+                    }
+
+                    $member = $this->objectStreamMemberAtHeaderIndex($memberTable['members'], (int) $entry['index']);
+                    if ($member === null || $member['objectNumber'] !== $objectNumber) {
+                        continue;
+                    }
+
+                    if (($memberOffsetCounts[$member['offset']] ?? 0) > 1) {
+                        continue;
+                    }
+
+                    $memberBody = $this->objectStreamMemberBody($memberTable, $member);
+                    if ($memberBody === null || $memberBody === '' || $this->objectBodyIsStreamObject($memberBody)) {
+                        continue;
+                    }
+
+                    $expanded[$objectNumber] = $memberBody;
+                    $this->currentObjectGenerations[$objectNumber] = 0;
+                    unset($remaining[$objectNumber]);
+                    $resolvedThisPass++;
+                }
+            }
+
+            if ($resolvedThisPass === 0) {
+                break;
+            }
+        }
+
+        return $expanded;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
+     */
+    private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
+    {
+        $stream = $this->decodeStreamObject($body, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $count = $this->dictionaryIntegerValue($stream['dictionary'], 'N');
+        $first = $this->dictionaryIntegerValue($stream['dictionary'], 'First');
+        if ($count === null || $first === null || $count <= 0 || $first < 0 || $first >= strlen($stream['content'])) {
+            return null;
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($stream['content'], 0, $first), $count);
+        if ($members === []) {
+            return null;
+        }
+
+        return [
+            'decoded' => $stream['content'],
+            'first' => $first,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return list<array{objectNumber: int, offset: int, index: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $count): array
+    {
+        $members = [];
+        $offset = 0;
+        for ($index = 0; $index < $count; $index++) {
+            $objectNumber = $this->readPdfUnsignedIntegerToken($header, $offset);
+            if ($objectNumber === null) {
+                return [];
+            }
+
+            $objectOffset = $this->readPdfUnsignedIntegerToken($header, $offset);
+            if ($objectOffset === null) {
+                return [];
+            }
+
+            if ($objectNumber === 0) {
+                continue;
+            }
+
+            $members[] = [
+                'objectNumber' => $objectNumber,
+                'offset' => $objectOffset,
+                'index' => $index,
+            ];
+        }
+
+        return $this->skipWhitespace($header, $offset) === strlen($header) ? $members : [];
+    }
+
+    private function readPdfUnsignedIntegerToken(string $value, int &$offset): ?int
+    {
+        $offset = $this->skipWhitespace($value, $offset);
+        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[0]);
+
+        return (int) $match[1];
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @return array<int, int>
+     */
+    private function objectStreamMemberObjectNumberCounts(array $members): array
+    {
+        $counts = [];
+        foreach ($members as $member) {
+            $objectNumber = $member['objectNumber'];
+            $counts[$objectNumber] = ($counts[$objectNumber] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @return array<int, int>
+     */
+    private function objectStreamMemberOffsetCounts(array $members): array
+    {
+        $counts = [];
+        foreach ($members as $member) {
+            $offset = $member['offset'];
+            $counts[$offset] = ($counts[$offset] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @return array{objectNumber: int, offset: int, index: int}|null
+     */
+    private function objectStreamMemberAtHeaderIndex(array $members, int $headerIndex): ?array
+    {
+        foreach ($members as $member) {
+            if ($member['index'] === $headerIndex) {
+                return $member;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberBody(array $memberTable, array $member): ?string
+    {
+        $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+        if ($member['offset'] < 0 || $member['offset'] >= $objectDataLength) {
+            return null;
+        }
+
+        $endOffset = $objectDataLength;
+        foreach ($memberTable['members'] as $candidate) {
+            $candidateOffset = $candidate['offset'];
+            if ($candidateOffset > $member['offset'] && $candidateOffset < $endOffset) {
+                $endOffset = $candidateOffset;
+            }
+        }
+
+        if ($endOffset <= $member['offset']) {
+            return null;
+        }
+
+        return trim(substr(
+            $memberTable['decoded'],
+            $memberTable['first'] + $member['offset'],
+            $endOffset - $member['offset']
+        ));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyHasTypeName(string $objectBody, string $typeName, array $objects = []): bool
+    {
+        $dictionaryOffset = strpos($objectBody, '<<');
+        if ($dictionaryOffset === false) {
+            return false;
+        }
+
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        return $this->dictionaryNameValue($dictionary['body'], 'Type', $objects) === $typeName;
     }
 
     /**
