@@ -11171,6 +11171,11 @@ final class PdfMetadataExtractor
             return $directItems;
         }
 
+        $parseTypeItems = $this->xmpParseTypeCollectionItems($element);
+        if ($this->xmpRdfCollectionItemsHaveValues($parseTypeItems)) {
+            return $parseTypeItems;
+        }
+
         foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
             foreach ($this->xmpChildElements($element, self::NS_RDF, $containerName) as $container) {
                 $items = $this->xmpRdfContainerItems($container);
@@ -11270,6 +11275,11 @@ final class PdfMetadataExtractor
             return $directItems;
         }
 
+        $parseTypeItems = $this->xmpParseTypeCollectionItems($target);
+        if ($this->xmpRdfCollectionItemsHaveValues($parseTypeItems)) {
+            return $parseTypeItems;
+        }
+
         foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
             foreach ($this->xmpChildElements($target, self::NS_RDF, $containerName) as $container) {
                 $items = $this->xmpRdfContainerItems($container);
@@ -11287,6 +11297,31 @@ final class PdfMetadataExtractor
         }
 
         return $this->xmpRdfResourceReferenceCollectionItems($target, $seenResourceIds);
+    }
+
+    /**
+     * RDF/XML parseType="Collection" property elements carry ordered node
+     * elements instead of rdf:li/container wrappers.
+     *
+     * @return list<DOMElement>
+     */
+    private function xmpParseTypeCollectionItems(DOMElement $element): array
+    {
+        if (
+            !$element->hasAttributeNS(self::NS_RDF, 'parseType')
+            || strcasecmp(trim($element->getAttributeNS(self::NS_RDF, 'parseType')), 'Collection') !== 0
+        ) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                $items[] = $child;
+            }
+        }
+
+        return $items;
     }
 
     /**
