@@ -4488,6 +4488,31 @@ final class PdfMetadataExtractor
             return $review;
         }
 
+        $dictionaryBoundaryReview = $this->metadataStreamDictionaryTypeBoundaryReview($stream['dictionary'], $objects);
+        if ($dictionaryBoundaryReview !== []) {
+            $review = $base + $referenceReview + $dictionaryBoundaryReview + [
+                'bytes' => strlen($stream['content']),
+                'sha256' => hash('sha256', $stream['content']),
+            ];
+
+            $filters = $this->streamFilters($stream['dictionary'], $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $declaredLength = $this->streamLength($stream['dictionary'], $objects);
+            if ($declaredLength !== null) {
+                $review['declared_length'] = $declaredLength;
+            }
+
+            $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+            if ($xmpSummary !== []) {
+                $review['xmp_summary'] = $xmpSummary;
+            }
+
+            return $review;
+        }
+
         if (!$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
             $review = $base + $referenceReview + [
                 'status' => 'rejected_non_metadata_outline_item_stream',
