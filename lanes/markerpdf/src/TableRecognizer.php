@@ -2133,7 +2133,8 @@ final class TableRecognizer
                     $table,
                     $key,
                     $table,
-                    $imageSize
+                    $imageSize,
+                    true
                 );
                 if ($candidate !== null) {
                     return $candidate;
@@ -2150,7 +2151,8 @@ final class TableRecognizer
                     $imageSize,
                     $key,
                     $table,
-                    $imageSize
+                    $imageSize,
+                    true
                 );
                 if ($candidate !== null) {
                     return $candidate;
@@ -2165,7 +2167,7 @@ final class TableRecognizer
                 return $this->tableCropBboxCandidateWithCoordinateSpace(
                     $polygonBbox,
                     $source,
-                    $this->tableCropBboxCoordinateSpace($table, 'polygon'),
+                    $this->tableCropBboxCoordinateSpace($table, 'polygon', true),
                     $table,
                     $imageSize
                 );
@@ -2191,7 +2193,7 @@ final class TableRecognizer
                     is_array($table['bbox'])
                         ? $this->bboxCoordinateSourceFromRecord($table)
                         : 'bbox_array',
-                    $this->tableCropBboxCoordinateSpace($table, 'bbox'),
+                    $this->tableCropBboxCoordinateSpace($table, 'bbox', true),
                     $table,
                     $imageSize
                 );
@@ -2205,7 +2207,7 @@ final class TableRecognizer
             return $this->tableCropBboxCandidateWithCoordinateSpace(
                 $wrappedBbox,
                 $wrappedSource,
-                $this->tableCropBboxCoordinateSpace($table, $wrappedSource),
+                $this->tableCropBboxCoordinateSpace($table, $wrappedSource, true),
                 $table,
                 $imageSize
             );
