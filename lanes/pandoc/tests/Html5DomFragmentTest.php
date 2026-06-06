@@ -465,6 +465,50 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe srcset candidate to be stripped');
         $t->true(!str_contains($html, '&#13;'), 'Expected encoded control characters to be removed from candidate URLs');
     },
+    'preserves safe data image srcset candidates without splitting payload commas' => static function (TestRunner $t): void {
+        $pngData = 'data:image/png;base64,iVBORw0KGgo=';
+        $webpData = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAQAcJaQAA3AA/vuUAAA=';
+        $fragment = Html5DomFragment::fromHtml(
+            '<picture data-review="inline-responsive">'
+            . '<source srcset="' . $pngData . ' 1x, data:text/html;base64,PHNjcmlwdD4= 2x, ./fallback.webp 640w" type="image/png">'
+            . '<img src="/media/fallback.png" srcset="' . $webpData . ' 2x, data:image/svg+xml;base64,PHN2Zz48L3N2Zz4= 3x" alt="Inline">'
+            . '</picture>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/data-srcset-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<picture data-review="inline-responsive">'
+            . '<source srcset="' . $pngData . ' 1x, https://source.example.test/import/posts/fallback.webp 640w" type="image/png">'
+            . '<img src="https://source.example.test/media/fallback.png" srcset="' . $webpData . ' 2x" alt="Inline">'
+            . '</picture>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $source = $nodes[0]['children'][0];
+        $image = $nodes[0]['children'][1];
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['img', 'picture', 'source'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['srcset'], $summary['filteredAttributes']);
+        $t->same(['unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same($pngData . ' 1x, https://source.example.test/import/posts/fallback.webp 640w', $source['attrs']['srcset']);
+        $t->same($webpData . ' 2x', $image['attrs']['srcset']);
+        $t->same('/migration/data-srcset-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'data:text/html'), 'Expected non-image data URL candidates to be stripped');
+        $t->true(!str_contains($html, 'data:image/svg+xml'), 'Expected SVG data URL candidates to be stripped');
+        $t->true(str_contains($html, $pngData . ' 1x'), 'Expected data image payload to stay attached to its data URL header');
+    },
     'serializes html5 boolean attributes without redundant values for review media' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<details open="open"><summary>Review packet</summary>'

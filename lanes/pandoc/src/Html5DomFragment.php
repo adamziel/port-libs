@@ -1215,7 +1215,7 @@ final class Html5DomFragment
         ?string $baseUrl
     ): ?string {
         $normalized = [];
-        foreach (explode(',', $value) as $candidate) {
+        foreach (self::splitSrcsetCandidates($value) as $candidate) {
             $candidate = trim($candidate);
             if ($candidate === '') {
                 $diagnostics[] = [
@@ -1234,6 +1234,42 @@ final class Html5DomFragment
         }
 
         return $normalized === [] ? null : implode(', ', $normalized);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitSrcsetCandidates(string $value): array
+    {
+        $candidates = [];
+        $start = 0;
+        $offset = 0;
+
+        while (($comma = strpos($value, ',', $offset)) !== false) {
+            $candidatePrefix = substr($value, $start, $comma - $start);
+            if (self::isDataUrlPayloadComma($candidatePrefix)) {
+                $offset = $comma + 1;
+                continue;
+            }
+
+            $candidates[] = $candidatePrefix;
+            $start = $comma + 1;
+            $offset = $start;
+        }
+
+        $candidates[] = substr($value, $start);
+
+        return $candidates;
+    }
+
+    private static function isDataUrlPayloadComma(string $candidatePrefix): bool
+    {
+        $trimmed = trim($candidatePrefix);
+        if ($trimmed === '' || preg_match('/[\x00-\x20]/', $trimmed) === 1) {
+            return false;
+        }
+
+        return preg_match('/^data:[^,]*$/i', $trimmed) === 1;
     }
 
     private static function isSafeUrl(string $value): bool
@@ -1433,6 +1469,9 @@ final class Html5DomFragment
     private static function isSafeImageCandidateUrl(string $value): bool
     {
         $trimmed = trim(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+        if (self::isSafeRasterImageDataUrl($trimmed)) {
+            return true;
+        }
         if ($trimmed === '' || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/')) {
             return true;
         }
@@ -1446,6 +1485,15 @@ final class Html5DomFragment
         $scheme = strtolower(strstr($trimmed, ':', true) ?: '');
 
         return in_array($scheme, ['http', 'https'], true);
+    }
+
+    private static function isSafeRasterImageDataUrl(string $value): bool
+    {
+        if (preg_match('/^data:image\/(?:png|gif|jpe?g|webp);base64,([A-Za-z0-9+\/]+={0,2})$/i', $value, $matches) !== 1) {
+            return false;
+        }
+
+        return base64_decode((string) $matches[1], true) !== false;
     }
 
     /**
