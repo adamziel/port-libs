@@ -748,6 +748,30 @@ $parserStreamFilterStackBoundaryCurrentBaseIndirectDecodeParmsSingleValuePdf = s
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseSameObjectGenerationOperandPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $rowOne = 'BT /F1 12 Tf 72 720 Td (Shared Generation Filter Params) Tj T* ';
+    $rowTwo = str_pad('(Exact DecodeParms Same Object) Tj ET', strlen($rowOne));
+    $encodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor($rowOne . $rowTwo, strlen($rowOne));
+    $compressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($encodedRows);
+    $visibleAfter = 'BT /F1 12 Tf 72 684 Td (Visible After Shared Operand Generations) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter 20 0 R /DecodeParms 20 1 R /Length 21 0 R >>\nstream\n{$compressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "20 0 obj\n/FlateDecode\nendobj\n"
+        . "20 1 obj\n<< /Predictor 12 /Columns 21 1 R >>\nendobj\n"
+        . "21 0 obj\n" . strlen($compressed) . "\nendobj\n"
+        . "21 1 obj\n" . strlen($rowOne) . "\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
 ): string {
@@ -1414,6 +1438,30 @@ return [
         $t->true(!str_contains($text, 'Predictor 12'));
         $t->true(!str_contains($text, '10 0 obj'));
         $t->true(!str_contains($text, '11 0 obj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'resolves stream Filter and DecodeParms operands by exact generation when object numbers overlap' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseSameObjectGenerationOperandPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseSameObjectGenerationOperandPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Shared Generation Filter Params',
+            'Exact DecodeParms Same Object',
+            'Visible After Shared Operand Generations',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, '20 0 obj'));
+        $t->true(!str_contains($text, '20 1 obj'));
+        $t->true(!str_contains($text, '21 0 obj'));
+        $t->true(!str_contains($text, '21 1 obj'));
         $t->true(!str_contains($text, "\0"));
     },
     'ignores unresolved DecodeParms entries aligned to trailing null filters in fallback stream scans' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf): void {

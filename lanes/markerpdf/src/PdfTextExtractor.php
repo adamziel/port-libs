@@ -14946,7 +14946,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
         if ($body === null) {
             return false;
         }
@@ -15007,7 +15007,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
@@ -16948,7 +16948,7 @@ final class PdfTextExtractor
 
             $objectNumber = $reference['objectNumber'];
             $generation = $reference['generation'];
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             $filters = $body === null
                 ? null
                 : $this->filterNamesFromSingleValue(trim($body), $objects, [$objectNumber . ':' . $generation => true]);
@@ -17325,7 +17325,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
@@ -17417,7 +17417,7 @@ final class PdfTextExtractor
                     return null;
                 }
 
-                $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+                $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
                 if ($body === null) {
                     return null;
                 }
@@ -17516,7 +17516,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
@@ -17628,7 +17628,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
         if ($body === null) {
             return null;
         }
@@ -17795,7 +17795,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
@@ -17853,7 +17853,7 @@ final class PdfTextExtractor
                     return null;
                 }
 
-                $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+                $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
                 if ($body === null) {
                     return null;
                 }
@@ -18253,7 +18253,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
@@ -18285,7 +18285,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
