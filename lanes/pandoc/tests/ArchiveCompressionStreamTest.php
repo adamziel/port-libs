@@ -878,6 +878,90 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($schilyPaxSparse));
     },
 
+    'preflights tar sparse policy without exposing sparse entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $gnuTypePayload = 'gnu sparse payload fragment';
+        $gnuPaxPayload = 'gnu pax sparse payload fragment';
+        $schilyPaxPayload = 'schily sparse payload fragment';
+        $archiveBytes = $rawTarHeader('packet/gnu-type-sparse.bin', 'S', $gnuTypePayload, 1780479080, false)
+            . $rawTarHeader('PaxHeaders/gnu-sparse-policy', 'x', $paxPayload([
+                'path' => 'packet/gnu-pax-sparse.bin',
+                'GNU.sparse.major' => '1',
+                'GNU.sparse.minor' => '0',
+                'GNU.sparse.name' => 'packet/gnu-pax-sparse.bin',
+                'GNU.sparse.realsize' => '4096',
+                'GNU.sparse.map' => '0,12,4090,6',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-gnu.bin', '0', $gnuPaxPayload, 1780479081, false)
+            . $rawTarHeader('PaxHeaders/schily-sparse-policy', 'x', $paxPayload([
+                'path' => 'packet/schily-pax-sparse.bin',
+                'SCHILY.filetype' => 'sparse',
+                'SCHILY.realsize' => '8192',
+                'SCHILY.sparse.map' => '0,16,8176,16',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-schily.bin', '0', $schilyPaxPayload, 1780479082, false)
+            . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-sparse-policy.tar',
+            'comment' => 'sparse entries stay blocked for extraction',
+        ]);
+
+        $policy = TarArchive::sparsePolicyPreflight($archiveBytes);
+        $streamPolicy = ArchiveCompressionStream::inspectTarSparsePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+
+        $t->same(3, $policy['entryCount']);
+        $t->same(3, $policy['sparseEntryCount']);
+        $t->same('sparse-entries-blocked', $policy['extractionPolicy']);
+        $t->same([
+            'packet/gnu-type-sparse.bin',
+            'packet/gnu-pax-sparse.bin',
+            'packet/schily-pax-sparse.bin',
+        ], array_map(static fn (array $entry): string => $entry['name'], $policy['entries']));
+        $t->same('gnu-sparse-typeflag', $policy['entries'][0]['sparseType']);
+        $t->same(['gnu-typeflag'], $policy['entries'][0]['sparseHeaderFamilies']);
+        $t->same([], $policy['entries'][0]['sparseHeaderKeys']);
+        $t->same(null, $policy['entries'][0]['realSize']);
+        $t->same(strlen($gnuTypePayload), $policy['entries'][0]['payloadSize']);
+        $t->same(['tar-sparse-entry-not-extracted', 'gnu-typeflag'], $policy['entries'][0]['diagnostics']);
+        $t->same('pax-sparse', $policy['entries'][1]['sparseType']);
+        $t->same(['gnu-pax'], $policy['entries'][1]['sparseHeaderFamilies']);
+        $t->same([
+            'GNU.sparse.major',
+            'GNU.sparse.map',
+            'GNU.sparse.minor',
+            'GNU.sparse.name',
+            'GNU.sparse.realsize',
+        ], $policy['entries'][1]['sparseHeaderKeys']);
+        $t->same(4096, $policy['entries'][1]['realSize']);
+        $t->same(strlen($gnuPaxPayload), $policy['entries'][1]['payloadSize']);
+        $t->same('pax-path', $policy['entries'][1]['nameSource']);
+        $t->same(['tar-sparse-entry-not-extracted', 'gnu-pax'], $policy['entries'][1]['diagnostics']);
+        $t->same(['schily-pax'], $policy['entries'][2]['sparseHeaderFamilies']);
+        $t->same([
+            'SCHILY.filetype',
+            'SCHILY.realsize',
+            'SCHILY.sparse.map',
+        ], $policy['entries'][2]['sparseHeaderKeys']);
+        $t->same(8192, $policy['entries'][2]['realSize']);
+        $t->same(strlen($schilyPaxPayload), $policy['entries'][2]['payloadSize']);
+        $t->same('pax-path', $policy['entries'][2]['nameSource']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(strlen($archiveBytes), $streamPolicy['uncompressedSize']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-sparse-policy.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same(3, $streamPolicy['sparseEntryCount']);
+        $t->same('packet/schily-pax-sparse.bin', $streamPolicy['entries'][2]['name']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarSparsePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes) - 1
+        ));
+    },
+
     'rejects tar pax linkpath metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $paxLinkPath = $rawTarHeader('PaxHeaders/linkpath', 'x', $paxPayload([
             'path' => 'packet/linkpath-regular.xml',

@@ -86,6 +86,8 @@ $legacyDirectoryBytes = '';
 $paxDeleteContentBytes = "# PAX deletion packet\n\nReady for WordPress archive provenance review.\n";
 $paxInheritedContentBytes = "# PAX inherited packet\n\nReady for WordPress archive provenance review.\n";
 $linkPolicySourceBytes = "# Link target source\n\nReady for WordPress archive link policy review.\n";
+$sparsePolicyTypePayload = 'gnu sparse payload fragment';
+$sparsePolicyPaxPayload = 'schily sparse payload fragment';
 
 $archive = TarArchive::fromEntries([
     [
@@ -204,6 +206,30 @@ try {
 } catch (RuntimeException) {
     $linkPolicyExtractionBlocked = true;
 }
+$sparsePolicyArchiveBytes = $rawTarHeader('packet/gnu-type-sparse.bin', 'S', $sparsePolicyTypePayload, 1780479080, false)
+    . $rawTarHeader('PaxHeaders/sparse-policy', 'x', $paxPayload([
+        'path' => 'packet/schily-pax-sparse.bin',
+        'SCHILY.filetype' => 'sparse',
+        'SCHILY.realsize' => '8192',
+        'SCHILY.sparse.map' => '0,16,8176,16',
+    ]), 0, false)
+    . $rawTarHeader('placeholder-schily.bin', '0', $sparsePolicyPaxPayload, 1780479081, false)
+    . str_repeat("\0", 1024);
+$sparsePolicyGzip = GzipStream::build($sparsePolicyArchiveBytes, [
+    'filename' => 'wordpress-sparse-policy.tar',
+    'comment' => 'TAR sparse extraction policy preflight',
+]);
+$sparsePolicyInspection = ArchiveCompressionStream::inspectTarSparsePolicy(
+    $sparsePolicyGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($sparsePolicyArchiveBytes)
+);
+$sparsePolicyExtractionBlocked = false;
+try {
+    TarArchive::fromString($sparsePolicyArchiveBytes);
+} catch (RuntimeException) {
+    $sparsePolicyExtractionBlocked = true;
+}
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -241,6 +267,13 @@ if (in_array('--self-test', $argv, true)) {
         'linkPolicyExtractionPolicy' => 'link-entries-blocked',
         'linkPolicyHardTarget' => 'packet/link-source.md',
         'linkPolicySymlinkTarget' => 'packet/media/review.png',
+        'sparsePolicyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'sparsePolicyEntryCount' => 2,
+        'sparsePolicySparseCount' => 2,
+        'sparsePolicyExtractionPolicy' => 'sparse-entries-blocked',
+        'sparsePolicyGnuTypeName' => 'packet/gnu-type-sparse.bin',
+        'sparsePolicySchilyName' => 'packet/schily-pax-sparse.bin',
+        'sparsePolicyRealSize' => 8192,
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -289,6 +322,17 @@ if (in_array('--self-test', $argv, true)) {
         || ($linkPolicyInspection['entries'][1]['linkTargetSource'] ?? null) !== 'pax-linkpath'
         || ($linkPolicyInspection['entries'][1]['linkTarget'] ?? null) !== $expected['linkPolicySymlinkTarget']
         || ($linkPolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-link-policy.tar'
+        || $sparsePolicyInspection['format'] !== $expected['sparsePolicyFormat']
+        || $sparsePolicyInspection['entryCount'] !== $expected['sparsePolicyEntryCount']
+        || $sparsePolicyInspection['sparseEntryCount'] !== $expected['sparsePolicySparseCount']
+        || $sparsePolicyInspection['extractionPolicy'] !== $expected['sparsePolicyExtractionPolicy']
+        || !$sparsePolicyExtractionBlocked
+        || ($sparsePolicyInspection['entries'][0]['name'] ?? null) !== $expected['sparsePolicyGnuTypeName']
+        || ($sparsePolicyInspection['entries'][0]['sparseHeaderFamilies'] ?? []) !== ['gnu-typeflag']
+        || ($sparsePolicyInspection['entries'][1]['name'] ?? null) !== $expected['sparsePolicySchilyName']
+        || ($sparsePolicyInspection['entries'][1]['sparseHeaderFamilies'] ?? []) !== ['schily-pax']
+        || ($sparsePolicyInspection['entries'][1]['realSize'] ?? null) !== $expected['sparsePolicyRealSize']
+        || ($sparsePolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-sparse-policy.tar'
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -329,3 +373,8 @@ echo 'linkPolicy.extractionPolicy=' . $linkPolicyInspection['extractionPolicy'] 
 echo 'linkPolicy.linkEntryCount=' . $linkPolicyInspection['linkEntryCount'] . "\n";
 echo 'linkPolicy.hardTarget=' . $linkPolicyInspection['entries'][0]['linkTarget'] . "\n";
 echo 'linkPolicy.symlinkTarget=' . $linkPolicyInspection['entries'][1]['linkTarget'] . "\n";
+echo 'sparsePolicy.format=' . $sparsePolicyInspection['format'] . "\n";
+echo 'sparsePolicy.extractionPolicy=' . $sparsePolicyInspection['extractionPolicy'] . "\n";
+echo 'sparsePolicy.sparseEntryCount=' . $sparsePolicyInspection['sparseEntryCount'] . "\n";
+echo 'sparsePolicy.gnuTypeName=' . $sparsePolicyInspection['entries'][0]['name'] . "\n";
+echo 'sparsePolicy.schilyName=' . $sparsePolicyInspection['entries'][1]['name'] . "\n";
