@@ -243,6 +243,16 @@ $wrappedTerminalFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1
 $wrappedTerminalFlatePayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed . $wrappedTerminalFlateDecodedSurplus)) . '>';
 $wrappedTerminalFlateCleanPayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed)) . '>';
 $identityCryptWrappedTerminalFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/Crypt /AHx /Fl] /DP [<< /Name /Identity >> null null] /D [0 1]';
+$wrappedTerminalLzwEncodedImage = $lzwLiteralEncode($wrappedTerminalFlateImageByte, 0);
+$wrappedTerminalLzwDecodedSurplus = 'ZZ EI BT /F1 12 Tf 72 589 Td (Wrapped Terminal LZW Inline Noise) Tj ET rawtail';
+$wrappedTerminalLzwDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /LZW] /DP [null << /EarlyChange 0 >>] /D [0 1]';
+$wrappedTerminalLzwPayload = strtoupper(bin2hex($wrappedTerminalLzwEncodedImage . $wrappedTerminalLzwDecodedSurplus)) . '>';
+$wrappedTerminalLzwCleanPayload = strtoupper(bin2hex($wrappedTerminalLzwEncodedImage)) . '>';
+$wrappedTerminalRunLengthEncodedImage = $runLengthLiteralEncode($wrappedTerminalFlateImageByte, true);
+$wrappedTerminalRunLengthDecodedSurplus = 'ZZ EI BT /F1 12 Tf 72 587 Td (Wrapped Terminal RunLength Inline Noise) Tj ET rawtail';
+$wrappedTerminalRunLengthDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /RL] /D [0 1]';
+$wrappedTerminalRunLengthPayload = strtoupper(bin2hex($wrappedTerminalRunLengthEncodedImage . $wrappedTerminalRunLengthDecodedSurplus)) . '>';
+$wrappedTerminalRunLengthCleanPayload = strtoupper(bin2hex($wrappedTerminalRunLengthEncodedImage)) . '>';
 $noFloorNativeInlineCases = [
     'ascii85' => [
         'dictionary' => '/W 1 /H 1 /F /A85',
@@ -359,6 +369,12 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 592 Td (Before Identity Crypt Wrapped Terminal Flate Inline) Tj ET\n"
     . "BI {$identityCryptWrappedTerminalFlateDictionary} ID {$wrappedTerminalFlatePayload}\nEI\n"
     . "BT /F1 12 Tf 72 591 Td (After Identity Crypt Wrapped Terminal Flate Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 590 Td (Before Wrapped Terminal LZW Inline) Tj ET\n"
+    . "BI {$wrappedTerminalLzwDictionary} ID {$wrappedTerminalLzwPayload}\nEI\n"
+    . "BT /F1 12 Tf 72 589 Td (After Wrapped Terminal LZW Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 588 Td (Before Wrapped Terminal RunLength Inline) Tj ET\n"
+    . "BI {$wrappedTerminalRunLengthDictionary} ID {$wrappedTerminalRunLengthPayload}\nEI\n"
+    . "BT /F1 12 Tf 72 587 Td (After Wrapped Terminal RunLength Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 594 Td (Before Direct Null Filter Inline) Tj ET\n"
     . "BI {$directNullFilterDictionary} ID {$directNullFilterSamples}\nEI\n"
     . "BT /F1 12 Tf 72 593 Td (After Direct Null Filter Inline) Tj ET\n"
@@ -583,6 +599,40 @@ $wrappedTerminalFlateCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPr
 $identityCryptWrappedTerminalFlateCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
     $identityCryptWrappedTerminalFlateDictionary,
     $wrappedTerminalFlateCleanPayload,
+    [],
+    1
+);
+$wrappedTerminalLzwSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $wrappedTerminalLzwDictionary,
+        $wrappedTerminalLzwPayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $wrappedTerminalLzwSurplusPreviewRejected = true;
+}
+$wrappedTerminalLzwCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $wrappedTerminalLzwDictionary,
+    $wrappedTerminalLzwCleanPayload,
+    [],
+    1
+);
+$wrappedTerminalRunLengthSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $wrappedTerminalRunLengthDictionary,
+        $wrappedTerminalRunLengthPayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $wrappedTerminalRunLengthSurplusPreviewRejected = true;
+}
+$wrappedTerminalRunLengthCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $wrappedTerminalRunLengthDictionary,
+    $wrappedTerminalRunLengthCleanPayload,
     [],
     1
 );
@@ -1156,6 +1206,24 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && ($identityCryptWrappedTerminalFlateCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $wrappedTerminalFlateImageByte),
     'wrapped_terminal_flate_clean_preview_filters' => $wrappedTerminalFlateCleanPreview['image_stream']['filters'] ?? [],
     'identity_crypt_wrapped_terminal_flate_clean_preview_filters' => $identityCryptWrappedTerminalFlateCleanPreview['image_stream']['filters'] ?? [],
+    'wrapped_terminal_lzw_payload_excluded_until_real_ei' => in_array('After Wrapped Terminal LZW Inline', $lines, true)
+        && !str_contains($plainText, 'Wrapped Terminal LZW Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'wrapped_terminal_lzw_payload_raw_hex_has_no_fake_ei' => !str_contains($wrappedTerminalLzwPayload, ' EI ')
+        && !str_contains($wrappedTerminalLzwPayload, 'ZZ EI'),
+    'wrapped_terminal_lzw_surplus_preview_rejected' => $wrappedTerminalLzwSurplusPreviewRejected,
+    'wrapped_terminal_lzw_clean_preview_decoded' => ($wrappedTerminalLzwCleanPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($wrappedTerminalLzwCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $wrappedTerminalFlateImageByte),
+    'wrapped_terminal_lzw_clean_preview_filters' => $wrappedTerminalLzwCleanPreview['image_stream']['filters'] ?? [],
+    'wrapped_terminal_runlength_payload_excluded_until_real_ei' => in_array('After Wrapped Terminal RunLength Inline', $lines, true)
+        && !str_contains($plainText, 'Wrapped Terminal RunLength Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'wrapped_terminal_runlength_payload_raw_hex_has_no_fake_ei' => !str_contains($wrappedTerminalRunLengthPayload, ' EI ')
+        && !str_contains($wrappedTerminalRunLengthPayload, 'ZZ EI'),
+    'wrapped_terminal_runlength_surplus_preview_rejected' => $wrappedTerminalRunLengthSurplusPreviewRejected,
+    'wrapped_terminal_runlength_clean_preview_decoded' => ($wrappedTerminalRunLengthCleanPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($wrappedTerminalRunLengthCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $wrappedTerminalFlateImageByte),
+    'wrapped_terminal_runlength_clean_preview_filters' => $wrappedTerminalRunLengthCleanPreview['image_stream']['filters'] ?? [],
     'runlength_inline_eod_present' => str_contains($runLengthPayload, chr(128)),
     'runlength_inline_preview_decoded' => ($runLengthIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',
@@ -1243,6 +1311,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Flate Wrapped JPX Inline Noise')
         && !str_contains($plainText, 'Stacked Native Inline Noise')
         && !str_contains($plainText, 'Wrapped Terminal Flate Inline Noise')
+        && !str_contains($plainText, 'Wrapped Terminal LZW Inline Noise')
+        && !str_contains($plainText, 'Wrapped Terminal RunLength Inline Noise')
         && !str_contains($plainText, $directNullFilterSamples)
         && !str_contains($plainText, 'Indirect Geometry Inline Noise')
         && !str_contains($plainText, 'abc EI')

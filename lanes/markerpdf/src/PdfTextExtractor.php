@@ -33440,6 +33440,12 @@ final class PdfTextExtractor
                         $candidate,
                         $expectedLength
                     )
+                    || $this->inlineWrappedTerminalEodFilterCandidateReachesSampleFloorBeforeDecodedSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        $expectedLength
+                    )
                     || $this->inlineLzwCandidateReachesSampleFloorBeforePostEodSurplus(
                         $filters,
                         $dictionary,
@@ -33907,6 +33913,87 @@ final class PdfTextExtractor
     private function decodeParmsUsesPredictor(?string $decodeParms): bool
     {
         return ($this->decodeParmsInt($decodeParms, 'Predictor', []) ?? 1) !== 1;
+    }
+
+    /**
+     * Wrapped native stacks such as ASCIIHex + LZW can hide the terminal
+     * filter's EOD marker and surplus bytes until the outer filter is decoded.
+     * Keep decoded delimiter-looking EI bytes image-owned until the later raw
+     * inline-image terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineWrappedTerminalEodFilterCandidateReachesSampleFloorBeforeDecodedSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+            return false;
+        }
+
+        $terminalFilterIndex = null;
+        $terminalFilter = null;
+        foreach ($filters as $index => $filter) {
+            if (is_string($filter)) {
+                $terminalFilterIndex = $index;
+                $terminalFilter = $filter;
+            }
+        }
+        if (
+            $terminalFilterIndex === null
+            || $terminalFilter === null
+            || !in_array($terminalFilter, ['ASCIIHexDecode', 'AHx', 'ASCII85Decode', 'A85', 'RunLengthDecode', 'RL', 'LZWDecode', 'LZW'], true)
+        ) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $terminalInput = $this->decodeStreamBeforeFilter(
+            $dictionary,
+            $candidate,
+            [],
+            $filters,
+            $terminalFilterIndex
+        );
+        if ($terminalInput === null) {
+            return false;
+        }
+
+        $terminalDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $terminalFilterIndex);
+        if (!$this->canApplyDecodeParms($terminalFilter, $terminalDecodeParms, [])) {
+            return false;
+        }
+
+        $terminalEndOffset = $this->streamFilterInputEndByteOffset($terminalFilter, $terminalInput, $terminalDecodeParms, []);
+        if ($terminalEndOffset === null) {
+            return false;
+        }
+
+        $postTerminal = substr($terminalInput, $terminalEndOffset);
+        if (
+            $postTerminal === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($terminalInput, $terminalEndOffset)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postTerminal) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = match ($terminalFilter) {
+            'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream(substr($terminalInput, 0, $terminalEndOffset)),
+            'ASCII85Decode', 'A85' => $this->decodeAscii85Stream(substr($terminalInput, 0, $terminalEndOffset)),
+            'RunLengthDecode', 'RL' => $this->decodeRunLengthStream(substr($terminalInput, 0, $terminalEndOffset)),
+            'LZWDecode', 'LZW' => $this->decodeLzwStream(substr($terminalInput, 0, $terminalEndOffset), $terminalDecodeParms, []),
+            default => null,
+        };
+
+        return $decoded !== null && strlen($decoded) >= $expectedLength;
     }
 
     /**
