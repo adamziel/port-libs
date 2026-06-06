@@ -64,6 +64,33 @@ $ccittFaxFilterBoundaryLzwLiteralEncode = static function (string $bytes) use ($
     ]);
 };
 
+$ccittFaxFilterBoundaryAscii85Encode = static function (string $bytes): string {
+    $encoded = '<~';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $padding = 4 - strlen($chunk);
+        $padded = $chunk . str_repeat("\0", $padding);
+        $value = 0;
+        for ($index = 0; $index < 4; $index++) {
+            $value = ($value << 8) | ord($padded[$index]);
+        }
+
+        if ($value === 0 && $padding === 0) {
+            $encoded .= 'z';
+            continue;
+        }
+
+        $digits = '';
+        for ($index = 0; $index < 5; $index++) {
+            $digits = chr(($value % 85) + 33) . $digits;
+            $value = intdiv($value, 85);
+        }
+        $encoded .= substr($digits, 0, 5 - $padding);
+    }
+
+    return $encoded . '~>';
+};
+
 $ccittFaxFilterBoundaryPdf = static function (): array {
     $content = "BT /F1 12 Tf 72 720 Td (Before CCITT XObject) Tj ET\n"
         . "q 172.8 0 0 0.2 72 700 cm /Fax#20Scan Do Q\n"
@@ -1197,6 +1224,76 @@ return [
             $t->same('eofb', $entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
             $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
             $t->true(!str_contains($encodedReview, 'LZW CCITT early EOD leak'));
+            $t->true(!str_contains($encodedReview, $encodedPayload));
+        }
+    },
+    'keeps ASCII85-wrapped CCITT Fax EOD decoys inside image payload boundaries' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryAscii85Encode): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before ASCII85 CCITT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After ASCII85 CCITT stream) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (ASCII85 CCITT early EOD leak) Tj ET';
+        $ccittEofb = "\x00\x10\x01";
+        $encodedPayload = $ccittFaxFilterBoundaryAscii85Encode("\x11\x22\x33")
+            . "\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . $ccittFaxFilterBoundaryAscii85Encode("\x44\x55{$ccittEofb}");
+        $staleTerminatorOffset = strpos($encodedPayload, "\nendstream\n");
+        if ($staleTerminatorOffset === false) {
+            throw new RuntimeException('Focused ASCII85-wrapped CCITT fixture must expose a stale endstream marker.');
+        }
+
+        $buildPdf = static function (?int $declaredLength) use ($before, $after, $encodedPayload): string {
+            $lengthOperand = $declaredLength === null ? '' : " /Length {$declaredLength}";
+
+            return "%PDF-1.4\n"
+                . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxA85 5 0 R >> >> >>\nendobj\n"
+                . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+                . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+                . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/ASCII85Decode /CCITTFaxDecode] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>]{$lengthOperand} >>\nstream\n{$encodedPayload}\nendstream\nendobj\n"
+                . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+                . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        };
+
+        foreach ([$buildPdf(null), $buildPdf($staleTerminatorOffset)] as $pdf) {
+            $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+            $entry = $review['entries'][0] ?? [];
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same(['Before ASCII85 CCITT stream', 'After ASCII85 CCITT stream'], $extractor->extractTextLines($pdf));
+            $t->same("Before ASCII85 CCITT stream\nAfter ASCII85 CCITT stream", $plainText);
+            $t->true(!str_contains($plainText, 'ASCII85 CCITT early EOD leak'));
+            $t->true(!str_contains($plainText, 'endstream'));
+            $t->same(['ASCII85Decode', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+            $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+            $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+            $t->same(false, $entry['native_raster_decode'] ?? null);
+            $t->same(strlen($encodedPayload), $entry['raw_length'] ?? null);
+            $t->same(false, $entry['payload_in_visible_text'] ?? null);
+            $t->same([
+                'declared_filter' => 'CCITTFaxDecode',
+                'canonical_filter' => 'CCITTFaxDecode',
+                'alias_used' => false,
+                'non_null_filter_index' => 1,
+                'filters_before_ccitt' => ['ASCII85Decode'],
+                'native_prefix_filters' => ['ASCII85Decode'],
+                'preview_only_filters_before_ccitt' => [],
+                'filters_after_ccitt' => [],
+                'native_filters_after_ccitt' => [],
+                'preview_only_filters_after_ccitt' => [],
+                'ccitt_is_terminal_filter' => true,
+                'post_ccitt_filters_present' => false,
+                'post_ccitt_filters_block_native_decode' => false,
+                'source_filter_preserved' => true,
+                'review_only' => true,
+                'native_raster_decode' => false,
+            ], $entry['ccitt_fax_filter_boundary'] ?? null);
+            $t->same(-1, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+            $t->same(true, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null);
+            $t->same('group4_two_dimensional', $entry['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+            $t->same('eofb', $entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+            $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+            $t->true(!str_contains($encodedReview, 'ASCII85 CCITT early EOD leak'));
             $t->true(!str_contains($encodedReview, $encodedPayload));
         }
     },

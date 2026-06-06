@@ -13193,15 +13193,6 @@ final class PdfTextExtractor
             );
         }
 
-        $payloadEnd = $this->firstFilterEndByteOffset($value, $streamStart, $firstFilter);
-
-        if ($payloadEnd !== null) {
-            $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
-            if ($this->endstreamKeywordAt($value, $terminator)) {
-                return $terminator;
-            }
-        }
-
         $offset = $streamStart;
         while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
             $offset = $candidate + strlen('endstream');
@@ -13248,7 +13239,12 @@ final class PdfTextExtractor
         int $ccittFilterIndex
     ): bool {
         $firstFilter = $filters[$firstFilterIndex] ?? null;
-        if ($firstFilter !== 'LZWDecode' && $firstFilter !== 'LZW') {
+        if (
+            $firstFilter !== 'ASCII85Decode'
+            && $firstFilter !== 'A85'
+            && $firstFilter !== 'LZWDecode'
+            && $firstFilter !== 'LZW'
+        ) {
             return false;
         }
 
@@ -13271,6 +13267,15 @@ final class PdfTextExtractor
         $ccittDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
         $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'Height', $objects);
 
+        if ($firstFilter === 'ASCII85Decode' || $firstFilter === 'A85') {
+            return $this->ccittFaxPrefixAscii85MemberReachesBoundaryAtTerminator(
+                $payload,
+                $ccittDecodeParms,
+                $objects,
+                $imageHeight
+            );
+        }
+
         return $this->ccittFaxPrefixLzwMemberReachesBoundaryAtTerminator(
             $payload,
             $firstFilterDecodeParms,
@@ -13278,6 +13283,52 @@ final class PdfTextExtractor
             $objects,
             $imageHeight
         );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPrefixAscii85MemberReachesBoundaryAtTerminator(
+        string $payload,
+        ?string $ccittDecodeParms,
+        array $objects,
+        ?int $imageHeight
+    ): bool {
+        $candidateStarts = [0];
+        $offset = 0;
+        while (($candidateStart = strpos($payload, '<~', $offset)) !== false) {
+            $candidateStarts[] = $candidateStart;
+            $offset = $candidateStart + 2;
+        }
+
+        foreach (array_values(array_unique($candidateStarts)) as $candidateStart) {
+            $tail = substr($payload, $candidateStart);
+            $eodOffset = strpos($tail, '~>');
+            if ($eodOffset === false) {
+                continue;
+            }
+
+            $endOffset = $eodOffset + 2;
+            if (!$this->streamHasOnlyWhitespaceAfterOffset($tail, $endOffset)) {
+                continue;
+            }
+
+            $decoded = $this->decodeAscii85Stream(substr($tail, 0, $endOffset));
+            if (
+                $decoded !== null
+                && $this->ccittFaxBytesReachBoundaryForDecodeParms(
+                    $decoded,
+                    $ccittDecodeParms,
+                    $objects,
+                    false,
+                    $imageHeight
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
