@@ -1517,6 +1517,114 @@ XML;
         $t->same(['rIdSignatureOrigin'], array_column($rootSignatureTargets, 'id'));
         $t->same('/_xmlsignatures/origin.sigs', OpcPackagePath::stripQueryAndFragment($rootSignatureTargets[0]['target']));
     },
+    'preflights OPC package signature object and certificate metadata' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+  <Override PartName="/_xmlsignatures/sig-metadata.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignatureMetadata" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-metadata.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml"/>
+  </ds:SignedInfo>
+  <ds:KeyInfo>
+    <ds:X509Data>
+      <ds:X509Certificate>SGVsbG8gc2lnbmVyIGNlcnQ=</ds:X509Certificate>
+      <ds:X509Certificate>not base64!</ds:X509Certificate>
+    </ds:X509Data>
+  </ds:KeyInfo>
+  <ds:Object Id="idPackageSignatureObject" MimeType="text/xml">
+    <ds:SignatureProperties>
+      <ds:SignatureProperty Target="#idPackageSignature">
+        <mdssi:SignatureTime>
+          <mdssi:Format>YYYY-MM-DDThh:mm:ssTZD</mdssi:Format>
+          <mdssi:Value>2026-06-06T22:33:48Z</mdssi:Value>
+        </mdssi:SignatureTime>
+      </ds:SignatureProperty>
+    </ds:SignatureProperties>
+  </ds:Object>
+  <ds:Object MimeType="text/xml">
+    <mdssi:SignatureTime>
+      <mdssi:Value>2026-02-30T22:33:48Z</mdssi:Value>
+    </mdssi:SignatureTime>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig-metadata.xml', 'data' => $signatureXml],
+        ]));
+
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-metadata.xml');
+
+        $t->same('/_xmlsignatures/sig-metadata.xml', $metadata['signaturePart']);
+        $t->same(2, $metadata['objectCount']);
+        $t->same(2, $metadata['certificateCount']);
+        $t->same(false, $metadata['valid']);
+        $t->same([
+            'missing-signature-object-id',
+            'invalid-signature-time-value',
+            'invalid-x509-certificate-base64',
+        ], $metadata['issues']);
+
+        $t->same('idPackageSignatureObject', $metadata['objects'][0]['id']);
+        $t->same('text/xml', $metadata['objects'][0]['mimeType']);
+        $t->same(null, $metadata['objects'][0]['encoding']);
+        $t->same('YYYY-MM-DDThh:mm:ssTZD', $metadata['objects'][0]['signatureTimeFormat']);
+        $t->same('2026-06-06T22:33:48Z', $metadata['objects'][0]['signatureTimeValue']);
+        $t->same(true, $metadata['objects'][0]['signatureTimeValid']);
+        $t->same(['SignatureTime', 'Format', 'Value'], $metadata['objects'][0]['packageSignatureElements']);
+        $t->same(true, $metadata['objects'][0]['valid']);
+        $t->same([], $metadata['objects'][0]['issues']);
+
+        $t->same(null, $metadata['objects'][1]['id']);
+        $t->same('text/xml', $metadata['objects'][1]['mimeType']);
+        $t->same(null, $metadata['objects'][1]['signatureTimeFormat']);
+        $t->same('2026-02-30T22:33:48Z', $metadata['objects'][1]['signatureTimeValue']);
+        $t->same(false, $metadata['objects'][1]['signatureTimeValid']);
+        $t->same(false, $metadata['objects'][1]['valid']);
+        $t->same(['missing-signature-object-id', 'invalid-signature-time-value'], $metadata['objects'][1]['issues']);
+
+        $t->same(0, $metadata['certificates'][0]['index']);
+        $t->same(24, $metadata['certificates'][0]['base64Length']);
+        $t->same(17, $metadata['certificates'][0]['decodedBytes']);
+        $t->same('339af39211d5f1a9de3c16e229830accd22d7063980248a5ea57edf61cac6c6d', $metadata['certificates'][0]['sha256']);
+        $t->same(true, $metadata['certificates'][0]['valid']);
+        $t->same([], $metadata['certificates'][0]['issues']);
+
+        $t->same(1, $metadata['certificates'][1]['index']);
+        $t->same(10, $metadata['certificates'][1]['base64Length']);
+        $t->same(null, $metadata['certificates'][1]['decodedBytes']);
+        $t->same(null, $metadata['certificates'][1]['sha256']);
+        $t->same(false, $metadata['certificates'][1]['valid']);
+        $t->same(['invalid-x509-certificate-base64'], $metadata['certificates'][1]['issues']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/missing.xml'));
+    },
     'flags invalid OPC digital signature relationship packages' => static function (TestRunner $t): void {
         $badSignedContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

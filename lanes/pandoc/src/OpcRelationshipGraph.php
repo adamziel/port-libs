@@ -1273,6 +1273,77 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
+     */
+    public function preflightDigitalSignatureMetadata(string $signaturePartName): array
+    {
+        $signaturePartName = OpcPackagePath::canonicalPartName($signaturePartName);
+        if (!$this->package->has($signaturePartName)) {
+            throw new \RuntimeException('OPC signature part not found: ' . $signaturePartName);
+        }
+
+        $contentType = $this->contentTypes->contentTypeForPart($signaturePartName);
+        $issues = [];
+        if ($contentType !== null && !self::contentTypeMatches($contentType, self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE)) {
+            $issues[] = 'invalid-digital-signature-content-type';
+        }
+
+        $dom = XmlHtmlDom::loadXmlDocument($this->package->read($signaturePartName), 'OPC digital signature XML');
+        $root = $dom->documentElement;
+        if (
+            !$root instanceof \DOMElement
+            || $root->namespaceURI !== self::XML_SIGNATURE_NAMESPACE_URI
+            || $root->localName !== 'Signature'
+        ) {
+            $issues[] = 'missing-xml-signature-root';
+        }
+
+        $objects = [];
+        if ($root instanceof \DOMElement) {
+            foreach ($root->childNodes as $child) {
+                if (
+                    $child instanceof \DOMElement
+                    && $child->namespaceURI === self::XML_SIGNATURE_NAMESPACE_URI
+                    && $child->localName === 'Object'
+                ) {
+                    $objectMetadata = self::digitalSignatureObjectMetadata($child);
+                    foreach ($objectMetadata['issues'] as $issue) {
+                        self::appendUniqueString($issues, $issue);
+                    }
+                    $objects[] = $objectMetadata;
+                }
+            }
+        }
+
+        $certificates = [];
+        $certificateIndex = 0;
+        foreach ($dom->getElementsByTagNameNS(self::XML_SIGNATURE_NAMESPACE_URI, 'X509Certificate') as $certificate) {
+            if (!$certificate instanceof \DOMElement) {
+                continue;
+            }
+
+            $certificateMetadata = self::x509CertificateMetadata($certificate, $certificateIndex);
+            foreach ($certificateMetadata['issues'] as $issue) {
+                self::appendUniqueString($issues, $issue);
+            }
+            $certificates[] = $certificateMetadata;
+            $certificateIndex++;
+        }
+
+        return [
+            'signaturePart' => $signaturePartName,
+            'contentType' => $contentType,
+            'expectedContentType' => self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE,
+            'objectCount' => count($objects),
+            'certificateCount' => count($certificates),
+            'valid' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+            'objects' => $objects,
+            'certificates' => $certificates,
+        ];
+    }
+
+    /**
      * @return list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, expectedContentType:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightEmbeddedPackages(string $sourcePartName = '/'): array
@@ -1730,6 +1801,182 @@ final class OpcRelationshipGraph
         }
 
         return $targets;
+    }
+
+    /**
+     * @return array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, valid:bool, issues:list<string>}
+     */
+    private static function digitalSignatureObjectMetadata(\DOMElement $object): array
+    {
+        $issues = [];
+        $id = self::optionalElementAttribute($object, 'Id');
+        if ($id === null) {
+            $issues[] = 'missing-signature-object-id';
+        }
+
+        $signatureTime = self::firstDescendantElementByNamespace($object, self::DIGITAL_SIGNATURE_NAMESPACE_URI, 'SignatureTime');
+        $signatureTimeFormat = null;
+        $signatureTimeValue = null;
+        $signatureTimeValid = null;
+        if ($signatureTime instanceof \DOMElement) {
+            $signatureTimeFormat = self::firstChildTextByNamespace($signatureTime, self::DIGITAL_SIGNATURE_NAMESPACE_URI, 'Format');
+            $signatureTimeValue = self::firstChildTextByNamespace($signatureTime, self::DIGITAL_SIGNATURE_NAMESPACE_URI, 'Value');
+            if ($signatureTimeValue === null || $signatureTimeValue === '') {
+                $signatureTimeValid = false;
+                $issues[] = 'missing-signature-time-value';
+            } else {
+                $signatureTimeValid = self::isXmlSignatureTimeValue($signatureTimeValue);
+                if (!$signatureTimeValid) {
+                    $issues[] = 'invalid-signature-time-value';
+                }
+            }
+        }
+
+        return [
+            'id' => $id,
+            'mimeType' => self::optionalElementAttribute($object, 'MimeType'),
+            'encoding' => self::optionalElementAttribute($object, 'Encoding'),
+            'signatureTimeFormat' => $signatureTimeFormat,
+            'signatureTimeValue' => $signatureTimeValue,
+            'signatureTimeValid' => $signatureTimeValid,
+            'packageSignatureElements' => self::descendantElementLocalNamesByNamespace($object, self::DIGITAL_SIGNATURE_NAMESPACE_URI),
+            'valid' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @return array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}
+     */
+    private static function x509CertificateMetadata(\DOMElement $certificate, int $index): array
+    {
+        $base64 = preg_replace('/\s+/', '', trim($certificate->textContent));
+        if (!is_string($base64)) {
+            $base64 = trim($certificate->textContent);
+        }
+
+        $issues = [];
+        $decodedBytes = null;
+        $sha256 = null;
+        if ($base64 === '') {
+            $issues[] = 'empty-x509-certificate';
+        } else {
+            $decoded = base64_decode($base64, true);
+            if ($decoded === false) {
+                $issues[] = 'invalid-x509-certificate-base64';
+            } else {
+                $decodedBytes = strlen($decoded);
+                $sha256 = hash('sha256', $decoded);
+            }
+        }
+
+        return [
+            'index' => $index,
+            'base64Length' => strlen($base64),
+            'decodedBytes' => $decodedBytes,
+            'sha256' => $sha256,
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    private static function optionalElementAttribute(\DOMElement $element, string $name): ?string
+    {
+        if (!$element->hasAttribute($name)) {
+            return null;
+        }
+
+        $value = trim($element->getAttribute($name));
+        return $value === '' ? null : $value;
+    }
+
+    private static function firstChildTextByNamespace(\DOMElement $element, string $namespaceUri, string $localName): ?string
+    {
+        foreach ($element->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $child->namespaceURI === $namespaceUri
+                && $child->localName === $localName
+            ) {
+                return trim($child->textContent);
+            }
+        }
+
+        return null;
+    }
+
+    private static function firstDescendantElementByNamespace(\DOMElement $element, string $namespaceUri, string $localName): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI === $namespaceUri && $child->localName === $localName) {
+                return $child;
+            }
+
+            $descendant = self::firstDescendantElementByNamespace($child, $namespaceUri, $localName);
+            if ($descendant instanceof \DOMElement) {
+                return $descendant;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function descendantElementLocalNamesByNamespace(\DOMElement $element, string $namespaceUri): array
+    {
+        $names = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI === $namespaceUri) {
+                self::appendUniqueString($names, $child->localName);
+            }
+
+            foreach (self::descendantElementLocalNamesByNamespace($child, $namespaceUri) as $name) {
+                self::appendUniqueString($names, $name);
+            }
+        }
+
+        return $names;
+    }
+
+    private static function isXmlSignatureTimeValue(string $value): bool
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/', $value) !== 1) {
+            return false;
+        }
+
+        foreach ([
+            '!Y-m-d\TH:i:s\Z',
+            '!Y-m-d\TH:i:sP',
+            '!Y-m-d\TH:i:s.u\Z',
+            '!Y-m-d\TH:i:s.uP',
+        ] as $format) {
+            $date = \DateTimeImmutable::createFromFormat($format, $value);
+            $errors = \DateTimeImmutable::getLastErrors();
+            if (
+                $date instanceof \DateTimeImmutable
+                && (
+                    $errors === false
+                    || (
+                        ($errors['warning_count'] ?? 0) === 0
+                        && ($errors['error_count'] ?? 0) === 0
+                    )
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -101,6 +101,21 @@ $signatureXml = <<<'XML'
       </ds:Transforms>
     </ds:Reference>
   </ds:SignedInfo>
+  <ds:KeyInfo>
+    <ds:X509Data>
+      <ds:X509Certificate>SGVsbG8gc2lnbmVyIGNlcnQ=</ds:X509Certificate>
+    </ds:X509Data>
+  </ds:KeyInfo>
+  <ds:Object Id="idPackageSignatureObject" MimeType="text/xml">
+    <ds:SignatureProperties>
+      <ds:SignatureProperty Target="#idPackageSignature">
+        <mdssi:SignatureTime>
+          <mdssi:Format>YYYY-MM-DDThh:mm:ssTZD</mdssi:Format>
+          <mdssi:Value>2026-06-06T22:33:48Z</mdssi:Value>
+        </mdssi:SignatureTime>
+      </ds:SignatureProperty>
+    </ds:SignatureProperties>
+  </ds:Object>
 </ds:Signature>
 XML;
 
@@ -1188,6 +1203,7 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
 }
 
 $digitalSignatures = $graph->preflightDigitalSignatures();
+$digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
 $embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
 $embeddedPackageParts = [];
 $embeddedObjectParts = [];
@@ -1329,6 +1345,7 @@ $summary = [
     ],
     'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
+    'digitalSignatureMetadata' => $digitalSignatureMetadata,
     'embeddedPackages' => $embeddedPackages,
     'packageConsistency' => [
         'valid' => $packageConsistency['valid'],
@@ -1434,6 +1451,8 @@ $summary = [
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
         )),
         'digitalSignatureParts' => $digitalSignatureParts,
+        'digitalSignatureCertificateCount' => $digitalSignatureMetadata['certificateCount'],
+        'digitalSignatureTime' => $digitalSignatureMetadata['objects'][0]['signatureTimeValue'] ?? null,
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
         'internalSourceReferences' => array_values(array_map(
@@ -1544,6 +1563,20 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['signaturePart'] ?? null) !== '/_xmlsignatures/sig1.xml'
+        || ($summary['digitalSignatureMetadata']['objectCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['certificateCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['valid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['issues'] ?? null) !== []
+        || ($summary['digitalSignatureMetadata']['objects'][0]['id'] ?? null) !== 'idPackageSignatureObject'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValue'] ?? null) !== '2026-06-06T22:33:48Z'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['packageSignatureElements'] ?? null) !== ['SignatureTime', 'Format', 'Value']
+        || ($summary['digitalSignatureMetadata']['certificates'][0]['decodedBytes'] ?? null) !== 17
+        || ($summary['digitalSignatureMetadata']['certificates'][0]['sha256'] ?? null) !== '339af39211d5f1a9de3c16e229830accd22d7063980248a5ea57edf61cac6c6d'
+        || ($summary['digitalSignatureMetadata']['certificates'][0]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureCertificateCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureTime'] ?? null) !== '2026-06-06T22:33:48Z'
         || ($summary['integrity']['emptySignatureOriginGuard']['id'] ?? null) !== 'rIdSignatureOrigin'
         || ($summary['integrity']['emptySignatureOriginGuard']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
         || ($summary['integrity']['emptySignatureOriginGuard']['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
