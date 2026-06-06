@@ -8766,12 +8766,9 @@ final class PdfTextExtractor
             return null;
         }
 
-        $start = 0;
         $length = strlen($reviewStream);
-        while ($start < $length && str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
-            $start++;
-        }
-        if (substr($reviewStream, $start, 2) !== "\xff\xd8") {
+        $start = $this->dctPreviewSoiOffset($reviewStream);
+        if ($start === null) {
             return null;
         }
 
@@ -8792,6 +8789,7 @@ final class PdfTextExtractor
         return [
             'source' => 'dctdecode_jpeg_marker_boundary',
             'jpeg_soi_offset' => $start,
+            'jpeg_marker_fill_byte_count' => $this->dctPreviewMarkerFillByteCount($reviewStream, $start),
             'jpeg_eoi_end_offset' => $eoiEnd,
             'raw_stream_length' => strlen($stream),
             'review_stream_length' => strlen($reviewStream),
@@ -8839,7 +8837,11 @@ final class PdfTextExtractor
             return null;
         }
 
-        $hasSoi = substr($reviewStream, $start, 2) === "\xff\xd8";
+        $soiOffset = $this->dctPreviewSoiOffset($reviewStream);
+        $hasSoi = $soiOffset !== null && $soiOffset === $start;
+        if ($hasSoi) {
+            $start = $soiOffset;
+        }
         $eoiEnd = null;
         $paddingEnd = null;
         if ($hasSoi) {
@@ -8859,6 +8861,7 @@ final class PdfTextExtractor
             'valid_jpeg_marker_boundary' => false,
             'invalid_reason' => $invalidReason,
             'jpeg_soi_offset' => $hasSoi ? $start : null,
+            'jpeg_marker_fill_byte_count' => $hasSoi ? $this->dctPreviewMarkerFillByteCount($reviewStream, $start) : 0,
             'jpeg_eoi_end_offset' => $eoiEnd,
             'raw_stream_length' => strlen($stream),
             'review_stream_length' => strlen($reviewStream),
@@ -15038,13 +15041,8 @@ final class PdfTextExtractor
         ?int $minimumTerminatorOffset = null
     ): ?int
     {
-        $jpegStart = $streamStart;
-        $length = strlen($value);
-        while ($jpegStart < $length && str_contains("\x00\t\n\f\r ", $value[$jpegStart])) {
-            $jpegStart++;
-        }
-
-        if (substr($value, $jpegStart, 2) !== "\xff\xd8") {
+        $jpegStart = $this->dctPreviewSoiOffset($value, $streamStart);
+        if ($jpegStart === null) {
             return null;
         }
 
@@ -15950,15 +15948,47 @@ final class PdfTextExtractor
         return $stream;
     }
 
-    private function dctPreviewBytesAreCompleteJpeg(string $bytes): bool
+    private function dctPreviewSoiOffset(string $bytes, int $startOffset = 0, ?int $limitOffset = null): ?int
     {
-        $length = strlen($bytes);
-        $start = 0;
-        while ($start < $length && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
+        $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
+        $start = $startOffset;
+        while ($start < $limit && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
             $start++;
         }
 
-        if (substr($bytes, $start, 2) !== "\xff\xd8") {
+        if ($start >= $limit || $bytes[$start] !== "\xff") {
+            return null;
+        }
+
+        $markerOffset = $start + 1;
+        while ($markerOffset < $limit && $bytes[$markerOffset] === "\xff") {
+            $markerOffset++;
+        }
+        if ($markerOffset >= $limit || ord($bytes[$markerOffset]) !== 0xd8) {
+            return null;
+        }
+
+        return $start;
+    }
+
+    private function dctPreviewMarkerFillByteCount(string $bytes, int $soiOffset): int
+    {
+        $count = 0;
+        $offset = $soiOffset + 1;
+        $length = strlen($bytes);
+        while ($offset < $length && $bytes[$offset] === "\xff") {
+            $count++;
+            $offset++;
+        }
+
+        return $count;
+    }
+
+    private function dctPreviewBytesAreCompleteJpeg(string $bytes): bool
+    {
+        $length = strlen($bytes);
+        $start = $this->dctPreviewSoiOffset($bytes);
+        if ($start === null) {
             return false;
         }
 
@@ -15977,12 +16007,8 @@ final class PdfTextExtractor
     private function dctPreviewEoiEndOffsets(string $bytes, int $startOffset = 0, ?int $limitOffset = null): array
     {
         $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
-        $start = $startOffset;
-        while ($start < $limit && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
-            $start++;
-        }
-
-        if ($start + 2 > $limit || substr($bytes, $start, 2) !== "\xff\xd8") {
+        $start = $this->dctPreviewSoiOffset($bytes, $startOffset, $limit);
+        if ($start === null) {
             return [];
         }
 
