@@ -653,6 +653,90 @@ XML);
             'relatedItems' => ['source-a'],
         ]]));
     },
+    'labels bounded biblatex license related entries for csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@misc{cc-by-4,
+  options = {dataonly},
+  title   = {Creative Commons Attribution 4.0 International},
+  date    = {2013},
+  url     = {https://creativecommons.org/licenses/by/4.0/}
+}
+
+@dataset{licensed-dataset,
+  author      = {Ng, Nia},
+  title       = {Licensed Source Dataset},
+  date        = {2026},
+  doi         = {10.5555/license-data},
+  related     = {cc-by-4, missing-license},
+  relatedtype = {license}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('licensed-dataset', $items[0]['id']);
+        $t->same('dataset', $items[0]['type']);
+        $t->same(['cc-by-4', 'missing-license'], $items[0]['relatedKeys']);
+        $t->same('license', $items[0]['relatedType']);
+        $t->same('cc-by-4', $items[0]['relatedItems'][0]['id'] ?? null);
+        $t->same('Creative Commons Attribution 4.0 International', $items[0]['relatedItems'][0]['title'] ?? null);
+        $t->same(true, $items[0]['relatedItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-license'], $items[0]['missingRelatedKeys']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $licensed = $processor->item('licensed-dataset');
+        $t->same('license', $licensed['relatedType'] ?? null);
+        $t->same('Creative Commons Attribution 4.0 International', $licensed['relatedItems'][0]['title'] ?? null);
+        $t->same('2013', $licensed['relatedItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(['missing-license'], $licensed['missingRelatedKeys'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('licensed-dataset', '[@licensed-dataset]')]));
+        $t->same(
+            'Ng, Nia. Licensed Source Dataset. 2026. License: Creative Commons Attribution 4.0 International (2013); missing: missing-license. DOI 10.5555/license-data.',
+            $processor->renderBibliographyEntry('licensed-dataset')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-type"/>
+        <text variable="related-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related"/>
+      <text variable="related-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Licensed Source Dataset | license | License: Creative Commons Attribution 4.0 International (2013); missing: missing-license]', $styled->renderCitationCluster([$citation('licensed-dataset', '[@licensed-dataset]')]));
+        $t->same('Licensed Source Dataset :: Creative Commons Attribution 4.0 International (2013); missing: missing-license :: License: Creative Commons Attribution 4.0 International (2013); missing: missing-license', $styled->renderBibliographyEntry('licensed-dataset'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-license',
+            'title' => 'Manual Licensed Source',
+            'related-type' => 'license',
+            'relatedItems' => [
+                [
+                    'title' => 'CC0 1.0 Universal',
+                    'issued' => ['date-parts' => [[2009]]],
+                ],
+            ],
+        ]]);
+        $t->same('Manual Licensed Source. License: CC0 1.0 Universal (2009).', $direct->renderBibliographyEntry('manual-license'));
+
+        $document = (new MarkdownReader())->read('Licensed source @licensed-dataset keeps related license metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Licensed source Ng (2026) keeps related license metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Licensed Source Dataset. 2026. License: Creative Commons Attribution 4.0 International (2013); missing: missing-license. DOI 10.5555/license-data.</dd>', $blocks);
+    },
     'maps bounded biblatex translation and original publication metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{translated-manual,

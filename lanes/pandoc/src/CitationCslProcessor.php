@@ -3725,17 +3725,26 @@ final class CitationCslProcessor
             return '';
         }
 
+        $type = trim((string) ($item['relatedType'] ?? ''));
         $label = trim((string) ($item['relatedString'] ?? ''));
-        if ($label === '') {
-            $label = 'Related source';
+        $hasExplicitLabel = $label !== '';
+        if (!$hasExplicitLabel) {
+            $label = self::defaultRelatedTypeLabel($type);
         }
 
-        $type = trim((string) ($item['relatedType'] ?? ''));
-        if ($type !== '') {
+        if ($type !== '' && ($hasExplicitLabel || $label === 'Related source')) {
             $label .= ' (' . $type . ')';
         }
 
         return $label . ': ' . $values;
+    }
+
+    private static function defaultRelatedTypeLabel(string $type): string
+    {
+        return match (strtolower(str_replace('_', '-', trim($type)))) {
+            'license' => 'License',
+            default => 'Related source',
+        };
     }
 
     /**
