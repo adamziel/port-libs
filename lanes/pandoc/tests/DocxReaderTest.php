@@ -1671,6 +1671,37 @@ $noteReferencePropertiesEndnotesXml = <<<'XML'
 </w:endnotes>
 XML;
 
+$noteSeparatorDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+  <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+</Relationships>
+XML;
+
+$noteSeparatorDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Visible body stays independent of note separators.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
+$noteSeparatorFootnotesXml = <<<'XML'
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="-2" w:type="continuationSeparator"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="-3" w:type="continuationNotice"><w:p><w:r><w:t>Continued footnote notice.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="4"><w:p><w:r><w:t>Normal footnote ignored without body reference.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+
+$noteSeparatorEndnotesXml = <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="-2" w:type="continuationSeparator"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+
 $altChunkContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2275,6 +2306,24 @@ $buildNoteReferencePropertiesPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $noteReferencePropertiesDocumentRelationshipsXml],
         ['name' => 'word/footnotes.xml', 'data' => $noteReferencePropertiesFootnotesXml],
         ['name' => 'word/endnotes.xml', 'data' => $noteReferencePropertiesEndnotesXml],
+    ]);
+};
+
+$buildNoteSeparatorPackage = static function () use (
+    $contentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $noteSeparatorDocumentRelationshipsXml,
+    $noteSeparatorDocumentXml,
+    $noteSeparatorFootnotesXml,
+    $noteSeparatorEndnotesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $noteSeparatorDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $noteSeparatorDocumentRelationshipsXml],
+        ['name' => 'word/footnotes.xml', 'data' => $noteSeparatorFootnotesXml],
+        ['name' => 'word/endnotes.xml', 'data' => $noteSeparatorEndnotesXml],
     ]);
 };
 
@@ -4466,6 +4515,52 @@ return [
         $t->contains('<li id="fn-3"> <a href="#fnref-3" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-4"><p>Auto-numbered footnote body.</p> <a href="#fnref-4" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-5"><p>Auto-numbered endnote body.</p> <a href="#fnref-5" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'reports DOCX footnote and endnote separator special notes without rendering them' => static function (TestRunner $t) use ($buildNoteSeparatorPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildNoteSeparatorPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('Visible body stays independent of note separators.', $document->children[0]->children[0]->attr('text'));
+        $t->contains('Visible body stays independent of note separators.', $markdown);
+        $t->contains('<p>Visible body stays independent of note separators.</p>', $blocks);
+        $t->true(!str_contains($markdown, 'Continued footnote notice'), 'Special footnote notice should stay in the import report');
+        $t->true(!str_contains($blocks, 'Continued footnote notice'), 'Special footnote notice should not render to WordPress blocks');
+
+        $special = $result['importReport']['notes']['specialNotes'];
+        $t->same(5, $special['count']);
+        $t->same(3, $special['footnoteCount']);
+        $t->same(2, $special['endnoteCount']);
+
+        $first = $special['items'][0];
+        $t->same('footnote', $first['sourceType']);
+        $t->same('-1', $first['id']);
+        $t->same('separator', $first['type']);
+        $t->same('/word/footnotes.xml', $first['part']);
+        $t->same(['separator'], $first['markers']);
+        $t->same(1, $first['blockCount']);
+        $t->same('', $first['text']);
+
+        $continuation = $special['items'][1];
+        $t->same('continuationSeparator', $continuation['type']);
+        $t->same(['continuationSeparator'], $continuation['markers']);
+
+        $notice = $special['items'][2];
+        $t->same('continuationNotice', $notice['type']);
+        $t->same([], $notice['markers']);
+        $t->same('Continued footnote notice.', $notice['text']);
+
+        $endnote = $special['items'][3];
+        $t->same('endnote', $endnote['sourceType']);
+        $t->same('separator', $endnote['type']);
+        $t->same('/word/endnotes.xml', $endnote['part']);
+        $t->same(['separator'], $endnote['markers']);
+
+        $t->same('continuationSeparator', $special['items'][4]['type']);
+        $t->same(['continuationSeparator'], $special['items'][4]['markers']);
     },
     'maps DOCX alternative-format HTML and plain-text chunks into AST blocks and reports skipped chunks' => static function (TestRunner $t) use ($buildAltChunkPackage): void {
         $reader = new DocxReader();

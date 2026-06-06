@@ -641,12 +641,17 @@ XML],
 XML],
     ['name' => 'word/footnotes.xml', 'data' => <<<'XML'
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="-2" w:type="continuationSeparator"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>
+  <w:footnote w:id="-3" w:type="continuationNotice"><w:p><w:r><w:t>DOCX footnote continuation notice.</w:t></w:r></w:p></w:footnote>
   <w:footnote w:id="2"><w:p><w:r><w:footnoteRef/><w:t xml:space="preserve"> DOCX footnote import note.</w:t><w:cr/><w:t>Second footnote marker line.</w:t></w:r></w:p></w:footnote>
   <w:footnote w:id="3"><w:p><w:r><w:t>DOCX automatic footnote label note.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 XML],
     ['name' => 'word/endnotes.xml', 'data' => <<<'XML'
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="-1" w:type="separator"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+  <w:endnote w:id="-2" w:type="continuationSeparator"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:endnote>
   <w:endnote w:id="5"><w:p><w:r><w:endnoteRef/><w:t xml:space="preserve"> DOCX endnote import note.</w:t></w:r></w:p></w:endnote>
   <w:endnote w:id="6"><w:p><w:r><w:t>DOCX automatic endnote label note.</w:t></w:r></w:p></w:endnote>
 </w:endnotes>
@@ -817,6 +822,19 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['notes']['missingCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing unresolved note-reference count');
     }
+    $specialNotes = $summary['importReport']['notes']['specialNotes'] ?? [];
+    if (($specialNotes['count'] ?? 0) !== 5 || ($specialNotes['footnoteCount'] ?? 0) !== 3 || ($specialNotes['endnoteCount'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing special footnote/endnote separator report');
+    }
+    if (($specialNotes['items'][0]['type'] ?? '') !== 'separator' || ($specialNotes['items'][0]['markers'] ?? []) !== ['separator']) {
+        throw new RuntimeException('DOCX body handoff self-test missing footnote separator marker report');
+    }
+    if (($specialNotes['items'][2]['type'] ?? '') !== 'continuationNotice' || ($specialNotes['items'][2]['text'] ?? '') !== 'DOCX footnote continuation notice.') {
+        throw new RuntimeException('DOCX body handoff self-test missing continuation notice report');
+    }
+    if (($specialNotes['items'][4]['sourceType'] ?? '') !== 'endnote' || ($specialNotes['items'][4]['type'] ?? '') !== 'continuationSeparator') {
+        throw new RuntimeException('DOCX body handoff self-test missing endnote continuation separator report');
+    }
     $noteItemsByKey = [];
     foreach (($summary['importReport']['notes']['items'] ?? []) as $item) {
         if (is_array($item)) {
@@ -904,6 +922,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'moved from an obsolete review section')) {
         throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change text');
+    }
+    if (str_contains($blocks, 'DOCX footnote continuation notice.')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered special footnote continuation notice');
     }
 
     foreach ([

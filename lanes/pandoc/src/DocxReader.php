@@ -117,6 +117,7 @@ final class DocxReader
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
         $documentXml = $package->read($documentPart);
+        $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
         $document = $this->parseDocumentXml(
             $documentXml,
             $documentPart,
@@ -152,6 +153,7 @@ final class DocxReader
                 $document,
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
+                $specialNotes,
                 $settings,
                 $theme,
                 $glossary,
@@ -164,6 +166,7 @@ final class DocxReader
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
+     * @param array<string, mixed> $specialNotes
      * @param array<string, mixed> $settings
      * @param array<string, mixed> $theme
      * @param array<string, mixed> $glossary
@@ -178,6 +181,7 @@ final class DocxReader
         AstNode $document,
         array $revisions,
         array $alternativeFormats,
+        array $specialNotes,
         array $settings,
         array $theme,
         array $glossary
@@ -197,6 +201,11 @@ final class DocxReader
             ];
         }
 
+        $notes = $this->notesImportReport($document);
+        if ($specialNotes !== []) {
+            $notes['specialNotes'] = $specialNotes;
+        }
+
         return [
             'documentPart' => $documentPart,
             'relationshipsPart' => $documentRelationships instanceof OpcRelationships ? $documentRelationships->relationshipPartName() : null,
@@ -206,7 +215,7 @@ final class DocxReader
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
             'embeddedObjects' => $this->embeddedObjectImportReport($package, $reachableRelationships, $document),
             'alternativeFormats' => $alternativeFormats,
-            'notes' => $this->notesImportReport($document),
+            'notes' => $notes,
             'revisions' => $revisions,
             'settings' => $settings,
             'theme' => $theme,
@@ -5371,12 +5380,7 @@ final class DocxReader
 
             $id = $this->wordAttr($note, 'id');
             $type = strtolower((string) ($this->wordAttr($note, 'type') ?? ''));
-            if (
-                $id === null
-                || $id === ''
-                || str_starts_with($id, '-')
-                || in_array($type, ['separator', 'continuationseparator'], true)
-            ) {
+            if ($id === null || $id === '' || str_starts_with($id, '-') || $this->specialNoteType($id, $type) !== null) {
                 continue;
             }
 
@@ -5401,6 +5405,153 @@ final class DocxReader
         }
 
         return $notes;
+    }
+
+    /**
+     * @return array{count:int, footnoteCount:int, endnoteCount:int, items:list<array{sourceType:string, id:string, type:string, part:string, markers:list<string>, blockCount:int, text:string}>}|array{}
+     */
+    private function specialNoteImportReport(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $items = array_merge(
+            $this->specialNoteItems($package, $graph, $documentPart, self::REL_TYPE_FOOTNOTES, 'footnotes', 'footnote', 'footnote', 'DOCX footnotes XML special notes'),
+            $this->specialNoteItems($package, $graph, $documentPart, self::REL_TYPE_ENDNOTES, 'endnotes', 'endnote', 'endnote', 'DOCX endnotes XML special notes'),
+        );
+        if ($items === []) {
+            return [];
+        }
+
+        $footnoteCount = 0;
+        $endnoteCount = 0;
+        foreach ($items as $item) {
+            if ($item['sourceType'] === 'footnote') {
+                $footnoteCount++;
+            } elseif ($item['sourceType'] === 'endnote') {
+                $endnoteCount++;
+            }
+        }
+
+        return [
+            'count' => count($items),
+            'footnoteCount' => $footnoteCount,
+            'endnoteCount' => $endnoteCount,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return list<array{sourceType:string, id:string, type:string, part:string, markers:list<string>, blockCount:int, text:string}>
+     */
+    private function specialNoteItems(
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        string $documentPart,
+        string $relationshipType,
+        string $rootName,
+        string $itemName,
+        string $sourceType,
+        string $label
+    ): array {
+        $part = $graph->firstTargetOfType($relationshipType, $documentPart);
+        if ($part === null) {
+            return [];
+        }
+
+        $part = OpcPackagePath::stripQueryAndFragment($part);
+        if (!$package->has($part)) {
+            return [];
+        }
+
+        $relationships = $graph->relationshipsForSource($part);
+        $dom = self::loadXml($package->read($part), $label);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, $rootName)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($root->childNodes as $note) {
+            if (!$note instanceof \DOMElement || !$this->isWordElement($note, $itemName)) {
+                continue;
+            }
+
+            $id = $this->wordAttr($note, 'id');
+            if ($id === null || $id === '') {
+                continue;
+            }
+
+            $type = $this->specialNoteType($id, (string) ($this->wordAttr($note, 'type') ?? ''));
+            if ($type === null) {
+                continue;
+            }
+
+            $blocks = $this->noteBlocks($note, $package, $relationships);
+            $items[] = [
+                'sourceType' => $sourceType,
+                'id' => $id,
+                'type' => $type,
+                'part' => $part,
+                'markers' => $this->specialNoteMarkers($note),
+                'blockCount' => $this->noteSourceBlockCount($note),
+                'text' => $this->plainBlockText($blocks),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function specialNoteType(string $id, string $type): ?string
+    {
+        $normalized = strtolower(trim($type));
+        if ($normalized === 'separator') {
+            return 'separator';
+        }
+        if ($normalized === 'continuationseparator') {
+            return 'continuationSeparator';
+        }
+        if ($normalized === 'continuationnotice') {
+            return 'continuationNotice';
+        }
+
+        return match ($id) {
+            '-1' => 'separator',
+            '-2' => 'continuationSeparator',
+            '-3' => 'continuationNotice',
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function specialNoteMarkers(\DOMElement $note): array
+    {
+        $markers = [];
+        foreach ([
+            'separator' => 'separator',
+            'continuationSeparator' => 'continuationSeparator',
+            'continuationNotice' => 'continuationNotice',
+        ] as $elementName => $marker) {
+            if ($this->firstDescendantElement($note, self::WORDPROCESSINGML_NS, $elementName) instanceof \DOMElement) {
+                $markers[] = $marker;
+            }
+        }
+
+        return $markers;
+    }
+
+    private function noteSourceBlockCount(\DOMElement $note): int
+    {
+        $count = 0;
+        foreach ($note->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($this->isWordElement($child, 'p') || $this->isWordElement($child, 'tbl')) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**
