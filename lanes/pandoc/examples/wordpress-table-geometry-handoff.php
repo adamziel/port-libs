@@ -931,6 +931,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($migrationPacket['writerDowngrades']['markdown'][1]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
         throw new RuntimeException('Table geometry self-test missing flattened span slot report');
     }
+    if (($migrationPacket['sections'][0]['summary']['rowVisualWidths'] ?? null) !== [3] || ($migrationPacket['sections'][0]['summary']['rowSlotCounts'] ?? null) !== [4]) {
+        throw new RuntimeException('Table geometry self-test missing section row occupancy widths');
+    }
+    if (($migrationPacket['sections'][1]['summary']['rowVisualWidths'] ?? null) !== [3, 3] || ($migrationPacket['sections'][1]['summary']['missingRowCount'] ?? null) !== 2) {
+        throw new RuntimeException('Table geometry self-test missing body row occupancy summary');
+    }
+    if (
+        ($migrationPacket['summary']['completeRectangle'] ?? null) !== false
+        || ($migrationPacket['summary']['incompleteRowCount'] ?? null) !== 3
+        || ($migrationPacket['summary']['missingRowCount'] ?? null) !== 3
+        || ($migrationPacket['summary']['maxVisualWidth'] ?? null) !== 3
+    ) {
+        throw new RuntimeException('Table geometry self-test missing packet row occupancy rollup');
+    }
     $multiWriterPacket = TableGeometry::reviewPacket($document->children[0], [
         'idPrefix' => 'Migration Grid',
         'writers' => ['markdown', 'restructuredtext'],

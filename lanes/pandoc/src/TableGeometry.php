@@ -2022,6 +2022,13 @@ final class TableGeometry
         $headerCellCount = 0;
         $coveredSlotCount = 0;
         $missingSlotCount = 0;
+        $completeRowCount = 0;
+        $incompleteRowCount = 0;
+        $coveredRowCount = 0;
+        $missingRowCount = 0;
+        $rowSlotCounts = [];
+        $rowVisualWidths = [];
+        $rowSummaries = [];
         $nestedTableCount = 0;
         $nestedTableCellCount = 0;
         $nestedTableDiagnosticCount = 0;
@@ -2032,16 +2039,25 @@ final class TableGeometry
         $multiBlockCellCount = 0;
         $cellBlockTypes = [];
 
-        foreach ($rows as $slots) {
-            foreach ($slots as $slot) {
+        foreach ($rows as $rowIndex => $slots) {
+            $rowCellCount = 0;
+            $rowHeaderCellCount = 0;
+            $rowCoveredSlotCount = 0;
+            $rowMissingSlotCount = 0;
+            $rowMaxOccupiedColumn = -1;
+
+            foreach ($slots as $column => $slot) {
                 $kind = (string) ($slot['kind'] ?? '');
                 if ($kind === 'covered') {
                     $coveredSlotCount++;
+                    $rowCoveredSlotCount++;
+                    $rowMaxOccupiedColumn = max($rowMaxOccupiedColumn, (int) $column);
                     continue;
                 }
 
                 if ($kind === 'missing') {
                     $missingSlotCount++;
+                    $rowMissingSlotCount++;
                     continue;
                 }
 
@@ -2050,8 +2066,11 @@ final class TableGeometry
                 }
 
                 $cellCount++;
+                $rowCellCount++;
+                $rowMaxOccupiedColumn = max($rowMaxOccupiedColumn, (int) $column);
                 if (($slot['headerCell'] ?? false) === true) {
                     $headerCellCount++;
+                    $rowHeaderCellCount++;
                 }
 
                 $node = $slot['node'] ?? null;
@@ -2104,6 +2123,36 @@ final class TableGeometry
                     }
                 }
             }
+
+            $rowVisualWidth = $rowMaxOccupiedColumn + 1;
+            $rowComplete = $slots !== [] && $rowMissingSlotCount === 0;
+            if ($rowComplete) {
+                $completeRowCount++;
+            } else {
+                $incompleteRowCount++;
+            }
+            if ($rowCoveredSlotCount > 0) {
+                $coveredRowCount++;
+            }
+            if ($rowMissingSlotCount > 0) {
+                $missingRowCount++;
+            }
+
+            $rowSlotCounts[] = count($slots);
+            $rowVisualWidths[] = $rowVisualWidth;
+            $rowSummaries[] = [
+                'row' => (int) $rowIndex,
+                'slotCount' => count($slots),
+                'cellCount' => $rowCellCount,
+                'headerCellCount' => $rowHeaderCellCount,
+                'coveredSlotCount' => $rowCoveredSlotCount,
+                'missingSlotCount' => $rowMissingSlotCount,
+                'occupiedSlotCount' => $rowCellCount + $rowCoveredSlotCount,
+                'visualWidth' => $rowVisualWidth,
+                'complete' => $rowComplete,
+                'hasCoveredSlots' => $rowCoveredSlotCount > 0,
+                'hasMissingSlots' => $rowMissingSlotCount > 0,
+            ];
         }
 
         sort($nestedTableCaptions);
@@ -2115,6 +2164,18 @@ final class TableGeometry
             'headerCellCount' => $headerCellCount,
             'coveredSlotCount' => $coveredSlotCount,
             'missingSlotCount' => $missingSlotCount,
+            'rowSlotCounts' => $rowSlotCounts,
+            'rowVisualWidths' => $rowVisualWidths,
+            'completeRowCount' => $completeRowCount,
+            'incompleteRowCount' => $incompleteRowCount,
+            'coveredRowCount' => $coveredRowCount,
+            'missingRowCount' => $missingRowCount,
+            'maxVisualWidth' => $rowVisualWidths === [] ? 0 : max($rowVisualWidths),
+            'completeRectangle' => $rowSummaries !== [] && $incompleteRowCount === 0,
+            'hasIncompleteRows' => $incompleteRowCount > 0,
+            'hasCoveredRows' => $coveredRowCount > 0,
+            'hasMissingRows' => $missingRowCount > 0,
+            'rowSummaries' => $rowSummaries,
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
             'hasNestedTables' => $nestedTableCount > 0,
@@ -2191,8 +2252,19 @@ final class TableGeometry
         $rowCount = 0;
         $coveredSlotCount = 0;
         $missingSlotCount = 0;
+        $completeRowCount = 0;
+        $incompleteRowCount = 0;
+        $coveredRowCount = 0;
+        $missingRowCount = 0;
+        $maxVisualWidth = 0;
         foreach ($sections as $section) {
             $rowCount += count($section['rowEntries']);
+            $sectionSummary = self::sectionGridSummary($section['rows']);
+            $completeRowCount += (int) ($sectionSummary['completeRowCount'] ?? 0);
+            $incompleteRowCount += (int) ($sectionSummary['incompleteRowCount'] ?? 0);
+            $coveredRowCount += (int) ($sectionSummary['coveredRowCount'] ?? 0);
+            $missingRowCount += (int) ($sectionSummary['missingRowCount'] ?? 0);
+            $maxVisualWidth = max($maxVisualWidth, (int) ($sectionSummary['maxVisualWidth'] ?? 0));
             foreach ($section['rows'] as $slots) {
                 foreach ($slots as $slot) {
                     if (($slot['kind'] ?? '') === 'covered') {
@@ -2302,6 +2374,15 @@ final class TableGeometry
             'headerCellCount' => $headerCellCount,
             'coveredSlotCount' => $coveredSlotCount,
             'missingSlotCount' => $missingSlotCount,
+            'completeRowCount' => $completeRowCount,
+            'incompleteRowCount' => $incompleteRowCount,
+            'coveredRowCount' => $coveredRowCount,
+            'missingRowCount' => $missingRowCount,
+            'maxVisualWidth' => $maxVisualWidth,
+            'completeRectangle' => $rowCount > 0 && $incompleteRowCount === 0,
+            'hasIncompleteRows' => $incompleteRowCount > 0,
+            'hasCoveredRows' => $coveredRowCount > 0,
+            'hasMissingRows' => $missingRowCount > 0,
             'diagnosticCount' => count($diagnostics),
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
             'hasNormalizedSpans' => $normalizedSpanCount > 0,

@@ -1266,6 +1266,61 @@ return [
         $t->contains('| Posts      |            |       Ready |            |', $markdown);
         $t->contains('|            |            | Needs media |            |', $markdown);
     },
+    'summarizes visual row occupancy for table geometry review packets' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSpannedTableDocument): void {
+        $packet = TableGeometry::reviewPacket($buildSectionGridDocument()->children[0], ['accessibility' => false]);
+        $headSummary = $packet['sections'][0]['summary'] ?? [];
+        $bodySummary = $packet['sections'][1]['summary'] ?? [];
+
+        $t->same([4], $headSummary['rowSlotCounts'] ?? null);
+        $t->same([3], $headSummary['rowVisualWidths'] ?? null);
+        $t->same(0, $headSummary['completeRowCount'] ?? null);
+        $t->same(1, $headSummary['incompleteRowCount'] ?? null);
+        $t->same(1, $headSummary['coveredRowCount'] ?? null);
+        $t->same(1, $headSummary['missingRowCount'] ?? null);
+        $t->same(false, $headSummary['completeRectangle'] ?? null);
+        $t->same([
+            'row' => 0,
+            'slotCount' => 4,
+            'cellCount' => 2,
+            'headerCellCount' => 2,
+            'coveredSlotCount' => 1,
+            'missingSlotCount' => 1,
+            'occupiedSlotCount' => 3,
+            'visualWidth' => 3,
+            'complete' => false,
+            'hasCoveredSlots' => true,
+            'hasMissingSlots' => true,
+        ], $headSummary['rowSummaries'][0] ?? null);
+
+        $t->same([4, 4], $bodySummary['rowSlotCounts'] ?? null);
+        $t->same([3, 3], $bodySummary['rowVisualWidths'] ?? null);
+        $t->same(0, $bodySummary['completeRowCount'] ?? null);
+        $t->same(2, $bodySummary['incompleteRowCount'] ?? null);
+        $t->same(2, $bodySummary['coveredRowCount'] ?? null);
+        $t->same(2, $bodySummary['missingRowCount'] ?? null);
+        $t->same(3, $bodySummary['maxVisualWidth'] ?? null);
+        $t->same(false, $bodySummary['completeRectangle'] ?? null);
+
+        $t->same(0, $packet['summary']['completeRowCount'] ?? null);
+        $t->same(3, $packet['summary']['incompleteRowCount'] ?? null);
+        $t->same(3, $packet['summary']['coveredRowCount'] ?? null);
+        $t->same(3, $packet['summary']['missingRowCount'] ?? null);
+        $t->same(3, $packet['summary']['maxVisualWidth'] ?? null);
+        $t->same(false, $packet['summary']['completeRectangle'] ?? null);
+        $t->same(true, $packet['summary']['hasIncompleteRows'] ?? null);
+        $t->same(true, $packet['summary']['hasCoveredRows'] ?? null);
+        $t->same(true, $packet['summary']['hasMissingRows'] ?? null);
+
+        $completePacket = TableGeometry::reviewPacket($buildSpannedTableDocument()->children[0], ['accessibility' => false]);
+        $t->same([true, true], array_map(static fn (array $section): bool => (bool) ($section['summary']['completeRectangle'] ?? false), $completePacket['sections']));
+        $t->same([1, 2], array_map(static fn (array $section): int => (int) ($section['summary']['completeRowCount'] ?? 0), $completePacket['sections']));
+        $t->same(3, $completePacket['summary']['completeRowCount'] ?? null);
+        $t->same(0, $completePacket['summary']['incompleteRowCount'] ?? null);
+        $t->same(true, $completePacket['summary']['completeRectangle'] ?? null);
+        $t->same(false, $completePacket['summary']['hasMissingRows'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($completePacket, JSON_THROW_ON_ERROR);
+    },
     'serializes spanned cell occupied slots for importer geometry audits' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSectionScopedRowspanDocument): void {
         $document = $buildSectionGridDocument();
         $table = $document->children[0];
