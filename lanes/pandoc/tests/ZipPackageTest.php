@@ -1811,6 +1811,22 @@ return [
         );
     },
 
+    'rejects unverified zip central directory digital signatures in strict package imports' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
+        $package = ZipPackage::fromString($buildCentralDirectorySignaturePackage());
+        $summary = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(false, $summary['isValid']);
+        $t->same(['central-directory-signature-unverified'], $summary['diagnostics']);
+        $t->same(true, $summary['archive']['hasCentralDirectorySignature']);
+        $t->same(strlen('central-signature'), $summary['archive']['centralDirectorySignatureLength']);
+        $t->same('not-performed-native-bounded-reader', $package->centralDirectorySignaturePreflight()['cryptographicVerification']);
+        $t->same(
+            '<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>',
+            $package->read('/word/document.xml')
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
+    },
+
     'rejects malformed zip central directory digital signature records' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString(
             $buildCentralDirectorySignaturePackage(false, 5)

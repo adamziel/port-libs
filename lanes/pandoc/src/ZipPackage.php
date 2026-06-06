@@ -1925,6 +1925,10 @@ final class ZipPackage
             $diagnostics[] = 'unsupported-archive-layout';
         }
 
+        if ($archive['hasCentralDirectorySignature']) {
+            $diagnostics[] = 'central-directory-signature-unverified';
+        }
+
         if ($comments['hasComments']) {
             $diagnostics[] = 'package-or-entry-comments';
         }

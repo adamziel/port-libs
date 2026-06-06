@@ -2517,6 +2517,13 @@ $centralDirectorySignaturePreflight = $centralDirectorySignaturePackage->central
 $centralDirectorySignatureParsed = ($centralDirectorySignaturePreflight['signatureData'] ?? null) === 'central-signature'
     && ($centralDirectorySignaturePreflight['cryptographicVerification'] ?? null) === 'not-performed-native-bounded-reader'
     && $centralDirectorySignaturePackage->read('/word/document.xml') === '<w:document><w:body><w:p>Signed central directory metadata is inspectable</w:p></w:body></w:document>';
+$centralDirectorySignatureStrictPreflight = $centralDirectorySignaturePackage->strictImportPreflight(4096, 100.0, 4096);
+$centralDirectorySignatureStrictRejected = false;
+try {
+    $centralDirectorySignaturePackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $centralDirectorySignatureStrictRejected = str_contains($exception->getMessage(), 'central-directory-signature-unverified');
+}
 $strongEncryptionRejected = false;
 try {
     ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x0840));
@@ -3755,6 +3762,13 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP central-directory digital signature length to be preserved for review');
     }
 
+    if (
+        !$centralDirectorySignatureStrictRejected
+        || ($centralDirectorySignatureStrictPreflight['diagnostics'] ?? null) !== ['central-directory-signature-unverified']
+    ) {
+        throw new RuntimeException('Expected unverified ZIP central-directory digital signatures to fail strict native import preflight');
+    }
+
     if (!$strongEncryptionRejected) {
         throw new RuntimeException('Expected ZIP strong-encryption metadata to be rejected before media import');
     }
@@ -3989,6 +4003,8 @@ echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'reject
 echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureParsed ? 'inspectable' : 'not-inspectable') . "\n";
 echo 'zipCentralDirectorySignatureLength=' . $centralDirectorySignaturePreflight['signatureLength'] . "\n";
 echo 'zipCentralDirectorySignatureVerification=' . $centralDirectorySignaturePreflight['cryptographicVerification'] . "\n";
+echo 'zipCentralDirectorySignatureStrictPolicy=' . ($centralDirectorySignatureStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCentralDirectorySignatureStrictDiagnostics=' . implode(',', $centralDirectorySignatureStrictPreflight['diagnostics']) . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
