@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -127,5 +128,19 @@ return [
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'unselected-carrier-leak'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'unselected-carrier-leak'));
         $t->true(!str_contains($text, "\0"));
+    },
+    'keeps attachment preflight from inheriting previous type-2 rows whose carrier was replaced' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainUnselectedCarrierCurrentBasePdf): void {
+        $pdf = $xrefPrevChainUnselectedCarrierCurrentBasePdf();
+        $attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);
+        $encodedAttachments = json_encode($attachments, JSON_UNESCAPED_SLASHES);
+
+        $t->same([], $attachments);
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(str_contains($pdf, '/Type /ObjStm'));
+        $t->true(is_string($encodedAttachments) && !str_contains($encodedAttachments, 'unselected-carrier-leak'));
+        $t->true(is_string($encodedAttachments) && !str_contains($encodedAttachments, '<wp-export>'));
+        $t->true(!str_contains((new PdfTextExtractor())->extractPlainText($pdf), 'unselected-carrier-leak'));
     },
 ];

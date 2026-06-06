@@ -4860,7 +4860,22 @@ final class PdfAttachmentExtractor
             $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
             $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $table['trailer'], $previousOffset, $offset);
             if ($previousOffset !== null) {
-                foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
+                $previousEntries = $this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+                foreach ($previousEntries as $objectNumber => $entry) {
+                    if (
+                        !isset($entries[$objectNumber])
+                        && $this->previousCompressedEntryUsesUpdatedObjectStream(
+                            $entry,
+                            $entries,
+                            $previousEntries,
+                            $definitions,
+                            $previousOffset,
+                            $offset
+                        )
+                    ) {
+                        continue;
+                    }
+
                     $entries[$objectNumber] ??= $entry;
                 }
             }
@@ -4883,7 +4898,22 @@ final class PdfAttachmentExtractor
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
         $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $stream['dictionary'], $previousOffset, $offset);
         if ($previousOffset !== null) {
-            foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
+            $previousEntries = $this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+            foreach ($previousEntries as $objectNumber => $entry) {
+                if (
+                    !isset($entries[$objectNumber])
+                    && $this->previousCompressedEntryUsesUpdatedObjectStream(
+                        $entry,
+                        $entries,
+                        $previousEntries,
+                        $definitions,
+                        $previousOffset,
+                        $offset
+                    )
+                ) {
+                    continue;
+                }
+
                 $entries[$objectNumber] ??= $entry;
             }
         }
@@ -5118,6 +5148,145 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function previousCompressedEntryUsesUpdatedObjectStream(
+        array $entry,
+        array $currentEntries,
+        array $previousEntries,
+        array $definitions,
+        int $previousXrefOffset,
+        int $currentXrefOffset
+    ): bool {
+        if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
+            return false;
+        }
+
+        $objectStreamNumber = (int) $entry['objectStream'];
+        $previousObjectStreamEntry = $previousEntries[$objectStreamNumber] ?? null;
+        if (($previousObjectStreamEntry['type'] ?? null) !== 1) {
+            return true;
+        }
+
+        $currentObjectStreamEntry = $currentEntries[$objectStreamNumber] ?? null;
+        if ($currentObjectStreamEntry === null) {
+            $previousDefinition = $this->xrefEntrySelectedDirectDefinition(
+                $objectStreamNumber,
+                $previousObjectStreamEntry,
+                $definitions
+            );
+            if ($previousDefinition === null) {
+                return true;
+            }
+
+            return $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definitions[$objectStreamNumber] ?? [],
+                max($previousXrefOffset, $previousDefinition['offset']),
+                $currentXrefOffset
+            ) !== null;
+        }
+
+        if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+            $objectStreamNumber,
+            $currentObjectStreamEntry,
+            $previousObjectStreamEntry,
+            $previousEntries,
+            $definitions
+        )) {
+            return false;
+        }
+
+        return !$this->xrefEntriesSelectSameStorage($currentObjectStreamEntry, $previousObjectStreamEntry);
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $currentEntry
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $previousEntry
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
+        int $objectNumber,
+        array $currentEntry,
+        array $previousEntry,
+        array $previousEntries,
+        array $definitions
+    ): bool {
+        if (($currentEntry['type'] ?? null) !== 1 || ($previousEntry['type'] ?? null) !== 1) {
+            return false;
+        }
+
+        if (!$this->xrefEntriesContainType2CarrierReference($previousEntries, $objectNumber)) {
+            return false;
+        }
+
+        $currentDefinition = $this->xrefEntrySelectedDirectDefinition($objectNumber, $currentEntry, $definitions);
+        if ($currentDefinition !== null) {
+            return false;
+        }
+
+        $previousDefinition = $this->xrefEntrySelectedDirectDefinition($objectNumber, $previousEntry, $definitions);
+        return $previousDefinition !== null && $this->objectBodyHasTypeName($previousDefinition['body'], 'ObjStm');
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     */
+    private function xrefEntriesContainType2CarrierReference(array $entries, int $objectStreamNumber): bool
+    {
+        foreach ($entries as $entry) {
+            if (($entry['type'] ?? null) === 2 && ($entry['objectStream'] ?? null) === $objectStreamNumber) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function xrefEntrySelectedDirectDefinition(int $objectNumber, array $entry, array $definitions): ?array
+    {
+        if (($entry['type'] ?? null) !== 1) {
+            return null;
+        }
+
+        return $this->selectedDirectObjectDefinition($definitions[$objectNumber] ?? [], $entry);
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $left
+     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $right
+     */
+    private function xrefEntriesSelectSameStorage(array $left, array $right): bool
+    {
+        if (
+            ($left['type'] ?? null) === 1
+            && ($right['type'] ?? null) === 1
+            && ($left['offsetIsExplicit'] ?? true) === true
+            && ($right['offsetIsExplicit'] ?? true) === true
+            && isset($left['offset'], $right['offset'])
+            && $left['offset'] === $right['offset']
+        ) {
+            return true;
+        }
+
+        foreach (['type', 'generation', 'offset', 'objectStream', 'index'] as $field) {
+            if (($left[$field] ?? null) !== ($right[$field] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

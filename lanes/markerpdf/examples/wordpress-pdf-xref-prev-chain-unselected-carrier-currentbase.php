@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -104,20 +105,25 @@ $pdf .= "21 0 obj\n"
 $extractor = new PdfTextExtractor();
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+$attachments = (new PdfAttachmentExtractor())->extractAttachments($pdf);
 $lines = $extractor->extractTextLines($pdf);
 $plainText = implode("\n", $lines);
 $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+$encodedAttachments = json_encode($attachments, JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-unselected-carrier-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF xref /Prev inherited type-2 rows require their original object-stream carrier before attachment import',
     'current_page_text_selected' => str_contains($plainText, 'Current unselected carrier page'),
     'current_catalog_language_selected' => ($metadata['language'] ?? null) === 'en-US',
     'unselected_carrier_attachment_excluded' => $files === [],
+    'attachment_preflight_unselected_carrier_excluded' => $attachments === [],
     'replacement_object_stream_payload_excluded' => is_string($encodedFiles)
         && !str_contains($encodedFiles, 'unselected-carrier-leak')
         && is_string($encodedMetadata)
-        && !str_contains($encodedMetadata, 'unselected-carrier-leak'),
+        && !str_contains($encodedMetadata, 'unselected-carrier-leak')
+        && is_string($encodedAttachments)
+        && !str_contains($encodedAttachments, 'unselected-carrier-leak'),
     'previous_carrier_text_excluded' => !str_contains($plainText, 'Previous unselected carrier page'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
