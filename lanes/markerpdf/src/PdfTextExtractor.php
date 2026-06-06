@@ -35794,7 +35794,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 1]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
     }
 
     /**
@@ -35876,7 +35876,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 3]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 3]));
     }
 
     /**
@@ -35888,7 +35888,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 2]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 2]));
     }
 
     /**
