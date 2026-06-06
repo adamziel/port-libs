@@ -43,6 +43,15 @@ $terminalTwPdf = "%PDF-1.4\n"
     . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TerminalTwAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 68 /Widths [{$terminalTwWidths}] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($terminalTwContent) . " >>\nstream\n{$terminalTwContent}\nendstream\nendobj\n%%EOF";
 
+$overlargeTwRelativeTdSpacing = '1' . str_repeat('0', 308);
+$overlargeTwRelativeTdContent = 'BT /Ftwrel 12 Tf ' . $overlargeTwRelativeTdSpacing . ' Tw '
+    . '1 0 0 1 72 720 Tm (A ) Tj 48 0 Td (B) Tj ET';
+$overlargeTwRelativeTdWidths = implode(' ', array_fill(0, 37, '1000'));
+$overlargeTwRelativeTdPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftwrel 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+HugeTwRelativeTd /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 68 /Widths [{$overlargeTwRelativeTdWidths}] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($overlargeTwRelativeTdContent) . " >>\nstream\n{$overlargeTwRelativeTdContent}\nendstream\nendobj\n%%EOF";
+
 $relativeTdContent = 'BT /Ftd 12 Tf '
     . '1 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
     . '1 0 0 1 72 704 Tm <4142> Tj 48 0 Td <4344> Tj ET';
@@ -516,6 +525,14 @@ $terminalTwSecondBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $terminalTwSecondLine['spans'] ?? []
 );
+$overlargeTwRelativeTdLines = $extractor->extractTextLines($overlargeTwRelativeTdPdf);
+$overlargeTwRelativeTdPlainText = implode("\n", $overlargeTwRelativeTdLines);
+$overlargeTwRelativeTdPages = $extractor->extractStyledTextPages($overlargeTwRelativeTdPdf);
+$overlargeTwRelativeTdLine = $overlargeTwRelativeTdPages[0]['blocks'][0]['lines'][0] ?? [];
+$overlargeTwRelativeTdBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $overlargeTwRelativeTdLine['spans'] ?? []
+);
 $relativeTdLines = $extractor->extractTextLines($relativeTdPdf);
 $relativeTdPlainText = implode("\n", $relativeTdLines);
 $relativeTdPages = $extractor->extractStyledTextPages($relativeTdPdf);
@@ -899,7 +916,7 @@ $type3CharProcMatrixVectorSecondBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-and-descendant-cidfont-quote-terminal-tc-terminal-tw-overlarge-tw-relative-td-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -913,6 +930,11 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'terminal_tw_drawn_bbox_excludes_terminal_word_spacing' => $terminalTwFirstBboxes === [[0.0, 0.0, 36.0, 12.0], [48.0, 0.0, 72.0, 12.0]],
     'terminal_tw_subthreshold_gap_compacts_styled_bbox' => $terminalTwSecondBboxes === [[0.0, 0.0, 36.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
     'terminal_tw_stale_word_spacing_bbox_excluded' => $terminalTwFirstBboxes !== [[0.0, 0.0, 60.0, 12.0], [60.0, 0.0, 84.0, 12.0]],
+    'overlarge_tw_relative_td_lines_preserved' => $overlargeTwRelativeTdLines === ['A B'],
+    'overlarge_tw_relative_td_plain_text_preserved' => $overlargeTwRelativeTdPlainText === 'A B',
+    'overlarge_tw_relative_td_gap_bbox_preserved' => $overlargeTwRelativeTdBboxes === [[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'overlarge_tw_relative_td_line_bbox_preserved' => ($overlargeTwRelativeTdLine['bbox'] ?? null) === [0.0, 0.0, 60.0, 12.0],
+    'overlarge_tw_relative_td_collapsed_gap_excluded' => $overlargeTwRelativeTdBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 36.0, 12.0]],
     'relative_td_uses_font_width_current_end' => ($relativeTdLines[0] ?? null) === 'ABCD',
     'relative_td_larger_gap_still_preserved' => ($relativeTdLines[1] ?? null) === 'AB CD',
     'relative_td_false_gap_excluded' => !str_contains($relativeTdPlainText, 'AB CD' . "\n" . 'AB CD'),
@@ -1079,6 +1101,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'terminal_tw_plain_text' => $terminalTwPlainText,
     'terminal_tw_first_bboxes' => $terminalTwFirstBboxes,
     'terminal_tw_second_bboxes' => $terminalTwSecondBboxes,
+    'overlarge_tw_relative_td_lines' => $overlargeTwRelativeTdLines,
+    'overlarge_tw_relative_td_span_bboxes' => $overlargeTwRelativeTdBboxes,
     'relative_td_lines' => $relativeTdLines,
     'relative_td_span_bboxes' => $relativeTdSpanBboxes,
     'relative_td_styled_gap_lines' => $relativeTdStyledGapLines,
@@ -1170,7 +1194,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $overlargeTwRelativeTdLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

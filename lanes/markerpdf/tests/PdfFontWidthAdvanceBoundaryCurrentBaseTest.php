@@ -52,6 +52,18 @@ $fontWidthTerminalWordSpacingAdvanceBoundaryCurrentBasePdf = static function ():
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthOverlargeTwRelativeTdBoundaryCurrentBasePdf = static function (): string {
+    $hugeWordSpacing = '1' . str_repeat('0', 308);
+    $content = 'BT /Ftwrel 12 Tf ' . $hugeWordSpacing . ' Tw '
+        . '1 0 0 1 72 720 Tm (A ) Tj 48 0 Td (B) Tj ET';
+    $widths = implode(' ', array_fill(0, 37, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftwrel 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+HugeTwRelativeTd /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 68 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Ftd 12 Tf '
         . '1 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
@@ -913,6 +925,26 @@ return [
         $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 60.0, 12.0], [60.0, 0.0, 84.0, 12.0]]);
         $t->true(!str_contains($plainText, 'TerminalTwAdvance'));
         $t->true(!str_contains($plainText, 'Ftw'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'rejects overlarge finite Tw before relative Td styled gap geometry on current base' => static function (TestRunner $t) use ($fontWidthOverlargeTwRelativeTdBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthOverlargeTwRelativeTdBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['A B'], $extractor->extractTextLines($pdf));
+        $t->same(['A ', 'B'], $extractor->extractTextRuns($pdf));
+        $t->same('A B', $plainText);
+        $t->same("A B\n", $extractor->naiveGetText($pdf));
+        $t->same(['A ', 'B'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 60.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $line['bbox'] ?? null);
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 36.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'HugeTwRelativeTd'));
+        $t->true(!str_contains($plainText, 'Ftwrel'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses font-width current text advance before relative Td word-gap decisions on current base' => static function (TestRunner $t) use ($fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf): void {
