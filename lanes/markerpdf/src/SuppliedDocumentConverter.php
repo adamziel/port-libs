@@ -43,7 +43,7 @@ final class SuppliedDocumentConverter
      * The caller supplies the artifacts that upstream would normally obtain
      * from pdftext, pypdfium2, Surya ordering/layout, and tabled recognition.
      *
-     * @param list<array<string, mixed>> $pdftextPages
+     * @param list<array<string, mixed>>|array{pages?: array<mixed>, metadata?: array<string, mixed>} $pdftextPages
      * @param array{
      *     toc?: list<array<string, mixed>>,
      *     max_pages?: int|null,
@@ -89,8 +89,7 @@ final class SuppliedDocumentConverter
             : null;
         $batchMultiplier = $this->numericOption($options, 'batch_multiplier', 1.0);
         $ocrAllPages = (bool) ($options['ocr_all_pages'] ?? false);
-        $sourcePageCount = count($pdftextPages);
-        $documentPageCount = $this->nullableIntOption($options, 'document_page_count') ?? $sourcePageCount;
+        $requestedDocumentPageCount = $this->nullableIntOption($options, 'document_page_count');
 
         $extracted = $this->textExtractor->getTextBlocks(
             $pdftextPages,
@@ -98,6 +97,8 @@ final class SuppliedDocumentConverter
             startPage: $startPage,
             toc: $toc
         );
+        $sourcePageCount = (int) ($extracted['metadata']['source_pages'] ?? count($pdftextPages));
+        $documentPageCount = $requestedDocumentPageCount ?? $sourcePageCount;
 
         return $this->coreConverter->convertWithSuppliedPages(
             $filename,

@@ -29,7 +29,7 @@ final class PdfTextDocumentExtractor
      * @return array{
      *     pages: list<array<string, mixed>>,
      *     toc: list<array<string, mixed>>,
-     *     metadata: array{pdf_toc: list<array<string, mixed>>, pages: int, start_page: int, max_pages: int, pdftext_options: array<string, mixed>},
+     *     metadata: array{pdf_toc: list<array<string, mixed>>, pages: int, source_pages: int, start_page: int, max_pages: int, pdftext_options: array<string, mixed>},
      *     page_range: list<int>
      * }
      */
@@ -88,6 +88,7 @@ final class PdfTextDocumentExtractor
             'metadata' => [
                 'pdf_toc' => array_values($toc),
                 'pages' => count($pages),
+                'source_pages' => $totalPages,
                 'start_page' => $startPage,
                 'max_pages' => $pageCount,
                 'pdftext_options' => array_filter([
@@ -159,7 +160,7 @@ final class PdfTextDocumentExtractor
      * relative pdftext pages. This helper preserves that boundary for callers
      * that already have pdftext dictionaries and supplied order-model output.
      *
-     * @param list<array<string, mixed>|\stdClass> $pdftextPages
+     * @param list<array<string, mixed>|\stdClass>|array{pages?: array<mixed>, metadata?: array<string, mixed>} $pdftextPages
      * @param list<array<string, mixed>> $orderResults
      * @param list<mixed> $orderImages
      * @param list<array<string, mixed>> $toc
@@ -199,17 +200,18 @@ final class PdfTextDocumentExtractor
             quoteLoosebox: $quoteLoosebox
         );
         $orderer ??= new LayoutOrderer();
+        $sourcePageCount = (int) ($document['metadata']['source_pages'] ?? count($document['pages']));
         $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($document['pages']);
         $orderImages = $this->selectSuppliedPageArtifacts(
             $orderImages,
-            count($pdftextPages),
+            $sourcePageCount,
             $document['page_range'],
             count($document['pages']),
             $selectedPageNumbers
         );
         $orderResults = $this->selectSuppliedPageArtifacts(
             $orderResults,
-            count($pdftextPages),
+            $sourcePageCount,
             $document['page_range'],
             count($document['pages']),
             $selectedPageNumbers

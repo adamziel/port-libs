@@ -4270,4 +4270,111 @@ return [
             unlink($path);
         }
     },
+    'aligns full document layout and order artifacts after pdftext dictionary envelope unwrapping' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-envelope-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied envelope layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(930, [
+                ['text' => 'Envelope supplied cover page artifact.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(931, [
+                ['text' => 'Second envelope supplied column carries review notes.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First envelope supplied column starts the import.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(932, [
+                ['text' => 'Envelope supplied appendix page artifact.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+            $dictionaryEnvelope = [
+                'metadata' => [
+                    'adapter' => 'cached pdftext.dictionary_output',
+                    'raw_payload' => 'supplied envelope metadata must not cross into WordPress output',
+                ],
+                'pages' => [$coverPage, $selectedPage, $appendixPage],
+            ];
+
+            $layoutResults = [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+            ];
+            $orderResults = [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $dictionaryEnvelope,
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => ['envelope-cover-layout-render', 'envelope-selected-layout-render', 'envelope-appendix-layout-render'],
+                    'layout_results' => $layoutResults,
+                    'order_images' => ['envelope-cover-order-render', 'envelope-selected-order-render', 'envelope-appendix-order-render'],
+                    'order_results' => $orderResults,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->same(3, $result['metadata']['pdftext']['source_pages'] ?? null);
+            $t->same(3, $result['context']['document_page_count']);
+            $t->same(2, $result['context']['trimmed_document_page_count']);
+            $t->contains('First envelope supplied column starts the import.', $text);
+            $t->contains('Second envelope supplied column carries review notes.', $text);
+            $t->true(strpos($text, 'First envelope supplied column starts the import.') < strpos($text, 'Second envelope supplied column carries review notes.'));
+            $t->true(!str_contains($text, 'Envelope supplied cover page artifact.'));
+            $t->true(!str_contains($text, 'Envelope supplied appendix page artifact.'));
+            $t->true(!str_contains($encoded, 'supplied envelope metadata must not cross into WordPress output'));
+        } finally {
+            unlink($path);
+        }
+    },
 ];

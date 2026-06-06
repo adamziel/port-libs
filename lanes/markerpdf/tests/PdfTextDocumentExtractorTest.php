@@ -1641,4 +1641,73 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'trims full document order artifacts after unwrapping pdftext dictionary envelopes' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $dictionaryEnvelope = [
+            'metadata' => [
+                'adapter' => 'cached pdftext.dictionary_output',
+                'raw_payload' => 'dictionary envelope metadata must not become a page',
+            ],
+            'pages' => [
+                $pdftextLinesPage(920, [
+                    ['text' => 'Envelope order cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(921, [
+                    ['text' => 'Second envelope order column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First envelope order column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(922, [
+                    ['text' => 'Envelope order appendix skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+        ];
+
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            $dictionaryEnvelope,
+            [
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+                [
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: ['envelope-cover-render', 'envelope-selected-render', 'envelope-appendix-render'],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(921, $result['pages'][0]['pnum']);
+        $t->same(['First envelope order column', 'Second envelope order column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First envelope order column Second envelope order column', $blocks[0]['text']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+        $t->same(3, $result['metadata']['source_pages'] ?? null);
+        $t->true(!str_contains($encoded, 'Envelope order cover page skipped'));
+        $t->true(!str_contains($encoded, 'Envelope order appendix skipped'));
+        $t->true(!str_contains($encoded, 'dictionary envelope metadata must not become a page'));
+    },
 ];
