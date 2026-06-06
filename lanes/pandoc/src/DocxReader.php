@@ -2075,6 +2075,8 @@ final class DocxReader
         $activeProofErrorNodes = [];
         $activePermissionRange = null;
         $activePermissionRangeNodes = [];
+        $activeMoveRange = null;
+        $activeMoveRangeNodes = [];
         $activeField = null;
 
         $emitInlineNodes = function (array $nodes) use (
@@ -2084,7 +2086,9 @@ final class DocxReader
             &$activeProofError,
             &$activeProofErrorNodes,
             &$activePermissionRange,
-            &$activePermissionRangeNodes
+            &$activePermissionRangeNodes,
+            &$activeMoveRange,
+            &$activeMoveRangeNodes
         ): void {
             if ($nodes === []) {
                 return;
@@ -2097,6 +2101,11 @@ final class DocxReader
 
             if ($activePermissionRange !== null) {
                 array_push($activePermissionRangeNodes, ...$nodes);
+                return;
+            }
+
+            if ($activeMoveRange !== null) {
+                array_push($activeMoveRangeNodes, ...$nodes);
                 return;
             }
 
@@ -2129,6 +2138,19 @@ final class DocxReader
             $node = $this->permissionRangeNode($activePermissionRange, $activePermissionRangeNodes);
             $activePermissionRange = null;
             $activePermissionRangeNodes = [];
+            if ($node instanceof AstNode) {
+                $emitInlineNodes([$node]);
+            }
+        };
+
+        $closeMoveRange = function (?string $endType = null, ?string $endId = null) use (&$activeMoveRange, &$activeMoveRangeNodes, $emitInlineNodes): void {
+            if ($activeMoveRange === null || !$this->moveRangeEndMatches($activeMoveRange, $endType, $endId)) {
+                return;
+            }
+
+            $node = $this->moveRangeNode($activeMoveRange, $activeMoveRangeNodes);
+            $activeMoveRange = null;
+            $activeMoveRangeNodes = [];
             if ($node instanceof AstNode) {
                 $emitInlineNodes([$node]);
             }
@@ -2185,6 +2207,30 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isWordElement($child, 'moveFromRangeStart')) {
+                $closeMoveRange(null, null);
+                $activeMoveRange = $this->moveRangeStartAttrs($child, 'move-from-range');
+                $activeMoveRangeNodes = [];
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'moveToRangeStart')) {
+                $closeMoveRange(null, null);
+                $activeMoveRange = $this->moveRangeStartAttrs($child, 'move-to-range');
+                $activeMoveRangeNodes = [];
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'moveFromRangeEnd')) {
+                $closeMoveRange('move-from-range', $this->wordAttr($child, 'id'));
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'moveToRangeEnd')) {
+                $closeMoveRange('move-to-range', $this->wordAttr($child, 'id'));
+                continue;
+            }
+
             if ($this->isWordElement($child, 'commentRangeStart')) {
                 if ($activeCommentRangeId !== null) {
                     $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
@@ -2225,6 +2271,7 @@ final class DocxReader
         }
         $closeProofError(null);
         $closePermissionRange(null);
+        $closeMoveRange(null, null);
         if ($activeCommentRangeId !== null) {
             $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
         }
@@ -2342,6 +2389,69 @@ final class DocxReader
         }
 
         return new AstNode('span', $range, $children);
+    }
+
+    /**
+     * @return array{type:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function moveRangeStartAttrs(\DOMElement $moveStart, string $type): array
+    {
+        $attributes = [
+            'data-docx-change' => $type,
+        ];
+
+        foreach ([
+            'id' => 'data-docx-change-id',
+            'author' => 'data-docx-author',
+            'date' => 'data-docx-date',
+            'name' => 'data-docx-move-range-name',
+        ] as $wordAttr => $htmlAttr) {
+            $value = $this->wordAttr($moveStart, $wordAttr);
+            if ($value !== null && $value !== '') {
+                $attributes[$htmlAttr] = $value;
+            }
+        }
+
+        return [
+            'type' => $type,
+            'classes' => ['docx-' . $type],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array{type:string, classes:list<string>, attributes:array<string, string>} $range
+     */
+    private function moveRangeEndMatches(array $range, ?string $endType, ?string $endId): bool
+    {
+        if ($endType !== null && $range['type'] !== $endType) {
+            return false;
+        }
+
+        $startId = $range['attributes']['data-docx-change-id'] ?? null;
+
+        return $endId === null || $endId === '' || $startId === null || $startId === $endId;
+    }
+
+    /**
+     * @param array{type:string, classes:list<string>, attributes:array<string, string>} $range
+     * @param list<AstNode> $children
+     */
+    private function moveRangeNode(array $range, array $children): ?AstNode
+    {
+        if ($range['type'] === 'move-from-range') {
+            return null;
+        }
+
+        $children = $this->coalesceTextNodes($children);
+        if ($children === []) {
+            return null;
+        }
+
+        return new AstNode('span', [
+            'classes' => $range['classes'],
+            'attributes' => $range['attributes'],
+        ], $children);
     }
 
     /**
@@ -6938,9 +7048,9 @@ final class DocxReader
         $deletionCount = 0;
         $formattingCount = 0;
         foreach ($items as $item) {
-            if (in_array($item['type'], ['insertion', 'move-to'], true)) {
+            if (in_array($item['type'], ['insertion', 'move-to', 'move-to-range'], true)) {
                 $insertionCount++;
-            } elseif (in_array($item['type'], ['deletion', 'move-from'], true)) {
+            } elseif (in_array($item['type'], ['deletion', 'move-from', 'move-from-range'], true)) {
                 $deletionCount++;
             } elseif (in_array($item['type'], ['paragraph-formatting', 'run-formatting'], true)) {
                 $formattingCount++;
@@ -6969,6 +7079,10 @@ final class DocxReader
             $type = 'move-from';
         } elseif ($this->isWordElement($element, 'moveTo')) {
             $type = 'move-to';
+        } elseif ($this->isWordElement($element, 'moveFromRangeStart')) {
+            $type = 'move-from-range';
+        } elseif ($this->isWordElement($element, 'moveToRangeStart')) {
+            $type = 'move-to-range';
         } elseif ($this->isWordElement($element, 'pPrChange')) {
             $type = 'paragraph-formatting';
         } elseif ($this->isWordElement($element, 'rPrChange')) {
@@ -6977,13 +7091,16 @@ final class DocxReader
 
         if ($type !== null) {
             $isFormatting = in_array($type, ['paragraph-formatting', 'run-formatting'], true);
+            $isMoveRange = in_array($type, ['move-from-range', 'move-to-range'], true);
             $items[] = [
                 'type' => $type,
-                'accepted' => $isFormatting || in_array($type, ['insertion', 'move-to'], true),
+                'accepted' => $isFormatting || in_array($type, ['insertion', 'move-to', 'move-to-range'], true),
                 'id' => $this->wordAttr($element, 'id'),
                 'author' => $this->wordAttr($element, 'author'),
                 'date' => $this->wordAttr($element, 'date'),
-                'text' => $isFormatting ? $this->formattingChangeText($element) : $this->trackedChangeText($element),
+                'text' => $isFormatting
+                    ? $this->formattingChangeText($element)
+                    : ($isMoveRange ? $this->trackedMoveRangeText($element, $type) : $this->trackedChangeText($element)),
             ];
 
             return;
@@ -7044,6 +7161,41 @@ final class DocxReader
         }
 
         return $text;
+    }
+
+    private function trackedMoveRangeText(\DOMElement $start, string $type): string
+    {
+        $text = '';
+        $id = $this->wordAttr($start, 'id');
+        for ($sibling = $start->nextSibling; $sibling instanceof \DOMNode; $sibling = $sibling->nextSibling) {
+            if (!$sibling instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->isMoveRangeEndElement($sibling, $type, $id)) {
+                break;
+            }
+
+            $text .= $this->trackedChangeTextRaw($sibling);
+        }
+
+        return trim(preg_replace('/[ \t\r\n]+/u', ' ', $text) ?? $text);
+    }
+
+    private function isMoveRangeEndElement(\DOMElement $element, string $type, ?string $id): bool
+    {
+        $expected = match ($type) {
+            'move-from-range' => 'moveFromRangeEnd',
+            'move-to-range' => 'moveToRangeEnd',
+            default => null,
+        };
+        if ($expected === null || !$this->isWordElement($element, $expected)) {
+            return false;
+        }
+
+        $endId = $this->wordAttr($element, 'id');
+
+        return $id === null || $id === '' || $endId === null || $endId === '' || $endId === $id;
     }
 
     /**

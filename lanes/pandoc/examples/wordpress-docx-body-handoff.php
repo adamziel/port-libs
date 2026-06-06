@@ -383,6 +383,12 @@ XML],
       <w:moveTo w:id="17" w:author="Migration Editor" w:date="2026-06-04T18:07:00Z">
         <w:r><w:t xml:space="preserve"> Moved into import checklist.</w:t></w:r>
       </w:moveTo>
+      <w:moveFromRangeStart w:id="26" w:author="Source Editor" w:date="2026-06-05T08:10:00Z" w:name="obsolete_review_range"/>
+      <w:r><w:delText> ranged moved from discarded section.</w:delText></w:r>
+      <w:moveFromRangeEnd w:id="26"/>
+      <w:moveToRangeStart w:id="27" w:author="Migration Editor" w:date="2026-06-05T08:12:00Z" w:name="accepted_review_range"/>
+      <w:r><w:t xml:space="preserve"> Ranged move accepted for checklist.</w:t></w:r>
+      <w:moveToRangeEnd w:id="27"/>
       <w:r><w:footnoteReference w:id="2" w:customMarkFollows="1"/></w:r>
       <w:r><w:t xml:space="preserve"> Also keep endnote context</w:t></w:r>
       <w:r><w:endnoteReference w:id="5" w:customMarkFollows="true"/></w:r>
@@ -813,7 +819,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][2]['id'] ?? '') !== 'rIdVmlBadge' || ($summary['importReport']['media']['items'][2]['usedCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing VML image media handoff');
     }
-    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 2 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 2) {
+    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 3 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 3) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
     if (($summary['importReport']['revisions']['formattingCount'] ?? 0) !== 2) {
@@ -944,6 +950,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'moved from an obsolete review section')) {
         throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change text');
     }
+    if (str_contains($blocks, 'ranged moved from discarded section')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change range text');
+    }
     if (str_contains($blocks, 'DOCX footnote continuation notice.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered special footnote continuation notice');
     }
@@ -991,6 +1000,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span id="review_column_range" class="anchor docx-bookmark docx-bookmark-column-range" data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"></span>Reviewed table scope',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
+        '<span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="27" data-docx-author="Migration Editor" data-docx-date="2026-06-05T08:12:00Z" data-docx-move-range-name="accepted_review_range"> Ranged move accepted for checklist.</span>',
         'and flag missing note references<sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup>/<sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>',
         'while automatic note labels remain auditable<sup id="fnref-6"><a href="#fn-6" role="doc-noteref">6</a></sup>/<sup id="fnref-7"><a href="#fn-7" role="doc-noteref">7</a></sup>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z" data-docx-comment-para-id="00DOCX09" data-docx-comment-resolved="true"> and reviewer comment</span>',

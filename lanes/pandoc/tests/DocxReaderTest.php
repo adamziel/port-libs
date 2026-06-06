@@ -945,6 +945,24 @@ $moveTrackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$moveRangeTrackedChangesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Move range review keeps </w:t></w:r>
+      <w:moveFromRangeStart w:id="18" w:author="Source Editor" w:date="2026-06-05T08:10:00Z" w:name="obsolete_section"/>
+      <w:r><w:delText>obsolete range wording</w:delText></w:r>
+      <w:moveFromRangeEnd w:id="18"/>
+      <w:r><w:t xml:space="preserve"> and accepts </w:t></w:r>
+      <w:moveToRangeStart w:id="19" w:author="Migration Editor" w:date="2026-06-05T08:12:00Z" w:name="review_checklist"/>
+      <w:r><w:t>moved range wording</w:t></w:r>
+      <w:moveToRangeEnd w:id="19"/>
+      <w:r><w:t xml:space="preserve"> for import.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $formattingChangeDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2166,6 +2184,14 @@ $buildMoveTrackedChangesPackage = static function () use ($contentTypesXml, $pac
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $moveTrackedChangesDocumentXml],
+    ]);
+};
+
+$buildMoveRangeTrackedChangesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $moveRangeTrackedChangesDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $moveRangeTrackedChangesDocumentXml],
     ]);
 };
 
@@ -3536,6 +3562,50 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-04T18:07:00Z', $revisions['items'][1]['date']);
         $t->same('to publication checklist', $revisions['items'][1]['text']);
+    },
+    'preserves accepted DOCX move ranges and reports suppressed source ranges' => static function (TestRunner $t) use ($buildMoveRangeTrackedChangesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildMoveRangeTrackedChangesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Move range review keeps  and accepts ', $paragraph->children[0]->attr('text'));
+
+        $moveTo = $paragraph->children[1];
+        $t->same('span', $moveTo->type);
+        $t->same(['docx-move-to-range'], $moveTo->attr('classes'));
+        $t->same('move-to-range', $moveTo->attr('attributes')['data-docx-change']);
+        $t->same('19', $moveTo->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $moveTo->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-05T08:12:00Z', $moveTo->attr('attributes')['data-docx-date']);
+        $t->same('review_checklist', $moveTo->attr('attributes')['data-docx-move-range-name']);
+        $t->same('moved range wording', $moveTo->children[0]->attr('text'));
+        $t->same(' for import.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Move range review keeps  and accepts [moved range wording]{.docx-move-to-range data-docx-change="move-to-range" data-docx-change-id="19" data-docx-author="Migration Editor" data-docx-date="2026-06-05T08:12:00Z" data-docx-move-range-name="review_checklist"} for import.', $markdown);
+        $t->true(!str_contains($markdown, 'obsolete range wording'), 'Moved-from range text should not render to Markdown');
+        $t->contains('<p>Move range review keeps  and accepts <span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="19" data-docx-author="Migration Editor" data-docx-date="2026-06-05T08:12:00Z" data-docx-move-range-name="review_checklist">moved range wording</span> for import.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'obsolete range wording'), 'Moved-from range text should not render to WordPress blocks');
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(1, $revisions['insertionCount']);
+        $t->same(1, $revisions['deletionCount']);
+        $t->same(2, count($revisions['items']));
+        $t->same('move-from-range', $revisions['items'][0]['type']);
+        $t->same(false, $revisions['items'][0]['accepted']);
+        $t->same('18', $revisions['items'][0]['id']);
+        $t->same('Source Editor', $revisions['items'][0]['author']);
+        $t->same('2026-06-05T08:10:00Z', $revisions['items'][0]['date']);
+        $t->same('obsolete range wording', $revisions['items'][0]['text']);
+        $t->same('move-to-range', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('19', $revisions['items'][1]['id']);
+        $t->same('Migration Editor', $revisions['items'][1]['author']);
+        $t->same('2026-06-05T08:12:00Z', $revisions['items'][1]['date']);
+        $t->same('moved range wording', $revisions['items'][1]['text']);
     },
     'preserves DOCX tracked paragraph and run formatting changes as reviewer metadata' => static function (TestRunner $t) use ($buildFormattingChangePackage): void {
         $reader = new DocxReader();
