@@ -15142,6 +15142,10 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($this->ccittFaxExplicitColumnsAreInvalidForOwnership($decodeParms, $objects)) {
+            return true;
+        }
+
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
             if (
@@ -15193,6 +15197,10 @@ final class PdfTextExtractor
             return null;
         }
 
+        if ($this->ccittFaxExplicitColumnsAreInvalidForOwnership($decodeParms, $objects)) {
+            return null;
+        }
+
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
             if ($rows !== null && $rows > 0) {
@@ -15216,6 +15224,20 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxExplicitColumnsAreInvalidForOwnership(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'Columns')) {
+            return false;
+        }
+
+        $columns = $this->decodeParmsInt($decodeParms, 'Columns', $objects);
+
+        return $columns === null || $columns < 1;
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int

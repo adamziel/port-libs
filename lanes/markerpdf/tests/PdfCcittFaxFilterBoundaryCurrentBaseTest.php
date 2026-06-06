@@ -1472,6 +1472,86 @@ return [
         $t->true(!str_contains($encodedReview, 'Fake CCITT row EOL owner leak'));
         $t->true(!str_contains($encodedReview, $faxPayload));
     },
+    'requires valid CCITT Columns before row EOL stream ownership' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before invalid-column CCITT) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After invalid-column CCITT) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Fake invalid-column CCITT owner leak) Tj ET';
+        $eol = "\x00\x10\x01";
+        $rtc = $eol . $eol . $eol;
+        $faxPayload = "\x01\x02{$eol}\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\x03\x04{$rtc}";
+        $staleLength = strpos($faxPayload, "\nendstream\n");
+        if ($staleLength === false) {
+            throw new RuntimeException('Focused invalid-column CCITT fixture must expose a stale row-end terminator.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxBadColumns 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 0 /Rows 1 /EndOfLine true /EndOfBlock false >> /Length {$staleLength} >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeParms = $entry['filter_details'][0]['decode_parms'] ?? [];
+        $boundary = $entry['ccitt_fax_decode_boundary'] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before invalid-column CCITT', 'After invalid-column CCITT'], $extractor->extractTextLines($pdf));
+        $t->same("Before invalid-column CCITT\nAfter invalid-column CCITT", $plainText);
+        $t->true(!str_contains($plainText, 'Fake invalid-column CCITT owner leak'));
+        $t->true(!str_contains($plainText, 'endstream'));
+        $t->same(['CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(strlen($faxPayload), $entry['raw_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $decodeParms['valid_decode_parms'] ?? null);
+        $t->same(['columns'], $decodeParms['invalid_decode_parms_fields'] ?? null);
+        $t->same('invalid_ccitt_decodeparms_fail_closed', $decodeParms['decode_parms_review'] ?? null);
+        $t->same(true, $boundary['invalid_decode_parms'] ?? null);
+        $t->same(['columns'], $boundary['invalid_decode_parms_fields'] ?? null);
+        $t->same(1728, $boundary['effective_decode_parms']['columns'] ?? null);
+        $t->same(false, $boundary['effective_decode_parms']['end_of_block'] ?? null);
+        $t->same('group3_one_dimensional', $entry['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+        $t->same(null, $entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, 'Fake invalid-column CCITT owner leak'));
+        $t->true(!str_contains($encodedReview, $faxPayload));
+
+        $content = "BT /F1 12 Tf 72 720 Td (Before inline invalid-column CCITT) Tj ET\n"
+            . "BI /W 16 /H 1 /IM true /F /CCF /DP << /K 0 /Columns 0 /Rows 1 /EndOfLine true /EndOfBlock false >> ID\n"
+            . "\x01\x02{$eol}\nEI\n"
+            . "BT /F1 12 Tf 72 700 Td (Inline invalid-column CCITT leak) Tj ET\n"
+            . "\x03\x04{$rtc}\nEI\n"
+            . "BT /F1 12 Tf 72 680 Td (After inline invalid-column CCITT) Tj ET";
+        $inlinePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $expectedInline = [
+            'Before inline invalid-column CCITT',
+            'After inline invalid-column CCITT',
+        ];
+        $inlinePlainText = $extractor->extractPlainText($inlinePdf);
+
+        $t->same($expectedInline, $extractor->extractTextLines($inlinePdf));
+        $t->same($expectedInline, $extractor->extractTextRuns($inlinePdf));
+        $t->same(implode("\n", $expectedInline), $inlinePlainText);
+        $t->same(implode("\n", $expectedInline) . "\n", $extractor->naiveGetText($inlinePdf));
+        $t->true(!str_contains($inlinePlainText, 'Inline invalid-column CCITT leak'));
+        $t->true(!str_contains($inlinePlainText, 'CCITTFaxDecode'));
+        $t->true(!str_contains($inlinePlainText, 'CCF'));
+    },
     'requires declared CCITT row count before row EOL stream ownership' => static function (TestRunner $t): void {
         $extractor = new PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before multirow CCITT) Tj ET';
