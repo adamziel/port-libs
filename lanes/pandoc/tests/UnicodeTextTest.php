@@ -209,6 +209,28 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка № 7.</p>', $blocks);
     },
+    'decodes iso 8859 6 arabic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xC7\xE4\xD9\xD1\xC8\xEA\xC9\n\n\xE5\xCD\xD1\xD1 \xD9\xD1\xC8\xEA\xC9\xAC \xD3\xC4\xC7\xE4\xBB \xE7\xE4\xBF";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-127');
+        $document = (new MarkdownReader())->readBytes($bytes, 'arabic');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA0\xA4\xAC\xAD\xBB\xBF\xC1\xE0\xEB\xEC\xED\xEE\xEF\xF0\xF1\xF2", 'iso-8859-6');
+        $undefined = UnicodeText::decodeBytes("A\xA1B\xBAC\xDBD\xFFE", 'iso-8859-6');
+
+        $t->same('iso-8859-6', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# العربية\n\nمحرر عربية، سؤال؛ هل؟", $decoded['text']);
+        $t->same("\u{00A0}¤،\u{00AD}؛؟ءـًٌٍَُِّْ", $specials['text']);
+        $t->same(7, UnicodeText::displayWidth($specials['text']));
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E", $undefined['text']);
+        $t->same(4, $undefined['repairs']);
+        $t->same(['encoding' => 'iso-8859-6', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('العربية', $document->children[0]->attr('text'));
+        $t->same('محرر عربية، سؤال؛ هل؟', $document->children[1]->attr('text'));
+        $t->same(21, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="العربية">العربية</h1>', $blocks);
+        $t->contains('<p>محرر عربية، سؤال؛ هل؟</p>', $blocks);
+    },
     'decodes iso 8859 7 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-126');
