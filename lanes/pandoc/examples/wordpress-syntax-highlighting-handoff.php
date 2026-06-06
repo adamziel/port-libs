@@ -316,6 +316,12 @@ if (!$phpAttributeCodeBlock instanceof PortLibs\Pandoc\AstNode || $phpAttributeC
 }
 $phpAttribute = $highlighter->highlightCodeBlock($phpAttributeCodeBlock, 'pygments');
 $phpAttributeWordpressBlock = $highlighter->wordpressHtmlBlock($phpAttributeCodeBlock, 'pygments');
+$asciidocCodeBlock = $document->children[46] ?? null;
+if (!$asciidocCodeBlock instanceof PortLibs\Pandoc\AstNode || $asciidocCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an AsciiDoc code block');
+}
+$asciidoc = $highlighter->highlightCodeBlock($asciidocCodeBlock, 'haddock');
+$asciidocWordpressBlock = $highlighter->wordpressHtmlBlock($asciidocCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1334,6 +1340,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($phpAttributeWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
         throw new RuntimeException('Expected PHP attribute WordPress style metadata');
     }
+    if (($asciidoc['language'] ?? '') !== 'asciidoc') {
+        throw new RuntimeException('Expected AsciiDoc fixture to normalize to AsciiDoc highlighting');
+    }
+    if (($asciidoc['lineNumbering']['start'] ?? null) !== 550) {
+        throw new RuntimeException('Expected AsciiDoc source startFrom line-number handoff');
+    }
+    if (!str_contains($asciidoc['html'], '<span class="re">= Legacy Import Review</span>')) {
+        throw new RuntimeException('Expected AsciiDoc heading token handoff');
+    }
+    if (!str_contains($asciidoc['html'], '<span class="ot">:source-id:</span> legacy<span class="dv">-42</span>')) {
+        throw new RuntimeException('Expected AsciiDoc attribute entry token handoff');
+    }
+    if (!str_contains($asciidoc['html'], '<span class="fu">image::</span>uploads')) {
+        throw new RuntimeException('Expected AsciiDoc block macro token handoff');
+    }
+    if (!str_contains($asciidoc['html'], '<span class="dt">echo esc_html($title); // reviewed output &lt;1&gt;</span>')) {
+        throw new RuntimeException('Expected AsciiDoc listing body handoff');
+    }
+    if (!str_contains($asciidocWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected AsciiDoc WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1404,6 +1431,7 @@ echo "htmlEmbeddedHighlightedHtml:\n" . $htmlEmbedded['html'] . "\n";
 echo "htmlPhpHighlightedHtml:\n" . $htmlPhp['html'] . "\n";
 echo "graphqlHighlightedHtml:\n" . $graphql['html'] . "\n";
 echo "phpAttributeHighlightedHtml:\n" . $phpAttribute['html'] . "\n";
+echo "asciidocHighlightedHtml:\n" . $asciidoc['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1445,4 +1473,5 @@ echo "htmlEmbeddedWordpressBlock:\n" . $htmlEmbeddedWordpressBlock . "\n";
 echo "htmlPhpWordpressBlock:\n" . $htmlPhpWordpressBlock . "\n";
 echo "graphqlWordpressBlock:\n" . $graphqlWordpressBlock . "\n";
 echo "phpAttributeWordpressBlock:\n" . $phpAttributeWordpressBlock . "\n";
+echo "asciidocWordpressBlock:\n" . $asciidocWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

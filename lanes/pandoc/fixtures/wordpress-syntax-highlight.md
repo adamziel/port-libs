@@ -723,3 +723,22 @@ enum ImportStatus: string
 
 $normalize = fn(array $item): string => $item['title'] ?? ImportStatus::Draft->value;
 ```
+
+``` {.adoc #asciidoc-review .numberLines startFrom=550}
+// WordPress importer runbook review
+= Legacy Import Review
+:source-id: legacy-42
+:wp-block: core/paragraph
+
+[[review-queue]]
+NOTE: Preserve `legacy_shortcode` blocks before publishing.
+
+image::uploads/hero.jpg[Hero image]
+link:https://example.test/wp-admin/edit.php[Reviewer queue]
+
+[source,php]
+----
+echo esc_html($title); // reviewed output <1>
+----
+<1> Escaped WordPress block title.
+```

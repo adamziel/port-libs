@@ -42,6 +42,10 @@ return [
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache-config'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('htaccess'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('httpd-conf'));
+        $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('asciidoc'));
+        $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('adoc'));
+        $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('asc'));
+        $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('language-asciidoctor'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rst'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rest'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
@@ -1117,6 +1121,51 @@ return [
         $t->contains('<span class="ot">#[BlockVariation(name: &quot;legacy/import&quot;)]</span>', $directAttribute['html']);
         $t->contains('<span class="kw">enum</span> <span class="dt">ImportStatus</span><span class="op">:</span> <span class="dt">string</span>', $directAttribute['html']);
         $t->same(false, str_contains($directAttribute['html'], '<span class="co">#[BlockVariation'));
+    },
+    'highlights asciidoc runbook snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[46] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an AsciiDoc code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directAdoc = $highlighter->highlight('link:https://example.test/import[review] and {source-id}', 'asciidoctor');
+
+        $t->same('adoc', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('adoc'));
+        $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('asciidoctor'));
+        $t->same('asciidoc', $highlighted['language']);
+        $t->same('adoc', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(550, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource adoc numberLines"><code class="sourceCode asciidoc" style="counter-reset: source-line 549;">', $highlighted['html']);
+        $t->contains('<span id="asciidoc-review-550"><a href="#asciidoc-review-550"></a><span class="co">// WordPress importer runbook review</span></span>', $highlighted['html']);
+        $t->contains('<span class="re">= Legacy Import Review</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:source-id:</span> legacy<span class="dv">-42</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:wp-block:</span> core<span class="op">/</span>paragraph', $highlighted['html']);
+        $t->contains('<span class="ot">[[review-queue]]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">NOTE:</span> Preserve <span class="dt">`legacy_shortcode`</span> blocks before publishing<span class="op">.</span>', $highlighted['html']);
+        $t->contains('<span class="fu">image::</span>uploads<span class="op">/</span>hero<span class="op">.</span>jpg<span class="op">[</span>Hero image<span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="fu">link:</span><span class="ot">https://example.test/wp-admin/edit.php</span><span class="op">[</span>Reviewer queue<span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="ot">[source,php]</span>', $highlighted['html']);
+        $t->contains('<span class="re">----</span>', $highlighted['html']);
+        $t->contains('<span class="dt">echo esc_html($title); // reviewed output &lt;1&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="cn">&lt;1&gt;</span> Escaped WordPress block title<span class="op">.</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="fu">image::</span>uploads', $wordpressBlock);
+        $t->same('asciidoc', $directAdoc['language']);
+        $t->same('asciidoctor', $directAdoc['requestedLanguage']);
+        $t->contains('<span class="fu">link:</span><span class="ot">https://example.test/import</span><span class="op">[</span>review<span class="op">]</span>', $directAdoc['html']);
+        $t->contains('<span class="va">{source-id}</span>', $directAdoc['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

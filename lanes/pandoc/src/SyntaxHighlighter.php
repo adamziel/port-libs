@@ -46,6 +46,10 @@ final class SyntaxHighlighter
         'apache-config' => 'apache',
         'apache2' => 'apache',
         'apacheconf' => 'apache',
+        'adoc' => 'asciidoc',
+        'asc' => 'asciidoc',
+        'asciidoc' => 'asciidoc',
+        'asciidoctor' => 'asciidoc',
         'bash' => 'bash',
         'c' => 'c',
         'cargo-lock' => 'toml',
@@ -622,6 +626,7 @@ final class SyntaxHighlighter
     {
         return match ($language) {
             'apache' => $this->tokenizeApacheConfig($code),
+            'asciidoc' => $this->tokenizeAsciiDoc($code),
             'bash' => $this->tokenizeBash($code),
             'c', 'cpp' => $this->tokenizeC($code),
             'cmake' => $this->tokenizeCMake($code),
@@ -2246,6 +2251,129 @@ final class SyntaxHighlighter
         }
 
         return $tokens;
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeAsciiDoc(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+        $listingDelimiter = null;
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $trimmed = trim($line);
+            if ($listingDelimiter !== null) {
+                if ($trimmed === $listingDelimiter) {
+                    $this->appendToken($tokens, 'region', $line);
+                    $listingDelimiter = null;
+                } else {
+                    $this->appendToken($tokens, 'datatype', $line);
+                }
+            } else {
+                $delimiter = self::asciidocBlockDelimiter($trimmed);
+                if ($delimiter !== null) {
+                    $this->appendToken($tokens, 'region', $line);
+                    $listingDelimiter = $delimiter;
+                } else {
+                    $this->tokenizeAsciiDocLine($line, $tokens);
+                }
+            }
+
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeAsciiDocLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(\/\/.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(:{1}[A-Za-z0-9_.-]+:)(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'attribute', $matches[2]);
+            $this->appendAsciiDocInline($matches[3], $tokens);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(\\[(?:source,[A-Za-z0-9_+.#-]+|[A-Za-z0-9_+.#,-]+)\\])([ \t]*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'attribute', $matches[2]);
+            $this->appendToken($tokens, 'text', $matches[3]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(={1,6}[ \t]+.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'region', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(?:([*.-])|([0-9]+[.)]))([ \t]+)(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'operator', ($matches[2] !== '' ? $matches[2] : $matches[3]) . $matches[4]);
+            $this->appendAsciiDocInline($matches[5], $tokens);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(NOTE|TIP|IMPORTANT|WARNING|CAUTION):([ \t]+.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'keyword', $matches[2] . ':');
+            $this->appendAsciiDocInline($matches[3], $tokens);
+            return;
+        }
+
+        $this->appendAsciiDocInline($line, $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendAsciiDocInline(string $text, array &$tokens): void
+    {
+        $this->scanInto($text, [
+            ['attribute', '/^\\[\\[[A-Za-z0-9_.:-]+\\]\\]/'],
+            ['attribute', '/^(?:https?|ftp):\\/\\/[^\\s<>"\'`)\\[\\]]+/'],
+            ['function', '/^[A-Za-z][A-Za-z0-9_-]*::(?=[^\\s\\[])/'],
+            ['function', '/^[A-Za-z][A-Za-z0-9_-]*:(?=[^\\s\\[])/'],
+            ['variable', '/^\\{[A-Za-z0-9_.:-]+\\}/'],
+            ['constant', '/^<\\d+>/'],
+            ['datatype', '/^`[^`\\n]+`/'],
+            ['keyword', '/^\\*[^*\\n]+\\*/'],
+            ['variable', '/^_[^_\\n]+_/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['operator', '/^(?:<<|>>|::|[\\\\[\\]{}(),:;=+*<>|\\/.#-])/'],
+        ], $tokens);
+    }
+
+    private static function asciidocBlockDelimiter(string $line): ?string
+    {
+        return in_array($line, ['----', '....'], true) ? $line : null;
     }
 
     /**
