@@ -311,7 +311,7 @@ final class PdfEngineHandoff
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     pdfRichMediaActivationModes: array<string, int>,
-     *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
@@ -1513,6 +1513,8 @@ final class PdfEngineHandoff
                     $annotationActionCount = 0;
                     $annotationDestinationCount = 0;
                     $annotationFlagCount = 0;
+                    $annotationReplyCount = 0;
+                    $annotationReviewStateCount = 0;
                     foreach ($pdfAnnotations as $annotation) {
                         if (is_string($annotation['contents'] ?? null) && $annotation['contents'] !== '') {
                             $annotationContentCount++;
@@ -1530,6 +1532,15 @@ final class PdfEngineHandoff
                         if (($annotation['flags'] ?? 0) !== 0) {
                             $annotationFlagCount++;
                         }
+                        if (is_string($annotation['replyTo'] ?? null) && $annotation['replyTo'] !== '') {
+                            $annotationReplyCount++;
+                        }
+                        if (
+                            (is_string($annotation['state'] ?? null) && $annotation['state'] !== '')
+                            || (is_string($annotation['stateModel'] ?? null) && $annotation['stateModel'] !== '')
+                        ) {
+                            $annotationReviewStateCount++;
+                        }
                     }
                     if ($annotationContentCount > 0) {
                         $diagnostics[] = 'pdf-byte-annotation-contents:' . $annotationContentCount;
@@ -1542,6 +1553,12 @@ final class PdfEngineHandoff
                     }
                     if ($annotationFlagCount > 0) {
                         $diagnostics[] = 'pdf-byte-annotation-flags:' . $annotationFlagCount;
+                    }
+                    if ($annotationReplyCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-replies:' . $annotationReplyCount;
+                    }
+                    if ($annotationReviewStateCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-review-states:' . $annotationReviewStateCount;
                     }
                 }
                 if ($pdfAnnotationTypes !== []) {
@@ -1871,7 +1888,7 @@ final class PdfEngineHandoff
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     finalPdfRichMediaActivationModes: array<string, int>,
-     *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
@@ -3177,7 +3194,7 @@ final class PdfEngineHandoff
      *     signatureSubFilters:array<string, int>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
-     *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
+     *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
@@ -10265,7 +10282,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>
      */
     private function extractPdfAnnotations(string $pdfBytes, ?string $catalog): array
     {
@@ -10314,7 +10331,7 @@ final class PdfEngineHandoff
     /**
      * @param array<string, string> $objects
      * @param array<string, bool> $visited
-     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}> $annotations
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}> $annotations
      */
     private function collectPdfAnnotationsFromPageTree(
         array $objects,
@@ -10351,7 +10368,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}> $annotations
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}> $annotations
      */
     private function collectPdfAnnotationsFromPage(
         string $pageDictionary,
@@ -10385,7 +10402,7 @@ final class PdfEngineHandoff
     /**
      * @param array{kind:string, value:string, next:int} $value
      * @param array<string, string> $objects
-     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}|null
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}|null
      */
     private function summarizePdfAnnotationValue(array $value, array $objects, int $pageNumber, string $pageReference): ?array
     {
@@ -10407,7 +10424,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}|null
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}|null
      */
     private function summarizePdfAnnotation(
         string $dictionary,
@@ -10437,6 +10454,10 @@ final class PdfEngineHandoff
             'name' => $this->extractPdfStringOrNameValue($dictionary, 'NM'),
             'modified' => $this->extractPdfStringOrNameValue($dictionary, 'M'),
             'iconName' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'replyTo' => $this->extractPdfReferenceToken($dictionary, 'IRT'),
+            'replyType' => $this->extractPdfStringOrNameValue($dictionary, 'RT'),
+            'state' => $this->extractPdfStringOrNameValue($dictionary, 'State'),
+            'stateModel' => $this->extractPdfStringOrNameValue($dictionary, 'StateModel'),
             'flags' => $flags,
             'flagNames' => $this->pdfAnnotationFlagNames($flags),
             'color' => $this->extractPdfNumberArrayValues($dictionary, 'C'),

@@ -2694,7 +2694,7 @@ MARKDOWN);
             '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
             'endobj',
             '3 0 obj',
-            '<< /Type /Page /Parent 2 0 R /Annots [5 0 R 6 0 R] >>',
+            '<< /Type /Page /Parent 2 0 R /Annots [5 0 R 6 0 R 8 0 R] >>',
             'endobj',
             '4 0 obj',
             '<< /Type /Page /Parent 2 0 R /Annots 7 0 R >>',
@@ -2707,6 +2707,9 @@ MARKDOWN);
             'endobj',
             '7 0 obj',
             '[<< /Type /Annot /Subtype /Text /Rect [72 540 96 564] /Contents <FEFF0050006100670065002000320020006E006F00740065> /Name /Comment /F 32 /Dest [4 0 R /FitH 540] >>]',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Annot /Subtype /Text /Rect [72 568 96 592] /Contents (Reviewer accepted highlight) /T (Content Reviewer) /NM (annot-reply-1) /IRT 6 0 R /RT /Group /State (Accepted) /StateModel /Review /F 4 >>',
             'endobj',
             'trailer',
             '<< /Root 1 0 R >>',
@@ -2740,6 +2743,10 @@ MARKDOWN);
                 'name' => null,
                 'modified' => null,
                 'iconName' => null,
+                'replyTo' => null,
+                'replyType' => null,
+                'state' => null,
+                'stateModel' => null,
                 'flags' => 4,
                 'flagNames' => ['print'],
                 'color' => [0.0, 0.0, 1.0],
@@ -2762,6 +2769,10 @@ MARKDOWN);
                 'name' => 'annot-42',
                 'modified' => 'D:20260606051200Z',
                 'iconName' => null,
+                'replyTo' => null,
+                'replyType' => null,
+                'state' => null,
+                'stateModel' => null,
                 'flags' => 516,
                 'flagNames' => ['print', 'lockedContents'],
                 'color' => [1.0, 0.92, 0.2],
@@ -2771,6 +2782,32 @@ MARKDOWN);
                 'destPageObject' => null,
                 'destFit' => null,
                 'destTarget' => 'review-highlight',
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '8 0 R',
+                'subtype' => 'Text',
+                'rect' => [72.0, 568.0, 96.0, 592.0],
+                'quadPoints' => null,
+                'contents' => 'Reviewer accepted highlight',
+                'title' => 'Content Reviewer',
+                'name' => 'annot-reply-1',
+                'modified' => null,
+                'iconName' => null,
+                'replyTo' => '6 0 R',
+                'replyType' => 'Group',
+                'state' => 'Accepted',
+                'stateModel' => 'Review',
+                'flags' => 4,
+                'flagNames' => ['print'],
+                'color' => null,
+                'border' => null,
+                'actionType' => null,
+                'actionTarget' => null,
+                'destPageObject' => null,
+                'destFit' => null,
+                'destTarget' => null,
             ],
             [
                 'page' => 2,
@@ -2784,6 +2821,10 @@ MARKDOWN);
                 'name' => null,
                 'modified' => null,
                 'iconName' => 'Comment',
+                'replyTo' => null,
+                'replyType' => null,
+                'state' => null,
+                'stateModel' => null,
                 'flags' => 32,
                 'flagNames' => ['noView'],
                 'color' => null,
@@ -2798,11 +2839,13 @@ MARKDOWN);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfAnnotations']);
-        $t->contains('pdf-byte-annotation-metadata:3', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-annotation-contents:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-metadata:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-contents:3', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-annotation-actions:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-annotation-destinations:2', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-annotation-flags:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-flags:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-replies:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-annotation-review-states:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfAnnotations']);
     },
