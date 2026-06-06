@@ -2286,6 +2286,64 @@ return [
             $removeTree($output);
         }
     },
+    'records convert.py task tuple order before worker-side unpacking' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf', 'notes.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'alpha.pdf' => ['title' => 'Alpha Import', 'languages' => ['English']],
+                    'notes.txt' => 'sidecar metadata stays positional',
+                ],
+                minLength: 80,
+                workers: 6,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $review = $plan['worker_pool']['task_arg_identity_review'];
+            $t->same('task_args = [(f, out_folder, metadata.get(os.path.basename(f)), args.min_length) for f in files_to_convert]', $review['task_arg_tuple_source']);
+            $t->same('filepath, out_folder, metadata, min_length = args', $review['process_single_pdf_unpack']);
+            $t->same(['filepath', 'out_folder', 'metadata', 'min_length'], $review['task_arg_tuple_order']);
+            $t->same(4, $review['task_arg_tuple_arity']);
+            $t->same(2, $review['metadata_tuple_position']);
+            $t->same(3, $review['min_length_tuple_position']);
+            $t->same(true, $review['tuple_order_preserved']);
+            $t->same(3, $review['task_args_count']);
+            $t->same(3, count($review['task_arg_tuple_rows']));
+
+            $rowsByFilename = [];
+            foreach ($review['task_arg_tuple_rows'] as $row) {
+                $rowsByFilename[basename((string) $row[0])] = $row;
+            }
+
+            $t->same($fileOrder, array_keys($rowsByFilename));
+            $t->same($input . DIRECTORY_SEPARATOR . 'alpha.pdf', $rowsByFilename['alpha.pdf'][0]);
+            $t->same($output, $rowsByFilename['alpha.pdf'][1]);
+            $t->same(['title' => 'Alpha Import', 'languages' => ['English']], $rowsByFilename['alpha.pdf'][2]);
+            $t->same(80, $rowsByFilename['alpha.pdf'][3]);
+            $t->same(null, $rowsByFilename['beta.pdf'][2]);
+            $t->same('sidecar metadata stays positional', $rowsByFilename['notes.txt'][2]);
+            $t->same(80, $rowsByFilename['notes.txt'][3]);
+            $t->same('convert-single-pdf-metadata-get-failed', $plan['worker_pool']['per_file_metadata_error_boundary']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'preserves convert.py os.listdir order through chunk and max slicing' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

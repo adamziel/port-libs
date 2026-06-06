@@ -1467,6 +1467,7 @@ final class BatchConverter
     private function runtimeTaskArgIdentityReview(array $taskArgs, ?string $poolErrorBoundary = null): array
     {
         $records = [];
+        $tupleRows = [];
         $recordsByResolvedTarget = [];
         foreach ($taskArgs as $taskArg) {
             $filepath = (string) $taskArg['filepath'];
@@ -1479,6 +1480,12 @@ final class BatchConverter
                 'resolved_target_available' => is_string($resolvedTarget),
             ];
             $records[] = $record;
+            $tupleRows[] = [
+                $filepath,
+                (string) $taskArg['out_folder'],
+                $taskArg['metadata'],
+                $taskArg['min_length'],
+            ];
             $recordsByResolvedTarget[$record['resolved_target']][] = $record;
         }
 
@@ -1519,6 +1526,14 @@ final class BatchConverter
             'pool_error_boundary' => $poolErrorBoundary,
             'task_args_count' => count($taskArgs),
             'task_arg_filenames' => array_map(static fn (array $record): string => (string) $record['filename'], $records),
+            'task_arg_tuple_source' => 'task_args = [(f, out_folder, metadata.get(os.path.basename(f)), args.min_length) for f in files_to_convert]',
+            'process_single_pdf_unpack' => 'filepath, out_folder, metadata, min_length = args',
+            'task_arg_tuple_order' => ['filepath', 'out_folder', 'metadata', 'min_length'],
+            'task_arg_tuple_arity' => 4,
+            'task_arg_tuple_rows' => $tupleRows,
+            'metadata_tuple_position' => 2,
+            'min_length_tuple_position' => 3,
+            'tuple_order_preserved' => $reviewReached,
             'task_arg_identity_rows' => $records,
             'duplicate_resolved_targets_found' => $duplicateGroups !== [],
             'duplicate_resolved_target_group_count' => count($duplicateGroups),

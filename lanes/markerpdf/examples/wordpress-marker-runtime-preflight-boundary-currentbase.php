@@ -818,6 +818,24 @@ try {
     ) {
         throw new RuntimeException('Expected convert.py runtime preflight to filter only non-files and leave regular non-PDF sidecars as task candidates.');
     }
+    $runtimeTaskIdentity = $runtimePlan['worker_pool']['task_arg_identity_review'];
+    $runtimeTaskTupleRowsByName = [];
+    foreach ($runtimeTaskIdentity['task_arg_tuple_rows'] as $row) {
+        $runtimeTaskTupleRowsByName[basename((string) $row[0])] = $row;
+    }
+    if (
+        $runtimeTaskIdentity['task_arg_tuple_order'] !== ['filepath', 'out_folder', 'metadata', 'min_length']
+        || $runtimeTaskIdentity['task_arg_tuple_arity'] !== 4
+        || $runtimeTaskIdentity['process_single_pdf_unpack'] !== 'filepath, out_folder, metadata, min_length = args'
+        || $runtimeTaskIdentity['tuple_order_preserved'] !== true
+        || array_keys($runtimeTaskTupleRowsByName) !== $runtimePlan['chunking']['selected_filenames']
+        || $runtimeTaskTupleRowsByName['ready-for-marker.pdf'][1] !== $output
+        || $runtimeTaskTupleRowsByName['ready-for-marker.pdf'][2] !== ['title' => 'Ready for Marker', 'languages' => ['English']]
+        || $runtimeTaskTupleRowsByName['ready-for-marker.pdf'][3] !== 80
+        || $runtimeTaskTupleRowsByName['upload-notes.txt'][2] !== null
+    ) {
+        throw new RuntimeException('Expected runtime task args to preserve upstream tuple order before process_single_pdf unpacking.');
+    }
     $runtimeTaskPreflight = $runtimePlan['worker_pool']['process_single_pdf_preflight'];
     if (
         $runtimeTaskPreflight['review_reached'] !== true
@@ -1008,6 +1026,15 @@ try {
         'runtime_sidecar_rejection_boundary' => $runtimeTaskPreflight['sidecar_rejection_boundary'],
         'runtime_task_preflight_status_by_filename' => $runtimeTaskPreflight['status_by_filename'],
         'runtime_task_preflight_return_boundaries' => $runtimeTaskPreflight['upstream_return_boundary_by_filename'],
+        'runtime_task_tuple_source' => $runtimeTaskIdentity['task_arg_tuple_source'],
+        'runtime_task_tuple_unpack' => $runtimeTaskIdentity['process_single_pdf_unpack'],
+        'runtime_task_tuple_order' => $runtimeTaskIdentity['task_arg_tuple_order'],
+        'runtime_task_tuple_arity' => $runtimeTaskIdentity['task_arg_tuple_arity'],
+        'runtime_task_tuple_order_preserved' => $runtimeTaskIdentity['tuple_order_preserved'],
+        'runtime_task_tuple_first_filename' => basename((string) $runtimeTaskIdentity['task_arg_tuple_rows'][0][0]),
+        'runtime_task_tuple_ready_metadata_title' => $runtimeTaskTupleRowsByName['ready-for-marker.pdf'][2]['title'],
+        'runtime_task_tuple_sidecar_metadata' => $runtimeTaskTupleRowsByName['upload-notes.txt'][2],
+        'runtime_task_tuple_min_length_position' => $runtimeTaskIdentity['min_length_tuple_position'],
         'runtime_pool_result_drain_reached' => $runtimePoolResultDrain['review_reached'],
         'runtime_pool_result_drain_call' => $runtimePoolResultDrain['result_drain_call'],
         'runtime_pool_result_values_ignored' => $runtimePoolResultDrain['result_values_ignored'],
