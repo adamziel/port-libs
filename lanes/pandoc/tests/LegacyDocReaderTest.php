@@ -1686,6 +1686,21 @@ return [
         $rootStartSector = substr_replace($rootWithoutMiniStreamBytes, $u32(2), $directorySectorOffset + 116, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($rootStartSector));
     },
+    'rejects malformed active CFB directory entry names before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            'Review/Notes' => 'review stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+
+        $wordDocumentNameLength = 26;
+        $missingTerminator = substr_replace($bytes, "X\0", $directorySectorOffset + 128 + $wordDocumentNameLength - 2, 2);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($missingTerminator));
+
+        $orphanedReviewStorage = substr_replace($bytes, $u32(0xffffffff), $directorySectorOffset + 128 + 68, 4);
+        $invalidNameLength = substr_replace($orphanedReviewStorage, $u16(65), $directorySectorOffset + (2 * 128) + 64, 2);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($invalidNameLength));
+    },
     'rejects red CFB directory sibling-tree roots before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
             'A' => 'a',

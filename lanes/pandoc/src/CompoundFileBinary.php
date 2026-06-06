@@ -583,8 +583,10 @@ final class CompoundFileBinary
 
             $nameLength = self::u16($entryBytes, 64);
             if ($nameLength < 2 || $nameLength > 64 || ($nameLength % 2) !== 0) {
-                $rawEntries[$directoryId] = null;
-                continue;
+                throw new \RuntimeException('CFB active directory entry has an invalid name length');
+            }
+            if (substr($entryBytes, $nameLength - 2, 2) !== "\0\0") {
+                throw new \RuntimeException('CFB active directory entry name is missing its UTF-16LE terminator');
             }
             $nameBytes = substr($entryBytes, 0, $nameLength - 2);
             $name = self::decodeUtf16Le($nameBytes);
