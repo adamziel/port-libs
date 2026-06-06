@@ -1571,6 +1571,8 @@ final class BatchConverter
         $reviews = [];
         $statusByFilename = [];
         $filetypeByFilename = [];
+        $filetypeReviewByFilename = [];
+        $filetypeStdoutMessageByFilename = [];
         $filetypeCheckedByFilename = [];
         $textLengthCheckedByFilename = [];
         $markdownExistsPathByFilename = [];
@@ -1580,6 +1582,7 @@ final class BatchConverter
         $existingMarkdownFilenames = [];
         $markdownExistsDirectoryFilenames = [];
         $unsupportedFiletypeFilenames = [];
+        $filetypeStdoutFilenames = [];
         $shortTextFilenames = [];
         $readyFilenames = [];
         $filetypeCheckedFilenames = [];
@@ -1599,6 +1602,10 @@ final class BatchConverter
 
                 $statusByFilename[$filename] = $status;
                 $filetypeByFilename[$filename] = $preflight['filetype'];
+                $filetypeReviewByFilename[$filename] = $preflight['filetype_review'];
+                $filetypeStdoutMessageByFilename[$filename] = is_array($preflight['filetype_review'])
+                    ? $preflight['filetype_review']['stdout_message_line']
+                    : null;
                 $filetypeCheckedByFilename[$filename] = (bool) $preflight['filetype_checked'];
                 $textLengthCheckedByFilename[$filename] = (bool) $preflight['text_length_checked'];
                 $markdownExistsPathByFilename[$filename] = $preflight['markdown_exists_path'];
@@ -1614,6 +1621,9 @@ final class BatchConverter
                 }
                 if ((bool) $preflight['filetype_checked']) {
                     $filetypeCheckedFilenames[] = $filename;
+                }
+                if (is_array($preflight['filetype_review']) && $preflight['filetype_review']['prints_stdout_message']) {
+                    $filetypeStdoutFilenames[] = $filename;
                 }
                 if ((bool) $preflight['text_length_checked']) {
                     $textLengthCheckedFilenames[] = $filename;
@@ -1640,6 +1650,10 @@ final class BatchConverter
                     'min_length_gate_active' => $preflight['min_length_gate_active'],
                     'filetype_checked' => $preflight['filetype_checked'],
                     'filetype' => $preflight['filetype'],
+                    'filetype_review' => $preflight['filetype_review'],
+                    'filetype_stdout_message_line' => is_array($preflight['filetype_review'])
+                        ? $preflight['filetype_review']['stdout_message_line']
+                        : null,
                     'text_length_checked' => $preflight['text_length_checked'],
                     'text_length' => $preflight['text_length'],
                     'should_invoke_converter' => $preflight['should_invoke_converter'],
@@ -1672,6 +1686,8 @@ final class BatchConverter
             'preflight_reviews' => $reviews,
             'status_by_filename' => $statusByFilename,
             'filetype_by_filename' => $filetypeByFilename,
+            'filetype_review_by_filename' => $filetypeReviewByFilename,
+            'filetype_stdout_message_by_filename' => $filetypeStdoutMessageByFilename,
             'filetype_checked_by_filename' => $filetypeCheckedByFilename,
             'text_length_checked_by_filename' => $textLengthCheckedByFilename,
             'markdown_exists_path_by_filename' => $markdownExistsPathByFilename,
@@ -1684,6 +1700,7 @@ final class BatchConverter
             'short_text_filenames' => $shortTextFilenames,
             'ready_filenames' => $readyFilenames,
             'filetype_checked_filenames' => $filetypeCheckedFilenames,
+            'filetype_stdout_filenames' => $filetypeStdoutFilenames,
             'text_length_checked_filenames' => $textLengthCheckedFilenames,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
@@ -2224,6 +2241,7 @@ final class BatchConverter
             'markdown_exists_directory_counts_as_existing' => $markdownPathType === 'directory',
             'filetype_checked' => false,
             'filetype' => null,
+            'filetype_review' => null,
             'min_length_gate_active' => $this->pythonTruthyInteger($minLength),
             'text_length_checked' => false,
             'text_length' => null,
@@ -2259,9 +2277,11 @@ final class BatchConverter
         }
 
         if ($this->pythonTruthyInteger($minLength)) {
-            $filetype = $this->filetypeDetector->findFiletype($filepath);
+            $filetypeReview = $this->filetypeDetector->findFiletypeReview($filepath);
+            $filetype = (string) $filetypeReview['filetype'];
             $base['filetype_checked'] = true;
             $base['filetype'] = $filetype;
+            $base['filetype_review'] = $filetypeReview;
 
             if ($filetype === 'other') {
                 return [
