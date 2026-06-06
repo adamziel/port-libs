@@ -620,6 +620,25 @@ $inlineImageTokenizerEvenOddClipPathStrayEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerPathPaintStrayEiPdf = static function (string $operatorSequence, string $label): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before {$label} Path Paint Stray) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td ({$label} Path Paint Payload Noise) Tj ET rawtail\n"
+        . "EI\n"
+        . "{$operatorSequence}\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible {$label} Path Paint Before Stray) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After {$label} Path Paint Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerXObjectDoStrayEiPdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before XObject Do Stray) Tj ET\n"
         . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
@@ -1728,6 +1747,39 @@ return [
         $t->true(!str_contains($plainText, 'Even Odd Clip Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'W* n'));
+    },
+    'closes preview-only fallback before path-paint operators followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerPathPaintStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $cases = [
+            ['Stroke', '0 0 m 20 20 l S'],
+            ['Close Stroke', '0 0 m 20 20 l s'],
+            ['Fill', '10 10 40 20 re f'],
+            ['Even Odd Fill', '10 10 40 20 re f*'],
+            ['Fill Stroke', '10 10 40 20 re B*'],
+            ['Close Fill Stroke', '0 0 m 20 20 l h b'],
+        ];
+
+        foreach ($cases as [$label, $operatorSequence]) {
+            $pdf = $inlineImageTokenizerPathPaintStrayEiPdf($operatorSequence, $label);
+            $plainText = $extractor->extractPlainText($pdf);
+            $expected = [
+                "Before {$label} Path Paint Stray",
+                "Visible {$label} Path Paint Before Stray",
+                "Visible After {$label} Path Paint Stray",
+            ];
+
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same(implode("\n", $expected), $plainText);
+            $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+            $t->same(['1'], $extractor->extractPageLabels($pdf));
+            $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+            $t->true(str_contains($plainText, "Visible {$label} Path Paint Before Stray"));
+            $t->true(str_contains($plainText, "Visible After {$label} Path Paint Stray"));
+            $t->true(!str_contains($plainText, "{$label} Path Paint Payload Noise"));
+            $t->true(!str_contains($plainText, 'rawtail'));
+            $t->true(!str_contains($plainText, $operatorSequence));
+        }
     },
     'closes preview-only fallback before XObject Do text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerXObjectDoStrayEiPdf): void {
         $extractor = new PdfTextExtractor();
