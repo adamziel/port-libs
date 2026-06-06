@@ -6,6 +6,17 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfSecurityPreflight
 {
+    private const STANDARD_PERMISSION_OPERATION_LABELS = [
+        'print' => 'print',
+        'modify_contents' => 'modify_contents',
+        'copy_or_extract' => 'copy_or_extract',
+        'add_or_modify_annotations' => 'add_or_modify_annotations',
+        'fill_form_fields' => 'fill_form_fields',
+        'extract_for_accessibility' => 'extract_for_accessibility',
+        'assemble_document' => 'assemble_document',
+        'high_quality_print' => 'high_quality_print',
+    ];
+
     /**
      * Native WordPress/import preflight for PDF security boundaries. It
      * summarizes encryption permissions and signature byte ranges without
@@ -83,6 +94,10 @@ final class PdfSecurityPreflight
             'crypt_filter_content_review_count' => ($cryptFilterContentReview['present'] ?? false) === true ? 1 : 0,
             'crypt_filter_content_review' => $cryptFilterContentReview,
             'permission_preflight' => $permissionPreflight,
+            'standard_permission_operation_review_count' => (int) ($permissionPreflight['standard_permission_operation_review_count'] ?? 0),
+            'standard_permission_operation_review' => is_array($permissionPreflight['standard_permission_operation_review'] ?? null)
+                ? $permissionPreflight['standard_permission_operation_review']
+                : [],
             'permission_handler_review' => is_array($permissionPreflight['permission_handler_review'] ?? null)
                 ? $permissionPreflight['permission_handler_review']
                 : [],
@@ -243,6 +258,11 @@ final class PdfSecurityPreflight
             $permissionBitsReliable,
             $standardAuthenticationMaterialReview
         );
+        $standardPermissionOperationReview = $this->standardPermissionOperationReview(
+            $permissionBits,
+            $permissionBitsReliable,
+            $permissionAuthenticationTrustReview
+        );
 
         if ($securityHandlerDeclarationFailClosed) {
             $policy = 'permissions_malformed_blocked_without_decryption';
@@ -389,6 +409,11 @@ final class PdfSecurityPreflight
                 ? $permissions['permission_bit_statuses']
                 : [],
             'permission_bits' => $permissionBits,
+            'standard_permission_operation_review_count' => (int) $standardPermissionOperationReview['operation_count'],
+            'standard_permission_operation_statuses' => is_array($standardPermissionOperationReview['operation_statuses'] ?? null)
+                ? $standardPermissionOperationReview['operation_statuses']
+                : [],
+            'standard_permission_operation_review' => $standardPermissionOperationReview,
             'copy_or_extract_allowed' => $copyAllowed,
             'accessibility_extract_allowed' => $accessibilityAllowed,
             'print_quality' => $permissionBitsReliable ? ($permissions['print_quality'] ?? null) : null,
@@ -673,6 +698,198 @@ final class PdfSecurityPreflight
         }
 
         return in_array($name, $allowed, true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissionBits
+     * @return array<string, mixed>
+     */
+    private function standardPermissionOperationReview(
+        array $permissionBits,
+        bool $permissionBitsReliable,
+        array $permissionAuthenticationTrustReview
+    ): array {
+        $base = [
+            'source' => 'standard_permission_operation_review',
+            'present' => false,
+            'permission_bits_reliable' => $permissionBitsReliable,
+            'authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
+            'permissions_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
+            'authenticated_permission_bits_reliable' => (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false),
+            'permission_authentication_status' => is_string($permissionAuthenticationTrustReview['status'] ?? null)
+                ? $permissionAuthenticationTrustReview['status']
+                : null,
+            'permission_boundary' => is_string($permissionAuthenticationTrustReview['trust_boundary'] ?? null)
+                ? $permissionAuthenticationTrustReview['trust_boundary']
+                : null,
+            'operation_count' => 0,
+            'operation_names' => [],
+            'operation_statuses' => [],
+            'allowed_operation_names' => [],
+            'pending_authentication_operation_names' => [],
+            'denied_operation_names' => [],
+            'not_applicable_operation_names' => [],
+            'native_import_allowed_operation_names' => [],
+            'operations' => [],
+            'review_only' => true,
+            'executes_permission_enforcement' => false,
+            'executes_decryption' => false,
+        ];
+
+        if (!$permissionBitsReliable || $permissionBits === []) {
+            return array_merge($base, [
+                'status' => 'standard_permission_operations_unavailable_or_unreliable',
+                'permission_boundary' => $base['permission_boundary'] ?? 'blocked_by_unreliable_standard_permission_bits',
+            ]);
+        }
+
+        $rows = [];
+        foreach ($permissionBits as $bit) {
+            if (!is_array($bit) || !is_string($bit['name'] ?? null)) {
+                continue;
+            }
+
+            $rows[] = $this->standardPermissionOperationRow($bit, $permissionAuthenticationTrustReview);
+        }
+
+        $pendingNames = $this->standardPermissionOperationNamesByStatus($rows, 'allowed_by_permission_bit_pending_authentication');
+        $deniedNames = $this->standardPermissionOperationNamesByStatus($rows, 'denied_by_permission_bit');
+        $notApplicableNames = $this->standardPermissionOperationNamesByStatus($rows, 'not_applicable_for_revision');
+        $nativeAllowedNames = $this->standardPermissionNativeAllowedOperationNames($rows);
+
+        return array_merge($base, [
+            'present' => true,
+            'operation_count' => count($rows),
+            'operation_names' => $this->uniqueStringColumn($rows, 'name'),
+            'operation_statuses' => $this->uniqueStringColumn($rows, 'effective_status'),
+            'allowed_operation_names' => array_values(array_unique(array_merge($pendingNames, $nativeAllowedNames))),
+            'pending_authentication_operation_names' => $pendingNames,
+            'denied_operation_names' => $deniedNames,
+            'not_applicable_operation_names' => $notApplicableNames,
+            'native_import_allowed_operation_names' => $nativeAllowedNames,
+            'permission_boundary' => $pendingNames !== []
+                ? 'blocked_until_password_validation_and_permission_authentication'
+                : ($deniedNames !== []
+                    ? 'blocked_by_standard_permission_bit'
+                    : ($notApplicableNames !== [] ? 'not_defined_for_standard_security_handler_revision' : null)),
+            'status' => $pendingNames !== []
+                ? 'standard_permission_operations_pending_authentication'
+                : ($deniedNames !== []
+                    ? 'standard_permission_operations_denied_by_permission_bits'
+                    : ($notApplicableNames !== [] ? 'standard_permission_operations_not_applicable_for_revision' : 'standard_permission_operations_native_allowed')),
+            'operations' => $rows,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $bit
+     * @param array<string, mixed> $permissionAuthenticationTrustReview
+     * @return array<string, mixed>
+     */
+    private function standardPermissionOperationRow(array $bit, array $permissionAuthenticationTrustReview): array
+    {
+        $name = (string) $bit['name'];
+        $applicable = (bool) ($bit['applicable'] ?? false);
+        $syntacticAllowed = (bool) ($bit['allowed'] ?? false);
+        $syntacticDenied = (bool) ($bit['denied'] ?? false);
+        $authenticationRequired = (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false);
+        $permissionsAuthenticated = (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false);
+        $authenticatedReliable = (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false);
+        $trustBoundary = is_string($permissionAuthenticationTrustReview['trust_boundary'] ?? null)
+            ? $permissionAuthenticationTrustReview['trust_boundary']
+            : 'blocked_until_password_validation_and_permission_authentication';
+
+        if (!$applicable) {
+            $effectiveStatus = 'not_applicable_for_revision';
+            $permissionBoundary = 'not_defined_for_standard_security_handler_revision';
+            $wordpressPolicy = 'not_applicable_for_security_handler_revision';
+            $nativeImportAllowed = false;
+        } elseif ($syntacticDenied) {
+            $effectiveStatus = 'denied_by_permission_bit';
+            $permissionBoundary = 'blocked_by_standard_permission_bit';
+            $wordpressPolicy = 'blocked_by_standard_permission_denial';
+            $nativeImportAllowed = false;
+        } elseif ($syntacticAllowed && $authenticationRequired && !$authenticatedReliable) {
+            $effectiveStatus = 'allowed_by_permission_bit_pending_authentication';
+            $permissionBoundary = $trustBoundary;
+            $wordpressPolicy = 'review_only_until_password_validation_and_decryption';
+            $nativeImportAllowed = false;
+        } elseif ($syntacticAllowed) {
+            $effectiveStatus = 'allowed_by_permission_bit';
+            $permissionBoundary = null;
+            $wordpressPolicy = 'native_import_allowed_by_authenticated_permission_bit';
+            $nativeImportAllowed = true;
+        } else {
+            $effectiveStatus = 'permission_bit_unresolved';
+            $permissionBoundary = 'blocked_by_unresolved_standard_permission_bit';
+            $wordpressPolicy = 'blocked_by_unresolved_permission_bit';
+            $nativeImportAllowed = false;
+        }
+
+        return [
+            'source' => 'standard_permission_operation_row',
+            'name' => $name,
+            'operation' => self::STANDARD_PERMISSION_OPERATION_LABELS[$name] ?? $name,
+            'bit' => $bit['bit'] ?? null,
+            'mask_hex' => is_string($bit['mask_hex'] ?? null) ? $bit['mask_hex'] : null,
+            'minimum_revision' => $bit['minimum_revision'] ?? null,
+            'effective_revision' => $bit['effective_revision'] ?? null,
+            'bit_status' => is_string($bit['status'] ?? null) ? $bit['status'] : null,
+            'bit_set' => (bool) ($bit['bit_set'] ?? false),
+            'applicable' => $applicable,
+            'syntactic_allowed' => $syntacticAllowed,
+            'syntactic_denied' => $syntacticDenied,
+            'effective_status' => $effectiveStatus,
+            'authentication_required' => $authenticationRequired,
+            'permissions_authenticated' => $permissionsAuthenticated,
+            'authenticated_permission_bits_reliable' => $authenticatedReliable,
+            'native_import_allowed_now' => $nativeImportAllowed,
+            'permission_boundary' => $permissionBoundary,
+            'wordpress_import_policy' => $wordpressPolicy,
+            'review_only' => true,
+            'executes_permission_enforcement' => false,
+            'executes_decryption' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function standardPermissionOperationNamesByStatus(array $rows, string $status): array
+    {
+        $names = [];
+        foreach ($rows as $row) {
+            if (
+                ($row['effective_status'] ?? null) === $status
+                && is_string($row['name'] ?? null)
+                && !in_array($row['name'], $names, true)
+            ) {
+                $names[] = $row['name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function standardPermissionNativeAllowedOperationNames(array $rows): array
+    {
+        $names = [];
+        foreach ($rows as $row) {
+            if (
+                ($row['native_import_allowed_now'] ?? false) === true
+                && is_string($row['name'] ?? null)
+                && !in_array($row['name'], $names, true)
+            ) {
+                $names[] = $row['name'];
+            }
+        }
+
+        return $names;
     }
 
     /**
@@ -5630,6 +5847,11 @@ final class PdfSecurityPreflight
             $permissionBitsReliable,
             $standardAuthenticationMaterialReview
         );
+        $standardPermissionOperationReview = $this->standardPermissionOperationReview(
+            $permissionBits,
+            $permissionBitsReliable,
+            $permissionAuthenticationTrustReview
+        );
 
         return [
             'is_encrypted' => true,
@@ -5728,6 +5950,11 @@ final class PdfSecurityPreflight
                 ? $permissions['permission_bit_statuses']
                 : [],
             'permission_bits' => $permissionBits,
+            'standard_permission_operation_review_count' => (int) $standardPermissionOperationReview['operation_count'],
+            'standard_permission_operation_statuses' => is_array($standardPermissionOperationReview['operation_statuses'] ?? null)
+                ? $standardPermissionOperationReview['operation_statuses']
+                : [],
+            'standard_permission_operation_review' => $standardPermissionOperationReview,
             'copy_or_extract_allowed' => $permissionBitsReliable
                 ? in_array('copy_or_extract', $allowed, true)
                 : null,
