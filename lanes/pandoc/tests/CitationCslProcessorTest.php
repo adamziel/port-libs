@@ -5765,6 +5765,121 @@ XML
 XML
         ));
     },
+    'applies bounded csl locator conditionals for page chapter and section locators' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-condition-source',
+                'type' => 'report',
+                'title' => 'Locator Condition Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'chapter-condition-source',
+                'type' => 'book',
+                'title' => 'Chapter Locator Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Locator Conditional Review Style</title>
+    <id>https://example.test/styles/bounded-locator-conditional-review</id>
+    <updated>2026-06-06T06:23:40+00:00</updated>
+  </info>
+  <macro name="locator-route">
+    <choose>
+      <if locator="chapter" match="any">
+        <group delimiter=" ">
+          <text value="chapter-route"/>
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+      <else-if locator="section paragraph" match="any">
+        <group delimiter=" ">
+          <text value="section-route"/>
+          <label variable="locator" form="symbol"/>
+          <text variable="locator"/>
+        </group>
+      </else-if>
+      <else-if locator="page" match="any">
+        <group delimiter=" ">
+          <text value="page-route"/>
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </else-if>
+      <else>
+        <text variable="locator" prefix="other-locator "/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <text macro="locator-route"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $branches = $summary['macros']['locator-route'][0]['branches'] ?? [];
+        $t->same('Bounded Locator Conditional Review Style', $summary['title'] ?? null);
+        $t->same(['chapter'], $branches[0]['locators'] ?? null);
+        $t->same(['section', 'paragraph'], $branches[1]['locators'] ?? null);
+        $t->same(['page'], $branches[2]['locators'] ?? null);
+        $t->same([], $branches[0]['variables'] ?? null);
+
+        $document = (new MarkdownReader())->read('Review cites [@locator-condition-source, p. 7; @chapter-condition-source, chap. 2; @locator-condition-source, sec. 4-5; @locator-condition-source, vol. 3].');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = $processed->children[0]->children[1];
+        $t->same('(de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3)', $cluster->attr('rendered'));
+
+        $direct = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'locator-condition-source', 'text' => '[@locator-condition-source]', 'locatorLabel' => 'paragraph', 'locatorValue' => '10-11']),
+            new AstNode('citation', ['id' => 'chapter-condition-source', 'text' => '[@chapter-condition-source]', 'locatorLabel' => 'sub verbo', 'locatorValue' => 'migration']),
+        ]);
+        $t->same('(de la Cruz, section-route ¶¶ 10-11; Archive Team, other-locator migration)', $direct);
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3).', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3).</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Condition Packet.</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2025</dt><dd>Archive Team. Chapter Locator Packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <choose><if locator="unsupported-locator"><text value="bad"/></if></choose>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

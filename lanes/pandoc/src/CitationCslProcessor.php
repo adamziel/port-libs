@@ -4147,6 +4147,15 @@ final class CitationCslProcessor
             $conditions[] = in_array(strtolower((string) ($item['type'] ?? '')), $normalizedTypes, true);
         }
 
+        $locators = $branch['locators'] ?? [];
+        if (is_array($locators) && $locators !== []) {
+            $normalizedLocators = array_map(
+                fn (mixed $locator): string => $this->normalizedLocatorLabel((string) $locator),
+                $locators
+            );
+            $conditions[] = $this->citationLocatorMatches($normalizedLocators, $scope, $citation);
+        }
+
         $positions = $branch['positions'] ?? [];
         if (is_array($positions)) {
             foreach ($positions as $position) {
@@ -4183,6 +4192,23 @@ final class CitationCslProcessor
             'none' => !in_array(true, $conditions, true),
             default => !in_array(false, $conditions, true),
         };
+    }
+
+    /**
+     * @param list<string> $locators
+     */
+    private function citationLocatorMatches(array $locators, string $scope, ?AstNode $citation): bool
+    {
+        if ($scope !== 'citation' || !$citation instanceof AstNode) {
+            return false;
+        }
+
+        $parts = $this->citationLocatorParts($citation);
+        if ($parts['value'] === '') {
+            return false;
+        }
+
+        return in_array($this->normalizedLocatorLabel($parts['label']), $locators, true);
     }
 
     private function citationPositionMatches(string $position, string $scope, ?AstNode $citation): bool
@@ -6148,6 +6174,7 @@ final class CitationCslProcessor
     private function normalizedLocatorLabel(string $label): string
     {
         $label = strtolower(trim($label));
+        $label = str_replace(['_', ' '], '-', $label);
 
         return match ($label) {
             'p', 'pp', 'page', 'pages' => 'page',

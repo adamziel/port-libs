@@ -1406,7 +1406,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1465,7 +1465,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1479,27 +1479,78 @@ final class CslStyle
 
         $variables = self::spaceSeparatedAttribute($branch, 'variable');
         $types = self::spaceSeparatedAttribute($branch, 'type');
+        $locators = array_map(
+            static fn (string $locator): string => self::normalizeLocatorCondition($locator),
+            self::spaceSeparatedAttribute($branch, 'locator')
+        );
         $positions = self::spaceSeparatedAttribute($branch, 'position');
         $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
         $isUncertainDate = self::spaceSeparatedAttribute($branch, 'is-uncertain-date');
+        foreach ($locators as $locator) {
+            if (!in_array($locator, self::supportedLocatorConditions(), true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch locator is not supported: ' . $locator);
+            }
+        }
         foreach ($positions as $position) {
             if (!in_array($position, ['first', 'subsequent', 'ibid', 'ibid-with-locator', 'near-note'], true)) {
                 throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch position is not supported: ' . $position);
             }
         }
 
-        if ($variables === [] && $types === [] && $positions === [] && $isNumeric === [] && $isUncertainDate === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, position, is-numeric, or is-uncertain-date');
+        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && $isNumeric === [] && $isUncertainDate === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, is-numeric, or is-uncertain-date');
         }
 
         return [
             'match' => $match,
             'variables' => $variables,
             'types' => $types,
+            'locators' => $locators,
             'positions' => $positions,
             'isNumeric' => $isNumeric,
             'isUncertainDate' => $isUncertainDate,
             'children' => self::renderingElements($branch, $scope),
+        ];
+    }
+
+    private static function normalizeLocatorCondition(string $locator): string
+    {
+        return str_replace(['_', ' '], '-', strtolower(trim($locator)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function supportedLocatorConditions(): array
+    {
+        return [
+            'appendix',
+            'article-locator',
+            'book',
+            'canon',
+            'chapter',
+            'column',
+            'elocation',
+            'equation',
+            'figure',
+            'folio',
+            'issue',
+            'line',
+            'note',
+            'number',
+            'opus',
+            'page',
+            'paragraph',
+            'part',
+            'rule',
+            'section',
+            'sub-verbo',
+            'supplement',
+            'table',
+            'timestamp',
+            'title',
+            'verse',
+            'volume',
         ];
     }
 
