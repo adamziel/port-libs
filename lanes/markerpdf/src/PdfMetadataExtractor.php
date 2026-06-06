@@ -10465,7 +10465,7 @@ final class PdfMetadataExtractor
         }
 
         if (!$element->hasAttributeNS(self::NS_RDF, 'about')) {
-            return false;
+            return $element->namespaceURI !== self::NS_RDF;
         }
 
         $about = trim($element->getAttributeNS(self::NS_RDF, 'about'));
