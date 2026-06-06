@@ -3245,10 +3245,18 @@ final class ZipPackage
 
     private static function unicodeTextFromExtraFieldData(string $extraFieldData, int $id, string $rawBytes, string $label): ?string
     {
+        $hasUnicodeText = false;
+        $unicodeText = null;
+
         foreach (ZipPackageEntry::extraFieldsFromData($extraFieldData, $label) as $field) {
             if ($field['id'] !== $id) {
                 continue;
             }
+
+            if ($hasUnicodeText) {
+                throw new \RuntimeException("ZIP Unicode extra field for {$label} appears more than once");
+            }
+            $hasUnicodeText = true;
 
             $data = $field['data'];
             if (strlen($data) < 5) {
@@ -3268,10 +3276,10 @@ final class ZipPackage
             $text = substr($data, 5);
             self::assertUtf8($text, "ZIP Unicode extra field for {$label}");
 
-            return $text;
+            $unicodeText = $text;
         }
 
-        return null;
+        return $hasUnicodeText ? $unicodeText : null;
     }
 
     private static function decodeCp437(string $bytes): string

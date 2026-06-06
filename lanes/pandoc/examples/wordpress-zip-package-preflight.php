@@ -2028,6 +2028,20 @@ try {
 } catch (RuntimeException $exception) {
     $utf8UnicodeCommentMismatchRejected = str_contains($exception->getMessage(), 'does not match UTF-8 header text');
 }
+$duplicateUnicodeExtraRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/review.png',
+            'data' => "Duplicate Unicode path extras should stay blocked\n",
+            'compressionMethod' => 0,
+            'extraFieldData' => $buildUnicodeExtra(0x7075, 'word/media/review.png', 'word/media/review.png')
+                . $buildUnicodeExtra(0x7075, 'word/media/review.png', 'word/media/review-alt.png'),
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $duplicateUnicodeExtraRejected = str_contains($exception->getMessage(), 'appears more than once');
+}
 $oversizedMediaPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -3874,6 +3888,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected contradictory UTF-8 ZIP comment metadata to be rejected before media import');
     }
 
+    if (!$duplicateUnicodeExtraRejected) {
+        throw new RuntimeException('Expected duplicate ZIP Unicode path metadata to be rejected before media import');
+    }
+
     echo "zip package writer preflight self-test passed\n";
     exit(0);
 }
@@ -4003,6 +4021,7 @@ echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'reje
 echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDuplicateUnicodeExtraPolicy=' . ($duplicateUnicodeExtraRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExecutablePermissionPolicy=' . ($executablePermissionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";

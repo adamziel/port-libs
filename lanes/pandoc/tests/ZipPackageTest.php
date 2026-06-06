@@ -2167,6 +2167,71 @@ return [
         ])));
     },
 
+    'rejects duplicate info zip unicode path and comment extra fields before media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $alternateUnicodeName = "word/media/review-alt-\u{2603}.png";
+        $rawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $alternateUnicodeComment = "alternate Unicode reviewer \u{2603} comment";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, $unicodeName);
+        $alternateUnicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, $alternateUnicodeName);
+        $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, $unicodeComment);
+        $alternateUnicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, $alternateUnicodeComment);
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'duplicate central Unicode path metadata',
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $alternateUnicodePathExtra,
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'duplicate local Unicode path metadata',
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra . $alternateUnicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'duplicate central Unicode comment metadata',
+                'flags' => 0,
+                'comment' => $rawComment,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $unicodeCommentExtra . $alternateUnicodeCommentExtra,
+            ],
+        ])));
+
+        $safePackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => "single Unicode metadata fields stay readable\n",
+                'flags' => 0,
+                'comment' => $rawComment,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $unicodeCommentExtra,
+            ],
+        ]));
+        $safeEntry = $safePackage->entry('/' . $unicodeName);
+
+        $t->same([$unicodeName], $safePackage->names());
+        $t->same($rawName, $safeEntry->rawName);
+        $t->same($unicodeName, $safeEntry->name);
+        $t->same('info-zip-unicode-path', $safeEntry->nameEncoding);
+        $t->same($rawComment, $safeEntry->rawComment);
+        $t->same($unicodeComment, $safeEntry->comment);
+        $t->same('info-zip-unicode-comment', $safeEntry->commentEncoding);
+        $t->same("single Unicode metadata fields stay readable\n", $safePackage->read('/' . $unicodeName));
+    },
+
     'writes zip entry modification metadata for generated package parts' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             [
