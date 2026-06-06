@@ -259,6 +259,58 @@ $luaEntryPoint = static function (): string {
     ]);
 };
 
+$benchmarkEntryPoint = static function (): string {
+    return implode("\n", [
+        '{-# LANGUAGE OverloadedStrings #-}',
+        'import Text.Pandoc',
+        'import Text.Pandoc.MIME',
+        'import Control.DeepSeq (force)',
+        'import Control.Monad.Except (throwError)',
+        'import qualified Text.Pandoc.UTF8 as UTF8',
+        'import qualified Data.ByteString as B',
+        'import qualified Data.Text as T',
+        'import Test.Tasty.Bench',
+        'import qualified Data.ByteString.Lazy as BL',
+        'import Data.Maybe (mapMaybe)',
+        'import Data.List (sortOn)',
+        'import Text.Pandoc.Format (FlavoredFormat(..))',
+        'readerBench :: Pandoc -> T.Text -> Maybe Benchmark',
+        'readerBench _ name',
+        '  | name `elem` ["bibtex", "biblatex", "csljson"] = Nothing',
+        'readerBench doc name = either (const Nothing) Just $',
+        '  runPure $ do',
+        '    (rdr, rexts) <- getReader $ FlavoredFormat name mempty',
+        '    (wtr, wexts) <- getWriter $ FlavoredFormat name mempty',
+        '    tmpl <- Just <$> compileDefaultTemplate name',
+        '    case (rdr, wtr) of',
+        '      (TextReader r, TextWriter w) -> return $ bench (T.unpack name) $ nf (either (error . show) id . runPure . r def) mempty',
+        '      (ByteStringReader r, ByteStringWriter w) -> return $ bench (T.unpack name) $ nf (either (error . show) id . runPure . r def{readerExtensions = rexts}) mempty',
+        '      _ -> throwError $ PandocSomeError $ "text/bytestring format mismatch: " <> name',
+        'getImages :: IO [(FilePath, MimeType, BL.ByteString)]',
+        'getImages = do',
+        '  ll <- B.readFile "test/lalune.jpg"',
+        '  mv <- B.readFile "test/movie.jpg"',
+        '  return [("lalune.jpg", "image/jpg", BL.fromStrict ll), ("movie.jpg", "image/jpg", BL.fromStrict mv)]',
+        'writerBench :: [(FilePath, MimeType, BL.ByteString)] -> Pandoc -> T.Text -> Maybe Benchmark',
+        'writerBench imgs doc name = either (const Nothing) Just $',
+        '  runPure $ do',
+        '    (wtr, wexts) <- getWriter $ FlavoredFormat name mempty',
+        '    case wtr of',
+        '      TextWriter writerFun -> return $ bench (T.unpack name) $ nf (\\d -> either (error . show) id $ runPure $ do mapM_ (\\(fp,mt,bs) -> insertMedia fp (Just mt) bs) imgs; writerFun def{ writerExtensions = wexts} d) doc',
+        '      ByteStringWriter writerFun -> return $ bench (T.unpack name) $ nf (\\d -> either (error . show) id $ runPure $ do mapM_ (\\(fp,mt,bs) -> insertMedia fp (Just mt) bs) imgs; writerFun def{ writerExtensions = wexts} d) doc',
+        'main :: IO ()',
+        'main = do',
+        '  inp <- UTF8.toText <$> B.readFile "test/testsuite.txt"',
+        '  let opts = def',
+        '  let doc = either (error . show) force $ runPure $ readMarkdown opts inp',
+        '  defaultMain',
+        '    [ env getImages $ \\imgs ->',
+        '      bgroup "writers" $ mapMaybe (writerBench imgs doc . fst) (sortOn fst writers :: [(T.Text, Writer PandocPure)])',
+        '    , bgroup "readers" $ mapMaybe (readerBench doc . fst) (sortOn fst readers :: [(T.Text, Reader PandocPure)])',
+        '    ]',
+    ]);
+};
+
 $runnerArtifacts = static function (): array {
     $files = [];
     foreach (UpstreamRunnerDependencyAudit::expectedRunnerArtifacts() as $relativePath => $kind) {
@@ -272,11 +324,13 @@ $runnerArtifacts = static function (): array {
     return $files;
 };
 
-$benchmarkArtifacts = static function (): array {
+$benchmarkArtifacts = static function () use ($benchmarkEntryPoint): array {
     $files = [];
     foreach (UpstreamRunnerDependencyAudit::expectedBenchmarkArtifacts() as $relativePath => $kind) {
         if ($kind === 'directory') {
             $files[$relativePath . '/.audit-keep'] = 'fixture root present';
+        } elseif ($relativePath === 'benchmark/benchmark-pandoc.hs') {
+            $files[$relativePath] = $benchmarkEntryPoint();
         } else {
             $files[$relativePath] = 'benchmark fixture artifact present';
         }
@@ -426,12 +480,19 @@ return [
         $t->same(array_keys(UpstreamRunnerDependencyAudit::expectedRunnerArtifacts()), $audit['runnerArtifactClosure']['present']);
         $t->same([], $audit['runnerArtifactClosure']['missing']);
         $t->same([], $audit['runnerArtifactClosure']['wrongType']);
+        $t->same([], $audit['benchmarkEntrySourceClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkEntrySourceClosure']['missingSemantics']);
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedBenchmarkEntrySourceSemantics()['benchmark:benchmark-pandoc']['requiredSnippets']),
+            $audit['benchmarkEntrySourceClosure']['present']['benchmark:benchmark-pandoc']['matchedSnippets']
+        );
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, and other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
@@ -1287,6 +1348,7 @@ return [
             'benchmark/benchmark-pandoc.hs',
             'test/lalune.jpg',
         ], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same(['benchmark:benchmark-pandoc'], $audit['benchmarkEntrySourceClosure']['missingTargets']);
         $t->same([], $audit['benchmarkArtifactClosure']['wrongType']);
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('mismatched Cabal benchmark entry points', $blocked);
@@ -1294,9 +1356,50 @@ return [
         $t->contains('mismatched Cabal benchmark direct build-depends constraints: benchmark:benchmark-pandoc (text expected >= 1.1.1.0 && < 2.2, found >= 1.0 && < 2.2)', $blocked);
         $t->contains('mismatched Cabal benchmark default-language: benchmark:benchmark-pandoc expected Haskell2010, found Haskell98', $blocked);
         $t->contains('missing upstream benchmark source/data artifacts: benchmark/benchmark-pandoc.hs, test/lalune.jpg', $blocked);
+        $t->contains('missing benchmark entry point source files: benchmark:benchmark-pandoc', $blocked);
         $t->contains('benchmark source/data artifacts', $audit['activationGate']);
         $t->contains('benchmark build-depends', $audit['activationGate']);
         $t->contains('benchmark executable options', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks benchmark entry point source semantic drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['benchmark/benchmark-pandoc.hs'] = implode("\n", [
+            'module Main (main) where',
+            'import Test.Tasty.Bench',
+            'main = defaultMain []',
+        ]);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkEntrySourceClosure']['missingTargets']);
+        $missing = implode("\n", $audit['benchmarkEntrySourceClosure']['missingSemantics'][$target]);
+        $t->contains('imports pandoc conversion registry', $missing);
+        $t->contains('skips bibliography-only formats', $missing);
+        $t->contains('resolves readers by flavored format', $missing);
+        $t->contains('loads image media fixture lalune', $missing);
+        $t->contains('reads benchmark testsuite fixture', $missing);
+        $t->contains('groups writer benchmarks', $missing);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing benchmark entry point source semantics', $blocked);
+        $t->contains('benchmark:benchmark-pandoc', $blocked);
+        $t->contains('benchmark entry-point source semantics', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'normalizes cabal line comments before resolving runner fields' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
