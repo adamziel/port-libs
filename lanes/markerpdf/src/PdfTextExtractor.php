@@ -35764,7 +35764,7 @@ final class PdfTextExtractor
             }
 
             $token = substr($body, $start, $index - $start);
-            $adjustment = $this->numericOperand($token);
+            $adjustment = $this->finiteFontAdvanceMetric($this->numericOperand($token));
             if ($adjustment !== null) {
                 $elements[] = [
                     'type' => 'adjustment',
