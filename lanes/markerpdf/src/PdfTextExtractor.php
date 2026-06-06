@@ -18440,7 +18440,9 @@ final class PdfTextExtractor
         $references = $this->charProcObjectReferences($fontBody, $objects);
         $dictionaryReference = $this->type3CharProcsDictionaryReference($fontBody);
         if ($dictionaryReference === null) {
-            return $references;
+            return $references !== []
+                ? $references
+                : $this->directCharProcObjectReferencesForFallbackExclusion($fontBody);
         }
 
         $objectBody = $this->objectBodyForExactReference(
@@ -18476,6 +18478,26 @@ final class PdfTextExtractor
             $references,
             $this->charProcObjectReferencesFromDictionary($streamDictionary, $streamDictionaryNames)
         );
+    }
+
+    /**
+     * @return array<string, array{objectNumber: int, generation: int}>
+     */
+    private function directCharProcObjectReferencesForFallbackExclusion(string $fontBody): array
+    {
+        $value = $this->topLevelPdfLastValueAfterName($fontBody, 'CharProcs');
+        if ($value === null) {
+            return [];
+        }
+
+        $value = trim($value);
+        if (!str_starts_with($value, '<<')) {
+            return [];
+        }
+
+        $dictionaryOffset = 0;
+        $dictionary = $this->readPdfDictionaryAt($value, $dictionaryOffset);
+        return $dictionary === null ? [] : $this->charProcObjectReferencesFromDictionary($dictionary);
     }
 
     /**
@@ -18564,6 +18586,13 @@ final class PdfTextExtractor
 
         $dictionaryOffset = 0;
         $value = trim($value);
+
+        if (
+            str_starts_with($value, '<<')
+            && $this->topLevelDirectDictionaryValueHasTrailingNonName($fontBody, 'CharProcs')
+        ) {
+            return null;
+        }
 
         return substr($value, $dictionaryOffset, 2) === '<<'
             ? $this->readPdfDictionaryAt($value, $dictionaryOffset)
