@@ -616,6 +616,7 @@ final class PdfAttachmentExtractor
 
         $kids = $this->arrayValue($this->resolveValue($dict['Kids'] ?? null, $objects));
         if ($kids !== null) {
+            $kids = $this->nameTreeKidsSortedByLimits($kids, $objects, $childLimits);
             foreach ($kids as $kid) {
                 foreach ($this->nameTreeEntries($kid, $objects, $seen, $childLimits, $depth + 1) as $entry) {
                     $entries[] = $entry;
@@ -709,6 +710,67 @@ final class PdfAttachmentExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<mixed> $kids
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @return list<mixed>
+     */
+    private function nameTreeKidsSortedByLimits(array $kids, array $objects, ?array $inheritedLimits): array
+    {
+        if (count($kids) < 2) {
+            return $kids;
+        }
+
+        $kidNodes = [];
+        $boundedNodes = [];
+        foreach ($kids as $order => $kid) {
+            $child = $this->dict($this->resolveValue($kid, $objects));
+            if ($child === null) {
+                return $kids;
+            }
+
+            $localLimits = $this->nameTreeNodeLimits($child, $objects);
+            $limits = $this->nameTreeEffectiveLimits($child, $objects, $inheritedLimits);
+            $node = [
+                'kid' => $kid,
+                'limits' => $limits,
+                'order' => $order,
+                'bounded' => $localLimits !== null && $limits !== null,
+            ];
+            $kidNodes[] = $node;
+            if ($node['bounded']) {
+                $boundedNodes[] = $node;
+            }
+        }
+
+        if (count($boundedNodes) < 2) {
+            return $kids;
+        }
+
+        usort(
+            $boundedNodes,
+            static function (array $left, array $right): int {
+                return strcmp($left['limits']['lower'], $right['limits']['lower'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        $sortedKids = [];
+        $boundedOffset = 0;
+        foreach ($kidNodes as $node) {
+            if (!$node['bounded']) {
+                $sortedKids[] = $node['kid'];
+                continue;
+            }
+
+            $sortedKids[] = $boundedNodes[$boundedOffset]['kid'];
+            ++$boundedOffset;
+        }
+
+        return $sortedKids;
     }
 
     /**
