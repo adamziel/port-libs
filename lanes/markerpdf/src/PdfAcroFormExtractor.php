@@ -10876,6 +10876,7 @@ final class PdfAcroFormExtractor
         }
 
         $objectDataLength = strlen($decoded) - $first;
+        $objectData = substr($decoded, $first);
         $memberBodies = [];
         foreach ($members as $member) {
             $memberOffset = $member['offset'];
@@ -10883,7 +10884,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $nextOffset = $this->objectStreamMemberEndOffset($members, $memberOffset, $objectDataLength);
+            if (!$this->objectStreamMemberOffsetHasTokenBoundary($objectData, $memberOffset)) {
+                continue;
+            }
+
+            $nextOffset = $this->objectStreamMemberEndOffset($members, $memberOffset, $objectDataLength, $objectData);
             if ($nextOffset === null || $nextOffset <= $memberOffset) {
                 continue;
             }
@@ -10942,7 +10947,12 @@ final class PdfAcroFormExtractor
     /**
      * @param list<array{object: int, offset: int}> $members
      */
-    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    private function objectStreamMemberEndOffset(
+        array $members,
+        int $memberOffset,
+        int $objectDataLength,
+        string $objectData
+    ): ?int
     {
         $endOffset = $objectDataLength;
         foreach ($members as $member) {
@@ -10950,10 +10960,89 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
+            if (!$this->objectStreamMemberOffsetHasTokenBoundary($objectData, $member['offset'])) {
+                continue;
+            }
+
             $endOffset = min($endOffset, $member['offset']);
         }
 
         return $endOffset;
+    }
+
+    private function objectStreamMemberOffsetHasTokenBoundary(string $objectData, int $memberOffset): bool
+    {
+        $length = strlen($objectData);
+        if ($memberOffset < 0 || $memberOffset >= $length) {
+            return false;
+        }
+
+        if ($memberOffset === 0) {
+            return true;
+        }
+
+        if ($objectData[$memberOffset] === '%') {
+            return false;
+        }
+
+        $offset = 0;
+        while ($offset < $memberOffset && $offset < $length) {
+            $char = $objectData[$offset];
+            if ($char === '%') {
+                $nextOffset = $this->skipPdfComment($objectData, $offset);
+                if ($nextOffset <= $offset || $memberOffset < $nextOffset) {
+                    return false;
+                }
+
+                $offset = $nextOffset;
+                continue;
+            }
+
+            if ($char === '(') {
+                $nextOffset = $this->skipLiteralString($objectData, $offset);
+                if ($nextOffset <= $offset || $memberOffset < $nextOffset) {
+                    return false;
+                }
+
+                $offset = $nextOffset;
+                continue;
+            }
+
+            if ($char === '<') {
+                $nextOffset = null;
+                if (($objectData[$offset + 1] ?? '') === '<') {
+                    $this->readPdfDictionaryAt($objectData, $offset, $nextOffset);
+                } else {
+                    $nextOffset = $this->skipHexString($objectData, $offset);
+                }
+
+                if ($nextOffset !== null && $nextOffset > $offset) {
+                    if ($memberOffset < $nextOffset) {
+                        return false;
+                    }
+
+                    $offset = $nextOffset;
+                    continue;
+                }
+            }
+
+            if ($char === '[') {
+                $nextOffset = null;
+                $this->readPdfArrayAt($objectData, $offset, $nextOffset);
+                if ($nextOffset !== null && $nextOffset > $offset) {
+                    if ($memberOffset < $nextOffset) {
+                        return false;
+                    }
+
+                    $offset = $nextOffset;
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        return $offset === $memberOffset && $this->isPdfKeywordBoundary($objectData[$memberOffset - 1]);
     }
 
     private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool

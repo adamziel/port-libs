@@ -49,6 +49,47 @@ $acroFormObjectStreamFieldsBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$acroFormObjectStreamFieldOffsetBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm offset-boundary body) Tj ET';
+    $embeddedDecoy = '<< /FT /Tx /T (compressed.offset.decoy) /TU (Offset decoy label) /V (Offset decoy must not surface) >>';
+
+    $currentField = '<< /FT /Tx /T (compressed.current) /TU (Current compressed field label) /Note (ignored note with decoy '
+        . $embeddedDecoy
+        . ' inside literal) /V (current@example.test) /Kids [8 0 R] >>';
+    $currentWidget = '<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>';
+    $statusField = '<< /FT /Ch /T (compressed.review.status) /TU (Review status label) /V (ready) /Opt [(draft) (ready)] /Kids [14 0 R] >>';
+    $statusWidget = '<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 260 624] /P 3 0 R /F 4 >>';
+
+    $memberData = $currentField . "\n" . $currentWidget . "\n" . $statusField . "\n" . $statusWidget . "\n";
+    $badOffset = strpos($memberData, $embeddedDecoy);
+    if ($badOffset === false) {
+        throw new RuntimeException('Unable to locate AcroForm object-stream decoy offset.');
+    }
+
+    $headerPairs = [
+        '6 0',
+        '8 ' . strlen($currentField . "\n"),
+        '30 ' . $badOffset,
+        '10 ' . strlen($currentField . "\n" . $currentWidget . "\n"),
+        '14 ' . strlen($currentField . "\n" . $currentWidget . "\n" . $statusField . "\n"),
+    ];
+    $header = implode(' ', $headerPairs) . ' ';
+    $payload = $header . $memberData;
+    $compressedPayload = gzcompress($payload);
+    if (!is_string($compressedPayload)) {
+        throw new RuntimeException('Unable to compress AcroForm object-stream offset fixture.');
+    }
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 14 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 30 0 R 10 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) >>\nendobj\n"
+        . "20 0 obj\n<< /Type /ObjStm /N 5 /First " . strlen($header) . ' /Filter /FlateDecode /Length ' . strlen($compressedPayload) . " >>\nstream\n{$compressedPayload}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'expands object-stream AcroForm field and widget dictionaries before WordPress review' => static function (
         TestRunner $t
@@ -100,5 +141,37 @@ return [
         $t->true(!str_contains($visibleText, 'publish'));
         $t->true(!str_contains($visibleText, 'Compressed email label'));
         $t->true(!str_contains($visibleText, 'Detached object-stream decoy must not surface'));
+    },
+    'rejects AcroForm object-stream member offsets inside literal strings before WordPress review' => static function (
+        TestRunner $t
+    ) use ($acroFormObjectStreamFieldOffsetBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormObjectStreamFieldOffsetBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['compressed.current', 'compressed.review.status'], array_keys($fields));
+        $t->same(2, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $current = $fields['compressed.current'];
+        $t->same(6, $current['object']);
+        $t->same('text', $current['field_type_label']);
+        $t->same('current@example.test', $current['value']);
+        $t->same([8], array_column($current['widgets'], 'object'));
+        $t->same([true], array_column($current['widgets'], 'referenced_from_page_annots'));
+
+        $status = $fields['compressed.review.status'];
+        $t->same(10, $status['object']);
+        $t->same('choice', $status['field_type_label']);
+        $t->same('ready', $status['value']);
+        $t->same([14], array_column($status['widgets'], 'object'));
+
+        $t->same('Visible AcroForm offset-boundary body', $visibleText);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'compressed.offset.decoy'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Offset decoy must not surface'));
+        $t->true(!str_contains($visibleText, 'compressed.offset.decoy'));
+        $t->true(!str_contains($visibleText, 'Offset decoy must not surface'));
     },
 ];
