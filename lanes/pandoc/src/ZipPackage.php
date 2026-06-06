@@ -858,6 +858,121 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     timestampEntryCount:int,
+     *     dosTimestampEntryCount:int,
+     *     extendedTimestampEntryCount:int,
+     *     ntfsTimestampEntryCount:int,
+     *     invalidDosTimestampEntryCount:int,
+     *     invalidDosTimestampEntries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>,
+     *     entries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>
+     * }
+     */
+    public function modificationTimePreflight(): array
+    {
+        $timestampEntryCount = 0;
+        $dosTimestampEntryCount = 0;
+        $extendedTimestampEntryCount = 0;
+        $ntfsTimestampEntryCount = 0;
+        $invalidDosTimestampEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $hasDosTimestamp = $entry->hasDosLastModifiedTimestamp();
+            $dosModifiedAt = $entry->dosLastModifiedTimestamp();
+            $extendedModifiedAt = $entry->extendedLastModifiedTimestamp();
+            $ntfsModifiedAt = $entry->ntfsLastModifiedTimestamp();
+            $modifiedAt = $entry->lastModifiedTimestamp();
+            $timestampSource = null;
+            if ($extendedModifiedAt !== null) {
+                $timestampSource = 'extended-timestamp';
+                $extendedTimestampEntryCount++;
+            } elseif ($ntfsModifiedAt !== null) {
+                $timestampSource = 'ntfs';
+                $ntfsTimestampEntryCount++;
+            } elseif ($dosModifiedAt !== null) {
+                $timestampSource = 'dos';
+            }
+
+            if ($hasDosTimestamp) {
+                $dosTimestampEntryCount++;
+            }
+            if ($modifiedAt !== null) {
+                $timestampEntryCount++;
+            }
+            if ($ntfsModifiedAt !== null && $extendedModifiedAt !== null) {
+                $ntfsTimestampEntryCount++;
+            }
+
+            $isDosTimestampValid = !$hasDosTimestamp || $dosModifiedAt !== null;
+            $issues = $isDosTimestampValid ? [] : ['invalid-dos-modified-timestamp'];
+            $summary = [
+                'name' => $entry->name,
+                'modifiedDosTime' => $entry->lastModifiedTime,
+                'modifiedDosDate' => $entry->lastModifiedDate,
+                'hasDosTimestamp' => $hasDosTimestamp,
+                'isDosTimestampValid' => $isDosTimestampValid,
+                'dosModifiedAt' => $dosModifiedAt,
+                'extendedModifiedAt' => $extendedModifiedAt,
+                'ntfsModifiedAt' => $ntfsModifiedAt,
+                'modifiedAt' => $modifiedAt,
+                'timestampSource' => $timestampSource,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if (!$isDosTimestampValid) {
+                $invalidDosTimestampEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'timestampEntryCount' => $timestampEntryCount,
+            'dosTimestampEntryCount' => $dosTimestampEntryCount,
+            'extendedTimestampEntryCount' => $extendedTimestampEntryCount,
+            'ntfsTimestampEntryCount' => $ntfsTimestampEntryCount,
+            'invalidDosTimestampEntryCount' => count($invalidDosTimestampEntries),
+            'invalidDosTimestampEntries' => $invalidDosTimestampEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     timestampEntryCount:int,
+     *     dosTimestampEntryCount:int,
+     *     extendedTimestampEntryCount:int,
+     *     ntfsTimestampEntryCount:int,
+     *     invalidDosTimestampEntryCount:int,
+     *     invalidDosTimestampEntries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>,
+     *     entries:list<array{name:string, modifiedDosTime:int, modifiedDosDate:int, hasDosTimestamp:bool, isDosTimestampValid:bool, dosModifiedAt:?int, extendedModifiedAt:?int, ntfsModifiedAt:?int, modifiedAt:?int, timestampSource:?string, issues:list<string>}>
+     * }
+     */
+    public function assertValidModificationTimes(): array
+    {
+        $summary = $this->modificationTimePreflight();
+        if ($summary['invalidDosTimestampEntryCount'] === 0) {
+            return $summary;
+        }
+
+        $entries = implode(
+            ', ',
+            array_map(
+                static fn (array $entry): string => $entry['name']
+                    . sprintf(' (dos time 0x%04x date 0x%04x)', $entry['modifiedDosTime'], $entry['modifiedDosDate']),
+                $summary['invalidDosTimestampEntries']
+            )
+        );
+
+        throw new \RuntimeException(
+            'ZIP package contains invalid DOS modification timestamps that require explicit import review: '
+            . $entries
+        );
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     extraFieldEntryCount:int,
      *     duplicateExtraFieldEntryCount:int,
      *     duplicateCentralExtraFieldEntryCount:int,
@@ -1880,6 +1995,7 @@ final class ZipPackage
      *     size:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
      *     comments:array<string, mixed>,
+     *     modificationTimes:array<string, mixed>,
      *     extraFields:array<string, mixed>,
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
@@ -1910,6 +2026,7 @@ final class ZipPackage
         $size = $this->sizePreflight();
         $compressionMethods = $this->compressionMethodPreflight();
         $comments = $this->commentPreflight();
+        $modificationTimes = $this->modificationTimePreflight();
         $extraFields = $this->extraFieldPreflight();
         $pathHierarchy = $this->pathHierarchyPreflight();
         $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
@@ -1931,6 +2048,10 @@ final class ZipPackage
 
         if ($comments['hasComments']) {
             $diagnostics[] = 'package-or-entry-comments';
+        }
+
+        if ($modificationTimes['invalidDosTimestampEntryCount'] > 0) {
+            $diagnostics[] = 'invalid-modification-times';
         }
 
         if ($compressionMethods['unsupportedCompressionMethodCount'] > 0) {
@@ -2005,6 +2126,7 @@ final class ZipPackage
             'size' => $size,
             'compressionMethods' => $compressionMethods,
             'comments' => $comments,
+            'modificationTimes' => $modificationTimes,
             'extraFields' => $extraFields,
             'pathHierarchy' => $pathHierarchy,
             'caseInsensitiveNames' => $caseInsensitiveNames,
@@ -2029,6 +2151,7 @@ final class ZipPackage
      *     size:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
      *     comments:array<string, mixed>,
+     *     modificationTimes:array<string, mixed>,
      *     extraFields:array<string, mixed>,
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,

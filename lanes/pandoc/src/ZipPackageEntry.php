@@ -220,19 +220,14 @@ final class ZipPackageEntry
             && ($permissions & 0111) !== 0;
     }
 
-    public function lastModifiedTimestamp(): ?int
+    public function hasDosLastModifiedTimestamp(): bool
     {
-        $extendedTimestamp = $this->extendedLastModifiedTimestamp();
-        if ($extendedTimestamp !== null) {
-            return $extendedTimestamp;
-        }
+        return $this->lastModifiedTime !== 0 || $this->lastModifiedDate !== 0;
+    }
 
-        $ntfsTimestamp = $this->ntfsLastModifiedTimestamp();
-        if ($ntfsTimestamp !== null) {
-            return $ntfsTimestamp;
-        }
-
-        if ($this->lastModifiedTime === 0 && $this->lastModifiedDate === 0) {
+    public function dosLastModifiedTimestamp(): ?int
+    {
+        if (!$this->hasDosLastModifiedTimestamp()) {
             return null;
         }
 
@@ -259,6 +254,21 @@ final class ZipPackageEntry
         );
 
         return $date instanceof \DateTimeImmutable ? $date->getTimestamp() : null;
+    }
+
+    public function lastModifiedTimestamp(): ?int
+    {
+        $extendedTimestamp = $this->extendedLastModifiedTimestamp();
+        if ($extendedTimestamp !== null) {
+            return $extendedTimestamp;
+        }
+
+        $ntfsTimestamp = $this->ntfsLastModifiedTimestamp();
+        if ($ntfsTimestamp !== null) {
+            return $ntfsTimestamp;
+        }
+
+        return $this->dosLastModifiedTimestamp();
     }
 
     /**

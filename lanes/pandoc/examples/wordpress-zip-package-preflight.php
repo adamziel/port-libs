@@ -415,6 +415,56 @@ $buildExtendedTimestampBackedPackage = static function () use ($crc32, $mediaMod
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
 
+$buildInvalidDosTimestampBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/bad-date.txt';
+    $data = "invalid DOS timestamp metadata should be reviewed before media import\n";
+    $crc = $crc32($data);
+    $modifiedTime = 0;
+    $modifiedDate = 0x0020;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        $modifiedTime,
+        $modifiedDate,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        $modifiedTime,
+        $modifiedDate,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
+
 $unicodePathName = "word/media/review-\u{2603}.png";
 $unicodePathRawName = 'word/media/review-image.bin';
 $unicodeRawComment = 'legacy reviewer comment';
@@ -1734,6 +1784,7 @@ $packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
 $packageCaseInsensitiveNamePreflight = $package->caseInsensitiveNamePreflight();
 $packageLocalHeaderPreflight = $package->localHeaderPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
+$packageModificationTimePreflight = $package->modificationTimePreflight();
 $strictImportPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -2015,6 +2066,21 @@ try {
 }
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
+$invalidDosTimestampPackage = ZipPackage::fromString($buildInvalidDosTimestampBackedPackage());
+$invalidDosTimestampPreflight = $invalidDosTimestampPackage->modificationTimePreflight();
+$invalidDosTimestampStrictPreflight = $invalidDosTimestampPackage->strictImportPreflight(4096, 100.0, 4096);
+$invalidDosTimestampRejected = false;
+try {
+    $invalidDosTimestampPackage->assertValidModificationTimes();
+} catch (RuntimeException $exception) {
+    $invalidDosTimestampRejected = str_contains($exception->getMessage(), 'invalid DOS modification timestamps');
+}
+$invalidDosTimestampStrictRejected = false;
+try {
+    $invalidDosTimestampPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $invalidDosTimestampStrictRejected = str_contains($exception->getMessage(), 'invalid-modification-times');
+}
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
 $utf8UnicodePathMismatchRejected = false;
 try {
@@ -2926,6 +2992,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($strictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
         || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
+        || ($strictImportPreflight['modificationTimes']['invalidDosTimestampEntryCount'] ?? null) !== 0
     ) {
         throw new RuntimeException('Expected strict ZIP import preflight to accept the clean WordPress package');
     }
@@ -3296,6 +3363,33 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($package->localExtraField('/word/document.xml', 0xcafe) !== 'wp-review:v1') {
         throw new RuntimeException('Expected document part local ZIP review extra field to round-trip');
+    }
+
+    if (
+        ($packageModificationTimePreflight['entryCount'] ?? null) !== 3
+        || ($packageModificationTimePreflight['timestampEntryCount'] ?? null) !== 1
+        || ($packageModificationTimePreflight['invalidDosTimestampEntryCount'] ?? null) !== 0
+        || ($packageModificationTimePreflight['entries'][2]['timestampSource'] ?? null) !== 'extended-timestamp'
+    ) {
+        throw new RuntimeException('Expected ZIP modification-time preflight to accept generated package timestamps');
+    }
+
+    if ($package->assertValidModificationTimes() !== $packageModificationTimePreflight) {
+        throw new RuntimeException('Expected ZIP modification-time assertion to return the accepted summary');
+    }
+
+    if (
+        !$invalidDosTimestampRejected
+        || !$invalidDosTimestampStrictRejected
+        || ($invalidDosTimestampPreflight['invalidDosTimestampEntryCount'] ?? null) !== 1
+        || ($invalidDosTimestampPreflight['invalidDosTimestampEntries'][0]['name'] ?? null) !== 'word/media/bad-date.txt'
+        || ($invalidDosTimestampStrictPreflight['diagnostics'] ?? null) !== ['invalid-modification-times']
+    ) {
+        throw new RuntimeException('Expected invalid DOS ZIP modification timestamps to stay blocked before media import');
+    }
+
+    if ($invalidDosTimestampPackage->read('/word/media/bad-date.txt') !== "invalid DOS timestamp metadata should be reviewed before media import\n") {
+        throw new RuntimeException('Expected invalid DOS timestamp media bytes to remain readable before strict handoff rejection');
     }
 
     $extendedTimestamps = $extendedTimestampPackage->localExtendedTimestamps('/word/media/reviewer-note.txt');
@@ -3945,10 +4039,15 @@ echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['s
 echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
 echo 'packageReadIntegrity.readableEntryCount=' . $packageReadIntegrityPreflight['readableEntryCount'] . "\n";
 echo 'packageReadIntegrity.failedEntryCount=' . $packageReadIntegrityPreflight['failedEntryCount'] . "\n";
+echo 'packageModificationTimes.timestampEntryCount=' . $packageModificationTimePreflight['timestampEntryCount'] . "\n";
+echo 'packageModificationTimes.invalidDosTimestampEntryCount=' . $packageModificationTimePreflight['invalidDosTimestampEntryCount'] . "\n";
 echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
+echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipInvalidDosTimestampStrictPolicy=' . ($invalidDosTimestampStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipInvalidDosTimestampEntry=' . ($invalidDosTimestampPreflight['invalidDosTimestampEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipTrailingDeflatePolicy=' . ($trailingDeflateRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipTrailingDeflateError=' . ($trailingDeflatePreflight['failedEntries'][0]['error'] ?? 'none') . "\n";
 echo 'packageExtraField.mismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] . "\n";
