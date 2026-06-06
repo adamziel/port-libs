@@ -8471,8 +8471,11 @@ final class PdfImageRenderer
             $nativePrefixFilters[] = $filter;
         }
 
-        if (!is_int($dctFilterIndex) || $dctFilterIndex === 0 || $nativePrefixFilters === []) {
+        if (!is_int($dctFilterIndex)) {
             return null;
+        }
+        if ($dctFilterIndex === 0 || $nativePrefixFilters === []) {
+            return $this->dctPreviewUnverifiedStreamBoundaryReview($resolvedFilters, $stream, $stream);
         }
 
         $decodedPrefix = $this->decodeImageStreamBeforeFilter(
@@ -8486,7 +8489,16 @@ final class PdfImageRenderer
             return null;
         }
 
-        return $this->dctPreviewStreamBoundaryReview(
+        $prefixBoundary = $this->dctPreviewStreamBoundaryReview(
+            $resolvedFilters,
+            $stream,
+            $decodedPrefix,
+            true,
+            $nativePrefixFilters,
+            $resolvedFilters[$dctFilterIndex] ?? 'DCTDecode'
+        );
+
+        return $prefixBoundary ?? $this->dctPreviewUnverifiedStreamBoundaryReview(
             $resolvedFilters,
             $stream,
             $decodedPrefix,
@@ -8554,6 +8566,73 @@ final class PdfImageRenderer
             'byte_stuffed_ff00_seen' => str_contains($jpegBytes, "\xff\x00"),
             'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $jpegBytes) === 1,
             'jpeg_marker_framing_used' => true,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $resolvedFilters
+     * @param list<string> $nativePrefixFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewUnverifiedStreamBoundaryReview(
+        array $resolvedFilters,
+        string $stream,
+        string $reviewStream,
+        bool $decodedFromNativePrefix = false,
+        array $nativePrefixFilters = [],
+        ?string $stoppedBeforeFilter = null
+    ): ?array
+    {
+        if (!in_array('DCTDecode', $resolvedFilters, true) && !in_array('DCT', $resolvedFilters, true)) {
+            return null;
+        }
+
+        $start = 0;
+        $length = strlen($reviewStream);
+        while ($start < $length && str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
+            $start++;
+        }
+        if ($start >= $length) {
+            return null;
+        }
+
+        $hasSoi = substr($reviewStream, $start, 2) === "\xff\xd8";
+        $eoiEnd = null;
+        $paddingEnd = null;
+        if ($hasSoi) {
+            foreach ($this->dctPreviewEoiEndOffsets($reviewStream, $start) as $candidateEnd) {
+                $eoiEnd = $candidateEnd;
+                $paddingEnd = $this->skipDctPreviewPadding($reviewStream, $candidateEnd);
+                break;
+            }
+        }
+
+        $invalidReason = !$hasSoi
+            ? 'missing_jpeg_soi'
+            : ($eoiEnd === null ? 'missing_jpeg_eoi' : 'post_jpeg_eoi_non_padding_bytes');
+
+        return [
+            'source' => 'dctdecode_jpeg_marker_boundary_unverified',
+            'valid_jpeg_marker_boundary' => false,
+            'invalid_reason' => $invalidReason,
+            'jpeg_soi_offset' => $hasSoi ? $start : null,
+            'jpeg_eoi_end_offset' => $eoiEnd,
+            'raw_stream_length' => strlen($stream),
+            'review_stream_length' => strlen($reviewStream),
+            'padding_byte_count' => $eoiEnd === null || $paddingEnd === null ? 0 : max(0, $paddingEnd - $eoiEnd),
+            'stream_trimmed_to_jpeg_eoi' => false,
+            ...($decodedFromNativePrefix ? [
+                'review_stream_decoded_from_native_prefix' => true,
+                'native_prefix_filters' => $nativePrefixFilters,
+                'stopped_before_filter' => $stoppedBeforeFilter,
+            ] : []),
+            'sos_marker_seen' => str_contains($reviewStream, "\xff\xda"),
+            'byte_stuffed_ff00_seen' => str_contains($reviewStream, "\xff\x00"),
+            'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $reviewStream) === 1,
+            'jpeg_marker_framing_used' => false,
             'payload_in_visible_text' => false,
             'review_only' => true,
             'native_raster_decode' => false,
