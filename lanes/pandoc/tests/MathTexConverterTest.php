@@ -549,6 +549,26 @@ return [
         $t->contains('<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>', $explicitMathml);
         $t->contains('<mi>x</mi><mspace width="12pt"></mspace><mi>y</mi><mspace width="0em"></mspace><mi>z</mi>', $metricMathml);
     },
+    'converts bounded tex modulo commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $infixMathml = $converter->texToMathMl('a \\mod n + b \\bmod m_i', true);
+        $parenthesizedMathml = $converter->texToMathMl('x \\pmod {n+1} + y \\pod m_i');
+        $accessibleMathml = $converter->texToAccessibleMathMl('a \\bmod n');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $infixMathml);
+        $t->contains('<mi>a</mi><mspace width="0.4444em"></mspace><mi>mod</mi><mspace width="0.2222em"></mspace><mi>n</mi><mo>+</mo><mi>b</mi><mspace width="0.2222em"></mspace><mi>mod</mi><mspace width="0.2222em"></mspace><msub><mi>m</mi><mi>i</mi></msub>', $infixMathml);
+        $t->contains('<annotation encoding="application/x-tex">a \\mod n + b \\bmod m_i</annotation>', $infixMathml);
+        $t->contains('<mi>x</mi><mspace width="0.2222em"></mspace><mo>(</mo><mi>mod</mi><mspace width="0.2222em"></mspace><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow><mo>)</mo><mo>+</mo><mi>y</mi><mspace width="0.2222em"></mspace><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>)</mo>', $parenthesizedMathml);
+        $t->contains('alttext="a space mod space n"', $accessibleMathml);
+        $t->contains('intent="row(a,space,mod,space,n)"', $accessibleMathml);
+        $t->true(!str_contains($infixMathml, '<mi>\\mod</mi>'));
+        $t->true(!str_contains($infixMathml, '<mi>\\bmod</mi>'));
+        $t->true(!str_contains($parenthesizedMathml, '<mi>\\pmod</mi>'));
+        $t->true(!str_contains($parenthesizedMathml, '<mi>\\pod</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('a \\mod'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('a \\pmod{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('a \\pod_1'));
+    },
     'converts bounded tex equation tags and labels to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $taggedMathml = $converter->texToMathMl('p_i + m_i \\label{eq:review-flow} \\tag{WP-2}', true);

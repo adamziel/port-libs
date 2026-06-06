@@ -1562,6 +1562,10 @@ final class MathTexConverter
             return $this->parseExplicitSpaceCommand($source, $offset, $command);
         }
 
+        if ($command === 'mod' || $command === 'bmod' || $command === 'pmod' || $command === 'pod') {
+            return $this->parseModuloCommand($source, $offset, $command);
+        }
+
         if (isset(self::SPACING_COMMANDS[$command])) {
             return '<mspace width="' . self::SPACING_COMMANDS[$command] . '"></mspace>';
         }
@@ -2388,6 +2392,52 @@ final class MathTexConverter
         $width = $this->normalizeMathSpaceDimension($this->readRequiredGroupText($source, $offset), $command);
 
         return '<mspace width="' . $this->esc($width) . '"' . $attributes . '></mspace>';
+    }
+
+    private function parseModuloCommand(string $source, int &$offset, string $command): string
+    {
+        $argument = $this->parseRequiredScriptedAtomOrGroup($source, $offset, $command . ' argument');
+        $thinSpace = '<mspace width="0.2222em"></mspace>';
+
+        if ($command === 'mod') {
+            return '<mspace width="0.4444em"></mspace><mi>mod</mi>' . $thinSpace . $argument;
+        }
+
+        if ($command === 'bmod') {
+            return $thinSpace . '<mi>mod</mi>' . $thinSpace . $argument;
+        }
+
+        if ($command === 'pmod') {
+            return $thinSpace . '<mo>(</mo><mi>mod</mi>' . $thinSpace . $argument . '<mo>)</mo>';
+        }
+
+        return $thinSpace . '<mo>(</mo>' . $argument . '<mo>)</mo>';
+    }
+
+    private function parseRequiredScriptedAtomOrGroup(string $source, int &$offset, string $label): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' content at offset ' . $offset);
+        }
+
+        if ($char === '{') {
+            return $this->parseRequiredNonEmptyGroup($source, $offset, $label);
+        }
+
+        $defaultScriptPlacement = null;
+        $base = $this->parseAtom($source, $offset, $defaultScriptPlacement);
+        $scriptPlacement = $this->readScriptPlacementCommand($source, $offset);
+        if (
+            $scriptPlacement === null
+            && $defaultScriptPlacement !== null
+            && $this->nextNonWhitespaceIsScriptMarker($source, $offset)
+        ) {
+            $scriptPlacement = $defaultScriptPlacement;
+        }
+
+        return $this->applyScripts($source, $offset, $base, $scriptPlacement);
     }
 
     private function parseExtensibleArrowCommand(string $source, int &$offset, string $command): string

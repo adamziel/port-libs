@@ -63,6 +63,8 @@ Operator limits audit $\sum\limits_{i=1}^{n} p_i + \lim\limits_{x \to 0} f(x) + 
 
 Starred operator limits audit $\operatorname*{argmax}_{p_i \in P}^{\text{draft}} f(p_i) + \operatorname{median}\displaylimits_{i=1}^{n} p_i + \operatorname*{rank}\nolimits_{j} q_j$ stays semantic.
 
+Modulo audit $a \mod n + b \bmod m_i + x \pmod {n+1} + y \pod m_i$ stays semantic.
+
 Math class audit $\mathop{\operatorname{argmax}}\limits_{p_i \in P}^{\text{draft}} f(p_i) + a \mathrel{\approx} b + x \mathbin{\cdot} y + \mathopen{[}q_i\mathclose{]} + f\mathpunct{,}g$ stays semantic.
 
 AMS layout audit $\begin{align}f(p_i) &= m_i \\ g(p_i) &= \frac{a_i}{b_i}\end{align} + \begin{gathered}x+y \\ z\end{gathered} + \begin{split}S &= \sum_{i=1}^{n} p_i \\ &= \frac{a}{b}\end{split}$ stays semantic.
@@ -175,6 +177,7 @@ $summary = [
     'substackMathml' => $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)'),
     'operatorLimitsMathml' => $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx'),
     'starredOperatorLimitsMathml' => $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j'),
+    'moduloMathml' => $converter->texToMathMl('a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i'),
     'mathClassMathml' => $converter->texToMathMl('\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g'),
     'amsEnvironmentMathml' => $converter->texToMathMl('\\begin{align}f(p_i) &= m_i \\\\ g(p_i) &= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &= \\sum_{i=1}^{n} p_i \\\\ &= \\frac{a}{b}\\end{split}'),
     'alignedAtMathml' => $converter->texToMathMl('\\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\\\ x &= y & u &= v\\end{alignedat}'),
@@ -251,6 +254,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)\\)</span>',
         '<span class="math inline">\\(\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx\\)</span>',
         '<span class="math inline">\\(\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j\\)</span>',
+        '<span class="math inline">\\(a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i\\)</span>',
         '<span class="math inline">\\(\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g\\)</span>',
         '<span class="math inline">\\(\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}\\)</span>',
         '<span class="math inline">\\(\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}\\)</span>',
@@ -370,6 +374,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<munderover><mi>argmax</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover>',
         '<munderover><mi>median</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>',
         '<msub><mi>rank</mi><mi>j</mi></msub><msub><mi>q</mi><mi>j</mi></msub>',
+        '<mi>a</mi><mspace width="0.4444em"></mspace><mi>mod</mi><mspace width="0.2222em"></mspace><mi>n</mi><mo>+</mo><mi>b</mi><mspace width="0.2222em"></mspace><mi>mod</mi><mspace width="0.2222em"></mspace><msub><mi>m</mi><mi>i</mi></msub>',
+        '<mi>x</mi><mspace width="0.2222em"></mspace><mo>(</mo><mi>mod</mi><mspace width="0.2222em"></mspace><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow><mo>)</mo><mo>+</mo><mi>y</mi><mspace width="0.2222em"></mspace><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>)</mo>',
+        '<annotation encoding="application/x-tex">a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i</annotation>',
         '<munderover><mrow data-tex-math-class="operator"><mi>argmax</mi></mrow><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover>',
         '<mrow data-tex-math-class="relation"><mo>≈</mo></mrow>',
         '<mrow data-tex-math-class="binary"><mo>⋅</mo></mrow>',
