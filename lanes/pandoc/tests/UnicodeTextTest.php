@@ -209,6 +209,28 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка № 7.</p>', $blocks);
     },
+    'decodes iso 8859 7 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-126');
+        $document = (new MarkdownReader())->readBytes($bytes, 'greek');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xB4\xB5\xB6\xB8\xB9\xBA\xBC\xBE\xBF\xC0\xE0", 'iso-8859-7');
+        $undefined = UnicodeText::decodeBytes("A\xAEB\xD2C\xFFD", 'iso-8859-7');
+
+        $t->same('iso-8859-7', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Ελληνικά\n\nΣυντάκτης «κείμενο» ― €20; Τόνος και ος.", $decoded['text']);
+        $t->same("΄΅ΆΈΉΊΌΎΏΐΰ", $specials['text']);
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D", $undefined['text']);
+        $t->same(3, $undefined['repairs']);
+        $t->same(['encoding' => 'iso-8859-7', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Ελληνικά', $document->children[0]->attr('text'));
+        $t->same('Συντάκτης «κείμενο» ― €20; Τόνος και ος.', $document->children[1]->attr('text'));
+        $t->same(40, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(62, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="ελληνικά">Ελληνικά</h1>', $blocks);
+        $t->contains('<p>Συντάκτης «κείμενο» ― €20; Τόνος και ος.</p>', $blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');

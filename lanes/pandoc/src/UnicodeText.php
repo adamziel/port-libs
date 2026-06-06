@@ -547,6 +547,103 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const ISO_8859_7_REPLACEMENTS = [
+        0xa0 => 0x00a0,
+        0xa1 => 0x2018,
+        0xa2 => 0x2019,
+        0xa3 => 0x00a3,
+        0xa4 => 0x20ac,
+        0xa5 => 0x20af,
+        0xa6 => 0x00a6,
+        0xa7 => 0x00a7,
+        0xa8 => 0x00a8,
+        0xa9 => 0x00a9,
+        0xaa => 0x037a,
+        0xab => 0x00ab,
+        0xac => 0x00ac,
+        0xad => 0x00ad,
+        0xaf => 0x2015,
+        0xb0 => 0x00b0,
+        0xb1 => 0x00b1,
+        0xb2 => 0x00b2,
+        0xb3 => 0x00b3,
+        0xb4 => 0x0384,
+        0xb5 => 0x0385,
+        0xb6 => 0x0386,
+        0xb7 => 0x00b7,
+        0xb8 => 0x0388,
+        0xb9 => 0x0389,
+        0xba => 0x038a,
+        0xbb => 0x00bb,
+        0xbc => 0x038c,
+        0xbd => 0x00bd,
+        0xbe => 0x038e,
+        0xbf => 0x038f,
+        0xc0 => 0x0390,
+        0xc1 => 0x0391,
+        0xc2 => 0x0392,
+        0xc3 => 0x0393,
+        0xc4 => 0x0394,
+        0xc5 => 0x0395,
+        0xc6 => 0x0396,
+        0xc7 => 0x0397,
+        0xc8 => 0x0398,
+        0xc9 => 0x0399,
+        0xca => 0x039a,
+        0xcb => 0x039b,
+        0xcc => 0x039c,
+        0xcd => 0x039d,
+        0xce => 0x039e,
+        0xcf => 0x039f,
+        0xd0 => 0x03a0,
+        0xd1 => 0x03a1,
+        0xd3 => 0x03a3,
+        0xd4 => 0x03a4,
+        0xd5 => 0x03a5,
+        0xd6 => 0x03a6,
+        0xd7 => 0x03a7,
+        0xd8 => 0x03a8,
+        0xd9 => 0x03a9,
+        0xda => 0x03aa,
+        0xdb => 0x03ab,
+        0xdc => 0x03ac,
+        0xdd => 0x03ad,
+        0xde => 0x03ae,
+        0xdf => 0x03af,
+        0xe0 => 0x03b0,
+        0xe1 => 0x03b1,
+        0xe2 => 0x03b2,
+        0xe3 => 0x03b3,
+        0xe4 => 0x03b4,
+        0xe5 => 0x03b5,
+        0xe6 => 0x03b6,
+        0xe7 => 0x03b7,
+        0xe8 => 0x03b8,
+        0xe9 => 0x03b9,
+        0xea => 0x03ba,
+        0xeb => 0x03bb,
+        0xec => 0x03bc,
+        0xed => 0x03bd,
+        0xee => 0x03be,
+        0xef => 0x03bf,
+        0xf0 => 0x03c0,
+        0xf1 => 0x03c1,
+        0xf2 => 0x03c2,
+        0xf3 => 0x03c3,
+        0xf4 => 0x03c4,
+        0xf5 => 0x03c5,
+        0xf6 => 0x03c6,
+        0xf7 => 0x03c7,
+        0xf8 => 0x03c8,
+        0xf9 => 0x03c9,
+        0xfa => 0x03ca,
+        0xfb => 0x03cb,
+        0xfc => 0x03cc,
+        0xfd => 0x03cd,
+        0xfe => 0x03ce,
+    ];
+
+    /** @var array<int, int> */
     private const MAC_ROMAN_REPLACEMENTS = [
         0x80 => 0x00c4,
         0x81 => 0x00c5,
@@ -842,6 +939,7 @@ final class UnicodeText
             || $normalized === 'iso-8859-1'
             || $normalized === 'iso-8859-2'
             || $normalized === 'iso-8859-5'
+            || $normalized === 'iso-8859-7'
             || $normalized === 'iso-8859-15'
             || $normalized === 'macintosh'
         ) {
@@ -1318,6 +1416,7 @@ final class UnicodeText
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
             'iso88595', 'iso88595:1988', 'latin5cyrillic', 'isoir144', 'cyrillic', 'csisolatincyrillic' => 'iso-8859-5',
+            'iso88597', 'iso88597:1987', 'latin7greek', 'isoir126', 'greek', 'greek8', 'elot928', 'ecma118', 'csisolatingreek' => 'iso-8859-7',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
@@ -1713,6 +1812,16 @@ final class UnicodeText
             }
             if ($encoding === 'iso-8859-2' && isset(self::ISO_8859_2_REPLACEMENTS[$byte])) {
                 $out .= self::fromCodepoint(self::ISO_8859_2_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'iso-8859-7' && $byte >= 0xa0) {
+                if (!isset(self::ISO_8859_7_REPLACEMENTS[$byte])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::ISO_8859_7_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'iso-8859-5' && $byte >= 0xa1) {
