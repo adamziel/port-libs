@@ -15123,7 +15123,11 @@ final class PdfTextExtractor
 
         if ($dict[$offset] === '[') {
             $arrayBody = $this->readPdfArrayAt($dict, $offset);
-            $filters = $arrayBody === null ? null : $this->filterNamesFromValue($arrayBody, $objects, [], false);
+            if ($arrayBody === null || $this->directArrayFilterExtraOperand($dict, $offset) !== null) {
+                return null;
+            }
+
+            $filters = $this->filterNamesFromValue($arrayBody, $objects, [], false);
             return $filters === null ? null : $this->normalizeStreamFilterStack($filters);
         }
 
@@ -15156,6 +15160,24 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function directArrayFilterExtraOperand(string $dict, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if ($offset >= strlen($dict) || ($dict[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $arrayBody = $this->readPdfArrayAt($dict, $offset);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        return $this->postDirectFilterExtraDecoderOperand($dict, $offset + strlen($arrayBody) + 2, true);
     }
 
     /**
@@ -15276,7 +15298,11 @@ final class PdfTextExtractor
     /**
      * @return array{type: string, preview: string, name?: string}|null
      */
-    private function postDirectFilterExtraDecoderOperand(string $dict, int $offset): ?array
+    private function postDirectFilterExtraDecoderOperand(
+        string $dict,
+        int $offset,
+        bool $stopAtLength = false
+    ): ?array
     {
         $index = $this->skipPdfWhitespace($dict, $offset);
         $length = strlen($dict);
@@ -15304,7 +15330,19 @@ final class PdfTextExtractor
             }
 
             $name = $this->decodePdfName(substr($dict, $index + 1, $nameEnd - $index - 1));
+            if ($stopAtLength && $name === 'Length') {
+                return null;
+            }
+
             if ($this->streamFilterNameLooksLikeDecoder($name)) {
+                return [
+                    'type' => 'name',
+                    'preview' => substr($dict, $index, $nameEnd - $index),
+                    'name' => $name,
+                ];
+            }
+
+            if ($this->directScalarFilterUnknownNamePrecedesLength($dict, $nameEnd)) {
                 return [
                     'type' => 'name',
                     'preview' => substr($dict, $index, $nameEnd - $index),
@@ -26423,6 +26461,10 @@ final class PdfTextExtractor
             ]];
         }
 
+        $topLevelFilterExtraOperand = $name === 'Filter'
+            ? $this->directArrayFilterExtraOperand($dict, $offset)
+            : null;
+        $topLevelFilterExtraOperandAttached = false;
         $reviews = [];
         foreach ($items as $item) {
             $item = trim($item);
@@ -26457,9 +26499,13 @@ final class PdfTextExtractor
                 'owner_policy' => 'direct_operand',
             ];
             if ($name === 'Filter') {
-                $extraFilterOperand = $tokenType === 'name'
-                    ? $this->directScalarFilterExtraOperand($dict, $offset)
-                    : null;
+                $extraFilterOperand = null;
+                if ($topLevelFilterExtraOperand !== null && !$topLevelFilterExtraOperandAttached) {
+                    $extraFilterOperand = $topLevelFilterExtraOperand;
+                    $topLevelFilterExtraOperandAttached = true;
+                } elseif ($tokenType === 'name') {
+                    $extraFilterOperand = $this->directScalarFilterExtraOperand($dict, $offset);
+                }
                 $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType)
                     && $extraFilterOperand === null;
                 $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($item);
