@@ -4260,14 +4260,64 @@ final class PdfTextExtractor
         foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
+            $resolved = $this->resolvedExactXObjectResourceReference($objects, $objectNumber, $generation);
+            if ($resolved === null) {
+                $references[$resourceName] = [
+                    'objectNumber' => $objectNumber,
+                    'generation' => $generation,
+                    'body' => null,
+                ];
+
+                continue;
+            }
+
             $references[$resourceName] = [
-                'objectNumber' => $objectNumber,
-                'generation' => $generation,
-                'body' => $this->objectBodyForExactReference($objects, $objectNumber, $generation),
+                'objectNumber' => $resolved['object'],
+                'generation' => $resolved['generation'],
+                'body' => $resolved['body'],
             ];
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{object: int, generation: int, body: string}|null
+     */
+    private function resolvedExactXObjectResourceReference(
+        array $objects,
+        int $objectNumber,
+        int $generation,
+        array $seen = []
+    ): ?array {
+        $referenceKey = $objectNumber . ':' . $generation;
+        if (isset($seen[$referenceKey])) {
+            return null;
+        }
+
+        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$referenceKey] = true;
+        $reference = $this->pdfIndirectReferenceValue(trim($body));
+        if ($reference !== null) {
+            return $this->resolvedExactXObjectResourceReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $seen
+            );
+        }
+
+        return [
+            'object' => $objectNumber,
+            'generation' => $generation,
+            'body' => $body,
+        ];
     }
 
     /**
