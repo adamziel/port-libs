@@ -425,6 +425,46 @@ return [
         $t->true(!str_contains($html, 'zero.webp'), 'Expected zero-width srcset candidate to be removed');
         $t->true(!str_contains($html, 'mixed.webp'), 'Expected mixed descriptor srcset candidate to be removed');
     },
+    'normalizes control-separated srcset candidate URLs before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<picture data-review="legacy-responsive">'
+            . '<source srcset=" h&#10;ttps://cdn.example.test/hero.webp?x=1&amp;y=2 02.00x, java&#10;script:alert(1) 3x, ./hero&#13;-wide.webp 0640w" type="image/webp">'
+            . '<img src="cover.jpg" srcset="h&#9;ttps://cdn.example.test/cover.jpg 1x, /media/fallback.jpg" alt="Cover">'
+            . '</picture>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/control-srcset-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<picture data-review="legacy-responsive">'
+            . '<source srcset="https://cdn.example.test/hero.webp?x=1&amp;y=2 2x, https://source.example.test/import/posts/hero-wide.webp 640w" type="image/webp">'
+            . '<img src="https://source.example.test/import/posts/cover.jpg" srcset="https://cdn.example.test/cover.jpg 1x, https://source.example.test/media/fallback.jpg" alt="Cover">'
+            . '</picture>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['img', 'picture', 'source'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['srcset'], $summary['filteredAttributes']);
+        $t->same(['normalized-url', 'unsafe-url', 'normalized-url', 'normalized-url'], $policyDiagnostics);
+        $t->same('https://cdn.example.test/hero.webp?x=1&y=2 2x, https://source.example.test/import/posts/hero-wide.webp 640w', $nodes[0]['children'][0]['attrs']['srcset']);
+        $t->same('https://cdn.example.test/cover.jpg 1x, https://source.example.test/media/fallback.jpg', $nodes[0]['children'][1]['attrs']['srcset']);
+        $t->same('/migration/control-srcset-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, "h\n"), 'Expected control-separated source scheme to be canonicalized');
+        $t->true(!str_contains($html, "h\t"), 'Expected tab-separated source scheme to be canonicalized');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe srcset candidate to be stripped');
+        $t->true(!str_contains($html, '&#13;'), 'Expected encoded control characters to be removed from candidate URLs');
+    },
     'serializes html5 boolean attributes without redundant values for review media' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<details open="open"><summary>Review packet</summary>'

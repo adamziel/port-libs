@@ -1263,24 +1263,12 @@ final class Html5DomFragment
         array &$diagnostics,
         ?string $baseUrl
     ): ?string {
-        $candidateWithoutControls = preg_replace('/[\x00-\x20]+/', '', $candidate) ?? $candidate;
-        if (!self::isSafeImageCandidateUrl($candidateWithoutControls)) {
-            $diagnostics[] = [
-                'code' => 'unsafe-url',
-                'tag' => $tagName,
-                'attribute' => 'srcset',
-                'candidate' => $candidate,
-            ];
-
+        $parts = self::parseSrcsetCandidateParts($candidate);
+        if ($parts === null) {
             return null;
         }
 
-        $parts = preg_split('/\s+/', $candidate);
-        if (!is_array($parts) || $parts === []) {
-            return null;
-        }
-
-        $url = (string) array_shift($parts);
+        [$url, $descriptor, $urlWasNormalized, $descriptorWasInvalid] = $parts;
         if ($url === '' || !self::isSafeImageCandidateUrl($url)) {
             $diagnostics[] = [
                 'code' => 'unsafe-url',
@@ -1292,17 +1280,25 @@ final class Html5DomFragment
             return null;
         }
 
-        $descriptor = self::normalizeSrcsetDescriptor($parts);
-        if ($descriptor === null) {
+        if ($descriptorWasInvalid) {
             $diagnostics[] = [
                 'code' => 'invalid-srcset-descriptor',
                 'tag' => $tagName,
                 'attribute' => 'srcset',
                 'candidate' => $candidate,
-                'descriptor' => implode(' ', $parts),
+                'descriptor' => self::invalidSrcsetDescriptorText($candidate),
             ];
 
             return null;
+        }
+
+        if ($urlWasNormalized) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => $tagName,
+                'attribute' => 'srcset',
+                'candidate' => $candidate,
+            ];
         }
 
         if ($baseUrl !== null) {
@@ -1310,6 +1306,79 @@ final class Html5DomFragment
         }
 
         return $descriptor === '' ? $url : $url . ' ' . $descriptor;
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:bool, 3:bool}|null
+     */
+    private static function parseSrcsetCandidateParts(string $candidate): ?array
+    {
+        $trimmed = trim($candidate);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $parts = preg_split('/[\x00-\x20]+/', $trimmed);
+        if (!is_array($parts) || $parts === []) {
+            return null;
+        }
+
+        $url = (string) array_shift($parts);
+        $normalizedUrl = self::normalizeUrlAttributeValue($url);
+        $descriptor = self::normalizeSrcsetDescriptor($parts);
+        if (
+            $descriptor !== null
+            && $normalizedUrl !== ''
+            && preg_match('/[\x00-\x20]/', $normalizedUrl) !== 1
+        ) {
+            return [$normalizedUrl, $descriptor, $normalizedUrl !== $url, false];
+        }
+
+        $controlSeparated = self::parseControlSeparatedSrcsetCandidate($trimmed);
+        if ($controlSeparated !== null) {
+            return $controlSeparated;
+        }
+
+        return [$normalizedUrl, '', $normalizedUrl !== $url, $parts !== []];
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:bool, 3:bool}|null
+     */
+    private static function parseControlSeparatedSrcsetCandidate(string $candidate): ?array
+    {
+        if (preg_match('/^(.*?)[\x00-\x20]+([^\x00-\x20]+)$/s', $candidate, $matches) === 1) {
+            $descriptor = self::normalizeSrcsetDescriptor([(string) $matches[2]]);
+            if ($descriptor !== null) {
+                $rawUrl = (string) $matches[1];
+                $url = self::normalizeUrlAttributeValue($rawUrl);
+                if ($url !== '' && preg_match('/[\x00-\x20]/', $url) !== 1) {
+                    return [$url, $descriptor, $url !== $rawUrl, false];
+                }
+            }
+        }
+
+        $url = self::normalizeUrlAttributeValue($candidate);
+        if ($url === $candidate || preg_match('/[\x00-\x20]/', $url) === 1) {
+            return null;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $url) !== 1) {
+            return null;
+        }
+
+        return [$url, '', true, false];
+    }
+
+    private static function invalidSrcsetDescriptorText(string $candidate): string
+    {
+        $parts = preg_split('/[\x00-\x20]+/', trim($candidate));
+        if (!is_array($parts) || count($parts) <= 1) {
+            return '';
+        }
+
+        array_shift($parts);
+
+        return implode(' ', $parts);
     }
 
     /**
