@@ -11,7 +11,7 @@ final class PdfXrefFreeObjectMap
      */
     public static function freeObjectNumbers(string $pdfBytes): array
     {
-        $offset = self::latestStartxrefOffset($pdfBytes);
+        $offset = self::startxrefOffsetWithClassicRebuild($pdfBytes);
         if ($offset === null) {
             return [];
         }
@@ -26,7 +26,10 @@ final class PdfXrefFreeObjectMap
         return $freeObjects;
     }
 
-    private static function latestStartxrefOffset(string $pdfBytes): ?int
+    /**
+     * @return array{offset: int, tokenOffset: int}|null
+     */
+    private static function latestStartxrefEntry(string $pdfBytes): ?array
     {
         if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
@@ -39,8 +42,105 @@ final class PdfXrefFreeObjectMap
             }
 
             $operandBytes = substr($pdfBytes, $tokenOffset + strlen('startxref'), 64);
-            if (preg_match('/^\s*([+-]?\d+)/', $operandBytes, $match) === 1) {
-                return max(0, (int) $match[1]);
+            $declaredOffset = self::startxrefDeclaredOffsetFromOperand($operandBytes);
+            if ($declaredOffset !== null) {
+                return [
+                    'offset' => max(0, $declaredOffset),
+                    'tokenOffset' => $tokenOffset,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private static function startxrefDeclaredOffsetFromOperand(string $operandBytes): ?int
+    {
+        $offset = 0;
+        $length = strlen($operandBytes);
+        while ($offset < $length && self::isPdfWhitespace($operandBytes[$offset])) {
+            $offset++;
+        }
+
+        if (preg_match('/\G[+-]?\d+/s', $operandBytes, $match, 0, $offset) !== 1) {
+            return 0;
+        }
+
+        $after = $offset + strlen($match[0]);
+        while ($after < $length) {
+            $char = $operandBytes[$after];
+            if ($char === "\n" || $char === "\r" || $char === '%') {
+                return (int) $match[0];
+            }
+            if (!self::isPdfWhitespace($char)) {
+                return null;
+            }
+
+            $after++;
+        }
+
+        return (int) $match[0];
+    }
+
+    /**
+     * Damaged incremental writers can append a valid classic xref table while
+     * leaving the final startxref operand pointed at garbage or an older table.
+     * Rebuild only to classic tables; malformed xref streams remain fail-closed.
+     */
+    private static function startxrefOffsetWithClassicRebuild(string $pdfBytes): ?int
+    {
+        $entry = self::latestStartxrefEntry($pdfBytes);
+        if ($entry === null) {
+            return null;
+        }
+
+        $declaredOffset = $entry['offset'];
+        if (self::xrefStreamObjectStartsAt($pdfBytes, $declaredOffset)) {
+            return $declaredOffset;
+        }
+
+        $latestClassicOffset = self::latestClassicXrefTableOffsetBefore($pdfBytes, $entry['tokenOffset']);
+        if ($latestClassicOffset === null) {
+            return $declaredOffset;
+        }
+
+        if (self::xrefTableSectionAt($pdfBytes, $declaredOffset) === null) {
+            if ($declaredOffset < strlen($pdfBytes) && $latestClassicOffset <= $declaredOffset) {
+                return $declaredOffset;
+            }
+
+            return $latestClassicOffset;
+        }
+
+        return $latestClassicOffset > $declaredOffset ? $latestClassicOffset : $declaredOffset;
+    }
+
+    private static function xrefStreamObjectStartsAt(string $pdfBytes, int $offset): bool
+    {
+        $definition = self::directObjectAtOffset($pdfBytes, $offset);
+
+        return $definition !== null && preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1;
+    }
+
+    private static function latestClassicXrefTableOffsetBefore(string $pdfBytes, int $beforeOffset): ?int
+    {
+        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $offset = $matches[0][$index][1] ?? null;
+            if (
+                !is_int($offset)
+                || $offset >= $beforeOffset
+                || self::tokenStartsInCommentLine($pdfBytes, $offset)
+                || !self::keywordAt($pdfBytes, $offset, 'xref')
+            ) {
+                continue;
+            }
+
+            if (self::xrefTableSectionAt($pdfBytes, $offset) !== null) {
+                return $offset;
             }
         }
 
