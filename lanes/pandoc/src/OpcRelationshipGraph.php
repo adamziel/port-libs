@@ -2132,6 +2132,10 @@ final class OpcRelationshipGraph
             self::appendUniqueString($issues, 'internal-target-unsafe-path-byte');
         }
 
+        if (preg_match('/[\x00-\x20\x7F]/', $target) === 1) {
+            self::appendUniqueString($issues, 'internal-target-invalid-uri-byte');
+        }
+
         if (preg_match('/%(?![0-9A-Fa-f]{2})/', $target) === 1) {
             self::appendUniqueString($issues, 'internal-target-malformed-percent-escape');
         } elseif (self::internalTargetContainsUnsafePercentEncodedPathByte($target)) {

@@ -1118,6 +1118,7 @@ XML;
   <Relationship Id="rIdAuthority" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="//cdn.example.test/review.png"/>
   <Relationship Id="rIdTraversal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../evil.xml"/>
   <Relationship Id="rIdBadEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bad%ZZ.png"/>
+  <Relationship Id="rIdRawSpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/raw space.png"/>
   <Relationship Id="rIdEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%2Fhidden.png"/>
   <Relationship Id="rIdEncodedBackslash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%5Chidden.png"/>
   <Relationship Id="rIdEncodedNul" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%00hidden.png"/>
@@ -1142,6 +1143,7 @@ XML;
             'rIdAuthority',
             'rIdTraversal',
             'rIdBadEscape',
+            'rIdRawSpace',
             'rIdEncodedSlash',
             'rIdEncodedBackslash',
             'rIdEncodedNul',
@@ -1150,14 +1152,15 @@ XML;
         $t->same(['invalid-target', 'internal-target-network-path-reference'], $preflight['rIdAuthority']['issues']);
         $t->same(['invalid-target', 'internal-target-package-root-traversal'], $preflight['rIdTraversal']['issues']);
         $t->same(['invalid-target', 'internal-target-malformed-percent-escape'], $preflight['rIdBadEscape']['issues']);
+        $t->same(['invalid-target', 'internal-target-invalid-uri-byte'], $preflight['rIdRawSpace']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedSlash']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedBackslash']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedNul']['issues']);
-        $t->same(array_fill(0, 7, null), array_column(array_filter(
+        $t->same(array_fill(0, 8, null), array_column(array_filter(
             $graph->preflightAllRelationshipTargets(),
             static fn (array $target): bool => $target['source'] === '/word/document.xml',
         ), 'targetPart'));
-        $t->same(array_fill(0, 7, false), array_column($preflight, 'valid'));
+        $t->same(array_fill(0, 8, false), array_column($preflight, 'valid'));
     },
     'classifies and preflights external OPC relationship target policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
@@ -3621,6 +3624,16 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedSlash'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedBackslash'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedNul'));
+    },
+    'rejects raw whitespace in internal OPC relationship target URI references' => static function (TestRunner $t): void {
+        $relationships = new OpcRelationships('/word/document.xml');
+        $relationships->add(new OpcRelationship('rIdRawSpace', 't', 'media/raw space.png'));
+        $relationships->add(new OpcRelationship('rIdRawTab', 't', "media/raw\tname.png"));
+        $relationships->add(new OpcRelationship('rIdEncodedSpace', 't', 'media/raw%20space.png'));
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdRawSpace'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdRawTab'));
+        $t->same('/word/media/raw space.png', $relationships->resolveTarget('rIdEncodedSpace'));
     },
     'rejects OPC relationship Id values outside XML NCName shape' => static function (TestRunner $t): void {
         $xml = static fn (string $id): string => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="' . $id . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>';

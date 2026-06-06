@@ -556,6 +556,7 @@ XML;
 $internalTargetDiagnosticsDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdAbsoluteUri" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/review.png"/>
+  <Relationship Id="rIdRawSpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/raw space.png"/>
   <Relationship Id="rIdEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%2Fhidden.png"/>
 </Relationships>
 XML;
@@ -1351,6 +1352,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['targetPart'] ?? null) !== null
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['valid'] ?? null) !== false
         || ($summary['integrity']['internalTargetDiagnostics']['rIdAbsoluteUri']['issues'] ?? null) !== ['invalid-target', 'internal-target-absolute-uri']
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdRawSpace']['targetPart'] ?? null) !== null
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdRawSpace']['valid'] ?? null) !== false
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdRawSpace']['issues'] ?? null) !== ['invalid-target', 'internal-target-invalid-uri-byte']
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['targetPart'] ?? null) !== null
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['valid'] ?? null) !== false
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['issues'] ?? null) !== ['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte']

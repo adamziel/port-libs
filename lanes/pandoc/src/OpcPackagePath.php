@@ -93,6 +93,10 @@ final class OpcPackagePath
             throw new \InvalidArgumentException('OPC relationship targets must use slash-separated paths');
         }
 
+        if (preg_match('/[\x00-\x20\x7F]/', $target) === 1) {
+            throw new \InvalidArgumentException('OPC internal relationship target contains invalid URI bytes');
+        }
+
         if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
             throw new \InvalidArgumentException('OPC internal relationship target must not be an absolute URI');
         }
