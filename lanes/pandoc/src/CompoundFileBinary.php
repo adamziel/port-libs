@@ -621,16 +621,21 @@ final class CompoundFileBinary
                 'leftSiblingId' => self::u32($entryBytes, 68),
                 'rightSiblingId' => self::u32($entryBytes, 72),
                 'childId' => self::u32($entryBytes, 76),
+                'clsid' => $clsid,
+                'stateBits' => $stateBits,
                 'createdAt' => self::readFiletime($entryBytes, 100),
                 'modifiedAt' => self::readFiletime($entryBytes, 108),
+                'hasCreationTimeBytes' => substr($entryBytes, 100, 8) !== str_repeat("\0", 8),
+                'hasModificationTimeBytes' => substr($entryBytes, 108, 8) !== str_repeat("\0", 8),
                 'directoryId' => $directoryId,
             ];
             self::validateDirectoryEntryObjectFields($entry);
-            if ($clsid !== null) {
-                $entry['clsid'] = $clsid;
+            unset($entry['hasCreationTimeBytes'], $entry['hasModificationTimeBytes']);
+            if ($clsid === null) {
+                unset($entry['clsid']);
             }
-            if ($stateBits !== 0) {
-                $entry['stateBits'] = $stateBits;
+            if ($stateBits === 0) {
+                unset($entry['stateBits']);
             }
             $rawEntries[$directoryId] = $entry;
             if ($type === 5 && $root === null) {
@@ -673,6 +678,15 @@ final class CompoundFileBinary
         $size = (int) $entry['size'];
         if ($type === 2 && (int) $entry['childId'] !== self::FREESECT) {
             throw new \RuntimeException('CFB stream directory entry must not reference child entries: ' . $name);
+        }
+        if ($type === 2 && ($entry['clsid'] ?? null) !== null) {
+            throw new \RuntimeException('CFB stream directory entry must not declare a storage CLSID: ' . $name);
+        }
+        if ($type === 2 && (int) ($entry['stateBits'] ?? 0) !== 0) {
+            throw new \RuntimeException('CFB stream directory entry must not declare storage state bits: ' . $name);
+        }
+        if ($type === 2 && (($entry['hasCreationTimeBytes'] ?? false) === true || ($entry['hasModificationTimeBytes'] ?? false) === true)) {
+            throw new \RuntimeException('CFB stream directory entry must not declare storage timestamps: ' . $name);
         }
         if ($type === 2 && $size === 0 && self::isRegularSector($startSector)) {
             throw new \RuntimeException('CFB zero-length stream directory entry must not reference stream sectors: ' . $name);

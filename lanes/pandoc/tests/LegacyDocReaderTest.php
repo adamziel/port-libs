@@ -1682,6 +1682,22 @@ return [
         $objectPoolSize = substr_replace($bytes, $u64(64), $directorySectorOffset + (2 * 128) + 120, 8);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($objectPoolSize));
     },
+    'rejects CFB stream directory entries carrying storage-only metadata before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $filetime): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $wordDocumentDirectoryOffset = $directorySectorOffset + 128;
+
+        foreach ([
+            'stream CLSID' => substr_replace($bytes, "\x01", $wordDocumentDirectoryOffset + 80, 1),
+            'stream state bits' => substr_replace($bytes, $u32(0x00000010), $wordDocumentDirectoryOffset + 96, 4),
+            'stream creation time' => substr_replace($bytes, $filetime('2024-01-01T00:00:00Z'), $wordDocumentDirectoryOffset + 100, 8),
+            'stream modification time' => substr_replace($bytes, $filetime('2024-01-02T00:00:00Z'), $wordDocumentDirectoryOffset + 108, 8),
+        ] as $_label => $corruptDocBytes) {
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
+        }
+    },
     'rejects CFB directory start-sector mismatches before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',
