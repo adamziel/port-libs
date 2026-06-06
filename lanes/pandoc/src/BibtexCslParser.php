@@ -624,6 +624,8 @@ final class BibtexCslParser
             'URL' => self::firstField($fields, ['url']),
             'ISBN' => self::firstField($fields, ['isbn']),
             'ISSN' => self::firstField($fields, ['issn']),
+            'PMID' => self::firstField($fields, ['pmid']),
+            'PMCID' => self::firstField($fields, ['pmcid']),
             'archive' => self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']),
             'archive-place' => self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']),
             'archive_location' => self::firstField($fields, ['eprint', 'archive_location', 'archive-location']),

@@ -731,6 +731,8 @@ final class CitationCslProcessor
             'url' => self::firstStringField($item, ['URL', 'url']),
             'isbn' => self::firstStringField($item, ['ISBN', 'isbn']),
             'issn' => self::firstStringField($item, ['ISSN', 'issn']),
+            'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
+            'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
             'archive' => self::stringField($item, 'archive'),
             'archivePlace' => self::firstStringField($item, ['archive-place', 'archivePlace']),
             'archiveLocation' => self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']),
@@ -3577,6 +3579,16 @@ final class CitationCslProcessor
             $parts[] = 'ISSN ' . $issn . '.';
         }
 
+        $pmid = (string) ($item['pmid'] ?? '');
+        if ($pmid !== '') {
+            $parts[] = 'PMID ' . $pmid . '.';
+        }
+
+        $pmcid = (string) ($item['pmcid'] ?? '');
+        if ($pmcid !== '') {
+            $parts[] = 'PMCID ' . $pmcid . '.';
+        }
+
         $archive = array_values(array_filter([
             (string) ($item['archive'] ?? ''),
             (string) ($item['archivePlace'] ?? ''),
@@ -4870,6 +4882,8 @@ final class CitationCslProcessor
             'url' => (string) $item['url'],
             'isbn' => (string) $item['isbn'],
             'issn' => (string) $item['issn'],
+            'pmid' => (string) ($item['pmid'] ?? ''),
+            'pmcid' => (string) ($item['pmcid'] ?? ''),
             'archive' => (string) $item['archive'],
             'archive-place' => (string) $item['archivePlace'],
             'archive_location', 'archive-location' => (string) $item['archiveLocation'],

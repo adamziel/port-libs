@@ -1544,6 +1544,90 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex pubmed identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{pubmed-article,
+  author       = {Ng, Nia},
+  title        = {Source Review Trial},
+  journaltitle = {Journal of Import Medicine},
+  date         = {2026},
+  doi          = {10.5555/pubmed},
+  pmid         = {12345678},
+  pmcid        = {PMC1234567}
+}
+
+@online{clinical-note,
+  author = {{Migration Clinic}},
+  title  = {Clinical Import Note},
+  date   = {2025},
+  pmcid  = {PMC7654321},
+  url    = {https://example.test/clinical-note}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('12345678', $items[0]['PMID'] ?? null);
+        $t->same('PMC1234567', $items[0]['PMCID'] ?? null);
+        $t->same('PMC7654321', $items[1]['PMCID'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $article = $processor->item('pubmed-article');
+        $note = $processor->item('clinical-note');
+        $t->same('12345678', $article['pmid'] ?? null);
+        $t->same('PMC1234567', $article['pmcid'] ?? null);
+        $t->same('PMC7654321', $note['pmcid'] ?? null);
+        $t->same('(Ng 2026; Migration Clinic 2025)', $processor->renderCitationCluster([
+            $citation('pubmed-article', '[@pubmed-article]'),
+            $citation('clinical-note', '[@clinical-note]'),
+        ]));
+        $t->same('Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.', $processor->renderBibliographyEntry('pubmed-article'));
+        $t->same('Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.', $processor->renderBibliographyEntry('clinical-note'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="PMID"/>
+        <text variable="PMCID"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="PMID"/>
+      <text variable="PMCID"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 12345678 | PMC1234567; Migration Clinic | PMC7654321]', $styled->renderCitationCluster([
+            $citation('pubmed-article', '[@pubmed-article]'),
+            $citation('clinical-note', '[@clinical-note]'),
+        ]));
+        $t->same('Source Review Trial :: 12345678 :: PMC1234567', $styled->renderBibliographyEntry('pubmed-article'));
+        $t->same('Clinical Import Note :: PMC7654321', $styled->renderBibliographyEntry('clinical-note'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-pubmed',
+            'title' => 'Manual PubMed Packet',
+            'PMID' => '87654321',
+            'PMCID' => 'PMC8765432',
+        ]]);
+        $t->same('87654321', $manual->item('manual-pubmed')['pmid'] ?? null);
+        $t->same('PMC8765432', $manual->item('manual-pubmed')['pmcid'] ?? null);
+        $t->same('Manual PubMed Packet. PMID 87654321. PMCID PMC8765432.', $manual->renderBibliographyEntry('manual-pubmed'));
+
+        $document = (new MarkdownReader())->read('PubMed source @pubmed-article and clinical note [@clinical-note] preserve medical identifiers.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>PubMed source Ng (2026) and clinical note (Migration Clinic 2025) preserve medical identifiers.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
+        $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
+    },
     'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{distributed-review,

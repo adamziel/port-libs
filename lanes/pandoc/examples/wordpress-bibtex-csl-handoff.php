@@ -81,6 +81,8 @@ Special issue source @special-issue-review preserves imported issue title metada
 
 Article-number source @article-number-review preserves imported electronic article IDs for review.
 
+PubMed source @pubmed-review preserves imported medical database identifiers for review.
+
 Container-author chapter @container-author-review preserves source volume authors for review.
 
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
@@ -607,6 +609,16 @@ $bibtex = <<<'BIB'
   date         = {2026},
   eid          = {e2026-77},
   doi          = {10.5555/eid-review}
+}
+
+@article{pubmed-review,
+  author       = {Ng, Nia},
+  title        = {PubMed Import Packet},
+  journaltitle = {Journal of Source Imports},
+  date         = {2026},
+  pmid         = {12345678},
+  pmcid        = {PMC1234567},
+  doi          = {10.5555/pubmed-review}
 }
 
 @incollection{container-author-review,
@@ -1191,6 +1203,47 @@ XML);
     if (!str_contains($articleNumberBlocks, '<dt>Roe 2026</dt><dd>Electronic Article Packet | e2026-77 | 10.5555/eid-review</dd>')) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not render article-number metadata in custom bibliography output');
     }
+    $pubmedReview = $processor->item('pubmed-review');
+    if (($pubmedReview['pmid'] ?? null) !== '12345678') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve PMID metadata');
+    }
+    if (($pubmedReview['pmcid'] ?? null) !== 'PMC1234567') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve PMCID metadata');
+    }
+    if (($pubmedReview['raw']['PMID'] ?? null) !== '12345678' || ($pubmedReview['raw']['PMCID'] ?? null) !== 'PMC1234567') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw PubMed identifier metadata');
+    }
+    $pubmedStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="PMID"/>
+        <text variable="PMCID"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="PMID"/>
+      <text variable="PMCID"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $pubmedBlocks = (new WordPressBlockWriter())->write($pubmedStyled->appendBibliography(
+        (new MarkdownReader())->read('PubMed review [@pubmed-review] keeps identifiers visible.'),
+        'PubMed Sources'
+    ));
+    if (!str_contains($pubmedBlocks, '<p>PubMed review Ng | 12345678 | PMC1234567 keeps identifiers visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render PubMed identifiers in custom citations');
+    }
+    if (!str_contains($pubmedBlocks, '<dt>Ng 2026</dt><dd>PubMed Import Packet | 12345678 | PMC1234567</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render PubMed identifiers in custom bibliography output');
+    }
     $containerAuthorReview = $processor->item('container-author-review');
     if (($containerAuthorReview['containerAuthors'][0]['family'] ?? null) !== 'Smith') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first container author family');
@@ -1283,6 +1336,8 @@ XML);
         '<dt>Doe 2026</dt><dd>Doe, Jane. Special Issue Packet. Journal of Source Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>',
         '<p>Article-number source Roe (2026) preserves imported electronic article IDs for review.</p>',
         '<dt>Roe 2026</dt><dd>Roe, Pat. Electronic Article Packet. Journal of Source Imports. 2026. Article number: e2026-77. DOI 10.5555/eid-review.</dd>',
+        '<p>PubMed source Ng (2026) preserves imported medical database identifiers for review.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. PubMed Import Packet. Journal of Source Imports. 2026. DOI 10.5555/pubmed-review. PMID 12345678. PMCID PMC1234567.</dd>',
         '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
