@@ -5667,14 +5667,16 @@ final class PdfMetadataExtractor
             $metadata['revision_label'] = $this->standardRevisionLabel($revision);
         }
 
-        if ($keyLength !== null || $version === 1) {
-            $keyLengthDefaulted = $keyLength === null && $version === 1;
+        if ($keyLength !== null || in_array($version, [1, 2], true)) {
+            $keyLengthDefaulted = $keyLength === null && in_array($version, [1, 2], true);
             $metadata['key_length_bits'] = $keyLength ?? 40;
             $metadata['key_length_explicit'] = $keyLengthExplicit;
             $metadata['key_length_defaulted'] = $keyLengthDefaulted;
-            $metadata['key_length_source'] = $keyLengthDefaulted
-                ? 'standard_security_handler_v1_implicit_40_bit'
-                : 'encryption_dictionary_length_entry';
+            $metadata['key_length_source'] = match (true) {
+                $keyLengthDefaulted && $version === 1 => 'standard_security_handler_v1_implicit_40_bit',
+                $keyLengthDefaulted && $version === 2 => 'standard_security_handler_v2_default_40_bit',
+                default => 'encryption_dictionary_length_entry',
+            };
         }
 
         $metadata['encrypt_metadata'] = (bool) $encryptMetadataReview['effective_value'];
@@ -6915,6 +6917,8 @@ final class PdfMetadataExtractor
             : 'invalid_standard_security_handler_key_length_review';
         if ($valid && $keyLengthDefaulted && $version === 1 && $keyLengthBits === 40) {
             $status = 'standard_security_handler_key_length_implicit_40_bit';
+        } elseif ($valid && $keyLengthDefaulted && $version === 2 && $keyLengthBits === 40) {
+            $status = 'standard_security_handler_key_length_default_40_bit';
         }
 
         return [
