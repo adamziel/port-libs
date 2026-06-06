@@ -291,6 +291,12 @@ source-review-log: >- # folded reviewer log with preserved nested lines
 audit-note: |+ # keep final newline for audit packets
   YAML parser keeps this note.
 
+default-clip-note: | # default clip keeps one final newline
+  YAML parser clips this note.
+default-folded-note: > # default folded clip keeps one final newline
+  Fold reviewer note before
+  WordPress handoff.
+
 aliases:
   labels: *review_labels
 alias-diagnostics:
@@ -903,6 +909,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['audit-note'] ?? '') !== "YAML parser keeps this note.\n") {
         throw new RuntimeException('YAML metadata self-test missing literal keep-chomp note');
+    }
+    if (($meta['default-clip-note'] ?? '') !== "YAML parser clips this note.\n") {
+        throw new RuntimeException('YAML metadata self-test missing default literal clip newline');
+    }
+    if (($meta['default-folded-note'] ?? '') !== "Fold reviewer note before WordPress handoff.\n") {
+        throw new RuntimeException('YAML metadata self-test missing default folded clip newline');
     }
     if (($meta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test stripped unspaced source hash');

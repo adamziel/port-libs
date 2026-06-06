@@ -1274,7 +1274,11 @@ final class MarkdownReader
 
         $trailingNewlines = preg_match('/\n+$/', $rawText, $m) === 1 ? $m[0] : '';
         $foldedText = $this->foldYamlBlockScalarText(rtrim($rawText, "\n"));
-        return $chomp === '+' ? $foldedText . $trailingNewlines : $foldedText;
+        if ($chomp === '+') {
+            return $foldedText . $trailingNewlines;
+        }
+
+        return $this->applyYamlBlockScalarChomp($foldedText, $chomp);
     }
 
     /**
@@ -1329,7 +1333,12 @@ final class MarkdownReader
             return $text;
         }
 
-        return rtrim($text, "\n");
+        $trimmed = rtrim($text, "\n");
+        if ($chomp === '-' || $trimmed === '') {
+            return $trimmed;
+        }
+
+        return $trimmed . "\n";
     }
 
     /**

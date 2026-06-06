@@ -836,7 +836,7 @@ return [
         $t->same(['migration', 'Data Liberation', 'wordpress'], $meta['keywords']);
         $t->same(false, $meta['published']);
         $t->same(['status' => 'needs-review', 'priority' => 2], $meta['review']);
-        $t->same("First source paragraph.\nPreserve **review** line.", $meta['abstract']);
+        $t->same("First source paragraph.\nPreserve **review** line.\n", $meta['abstract']);
         $t->same(1, count($document->children));
         $t->same('heading', $document->children[0]->type);
         $t->same('import-packet', $document->children[0]->attr('id'));
@@ -1020,7 +1020,7 @@ return [
 
         $t->same(['Reviewer One', 'Reviewer Two'], $meta['author']);
         $t->same(['Reviewer One', 'Reviewer Two'], $meta['authors']);
-        $t->same("Legacy source reviewer note\n\nSecond paragraph", $meta['summary']);
+        $t->same("Legacy source reviewer note\n\nSecond paragraph\n", $meta['summary']);
         $t->same(null, $meta['empty']);
         $t->same(3.5, $meta['score']);
         $t->same(1, count($document->children));
@@ -1825,6 +1825,48 @@ return [
         $t->same('folded-indent-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="folded-indent-yaml-body">Folded indent YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml default block scalar clip metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Default clip **Packet**',
+            'literal-default: |',
+            '  Keep reviewer line',
+            '  before block import.',
+            'literal-with-extra: |',
+            '  Keep only one final newline.',
+            '',
+            '',
+            'folded-default: >',
+            '  Fold reviewer',
+            '  text before import.',
+            '',
+            '  Preserve paragraph break.',
+            'review:',
+            '  notes:',
+            '    - |',
+            '      Sequence literal note',
+            '    - >',
+            '      Sequence folded',
+            '      note',
+            '...',
+            '',
+            '# Default clip YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Default clip **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same("Keep reviewer line\nbefore block import.\n", $meta['literal-default']);
+        $t->same("Keep only one final newline.\n", $meta['literal-with-extra']);
+        $t->same("Fold reviewer text before import.\n\nPreserve paragraph break.\n", $meta['folded-default']);
+        $t->same("Sequence literal note\n", $meta['review']['notes'][0]);
+        $t->same("Sequence folded note\n", $meta['review']['notes'][1]);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('default-clip-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="default-clip-yaml-body">Default clip YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml double quoted escape metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
@@ -2619,7 +2661,7 @@ return [
         $t->same(2, count($authorInlines));
         $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $authorInlines[0]));
         $t->same('Import Desk', $authorInlines[0][2]->attr('text'));
-        $t->same("Keep source line one.\nKeep source line two.", $meta['review']['notes'][0]);
+        $t->same("Keep source line one.\nKeep source line two.\n", $meta['review']['notes'][0]);
         $t->same('Fold imported reviewer note before rendering.', $meta['review']['notes'][1]);
         $t->same('Source reference with folded title', $meta['references'][0]['title']);
         $t->same('heading', $document->children[0]->type);
