@@ -479,6 +479,12 @@ final class BatchConverter
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
+        $pathResolution = $this->runtimeInputOutputPathPlan(
+            $inputFolder,
+            $outputFolder,
+            $absoluteInputFolder,
+            $absoluteOutputFolder
+        );
         $inputListing = $this->inputDirectoryListing($absoluteInputFolder, preserveDirectoryOrder: true);
         $inputFiles = $inputListing['file_paths'];
         $outputCreation = $this->outputFolderCreationPlan($absoluteOutputFolder);
@@ -520,6 +526,7 @@ final class BatchConverter
                     'output_folder' => $outputFolder,
                     'absolute_input_folder' => $absoluteInputFolder,
                     'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
                     ...$outputCreation,
                 ],
                 'input_listing' => [
@@ -680,6 +687,7 @@ final class BatchConverter
                     'output_folder' => $outputFolder,
                     'absolute_input_folder' => $absoluteInputFolder,
                     'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
                     ...$outputCreation,
                 ],
                 'input_listing' => [
@@ -824,6 +832,7 @@ final class BatchConverter
                     'output_folder' => $outputFolder,
                     'absolute_input_folder' => $absoluteInputFolder,
                     'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
                     ...$outputCreation,
                 ],
                 'input_listing' => [
@@ -961,6 +970,7 @@ final class BatchConverter
                     'output_folder' => $outputFolder,
                     'absolute_input_folder' => $absoluteInputFolder,
                     'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
                     ...$outputCreation,
                 ],
                 'input_listing' => [
@@ -1121,6 +1131,7 @@ final class BatchConverter
                 'output_folder' => $outputFolder,
                 'absolute_input_folder' => $absoluteInputFolder,
                 'absolute_output_folder' => $absoluteOutputFolder,
+                'path_resolution' => $pathResolution,
                 ...$outputCreation,
             ],
             'input_listing' => [
@@ -1267,6 +1278,12 @@ final class BatchConverter
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
+        $pathResolution = $this->runtimeInputOutputPathPlan(
+            $inputFolder,
+            $outputFolder,
+            $absoluteInputFolder,
+            $absoluteOutputFolder
+        );
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
             ? null
             : $this->absolutePath($metadataFile);
@@ -1308,6 +1325,7 @@ final class BatchConverter
                     'output_folder' => $outputFolder,
                     'absolute_input_folder' => $absoluteInputFolder,
                     'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
                     'input_path_exists' => file_exists($absoluteInputFolder),
                     'input_path_type' => $this->filesystemPathType($absoluteInputFolder),
                     'output_folder_creation_reached' => true,
@@ -1354,6 +1372,7 @@ final class BatchConverter
                     'output_folder' => $outputFolder,
                     'absolute_input_folder' => $absoluteInputFolder,
                     'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
                     'input_path_exists' => file_exists($absoluteInputFolder),
                     'input_path_type' => $this->filesystemPathType($absoluteInputFolder),
                     'output_folder_creation_reached' => $errorBoundary !== 'input-folder-list-failed',
@@ -3821,6 +3840,47 @@ final class BatchConverter
         }
 
         return $index;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function runtimeInputOutputPathPlan(
+        string $inputFolder,
+        string $outputFolder,
+        string $absoluteInputFolder,
+        string $absoluteOutputFolder
+    ): array {
+        $inputWasAbsolute = str_starts_with($inputFolder, DIRECTORY_SEPARATOR);
+        $outputWasAbsolute = str_starts_with($outputFolder, DIRECTORY_SEPARATOR);
+        $processCwd = $this->absolutePath('.');
+
+        return [
+            'source' => 'convert.py os.path.abspath input/output boundary',
+            'order' => 'after_parse_args_before_list_input_files',
+            'input_folder_argument' => $inputFolder,
+            'output_folder_argument' => $outputFolder,
+            'input_folder_abspath_call' => 'os.path.abspath(args.in_folder)',
+            'output_folder_abspath_call' => 'os.path.abspath(args.out_folder)',
+            'input_folder_was_absolute' => $inputWasAbsolute,
+            'output_folder_was_absolute' => $outputWasAbsolute,
+            'input_folder_abspath_base' => $inputWasAbsolute ? 'already_absolute' : 'process_cwd',
+            'output_folder_abspath_base' => $outputWasAbsolute ? 'already_absolute' : 'process_cwd',
+            'process_cwd' => $processCwd,
+            'absolute_input_folder' => $absoluteInputFolder,
+            'absolute_output_folder' => $absoluteOutputFolder,
+            'input_folder_relative_to_process_cwd' => !$inputWasAbsolute,
+            'output_folder_relative_to_process_cwd' => !$outputWasAbsolute,
+            'input_folder_relative_to_output_folder' => false,
+            'output_folder_relative_to_input_folder' => false,
+            'input_listing_uses_absolute_input_folder' => true,
+            'output_creation_uses_absolute_output_folder' => true,
+            'filesystem_touched_by_abspath' => false,
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
     }
 
     private function absolutePath(string $path): string

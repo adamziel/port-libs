@@ -312,6 +312,13 @@ try {
             torchDevice: 'cuda',
             torchDeviceModel: 'cpu'
         );
+        $relativePathPlan = $batch->runtimeMainPreflightPlan(
+            './runtime/../uploads',
+            './marker-output',
+            workers: 4,
+            torchDevice: 'cuda',
+            torchDeviceModel: 'cpu'
+        );
     } finally {
         chdir($previousCwd);
     }
@@ -711,6 +718,22 @@ try {
     ) {
         throw new RuntimeException('Expected relative metadata_file paths to resolve against process cwd after chunking, not input/output folders.');
     }
+    $relativePathResolution = $relativePathPlan['paths']['path_resolution'];
+    if (
+        $relativePathResolution['input_folder_abspath_base'] !== 'process_cwd'
+        || $relativePathResolution['output_folder_abspath_base'] !== 'process_cwd'
+        || $relativePathResolution['absolute_input_folder'] !== $relativeInput
+        || $relativePathResolution['absolute_output_folder'] !== $relativeOutput
+        || $relativePathResolution['input_listing_uses_absolute_input_folder'] !== true
+        || $relativePathResolution['output_creation_uses_absolute_output_folder'] !== true
+        || $relativePathResolution['input_folder_relative_to_output_folder'] !== false
+        || $relativePathResolution['output_folder_relative_to_input_folder'] !== false
+        || $relativePathResolution['filesystem_touched_by_abspath'] !== false
+        || $relativePathPlan['chunking']['selected_filenames'] !== $relativeFileOrder
+        || $relativePathPlan['worker_pool']['task_args'][0]['out_folder'] !== $relativeOutput
+    ) {
+        throw new RuntimeException('Expected relative input/output folders to resolve against process cwd before listdir, makedirs, chunking, and task args.');
+    }
     if (
         $emptyMetadataArgPlan['arguments']['options']['metadata_file'] !== ''
         || $emptyMetadataArgPlan['semantic_boundaries']['metadata_file_read_deferred_until_after_chunk_files'] !== false
@@ -1109,6 +1132,17 @@ try {
         'relative_metadata_missing_metadata_filenames' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'],
         'relative_metadata_loaded_from_process_cwd' => $relativeMetadataPlan['metadata']['metadata_filenames'] === ['alpha.pdf'],
         'relative_metadata_ignored_input_output_decoys' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'] === $relativeMissingMetadataFilenames,
+        'relative_input_output_abspath_base' => [
+            $relativePathResolution['input_folder_abspath_base'],
+            $relativePathResolution['output_folder_abspath_base'],
+        ],
+        'relative_input_output_absolute_paths' => [
+            $relativePathResolution['absolute_input_folder'],
+            $relativePathResolution['absolute_output_folder'],
+        ],
+        'relative_input_listing_uses_absolute_input' => $relativePathResolution['input_listing_uses_absolute_input_folder'],
+        'relative_output_creation_uses_absolute_output' => $relativePathResolution['output_creation_uses_absolute_output_folder'],
+        'relative_input_output_filesystem_touched_by_abspath' => $relativePathResolution['filesystem_touched_by_abspath'],
         'empty_metadata_file_arg_value' => $emptyMetadataArgPlan['arguments']['options']['metadata_file'],
         'empty_metadata_file_truthy_for_json_load' => $emptyMetadataArgPlan['semantic_boundaries']['metadata_file_truthy_for_json_load'],
         'empty_metadata_file_skips_json_load' => $emptyMetadataArgPlan['semantic_boundaries']['empty_metadata_file_skips_json_load'],

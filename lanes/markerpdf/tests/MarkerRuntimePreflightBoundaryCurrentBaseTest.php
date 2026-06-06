@@ -267,6 +267,72 @@ return [
             $removeTree($output);
         }
     },
+    'records input and output os.path.abspath resolution before listdir and makedirs' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $root = $makeTempDir();
+        $previousCwd = getcwd();
+        if (!is_string($previousCwd)) {
+            throw new RuntimeException('Unable to capture cwd for markerPDF runtime abspath boundary test.');
+        }
+
+        try {
+            $input = $root . DIRECTORY_SEPARATOR . 'wp-content' . DIRECTORY_SEPARATOR . 'uploads';
+            $output = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            mkdir($input, 0777, true);
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'relative-report.pdf', "%PDF-1.4\n% relative report\n%%EOF");
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'sidecar.txt', 'WordPress upload sidecar');
+
+            if (!chdir($root)) {
+                throw new RuntimeException('Unable to enter markerPDF runtime abspath fixture root.');
+            }
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                './wp-content/../wp-content/uploads',
+                './runtime/../marker-output',
+                workers: 3
+            );
+
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $resolution = $plan['paths']['path_resolution'];
+            $taskArgs = $plan['worker_pool']['task_args'];
+
+            $t->same('convert.py os.path.abspath input/output boundary', $resolution['source']);
+            $t->same('after_parse_args_before_list_input_files', $resolution['order']);
+            $t->same('./wp-content/../wp-content/uploads', $resolution['input_folder_argument']);
+            $t->same('./runtime/../marker-output', $resolution['output_folder_argument']);
+            $t->same('os.path.abspath(args.in_folder)', $resolution['input_folder_abspath_call']);
+            $t->same('os.path.abspath(args.out_folder)', $resolution['output_folder_abspath_call']);
+            $t->same(false, $resolution['input_folder_was_absolute']);
+            $t->same(false, $resolution['output_folder_was_absolute']);
+            $t->same('process_cwd', $resolution['input_folder_abspath_base']);
+            $t->same('process_cwd', $resolution['output_folder_abspath_base']);
+            $t->same($root, $resolution['process_cwd']);
+            $t->same($input, $resolution['absolute_input_folder']);
+            $t->same($output, $resolution['absolute_output_folder']);
+            $t->same(true, $resolution['input_folder_relative_to_process_cwd']);
+            $t->same(true, $resolution['output_folder_relative_to_process_cwd']);
+            $t->same(false, $resolution['input_folder_relative_to_output_folder']);
+            $t->same(false, $resolution['output_folder_relative_to_input_folder']);
+            $t->same(true, $resolution['input_listing_uses_absolute_input_folder']);
+            $t->same(true, $resolution['output_creation_uses_absolute_output_folder']);
+            $t->same(false, $resolution['filesystem_touched_by_abspath']);
+            $t->same(false, file_exists($output));
+            $t->same($input, $plan['paths']['absolute_input_folder']);
+            $t->same($output, $plan['paths']['absolute_output_folder']);
+            $t->same(false, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['output_folder_creation_required']);
+            $t->same(false, $plan['paths']['native_plan_creates_output_folder']);
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same($input . DIRECTORY_SEPARATOR . $fileOrder[0], $taskArgs[0]['filepath']);
+            $t->same($output, $taskArgs[0]['out_folder']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            chdir($previousCwd);
+            $removeTree($root);
+        }
+    },
     'records convert.py model handoff branch before summary task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
