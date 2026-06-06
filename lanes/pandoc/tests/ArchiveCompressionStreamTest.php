@@ -208,6 +208,70 @@ return [
         $t->same($documentBytes, $roundTrip->read('/' . $documentName));
     },
 
+    'reads pax access and change timestamp metadata for tar package fixture entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $documentName = 'packet/pax/timestamps.xml';
+        $documentBytes = '<w:document><w:body><w:p>PAX timestamp provenance</w:p></w:body></w:document>';
+        $archive = $rawTarHeader('PaxHeaders/timestamps', 'x', $paxPayload([
+            'path' => $documentName,
+            'size' => (string) strlen($documentBytes),
+            'mtime' => '1780479049.25',
+            'atime' => '1780479050.50',
+            'ctime' => '1780479051.75',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', $documentBytes, 0, false, 0)
+            . str_repeat("\0", 1024);
+        $globalArchive = $rawTarHeader('GlobalHead/timestamps', 'g', $paxPayload([
+            'atime' => '1780479052',
+            'ctime' => '1780479053.99',
+        ]), 0, false)
+            . $rawTarHeader('packet/pax/global-timestamps.xml', '0', '<w:document/>', 1780479054, false)
+            . str_repeat("\0", 1024);
+
+        $entry = TarArchive::fromString($archive)->entry($documentName);
+        $globalEntry = TarArchive::fromString($globalArchive)->entry('/packet/pax/global-timestamps.xml');
+        $generated = TarArchive::fromEntries([
+            [
+                'name' => 'packet/generated-timestamps.xml',
+                'data' => '<w:document><w:p>generated PAX timestamps</w:p></w:document>',
+                'modifiedAt' => 1780479055,
+                'accessedAt' => 1780479056,
+                'changedAt' => 1780479057,
+            ],
+        ]);
+        $generatedEntry = $generated->entry('/packet/generated-timestamps.xml');
+
+        $t->same(1780479049, $entry->modifiedAt);
+        $t->same(1780479050, $entry->accessedAt);
+        $t->same(1780479051, $entry->changedAt);
+        $t->same('1780479050.50', $entry->paxHeaders['atime'] ?? null);
+        $t->same('1780479051.75', $entry->paxHeaders['ctime'] ?? null);
+        $t->same($documentBytes, TarArchive::fromString($archive)->read('/' . $documentName));
+        $t->same(1780479052, $globalEntry->accessedAt);
+        $t->same(1780479053, $globalEntry->changedAt);
+        $t->same(1780479054, $globalEntry->modifiedAt);
+        $t->same(1780479056, $generatedEntry->accessedAt);
+        $t->same(1780479057, $generatedEntry->changedAt);
+        $t->same('1780479056', $generatedEntry->paxHeaders['atime'] ?? null);
+        $t->same('1780479057', $generatedEntry->paxHeaders['ctime'] ?? null);
+        $t->same('<w:document><w:p>generated PAX timestamps</w:p></w:document>', $generated->read('/packet/generated-timestamps.xml'));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString(
+            $rawTarHeader('PaxHeaders/overflow-atime', 'x', $paxPayload([
+                'path' => 'packet/pax/overflow-atime.xml',
+                'atime' => (string) PHP_INT_MAX . '0.25',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-atime.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024)
+        ));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString(
+            $rawTarHeader('PaxHeaders/overflow-ctime', 'x', $paxPayload([
+                'path' => 'packet/pax/overflow-ctime.xml',
+                'ctime' => (string) PHP_INT_MAX . '0.25',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-ctime.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024)
+        ));
+    },
+
     'rejects overflowing pax mtime metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $documentBytes = '<w:document><w:body><w:p>Overflowing PAX mtime source</w:p></w:body></w:document>';
         $tooLargeTimestamp = (string) PHP_INT_MAX . '0.25';

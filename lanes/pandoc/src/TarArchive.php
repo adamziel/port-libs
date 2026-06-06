@@ -166,6 +166,8 @@ final class TarArchive
                 $entryType,
                 $size,
                 self::resolvedModifiedAtFromHeader($header, $metadataHeaders),
+                self::resolvedAccessedAtFromHeader($metadataHeaders),
+                self::resolvedChangedAtFromHeader($metadataHeaders),
                 self::readNumericField(substr($header, 100, 8), "TAR mode for {$name}"),
                 self::resolvedUidFromHeader($header, $metadataHeaders, $name),
                 self::resolvedGidFromHeader($header, $metadataHeaders, $name),
@@ -191,7 +193,7 @@ final class TarArchive
     }
 
     /**
-     * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
+     * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
     public static function fromEntries(array $entries, array $options = []): self
@@ -200,7 +202,7 @@ final class TarArchive
     }
 
     /**
-     * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
+     * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
     public static function build(array $entries, array $options = []): string
@@ -255,6 +257,14 @@ final class TarArchive
 
             $modifiedAt = $entry['modifiedAt'] ?? 0;
             self::assertNonNegativeInt($modifiedAt, "TAR entry {$name} modifiedAt");
+            $accessedAt = $entry['accessedAt'] ?? null;
+            if ($accessedAt !== null) {
+                self::assertNonNegativeInt($accessedAt, "TAR entry {$name} accessedAt");
+            }
+            $changedAt = $entry['changedAt'] ?? null;
+            if ($changedAt !== null) {
+                self::assertNonNegativeInt($changedAt, "TAR entry {$name} changedAt");
+            }
 
             $mode = $entry['mode'] ?? ($type === TarArchiveEntry::TYPE_DIRECTORY ? 0755 : 0644);
             self::assertOctalFieldValue($mode, 8, "TAR entry {$name} mode");
@@ -277,6 +287,12 @@ final class TarArchive
             if (self::splitUstarPath($name) === null) {
                 $paxHeaders['path'] = $name;
                 $headerName = 'PaxFiles/' . substr(sha1($name), 0, 24);
+            }
+            if ($accessedAt !== null) {
+                $paxHeaders['atime'] = (string) $accessedAt;
+            }
+            if ($changedAt !== null) {
+                $paxHeaders['ctime'] = (string) $changedAt;
             }
 
             $headerOptions = [
@@ -470,6 +486,30 @@ final class TarArchive
         }
 
         return self::readNumericField(substr($header, 136, 12), 'TAR entry mtime');
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedAccessedAtFromHeader(array $headers): ?int
+    {
+        if (isset($headers['atime'])) {
+            return self::parsePaxIntegerTimestamp($headers['atime'], 'TAR PAX atime');
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedChangedAtFromHeader(array $headers): ?int
+    {
+        if (isset($headers['ctime'])) {
+            return self::parsePaxIntegerTimestamp($headers['ctime'], 'TAR PAX ctime');
+        }
+
+        return null;
     }
 
     /**

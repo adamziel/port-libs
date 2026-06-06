@@ -1904,6 +1904,8 @@ $paxMetadataTar = $buildRawTarRecord('PaxHeaders/pax-document', 'x', $buildPaxPa
     'path' => $paxDocumentName,
     'size' => (string) strlen($paxDocumentBytes),
     'mtime' => (string) ($documentModifiedAt + 11) . '.25',
+    'atime' => (string) ($documentModifiedAt + 12) . '.50',
+    'ctime' => (string) ($documentModifiedAt + 13) . '.75',
     'uid' => '1001',
     'gid' => '1002',
     'uname' => 'wp-reviewer',
@@ -3004,6 +3006,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected PAX mtime metadata to define the tar document modified time');
     }
 
+    if ($paxEntry->accessedAt !== $documentModifiedAt + 12 || $paxEntry->changedAt !== $documentModifiedAt + 13) {
+        throw new RuntimeException('Expected PAX access and change timestamps to be visible for review packets');
+    }
+
     if ($paxEntry->uid !== 1001 || $paxEntry->gid !== 1002 || $paxEntry->userName !== 'wp-reviewer' || $paxEntry->groupName !== 'import-team') {
         throw new RuntimeException('Expected PAX owner metadata to round-trip for review packets');
     }
@@ -3421,6 +3427,8 @@ echo 'tar.completeConcatenationPolicy=' . ($separateCompleteGzipTarRejected ? 'r
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
 echo 'tar.paxOwner=' . $paxMetadataPacket->entry('/' . $paxDocumentName)->userName . ':' . $paxMetadataPacket->entry('/' . $paxDocumentName)->groupName . "\n";
+echo 'tar.paxAccessedAt=' . ($paxMetadataPacket->entry('/' . $paxDocumentName)->accessedAt ?? 'none') . "\n";
+echo 'tar.paxChangedAt=' . ($paxMetadataPacket->entry('/' . $paxDocumentName)->changedAt ?? 'none') . "\n";
 echo 'tar.base256Owner=' . $base256NumericPacket->entry('/packet/base256/document.xml')->uid . ':' . $base256NumericPacket->entry('/packet/base256/document.xml')->gid . "\n";
 echo 'tar.base256ModifiedAt=' . $base256NumericPacket->entry('/packet/base256/document.xml')->modifiedAt . "\n";
 echo 'deflate.format=' . $deflateReviewMetadata['format'] . "\n";
