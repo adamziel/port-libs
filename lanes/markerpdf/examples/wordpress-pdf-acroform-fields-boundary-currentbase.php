@@ -9,10 +9,11 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm page widget boundary body) Tj ET';
 $secondPageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm widget P second page boundary body) Tj ET';
+$directKidsWidget = '<< /Subtype /Widget /Parent 180 0 R /Rect [72 24 320 48] /P 3 0 R /F 4 >>';
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 41 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R 132 0 R 134 0 R 164 0 R 172 0 R 176 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 41 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R 120 0 R 124 0 R 132 0 R 134 0 R 164 0 R 172 0 R 176 0 R {$directKidsWidget}] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 42 0 R /Annots [150 0 R] >>\nendobj\n"
     . "5 0 obj\n<< /Fields [6 0 R 23 0 R 122 0 R 124 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
     . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n112 0 R] >>\nendobj\n"
@@ -63,6 +64,7 @@ $pdf = "%PDF-1.7\n"
     . "172 0 obj\n<< /Subtype /Widget /Parent 170 0 R /Rect [72 60 320 84] /P 3 0 R /F 4 >>\nendobj\n"
     . "174 0 obj\n<< /FT /Tx /T (explicit.empty.kids) /V (explicit empty kids decoy) /Kids [] >>\nendobj\n"
     . "176 0 obj\n<< /Subtype /Widget /Parent 174 0 R /Rect [72 20 320 44] /P 3 0 R /F 4 >>\nendobj\n"
+    . "180 0 obj\n<< /FT /Tx /T (directkids.parent) /TU (Direct Kids parent label) /TM (direct-kids-parent-export) /V (Direct Kids parent value) /DV (Direct Kids parent default) /MaxLen 52 /Kids [{$directKidsWidget}] >>\nendobj\n"
     . "41 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
     . "42 0 obj\n<< /Length " . strlen($secondPageText) . " >>\nstream\n{$secondPageText}\nendstream\nendobj\n"
     . "%%EOF";
@@ -74,7 +76,7 @@ foreach ($form['fields'] as $field) {
     $fieldsByName[(string) ($field['name'] ?? '')] = $field;
 }
 
-foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status', 'second.page.status', 'parent.nokids'] as $name) {
+foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label', 'childroot.email', 'workflow.status', 'second.page.status', 'parent.nokids', 'directkids.parent'] as $name) {
     if (!isset($fieldsByName[$name])) {
         throw new RuntimeException("Missing expected AcroForm field {$name}.");
     }
@@ -179,6 +181,23 @@ if (($parentNoKids['alternate_name'] ?? null) !== 'Parent without Kids label' ||
     throw new RuntimeException('Parent-without-Kids AcroForm review names were not preserved.');
 }
 
+$directKidsParent = $fieldsByName['directkids.parent'];
+if (($directKidsParent['object'] ?? null) !== 180 || count($directKidsParent['widgets'] ?? []) !== 1) {
+    throw new RuntimeException('Page-owned direct Widget annotations must repair parents whose /Kids contains the same direct Widget dictionary.');
+}
+if (array_column($directKidsParent['widgets'] ?? [], 'referenced_from_page_annots') !== [true]
+    || array_column($directKidsParent['widgets'] ?? [], 'page_object') !== [3]
+) {
+    throw new RuntimeException('Direct /Kids Widget parent repair did not preserve page-owned annotation metadata.');
+}
+if (($directKidsParent['value'] ?? null) !== 'Direct Kids parent value'
+    || ($directKidsParent['default_value'] ?? null) !== 'Direct Kids parent default'
+    || ($directKidsParent['alternate_name'] ?? null) !== 'Direct Kids parent label'
+    || ($directKidsParent['mapping_name'] ?? null) !== 'direct-kids-parent-export'
+) {
+    throw new RuntimeException('Direct /Kids Widget parent review metadata was not preserved.');
+}
+
 $rows = [];
 foreach ($form['fields'] as $field) {
     $widgets = is_array($field['widgets'] ?? null) ? $field['widgets'] : [];
@@ -198,10 +217,10 @@ foreach ($form['fields'] as $field) {
 
 echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-catalog-acroform-page-widget-boundary',
-    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them when the parent either omits /Kids or its explicit /Kids tree owns the widget; explicit Widget /P references must match the listing page; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
+    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them when the parent either omits /Kids or its explicit /Kids tree owns the widget, including equivalent top-level direct Widget dictionaries in /Kids; explicit Widget /P references must match the listing page; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
     'field_count' => count($form['fields']),
     'field_names' => array_column($rows, 'name'),
-    'promoted_page_widget_parent_fields' => ['omitted.category'],
+    'promoted_page_widget_parent_fields' => ['omitted.category', 'directkids.parent'],
     'promoted_standalone_widget_fields' => ['inline.note'],
     'wrong_page_widget_p_references_excluded' => !isset($fieldsByName['wrongpage.parent']) && !isset($fieldsByName['wrongpage.inline']),
     'wrong_page_decoy_names' => ['wrongpage.parent', 'wrongpage.inline'],
@@ -210,6 +229,10 @@ echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialcha
     'parent_without_kids_repaired' => ($parentNoKids['object'] ?? null) === 170
         && array_column($parentNoKids['widgets'] ?? [], 'object') === [172]
         && array_column($parentNoKids['widgets'] ?? [], 'page_annotation_index') === [11],
+    'direct_parent_kids_widget_repaired' => ($directKidsParent['object'] ?? null) === 180
+        && count($directKidsParent['widgets'] ?? []) === 1
+        && array_column($directKidsParent['widgets'] ?? [], 'page_object') === [3]
+        && array_column($directKidsParent['widgets'] ?? [], 'referenced_from_page_annots') === [true],
     'explicit_empty_kids_parent_excluded' => !isset($fieldsByName['explicit.empty.kids']),
     'explicit_empty_kids_decoy_name' => 'explicit.empty.kids',
     'matching_widget_p_second_page_preserved' => ($secondPageStatus['object'] ?? null) === 148

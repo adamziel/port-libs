@@ -6268,10 +6268,31 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
+            $equivalentIndex = $this->equivalentWidgetReferenceIndex($refs, $widgetObject, $objects);
+            if ($equivalentIndex !== null) {
+                $refs[$equivalentIndex] = $widgetObject;
+                continue;
+            }
+
             $refs[] = $widgetObject;
         }
 
         return $this->orderedWidgetReferencesByPageAnnotations($refs, $pageWidgets);
+    }
+
+    /**
+     * @param list<int> $refs
+     * @param array<int, string> $objects
+     */
+    private function equivalentWidgetReferenceIndex(array $refs, int $widgetObject, array $objects): ?int
+    {
+        foreach ($refs as $index => $ref) {
+            if ($this->widgetDictionariesEquivalent($ref, $widgetObject, $objects)) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -9612,12 +9633,107 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if ($kidRef === $targetObject || $this->fieldTreeContainsObject($kidRef, $targetObject, $objects, $seen)) {
+            if (
+                $kidRef === $targetObject
+                || $this->widgetDictionariesEquivalent($kidRef, $targetObject, $objects)
+                || $this->fieldTreeContainsObject($kidRef, $targetObject, $objects, $seen)
+            ) {
                 return true;
             }
         }
 
+        return $this->directKidWidgetDictionaryMatchesTarget($rootObject, $body, $targetObject, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function widgetDictionariesEquivalent(int $leftObject, int $rightObject, array $objects): bool
+    {
+        if ($leftObject === $rightObject) {
+            return true;
+        }
+
+        if (
+            !isset($objects[$leftObject])
+            || !isset($objects[$rightObject])
+            || $this->objectIsStreamObject($leftObject, $objects)
+            || $this->objectIsStreamObject($rightObject, $objects)
+        ) {
+            return false;
+        }
+
+        $leftBody = $this->dictionaryObjectBody($objects[$leftObject]) ?? trim($objects[$leftObject]);
+        $rightBody = $this->dictionaryObjectBody($objects[$rightObject]) ?? trim($objects[$rightObject]);
+        if (!$this->isWidget($leftBody) || !$this->isWidget($rightBody)) {
+            return false;
+        }
+
+        return $this->canonicalDictionaryComparisonBody($leftBody) === $this->canonicalDictionaryComparisonBody($rightBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function directKidWidgetDictionaryMatchesTarget(int $parentObject, string $parentBody, int $targetObject, array $objects): bool
+    {
+        if (!isset($objects[$targetObject]) || $this->objectIsStreamObject($targetObject, $objects)) {
+            return false;
+        }
+
+        $targetBody = $this->dictionaryObjectBody($objects[$targetObject]) ?? trim($objects[$targetObject]);
+        if (!$this->isWidget($targetBody)) {
+            return false;
+        }
+
+        $kids = $this->lastTopLevelValueAfterName($parentBody, 'Kids');
+        if ($kids === null) {
+            return false;
+        }
+
+        $arrayBody = $this->arrayBodyFromValueOrReference($kids, $objects);
+        if ($arrayBody === null) {
+            return false;
+        }
+
+        $targetCanonical = $this->canonicalDictionaryComparisonBody($targetBody);
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $this->skipWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (substr($arrayBody, $offset, 2) !== '<<') {
+                $valueEnd = null;
+                $this->readPdfValueAt($arrayBody, $offset, $valueEnd);
+                $offset = $valueEnd !== null && $valueEnd > $offset ? $valueEnd : $offset + 1;
+                continue;
+            }
+
+            $dictionaryEnd = null;
+            $dictionary = $this->readPdfDictionaryAt($arrayBody, $offset, $dictionaryEnd);
+            if ($dictionary === null || $dictionaryEnd === null) {
+                $offset += 2;
+                continue;
+            }
+
+            $parentValue = $this->lastTopLevelValueAfterName($dictionary, 'Parent');
+            $ownsParent = $parentValue === null || $this->validObjectReferenceFromValue($parentValue, $objects) === $parentObject;
+            if ($ownsParent && $this->isWidget($dictionary) && $this->canonicalDictionaryComparisonBody($dictionary) === $targetCanonical) {
+                return true;
+            }
+
+            $offset = $dictionaryEnd;
+        }
+
         return false;
+    }
+
+    private function canonicalDictionaryComparisonBody(string $body): string
+    {
+        return preg_replace('/\s+/', ' ', trim($body)) ?? trim($body);
     }
 
     /**
