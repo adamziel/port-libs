@@ -1891,7 +1891,7 @@ final class PdfTextExtractor
                 break;
             }
 
-            $title = $this->pdfStringValueAfterName($body, 'Title', $objects);
+            $title = $this->pdfSingleStringValueAfterName($body, 'Title', $objects);
             if ($title === null || $title === '') {
                 if ($lastItemObject === null || $objectNumber === $lastItemObject) {
                     break;
@@ -18776,6 +18776,62 @@ final class PdfTextExtractor
         }
 
         return $this->pdfStringTokenAt($body, $offset, $objects);
+    }
+
+    /**
+     * Outline titles may be indirect strings, but the referenced object must
+     * contain exactly one string/name token. Extra tokens indicate malformed
+     * outline metadata and must not be silently dropped.
+     *
+     * @param array<int, string> $objects
+     */
+    private function pdfSingleStringValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null || !$this->pdfValueIsSingleStringOrNameToken($value, $objects)) {
+            return null;
+        }
+
+        return $this->pdfStringTokenAt($value, 0, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfValueIsSingleStringOrNameToken(string $value, array $objects): bool
+    {
+        $candidate = $value;
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $candidate = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($candidate === null) {
+                return false;
+            }
+        }
+
+        $offset = 0;
+        $this->skipContentWhitespaceAndComments($candidate, $offset);
+        if ($offset >= strlen($candidate)) {
+            return false;
+        }
+
+        $token = $this->pdfValueAtOffset($candidate, $offset);
+        if ($token === null || $token === '') {
+            return false;
+        }
+
+        $first = $token[0];
+        $isStringOrName = $first === '('
+            || $first === '/'
+            || ($first === '<' && ($token[1] ?? '') !== '<');
+        if (!$isStringOrName) {
+            return false;
+        }
+
+        $after = $offset + strlen($token);
+        $this->skipContentWhitespaceAndComments($candidate, $after);
+
+        return $after >= strlen($candidate);
     }
 
     /**
