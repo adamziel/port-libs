@@ -538,7 +538,7 @@ final class PdfTextDocumentExtractor
         if (!is_string($char['char'])) {
             throw new InvalidArgumentException("pdftext char {$index}.char must be a string when keep_chars=true.");
         }
-        $this->assertUtf8String($char['char'], "char {$index}.char");
+        $this->assertSingleUtf8Codepoint($char['char'], "char {$index}.char");
 
         $bbox = $this->unnormalizeDictionaryOutputBbox($char['bbox'], $bboxScale);
         $char['bbox'] = $this->dictionaryOutputRequiredBbox($bbox, "char {$index}.bbox");
@@ -880,6 +880,15 @@ final class PdfTextDocumentExtractor
     {
         if (preg_match('//u', $text) !== 1) {
             throw new InvalidArgumentException("pdftext {$field} must be valid UTF-8.");
+        }
+    }
+
+    private function assertSingleUtf8Codepoint(string $text, string $field): void
+    {
+        $this->assertUtf8String($text, $field);
+        $codepointCount = preg_match_all('/./us', $text);
+        if ($codepointCount !== 1) {
+            throw new InvalidArgumentException("pdftext {$field} must be a single Unicode character.");
         }
     }
 

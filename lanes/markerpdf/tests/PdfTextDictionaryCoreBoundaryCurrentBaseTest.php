@@ -871,6 +871,33 @@ return [
         $badIndex['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = '7';
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badIndex], maxPages: 1, keepChars: true));
     },
+    'accepts single-codepoint pdftext characters and rejects multi-codepoint rows before WordPress rendering' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $singleCodepoint = $pdftextCharsPage();
+        $singleCodepoint['blocks'][0]['lines'][0]['spans'][0]['text'] = "Emoji character rows\n";
+        $singleCodepoint['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = "\u{1F600}";
+        $singleCodepoint['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['char'] = "\u{00E9}";
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$singleCodepoint], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same("\u{1F600}", $span['chars'][0]['char']);
+        $t->same("\u{00E9}", $span['chars'][1]['char']);
+        $t->same("\u{1F600}", $charSpan['chars'][0]['char']);
+        $t->same("\u{00E9}", $charSpan['chars'][1]['char']);
+
+        $emptyChar = $pdftextCharsPage();
+        $emptyChar['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = '';
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$emptyChar], maxPages: 1, keepChars: true));
+
+        $twoCharacters = $pdftextCharsPage();
+        $twoCharacters['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = 'Ke';
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$twoCharacters], maxPages: 1, keepChars: true));
+
+        $combiningSequence = $pdftextCharsPage();
+        $combiningSequence['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = "e\u{0301}";
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$combiningSequence], maxPages: 1, keepChars: true));
+    },
     'rejects fractional pdftext character indexes before WordPress rendering' => static function (TestRunner $t) use ($pdftextCharsPage): void {
         $fractionalStart = $pdftextCharsPage();
         $fractionalStart['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 7.5;
