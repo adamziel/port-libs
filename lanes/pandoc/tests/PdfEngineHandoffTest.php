@@ -1846,6 +1846,119 @@ MARKDOWN);
         $t->same(['FlateDecode' => 1], $sequence['finalPdfFormXObjectFilters']);
     },
 
+    'fake runner extracts bounded pdf extended graphics state resources from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/graphics-state.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Resources << /ExtGState << /GSBase 6 0 R >> >> /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /ExtGState << /GSWatermark << /Type /ExtGState /ca 0.35 /BM /Multiply /AIS true /TK false /SMask /None >> /GSReview 7 0 R >> >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /ExtGState /CA 0.8 /ca 0.6 /BM [/Normal /Screen] /OP true /op false /OPM 1 /SA true >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /ExtGState /CA 1 /ca 0.92 /BM 8 0 R /SMask 9 0 R /AIS false /TK true >>',
+            'endobj',
+            '8 0 obj',
+            '[/Overlay /SoftLight]',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Mask /S /Luminosity >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/graphics-state.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/graphics-state.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'GSBase',
+                'graphicsStateObject' => '6 0 R',
+                'inherited' => true,
+                'strokingAlpha' => 0.8,
+                'nonstrokingAlpha' => 0.6,
+                'blendModes' => ['Normal', 'Screen'],
+                'overprintStroking' => true,
+                'overprintNonstroking' => false,
+                'overprintMode' => 1,
+                'alphaSource' => null,
+                'textKnockout' => null,
+                'softMask' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'GSReview',
+                'graphicsStateObject' => '7 0 R',
+                'inherited' => false,
+                'strokingAlpha' => 1.0,
+                'nonstrokingAlpha' => 0.92,
+                'blendModes' => ['Overlay', 'SoftLight'],
+                'overprintStroking' => null,
+                'overprintNonstroking' => null,
+                'overprintMode' => null,
+                'alphaSource' => false,
+                'textKnockout' => true,
+                'softMask' => '9 0 R',
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'GSWatermark',
+                'graphicsStateObject' => null,
+                'inherited' => false,
+                'strokingAlpha' => null,
+                'nonstrokingAlpha' => 0.35,
+                'blendModes' => ['Multiply'],
+                'overprintStroking' => null,
+                'overprintNonstroking' => null,
+                'overprintMode' => null,
+                'alphaSource' => true,
+                'textKnockout' => false,
+                'softMask' => 'None',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfGraphicsStates'] ?? null);
+        $t->same(['Multiply' => 1, 'Normal' => 1, 'Overlay' => 1, 'Screen' => 1, 'SoftLight' => 1], $result['pdfGraphicsStateBlendModes'] ?? null);
+        $t->contains('pdf-byte-graphics-states:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-alpha:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-blend-modes:5', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-blend-mode:Multiply:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-soft-masks:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-overprint:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfGraphicsStates'] ?? null);
+        $t->same(['Multiply' => 1, 'Normal' => 1, 'Overlay' => 1, 'Screen' => 1, 'SoftLight' => 1], $sequence['finalPdfGraphicsStateBlendModes'] ?? null);
+    },
+
     'fake runner extracts bounded pdf page label ranges from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-labels.pdf']);
