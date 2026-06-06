@@ -5046,8 +5046,53 @@ final class PdfEmbeddedFileExtractor
             $pdfBytes,
             $entry['offset'],
             $definitions,
-            $entry['tokenOffset']
+            $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry)
         ) ?? $entry['offset'];
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int}|null $entry
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function classicRebuildBoundaryOffset(string $pdfBytes, array $definitions, ?array $entry): ?int
+    {
+        $boundary = $entry['tokenOffset'] ?? null;
+        $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($ignoredBoundary !== null && ($boundary === null || $ignoredBoundary > $boundary)) {
+            return $ignoredBoundary;
+        }
+
+        return $boundary;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function latestIgnoredStartxrefRebuildBoundaryOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (!is_int($tokenOffset) || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')) {
+                continue;
+            }
+
+            if ($this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            if (
+                $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                return $tokenOffset;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -6937,8 +6982,16 @@ final class PdfEmbeddedFileExtractor
 
     private function bytesThroughTerminalEof(string $pdfBytes): string
     {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $ignoredBoundary = $definitions === []
+            ? null
+            : $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
         $eof = strrpos($pdfBytes, '%%EOF');
         if ($eof === false) {
+            return $pdfBytes;
+        }
+
+        if ($ignoredBoundary !== null && $ignoredBoundary > $eof) {
             return $pdfBytes;
         }
 

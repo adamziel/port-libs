@@ -23488,7 +23488,7 @@ final class PdfTextExtractor
         $fallbackClassicOffset = $this->latestClassicXrefTableOffset(
             $pdfBytes,
             $definitions,
-            $startxrefEntry['tokenOffset'] ?? null
+            $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $startxrefEntry)
         );
         $entries = $fallbackClassicOffset === null
             ? $this->xrefTableEntries($pdfBytes, $definitions)
@@ -24236,7 +24236,7 @@ final class PdfTextExtractor
         $offset = $this->latestClassicXrefTableOffset(
             $pdfBytes,
             $definitions,
-            $startxrefEntry['tokenOffset'] ?? null
+            $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $startxrefEntry)
         );
         if ($offset === null) {
             return null;
@@ -24478,8 +24478,59 @@ final class PdfTextExtractor
             $pdfBytes,
             $entry['offset'],
             $definitions,
-            $entry['tokenOffset']
+            $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry)
         ) ?? $entry['offset'];
+    }
+
+    /**
+     * A later startxref token inside a direct object or top-level composite is
+     * not selectable, but it still marks where a damaged producer stopped
+     * appending the current revision. Use it only to bound classic xref table
+     * rebuild scans so an older valid startxref cannot hide a newer table.
+     *
+     * @param array{offset: int, tokenOffset: int}|null $entry
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function classicRebuildBoundaryOffset(string $pdfBytes, array $definitions, ?array $entry): ?int
+    {
+        $boundary = $entry['tokenOffset'] ?? null;
+        $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($ignoredBoundary !== null && ($boundary === null || $ignoredBoundary > $boundary)) {
+            return $ignoredBoundary;
+        }
+
+        return $boundary;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function latestIgnoredStartxrefRebuildBoundaryOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (!is_int($tokenOffset) || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')) {
+                continue;
+            }
+
+            if ($this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            $isIgnoredBoundary = $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions);
+            if (!$isIgnoredBoundary) {
+                continue;
+            }
+
+            return $tokenOffset;
+        }
+
+        return null;
     }
 
     /**

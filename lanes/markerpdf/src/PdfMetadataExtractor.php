@@ -1224,11 +1224,11 @@ final class PdfMetadataExtractor
     private function trailerInfoReferenceFromLatestClassicXrefTable(string $pdfBytes, array $objects, array $definitions): ?array
     {
         $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
-        $offset = $this->latestClassicXrefTableOffset(
-            $pdfBytes,
-            $definitions,
-            $startxrefEntry['tokenOffset'] ?? null
-        );
+            $offset = $this->latestClassicXrefTableOffset(
+                $pdfBytes,
+                $definitions,
+                $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $startxrefEntry)
+            );
         if ($offset === null) {
             return null;
         }
@@ -11078,6 +11078,16 @@ final class PdfMetadataExtractor
         $definitions = $this->directObjectDefinitions($pdfBytes);
         $entry = $this->latestStartxrefEntry($pdfBytes, $definitions === [] ? null : $definitions);
         if ($entry !== null) {
+            $boundary = $definitions === []
+                ? ($entry['tokenOffset'] ?? null)
+                : $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry);
+            if ($boundary !== null && $boundary > ($entry['tokenOffset'] ?? -1)) {
+                $eofOffset = strpos($pdfBytes, '%%EOF', $boundary);
+                return $eofOffset === false
+                    ? $pdfBytes
+                    : substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
+            }
+
             $eofOffset = strpos($pdfBytes, '%%EOF', $entry['tokenOffset']);
             if ($eofOffset !== false) {
                 return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
@@ -13703,12 +13713,59 @@ final class PdfMetadataExtractor
             return null;
         }
 
+        $definitions ??= $this->directObjectDefinitions($pdfBytes);
+
         return $this->classicRebuildOffsetForStartxref(
             $pdfBytes,
             $entry['offset'],
             $definitions,
-            $entry['tokenOffset']
+            $this->classicRebuildBoundaryOffset($pdfBytes, $definitions, $entry)
         ) ?? $entry['offset'];
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int}|null $entry
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int, generation: int, offset: int, body: string}>> $definitions
+     */
+    private function classicRebuildBoundaryOffset(string $pdfBytes, array $definitions, ?array $entry): ?int
+    {
+        $boundary = $entry['tokenOffset'] ?? null;
+        $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($ignoredBoundary !== null && ($boundary === null || $ignoredBoundary > $boundary)) {
+            return $ignoredBoundary;
+        }
+
+        return $boundary;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function latestIgnoredStartxrefRebuildBoundaryOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (!is_int($tokenOffset) || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')) {
+                continue;
+            }
+
+            if ($this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            if (
+                $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                return $tokenOffset;
+            }
+        }
+
+        return null;
     }
 
     /**
