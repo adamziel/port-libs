@@ -33615,8 +33615,17 @@ final class PdfTextExtractor
                         continue;
                     }
 
+                    $openScopes = null;
+                    $closedTextObjectBeforeCandidateEi = $this->contentSegmentIsLineSeparatedClosedTextObject(
+                        $segmentAfterFallback,
+                        $openScopes
+                    );
                     if (
-                        $this->contentSegmentIsLineSeparatedClosedTextObject($segmentAfterFallback)
+                        $closedTextObjectBeforeCandidateEi
+                        || (
+                            $openScopes !== null
+                            && $this->contentSegmentOpenScopesCloseImmediatelyAfterEi($stream, $end + 2, $openScopes)
+                        )
                         || $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedMarkedContentReplacementLiteral($segmentAfterFallback)
@@ -33656,8 +33665,12 @@ final class PdfTextExtractor
         return true;
     }
 
-    private function contentSegmentIsLineSeparatedClosedTextObject(string $segment): bool
+    /**
+     * @param array{graphics_state: int, marked_content: int, compatibility: int}|null $openScopes
+     */
+    private function contentSegmentIsLineSeparatedClosedTextObject(string $segment, ?array &$openScopes = null): bool
     {
+        $openScopes = null;
         $index = 0;
         $length = strlen($segment);
         $lineSeparated = false;
@@ -33991,12 +34004,72 @@ final class PdfTextExtractor
             }
         }
 
-        return $closedTextObject
-            && !$insideTextObject
-            && $outsideTextOperands === []
-            && $graphicsStateDepth === 0
+        if (!$closedTextObject || $insideTextObject || $outsideTextOperands !== []) {
+            return false;
+        }
+
+        $openScopes = [
+            'graphics_state' => $graphicsStateDepth,
+            'marked_content' => $markedContentDepth,
+            'compatibility' => $compatibilityDepth,
+        ];
+
+        return $graphicsStateDepth === 0
             && $markedContentDepth === 0
             && $compatibilityDepth === 0;
+    }
+
+    /**
+     * @param array{graphics_state: int, marked_content: int, compatibility: int} $openScopes
+     */
+    private function contentSegmentOpenScopesCloseImmediatelyAfterEi(
+        string $stream,
+        int $offset,
+        array $openScopes
+    ): bool {
+        $graphicsStateDepth = max(0, $openScopes['graphics_state']);
+        $markedContentDepth = max(0, $openScopes['marked_content']);
+        $compatibilityDepth = max(0, $openScopes['compatibility']);
+        if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
+            return false;
+        }
+
+        $index = $offset;
+        $length = strlen($stream);
+        while ($graphicsStateDepth > 0 || $markedContentDepth > 0 || $compatibilityDepth > 0) {
+            $this->skipContentWhitespaceAndComments($stream, $index);
+            if ($index >= $length) {
+                return false;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($stream[$index])) {
+                $index++;
+            }
+            if ($index === $start) {
+                return false;
+            }
+
+            $token = substr($stream, $start, $index - $start);
+            if ($token === 'Q' && $graphicsStateDepth > 0) {
+                $graphicsStateDepth--;
+                continue;
+            }
+
+            if ($token === 'EMC' && $markedContentDepth > 0) {
+                $markedContentDepth--;
+                continue;
+            }
+
+            if ($token === 'EX' && $compatibilityDepth > 0) {
+                $compatibilityDepth--;
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
