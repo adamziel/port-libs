@@ -70,6 +70,10 @@ final class LayoutAnnotator
     private const LAYOUT_RESULT_PAYLOAD_WRAPPERS = [
         'layout',
         'layout_result',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
         'prediction',
         'result',
         'model_output',

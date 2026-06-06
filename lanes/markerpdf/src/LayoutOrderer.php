@@ -70,6 +70,10 @@ final class LayoutOrderer
     private const ORDER_RESULT_PAYLOAD_WRAPPERS = [
         'order',
         'order_result',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
         'prediction',
         'result',
         'model_output',
