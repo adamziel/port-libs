@@ -773,7 +773,8 @@ $emptySignatureOriginGuard = [
     'issues' => $emptySignatureOrigin['issues'] ?? null,
 ];
 
-$corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
+$corePropertiesPreflight = $graph->preflightCoreProperties();
+$corePropertiesPart = $corePropertiesPreflight['relationships'][0]['targetPart'] ?? null;
 $strictXmlShapeGuards = [
     'contentTypeUnexpectedAttributeRejected' => false,
     'contentTypeDefaultDotExtensionRejected' => false,
@@ -850,6 +851,7 @@ $summary = [
     'coreProperties' => [
         'part' => $corePropertiesPart,
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
+        'preflight' => $corePropertiesPreflight,
     ],
     'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
@@ -1022,6 +1024,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['officeDocumentRoot']['relationships'][0]['id'] ?? null) !== 'rIdDocument'
         || ($summary['officeDocumentRoot']['relationships'][0]['targetPart'] ?? null) !== '/word/document.xml'
         || ($summary['officeDocumentRoot']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['coreProperties']['preflight']['relationshipCount'] ?? null) !== 1
+        || ($summary['coreProperties']['preflight']['valid'] ?? null) !== true
+        || ($summary['coreProperties']['preflight']['issues'] ?? null) !== []
+        || ($summary['coreProperties']['preflight']['relationships'][0]['id'] ?? null) !== 'rIdCore'
+        || ($summary['coreProperties']['preflight']['relationships'][0]['targetPart'] ?? null) !== '/docProps/core.xml'
+        || ($summary['coreProperties']['preflight']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
+        || ($summary['coreProperties']['preflight']['relationships'][0]['valid'] ?? null) !== true
+        || ($summary['coreProperties']['preflight']['relationships'][0]['issues'] ?? null) !== []
         || ($summary['digitalSignatures'][0]['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'

@@ -2806,6 +2806,90 @@ XML;
         $t->same(false, $byId['rIdExternalDoc']['valid']);
         $t->same(['external-office-document-target'], $byId['rIdExternalDoc']['issues']);
     },
+    'preflights OPC core properties relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $valid = $validGraph->preflightCoreProperties();
+        $t->same(1, $valid['relationshipCount']);
+        $t->same(true, $valid['valid']);
+        $t->same([], $valid['issues']);
+        $t->same('rIdCore', $valid['relationships'][0]['id']);
+        $t->same(OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE, $valid['relationships'][0]['type']);
+        $t->same('/docProps/core.xml', $valid['relationships'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $valid['relationships'][0]['contentType']);
+        $t->same(false, $valid['relationships'][0]['external']);
+        $t->same(true, $valid['relationships'][0]['exists']);
+        $t->same(true, $valid['relationships'][0]['valid']);
+        $t->same([], $valid['relationships'][0]['issues']);
+
+        $noCoreRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+        $noCoreGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $noCoreRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+        $noCore = $noCoreGraph->preflightCoreProperties();
+        $t->same(0, $noCore['relationshipCount']);
+        $t->same(true, $noCore['valid']);
+        $t->same([], $noCore['issues']);
+        $t->same([], $noCore['relationships']);
+
+        $badContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $badRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdCustomCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/custom.xml"/>
+  <Relationship Id="rIdExternalCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="https://example.test/core.xml" TargetMode="External"/>
+</Relationships>
+XML;
+        $badGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $badContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $badRootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/custom.xml', 'data' => '<audit/>'],
+        ]));
+
+        $bad = $badGraph->preflightCoreProperties();
+        $badById = [];
+        foreach ($bad['relationships'] as $relationship) {
+            $badById[$relationship['id']] = $relationship;
+        }
+
+        $t->same(3, $bad['relationshipCount']);
+        $t->same(false, $bad['valid']);
+        $t->same(['multiple-core-properties-relationships'], $bad['issues']);
+        $t->same(['rIdCore', 'rIdCustomCore', 'rIdExternalCore'], array_keys($badById));
+        $t->same(true, $badById['rIdCore']['valid']);
+        $t->same([], $badById['rIdCore']['issues']);
+        $t->same('/docProps/custom.xml', $badById['rIdCustomCore']['targetPart']);
+        $t->same('application/xml', $badById['rIdCustomCore']['contentType']);
+        $t->same(false, $badById['rIdCustomCore']['valid']);
+        $t->same(['invalid-core-properties-content-type'], $badById['rIdCustomCore']['issues']);
+        $t->same(true, $badById['rIdExternalCore']['external']);
+        $t->same(null, $badById['rIdExternalCore']['targetPart']);
+        $t->same('https', $badById['rIdExternalCore']['externalTargetScheme']);
+        $t->same(false, $badById['rIdExternalCore']['valid']);
+        $t->same(['external-core-properties-target'], $badById['rIdExternalCore']['issues']);
+    },
     'flags nested OPC relationship parts without loading them as sources' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
