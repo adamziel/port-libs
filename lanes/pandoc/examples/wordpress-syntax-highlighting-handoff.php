@@ -286,6 +286,12 @@ if (!$handlebarsCodeBlock instanceof PortLibs\Pandoc\AstNode || $handlebarsCodeB
 }
 $handlebars = $highlighter->highlightCodeBlock($handlebarsCodeBlock, 'kate');
 $handlebarsWordpressBlock = $highlighter->wordpressHtmlBlock($handlebarsCodeBlock, 'kate');
+$mermaidCodeBlock = $document->children[41] ?? null;
+if (!$mermaidCodeBlock instanceof PortLibs\Pandoc\AstNode || $mermaidCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Mermaid diagram code block');
+}
+$mermaid = $highlighter->highlightCodeBlock($mermaidCodeBlock, 'tango');
+$mermaidWordpressBlock = $highlighter->wordpressHtmlBlock($mermaidCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1205,6 +1211,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($handlebarsWordpressBlock, '<span class="op">{{{</span><span class="va">rawBlock</span><span class="op">}}}</span>')) {
         throw new RuntimeException('Expected Handlebars triple-stash raw block handoff');
     }
+    if (($mermaid['language'] ?? '') !== 'mermaid') {
+        throw new RuntimeException('Expected Mermaid fixture to normalize to Mermaid highlighting');
+    }
+    if (($mermaid['lineNumbering']['start'] ?? null) !== 450) {
+        throw new RuntimeException('Expected Mermaid source startFrom line-number handoff');
+    }
+    if (!str_contains($mermaid['html'], '<span class="kw">flowchart</span> <span class="cn">LR</span>')) {
+        throw new RuntimeException('Expected Mermaid flowchart declaration token handoff');
+    }
+    if (!str_contains($mermaid['html'], '<span class="va">ingest</span><span class="st">[Read WXR]</span> <span class="op">--&gt;</span> <span class="va">normalize</span><span class="st">{Normalize blocks}</span>')) {
+        throw new RuntimeException('Expected Mermaid node and arrow token handoff');
+    }
+    if (!str_contains($mermaid['html'], '<span class="kw">classDef</span> <span class="va">warning</span>')) {
+        throw new RuntimeException('Expected Mermaid classDef token handoff');
+    }
+    if (!str_contains($mermaidWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Mermaid WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1270,6 +1294,7 @@ echo "cmakeHighlightedHtml:\n" . $cmake['html'] . "\n";
 echo "nginxHighlightedHtml:\n" . $nginx['html'] . "\n";
 echo "twigHighlightedHtml:\n" . $twig['html'] . "\n";
 echo "handlebarsHighlightedHtml:\n" . $handlebars['html'] . "\n";
+echo "mermaidHighlightedHtml:\n" . $mermaid['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1306,4 +1331,5 @@ echo "cmakeWordpressBlock:\n" . $cmakeWordpressBlock . "\n";
 echo "nginxWordpressBlock:\n" . $nginxWordpressBlock . "\n";
 echo "twigWordpressBlock:\n" . $twigWordpressBlock . "\n";
 echo "handlebarsWordpressBlock:\n" . $handlebarsWordpressBlock . "\n";
+echo "mermaidWordpressBlock:\n" . $mermaidWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

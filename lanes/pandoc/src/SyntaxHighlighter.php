@@ -135,6 +135,9 @@ final class SyntaxHighlighter
         'makefile' => 'makefile',
         'mk' => 'makefile',
         'mjs' => 'javascript',
+        'mermaid' => 'mermaid',
+        'mermaid-js' => 'mermaid',
+        'mermaidjs' => 'mermaid',
         'node' => 'javascript',
         'nodejs' => 'javascript',
         'nginx' => 'nginx',
@@ -633,6 +636,7 @@ final class SyntaxHighlighter
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
+            'mermaid' => $this->tokenizeMermaid($code),
             'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
             'nix' => $this->tokenizeNix($code),
@@ -1456,6 +1460,32 @@ final class SyntaxHighlighter
             ['operator', '/^(?:=>|==|!=|<=|>=|\\|\\||&&|[{}()[\\].,=|~#^\\/><&$*!?:+-])/'],
         ], $tokens);
         $this->appendToken($tokens, 'operator', $close);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeMermaid(string $code): array
+    {
+        return $this->scan($code, [
+            ['preprocessor', '/^%%\\{[\\s\\S]*?\\}%%/'],
+            ['comment', '/^%%[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|sankey-beta)\\b/i'],
+            ['constant', '/^\\b(?:BT|LR|RL|TB|TD)\\b/'],
+            ['keyword', '/^\\b(?:accTitle|accDescr|activate|actor|alt|and|as|autonumber|class|classDef|click|critical|dateFormat|deactivate|else|end|exclude|gitGraph|loop|note|opt|over|participant|par|rect|section|style|subgraph|title|todayMarker)\\b/i'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
+            ['string', '/^\\[[^\\]\\n]*\\]/'],
+            ['string', '/^\\([^()\\n]*\\)/'],
+            ['string', '/^\\{[^}\\n]*\\}/'],
+            ['string', '/^\\|[^|\\n]*\\|/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['constant', '/^\\b(?:false|true)\\b/i'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
+            ['operator', '/^(?:<-->|<--|-->|---|==>|===|-.->|-\\.->|--[ox]|[ox]--|\\|>|::|[{}()[\\];,.+*\\/%=!<>?:&|#~-])/'],
+        ]);
     }
 
     /**

@@ -638,3 +638,15 @@ server {
   {{> footer source=sourceId count=2}}
 </section>
 ```
+
+``` {.mermaid #mermaid-review .numberLines startFrom=450}
+%% WordPress import workflow diagram review
+%%{ init: { "theme": "base" } }%%
+flowchart LR
+  ingest[Read WXR] --> normalize{Normalize blocks}
+  normalize -->|safe HTML| review[Reviewer Queue]
+  normalize -- media --> media[(Attachment Library)]
+  review -. approve .-> publish[Publish]
+  classDef warning fill:#fff4ce,stroke:#d29922,color:#24292f;
+  class normalize warning;
+```

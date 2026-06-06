@@ -88,6 +88,9 @@ return [
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('commonmark'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
+        $t->same('mermaid', SyntaxHighlighter::normalizeLanguage('mermaid'));
+        $t->same('mermaid', SyntaxHighlighter::normalizeLanguage('mermaid-js'));
+        $t->same('mermaid', SyntaxHighlighter::normalizeLanguage('language-mermaidjs'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('go'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('golang'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('language-go'));
@@ -898,6 +901,50 @@ return [
         $t->contains('<span class="op">{{#</span><span class="kw">each</span> <span class="va">posts</span><span class="op">}}{{</span><span class="va">title</span>', $directHandlebars['html']);
         $t->contains('<span class="op">}}{{</span><span class="kw">else</span><span class="op">}}{{</span>', $directHandlebars['html']);
         $t->contains('<span class="fu">default</span> <span class="st">&quot;Untitled&quot;</span><span class="op">}}{{/</span><span class="kw">each</span>', $directHandlebars['html']);
+    },
+    'highlights mermaid diagram review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[41] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Mermaid diagram code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directMermaid = $highlighter->highlight('sequenceDiagram' . "\n" . '  participant Editor' . "\n" . '  Editor->>Queue: approve', 'mermaid-js');
+
+        $t->same('mermaid', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('mermaid', SyntaxHighlighter::normalizeLanguage('mermaid'));
+        $t->same('mermaid', SyntaxHighlighter::normalizeLanguage('mermaid-js'));
+        $t->same('mermaid', SyntaxHighlighter::normalizeLanguage('mermaidjs'));
+        $t->same('mermaid', $highlighted['language']);
+        $t->same('mermaid', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(450, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource mermaid numberLines"><code class="sourceCode mermaid" style="counter-reset: source-line 449;">', $highlighted['html']);
+        $t->contains('<span id="mermaid-review-450"><a href="#mermaid-review-450"></a><span class="co">%% WordPress import workflow diagram review</span></span>', $highlighted['html']);
+        $t->contains('<span class="pp">%%{ init: { &quot;theme&quot;: &quot;base&quot; } }%%</span>', $highlighted['html']);
+        $t->contains('<span class="kw">flowchart</span> <span class="cn">LR</span>', $highlighted['html']);
+        $t->contains('<span class="va">ingest</span><span class="st">[Read WXR]</span> <span class="op">--&gt;</span> <span class="va">normalize</span><span class="st">{Normalize blocks}</span>', $highlighted['html']);
+        $t->contains('<span class="va">normalize</span> <span class="op">--&gt;</span><span class="st">|safe HTML|</span> <span class="va">review</span><span class="st">[Reviewer Queue]</span>', $highlighted['html']);
+        $t->contains('<span class="va">normalize</span> <span class="op">--</span> <span class="va">media</span> <span class="op">--&gt;</span> <span class="va">media</span><span class="st">[(Attachment Library)]</span>', $highlighted['html']);
+        $t->contains('<span class="va">review</span> <span class="op">-.</span> <span class="va">approve</span> <span class="op">.-&gt;</span> <span class="va">publish</span><span class="st">[Publish]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">classDef</span> <span class="va">warning</span> <span class="ot">fill</span><span class="op">:#</span><span class="va">fff4ce</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="va">normalize</span> <span class="va">warning</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="kw">flowchart</span> <span class="cn">LR</span>', $wordpressBlock);
+        $t->same('mermaid', $directMermaid['language']);
+        $t->same('mermaid-js', $directMermaid['requestedLanguage']);
+        $t->contains('<span class="kw">sequenceDiagram</span>', $directMermaid['html']);
+        $t->contains('<span class="kw">participant</span> <span class="va">Editor</span>', $directMermaid['html']);
+        $t->contains('<span class="va">Editor</span><span class="op">-&gt;&gt;</span><span class="ot">Queue</span><span class="op">:</span> <span class="va">approve</span>', $directMermaid['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
