@@ -1538,9 +1538,12 @@ final class BatchConverter
         $filetypeByFilename = [];
         $filetypeCheckedByFilename = [];
         $textLengthCheckedByFilename = [];
+        $markdownExistsPathByFilename = [];
+        $markdownExistsPathTypeByFilename = [];
         $upstreamReturnValueByFilename = [];
         $upstreamReturnBoundaryByFilename = [];
         $existingMarkdownFilenames = [];
+        $markdownExistsDirectoryFilenames = [];
         $unsupportedFiletypeFilenames = [];
         $shortTextFilenames = [];
         $readyFilenames = [];
@@ -1563,11 +1566,16 @@ final class BatchConverter
                 $filetypeByFilename[$filename] = $preflight['filetype'];
                 $filetypeCheckedByFilename[$filename] = (bool) $preflight['filetype_checked'];
                 $textLengthCheckedByFilename[$filename] = (bool) $preflight['text_length_checked'];
+                $markdownExistsPathByFilename[$filename] = $preflight['markdown_exists_path'];
+                $markdownExistsPathTypeByFilename[$filename] = $preflight['markdown_exists_path_type'];
                 $upstreamReturnValueByFilename[$filename] = $preflight['upstream_return_value'];
                 $upstreamReturnBoundaryByFilename[$filename] = $preflight['upstream_return_boundary'];
 
                 if ((bool) $preflight['existing_markdown']) {
                     $existingMarkdownFilenames[] = $filename;
+                }
+                if ((bool) $preflight['markdown_exists_directory_counts_as_existing']) {
+                    $markdownExistsDirectoryFilenames[] = $filename;
                 }
                 if ((bool) $preflight['filetype_checked']) {
                     $filetypeCheckedFilenames[] = $filename;
@@ -1589,6 +1597,11 @@ final class BatchConverter
                     'status' => $status,
                     'skip_reason' => $preflight['skip_reason'],
                     'existing_markdown' => $preflight['existing_markdown'],
+                    'markdown_exists_path' => $preflight['markdown_exists_path'],
+                    'markdown_exists_function' => $preflight['markdown_exists_function'],
+                    'markdown_exists_path_exists' => $preflight['markdown_exists_path_exists'],
+                    'markdown_exists_path_type' => $preflight['markdown_exists_path_type'],
+                    'markdown_exists_directory_counts_as_existing' => $preflight['markdown_exists_directory_counts_as_existing'],
                     'min_length_gate_active' => $preflight['min_length_gate_active'],
                     'filetype_checked' => $preflight['filetype_checked'],
                     'filetype' => $preflight['filetype'],
@@ -1626,9 +1639,12 @@ final class BatchConverter
             'filetype_by_filename' => $filetypeByFilename,
             'filetype_checked_by_filename' => $filetypeCheckedByFilename,
             'text_length_checked_by_filename' => $textLengthCheckedByFilename,
+            'markdown_exists_path_by_filename' => $markdownExistsPathByFilename,
+            'markdown_exists_path_type_by_filename' => $markdownExistsPathTypeByFilename,
             'upstream_return_value_by_filename' => $upstreamReturnValueByFilename,
             'upstream_return_boundary_by_filename' => $upstreamReturnBoundaryByFilename,
             'existing_markdown_filenames' => $existingMarkdownFilenames,
+            'markdown_exists_directory_filenames' => $markdownExistsDirectoryFilenames,
             'unsupported_filetype_filenames' => $unsupportedFiletypeFilenames,
             'short_text_filenames' => $shortTextFilenames,
             'ready_filenames' => $readyFilenames,
@@ -2150,6 +2166,9 @@ final class BatchConverter
         ?callable $textLength = null
     ): array {
         $filename = basename($filepath);
+        $markdownPath = $this->writer->getMarkdownFilepath($outputFolder, $filename);
+        $markdownPathExists = $this->writer->markdownExists($outputFolder, $filename);
+        $markdownPathType = $this->filesystemPathType($markdownPath);
         $metadataKeys = $metadata === null ? [] : array_values(array_filter(array_keys($metadata), 'is_string'));
         sort($metadataKeys, SORT_STRING);
 
@@ -2162,7 +2181,12 @@ final class BatchConverter
             'metadata_keys' => $metadataKeys,
             'min_length' => $minLength,
             'preflight_order' => ['markdown_exists', 'find_filetype', 'get_length_of_text', 'convert_single_pdf', 'save_markdown'],
-            'existing_markdown' => $this->writer->markdownExists($outputFolder, $filename),
+            'existing_markdown' => $markdownPathExists,
+            'markdown_exists_path' => $markdownPath,
+            'markdown_exists_function' => 'os.path.exists',
+            'markdown_exists_path_exists' => $markdownPathExists,
+            'markdown_exists_path_type' => $markdownPathType,
+            'markdown_exists_directory_counts_as_existing' => $markdownPathType === 'directory',
             'filetype_checked' => false,
             'filetype' => null,
             'min_length_gate_active' => $this->pythonTruthyInteger($minLength),

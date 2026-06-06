@@ -25,7 +25,7 @@ final class OutputWriter
 
     public function markdownExists(string $outputFolder, string $filename): bool
     {
-        return is_file($this->getMarkdownFilepath($outputFolder, $filename));
+        return file_exists($this->getMarkdownFilepath($outputFolder, $filename));
     }
 
     /**
