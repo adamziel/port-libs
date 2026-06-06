@@ -29973,7 +29973,8 @@ final class PdfTextExtractor
         $ranges = [];
         foreach ($this->cMapOperatorBlocks($cmap, 'begincodespacerange', 'endcodespacerange') as $blockMatch) {
             $block = $this->cMapOperatorBlockData($blockMatch['body']);
-            if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
+            $entries = $this->cMapTopLevelHexPairs($block);
+            if ($entries === []) {
                 continue;
             }
 
@@ -29981,9 +29982,9 @@ final class PdfTextExtractor
                 $entries = array_slice($entries, 0, max(0, (int) $blockMatch['declaredCount']));
             }
 
-            foreach ($entries as $entry) {
-                $start = $this->normalizeHexKey($entry[1]);
-                $end = $this->normalizeHexKey($entry[2]);
+            foreach ($entries as [$startHex, $endHex]) {
+                $start = $this->normalizeHexKey($startHex);
+                $end = $this->normalizeHexKey($endHex);
                 if ($start === '' || $end === '' || strlen($start) !== strlen($end) || strlen($start) > 8) {
                     continue;
                 }
