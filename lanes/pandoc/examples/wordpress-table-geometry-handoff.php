@@ -1344,8 +1344,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($rowspanZeroPacket['rowGroups'][1]['sourceAttributes']['id'] ?? null) !== 'posts-body' || ($rowspanZeroPacket['rowGroups'][2]['sourceAttributes']['id'] ?? null) !== 'pages-body') {
         throw new RuntimeException('Table geometry self-test missing HTML row-group source attributes');
     }
-    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-rowspan-flattened']) {
+    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-table-bodies-flattened', 'markdown-row-headers-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero Markdown downgrade packet');
+    }
+    if (
+        ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['reason'] ?? null) !== 'multiple-table-bodies'
+        || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['requiredFeature'] ?? null) !== 'body-row-group-boundaries'
+        || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['bodySections'] ?? null) !== ['body', 'body1']
+        || ($rowspanZeroPacket['writerDowngrades']['markdown'][1]['bodySectionRowCounts'] ?? null) !== [3, 1]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero multiple body writer diagnostics');
     }
     if (!str_contains($blocks, '<tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody>')) {
         throw new RuntimeException('Table geometry self-test missing finite WordPress rowspan output for HTML rowspan-zero');

@@ -2794,6 +2794,7 @@ final class TableGeometry
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
+                    array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                 }
@@ -2858,6 +2859,7 @@ final class TableGeometry
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                 }
@@ -2922,6 +2924,7 @@ final class TableGeometry
         if ($table instanceof AstNode) {
             array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::markdownColumnWidthDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
         }
@@ -3405,6 +3408,59 @@ final class TableGeometry
             'headRowCount' => $sectionSummary['headRowCount'],
             'bodyRowCount' => $sectionSummary['bodyRowCount'],
             'footRowCount' => $sectionSummary['footRowCount'],
+            'sections' => $sectionSummary['sections'],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableBodyGroupWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-table-bodies-flattened', 'body-row-group-boundaries'],
+            'asciidoc' => ['asciidoc-table-bodies-review-required', 'table-body-groups'],
+            'latex' => ['latex-table-bodies-review-required', 'longtable-body-group-review'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $sectionSummary = self::tableSectionSummary($table);
+        if (($sectionSummary['bodyCount'] ?? 0) <= 1) {
+            return [];
+        }
+
+        $bodySections = [];
+        $bodySectionRowCounts = [];
+        foreach ($sectionSummary['sections'] as $section) {
+            if (($section['rowRole'] ?? '') !== 'body') {
+                continue;
+            }
+
+            $bodySections[] = (string) ($section['section'] ?? '');
+            $bodySectionRowCounts[] = max(0, (int) ($section['rowCount'] ?? 0));
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'multiple-table-bodies',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'pandoc-table-bodies',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => self::columnCount($table),
+            'sectionCount' => $sectionSummary['sectionCount'],
+            'rowCount' => $sectionSummary['rowCount'],
+            'bodyCount' => $sectionSummary['bodyCount'],
+            'headRowCount' => $sectionSummary['headRowCount'],
+            'bodyRowCount' => $sectionSummary['bodyRowCount'],
+            'footRowCount' => $sectionSummary['footRowCount'],
+            'bodySections' => $bodySections,
+            'bodySectionRowCounts' => $bodySectionRowCounts,
             'sections' => $sectionSummary['sections'],
         ]];
     }

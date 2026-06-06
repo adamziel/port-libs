@@ -1578,6 +1578,118 @@ return [
         $t->same(1, $packet['summary']['maxRowHeadColumns'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports multiple table body group writer handoff diagnostics' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Multiple body group audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Count'], [new AstNode('text', ['text' => 'Count'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'htmlAttributes' => [
+                    'id' => 'posts-body',
+                    'data-group' => 'posts',
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Media'], [new AstNode('text', ['text' => 'Media'])]),
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'htmlAttributes' => [
+                    'id' => 'pages-body',
+                    'data-group' => 'pages',
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Pages'], [new AstNode('text', ['text' => 'Pages'])]),
+                    new AstNode('table_cell', ['text' => '5'], [new AstNode('text', ['text' => '5'])]),
+                ]),
+            ]),
+        ]);
+        $singleBodyTable = new AstNode('table', [
+            'caption' => 'Single body group audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex'],
+        ]);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same(['markdown-table-bodies-flattened'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same(['asciidoc-table-bodies-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same(['latex-table-bodies-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same($asciidocDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'adoc'));
+        $t->same($latexDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('multiple-table-bodies', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('body-row-group-boundaries', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('pandoc-table-bodies', $markdownDiagnostics[0]['source'] ?? null);
+        $t->same('Multiple body group audit', $markdownDiagnostics[0]['caption'] ?? null);
+        $t->same(true, $markdownDiagnostics[0]['hasCaption'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['columnCount'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['sectionCount'] ?? null);
+        $t->same(4, $markdownDiagnostics[0]['rowCount'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['bodyCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['headRowCount'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['bodyRowCount'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['footRowCount'] ?? null);
+        $t->same(['body', 'body1'], $markdownDiagnostics[0]['bodySections'] ?? null);
+        $t->same([2, 1], $markdownDiagnostics[0]['bodySectionRowCounts'] ?? null);
+        $t->same([
+            ['section' => 'head', 'rowCount' => 1, 'rowRole' => 'head'],
+            ['section' => 'body', 'rowCount' => 2, 'rowRole' => 'body'],
+            ['section' => 'body1', 'rowCount' => 1, 'rowRole' => 'body'],
+        ], $markdownDiagnostics[0]['sections'] ?? null);
+
+        $t->same('table-body-groups', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('longtable-body-group-review', $latexDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($singleBodyTable, 'markdown'));
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-table-bodies-flattened',
+            'asciidoc-table-bodies-review-required',
+            'latex-table-bodies-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(2, $packet['summary']['bodyGroupCount'] ?? null);
+        $t->same(true, $packet['summary']['hasMultipleBodyGroups'] ?? null);
+        $t->same('posts-body', $packet['rowGroups'][1]['sourceAttributes']['id'] ?? null);
+        $t->same('pages-body', $packet['rowGroups'][2]['sourceAttributes']['id'] ?? null);
+        $t->contains('<tbody id="posts-body" data-group="posts"><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td></tr></tbody><tbody id="pages-body" data-group="pages"><tr><td style="text-align:left">Pages</td><td style="text-align:right">5</td></tr></tbody>', $blocks);
+        $t->contains('| Posts |    42 |', $markdown);
+        $t->contains('| Pages |     5 |', $markdown);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+    },
     'computes accessible header scopes and wordpress headers attributes across visual spans' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
         $document = $buildAccessibleHeaderDocument();
         $table = $document->children[0];
