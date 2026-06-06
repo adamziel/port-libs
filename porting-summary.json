@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 20:40:14 UTC",
-    "sourceCommit": "1a04e44c91a22f3d4217b77b07bd40823238f1c6",
-    "sourceCommitShort": "1a04e44c91a2",
+    "generated": "2026-06-06 20:40:23 UTC",
+    "sourceCommit": "a34ba8cb6201ea2578ba3044956f204a64167c72",
+    "sourceCommitShort": "a34ba8cb6201",
     "sourceBranch": "unknown",
-    "dashboardCommit": "1a04e44c91a22f3d4217b77b07bd40823238f1c6",
-    "dashboardCommitShort": "1a04e44c91a2",
+    "dashboardCommit": "a34ba8cb6201ea2578ba3044956f204a64167c72",
+    "dashboardCommitShort": "a34ba8cb6201",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1811",
-            "coverage": "1,811 / 2,276 (79.6%)",
+            "mapped": "1812",
+            "coverage": "1,812 / 2,276 (79.6%)",
             "mapPercent": "79.6%",
-            "unmapped": "465",
-            "php": "1,398 pass / 0 fail",
+            "unmapped": "464",
+            "php": "1,399 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-06 UTC ODF/OpenDocument current-base heading source-id slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Continue bounded Math/TeX closure with non-overlapping texmat...",
+            "nextTarget": "Continue bounded YAML metadata closure with non-overlapping Y...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

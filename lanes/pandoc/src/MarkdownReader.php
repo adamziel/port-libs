@@ -759,7 +759,7 @@ final class MarkdownReader
                     (string) $key,
                     fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
                 );
-                if ($key === '<<') {
+                if ($this->isYamlMetadataMergeKey($key)) {
                     $metadata = $this->mergeYamlMapValue($metadata, $value);
                 } else {
                     if (array_key_exists($key, $seenKeys)) {
@@ -788,7 +788,7 @@ final class MarkdownReader
                 (string) $key,
                 fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
             );
-            if ($key === '<<') {
+            if ($this->isYamlMetadataMergeKey($key)) {
                 $metadata = $this->mergeYamlMapValue($metadata, $value);
             } else {
                 if (array_key_exists($key, $seenKeys)) {
@@ -2180,7 +2180,7 @@ final class MarkdownReader
                 (string) $key,
                 fn (): mixed => $this->parseYamlScalarValue($value)
             );
-            if ($key === '<<') {
+            if ($this->isYamlMetadataMergeKey($key)) {
                 $map = $this->mergeYamlMapValue($map, $value);
             } else {
                 if (array_key_exists($key, $seenKeys)) {
@@ -2904,7 +2904,7 @@ final class MarkdownReader
     /**
      * @return array{0:string, 1:string|null, 2:list<string>}
      */
-    private function parseYamlValueDirectives(string $value): array
+    private function parseYamlValueDirectives(string $value, bool $recordProvenance = true): array
     {
         $value = ltrim($value);
         $anchorName = null;
@@ -2953,8 +2953,10 @@ final class MarkdownReader
             break;
         }
 
-        foreach ($tags as $tag) {
-            $this->recordYamlMetadataTagProvenance($tag);
+        if ($recordProvenance) {
+            foreach ($tags as $tag) {
+                $this->recordYamlMetadataTagProvenance($tag);
+            }
         }
 
         return [$value, $anchorName, $tags];
@@ -3025,7 +3027,7 @@ final class MarkdownReader
     private function recordYamlMetadataTagProvenance(string $tag): void
     {
         $normalized = $this->normalizeYamlTag($tag);
-        if ($tag === '!' || in_array($normalized, ['str', 'int', 'float', 'bool', 'null', 'timestamp', 'binary', 'set', 'omap', 'pairs', 'seq', 'map'], true)) {
+        if ($tag === '!' || in_array($normalized, ['str', 'int', 'float', 'bool', 'null', 'timestamp', 'binary', 'merge', 'set', 'omap', 'pairs', 'seq', 'map'], true)) {
             return;
         }
 
@@ -3373,6 +3375,22 @@ final class MarkdownReader
         }
 
         return array_replace($merged, $current);
+    }
+
+    private function isYamlMetadataMergeKey(int|string $key): bool
+    {
+        $source = trim((string) $key);
+        if ($source === '<<') {
+            return true;
+        }
+
+        if ($source === '' || $source[0] !== '!') {
+            return false;
+        }
+
+        [$value, , $tags] = $this->parseYamlValueDirectives($source, false);
+
+        return trim($value) === '<<' && $this->yamlHasExplicitTag($tags, 'merge');
     }
 
     private function isYamlAssociativeArray(mixed $value): bool

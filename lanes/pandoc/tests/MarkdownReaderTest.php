@@ -1766,6 +1766,52 @@ return [
         $t->same('yaml-merge-sequence-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-merge-sequence-body">YAML merge sequence body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit merge tag keys as merge metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Tagged merge **Packet**',
+            'review-base_: &review_base {status: queued, priority: 5, labels: [base, import], reviewer: Base Desk}',
+            'review-override_: &review_override {status: approved, labels: [override, review]}',
+            'review:',
+            '  !!merge <<: [*review_override, *review_base]',
+            '  priority: 1',
+            '  owner: Import Desk',
+            'flow-review: {!!merge <<: [*review_override, *review_base], reviewer: Flow Desk}',
+            'verbatim-review:',
+            '  !<tag:yaml.org,2002:merge> <<: *review_base',
+            '  status: verified',
+            'explicit-review:',
+            '  ? !!merge <<',
+            '  : *review_base',
+            '  status: approved',
+            '...',
+            '',
+            '# Tagged merge YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $tagProvenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Tagged merge **Packet**', $meta['title']);
+        $t->same('approved', $meta['review']['status']);
+        $t->same(1, $meta['review']['priority']);
+        $t->same(['override', 'review'], $meta['review']['labels']);
+        $t->same('Base Desk', $meta['review']['reviewer']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same(false, array_key_exists('!!merge <<', $meta['review']));
+        $t->same('approved', $meta['flow-review']['status']);
+        $t->same(5, $meta['flow-review']['priority']);
+        $t->same('Flow Desk', $meta['flow-review']['reviewer']);
+        $t->same(false, array_key_exists('!!merge <<', $meta['flow-review']));
+        $t->same('verified', $meta['verbatim-review']['status']);
+        $t->same(5, $meta['verbatim-review']['priority']);
+        $t->same('approved', $meta['explicit-review']['status']);
+        $t->same('Base Desk', $meta['explicit-review']['reviewer']);
+        $t->same([], array_column($tagProvenance, 'tag'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('tagged-merge-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="tagged-merge-yaml-body">Tagged merge YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml comments and block scalar chomping in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -177,6 +177,14 @@ merge-sequence-audit:
     - *merge_review_base
   status: needs-review
 flow-merge-review: {<<: [*merge_review_override, *merge_review_base], reviewer: Flow Desk}
+merge-tag-review:
+  !!merge <<: [*merge_review_override, *merge_review_base]
+  priority: 9
+merge-tag-flow-review: {!!merge <<: *merge_review_base, reviewer: Tagged Flow Desk}
+merge-tag-explicit-review:
+  ? !!merge <<
+  : *merge_review_base
+  status: explicit-tagged
 ? explicit-review-defaults_
 : &explicit_review_defaults {status: queued, priority: 6, labels: [explicit, review]}
 ? explicit-review
@@ -628,7 +636,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('!<tag:directive.example,2026:key>', $yamlTags, true)) {
         throw new RuntimeException('YAML metadata self-test missing tag directive key provenance');
     }
-    if (in_array('!!str', $yamlTags, true) || in_array('!', $yamlTags, true)) {
+    if (in_array('!!str', $yamlTags, true) || in_array('!!merge', $yamlTags, true) || in_array('!', $yamlTags, true)) {
         throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
     }
     $yamlTagPaths = array_column($yamlTagProvenance, 'path');
@@ -784,6 +792,27 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-merge-review']['reviewer'] ?? '') !== 'Flow Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow merge-sequence override');
+    }
+    if (($meta['merge-tag-review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing explicit merge-tag block merge');
+    }
+    if (($meta['merge-tag-review']['priority'] ?? null) !== 9) {
+        throw new RuntimeException('YAML metadata self-test missing explicit merge-tag override');
+    }
+    if (($meta['merge-tag-flow-review']['status'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing explicit merge-tag flow merge');
+    }
+    if (($meta['merge-tag-flow-review']['reviewer'] ?? '') !== 'Tagged Flow Desk') {
+        throw new RuntimeException('YAML metadata self-test missing explicit merge-tag flow override');
+    }
+    if (($meta['merge-tag-explicit-review']['status'] ?? '') !== 'explicit-tagged') {
+        throw new RuntimeException('YAML metadata self-test missing explicit-key merge-tag override');
+    }
+    if (($meta['merge-tag-explicit-review']['priority'] ?? null) !== 5) {
+        throw new RuntimeException('YAML metadata self-test missing explicit-key merge-tag inherited priority');
+    }
+    if (array_key_exists('!!merge <<', $meta['merge-tag-review'] ?? []) || array_key_exists('!!merge <<', $meta['merge-tag-flow-review'] ?? [])) {
+        throw new RuntimeException('YAML metadata self-test leaked raw explicit merge-tag key');
     }
     if (($meta['explicit-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing explicit-key review override');
