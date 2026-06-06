@@ -304,6 +304,44 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $officeFallbacks = [
+        'docx' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'title' => 'DOCX Default Review',
+                'author' => ['Migration bot'],
+                'body' => '<w:p>DOCX body.</w:p>',
+                'sectpr' => '<w:sectPr/>',
+            ], null, 'docx'),
+            ['DOCX Default Review', 'Migration bot', '<w:p>DOCX body.</w:p>', '<w:sectPr/>'],
+        ],
+        'odt' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'automatic-styles' => '<office:automatic-styles/>',
+                'title' => '<text:h>ODT Default Review</text:h>',
+                'body' => '<text:p>ODT body.</text:p>',
+            ], null, 'odt'),
+            ['<office:automatic-styles/>', '<text:h>ODT Default Review</text:h>', '<text:p>ODT body.</text:p>'],
+        ],
+        'epub' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'titlepage' => true,
+                'title' => ['EPUB Default Review'],
+                'author' => ['Migration bot'],
+                'abstract-title' => 'Abstract',
+                'abstract' => 'EPUB metadata body.',
+            ], null, 'epub'),
+            ['# EPUB Default Review', 'Migration bot', 'Abstract', 'EPUB metadata body.'],
+        ],
+    ];
+    foreach ($officeFallbacks as $format => [$rendered, $needles]) {
+        foreach ($needles as $needle) {
+            if (!str_contains($rendered, $needle)) {
+                fwrite(STDERR, "Missing expected doctemplate {$format} default fallback: {$needle}\n");
+                exit(1);
+            }
+        }
+    }
+
     $loopGuard = (new DocTemplate())->render('${ loop() }', [], [
         'loop' => '${ loop() }',
     ]);

@@ -1207,6 +1207,125 @@ HTML,
         ], null, 'commonmark_x'));
     },
 
+    'renders bounded pandoc default office and epub template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $openxml = $renderer->renderResource('templates/default', [], [
+            'title' => 'Batch 42 Review',
+            'subtitle' => 'DOCX metadata packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-06',
+            'abstract-title' => 'Abstract',
+            'abstract' => '<w:p>Native office template review.</w:p>',
+            'include-before' => ['<w:p>Before body</w:p>'],
+            'toc' => '<w:sdt><w:tag w:val="toc"/></w:sdt>',
+            'lof' => '<w:p>Figures</w:p>',
+            'lot' => '<w:p>Tables</w:p>',
+            'body' => '<w:p>Imported body.</w:p>',
+            'include-after' => ['<w:p>After body</w:p>'],
+            'sectpr' => '<w:sectPr/>',
+        ], null, 'docx');
+
+        foreach ([
+            'Batch 42 Review',
+            'DOCX metadata packet',
+            'Migration bot',
+            'Content editor',
+            '2026-06-06',
+            'Abstract',
+            '<w:p>Native office template review.</w:p>',
+            '<w:p>Before body</w:p>',
+            '<w:sdt><w:tag w:val="toc"/></w:sdt>',
+            '<w:p>Figures</w:p>',
+            '<w:p>Tables</w:p>',
+            '<w:p>Imported body.</w:p>',
+            '<w:p>After body</w:p>',
+            '<w:sectPr/>',
+        ] as $needle) {
+            $t->contains($needle, $openxml);
+        }
+
+        $opendocument = $renderer->renderResource('templates/default', [], [
+            'automatic-styles' => '<office:automatic-styles/>',
+            'header-includes' => ['<text:p>Header include</text:p>'],
+            'title' => '<text:h>ODT Review</text:h>',
+            'subtitle' => '<text:p>OpenDocument packet</text:p>',
+            'author' => ['<text:p>Migration bot</text:p>'],
+            'date' => '<text:p>2026-06-06</text:p>',
+            'abstract' => '<text:p>Native ODT template review.</text:p>',
+            'include-before' => ['<text:p>Before ODT body</text:p>'],
+            'toc' => true,
+            'toc-title' => '<text:p>Contents</text:p>',
+            'body' => '<text:p>Imported ODT body.</text:p>',
+            'include-after' => ['<text:p>After ODT body</text:p>'],
+        ], null, 'odt');
+
+        foreach ([
+            '<office:automatic-styles/>',
+            '<text:p>Header include</text:p>',
+            '<text:h>ODT Review</text:h>',
+            '<text:p>OpenDocument packet</text:p>',
+            '<text:p>Migration bot</text:p>',
+            '<text:p>2026-06-06</text:p>',
+            '<text:p>Native ODT template review.</text:p>',
+            '<text:p>Before ODT body</text:p>',
+            '<text:p>Contents</text:p>',
+            '<text:p>Imported ODT body.</text:p>',
+            '<text:p>After ODT body</text:p>',
+        ] as $needle) {
+            $t->contains($needle, $opendocument);
+        }
+
+        $epub = $renderer->renderResource('templates/default', [], [
+            'titlepage' => true,
+            'title' => [
+                ['type' => 'main', 'text' => 'EPUB Review'],
+                'Fallback EPUB Title',
+            ],
+            'subtitle' => 'Navigation packet',
+            'author' => ['Migration bot'],
+            'creator' => [
+                ['text' => 'Content editor'],
+            ],
+            'publisher' => 'WordPress Migration',
+            'date' => '2026-06-06',
+            'rights' => 'Internal review only',
+            'abstract-title' => 'Abstract',
+            'abstract' => 'Native EPUB titlepage template review.',
+        ], null, 'epub');
+
+        foreach ([
+            '# EPUB Review',
+            '# Fallback EPUB Title',
+            'Navigation packet',
+            'Migration bot',
+            'Content editor',
+            'WordPress Migration',
+            '2026-06-06',
+            'Internal review only',
+            'Abstract',
+            'Native EPUB titlepage template review.',
+        ] as $needle) {
+            $t->contains($needle, $epub);
+        }
+
+        $epubBody = $renderer->renderResource('templates/default.epub3', [], [
+            'include-before' => ['<section>Before EPUB body</section>'],
+            'body' => '<section>Imported EPUB body.</section>',
+            'include-after' => ['<section>After EPUB body</section>'],
+        ]);
+
+        $t->contains('<section>Before EPUB body</section>', $epubBody);
+        $t->contains('<section>Imported EPUB body.</section>', $epubBody);
+        $t->contains('<section>After EPUB body</section>', $epubBody);
+
+        $t->same('custom openxml', $renderer->renderResource('templates/default', [
+            'templates/default.openxml' => 'custom $body$',
+        ], [
+            'body' => 'openxml',
+        ], null, 'docx'));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'

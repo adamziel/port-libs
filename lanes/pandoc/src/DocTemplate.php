@@ -195,6 +195,9 @@ final class DocTemplate
     {
         return match ($format) {
             'html' => 'html5',
+            'docx' => 'openxml',
+            'odt' => 'opendocument',
+            'epub' => 'epub3',
             'markdown_strict', 'multimarkdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra' => 'markdown',
             'gfm', 'commonmark_x' => 'commonmark',
             'native', 'csljson', 'json', 'xml', 'fb2', 'pptx', 'ipynb' => '',
@@ -207,6 +210,9 @@ final class DocTemplate
         return match ($path) {
             'templates/default.html5' => $this->defaultHtml5Template(),
             'templates/default.markdown', 'templates/default.commonmark' => $this->defaultMarkdownTemplate(),
+            'templates/default.openxml' => $this->defaultOpenXmlTemplate(),
+            'templates/default.opendocument' => $this->defaultOpenDocumentTemplate(),
+            'templates/default.epub3' => $this->defaultEpub3Template(),
             default => null,
         };
     }
@@ -236,6 +242,169 @@ $for(include-after)$
 $include-after$
 $endfor$
 MD;
+    }
+
+    private function defaultOpenXmlTemplate(): string
+    {
+        return <<<'OPENXML'
+$if(title)$
+$title$
+
+$endif$
+$if(subtitle)$
+$subtitle$
+
+$endif$
+$for(author)$
+$author$
+
+$endfor$
+$if(date)$
+$date$
+
+$endif$
+$if(abstract)$
+$if(abstract-title)$
+$abstract-title$
+
+$endif$
+$abstract$
+
+$endif$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+$toc$
+
+$endif$
+$if(lof)$
+$lof$
+
+$endif$
+$if(lot)$
+$lot$
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+$sectpr$
+OPENXML;
+    }
+
+    private function defaultOpenDocumentTemplate(): string
+    {
+        return <<<'OPENDOCUMENT'
+$automatic-styles$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$if(title)$
+$title$
+
+$endif$
+$if(subtitle)$
+$subtitle$
+
+$endif$
+$for(author)$
+$author$
+
+$endfor$
+$if(date)$
+$date$
+
+$endif$
+$if(abstract)$
+$abstract$
+
+$endif$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+$toc-title$
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+OPENDOCUMENT;
+    }
+
+    private function defaultEpub3Template(): string
+    {
+        return <<<'EPUB3'
+$for(css)$
+
+$endfor$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$if(titlepage)$
+$for(title)$
+$if(title.type)$
+# $title.text$
+
+$else$
+# $title$
+
+$endif$
+$endfor$
+$if(subtitle)$
+$subtitle$
+
+$endif$
+$for(author)$
+$author$
+
+$endfor$
+$for(creator)$
+$creator.text$
+
+$endfor$
+$if(publisher)$
+$publisher$
+
+$endif$
+$if(date)$
+$date$
+
+$endif$
+$if(rights)$
+$rights$
+
+$endif$
+$if(abstract)$
+$abstract-title$
+
+$abstract$
+
+$endif$
+$else$
+$if(coverpage)$
+$else$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+$endif$
+$endif$
+EPUB3;
     }
 
     private function defaultHtml5Template(): string
