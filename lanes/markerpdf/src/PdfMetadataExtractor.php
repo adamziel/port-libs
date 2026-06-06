@@ -703,8 +703,13 @@ final class PdfMetadataExtractor
         }
 
         $dictionary = $this->dictionaryObjectBody($objectBody);
-        if ($dictionary !== null && $this->metadataStreamFilterOperandBoundaryReview($dictionary, $objects) !== []) {
-            return [];
+        if ($dictionary !== null) {
+            if ($this->metadataStreamFilterOperandBoundaryReview($dictionary, $objects) !== []) {
+                return [];
+            }
+            if ($this->metadataStreamDecodeParmsOperandBoundaryReview($dictionary, $objects) !== []) {
+                return [];
+            }
         }
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
@@ -773,6 +778,29 @@ final class PdfMetadataExtractor
             $filterBoundaryReview = $this->metadataStreamFilterOperandBoundaryReview($dictionary, $objects);
             if ($filterBoundaryReview !== []) {
                 $review = $base + $filterBoundaryReview + [
+                    'object_number' => $objectNumber,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($dictionary, $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                $declaredLength = $this->streamLength($dictionary, $objects);
+                if ($declaredLength !== null) {
+                    $review['declared_length'] = $declaredLength;
+                }
+
+                return $review;
+            }
+
+            $decodeParmsBoundaryReview = $this->metadataStreamDecodeParmsOperandBoundaryReview($dictionary, $objects);
+            if ($decodeParmsBoundaryReview !== []) {
+                $review = $base + $decodeParmsBoundaryReview + [
                     'object_number' => $objectNumber,
                 ];
 
@@ -1652,6 +1680,373 @@ final class PdfMetadataExtractor
         }
 
         return 'filters_resolved';
+    }
+
+    /**
+     * Catalog XMP stream DecodeParms may be direct or indirect, but each operand
+     * must resolve to one dictionary/null value. Hidden trailing operands are
+     * review-only at this document-metadata trust boundary.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamDecodeParmsOperandBoundaryReview(string $dictionary, array $objects): array
+    {
+        $value = $this->dictionaryTopLevelRawValue($dictionary, 'DecodeParms');
+        if ($value === null) {
+            return [];
+        }
+
+        $operands = $this->metadataStreamDecodeParmsOperandReviews($value, $objects);
+        if ($operands === []) {
+            return [];
+        }
+
+        $invalidCount = 0;
+        $unresolvedCount = 0;
+        $nonDictionaryCount = 0;
+        $malformedCount = 0;
+        foreach ($operands as $operand) {
+            if (($operand['resolved'] ?? true) !== true) {
+                $invalidCount++;
+                $unresolvedCount++;
+                continue;
+            }
+
+            if (($operand['valid_decodeparms_operand'] ?? null) !== false) {
+                continue;
+            }
+
+            $invalidCount++;
+            if (($operand['extra_decodeparms_operand'] ?? false) === true) {
+                $malformedCount++;
+                continue;
+            }
+
+            if (
+                ($operand['dictionary_decodeparms_operand'] ?? false) !== true
+                && ($operand['token_type'] ?? null) !== 'null'
+                && ($operand['token_type'] ?? null) !== 'array'
+            ) {
+                $nonDictionaryCount++;
+            } else {
+                $malformedCount++;
+            }
+        }
+
+        if ($invalidCount === 0) {
+            return [];
+        }
+
+        return [
+            'status' => 'rejected_malformed_metadata_stream_decodeparms_operand',
+            'decodeparms_operand_policy' => $this->metadataStreamDecodeParmsOperandPolicy(
+                $invalidCount,
+                $nonDictionaryCount,
+                $malformedCount,
+                $unresolvedCount
+            ),
+            'invalid_decodeparms_operand_count' => $invalidCount,
+            'non_dictionary_decodeparms_operand_count' => $nonDictionaryCount,
+            'malformed_decodeparms_operand_count' => $malformedCount,
+            'unresolved_decodeparms_operand_count' => $unresolvedCount,
+            'decodeparms_operands' => $operands,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return list<array<string, mixed>>
+     */
+    private function metadataStreamDecodeParmsOperandReviews(
+        string $value,
+        array $objects,
+        array $seenObjects = []
+    ): array {
+        $token = $this->firstPdfValueToken($value);
+        if ($token === '') {
+            return [[
+                'name' => 'DecodeParms',
+                'kind' => 'direct',
+                'resolved' => true,
+                'token_type' => 'empty',
+                'valid_decodeparms_operand' => false,
+                'dictionary_decodeparms_operand' => false,
+            ]];
+        }
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null && $this->pdfValueIsSingleToken($value, $token)) {
+            return [$this->metadataStreamIndirectDecodeParmsOperandReview($reference, $objects, $seenObjects)];
+        }
+
+        if (str_starts_with($token, '[') && $this->pdfValueIsSingleToken($value, $token)) {
+            $items = $this->arrayItemsFromValue($token, $objects);
+            if ($items === []) {
+                return [[
+                    'name' => 'DecodeParms',
+                    'kind' => 'direct',
+                    'value' => [],
+                    'resolved' => true,
+                    'token_type' => 'array',
+                    'valid_decodeparms_operand' => true,
+                    'dictionary_decodeparms_operand' => false,
+                ]];
+            }
+
+            $reviews = [];
+            foreach ($items as $item) {
+                foreach ($this->metadataStreamDecodeParmsOperandReviews($item, $objects, $seenObjects) as $review) {
+                    $reviews[] = $review;
+                }
+            }
+
+            return $reviews;
+        }
+
+        return [$this->metadataStreamDirectDecodeParmsOperandReview($value, $objects, $seenObjects)];
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int} $reference
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamIndirectDecodeParmsOperandReview(
+        array $reference,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        $body = isset($seenObjects[$objectKey])
+            ? null
+            : $this->objectBodyForReference($objects, $objectNumber, $generation);
+
+        $review = [
+            'name' => 'DecodeParms',
+            'kind' => 'indirect',
+            'object_number' => $objectNumber,
+            'generation' => $generation,
+            'resolved' => $body !== null,
+            'value_preview' => $body === null ? null : $this->metadataStreamFilterOperandPreview($body),
+        ];
+
+        if ($body === null) {
+            return $review + [
+                'token_type' => null,
+                'valid_decodeparms_operand' => false,
+                'dictionary_decodeparms_operand' => false,
+            ];
+        }
+
+        $seenObjects[$objectKey] = true;
+        return $review + $this->metadataStreamDecodeParmsOperandBodyReview($body, $objects, $seenObjects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamDirectDecodeParmsOperandReview(
+        string $value,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $token = $this->firstPdfValueToken($value);
+        $review = [
+            'name' => 'DecodeParms',
+            'kind' => 'direct',
+            'value' => $this->metadataStreamDecodeParmsOperandValue($token),
+            'resolved' => true,
+        ];
+
+        return $review + $this->metadataStreamDecodeParmsOperandBodyReview($value, $objects, $seenObjects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function metadataStreamDecodeParmsOperandBodyReview(
+        string $body,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $token = $this->firstPdfValueToken($body);
+        $tokenType = $this->metadataStreamFilterOperandTokenType($token);
+        $extraOperand = $this->metadataStreamDecodeParmsExtraOperand($body);
+        $review = [
+            'token_type' => $tokenType,
+            'valid_decodeparms_operand' => $this->metadataStreamDecodeParmsValueIsValid($body, $objects, $seenObjects)
+                && $extraOperand === null,
+            'dictionary_decodeparms_operand' => $this->metadataStreamDecodeParmsValueContainsDictionary(
+                $body,
+                $objects,
+                $seenObjects
+            ),
+        ];
+
+        if ($extraOperand !== null) {
+            $review['valid_decodeparms_operand'] = false;
+            $review['extra_decodeparms_operand'] = true;
+            $review['extra_decodeparms_operand_type'] = $extraOperand['type'];
+            $review['extra_decodeparms_operand_preview'] = $extraOperand['preview'];
+            if (($extraOperand['type'] ?? null) === 'name' && isset($extraOperand['name'])) {
+                $review['extra_decodeparms_name_operand'] = true;
+                $review['extra_decodeparms_name'] = $extraOperand['name'];
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function metadataStreamDecodeParmsValueIsValid(
+        string $value,
+        array $objects,
+        array $seenObjects
+    ): bool {
+        $token = $this->firstPdfValueToken($value);
+        if ($token === '' || !$this->pdfValueIsSingleToken($value, $token)) {
+            return false;
+        }
+
+        if ($token === 'null') {
+            return true;
+        }
+
+        if (str_starts_with($token, '<<')) {
+            return $this->readPdfDictionaryAt($token, 0) !== null;
+        }
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seenObjects[$objectKey])) {
+                return false;
+            }
+
+            $body = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body === null) {
+                return false;
+            }
+
+            $seenObjects[$objectKey] = true;
+            return $this->metadataStreamDecodeParmsValueIsValid($body, $objects, $seenObjects);
+        }
+
+        if (str_starts_with($token, '[')) {
+            foreach ($this->arrayItemsFromValue($token, $objects) as $item) {
+                if (!$this->metadataStreamDecodeParmsValueIsValid($item, $objects, $seenObjects)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
+    private function metadataStreamDecodeParmsValueContainsDictionary(
+        string $value,
+        array $objects,
+        array $seenObjects
+    ): bool {
+        $token = $this->firstPdfValueToken($value);
+        if ($token === '') {
+            return false;
+        }
+
+        if (str_starts_with($token, '<<')) {
+            return true;
+        }
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null && $this->pdfValueIsSingleToken($value, $token)) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seenObjects[$objectKey])) {
+                return false;
+            }
+
+            $body = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body === null) {
+                return false;
+            }
+
+            $seenObjects[$objectKey] = true;
+            return $this->metadataStreamDecodeParmsValueContainsDictionary($body, $objects, $seenObjects);
+        }
+
+        if (str_starts_with($token, '[')) {
+            foreach ($this->arrayItemsFromValue($token, $objects) as $item) {
+                if ($this->metadataStreamDecodeParmsValueContainsDictionary($item, $objects, $seenObjects)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function metadataStreamDecodeParmsExtraOperand(string $body): ?array
+    {
+        $extra = $this->metadataStreamFilterExtraOperand($body);
+        if ($extra === null) {
+            return null;
+        }
+
+        return $extra;
+    }
+
+    private function metadataStreamDecodeParmsOperandValue(string $token): mixed
+    {
+        if ($token === 'null') {
+            return null;
+        }
+
+        if (str_starts_with($token, '<<')) {
+            return 'dictionary';
+        }
+
+        return $token;
+    }
+
+    private function metadataStreamDecodeParmsOperandPolicy(
+        int $invalidCount,
+        int $nonDictionaryCount,
+        int $malformedCount,
+        int $unresolvedCount
+    ): string {
+        if ($malformedCount > 0) {
+            return 'reject_malformed_decodeparms_operands';
+        }
+
+        if ($nonDictionaryCount > 0) {
+            return 'reject_non_dictionary_decodeparms_operands';
+        }
+
+        if ($unresolvedCount > 0 || $invalidCount > 0) {
+            return 'reject_unresolved_decodeparms_operands';
+        }
+
+        return 'decodeparms_resolved';
     }
 
     /**
