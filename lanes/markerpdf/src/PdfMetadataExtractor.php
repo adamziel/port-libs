@@ -174,6 +174,10 @@ final class PdfMetadataExtractor
      *     authors?: list<string>,
      *     description?: string,
      *     keywords?: list<string>,
+     *     format?: string,
+     *     language?: string,
+     *     languages?: list<string>,
+     *     rights?: string,
      *     creator_tool?: string,
      *     producer?: string,
      *     created_at?: string,
@@ -182,8 +186,8 @@ final class PdfMetadataExtractor
      *     modified_at_utc?: string,
      *     metadata_date?: string,
      *     metadata_date_utc?: string,
+     *     xmp_dublin_core?: array<string, mixed>,
      *     xmp_media_management?: array<string, mixed>,
-     *     language?: string,
      *     mark_info?: array<string, mixed>,
      *     metadata_stream_review?: array<string, mixed>,
      *     page_layout?: string,
@@ -8796,6 +8800,29 @@ final class PdfMetadataExtractor
             $result['keywords'] = array_values($keywords);
         }
 
+        foreach (['format', 'rights'] as $field) {
+            $value = $xmp[$field] ?? null;
+            if (is_string($value) && $value !== '') {
+                $result[$field] = $value;
+            }
+        }
+
+        $xmpLanguages = is_array($xmp['languages'] ?? null)
+            ? array_values($xmp['languages'])
+            : [];
+        if (!array_key_exists('language', $catalog) && $xmpLanguages !== []) {
+            $result['languages'] = $xmpLanguages;
+            $xmpLanguage = $xmp['language'] ?? $xmpLanguages[0];
+            if (is_string($xmpLanguage) && $xmpLanguage !== '') {
+                $result['language'] = $xmpLanguage;
+            }
+        }
+
+        $dublinCore = $xmp['dublin_core'] ?? null;
+        if (is_array($dublinCore) && $dublinCore !== []) {
+            $result['xmp_dublin_core'] = $dublinCore;
+        }
+
         $pdfaExtensionSchemas = $xmp['pdfa_extension_schemas'] ?? null;
         if (is_array($pdfaExtensionSchemas) && $pdfaExtensionSchemas !== []) {
             $result['pdfa_extension_schemas'] = array_values($pdfaExtensionSchemas);
@@ -9356,6 +9383,8 @@ final class PdfMetadataExtractor
         foreach ([
             'title' => [self::NS_DC, 'title', true],
             'description' => [self::NS_DC, 'description', true],
+            'format' => [self::NS_DC, 'format', false],
+            'rights' => [self::NS_DC, 'rights', true],
             'creator_tool' => [self::NS_XMP, 'CreatorTool', false],
             'producer' => [self::NS_PDF, 'Producer', false],
             'created_at' => [self::NS_XMP, 'CreateDate', false],
@@ -9383,6 +9412,17 @@ final class PdfMetadataExtractor
             $metadata['keywords'] = $keywords;
         }
 
+        $languages = $this->xmpLanguageValues($document);
+        if ($languages !== []) {
+            $metadata['languages'] = $languages;
+            $metadata['language'] = $languages[0];
+        }
+
+        $dublinCore = $this->xmpDublinCoreReviewMetadata($metadata);
+        if ($dublinCore !== []) {
+            $metadata['dublin_core'] = $dublinCore;
+        }
+
         $pdfaExtensionSchemas = $this->xmpPdfaExtensionSchemas($document);
         if ($pdfaExtensionSchemas !== []) {
             $metadata['pdfa_extension_schemas'] = $pdfaExtensionSchemas;
@@ -9394,6 +9434,36 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function xmpDublinCoreReviewMetadata(array $metadata): array
+    {
+        $row = [
+            'source' => 'xmp_dublin_core',
+            'review_only' => true,
+            'payload_included' => false,
+        ];
+
+        foreach (['format', 'rights'] as $field) {
+            $value = $metadata[$field] ?? null;
+            if (is_string($value) && $value !== '') {
+                $row[$field] = $value;
+            }
+        }
+
+        $languages = is_array($metadata['languages'] ?? null)
+            ? $this->cleanList($metadata['languages'])
+            : [];
+        if ($languages !== []) {
+            $row['languages'] = $languages;
+            $row['language_count'] = count($languages);
+        }
+
+        return count($row) > 3 ? $row : [];
     }
 
     /**
@@ -11126,6 +11196,25 @@ final class PdfMetadataExtractor
         }
 
         return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpLanguageValues(DOMDocument $document): array
+    {
+        $values = $this->xmpListValues($document, self::NS_DC, 'language');
+        $languages = [];
+        foreach ($values as $value) {
+            foreach (preg_split('/[\s,;]+/u', $value) ?: [] as $part) {
+                $language = $this->cleanText($part);
+                if ($language !== null) {
+                    $languages[] = $language;
+                }
+            }
+        }
+
+        return $this->uniqueStrings($languages);
     }
 
     /**
@@ -15488,7 +15577,7 @@ final class PdfMetadataExtractor
         }
 
         $fieldNames = [];
-        foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date'] as $field) {
+        foreach (['title', 'description', 'creator_tool', 'producer', 'created_at', 'modified_at', 'metadata_date', 'format', 'rights'] as $field) {
             if (isset($parsed[$field]) && is_string($parsed[$field]) && $parsed[$field] !== '') {
                 $fieldNames[] = $field;
             }
@@ -15502,6 +15591,18 @@ final class PdfMetadataExtractor
         $keywords = is_array($parsed['keywords'] ?? null) ? array_values($parsed['keywords']) : [];
         if ($keywords !== []) {
             $fieldNames[] = 'keywords';
+        }
+
+        $languages = is_array($parsed['languages'] ?? null) ? array_values($parsed['languages']) : [];
+        if ($languages !== []) {
+            $fieldNames[] = 'languages';
+        }
+
+        $dublinCore = is_array($parsed['dublin_core'] ?? null)
+            ? $parsed['dublin_core']
+            : [];
+        if ($dublinCore !== []) {
+            $fieldNames[] = 'dublin_core';
         }
 
         $pdfaExtensionSchemas = is_array($parsed['pdfa_extension_schemas'] ?? null)
@@ -15537,10 +15638,11 @@ final class PdfMetadataExtractor
             'field_count' => count($fieldNames),
             'author_count' => count($authors),
             'keyword_count' => count($keywords),
+            'language_count' => count($languages),
             'packet_encoding' => $parsed['packet_encoding'] ?? 'unknown',
             'payload_included' => false,
             'text_values_redacted' => true,
-            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords', 'format', 'rights', 'languages'],
         ];
 
         if (($parsed['decoded_to_utf8'] ?? false) === true) {
