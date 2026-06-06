@@ -1360,9 +1360,9 @@ final class OpcRelationshipGraph
                 $parseError = null;
                 $issues = [];
 
-                if ($referenceUri === '') {
-                    $issues[] = 'missing-reference-uri';
-                } else {
+                $referenceUriPolicy = self::relationshipTransformReferenceUriPolicy($referenceUri);
+                $issues = array_merge($issues, $referenceUriPolicy['issues']);
+                if ($referenceUriPolicy['resolvable']) {
                     try {
                         $resolvedReference = OpcPackagePath::resolveInternalTarget($signaturePartName, $referenceUri);
                         $relationshipPartName = OpcPackagePath::stripQueryAndFragment($resolvedReference);
@@ -1708,6 +1708,37 @@ final class OpcRelationshipGraph
             'http://www.w3.org/2006/12/xml-c14n11',
             'http://www.w3.org/2006/12/xml-c14n11#WithComments',
         ], true);
+    }
+
+    /**
+     * @return array{resolvable:bool, issues:list<string>}
+     */
+    private static function relationshipTransformReferenceUriPolicy(string $referenceUri): array
+    {
+        if ($referenceUri === '') {
+            return [
+                'resolvable' => false,
+                'issues' => ['missing-reference-uri'],
+            ];
+        }
+
+        $issues = [];
+        $resolvable = true;
+        if (str_starts_with($referenceUri, '#')) {
+            $issues[] = 'relationship-transform-reference-same-document';
+            $resolvable = false;
+        } elseif (
+            preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $referenceUri) === 1
+            || str_starts_with($referenceUri, '//')
+        ) {
+            $issues[] = 'relationship-transform-reference-external-uri';
+            $resolvable = false;
+        }
+
+        return [
+            'resolvable' => $resolvable,
+            'issues' => $issues,
+        ];
     }
 
     /**

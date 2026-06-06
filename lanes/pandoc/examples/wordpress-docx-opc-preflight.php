@@ -33,6 +33,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-missing-rels.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-fragment.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-reference-uri-kinds.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -147,6 +148,37 @@ $fragmentReferenceSignatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$referenceUriKindSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="#local-relationship-transform">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="https://example.test/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="//example.test/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $draftRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
@@ -179,6 +211,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/sig-selector-shape.xml', 'data' => $selectorShapeSignatureXml],
     ['name' => '_xmlsignatures/sig-missing-rels.xml', 'data' => $missingRelationshipPartSignatureXml],
     ['name' => '_xmlsignatures/sig-fragment.xml', 'data' => $fragmentReferenceSignatureXml],
+    ['name' => '_xmlsignatures/sig-reference-uri-kinds.xml', 'data' => $referenceUriKindSignatureXml],
 ]);
 
 $aliasCollisionContentTypesXml = <<<'XML'
@@ -699,6 +732,27 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-f
         'relationshipXml' => $transform['relationshipXml'],
     ];
 }
+$signatureReferenceUriKindGuards = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-reference-uri-kinds.xml') as $transform) {
+    $signatureReferenceUriKindGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
 
 $reachableTargets = [];
 foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -888,6 +942,7 @@ $summary = [
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
     'signatureFragmentReferenceGuards' => $signatureFragmentReferenceGuards,
+    'signatureReferenceUriKindGuards' => $signatureReferenceUriKindGuards,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -1336,6 +1391,43 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureFragmentReferenceGuards'][0]['valid'] ?? null) !== false
         || ($summary['signatureFragmentReferenceGuards'][0]['issues'] ?? null) !== ['relationship-transform-reference-has-fragment']
         || !str_contains((string) ($summary['signatureFragmentReferenceGuards'][0]['relationshipXml'] ?? ''), 'Id="rIdHero"')
+        || count($summary['signatureReferenceUriKindGuards'] ?? []) !== 3
+        || ($summary['signatureReferenceUriKindGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-reference-uri-kinds.xml'
+        || ($summary['signatureReferenceUriKindGuards'][0]['referenceUri'] ?? null) !== '#local-relationship-transform'
+        || !array_key_exists('relationshipPartName', $summary['signatureReferenceUriKindGuards'][0] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][0]['relationshipPartName'] !== null
+        || !array_key_exists('source', $summary['signatureReferenceUriKindGuards'][0] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][0]['source'] !== null
+        || ($summary['signatureReferenceUriKindGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureReferenceUriKindGuards'][0]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureReferenceUriKindGuards'][0]['relationshipCount'] ?? null) !== 0
+        || !array_key_exists('selectorValid', $summary['signatureReferenceUriKindGuards'][0] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][0]['selectorValid'] !== null
+        || ($summary['signatureReferenceUriKindGuards'][0]['valid'] ?? null) !== false
+        || ($summary['signatureReferenceUriKindGuards'][0]['issues'] ?? null) !== [
+            'relationship-transform-reference-same-document',
+            'relationship-transform-reference-has-fragment',
+        ]
+        || !array_key_exists('relationshipXml', $summary['signatureReferenceUriKindGuards'][0] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][0]['relationshipXml'] !== null
+        || ($summary['signatureReferenceUriKindGuards'][1]['referenceUri'] ?? null) !== 'https://example.test/word/_rels/document.xml.rels'
+        || !array_key_exists('relationshipPartName', $summary['signatureReferenceUriKindGuards'][1] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][1]['relationshipPartName'] !== null
+        || ($summary['signatureReferenceUriKindGuards'][1]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureReferenceUriKindGuards'][1]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureReferenceUriKindGuards'][1]['valid'] ?? null) !== false
+        || ($summary['signatureReferenceUriKindGuards'][1]['issues'] ?? null) !== ['relationship-transform-reference-external-uri']
+        || !array_key_exists('relationshipXml', $summary['signatureReferenceUriKindGuards'][1] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][1]['relationshipXml'] !== null
+        || ($summary['signatureReferenceUriKindGuards'][2]['referenceUri'] ?? null) !== '//example.test/word/_rels/document.xml.rels'
+        || !array_key_exists('relationshipPartName', $summary['signatureReferenceUriKindGuards'][2] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][2]['relationshipPartName'] !== null
+        || ($summary['signatureReferenceUriKindGuards'][2]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureReferenceUriKindGuards'][2]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureReferenceUriKindGuards'][2]['valid'] ?? null) !== false
+        || ($summary['signatureReferenceUriKindGuards'][2]['issues'] ?? null) !== ['relationship-transform-reference-external-uri']
+        || !array_key_exists('relationshipXml', $summary['signatureReferenceUriKindGuards'][2] ?? [])
+        || $summary['signatureReferenceUriKindGuards'][2]['relationshipXml'] !== null
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'
