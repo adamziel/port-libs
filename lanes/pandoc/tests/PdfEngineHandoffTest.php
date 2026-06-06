@@ -2644,6 +2644,84 @@ MARKDOWN);
         $t->same($result['pdfViewerPreferences'], $sequence['finalPdfViewerPreferences']);
     },
 
+    'fake runner extracts bounded pdf catalog requirements and rendering policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/requirements.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /NeedsRendering true /Requirements [8 0 R << /Type /Requirement /S /EnableJavaScripts /RH << /C (ReviewApp) /V (1.0) /Name (Script review handler) >> >>] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Requirement /S /3D /RH 9 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /RequirementHandler /C (Acrobat) /V (9.0) /Name (3D Handler) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/requirements.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/requirements.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '8 0 R',
+                'type' => 'Requirement',
+                'subtype' => '3D',
+                'handlerObject' => '9 0 R',
+                'handlerType' => 'RequirementHandler',
+                'handlerName' => '3D Handler',
+                'handlerCode' => 'Acrobat',
+                'handlerVersion' => '9.0',
+                'keys' => ['RH', 'S', 'Type'],
+            ],
+            [
+                'object' => null,
+                'type' => 'Requirement',
+                'subtype' => 'EnableJavaScripts',
+                'handlerObject' => 'inline',
+                'handlerType' => null,
+                'handlerName' => 'Script review handler',
+                'handlerCode' => 'ReviewApp',
+                'handlerVersion' => '1.0',
+                'keys' => ['RH', 'S', 'Type'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(true, $result['pdfNeedsRendering'] ?? null);
+        $t->same($expected, $result['pdfCatalogRequirements'] ?? null);
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->contains('pdf-byte-needs-rendering:true', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirements:2', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement:3D:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement:EnableJavaScripts:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-handlers:2', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same(true, $sequence['finalPdfNeedsRendering'] ?? null);
+        $t->same($expected, $sequence['finalPdfCatalogRequirements'] ?? null);
+    },
+
     'fake runner extracts bounded pdf catalog uri base from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/uri-base.pdf']);

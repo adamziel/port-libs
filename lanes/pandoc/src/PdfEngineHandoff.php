@@ -301,6 +301,8 @@ final class PdfEngineHandoff
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     pdfUriBase: string|null,
      *     pdfViewerPreferences: array<string, bool|int|string>,
+     *     pdfNeedsRendering: bool|null,
+     *     pdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -726,6 +728,8 @@ final class PdfEngineHandoff
         $pdfNamedDestinations = [];
         $pdfUriBase = null;
         $pdfViewerPreferences = [];
+        $pdfNeedsRendering = null;
+        $pdfCatalogRequirements = [];
         $pdfTaggingMetadata = [];
         $pdfStructureElements = [];
         $pdfMarkedContentProperties = [];
@@ -809,6 +813,8 @@ final class PdfEngineHandoff
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
                 $pdfUriBase = $pdfInspection['uriBase'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
+                $pdfNeedsRendering = $pdfInspection['needsRendering'];
+                $pdfCatalogRequirements = $pdfInspection['catalogRequirements'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
@@ -1355,6 +1361,36 @@ final class PdfEngineHandoff
                 }
                 if ($pdfViewerPreferences !== []) {
                     $diagnostics[] = 'pdf-byte-viewer-preferences:' . count($pdfViewerPreferences);
+                }
+                if ($pdfNeedsRendering !== null) {
+                    $diagnostics[] = 'pdf-byte-needs-rendering:' . ($pdfNeedsRendering ? 'true' : 'false');
+                }
+                if ($pdfCatalogRequirements !== []) {
+                    $diagnostics[] = 'pdf-byte-catalog-requirements:' . count($pdfCatalogRequirements);
+                    $requirementSubtypes = [];
+                    $requirementHandlers = 0;
+                    foreach ($pdfCatalogRequirements as $requirement) {
+                        $subtype = is_string($requirement['subtype'] ?? null) && $requirement['subtype'] !== ''
+                            ? $requirement['subtype']
+                            : 'unknown';
+                        $requirementSubtypes[$subtype] = ($requirementSubtypes[$subtype] ?? 0) + 1;
+                        if (
+                            ($requirement['handlerObject'] ?? null) !== null
+                            || ($requirement['handlerType'] ?? null) !== null
+                            || ($requirement['handlerName'] ?? null) !== null
+                            || ($requirement['handlerCode'] ?? null) !== null
+                            || ($requirement['handlerVersion'] ?? null) !== null
+                        ) {
+                            $requirementHandlers++;
+                        }
+                    }
+                    ksort($requirementSubtypes);
+                    foreach ($requirementSubtypes as $subtype => $count) {
+                        $diagnostics[] = 'pdf-byte-catalog-requirement:' . $subtype . ':' . $count;
+                    }
+                    if ($requirementHandlers > 0) {
+                        $diagnostics[] = 'pdf-byte-catalog-requirement-handlers:' . $requirementHandlers;
+                    }
                 }
                 if ($pdfTaggingMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-tagging-metadata:' . count($pdfTaggingMetadata);
@@ -1959,6 +1995,8 @@ final class PdfEngineHandoff
             'pdfNamedDestinations' => $pdfNamedDestinations,
             'pdfUriBase' => $pdfUriBase,
             'pdfViewerPreferences' => $pdfViewerPreferences,
+            'pdfNeedsRendering' => $pdfNeedsRendering,
+            'pdfCatalogRequirements' => $pdfCatalogRequirements,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureElements' => $pdfStructureElements,
             'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
@@ -2063,6 +2101,8 @@ final class PdfEngineHandoff
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     finalPdfUriBase: string|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
+     *     finalPdfNeedsRendering: bool|null,
+     *     finalPdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
@@ -2281,6 +2321,8 @@ final class PdfEngineHandoff
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
+            'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
+            'finalPdfCatalogRequirements' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirements'] ?? null) ? $finalRun['pdfCatalogRequirements'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
@@ -3497,6 +3539,8 @@ final class PdfEngineHandoff
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
             'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
+            'needsRendering' => $this->extractPdfNeedsRendering($catalog),
+            'catalogRequirements' => $this->extractPdfCatalogRequirements($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
@@ -6290,6 +6334,173 @@ final class PdfEngineHandoff
         }
 
         return $preferences;
+    }
+
+    private function extractPdfNeedsRendering(?string $catalog): ?bool
+    {
+        if ($catalog === null || !str_contains($catalog, '/NeedsRendering')) {
+            return null;
+        }
+
+        return $this->extractPdfBooleanToken($catalog, 'NeedsRendering');
+    }
+
+    /**
+     * @return list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>
+     */
+    private function extractPdfCatalogRequirements(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Requirements')) {
+            return [];
+        }
+
+        $value = $this->extractPdfValueForName($catalog, 'Requirements');
+        if ($value === null) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $values = $value['kind'] === 'array' ? $this->pdfTopLevelArrayValues($value['value']) : [$value];
+        $requirements = [];
+        foreach ($values as $item) {
+            $summary = $this->summarizePdfCatalogRequirementValue($item, $objects, 0);
+            if ($summary !== null) {
+                $requirements[] = $summary;
+            }
+            if (count($requirements) >= 64) {
+                break;
+            }
+        }
+
+        return $requirements;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}|null
+     */
+    private function summarizePdfCatalogRequirementValue(array $value, array $objects, int $depth): ?array
+    {
+        if ($depth > 8) {
+            return null;
+        }
+
+        $object = null;
+        $dictionary = null;
+        if ($value['kind'] === 'dictionary') {
+            $dictionary = $value['value'];
+        } elseif ($value['kind'] === 'reference') {
+            $objectKey = $this->pdfReferenceKey($value['value']);
+            $object = $objectKey . ' R';
+            $body = $objects[$objectKey] ?? null;
+            if ($body !== null) {
+                $resolved = $this->parsePdfValueAt($body, 0);
+                if ($resolved !== null && $resolved['kind'] === 'dictionary') {
+                    $dictionary = $resolved['value'];
+                } elseif (str_starts_with(ltrim($body), '<<')) {
+                    $dictionary = $body;
+                }
+            }
+        }
+
+        if ($dictionary === null) {
+            return null;
+        }
+
+        return $this->summarizePdfCatalogRequirement($dictionary, $object, $objects, $depth + 1);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}|null
+     */
+    private function summarizePdfCatalogRequirement(string $dictionary, ?string $object, array $objects, int $depth): ?array
+    {
+        $keys = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            if ($entry['key'] !== '') {
+                $keys[] = $entry['key'];
+            }
+        }
+        $keys = array_values(array_unique($keys));
+        sort($keys, SORT_STRING);
+
+        $handler = $this->resolvePdfRequirementHandlerDictionary(
+            $this->extractPdfValueForName($dictionary, 'RH') ?? $this->extractPdfValueForName($dictionary, 'Handler'),
+            $objects,
+            $depth
+        );
+        $type = $this->extractPdfNameToken($dictionary, 'Type');
+        $subtype = $this->extractPdfNameToken($dictionary, 'S') ?? $this->extractPdfNameToken($dictionary, 'Subtype');
+        $handlerDictionary = $handler['dictionary'] ?? null;
+        $summary = [
+            'object' => $object,
+            'type' => $type,
+            'subtype' => $subtype,
+            'handlerObject' => $handler['object'] ?? null,
+            'handlerType' => $handlerDictionary === null ? null : $this->extractPdfNameToken($handlerDictionary, 'Type'),
+            'handlerName' => $handlerDictionary === null ? null : $this->extractPdfStringOrNameValue($handlerDictionary, 'Name'),
+            'handlerCode' => $handlerDictionary === null ? null : $this->extractPdfStringOrNameValue($handlerDictionary, 'C'),
+            'handlerVersion' => $handlerDictionary === null
+                ? null
+                : ($this->extractPdfStringOrNameValue($handlerDictionary, 'V') ?? $this->extractPdfStringOrNameValue($handlerDictionary, 'Version')),
+            'keys' => $keys,
+        ];
+
+        if (
+            $summary['type'] === null
+            && $summary['subtype'] === null
+            && $summary['handlerObject'] === null
+            && $summary['handlerType'] === null
+            && $summary['handlerName'] === null
+            && $summary['handlerCode'] === null
+            && $summary['handlerVersion'] === null
+            && $summary['keys'] === []
+        ) {
+            return null;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     * @return array{object:string|null, dictionary:string}|null
+     */
+    private function resolvePdfRequirementHandlerDictionary(?array $value, array $objects, int $depth): ?array
+    {
+        if ($value === null || $depth > 8) {
+            return null;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return [
+                'object' => 'inline',
+                'dictionary' => $value['value'],
+            ];
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return null;
+        }
+
+        $objectKey = $this->pdfReferenceKey($value['value']);
+        $body = $objects[$objectKey] ?? null;
+        if ($body === null) {
+            return null;
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+        if ($resolved === null || $resolved['kind'] !== 'dictionary') {
+            return null;
+        }
+
+        return [
+            'object' => $objectKey . ' R',
+            'dictionary' => $resolved['value'],
+        ];
     }
 
     private function extractPdfUriBase(string $pdfBytes, ?string $catalog): ?string
