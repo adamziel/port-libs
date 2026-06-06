@@ -6857,40 +6857,44 @@ final class PdfTextExtractor
      */
     private function suppressUninvokedImageResourceEntriesPaintedThroughForms(array $entries): array
     {
-        $nestedInvokedResourceKeys = [];
+        $nestedInvokedObjectKeys = [];
         foreach ($entries as $entry) {
             $resourcePath = $entry['resource_path'] ?? null;
+            $pageIndex = $entry['page_index'] ?? null;
             $objectNumber = $entry['object_number'] ?? null;
             $objectGeneration = $entry['object_generation'] ?? null;
             if (
                 ($entry['invoked'] ?? false) !== true
                 || !is_array($resourcePath)
                 || count($resourcePath) < 2
+                || !is_int($pageIndex)
                 || !is_int($objectNumber)
                 || !is_int($objectGeneration)
             ) {
                 continue;
             }
 
-            $nestedInvokedResourceKeys[$objectNumber . ':' . $objectGeneration . "\0" . (string) ($entry['resource_name'] ?? '')] = true;
+            $nestedInvokedObjectKeys[$pageIndex . ':' . $objectNumber . ':' . $objectGeneration] = true;
         }
 
-        if ($nestedInvokedResourceKeys === []) {
+        if ($nestedInvokedObjectKeys === []) {
             return $entries;
         }
 
         $filtered = [];
         foreach ($entries as $entry) {
             $resourcePath = $entry['resource_path'] ?? null;
+            $pageIndex = $entry['page_index'] ?? null;
             $objectNumber = $entry['object_number'] ?? null;
             $objectGeneration = $entry['object_generation'] ?? null;
             if (
                 ($entry['invoked'] ?? false) === false
                 && is_array($resourcePath)
                 && count($resourcePath) === 1
+                && is_int($pageIndex)
                 && is_int($objectNumber)
                 && is_int($objectGeneration)
-                && isset($nestedInvokedResourceKeys[$objectNumber . ':' . $objectGeneration . "\0" . (string) ($entry['resource_name'] ?? '')])
+                && isset($nestedInvokedObjectKeys[$pageIndex . ':' . $objectNumber . ':' . $objectGeneration])
             ) {
                 continue;
             }
