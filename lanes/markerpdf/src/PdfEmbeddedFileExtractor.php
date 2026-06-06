@@ -97,6 +97,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $this->collectAssociatedFiles($this->dictionaryRawValue($catalog, 'AF'), $objects, $files, $portfolioMetadata, $catalogPieceInfo);
+        $this->collectPageAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -296,6 +297,137 @@ final class PdfEmbeddedFileExtractor
             $file['associated_file'] = true;
             $file['associated_file_index'] = $index;
             $files[] = $file;
+        }
+    }
+
+    /**
+     * Page-level associated files are standard PDF /AF review metadata. Keep
+     * them in the embedded-file inventory so WordPress import preflight sees
+     * attachments that are scoped to a page rather than the catalog.
+     *
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $files
+     */
+    private function collectPageAssociatedFiles(?string $pagesValue, array $objects, array &$files): void
+    {
+        if ($pagesValue === null) {
+            return;
+        }
+
+        foreach ($this->pageAssociatedFileEntries($pagesValue, $objects) as $entry) {
+            $file = $this->embeddedFileFromFileSpecValue(
+                $entry['fileSpecValue'],
+                null,
+                $objects,
+                'page_associated_files'
+            );
+            if ($file === null) {
+                continue;
+            }
+
+            $file['associated_file'] = true;
+            $file['page_associated_file'] = true;
+            $file['page_associated_file_index'] = $entry['associatedFileIndex'];
+            $file['page_number'] = $entry['pageNumber'];
+            if ($entry['pageObjectId'] !== null) {
+                $file['page_object_id'] = $entry['pageObjectId'];
+            }
+            $files[] = $file;
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{pageNumber: int, pageObjectId: int|null, associatedFileIndex: int, fileSpecValue: string}>
+     */
+    private function pageAssociatedFileEntries(string $pagesValue, array $objects): array
+    {
+        $pages = $this->pageTreePages($pagesValue, $objects);
+        if ($pages === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($pages as $pageIndex => $page) {
+            $associatedFilesValue = $this->dictionaryRawValue($page['body'], 'AF');
+            if ($associatedFilesValue === null) {
+                continue;
+            }
+
+            foreach ($this->arrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
+                $entries[] = [
+                    'pageNumber' => $pageIndex + 1,
+                    'pageObjectId' => $page['object'],
+                    'associatedFileIndex' => $associatedFileIndex,
+                    'fileSpecValue' => $fileSpecValue,
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{body: string, object: int|null}>
+     */
+    private function pageTreePages(string $pagesValue, array $objects): array
+    {
+        $pages = [];
+        $this->collectPageTreePages($pagesValue, $objects, $pages);
+
+        return $pages;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<array{body: string, object: int|null}> $pages
+     * @param array<int, true> $seen
+     */
+    private function collectPageTreePages(
+        string $pageValue,
+        array $objects,
+        array &$pages,
+        array $seen = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 50) {
+            return;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($pageValue);
+        if ($objectNumber !== null) {
+            if (isset($seen[$objectNumber])) {
+                return;
+            }
+            $seen[$objectNumber] = true;
+        }
+
+        $page = $this->resolveDictionaryFromValue($pageValue, $objects);
+        if ($page === null) {
+            return;
+        }
+
+        $type = $this->dictionaryNameValue($page['body'], 'Type', $objects);
+        if ($type === 'Page') {
+            $pages[] = [
+                'body' => $page['body'],
+                'object' => $page['object'],
+            ];
+            return;
+        }
+
+        if ($type !== 'Pages') {
+            return;
+        }
+
+        $kidsValue = $this->dictionaryRawValue($page['body'], 'Kids');
+        if ($kidsValue === null) {
+            return;
+        }
+
+        foreach ($this->arrayItemsFromValue($kidsValue, $objects) as $kidValue) {
+            $this->collectPageTreePages($kidValue, $objects, $pages, $seen, $depth + 1);
         }
     }
 
@@ -2367,9 +2499,10 @@ final class PdfEmbeddedFileExtractor
                 ? 'objects:' . $fileSpecObject . ':' . $embeddedFileObject
                 : 'values:' . ($embeddedFileObject ?? 'direct') . ':' . ($file['name'] ?? '') . ':' . ($file['filename'] ?? '');
             if (isset($seen[$key])) {
+                $this->mergeEmbeddedFileMirrorMetadata($deduped[$seen[$key]], $file);
                 continue;
             }
-            $seen[$key] = true;
+            $seen[$key] = count($deduped);
             if ($streamKey !== null && is_string($filenameSource) && $filenameSource !== 'generated') {
                 $seenNamedStreams[$streamKey] = true;
             }
@@ -2377,6 +2510,44 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $deduped;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $candidate
+     */
+    private function mergeEmbeddedFileMirrorMetadata(array &$target, array $candidate): void
+    {
+        if (($candidate['associated_file'] ?? false) === true) {
+            $target['associated_file'] = true;
+        }
+
+        $candidateSource = $candidate['source'] ?? null;
+        if ($candidateSource === 'catalog_associated_files') {
+            $target['associated_file_source'] = 'catalog_af';
+            if (isset($candidate['associated_file_index'])) {
+                $target['associated_file_index'] = $candidate['associated_file_index'];
+            }
+        }
+
+        if (($candidate['page_associated_file'] ?? false) === true || $candidateSource === 'page_associated_files') {
+            $target['associated_file'] = true;
+            $target['page_associated_file'] = true;
+            $target['page_associated_file_source'] = 'page_af';
+            foreach (['page_associated_file_index', 'page_number', 'page_object_id'] as $key) {
+                if (array_key_exists($key, $candidate)) {
+                    $target[$key] = $candidate[$key];
+                }
+            }
+        }
+
+        if (
+            !isset($target['associated_file_provenance_review'])
+            && isset($candidate['provenance_review'])
+            && is_array($candidate['provenance_review'])
+        ) {
+            $target['associated_file_provenance_review'] = $candidate['provenance_review'];
+        }
     }
 
     /**
