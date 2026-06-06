@@ -6053,6 +6053,15 @@ final class PdfMetadataExtractor
         if (isset($entry['generation'])) {
             $metadata['object_generation'] = $entry['generation'];
         }
+        foreach ([
+            'encrypt_dictionary_resolved',
+            'encrypt_operand_shape',
+            'encrypt_operand_status',
+        ] as $key) {
+            if (array_key_exists($key, $entry)) {
+                $metadata[$key] = $entry[$key];
+            }
+        }
         if (($entry['malformed_encrypt_dictionary'] ?? false) === true) {
             $metadata['malformed_encrypt_dictionary'] = true;
             $metadata['encrypt_dictionary_resolved'] = false;
@@ -6897,7 +6906,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null, generation?: int, source: string}|null
+     * @return array{body: string, object: int|null, generation?: int, source: string, encrypt_dictionary_resolved: true, encrypt_operand_shape: string, encrypt_operand_status: string}|null
      */
     private function resolvedEncryptionDictionary(string $value, array $objects, string $source): ?array
     {
@@ -6920,6 +6929,9 @@ final class PdfMetadataExtractor
                 'object' => $objectNumber,
                 'generation' => $generation,
                 'source' => $source,
+                'encrypt_dictionary_resolved' => true,
+                'encrypt_operand_shape' => 'indirect_reference',
+                'encrypt_operand_status' => 'encrypt_dictionary_indirect_reference_resolved',
             ];
         }
 
@@ -6929,6 +6941,9 @@ final class PdfMetadataExtractor
                 'body' => $dictionary,
                 'object' => null,
                 'source' => $source,
+                'encrypt_dictionary_resolved' => true,
+                'encrypt_operand_shape' => 'dictionary',
+                'encrypt_operand_status' => 'encrypt_dictionary_direct_dictionary_resolved',
             ];
         }
 
@@ -6937,6 +6952,9 @@ final class PdfMetadataExtractor
             'body' => $dictionary,
             'object' => null,
             'source' => $source,
+            'encrypt_dictionary_resolved' => true,
+            'encrypt_operand_shape' => 'dictionary_object_body',
+            'encrypt_operand_status' => 'encrypt_dictionary_object_body_resolved',
         ];
     }
 

@@ -21328,7 +21328,10 @@ final class PdfTextExtractor
 
     private function topLevelPdfEncryptValueAfterName(string $body): ?string
     {
-        $values = $this->topLevelPdfValuesAfterName($body, 'Encrypt');
+        $values = $this->topLevelPdfValuesAfterNameInDictionaryBody($body, 'Encrypt');
+        if ($values === []) {
+            $values = $this->topLevelPdfValuesAfterName($body, 'Encrypt');
+        }
         if (count($values) > 1) {
             return 'duplicate_encrypt_dictionary_entries';
         }
