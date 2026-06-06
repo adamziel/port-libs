@@ -275,6 +275,28 @@ return [
         $t->contains('<h1 id="עברית">עברית</h1>', $blocks);
         $t->contains("<p>עורך עברית «מקור» ‗ 12; \u{200F}RTL.</p>", $blocks);
     },
+    'decodes tis 620 thai source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xE4\xB7\xC2\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-166');
+        $document = (new MarkdownReader())->readBytes($bytes, 'iso-8859-11');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA0\xA1\xDA\xDF\xE0\xF0\xFB", 'tis-620');
+        $undefined = UnicodeText::decodeBytes("A\xDBB\xDEC\xFCD\xFFE", 'thai');
+
+        $t->same('tis-620', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# ไทย\n\nเนื้อหา เอกสาร.", $decoded['text']);
+        $t->same("\u{00A0}กฺ฿เ๐๛", $specials['text']);
+        $t->same(6, UnicodeText::displayWidth($specials['text']));
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E", $undefined['text']);
+        $t->same(4, $undefined['repairs']);
+        $t->same(['encoding' => 'tis-620', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('ไทย', $document->children[0]->attr('text'));
+        $t->same('เนื้อหา เอกสาร.', $document->children[1]->attr('text'));
+        $t->same(13, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="ไทย">ไทย</h1>', $blocks);
+        $t->contains('<p>เนื้อหา เอกสาร.</p>', $blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');
