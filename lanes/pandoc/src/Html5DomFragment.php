@@ -1019,13 +1019,16 @@ final class Html5DomFragment
                 return null;
             }
 
-            [$name, $content] = $reviewMetadata;
+            [$kind, $name, $content] = $reviewMetadata;
+            $metadataAttributeName = $kind === 'property'
+                ? 'data-pandoc-meta-property'
+                : 'data-pandoc-meta-name';
 
             return [[
                 'type' => 'element',
                 'name' => 'span',
                 'attrs' => [
-                    'data-pandoc-meta-name' => $name,
+                    $metadataAttributeName => $name,
                     'data-pandoc-meta-content' => $content,
                 ],
                 'children' => [[
@@ -1100,16 +1103,39 @@ final class Html5DomFragment
     }
 
     /**
-     * @return array{0:string, 1:string}|null
+     * @return array{0:string, 1:string, 2:string}|null
      */
     private static function htmlMetaReviewMetadata(\DOMElement $element): ?array
     {
-        if (!$element->hasAttribute('name') || !$element->hasAttribute('content')) {
+        if (!$element->hasAttribute('content')) {
             return null;
         }
 
-        $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
-        if (!in_array($name, ['author', 'description', 'generator', 'keywords'], true)) {
+        $kind = 'name';
+        $name = '';
+        if ($element->hasAttribute('name')) {
+            $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
+            if (!in_array($name, ['author', 'description', 'generator', 'keywords'], true)) {
+                $name = '';
+            }
+        }
+
+        if ($name === '' && $element->hasAttribute('property')) {
+            $kind = 'property';
+            $name = self::normalizeHtmlMetaProperty($element->getAttribute('property'));
+            if (!in_array($name, [
+                'article:modified_time',
+                'article:published_time',
+                'og:description',
+                'og:title',
+                'twitter:description',
+                'twitter:title',
+            ], true)) {
+                return null;
+            }
+        }
+
+        if ($name === '') {
             return null;
         }
 
@@ -1118,7 +1144,7 @@ final class Html5DomFragment
             return null;
         }
 
-        return [$name, $content];
+        return [$kind, $name, $content];
     }
 
     private static function normalizeHtmlMetaName(string $name): string
@@ -1129,13 +1155,27 @@ final class Html5DomFragment
         return strtolower(trim($name));
     }
 
+    private static function normalizeHtmlMetaProperty(string $property): string
+    {
+        $property = str_replace("\0", '', $property);
+        $property = preg_replace('/[\t\r\n\f ]+/u', '', $property) ?? $property;
+
+        return strtolower(trim($property));
+    }
+
     private static function htmlMetaReviewLabel(string $name): string
     {
         return match ($name) {
+            'article:modified_time' => 'Article modified time',
+            'article:published_time' => 'Article published time',
             'author' => 'Author',
             'description' => 'Description',
             'generator' => 'Generator',
             'keywords' => 'Keywords',
+            'og:description' => 'Open Graph description',
+            'og:title' => 'Open Graph title',
+            'twitter:description' => 'Twitter description',
+            'twitter:title' => 'Twitter title',
             default => 'Metadata',
         };
     }

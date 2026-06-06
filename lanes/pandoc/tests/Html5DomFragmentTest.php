@@ -1260,7 +1260,7 @@ return [
             . '<meta name="keywords" content="wordpress, migration, html">'
             . '<meta name="generator" content="&lt;Legacy CMS&gt;">'
             . '<meta name="viewport" content="width=device-width">'
-            . '<meta property="og:title" content="Open graph title">'
+            . '<meta property="og:image" content="Open graph image">'
             . '<meta name="description" content="   ">'
             . '<p>after</p>'
         );
@@ -1306,8 +1306,66 @@ return [
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->true(!str_contains($html, '<meta'), 'Expected original meta elements to be stripped from sanitized output');
         $t->true(!str_contains($html, 'width=device-width'), 'Expected viewport metadata to stay out of review HTML');
-        $t->true(!str_contains($html, 'Open graph title'), 'Expected unsupported property metadata to remain hidden');
+        $t->true(!str_contains($html, 'Open graph image'), 'Expected unsupported property metadata to remain hidden');
         $t->true(!str_contains($html, '<Legacy CMS>'), 'Expected tag-looking metadata text to remain escaped');
+    },
+    'converts passive property metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<meta property="og:title" content="Legacy &amp; share&#10; title">'
+            . '<meta property="OG:Description" content="&lt;Legacy excerpt&gt;">'
+            . '<meta property="article:published_time" content="2026-06-06T10:00:00Z">'
+            . '<meta property="twitter:title" content="Social card title">'
+            . '<meta property="og:image" content="https://cdn.example.test/cover.png">'
+            . '<meta property="twitter:image" content="https://cdn.example.test/social.png">'
+            . '<meta property="og:title" content="   ">'
+            . '<meta name="description" content="Named metadata still survives">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-property-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-property="og:title" data-pandoc-meta-content="Legacy &amp; share title">Open Graph title: Legacy &amp; share title</span>'
+            . '<span data-pandoc-meta-property="og:description" data-pandoc-meta-content="&lt;Legacy excerpt&gt;">Open Graph description: &lt;Legacy excerpt&gt;</span>'
+            . '<span data-pandoc-meta-property="article:published_time" data-pandoc-meta-content="2026-06-06T10:00:00Z">Article published time: 2026-06-06T10:00:00Z</span>'
+            . '<span data-pandoc-meta-property="twitter:title" data-pandoc-meta-content="Social card title">Twitter title: Social card title</span>'
+            . '<span data-pandoc-meta-name="description" data-pandoc-meta-content="Named metadata still survives">Description: Named metadata still survives</span>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Open Graph title: Legacy & share titleOpen Graph description: <Legacy excerpt>Article published time: 2026-06-06T10:00:00ZTwitter title: Social card titleDescription: Named metadata still survivesafter', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['base', 'meta'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-meta-property' => 'og:title',
+            'data-pandoc-meta-content' => 'Legacy & share title',
+        ], $nodes[0]['attrs']);
+        $t->same('Open Graph title: Legacy & share title', $nodes[0]['children'][0]['text']);
+        $t->same('og:description', $nodes[1]['attrs']['data-pandoc-meta-property']);
+        $t->same('<Legacy excerpt>', $nodes[1]['attrs']['data-pandoc-meta-content']);
+        $t->same('article:published_time', $nodes[2]['attrs']['data-pandoc-meta-property']);
+        $t->same('twitter:title', $nodes[3]['attrs']['data-pandoc-meta-property']);
+        $t->same('description', $nodes[4]['attrs']['data-pandoc-meta-name']);
+        $t->same('p', $nodes[5]['name']);
+        $t->same('/migration/meta-property-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<meta'), 'Expected original meta property elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'https://cdn.example.test/cover.png'), 'Expected Open Graph image metadata to stay hidden until a media policy slice');
+        $t->true(!str_contains($html, 'https://cdn.example.test/social.png'), 'Expected Twitter image metadata to stay hidden until a media policy slice');
+        $t->true(!str_contains($html, '<Legacy excerpt>'), 'Expected tag-looking property metadata text to remain escaped');
     },
     'converts passive link relations into reviewer links while dropping active resources' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
