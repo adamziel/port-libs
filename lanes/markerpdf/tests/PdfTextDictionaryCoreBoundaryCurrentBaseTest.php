@@ -556,6 +556,123 @@ return [
         $t->true(!str_contains($encoded, 'dictionary_output adapter payload'));
         $t->true(!str_contains($encoded, 'top-level dictionary_output payload'));
     },
+    'prefers explicit dictionary_output over stale adapter pages at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $staleCover = $pdftextLinkedPage();
+        $staleCover['page'] = 400;
+        $staleCover['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Stale top-level cover page should not import';
+
+        $staleSelected = $pdftextLinkedPage();
+        $staleSelected['page'] = 401;
+        $staleSelected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Stale top-level adapter page should not import';
+
+        $staleAppendix = $pdftextLinkedPage();
+        $staleAppendix['page'] = 402;
+        $staleAppendix['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Stale top-level appendix page should not import';
+
+        $currentCover = $pdftextLinkedPage();
+        $currentCover['page'] = 500;
+        $currentCover['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Skipped explicit dictionary_output cover';
+
+        $currentSelected = $pdftextLinkedPage();
+        $currentSelected['page'] = 501;
+        $currentSelected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Explicit dictionary_output ';
+        $currentSelected['blocks'][0]['lines'][0]['spans'][1]['text'] = 'page link';
+        $currentSelected['blocks'][0]['lines'][0]['spans'][2]['text'] = ' wins over stale adapter pages';
+        unset($currentSelected['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $currentAppendix = $pdftextLinkedPage();
+        $currentAppendix['page'] = 502;
+        $currentAppendix['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Skipped explicit dictionary_output appendix';
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks(
+            [
+                'pages' => [
+                    400 => $staleCover,
+                    401 => $staleSelected,
+                    402 => $staleAppendix,
+                ],
+                'dictionary_output' => [
+                    'metadata' => [
+                        'source' => 'pdftext.dictionary_output',
+                        'raw_private_payload' => 'nested dictionary_output collision metadata must not cross',
+                    ],
+                    'pages' => [
+                        500 => $currentCover,
+                        501 => $currentSelected,
+                        502 => $currentAppendix,
+                    ],
+                    'raw_pdftext_payload' => 'explicit dictionary_output collision payload must not cross',
+                ],
+                'raw_adapter_payload' => 'top-level stale adapter pages payload must not cross',
+            ],
+            maxPages: 1,
+            startPage: 1,
+            toc: [['title' => 'Explicit dictionary output wins', 'level' => 1, 'page_index' => 501]]
+        );
+
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $document['page_range']);
+        $t->same(3, $document['metadata']['source_pages']);
+        $t->same(501, $page['pnum']);
+        $t->same('Explicit dictionary_output [page link](https://example.com/import\\)docs) wins over stale adapter pages', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same([
+            [
+                'url' => '#page-3-xy',
+                'page' => 3,
+                'dest_pos' => [72.0, 96.0],
+            ],
+        ], $page['pdftext_source']['refs']);
+        $t->true(!str_contains($encoded, 'Stale top-level'));
+        $t->true(!str_contains($encoded, 'Skipped explicit dictionary_output cover'));
+        $t->true(!str_contains($encoded, 'Skipped explicit dictionary_output appendix'));
+        $t->true(!str_contains($encoded, 'nested dictionary_output collision metadata'));
+        $t->true(!str_contains($encoded, 'explicit dictionary_output collision payload'));
+        $t->true(!str_contains($encoded, 'top-level stale adapter pages payload'));
+    },
+    'prefers json decoded dictionary_output over stale adapter pages at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $staleSelected = $pdftextLinkedPage();
+        $staleSelected['page'] = 610;
+        $staleSelected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'JSON stale top-level page should not import';
+
+        $currentSelected = $pdftextLinkedPage();
+        $currentSelected['page'] = 710;
+        $currentSelected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'JSON explicit dictionary_output ';
+        $currentSelected['blocks'][0]['lines'][0]['spans'][1]['text'] = 'page link';
+        $currentSelected['blocks'][0]['lines'][0]['spans'][2]['text'] = ' remains authoritative';
+        unset($currentSelected['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $envelope = (array) json_decode(json_encode([
+            'pages' => [
+                610 => $staleSelected,
+            ],
+            'dictionary_output' => [
+                'pages' => [
+                    710 => $currentSelected,
+                ],
+                'raw_pdftext_payload' => 'json explicit dictionary_output payload must not cross',
+            ],
+            'raw_adapter_payload' => 'json stale adapter pages payload must not cross',
+        ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}');
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks($envelope, maxPages: 1);
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->true($envelope['pages'] instanceof stdClass);
+        $t->true($envelope['dictionary_output'] instanceof stdClass);
+        $t->same([0], $document['page_range']);
+        $t->same(710, $page['pnum']);
+        $t->same('JSON explicit dictionary_output [page link](https://example.com/import\\)docs) remains authoritative', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($encoded, 'JSON stale top-level page should not import'));
+        $t->true(!str_contains($encoded, 'json explicit dictionary_output payload'));
+        $t->true(!str_contains($encoded, 'json stale adapter pages payload'));
+    },
     'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';

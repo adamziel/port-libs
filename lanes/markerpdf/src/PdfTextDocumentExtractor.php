@@ -119,7 +119,7 @@ final class PdfTextDocumentExtractor
             return [$pdftextPages];
         }
 
-        foreach (['pages', 'dictionary_output'] as $pageListKey) {
+        foreach (['dictionary_output', 'pages'] as $pageListKey) {
             if (!array_key_exists($pageListKey, $pdftextPages)) {
                 continue;
             }
