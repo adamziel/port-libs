@@ -4287,7 +4287,7 @@ final class PdfTextExtractor
         foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
-            $resolved = $this->resolvedExactXObjectResourceReference($objects, $objectNumber, $generation);
+            $resolved = $this->resolvedExactResourceReference($objects, $objectNumber, $generation);
             if ($resolved === null) {
                 $references[$resourceName] = [
                     'objectNumber' => $objectNumber,
@@ -4313,7 +4313,7 @@ final class PdfTextExtractor
      * @param array<string, true> $seen
      * @return array{object: int, generation: int, body: string}|null
      */
-    private function resolvedExactXObjectResourceReference(
+    private function resolvedExactResourceReference(
         array $objects,
         int $objectNumber,
         int $generation,
@@ -4332,7 +4332,7 @@ final class PdfTextExtractor
         $seen[$referenceKey] = true;
         $reference = $this->pdfIndirectReferenceValue(trim($body));
         if ($reference !== null) {
-            return $this->resolvedExactXObjectResourceReference(
+            return $this->resolvedExactResourceReference(
                 $objects,
                 $reference['objectNumber'],
                 $reference['generation'],
@@ -4399,10 +4399,21 @@ final class PdfTextExtractor
         foreach ($this->topLevelResourceReferenceEntries($patternDictionary) as $resourceName => $resource) {
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
+            $resolved = $this->resolvedExactResourceReference($objects, $objectNumber, $generation);
+            if ($resolved === null) {
+                $references[$resourceName] = [
+                    'objectNumber' => $objectNumber,
+                    'generation' => $generation,
+                    'body' => null,
+                ];
+
+                continue;
+            }
+
             $references[$resourceName] = [
-                'objectNumber' => $objectNumber,
-                'generation' => $generation,
-                'body' => $this->objectBodyForExactReference($objects, $objectNumber, $generation),
+                'objectNumber' => $resolved['object'],
+                'generation' => $resolved['generation'],
+                'body' => $resolved['body'],
             ];
         }
 
