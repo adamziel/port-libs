@@ -280,6 +280,12 @@ if (!$twigCodeBlock instanceof PortLibs\Pandoc\AstNode || $twigCodeBlock->type !
 }
 $twig = $highlighter->highlightCodeBlock($twigCodeBlock, 'espresso');
 $twigWordpressBlock = $highlighter->wordpressHtmlBlock($twigCodeBlock, 'espresso');
+$handlebarsCodeBlock = $document->children[40] ?? null;
+if (!$handlebarsCodeBlock instanceof PortLibs\Pandoc\AstNode || $handlebarsCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Handlebars template code block');
+}
+$handlebars = $highlighter->highlightCodeBlock($handlebarsCodeBlock, 'kate');
+$handlebarsWordpressBlock = $highlighter->wordpressHtmlBlock($handlebarsCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1175,6 +1181,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($twigWordpressBlock, '<span class="fu">include</span><span class="op">(</span><span class="st">&quot;partials/empty.twig&quot;</span>')) {
         throw new RuntimeException('Expected Twig include fallback WordPress handoff');
     }
+    if (($handlebars['language'] ?? '') !== 'mustache') {
+        throw new RuntimeException('Expected Handlebars fixture to normalize to Mustache highlighting');
+    }
+    if (($handlebars['lineNumbering']['start'] ?? null) !== 430) {
+        throw new RuntimeException('Expected Handlebars source startFrom line-number handoff');
+    }
+    if (!str_contains($handlebars['html'], '<span class="co">{{!-- Handlebars theme migration review --}}</span>')) {
+        throw new RuntimeException('Expected Handlebars comment token handoff');
+    }
+    if (!str_contains($handlebars['html'], '<span class="op">{{#</span><span class="kw">if</span> <span class="va">title</span><span class="op">}}</span>')) {
+        throw new RuntimeException('Expected Handlebars if-section token handoff');
+    }
+    if (!str_contains($handlebars['html'], '<span class="fu">default</span> <span class="st">&quot;Untitled&quot;</span>')) {
+        throw new RuntimeException('Expected Handlebars helper and string token handoff');
+    }
+    if (!str_contains($handlebars['html'], '<span class="op">{{&gt;</span> <span class="va">footer</span> <span class="ot">source</span><span class="op">=</span><span class="va">sourceId</span>')) {
+        throw new RuntimeException('Expected Handlebars partial and hash argument token handoff');
+    }
+    if (!str_contains($handlebarsWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected Handlebars WordPress style metadata');
+    }
+    if (!str_contains($handlebarsWordpressBlock, '<span class="op">{{{</span><span class="va">rawBlock</span><span class="op">}}}</span>')) {
+        throw new RuntimeException('Expected Handlebars triple-stash raw block handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1239,6 +1269,7 @@ echo "tsxHighlightedHtml:\n" . $tsx['html'] . "\n";
 echo "cmakeHighlightedHtml:\n" . $cmake['html'] . "\n";
 echo "nginxHighlightedHtml:\n" . $nginx['html'] . "\n";
 echo "twigHighlightedHtml:\n" . $twig['html'] . "\n";
+echo "handlebarsHighlightedHtml:\n" . $handlebars['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1274,4 +1305,5 @@ echo "tsxWordpressBlock:\n" . $tsxWordpressBlock . "\n";
 echo "cmakeWordpressBlock:\n" . $cmakeWordpressBlock . "\n";
 echo "nginxWordpressBlock:\n" . $nginxWordpressBlock . "\n";
 echo "twigWordpressBlock:\n" . $twigWordpressBlock . "\n";
+echo "handlebarsWordpressBlock:\n" . $handlebarsWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

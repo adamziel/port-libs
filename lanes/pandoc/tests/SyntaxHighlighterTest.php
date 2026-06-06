@@ -47,6 +47,11 @@ return [
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('language-restructured-text'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('mustache'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('handlebars'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('hbs'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('ractive'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('html.mst'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('mjs'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('cjs'));
@@ -850,6 +855,49 @@ return [
         $t->same('twig', $directTwig['language']);
         $t->same('html+twig', $directTwig['requestedLanguage']);
         $t->contains('<span class="op">{{</span> <span class="va">post</span><span class="op">.</span><span class="va">title</span><span class="op">|</span><span class="fu">default</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">)|</span><span class="fu">e</span> <span class="op">}}</span>', $directTwig['html']);
+    },
+    'highlights mustache handlebars template snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[40] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Handlebars template code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directHandlebars = $highlighter->highlight('{{#each posts}}{{title}}{{else}}{{default "Untitled"}}{{/each}}', 'handlebars');
+
+        $t->same('hbs', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('hbs'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('handlebars'));
+        $t->same('mustache', SyntaxHighlighter::normalizeLanguage('html.mst'));
+        $t->same('mustache', $highlighted['language']);
+        $t->same('hbs', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(430, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource hbs numberLines"><code class="sourceCode mustache" style="counter-reset: source-line 429;">', $highlighted['html']);
+        $t->contains('<span id="handlebars-template-review-430"><a href="#handlebars-template-review-430"></a><span class="co">{{!-- Handlebars theme migration review --}}</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;section</span> <span class="ot">class</span><span class="op">=</span><span class="st">&quot;wp-block-import-card&quot;</span> <span class="ot">data-source</span><span class="op">={{</span><span class="va">sourceId</span><span class="op">}}&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="op">{{#</span><span class="kw">if</span> <span class="va">title</span><span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;h2</span><span class="op">&gt;{{</span><span class="fu">default</span> <span class="st">&quot;Untitled&quot;</span><span class="op">}}</span><span class="kw">&lt;/h2</span>', $highlighted['html']);
+        $t->contains('<span class="op">{{#</span><span class="kw">each</span> <span class="va">media</span><span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;img</span> <span class="ot">src</span><span class="op">={{</span><span class="va">url</span><span class="op">}}</span> <span class="ot">alt</span><span class="op">={{</span><span class="va">alt</span><span class="op">}}</span> <span class="op">/&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="op">{{{</span><span class="va">rawBlock</span><span class="op">}}}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{{&gt;</span> <span class="va">footer</span> <span class="ot">source</span><span class="op">=</span><span class="va">sourceId</span> <span class="ot">count</span><span class="op">=</span><span class="dv">2</span><span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="op">{{&gt;</span> <span class="va">footer</span>', $wordpressBlock);
+        $t->same('mustache', $directHandlebars['language']);
+        $t->same('handlebars', $directHandlebars['requestedLanguage']);
+        $t->contains('<span class="op">{{#</span><span class="kw">each</span> <span class="va">posts</span><span class="op">}}{{</span><span class="va">title</span>', $directHandlebars['html']);
+        $t->contains('<span class="op">}}{{</span><span class="kw">else</span><span class="op">}}{{</span>', $directHandlebars['html']);
+        $t->contains('<span class="fu">default</span> <span class="st">&quot;Untitled&quot;</span><span class="op">}}{{/</span><span class="kw">each</span>', $directHandlebars['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

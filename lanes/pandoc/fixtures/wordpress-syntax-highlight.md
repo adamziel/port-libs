@@ -622,3 +622,19 @@ server {
   {{ include("partials/empty.twig", { source: sourceId }) }}
 {% endfor %}
 ```
+
+``` {.hbs #handlebars-template-review .numberLines startFrom=430}
+{{!-- Handlebars theme migration review --}}
+<section class="wp-block-import-card" data-source={{sourceId}}>
+  {{#if title}}
+    <h2>{{title}}</h2>
+  {{else}}
+    <h2>{{default "Untitled"}}</h2>
+  {{/if}}
+  {{#each media}}
+    <img src={{url}} alt={{alt}} />
+  {{/each}}
+  {{{rawBlock}}}
+  {{> footer source=sourceId count=2}}
+</section>
+```

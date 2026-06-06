@@ -76,7 +76,15 @@ final class SyntaxHighlighter
         'hpp' => 'cpp',
         'hxx' => 'cpp',
         'html' => 'html',
+        'handlebars' => 'mustache',
+        'hbs' => 'mustache',
+        'hogan' => 'mustache',
+        'hulk' => 'mustache',
         'html5' => 'html',
+        'html-handlebars' => 'mustache',
+        'html-mst' => 'mustache',
+        'html-mu' => 'mustache',
+        'html-rac' => 'mustache',
         'htaccess' => 'apache',
         'haskell' => 'haskell',
         'hs' => 'haskell',
@@ -113,6 +121,7 @@ final class SyntaxHighlighter
         'md' => 'markdown',
         'mmd' => 'markdown',
         'multimarkdown' => 'markdown',
+        'mustache' => 'mustache',
         'mysql' => 'sql',
         'nix' => 'nix',
         'nix-expr' => 'nix',
@@ -152,6 +161,7 @@ final class SyntaxHighlighter
         'python3' => 'python',
         'q' => 'r',
         'r' => 'r',
+        'ractive' => 'mustache',
         'rdf' => 'xml',
         'rss' => 'xml',
         'r-script' => 'r',
@@ -623,6 +633,7 @@ final class SyntaxHighlighter
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
+            'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
             'nix' => $this->tokenizeNix($code),
             'perl' => $this->tokenizePerl($code),
@@ -1336,6 +1347,115 @@ final class SyntaxHighlighter
             ['variable', '/^[A-Za-z_][A-Za-z0-9_]*/'],
             ['operator', '/^(?:\\.\\.|==|!=|<=|>=|=>|\\?\\?|\\?:|\\bis\\s+not\\b|\\bnot\\s+in\\b|\\band\\b|\\bor\\b|\\bnot\\b|[{}()[\\].,:|=+*\\/%!<>?~-])/'],
         ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeMustache(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $next = strpos($code, '{{', $offset);
+            if ($next === false) {
+                $this->scanMustacheHtml(substr($code, $offset), $tokens);
+                break;
+            }
+
+            if ($next > $offset) {
+                $this->scanMustacheHtml(substr($code, $offset, $next - $offset), $tokens);
+            }
+
+            $expression = self::consumeMustacheExpression($code, $next);
+            $this->appendMustacheExpression($expression, $tokens);
+            $offset = $next + strlen($expression);
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function scanMustacheHtml(string $code, array &$tokens): void
+    {
+        $this->scanInto($code, [
+            ['comment', '/^<!--[\\s\\S]*?-->/'],
+            ['string', '/^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>/'],
+            ['preprocessor', '/^<\\?[A-Za-z_][A-Za-z0-9_.:-]*/'],
+            ['preprocessor', '/^<!(?:DOCTYPE|ELEMENT|ENTITY|ATTLIST|NOTATION)\\b/i'],
+            ['keyword', '/^<\\/?[A-Za-z][A-Za-z0-9:-]*/'],
+            ['attribute', '/^(?:aria-[A-Za-z0-9_.:-]+|data-[A-Za-z0-9_.:-]+|[A-Za-z_:][A-Za-z0-9_.:-]*)(?=\\s*=)/i'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['constant', '/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z_:][A-Za-z0-9_.:-]*);/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['operator', '/^(?:\\/?>|=|\\[|\\])/'],
+        ], $tokens);
+    }
+
+    private static function consumeMustacheExpression(string $code, int $offset): string
+    {
+        foreach ([
+            ['{{!--', '--}}'],
+            ['{{{{', '}}}}'],
+            ['{{{', '}}}'],
+            ['{{!', '}}'],
+            ['{{', '}}'],
+        ] as [$open, $close]) {
+            if (!str_starts_with(substr($code, $offset), $open)) {
+                continue;
+            }
+
+            $end = strpos($code, $close, $offset + strlen($open));
+            if ($end === false) {
+                return substr($code, $offset);
+            }
+
+            return substr($code, $offset, $end - $offset + strlen($close));
+        }
+
+        return '{{';
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendMustacheExpression(string $expression, array &$tokens): void
+    {
+        if (str_starts_with($expression, '{{!--') || str_starts_with($expression, '{{!')) {
+            $this->appendToken($tokens, 'comment', $expression);
+            return;
+        }
+
+        [$open, $close] = match (true) {
+            str_starts_with($expression, '{{{{') => ['{{{{', '}}}}'],
+            str_starts_with($expression, '{{{') => ['{{{', '}}}'],
+            default => ['{{', '}}'],
+        };
+
+        if (!str_ends_with($expression, $close)) {
+            $this->appendToken($tokens, 'warning', $expression);
+            return;
+        }
+
+        $this->appendToken($tokens, 'operator', $open);
+        $inner = substr($expression, strlen($open), -strlen($close));
+        $this->scanInto($inner, [
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^(?:else\\s+(?:if|unless|with|each(?:-in)?)|else|if|unless|with|each(?:-in)?|block|partial|yield)\\b/'],
+            ['function', '/^(?:default|formatDate|include|link|log|lookup|t|translate|wp_kses_post)(?=\\s|\\()/'],
+            ['attribute', '/^[A-Za-z_:\\*#\\(\\[][\\)\\]\\w.:_-]*(?=\\s*=)/'],
+            ['constant', '/^(?:false|null|true|undefined)\\b/i'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['variable', '/^@?[A-Za-z_$:?\\x80-\\xff][A-Za-z0-9_$:?\\-\\x80-\\xff]*(?:\\.[A-Za-z_$:?\\x80-\\xff][A-Za-z0-9_$:?\\-\\x80-\\xff]*)*/'],
+            ['operator', '/^(?:=>|==|!=|<=|>=|\\|\\||&&|[{}()[\\].,=|~#^\\/><&$*!?:+-])/'],
+        ], $tokens);
+        $this->appendToken($tokens, 'operator', $close);
     }
 
     /**
