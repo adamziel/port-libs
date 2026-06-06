@@ -426,6 +426,22 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains((string) $result['document']->children[1]->attr('html'), 'Scripted EPUB slideshow fallback is preserved')) {
         throw new RuntimeException('Expected EPUB fallback XHTML to remain reviewable in the AST');
     }
+    $assetsById = [];
+    foreach ($result['assets'] as $asset) {
+        $assetsById[$asset['id']] = $asset;
+    }
+    if (($assetsById['slideshow']['fallbackId'] ?? null) !== 'slideshow-handler') {
+        throw new RuntimeException('Expected EPUB non-spine asset report to expose OPF fallback id');
+    }
+    if (($assetsById['slideshow']['fallbackContentPart'] ?? null) !== '/EPUB/text/slideshow-fallback.xhtml') {
+        throw new RuntimeException('Expected EPUB non-spine asset report to resolve fallback content part');
+    }
+    if (($assetsById['slideshow']['fallbackContentMediaType'] ?? null) !== 'application/xhtml+xml') {
+        throw new RuntimeException('Expected EPUB non-spine asset fallback media type to remain visible');
+    }
+    if (($result['importReport']['assets']['fallbackItems'][0]['id'] ?? null) !== 'slideshow') {
+        throw new RuntimeException('Expected EPUB import report to summarize asset fallback chains');
+    }
     if (($result['nav']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB nav href to resolve to the chapter fragment');
     }
@@ -914,6 +930,7 @@ echo 'mediaDuration=' . ($result['mediaDurations']['total']['duration'] ?? '') .
 echo 'mediaOverlayDuration=' . ($result['mediaOverlays']['mo-chapter']['duration'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
+echo 'assetFallbacks=' . ($result['importReport']['assets']['fallbackCount'] ?? 0) . "\n";
 echo 'coverAttachment=' . ($result['importReport']['assets']['coverImage']['part'] ?? '') . "\n";
 echo 'coverSha256=' . ($result['importReport']['assets']['coverImage']['byteSha256'] ?? '') . "\n";
 echo 'attachmentCandidates=' . ($result['importReport']['assets']['attachmentCandidateCount'] ?? 0) . "\n";

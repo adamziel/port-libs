@@ -2140,6 +2140,73 @@ XML;
         $t->same($assets['unmanifestedItems'], $assets['diagnostics'][0]['items']);
         $t->same('unmanifested-package-assets', $assets['diagnostics'][0]['type']);
     },
+    'reports non-spine OPF asset fallback chains for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithAssetFallbacks = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="interactive-map" href="widgets/map.bin" media-type="application/x-review-widget" fallback="interactive-poster"/>'
+            . '<item id="interactive-poster" href="images/map-poster.png" media-type="image/png"/>'
+            . '<item id="broken-widget" href="widgets/broken.bin" media-type="application/x-broken-widget" fallback="missing-poster"/>'
+            . '<item id="cyclic-widget-a" href="widgets/cyclic-a.bin" media-type="application/x-cycle" fallback="cyclic-widget-b"/>'
+            . '<item id="cyclic-widget-b" href="widgets/cyclic-b.bin" media-type="application/x-cycle" fallback="cyclic-widget-a"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithAssetFallbacks,
+            null,
+            [
+                ['name' => 'OEBPS/widgets/map.bin', 'data' => 'WIDGET-DATA'],
+                ['name' => 'OEBPS/images/map-poster.png', 'data' => 'POSTER-PNG', 'compressionMethod' => 0],
+                ['name' => 'OEBPS/widgets/broken.bin', 'data' => 'BROKEN-WIDGET'],
+                ['name' => 'OEBPS/widgets/cyclic-a.bin', 'data' => 'A'],
+                ['name' => 'OEBPS/widgets/cyclic-b.bin', 'data' => 'B'],
+            ]
+        ));
+
+        $assets = $result['importReport']['assets'];
+        $assetById = [];
+        foreach ($assets['items'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $map = $assetById['interactive-map'];
+        $t->same('interactive-poster', $map['fallbackId']);
+        $t->same('interactive-poster', $map['fallbackContentId']);
+        $t->same('/OEBPS/images/map-poster.png', $map['fallbackContentPart']);
+        $t->same('image/png', $map['fallbackContentMediaType']);
+        $t->same(true, $map['fallbackAttachmentCandidate']);
+        $t->same('image', $map['fallbackAttachmentRole']);
+        $t->same(hash('sha256', 'POSTER-PNG'), $map['fallbackByteSha256']);
+        $t->same([], $map['fallbackDiagnostics']);
+        $t->same(1, count($map['fallbackChain']));
+        $t->same('interactive-poster', $map['fallbackChain'][0]['id']);
+        $t->same('/OEBPS/images/map-poster.png', $map['fallbackChain'][0]['part']);
+        $t->same(true, $map['fallbackChain'][0]['attachmentCandidate']);
+        $t->same(hash('sha256', 'POSTER-PNG'), $map['fallbackChain'][0]['byteSha256']);
+
+        $broken = $assetById['broken-widget'];
+        $t->same('missing-poster', $broken['fallbackId']);
+        $t->same(null, $broken['fallbackContentId']);
+        $t->same(false, $broken['fallbackAttachmentCandidate']);
+        $t->same('missing-asset-fallback-manifest-item', $broken['fallbackDiagnostics'][0]['type']);
+        $t->same('missing-poster', $broken['fallbackDiagnostics'][0]['fallback']);
+        $t->same($broken['fallbackDiagnostics'], $broken['diagnostics']);
+
+        $cycle = $assetById['cyclic-widget-a'];
+        $t->same('cyclic-widget-b', $cycle['fallbackId']);
+        $t->same(1, count($cycle['fallbackChain']));
+        $t->same('cyclic-widget-b', $cycle['fallbackChain'][0]['id']);
+        $t->same('cyclic-asset-fallback-chain', $cycle['fallbackDiagnostics'][0]['type']);
+        $t->same('cyclic-widget-a', $cycle['fallbackDiagnostics'][0]['fallback']);
+
+        $t->same(4, $assets['fallbackCount']);
+        $t->same(3, $assets['fallbackDiagnosticCount']);
+        $t->same('interactive-map', $assets['fallbackItems'][0]['id']);
+        $t->same('broken-widget', $assets['fallbackDiagnostics'][0]['id']);
+        $t->same('cyclic-widget-a', $assets['fallbackDiagnostics'][1]['id']);
+        $t->same('cyclic-widget-b', $assets['fallbackDiagnostics'][2]['id']);
+    },
     'reports OCF encryption and obfuscated font resources without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $encryptionXml): void {
         $opfWithFont = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
