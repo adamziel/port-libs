@@ -5282,7 +5282,7 @@ final class PdfTextExtractor
 
     /**
      * q/Q restores the graphics state, including clipping and CTM, but the PDF
-     * current path itself remains live until a path-painting or `n` operator.
+     * current path and marked-content stack remain live outside graphics state.
      *
      * @param list<array<string, mixed>> $restoredStates
      * @param list<array<string, mixed>> $liveStates
@@ -5300,6 +5300,7 @@ final class PdfTextExtractor
             $state['path_bbox'] = $liveStates[$index]['path_bbox'] ?? null;
             $state['path_current_point'] = $liveStates[$index]['path_current_point'] ?? null;
             $state['path_start_point'] = $liveStates[$index]['path_start_point'] ?? null;
+            $state['marked_content'] = $liveStates[$index]['marked_content'] ?? [];
             $restoredStates[$index] = $state;
         }
 
