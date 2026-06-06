@@ -548,6 +548,8 @@ final class TableGeometry
             }
         }
 
+        $sourceHeaderReferenceSummary = self::attachSourceHeaderReferences($headerCells, $dataCells);
+
         return [
             'headerCells' => $headerCells,
             'dataCells' => $dataCells,
@@ -560,6 +562,12 @@ final class TableGeometry
                 'headerScopes' => array_values(array_unique($headerScopes)),
                 'sourceHeaderOverrideCount' => $sourceHeaderOverrideCount,
                 'hasSourceHeaderOverrides' => $sourceHeaderOverrideCount > 0,
+                'sourceHeaderReferencingCellCount' => $sourceHeaderReferenceSummary['referencingCellCount'],
+                'sourceHeaderReferenceCount' => $sourceHeaderReferenceSummary['referenceCount'],
+                'sourceHeaderResolvedReferenceCount' => $sourceHeaderReferenceSummary['resolvedReferenceCount'],
+                'sourceHeaderUnresolvedReferenceCount' => $sourceHeaderReferenceSummary['unresolvedReferenceCount'],
+                'hasUnresolvedSourceHeaderReferences' => $sourceHeaderReferenceSummary['unresolvedReferenceCount'] > 0,
+                'unresolvedSourceHeaderReferences' => $sourceHeaderReferenceSummary['unresolvedReferences'],
                 'headerAbbreviationCount' => $headerAbbreviationCount,
                 'hasHeaderAbbreviations' => $headerAbbreviationCount > 0,
             ],
@@ -1421,6 +1429,12 @@ final class TableGeometry
                 'headerScopes' => [],
                 'sourceHeaderOverrideCount' => 0,
                 'hasSourceHeaderOverrides' => false,
+                'sourceHeaderReferencingCellCount' => 0,
+                'sourceHeaderReferenceCount' => 0,
+                'sourceHeaderResolvedReferenceCount' => 0,
+                'sourceHeaderUnresolvedReferenceCount' => 0,
+                'hasUnresolvedSourceHeaderReferences' => false,
+                'unresolvedSourceHeaderReferences' => [],
                 'headerAbbreviationCount' => 0,
                 'hasHeaderAbbreviations' => false,
             ],
@@ -1638,6 +1652,150 @@ final class TableGeometry
         }
 
         return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $headerCells
+     * @param list<array<string, mixed>> $dataCells
+     * @return array{
+     *     referencingCellCount:int,
+     *     referenceCount:int,
+     *     resolvedReferenceCount:int,
+     *     unresolvedReferenceCount:int,
+     *     unresolvedReferences:list<string>
+     * }
+     */
+    private static function attachSourceHeaderReferences(array &$headerCells, array &$dataCells): array
+    {
+        $headerById = [];
+        foreach ($headerCells as $headerCell) {
+            $id = trim((string) ($headerCell['id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+
+            $headerById[$id] = self::sourceHeaderTargetRecord($headerCell);
+        }
+
+        $summary = [
+            'referencingCellCount' => 0,
+            'referenceCount' => 0,
+            'resolvedReferenceCount' => 0,
+            'unresolvedReferenceCount' => 0,
+            'unresolvedReferences' => [],
+        ];
+
+        foreach ($headerCells as &$headerCell) {
+            $sourceHeaders = self::stringList($headerCell['headers'] ?? []);
+            if ($sourceHeaders === []) {
+                continue;
+            }
+
+            $headerCell['sourceHeaders'] = $sourceHeaders;
+            $headerCell['sourceHeaderReferences'] = self::sourceHeaderReferenceRecords($sourceHeaders, $headerById, $summary);
+        }
+        unset($headerCell);
+
+        foreach ($dataCells as &$dataCell) {
+            $sourceHeaders = self::stringList($dataCell['sourceHeaders'] ?? []);
+            if ($sourceHeaders === []) {
+                continue;
+            }
+
+            $dataCell['sourceHeaderReferences'] = self::sourceHeaderReferenceRecords($sourceHeaders, $headerById, $summary);
+        }
+        unset($dataCell);
+
+        $summary['unresolvedReferences'] = array_values(array_unique($summary['unresolvedReferences']));
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $headerCell
+     * @return array<string, mixed>
+     */
+    private static function sourceHeaderTargetRecord(array $headerCell): array
+    {
+        $record = [];
+        foreach ([
+            'key' => 'targetKey',
+            'section' => 'targetSection',
+        ] as $source => $target) {
+            $value = trim((string) ($headerCell[$source] ?? ''));
+            if ($value !== '') {
+                $record[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'row' => 'targetRow',
+            'column' => 'targetColumn',
+        ] as $source => $target) {
+            if (isset($headerCell[$source]) && is_numeric($headerCell[$source])) {
+                $record[$target] = (int) $headerCell[$source];
+            }
+        }
+
+        foreach ([
+            'scope' => 'targetScope',
+            'text' => 'targetText',
+        ] as $source => $target) {
+            $value = trim((string) ($headerCell[$source] ?? ''));
+            if ($value !== '') {
+                $record[$target] = $value;
+            }
+        }
+
+        $columns = self::intList($headerCell['columns'] ?? []);
+        if ($columns !== []) {
+            $record['targetColumns'] = $columns;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<string> $sourceHeaders
+     * @param array<string, array<string, mixed>> $headerById
+     * @param array{
+     *     referencingCellCount:int,
+     *     referenceCount:int,
+     *     resolvedReferenceCount:int,
+     *     unresolvedReferenceCount:int,
+     *     unresolvedReferences:list<string>
+     * } $summary
+     * @return list<array<string, mixed>>
+     */
+    private static function sourceHeaderReferenceRecords(array $sourceHeaders, array $headerById, array &$summary): array
+    {
+        $summary['referencingCellCount']++;
+        $records = [];
+        foreach ($sourceHeaders as $sourceHeader) {
+            $id = trim($sourceHeader);
+            if ($id === '') {
+                continue;
+            }
+
+            $summary['referenceCount']++;
+            if (isset($headerById[$id])) {
+                $summary['resolvedReferenceCount']++;
+                $records[] = array_merge([
+                    'id' => $id,
+                    'resolved' => true,
+                ], $headerById[$id]);
+                continue;
+            }
+
+            $summary['unresolvedReferenceCount']++;
+            $summary['unresolvedReferences'][] = $id;
+            $records[] = [
+                'id' => $id,
+                'resolved' => false,
+            ];
+        }
+
+        return $records;
     }
 
     /**
@@ -2684,6 +2842,12 @@ final class TableGeometry
             'unassociatedDataCellCount' => (int) ($headerAssociationSummary['unassociatedDataCellCount'] ?? 0),
             'sourceHeaderOverrideCount' => (int) ($headerAssociationSummary['sourceHeaderOverrideCount'] ?? 0),
             'hasSourceHeaderOverrides' => (bool) ($headerAssociationSummary['hasSourceHeaderOverrides'] ?? false),
+            'sourceHeaderReferencingCellCount' => (int) ($headerAssociationSummary['sourceHeaderReferencingCellCount'] ?? 0),
+            'sourceHeaderReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderReferenceCount'] ?? 0),
+            'sourceHeaderResolvedReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderResolvedReferenceCount'] ?? 0),
+            'sourceHeaderUnresolvedReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderUnresolvedReferenceCount'] ?? 0),
+            'hasUnresolvedSourceHeaderReferences' => (bool) ($headerAssociationSummary['hasUnresolvedSourceHeaderReferences'] ?? false),
+            'unresolvedSourceHeaderReferences' => self::stringList($headerAssociationSummary['unresolvedSourceHeaderReferences'] ?? []),
             'headerAbbreviationCount' => (int) ($headerAssociationSummary['headerAbbreviationCount'] ?? 0),
             'hasHeaderAbbreviations' => (bool) ($headerAssociationSummary['hasHeaderAbbreviations'] ?? false),
             'headerAssociationScopes' => array_values(array_map(

@@ -1227,6 +1227,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (in_array('source-posts', $sourceScopeAccessibility['body:1:0:0']['headers'] ?? [], true)) {
         throw new RuntimeException('Table geometry self-test treated source scope=row as rowgroup across rowspan');
     }
+    $sourceScopePacket = TableGeometry::reviewPacket($document->children[7], ['idPrefix' => 'Source Scope Grid']);
+    if (
+        ($sourceScopePacket['headerAssociations']['summary']['sourceHeaderReferenceCount'] ?? null) !== 3
+        || ($sourceScopePacket['headerAssociations']['summary']['sourceHeaderResolvedReferenceCount'] ?? null) !== 2
+        || ($sourceScopePacket['headerAssociations']['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null) !== 1
+        || ($sourceScopePacket['headerAssociations']['summary']['unresolvedSourceHeaderReferences'] ?? null) !== ['legacy-count']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source headers reference resolution audit');
+    }
+    if (($sourceScopePacket['headerAssociations']['dataCells'][0]['sourceHeaderReferences'][1]['targetKey'] ?? null) !== 'body:0:0:0') {
+        throw new RuntimeException('Table geometry self-test missing resolved source row-header reference target');
+    }
+    if (($sourceScopePacket['headerAssociations']['headerCells'][2]['sourceHeaderReferences'][0]['targetKey'] ?? null) !== 'head:0:0:0') {
+        throw new RuntimeException('Table geometry self-test missing resolved source column-header reference target');
+    }
     if (!str_contains($blocks, '<th id="source-posts" scope="row" rowspan="2" style="text-align:left">Posts</th><td headers="legacy-count source-posts" style="text-align:right">42</td><td headers="source-state source-posts" style="text-align:center">Ready</td>')) {
         throw new RuntimeException('Table geometry self-test missing source scope and headers WordPress output');
     }

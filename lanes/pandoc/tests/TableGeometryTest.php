@@ -2012,6 +2012,28 @@ return [
         $t->contains('<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'resolves explicit source header references for reviewer audits' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
+        $table = $buildSourceScopedHeaderDocument()->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Source Scope Grid']);
+        $associations = $packet['headerAssociations'] ?? [];
+
+        $t->same(2, $associations['summary']['sourceHeaderReferencingCellCount'] ?? null);
+        $t->same(3, $associations['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(2, $associations['summary']['sourceHeaderResolvedReferenceCount'] ?? null);
+        $t->same(1, $associations['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
+        $t->same(true, $associations['summary']['hasUnresolvedSourceHeaderReferences'] ?? null);
+        $t->same(['legacy-count'], $associations['summary']['unresolvedSourceHeaderReferences'] ?? null);
+        $t->same(3, $packet['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(1, $packet['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
+        $t->same(['legacy-count'], $packet['summary']['unresolvedSourceHeaderReferences'] ?? null);
+        $t->same('legacy-count', $associations['dataCells'][0]['sourceHeaderReferences'][0]['id'] ?? null);
+        $t->same(false, $associations['dataCells'][0]['sourceHeaderReferences'][0]['resolved'] ?? null);
+        $t->same('source-posts', $associations['dataCells'][0]['sourceHeaderReferences'][1]['id'] ?? null);
+        $t->same('body:0:0:0', $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetKey'] ?? null);
+        $t->same('source-document', $associations['headerCells'][2]['sourceHeaderReferences'][0]['id'] ?? null);
+        $t->same('head:0:0:0', $associations['headerCells'][2]['sourceHeaderReferences'][0]['targetKey'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'builds row header maps for importer table review packets' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
         $table = $buildAccessibleHeaderDocument()->children[0];
         $map = TableGeometry::rowHeaderMap($table, 'Migration Grid');
@@ -2189,9 +2211,46 @@ return [
         $sourceAssociations = TableGeometry::headerAssociations($sourceTable, 'Source Scope Grid');
         $t->same(true, $sourceAssociations['summary']['hasSourceHeaderOverrides'] ?? null);
         $t->same(1, $sourceAssociations['summary']['sourceHeaderOverrideCount'] ?? null);
+        $t->same(2, $sourceAssociations['summary']['sourceHeaderReferencingCellCount'] ?? null);
+        $t->same(3, $sourceAssociations['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(2, $sourceAssociations['summary']['sourceHeaderResolvedReferenceCount'] ?? null);
+        $t->same(1, $sourceAssociations['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
+        $t->same(true, $sourceAssociations['summary']['hasUnresolvedSourceHeaderReferences'] ?? null);
+        $t->same(['legacy-count'], $sourceAssociations['summary']['unresolvedSourceHeaderReferences'] ?? null);
         $t->same(['legacy-count', 'source-posts'], $sourceAssociations['dataCells'][0]['headers'] ?? null);
         $t->same(['legacy-count', 'source-posts'], $sourceAssociations['dataCells'][0]['sourceHeaders'] ?? null);
+        $t->same([
+            [
+                'id' => 'legacy-count',
+                'resolved' => false,
+            ],
+            [
+                'id' => 'source-posts',
+                'resolved' => true,
+                'targetKey' => 'body:0:0:0',
+                'targetSection' => 'body',
+                'targetRow' => 0,
+                'targetColumn' => 0,
+                'targetScope' => 'row',
+                'targetText' => 'Posts',
+                'targetColumns' => [0],
+            ],
+        ], $sourceAssociations['dataCells'][0]['sourceHeaderReferences'] ?? null);
         $t->same(['source-document'], $sourceAssociations['headerCells'][2]['headers'] ?? null);
+        $t->same(['source-document'], $sourceAssociations['headerCells'][2]['sourceHeaders'] ?? null);
+        $t->same([
+            [
+                'id' => 'source-document',
+                'resolved' => true,
+                'targetKey' => 'head:0:0:0',
+                'targetSection' => 'head',
+                'targetRow' => 0,
+                'targetColumn' => 0,
+                'targetScope' => 'col',
+                'targetText' => 'Document',
+                'targetColumns' => [0],
+            ],
+        ], $sourceAssociations['headerCells'][2]['sourceHeaderReferences'] ?? null);
         json_encode($associations, JSON_THROW_ON_ERROR);
         json_encode($sourceAssociations, JSON_THROW_ON_ERROR);
     },
