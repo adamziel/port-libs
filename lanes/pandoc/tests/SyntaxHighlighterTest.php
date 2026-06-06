@@ -67,6 +67,9 @@ return [
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('C#'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('csx'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('language-cs'));
+        $t->same('cmake', SyntaxHighlighter::normalizeLanguage('cmake'));
+        $t->same('cmake', SyntaxHighlighter::normalizeLanguage('CMakeLists.txt'));
+        $t->same('cmake', SyntaxHighlighter::normalizeLanguage('language-cmake'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('TeX'));
         $t->same('ini', SyntaxHighlighter::normalizeLanguage('ini'));
@@ -711,6 +714,49 @@ return [
         $t->contains('<span class="kw">type</span> <span class="dt">Props</span> <span class="op">=</span>', $directTsx['html']);
         $t->contains('<span class="kw">export</span> <span class="kw">const</span> <span class="dt">Edit</span>', $directTsx['html']);
         $t->contains('<span class="fu">&lt;PanelBody</span> <span class="ot">title</span><span class="op">={</span><span class="va">props</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Import&quot;</span><span class="op">}</span> <span class="op">/&gt;;</span>', $directTsx['html']);
+    },
+    'highlights cmake build review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[37] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a CMake code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directCMake = $highlighter->highlight('message(STATUS "review ok")', 'CMakeLists.txt');
+
+        $t->same('cmake', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('cmake', SyntaxHighlighter::normalizeLanguage('cmake'));
+        $t->same('cmake', SyntaxHighlighter::normalizeLanguage('CMakeLists.txt'));
+        $t->same('cmake', $highlighted['language']);
+        $t->same('cmake', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(370, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource cmake numberLines"><code class="sourceCode cmake" style="counter-reset: source-line 369;">', $highlighted['html']);
+        $t->contains('<span id="cmake-review-370"><a href="#cmake-review-370"></a><span class="co"># WordPress native extension build review</span></span>', $highlighted['html']);
+        $t->contains('<span class="fu">cmake_minimum_required</span><span class="op">(</span><span class="kw">VERSION</span> <span class="dv">3.20</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">project</span><span class="op">(</span><span class="va">WPImportReview</span> <span class="kw">VERSION</span> <span class="dv">1.0</span> <span class="kw">LANGUAGES</span> <span class="dt">C</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">set</span><span class="op">(</span><span class="va">PLUGIN_SLUG</span> <span class="st">&quot;legacy-import&quot;</span> <span class="kw">CACHE</span> <span class="dt">STRING</span>', $highlighted['html']);
+        $t->contains('<span class="fu">option</span><span class="op">(</span><span class="va">WP_IMPORT_BUILD_SHARED</span> <span class="st">&quot;Build shared review helper&quot;</span> <span class="cn">ON</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">add_library</span><span class="op">(</span><span class="va">wp_import_review</span> <span class="dt">MODULE</span> <span class="va">src</span><span class="op">/</span><span class="va">review</span><span class="op">.</span><span class="dt">c</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">target_compile_definitions</span><span class="op">(</span><span class="va">wp_import_review</span> <span class="kw">PRIVATE</span>', $highlighted['html']);
+        $t->contains('<span class="ot">PLUGIN_SLUG</span><span class="op">=</span><span class="st">&quot;${PLUGIN_SLUG}&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$&lt;$&lt;CONFIG:Debug&gt;:WP_IMPORT_DEBUG=1&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">target_include_directories</span><span class="op">(</span><span class="va">wp_import_review</span> <span class="kw">PRIVATE</span> <span class="va">${CMAKE_CURRENT_SOURCE_DIR}</span><span class="op">/</span><span class="va">include</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">install</span><span class="op">(</span><span class="kw">TARGETS</span> <span class="va">wp_import_review</span> <span class="kw">LIBRARY</span> <span class="kw">DESTINATION</span> <span class="va">lib</span><span class="op">/</span><span class="va">wordpress</span><span class="op">/</span><span class="va">plugins</span><span class="op">/</span><span class="va">${PLUGIN_SLUG}</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="fu">target_compile_definitions</span>', $wordpressBlock);
+        $t->same('cmake', $directCMake['language']);
+        $t->same('CMakeLists.txt', $directCMake['requestedLanguage']);
+        $t->contains('<span class="fu">message</span><span class="op">(</span><span class="va">STATUS</span> <span class="st">&quot;review ok&quot;</span><span class="op">)</span>', $directCMake['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

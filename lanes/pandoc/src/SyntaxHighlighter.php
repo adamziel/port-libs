@@ -57,6 +57,10 @@ final class SyntaxHighlighter
         'csharp' => 'csharp',
         'csx' => 'csharp',
         'cxx' => 'cpp',
+        'cmake' => 'cmake',
+        'cmake-in' => 'cmake',
+        'cmakelists' => 'cmake',
+        'cmakelists-txt' => 'cmake',
         'console' => 'bash',
         'containerfile' => 'dockerfile',
         'css' => 'css',
@@ -593,6 +597,7 @@ final class SyntaxHighlighter
             'apache' => $this->tokenizeApacheConfig($code),
             'bash' => $this->tokenizeBash($code),
             'c', 'cpp' => $this->tokenizeC($code),
+            'cmake' => $this->tokenizeCMake($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
             'diff' => $this->tokenizeDiff($code),
@@ -672,6 +677,31 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->\\*|->|\\.\\*|\\.\\.\\.|<<=|>>=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeCMake(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#\\[(=*)\\[[\\s\\S]*?\\]\\1\\]/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^\\[(=*)\\[[\\s\\S]*?\\]\\1\\]/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', '/^\\$<(?:(?:\\$<[^>\\n]+>)|[^>\\n])+>/'],
+            ['variable', '/^\\$\\{[A-Za-z_][A-Za-z0-9_.:\\/-]*\\}/'],
+            ['keyword', '/^\\b(?:AND|BYPRODUCTS|CACHE|COMMAND|COMPONENT|CONFIGURE_DEPENDS|DEPENDS|DESTINATION|EXISTS|EXPORT|FILES|FORCE|LANGUAGES|LIBRARY|MATCHES|NOT|OR|OUTPUT_VARIABLE|POLICY|PRIVATE|PUBLIC|REQUIRED|RESULT_VARIABLE|TARGETS|VERSION|WORKING_DIRECTORY)\\b/i'],
+            ['datatype', '/^\\b(?:ALIAS|BOOL|C|CUDA|CXX|FILEPATH|IMPORTED|INTERFACE|INTERNAL|MODULE|OBJC|OBJCXX|OBJECT|PATH|SHARED|STATIC|STRING)\\b/i'],
+            ['constant', '/^\\b(?:FALSE|NO|NOTFOUND|OFF|ON|TRUE|YES)\\b/i'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)*\\b/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_]*(?=\\s*=)/'],
+            ['function', '/^\\b(?:add_compile_definitions|add_custom_command|add_custom_target|add_executable|add_library|cmake_minimum_required|configure_file|execute_process|file|find_library|find_package|find_path|find_program|foreach|if|include|install|list|message|option|project|set|target_compile_definitions|target_include_directories|target_link_libraries|target_sources)\\b(?=\\s*\\()/i'],
+            ['function', '/^\\b(?:add|cmake|target)_[A-Za-z0-9_]+\\b(?=\\s*\\()/i'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_:-]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
         ]);
     }
 

@@ -566,3 +566,20 @@ export const Edit = ({ attributes, setAttributes }: BlockEditProps<ReviewAttribu
   </InspectorControls>
 );
 ```
+
+``` {.cmake #cmake-review .numberLines startFrom=370}
+# WordPress native extension build review
+cmake_minimum_required(VERSION 3.20)
+project(WPImportReview VERSION 1.0 LANGUAGES C)
+
+set(PLUGIN_SLUG "legacy-import" CACHE STRING "WordPress plugin slug")
+option(WP_IMPORT_BUILD_SHARED "Build shared review helper" ON)
+
+add_library(wp_import_review MODULE src/review.c)
+target_compile_definitions(wp_import_review PRIVATE
+  PLUGIN_SLUG="${PLUGIN_SLUG}"
+  $<$<CONFIG:Debug>:WP_IMPORT_DEBUG=1>
+)
+target_include_directories(wp_import_review PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+install(TARGETS wp_import_review LIBRARY DESTINATION lib/wordpress/plugins/${PLUGIN_SLUG})
+```

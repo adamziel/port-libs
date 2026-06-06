@@ -262,6 +262,12 @@ if (!$tsxCodeBlock instanceof PortLibs\Pandoc\AstNode || $tsxCodeBlock->type !==
 }
 $tsx = $highlighter->highlightCodeBlock($tsxCodeBlock, 'kate');
 $tsxWordpressBlock = $highlighter->wordpressHtmlBlock($tsxCodeBlock, 'kate');
+$cmakeCodeBlock = $document->children[37] ?? null;
+if (!$cmakeCodeBlock instanceof PortLibs\Pandoc\AstNode || $cmakeCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a CMake code block');
+}
+$cmake = $highlighter->highlightCodeBlock($cmakeCodeBlock, 'zenburn');
+$cmakeWordpressBlock = $highlighter->wordpressHtmlBlock($cmakeCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1094,6 +1100,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($tsxWordpressBlock, '<span class="fu">&lt;TextControl</span>')) {
         throw new RuntimeException('Expected TSX WordPress component token handoff');
     }
+    if (($cmake['language'] ?? '') !== 'cmake') {
+        throw new RuntimeException('Expected CMake fixture to normalize to CMake highlighting');
+    }
+    if (($cmake['lineNumbering']['start'] ?? null) !== 370) {
+        throw new RuntimeException('Expected CMake source startFrom line-number handoff');
+    }
+    if (!str_contains($cmake['html'], '<span class="fu">cmake_minimum_required</span><span class="op">(</span><span class="kw">VERSION</span> <span class="dv">3.20</span>')) {
+        throw new RuntimeException('Expected CMake minimum-version token handoff');
+    }
+    if (!str_contains($cmake['html'], '<span class="fu">target_compile_definitions</span><span class="op">(</span><span class="va">wp_import_review</span> <span class="kw">PRIVATE</span>')) {
+        throw new RuntimeException('Expected CMake target compile definitions token handoff');
+    }
+    if (!str_contains($cmake['html'], '<span class="va">$&lt;$&lt;CONFIG:Debug&gt;:WP_IMPORT_DEBUG=1&gt;</span>')) {
+        throw new RuntimeException('Expected CMake generator expression token handoff');
+    }
+    if (!str_contains($cmakeWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected CMake WordPress style metadata');
+    }
+    if (!str_contains($cmakeWordpressBlock, '<span class="fu">install</span><span class="op">(</span><span class="kw">TARGETS</span> <span class="va">wp_import_review</span>')) {
+        throw new RuntimeException('Expected CMake install target WordPress handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1155,6 +1182,7 @@ echo "luaLongBracketHighlightedHtml:\n" . $luaLongBracket['html'] . "\n";
 echo "phpHeredocHighlightedHtml:\n" . $phpHeredoc['html'] . "\n";
 echo "rstHighlightedHtml:\n" . $rst['html'] . "\n";
 echo "tsxHighlightedHtml:\n" . $tsx['html'] . "\n";
+echo "cmakeHighlightedHtml:\n" . $cmake['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1187,4 +1215,5 @@ echo "luaLongBracketWordpressBlock:\n" . $luaLongBracketWordpressBlock . "\n";
 echo "phpHeredocWordpressBlock:\n" . $phpHeredocWordpressBlock . "\n";
 echo "rstWordpressBlock:\n" . $rstWordpressBlock . "\n";
 echo "tsxWordpressBlock:\n" . $tsxWordpressBlock . "\n";
+echo "cmakeWordpressBlock:\n" . $cmakeWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
