@@ -46,6 +46,9 @@ final class PdfLinkAnnotationExtractor
     /** @var array<int, true> */
     private array $xrefStreamSuppressedObjectNumbers = [];
 
+    /** @var array<string, bool> */
+    private array $optionalContentVisibilityStates = [];
+
     /**
      * Native boundary for PDF page /Annots link actions.
      *
@@ -59,6 +62,7 @@ final class PdfLinkAnnotationExtractor
         foreach (array_keys($this->xrefFreeObjectNumbers) as $objectNumber) {
             unset($objects[$objectNumber], $this->objectBodiesByGeneration[$objectNumber]);
         }
+        $this->optionalContentVisibilityStates = $this->optionalContentVisibilityStates($objects);
 
         $actionReviewer = new PdfActionReviewExtractor($pdfBytes);
         $structureReviewsByAnnotationObject = $this->annotationStructureReviewsByObject($pdfBytes);
@@ -293,6 +297,16 @@ final class PdfLinkAnnotationExtractor
                             'highlight_mode' => 'link_annotation_highlight_mode',
                             'highlight_mode_label' => 'link_annotation_highlight_mode_label',
                             'border' => 'link_annotation_border',
+                        ] as $sourceKey => $spanKey) {
+                            if (array_key_exists($sourceKey, $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
+                            }
+                        }
+                        foreach ([
+                            'optional_content_visible' => 'link_optional_content_visible',
+                            'optional_content_source' => 'link_optional_content_source',
+                            'optional_content_references' => 'link_optional_content_references',
+                            'optional_content_policy' => 'link_optional_content_policy',
                         ] as $sourceKey => $spanKey) {
                             if (array_key_exists($sourceKey, $link)) {
                                 $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
@@ -1152,7 +1166,8 @@ final class PdfLinkAnnotationExtractor
 
         return ($flags & 1) !== 0
             || ($flags & 2) !== 0
-            || ($flags & 32) !== 0;
+            || ($flags & 32) !== 0
+            || !$this->optionalContentObjectVisible($annotationBody, $objects);
     }
 
     /**
@@ -1370,7 +1385,597 @@ final class PdfLinkAnnotationExtractor
             $review['border'] = $border;
         }
 
+        $optionalContent = $this->optionalContentReviewFromAnnotation($annotationBody, $objects);
+        if ($optionalContent !== []) {
+            $review += $optionalContent;
+        }
+
         return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{
+     *     optional_content_visible: bool,
+     *     optional_content_source: string,
+     *     optional_content_references?: list<array{object: int, generation: int, visible: bool}>,
+     *     optional_content_policy?: string
+     * }
+     */
+    private function optionalContentReviewFromAnnotation(string $annotationBody, array $objects): array
+    {
+        $value = $this->valueAfterName($annotationBody, 'OC');
+        if ($value === null) {
+            return [];
+        }
+
+        $review = [
+            'optional_content_visible' => $this->optionalContentValueVisible($value, $objects),
+            'optional_content_source' => $this->optionalContentSourceFromValue($value),
+        ];
+
+        $references = $this->optionalContentReferenceReviewRowsFromValue($value, $objects);
+        if ($references !== []) {
+            $review['optional_content_references'] = $references;
+        }
+
+        $dictionary = $this->optionalContentDictionaryFromValue($value, $objects);
+        if ($dictionary !== null && ($this->nameValueAfterName($dictionary, 'Type', $objects) ?? 'OCG') === 'OCMD') {
+            $review['optional_content_policy'] = $this->nameValueAfterName($dictionary, 'P', $objects) ?? 'AnyOn';
+        }
+
+        return $review;
+    }
+
+    private function optionalContentSourceFromValue(string $value): string
+    {
+        $trimmed = trim($value);
+        if (preg_match('/^\d+\s+\d+\s+R\b/s', $trimmed) === 1) {
+            return 'reference';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{object: int, generation: int, visible: bool}>
+     */
+    private function optionalContentReferenceReviewRowsFromValue(string $value, array $objects): array
+    {
+        $rows = [];
+        foreach ($this->optionalContentObjectReferencesFromValue($value, $objects) as $reference) {
+            $rows[] = [
+                'object' => $reference['object'],
+                'generation' => $reference['generation'],
+                'visible' => $this->optionalContentReferenceVisible($reference['object'], $reference['generation'], $objects),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Native PDF default-view optional content visibility for annotation /OC.
+     * This mirrors the no-GPU text path boundary used for OCG/OCMD marked
+     * content so off-layer links remain review-only before WordPress import.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, bool>
+     */
+    private function optionalContentVisibilityStates(array $objects): array
+    {
+        $ocProperties = $this->optionalContentPropertiesDictionaryBody($objects);
+        if ($ocProperties === null) {
+            return [];
+        }
+
+        $ocgValue = $this->valueAfterName($ocProperties, 'OCGs');
+        if ($ocgValue === null) {
+            return [];
+        }
+
+        $states = [];
+        foreach ($this->optionalContentObjectReferencesFromValue($ocgValue, $objects) as $reference) {
+            $states[$this->optionalContentReferenceKey($reference['object'], $reference['generation'])] = true;
+        }
+        if ($states === []) {
+            return [];
+        }
+
+        $defaultConfigValue = $this->valueAfterName($ocProperties, 'D');
+        $defaultConfig = $defaultConfigValue === null
+            ? null
+            : $this->optionalContentDictionaryFromValue($defaultConfigValue, $objects);
+        if ($defaultConfig === null) {
+            return $states;
+        }
+
+        $configIntents = $this->optionalContentIntentNames($defaultConfig, $objects, ['View']);
+        $intentMatches = [];
+        foreach (array_keys($states) as $referenceKey) {
+            $reference = $this->optionalContentReferenceFromKey((string) $referenceKey);
+            if ($reference === null) {
+                continue;
+            }
+            $intentMatches[$referenceKey] = $this->optionalContentReferenceMatchesIntent(
+                $reference['object'],
+                $reference['generation'],
+                $objects,
+                $configIntents
+            );
+        }
+
+        $baseState = $this->nameValueAfterName($defaultConfig, 'BaseState', $objects) ?? 'ON';
+        $baseVisible = $baseState !== 'OFF';
+        foreach (array_keys($states) as $referenceKey) {
+            $states[$referenceKey] = $baseVisible && ($intentMatches[$referenceKey] ?? true);
+        }
+
+        foreach ($this->optionalContentObjectReferencesAfterName($defaultConfig, 'ON', $objects) as $reference) {
+            $referenceKey = $this->optionalContentReferenceKey($reference['object'], $reference['generation']);
+            if (array_key_exists($referenceKey, $states) && ($intentMatches[$referenceKey] ?? true)) {
+                $states[$referenceKey] = true;
+            }
+        }
+
+        foreach ($this->optionalContentObjectReferencesAfterName($defaultConfig, 'OFF', $objects) as $reference) {
+            $referenceKey = $this->optionalContentReferenceKey($reference['object'], $reference['generation']);
+            if (array_key_exists($referenceKey, $states)) {
+                $states[$referenceKey] = false;
+            }
+        }
+
+        $states = $this->optionalContentUsageApplicationStates($defaultConfig, $objects, $states, $configIntents);
+        foreach ($intentMatches as $referenceKey => $matches) {
+            if (!$matches) {
+                $states[$referenceKey] = false;
+            }
+        }
+
+        return $states;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentPropertiesDictionaryBody(array $objects): ?string
+    {
+        foreach ($objects as $body) {
+            if ($this->nameValueAfterName($body, 'Type', $objects) !== 'Catalog') {
+                continue;
+            }
+
+            $value = $this->valueAfterName($body, 'OCProperties');
+            return $value === null ? null : $this->optionalContentDictionaryFromValue($value, $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{object: int, generation: int}>
+     */
+    private function optionalContentObjectReferencesAfterName(string $dictionary, string $name, array $objects): array
+    {
+        $value = $this->valueAfterName($dictionary, $name);
+        return $value === null ? [] : $this->optionalContentObjectReferencesFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, bool> $states
+     * @param list<string> $configIntents
+     * @return array<string, bool>
+     */
+    private function optionalContentUsageApplicationStates(
+        string $defaultConfig,
+        array $objects,
+        array $states,
+        array $configIntents
+    ): array {
+        $applicationValue = $this->valueAfterName($defaultConfig, 'AS');
+        if ($applicationValue === null) {
+            return $states;
+        }
+
+        $applicationArray = $this->arrayBodyFromResolvedValue($applicationValue, $objects);
+        if ($applicationArray === null) {
+            return $states;
+        }
+
+        foreach ($this->directDictionaries($applicationArray) as $application) {
+            $event = $this->nameValueAfterName($application, 'Event', $objects);
+            if ($event !== null && $event !== 'View') {
+                continue;
+            }
+
+            $categories = $this->optionalContentNameListValueAfterName($application, 'Category', $objects, []);
+            if ($categories === []) {
+                continue;
+            }
+
+            $ocgValue = $this->valueAfterName($application, 'OCGs');
+            if ($ocgValue === null) {
+                continue;
+            }
+
+            foreach ($this->optionalContentObjectReferencesFromValue($ocgValue, $objects) as $reference) {
+                $referenceKey = $this->optionalContentReferenceKey($reference['object'], $reference['generation']);
+                if (!array_key_exists($referenceKey, $states)) {
+                    continue;
+                }
+
+                $body = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+                $dictionary = $body === null ? null : $this->dictionaryObjectBody($body);
+                if ($dictionary === null || !$this->optionalContentDictionaryMatchesIntent($dictionary, $objects, $configIntents)) {
+                    continue;
+                }
+
+                $usageState = $this->optionalContentUsageStateForCategories($dictionary, $categories, $objects);
+                if ($usageState !== null) {
+                    $states[$referenceKey] = $usageState;
+                }
+            }
+        }
+
+        return $states;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{object: int, generation: int}>
+     */
+    private function optionalContentObjectReferencesFromValue(string $value, array $objects): array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            $body = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+            $arrayBody = $body === null ? null : $this->arrayBodyFromResolvedValue($body, $objects);
+            return $arrayBody === null ? [$reference] : $this->objectReferenceValues($arrayBody);
+        }
+
+        $arrayBody = $this->arrayBodyFromResolvedValue($trimmed, $objects);
+        return $arrayBody === null ? $this->objectReferenceValues($trimmed) : $this->objectReferenceValues($arrayBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $configIntents
+     */
+    private function optionalContentReferenceMatchesIntent(
+        int $objectNumber,
+        int $generation,
+        array $objects,
+        array $configIntents
+    ): bool {
+        $body = $this->objectBodyForReference($objectNumber, $generation, $objects);
+        if ($body === null) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($body);
+        return $dictionary === null || $this->optionalContentDictionaryMatchesIntent($dictionary, $objects, $configIntents);
+    }
+
+    private function optionalContentReferenceKey(int $objectNumber, int $generation): string
+    {
+        return $objectNumber . ':' . $generation;
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function optionalContentReferenceFromKey(string $referenceKey): ?array
+    {
+        if (preg_match('/^(\d+):(\d+)$/', $referenceKey, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $configIntents
+     */
+    private function optionalContentDictionaryMatchesIntent(string $dictionary, array $objects, array $configIntents): bool
+    {
+        $type = $this->nameValueAfterName($dictionary, 'Type', $objects) ?? 'OCG';
+        if ($type !== 'OCG') {
+            return true;
+        }
+
+        $groupIntents = $this->optionalContentIntentNames($dictionary, $objects, ['View']);
+        if (in_array('All', $configIntents, true) || in_array('All', $groupIntents, true)) {
+            return true;
+        }
+
+        foreach ($groupIntents as $intent) {
+            if (in_array($intent, $configIntents, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $default
+     * @return list<string>
+     */
+    private function optionalContentIntentNames(string $dictionary, array $objects, array $default): array
+    {
+        return $this->optionalContentNameListValueAfterName($dictionary, 'Intent', $objects, $default);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string> $default
+     * @return list<string>
+     */
+    private function optionalContentNameListValueAfterName(
+        string $dictionary,
+        string $name,
+        array $objects,
+        array $default
+    ): array {
+        $value = $this->valueAfterName($dictionary, $name);
+        if ($value === null) {
+            return $default;
+        }
+
+        $names = $this->optionalContentNameListFromValue($value, $objects);
+        return $names === [] ? $default : $names;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function optionalContentNameListFromValue(string $value, array $objects): array
+    {
+        $trimmed = trim($this->resolveIndirectObjectValue($value, $objects));
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if ($trimmed[0] === '/') {
+            $endOffset = $this->skipPdfName($trimmed, 0);
+            return [$this->decodePdfName(substr($trimmed, 1, $endOffset - 1))];
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($trimmed);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $names = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($arrayBody[$offset] ?? '') === '/') {
+                $endOffset = $this->skipPdfName($arrayBody, $offset);
+                $names[] = $this->decodePdfName(substr($arrayBody, $offset + 1, $endOffset - $offset - 1));
+                $offset = $endOffset;
+                continue;
+            }
+
+            $endOffset = null;
+            $this->valueStartingAtOffsetWithEnd($arrayBody, $offset, $endOffset);
+            $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param list<string> $categories
+     * @param array<int, string> $objects
+     */
+    private function optionalContentUsageStateForCategories(
+        string $dictionary,
+        array $categories,
+        array $objects
+    ): ?bool {
+        $usage = $this->dictionaryValueResolvedAfterName($dictionary, 'Usage', $objects);
+        if ($usage === null) {
+            return null;
+        }
+
+        foreach ($categories as $category) {
+            $categoryUsage = $this->dictionaryValueResolvedAfterName($usage, $category, $objects);
+            if ($categoryUsage === null) {
+                continue;
+            }
+
+            $stateName = match ($category) {
+                'Print' => 'PrintState',
+                'Export' => 'ExportState',
+                default => $category . 'State',
+            };
+            $state = $this->nameValueAfterName($categoryUsage, $stateName, $objects);
+            if ($state === 'ON') {
+                return true;
+            }
+            if ($state === 'OFF') {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentObjectVisible(string $objectBody, array $objects): bool
+    {
+        $trimmed = trim($objectBody);
+        $dictionary = str_starts_with($trimmed, '<<')
+            ? ($this->dictionaryObjectBody($trimmed) ?? $trimmed)
+            : $trimmed;
+        $optionalContent = $this->valueAfterName($dictionary, 'OC');
+
+        return $optionalContent === null || $this->optionalContentValueVisible($optionalContent, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentValueVisible(string $value, array $objects): bool
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return true;
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            return $this->optionalContentReferenceVisible($reference['object'], $reference['generation'], $objects);
+        }
+
+        if (str_starts_with($trimmed, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+            return $dictionary === null || $this->optionalContentDictionaryVisible($dictionary, $objects);
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            $values = $this->optionalContentVisibilityValuesFromValue($trimmed, $objects);
+            return $values === [] || in_array(true, $values, true);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentReferenceVisible(int $objectNumber, int $generation, array $objects): bool
+    {
+        $referenceKey = $this->optionalContentReferenceKey($objectNumber, $generation);
+        if (array_key_exists($referenceKey, $this->optionalContentVisibilityStates)) {
+            return $this->optionalContentVisibilityStates[$referenceKey];
+        }
+
+        $body = $this->objectBodyForReference($objectNumber, $generation, $objects);
+        if ($body === null) {
+            return true;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($body);
+        return $dictionary === null || $this->optionalContentDictionaryVisible($dictionary, $objects, $objectNumber, $generation);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentDictionaryVisible(
+        string $dictionary,
+        array $objects,
+        ?int $objectNumber = null,
+        int $generation = 0
+    ): bool {
+        $type = $this->nameValueAfterName($dictionary, 'Type', $objects) ?? 'OCG';
+        if ($type === 'OCMD') {
+            return $this->optionalContentMembershipVisible($dictionary, $objects);
+        }
+
+        if ($type !== 'OCG') {
+            return true;
+        }
+
+        if ($objectNumber !== null) {
+            $referenceKey = $this->optionalContentReferenceKey($objectNumber, $generation);
+            if (array_key_exists($referenceKey, $this->optionalContentVisibilityStates)) {
+                return $this->optionalContentVisibilityStates[$referenceKey];
+            }
+        }
+
+        if (!$this->optionalContentDictionaryMatchesIntent($dictionary, $objects, ['View'])) {
+            return false;
+        }
+
+        return $this->optionalContentUsageStateForCategories($dictionary, ['View'], $objects) ?? true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentMembershipVisible(string $dictionary, array $objects): bool
+    {
+        $ocgs = $this->valueAfterName($dictionary, 'OCGs');
+        if ($ocgs === null) {
+            return true;
+        }
+
+        $values = $this->optionalContentVisibilityValuesFromValue($ocgs, $objects);
+        if ($values === []) {
+            return true;
+        }
+
+        $policy = $this->nameValueAfterName($dictionary, 'P', $objects) ?? 'AnyOn';
+        return match ($policy) {
+            'AllOn' => !in_array(false, $values, true),
+            'AnyOff' => in_array(false, $values, true),
+            'AllOff' => !in_array(true, $values, true),
+            default => in_array(true, $values, true),
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<bool>
+     */
+    private function optionalContentVisibilityValuesFromValue(string $value, array $objects): array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            return [$this->optionalContentReferenceVisible($reference['object'], $reference['generation'], $objects)];
+        }
+
+        if (str_starts_with($trimmed, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+            return $dictionary === null ? [] : [$this->optionalContentDictionaryVisible($dictionary, $objects)];
+        }
+
+        $arrayBody = $this->arrayBodyFromResolvedValue($trimmed, $objects);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($this->objectReferenceValues($arrayBody) as $reference) {
+            $values[] = $this->optionalContentReferenceVisible($reference['object'], $reference['generation'], $objects);
+        }
+
+        return $values;
     }
 
     /**
@@ -2255,6 +2860,34 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $this->dictionaryObjectBody($value);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function optionalContentDictionaryFromValue(string $value, array $objects): ?string
+    {
+        return $this->dictionaryBodyFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function arrayBodyFromResolvedValue(string $value, array $objects): ?string
+    {
+        $resolved = trim($this->resolveIndirectObjectValue($value, $objects));
+
+        return str_starts_with($resolved, '[') ? $this->arrayBodyFromValue($resolved) : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryValueResolvedAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->valueAfterName($body, $name);
+
+        return $value === null ? null : $this->dictionaryBodyFromValue($value, $objects);
     }
 
     /**
