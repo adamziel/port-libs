@@ -110,6 +110,19 @@ XML],
       <w:r><w:t xml:space="preserve"> remains clickable.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Cross-reference fields cite </w:t></w:r>
+      <w:fldSimple w:instr=' REF "source_packet_anchor" \h \* MERGEFORMAT '><w:r><w:t>source packet anchor</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> on page </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> PAGEREF source_packet_anchor \h \p </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>12</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> and footnote </w:t></w:r>
+      <w:fldSimple w:instr=' NOTEREF source_footnote \h \n '><w:r><w:t>c</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Layout checkpoints </w:t></w:r>
       <w:r><w:br w:type="page" w:clear="all"/></w:r>
       <w:r><w:t xml:space="preserve"> after page </w:t></w:r>
@@ -943,6 +956,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
+        '<span class="docx-field docx-field-ref docx-field-hyperlink" data-docx-field="ref" data-docx-field-instruction="REF &quot;source_packet_anchor&quot; \h \* MERGEFORMAT" data-docx-field-target="source_packet_anchor" data-docx-field-format="MERGEFORMAT" data-docx-field-hyperlink="true">source packet anchor</span>',
+        '<span class="docx-field docx-field-pageref docx-field-hyperlink docx-field-relative-position" data-docx-field="pageref" data-docx-field-instruction="PAGEREF source_packet_anchor \h \p" data-docx-field-target="source_packet_anchor" data-docx-field-hyperlink="true" data-docx-field-relative-position="true">12</span>',
+        '<span class="docx-field docx-field-noteref docx-field-hyperlink docx-field-number" data-docx-field="noteref" data-docx-field-instruction="NOTEREF source_footnote \h \n" data-docx-field-target="source_footnote" data-docx-field-hyperlink="true" data-docx-field-number="true">c</span>',
         '<span class="docx-break docx-page-break docx-break-clear" data-docx-break-type="page" data-docx-break-clear="all">DOCX page break</span>',
         '<span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span>',
         '<span class="docx-break docx-column-break docx-break-clear" data-docx-break-type="column" data-docx-break-clear="left">DOCX column break</span>',

@@ -1089,6 +1089,19 @@ $fieldMetadataDocumentXml = <<<'XML'
       <w:fldSimple w:instr=' DATE \@ "MMMM d, yyyy" '><w:r><w:t>June 5, 2026</w:t></w:r></w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">See section </w:t></w:r>
+      <w:fldSimple w:instr=' REF "source_packet" \h \* MERGEFORMAT '><w:r><w:t>Source packet target</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> on page </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> PAGEREF source_packet_page \h \p </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>12</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> and note </w:t></w:r>
+      <w:fldSimple w:instr=' NOTEREF source_footnote \h \n '><w:r><w:t>3</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -3773,6 +3786,59 @@ return [
         $t->contains('<span class="docx-field docx-field-page" data-docx-field="page" data-docx-field-instruction="PAGE \* Arabic" data-docx-field-format="Arabic">7</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-numpages" data-docx-field="numpages" data-docx-field-instruction="NUMPAGES \* Arabic" data-docx-field-format="Arabic">12</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-date" data-docx-field="date" data-docx-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-docx-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
+    },
+    'preserves DOCX cross-reference field provenance around displayed results' => static function (TestRunner $t) use ($buildFieldMetadataPackage): void {
+        $document = (new DocxReader())->readDocument($buildFieldMetadataPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[1];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('See section ', $paragraph->children[0]->attr('text'));
+
+        $reference = $paragraph->children[1];
+        $t->same('span', $reference->type);
+        $t->same(['docx-field', 'docx-field-ref', 'docx-field-hyperlink'], $reference->attr('classes'));
+        $referenceAttrs = $reference->attr('attributes');
+        $t->same('ref', $referenceAttrs['data-docx-field']);
+        $t->same('REF "source_packet" \h \* MERGEFORMAT', $referenceAttrs['data-docx-field-instruction']);
+        $t->same('source_packet', $referenceAttrs['data-docx-field-target']);
+        $t->same('MERGEFORMAT', $referenceAttrs['data-docx-field-format']);
+        $t->same('true', $referenceAttrs['data-docx-field-hyperlink']);
+        $t->same('Source packet target', $reference->children[0]->attr('text'));
+
+        $t->same(' on page ', $paragraph->children[2]->attr('text'));
+        $pageReference = $paragraph->children[3];
+        $t->same('span', $pageReference->type);
+        $t->same(['docx-field', 'docx-field-pageref', 'docx-field-hyperlink', 'docx-field-relative-position'], $pageReference->attr('classes'));
+        $pageAttrs = $pageReference->attr('attributes');
+        $t->same('pageref', $pageAttrs['data-docx-field']);
+        $t->same('PAGEREF source_packet_page \h \p', $pageAttrs['data-docx-field-instruction']);
+        $t->same('source_packet_page', $pageAttrs['data-docx-field-target']);
+        $t->same('true', $pageAttrs['data-docx-field-hyperlink']);
+        $t->same('true', $pageAttrs['data-docx-field-relative-position']);
+        $t->same('12', $pageReference->children[0]->attr('text'));
+
+        $t->same(' and note ', $paragraph->children[4]->attr('text'));
+        $noteReference = $paragraph->children[5];
+        $t->same('span', $noteReference->type);
+        $t->same(['docx-field', 'docx-field-noteref', 'docx-field-hyperlink', 'docx-field-number'], $noteReference->attr('classes'));
+        $noteAttrs = $noteReference->attr('attributes');
+        $t->same('noteref', $noteAttrs['data-docx-field']);
+        $t->same('NOTEREF source_footnote \h \n', $noteAttrs['data-docx-field-instruction']);
+        $t->same('source_footnote', $noteAttrs['data-docx-field-target']);
+        $t->same('true', $noteAttrs['data-docx-field-hyperlink']);
+        $t->same('true', $noteAttrs['data-docx-field-number']);
+        $t->same('3', $noteReference->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[Source packet target]{.docx-field .docx-field-ref .docx-field-hyperlink data-docx-field="ref" data-docx-field-instruction="REF \\"source_packet\\" \\\\h \\\\* MERGEFORMAT" data-docx-field-target="source_packet" data-docx-field-format="MERGEFORMAT" data-docx-field-hyperlink="true"}', $markdown);
+        $t->contains('[12]{.docx-field .docx-field-pageref .docx-field-hyperlink .docx-field-relative-position data-docx-field="pageref" data-docx-field-instruction="PAGEREF source_packet_page \\\\h \\\\p" data-docx-field-target="source_packet_page" data-docx-field-hyperlink="true" data-docx-field-relative-position="true"}', $markdown);
+        $t->contains('[3]{.docx-field .docx-field-noteref .docx-field-hyperlink .docx-field-number data-docx-field="noteref" data-docx-field-instruction="NOTEREF source_footnote \\\\h \\\\n" data-docx-field-target="source_footnote" data-docx-field-hyperlink="true" data-docx-field-number="true"}', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-ref docx-field-hyperlink" data-docx-field="ref" data-docx-field-instruction="REF &quot;source_packet&quot; \h \* MERGEFORMAT" data-docx-field-target="source_packet" data-docx-field-format="MERGEFORMAT" data-docx-field-hyperlink="true">Source packet target</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-pageref docx-field-hyperlink docx-field-relative-position" data-docx-field="pageref" data-docx-field-instruction="PAGEREF source_packet_page \h \p" data-docx-field-target="source_packet_page" data-docx-field-hyperlink="true" data-docx-field-relative-position="true">12</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-noteref docx-field-hyperlink docx-field-number" data-docx-field="noteref" data-docx-field-instruction="NOTEREF source_footnote \h \n" data-docx-field-target="source_footnote" data-docx-field-hyperlink="true" data-docx-field-number="true">3</span>', $blocks);
     },
     'preserves DOCX proof-error and permission ranges as reviewer spans' => static function (TestRunner $t) use ($buildProofPermissionRangePackage): void {
         $document = (new DocxReader())->readDocument($buildProofPermissionRangePackage());

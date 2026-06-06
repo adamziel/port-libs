@@ -4529,8 +4529,17 @@ final class DocxReader
             'SAVEDATE' => 'savedate',
             'PRINTDATE' => 'printdate',
         ];
+        $crossReferenceFieldNames = [
+            'REF' => 'ref',
+            'PAGEREF' => 'pageref',
+            'NOTEREF' => 'noteref',
+        ];
 
         $fieldName = strtoupper(array_shift($tokens));
+        if (isset($crossReferenceFieldNames[$fieldName])) {
+            return $this->crossReferenceFieldSpanAttrs($crossReferenceFieldNames[$fieldName], $tokens, $instruction);
+        }
+
         if (!isset($fieldNames[$fieldName])) {
             return null;
         }
@@ -4550,6 +4559,83 @@ final class DocxReader
             'classes' => ['docx-field', 'docx-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function crossReferenceFieldSpanAttrs(string $fieldKey, array $tokens, string $instruction): array
+    {
+        $classes = ['docx-field', 'docx-field-' . $fieldKey];
+        $attributes = [
+            'data-docx-field' => $fieldKey,
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+        ];
+
+        $target = $this->fieldTargetToken($tokens);
+        if ($target !== null && $target !== '') {
+            $attributes['data-docx-field-target'] = $target;
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-docx-field-format'] = $format;
+        }
+
+        $switches = [
+            'h' => ['docx-field-hyperlink', 'data-docx-field-hyperlink'],
+            'p' => ['docx-field-relative-position', 'data-docx-field-relative-position'],
+            'n' => ['docx-field-number', 'data-docx-field-number'],
+            'r' => ['docx-field-relative-number', 'data-docx-field-relative-number'],
+            'w' => ['docx-field-full-context', 'data-docx-field-full-context'],
+        ];
+        foreach ($tokens as $token) {
+            if (!str_starts_with($token, '\\')) {
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if (!isset($switches[$switch])) {
+                continue;
+            }
+
+            [$class, $attribute] = $switches[$switch];
+            if (!in_array($class, $classes, true)) {
+                $classes[] = $class;
+            }
+            $attributes[$attribute] = 'true';
+        }
+
+        return [
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldTargetToken(array $tokens): ?string
+    {
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if (($switch === '*' || $switch === '@') && isset($tokens[$index + 1])) {
+                    $index++;
+                }
+                continue;
+            }
+
+            return $token;
+        }
+
+        return null;
     }
 
     /**
