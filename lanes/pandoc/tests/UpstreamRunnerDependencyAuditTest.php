@@ -135,7 +135,7 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
     }
     return implode("\n", array_merge($stanzas, [
         '  main-is: ' . ($mainIs ?? 'test-pandoc-lua-engine.hs'),
-        '  hs-source-dirs: ' . ($sourceDirectory ?? 'pandoc-lua-engine/test'),
+        '  hs-source-dirs: ' . ($sourceDirectory ?? 'test'),
         '  build-depends:',
         '    ' . implode(",\n    ", $suiteDependencies),
         '  other-modules:',
@@ -308,6 +308,7 @@ return [
         $t->same(true, in_array('pandoc-lua-marshal', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
+        $t->same(['test'], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['sourceDirectories']);
         $t->same('Haskell2010', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['defaultLanguage']);
         $t->same('Haskell2010', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['defaultLanguage']);
         $t->same(true, in_array('base', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
@@ -530,6 +531,38 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('mismatched Cabal runner entry points', $blocked);
         $t->contains('missing Cabal runner direct build-depends', $blocked);
+    },
+    'blocks stale repo relative lua runner source directory before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaCabal([], null, 'pandoc-lua-engine/test')
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same(['pandoc-lua-engine/test'], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['sourceDirectories']);
+        $t->contains('hs-source-dirs missing test', $audit['runnerDependencyClosure']['mismatchedEntryPoints']['test:test-pandoc-lua-engine'][0]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal runner entry points: test:test-pandoc-lua-engine (hs-source-dirs missing test)', $blocked);
+        $t->contains('test entry points', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks stale solver constraints and stripped runner executable options' => static function (TestRunner $t) use ($makeTree, $removeTree, $requiredFiles, $pandocCabal, $luaCabal): void {
         $project = implode("\n", [

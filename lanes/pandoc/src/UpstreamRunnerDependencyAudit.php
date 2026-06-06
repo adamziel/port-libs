@@ -105,7 +105,7 @@ final class UpstreamRunnerDependencyAudit
             'packageFile' => 'pandoc-lua-engine/pandoc-lua-engine.cabal',
             'type' => 'exitcode-stdio-1.0',
             'mainIs' => 'test-pandoc-lua-engine.hs',
-            'sourceDirectory' => 'pandoc-lua-engine/test',
+            'sourceDirectory' => 'test',
         ],
     ];
 
