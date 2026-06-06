@@ -7008,7 +7008,14 @@ final class PdfTextExtractor
             $effectiveBitsPerComponent ?? 1
         );
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects, $reviewFilters);
-        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
+        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReviewForFilters(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $reviewFilters,
+            $resolvedFilters,
+            $reviewStream
+        );
         $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
             $stream['dict'],
             $stream['stream'],
@@ -7639,7 +7646,14 @@ final class PdfTextExtractor
         );
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
-        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
+        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReviewForFilters(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $filters,
+            $resolvedFilters,
+            $reviewStream
+        );
         $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
             $stream['dict'],
             $stream['stream'],
@@ -8280,10 +8294,82 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @param list<string|null>|null $filters
      * @param list<string> $resolvedFilters
      * @return array<string, mixed>|null
      */
-    private function dctPreviewStreamBoundaryReview(array $resolvedFilters, string $stream, string $reviewStream): ?array
+    private function dctPreviewStreamBoundaryReviewForFilters(
+        string $dictionary,
+        string $stream,
+        array $objects,
+        ?array $filters,
+        array $resolvedFilters,
+        string $reviewStream
+    ): ?array {
+        $direct = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream, $reviewStream);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        if ($filters === null) {
+            return null;
+        }
+
+        $dctFilterIndex = null;
+        $nativePrefixFilters = [];
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                $dctFilterIndex = $index;
+                break;
+            }
+
+            $nativePrefixFilters[] = $filter;
+        }
+
+        if (!is_int($dctFilterIndex) || $dctFilterIndex === 0 || $nativePrefixFilters === []) {
+            return null;
+        }
+
+        $decodedPrefix = $this->decodeStreamBeforeFilter(
+            $dictionary,
+            $stream,
+            $objects,
+            $filters,
+            $dctFilterIndex,
+            true
+        );
+        if ($decodedPrefix === null) {
+            return null;
+        }
+
+        return $this->dctPreviewStreamBoundaryReview(
+            $resolvedFilters,
+            $stream,
+            $decodedPrefix,
+            true,
+            $nativePrefixFilters,
+            (string) ($filters[$dctFilterIndex] ?? 'DCTDecode')
+        );
+    }
+
+    /**
+     * @param list<string> $resolvedFilters
+     * @param list<string> $nativePrefixFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewStreamBoundaryReview(
+        array $resolvedFilters,
+        string $stream,
+        string $reviewStream,
+        bool $decodedFromNativePrefix = false,
+        array $nativePrefixFilters = [],
+        ?string $stoppedBeforeFilter = null
+    ): ?array
     {
         if (!in_array('DCTDecode', $resolvedFilters, true) && !in_array('DCT', $resolvedFilters, true)) {
             return null;
@@ -8320,6 +8406,11 @@ final class PdfTextExtractor
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            ...($decodedFromNativePrefix ? [
+                'review_stream_decoded_from_native_prefix' => true,
+                'native_prefix_filters' => $nativePrefixFilters,
+                'stopped_before_filter' => $stoppedBeforeFilter,
+            ] : []),
             'sos_marker_seen' => str_contains($jpegBytes, "\xff\xda"),
             'byte_stuffed_ff00_seen' => str_contains($jpegBytes, "\xff\x00"),
             'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $jpegBytes) === 1,

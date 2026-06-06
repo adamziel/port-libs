@@ -1192,6 +1192,97 @@ return [
             $t->true(!str_contains($plainText, 'endstream'));
         }
     },
+    'records Flate prefix DCTDecode JPEG marker boundaries for WordPress image review' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before decoded Flate DCT boundary) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After decoded Flate DCT boundary) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Decoded Flate DCT marker leak) Tj ET';
+        $segment = static fn (int $marker, string $payload): string => "\xff" . chr($marker) . pack('n', strlen($payload) + 2) . $payload;
+        $sofPayload = "\x08" . pack('n', 1) . pack('n', 1) . "\x03"
+            . "\x01\x11\x00"
+            . "\x02\x11\x00"
+            . "\x03\x11\x00";
+        $sosPayload = "\x03"
+            . "\x01\x00"
+            . "\x02\x11"
+            . "\x03\x11"
+            . "\x00\x3f\x00";
+        $scanPayload = "decoded flate dct scan bytes before stuffed ff \xff\x00\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "restart marker remains decoded image bytes \xff\xd0";
+        $jpegPayload = "\xff\xd8"
+            . $segment(0xc0, $sofPayload)
+            . $segment(0xda, $sosPayload)
+            . $scanPayload
+            . "\xff\xd9";
+        $compressedPayload = $pdfDctDecodeFilterBoundaryCurrentBaseZlibStored($jpegPayload);
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $imageDictionary = '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/FlateDecode /DCTDecode] /Length ' . strlen($compressedPayload) . ' >>';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n{$imageDictionary}\nstream\n{$compressedPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $rendererObjects = [
+            30 => '[ /ICCBased 31 0 R ]',
+            31 => "<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nPROFILE\nendstream",
+        ];
+        $rendererImage = str_replace('/DeviceRGB', '30 0 R', $imageDictionary)
+            . "\nstream\n{$compressedPayload}\nendstream";
+
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? null;
+        $boundary = is_array($entry) ? ($entry['dctdecode_stream_boundary'] ?? null) : null;
+        $rendererPreview = $renderer->iccBasedImageStreamPreviewRows($rendererImage, $rendererObjects);
+        $rendererBoundary = $rendererPreview['image_stream']['dctdecode_stream_boundary'] ?? null;
+
+        $t->same(['Before decoded Flate DCT boundary', 'After decoded Flate DCT boundary'], $extractor->extractTextLines($pdf));
+        $t->same("Before decoded Flate DCT boundary\nAfter decoded Flate DCT boundary", $plainText);
+        $t->true(!str_contains($plainText, 'Decoded Flate DCT marker leak'));
+        $t->true(!str_contains($plainText, 'decoded flate dct scan bytes'));
+        $t->true(!str_contains($plainText, 'endstream'));
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(['FlateDecode', 'DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(true, $entry['native_prefix_decoded'] ?? null);
+        $t->same(strlen($jpegPayload), $entry['native_prefix_decoded_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->true(is_array($boundary), 'Decoded-prefix DCT marker boundary should be present.');
+        $t->same('dctdecode_jpeg_marker_boundary', $boundary['source'] ?? null);
+        $t->same(0, $boundary['jpeg_soi_offset'] ?? null);
+        $t->same(strlen($jpegPayload), $boundary['jpeg_eoi_end_offset'] ?? null);
+        $t->same(strlen($compressedPayload), $boundary['raw_stream_length'] ?? null);
+        $t->same(strlen($jpegPayload), $boundary['review_stream_length'] ?? null);
+        $t->same(true, $boundary['review_stream_decoded_from_native_prefix'] ?? null);
+        $t->same(['FlateDecode'], $boundary['native_prefix_filters'] ?? null);
+        $t->same('DCTDecode', $boundary['stopped_before_filter'] ?? null);
+        $t->same(true, $boundary['sos_marker_seen'] ?? null);
+        $t->same(true, $boundary['byte_stuffed_ff00_seen'] ?? null);
+        $t->same(true, $boundary['restart_marker_seen'] ?? null);
+        $t->same(false, $boundary['payload_in_visible_text'] ?? null);
+        $t->same(false, $boundary['native_raster_decode'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+
+        $t->same(true, $rendererPreview['review_only_image_stream']);
+        $t->same([], $rendererPreview['pixels']);
+        $t->true(is_array($rendererBoundary), 'Renderer decoded-prefix DCT marker boundary should be present.');
+        $t->same('dctdecode_jpeg_marker_boundary', $rendererBoundary['source'] ?? null);
+        $t->same(strlen($compressedPayload), $rendererBoundary['raw_stream_length'] ?? null);
+        $t->same(strlen($jpegPayload), $rendererBoundary['review_stream_length'] ?? null);
+        $t->same(true, $rendererBoundary['review_stream_decoded_from_native_prefix'] ?? null);
+        $t->same(['FlateDecode'], $rendererBoundary['native_prefix_filters'] ?? null);
+        $t->same('DCTDecode', $rendererBoundary['stopped_before_filter'] ?? null);
+        $t->same(true, $rendererBoundary['sos_marker_seen'] ?? null);
+        $t->same(true, $rendererBoundary['byte_stuffed_ff00_seen'] ?? null);
+        $t->same(true, $rendererBoundary['restart_marker_seen'] ?? null);
+        $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $rendererPreview['notes']));
+    },
     'keeps LZWDecode prefix DCTDecode EOD decoys inside image payload boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseLzwPrefixFixture): void {
         $fixture = $pdfDctDecodeFilterBoundaryCurrentBaseLzwPrefixFixture();
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();

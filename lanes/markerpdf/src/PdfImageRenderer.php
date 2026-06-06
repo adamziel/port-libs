@@ -6724,7 +6724,12 @@ final class PdfImageRenderer
         ) {
             $boundary['raw_dct_preview_boundary'] = true;
         }
-        $dctBoundary = $this->dctPreviewStreamBoundaryReview($boundary['filters'], $stream, $stream);
+        $dctBoundary = $this->dctPreviewStreamBoundaryReviewForFilters(
+            $dictionary,
+            $stream,
+            $objects,
+            $boundary['filters']
+        );
         if ($dctBoundary !== null) {
             $boundary['dctdecode_stream_boundary'] = $dctBoundary;
         }
@@ -8298,9 +8303,69 @@ final class PdfImageRenderer
 
     /**
      * @param list<string> $resolvedFilters
+     * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function dctPreviewStreamBoundaryReview(array $resolvedFilters, string $stream, string $reviewStream): ?array
+    private function dctPreviewStreamBoundaryReviewForFilters(
+        string $dictionary,
+        string $stream,
+        array $objects,
+        array $resolvedFilters
+    ): ?array {
+        $direct = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream, $stream);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $dctFilterIndex = null;
+        $nativePrefixFilters = [];
+        foreach ($resolvedFilters as $index => $filter) {
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                $dctFilterIndex = $index;
+                break;
+            }
+
+            $nativePrefixFilters[] = $filter;
+        }
+
+        if (!is_int($dctFilterIndex) || $dctFilterIndex === 0 || $nativePrefixFilters === []) {
+            return null;
+        }
+
+        $decodedPrefix = $this->decodeImageStreamBeforeFilter(
+            $dictionary,
+            $stream,
+            $objects,
+            $resolvedFilters,
+            $dctFilterIndex
+        );
+        if ($decodedPrefix === null) {
+            return null;
+        }
+
+        return $this->dctPreviewStreamBoundaryReview(
+            $resolvedFilters,
+            $stream,
+            $decodedPrefix,
+            true,
+            $nativePrefixFilters,
+            $resolvedFilters[$dctFilterIndex] ?? 'DCTDecode'
+        );
+    }
+
+    /**
+     * @param list<string> $resolvedFilters
+     * @param list<string> $nativePrefixFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewStreamBoundaryReview(
+        array $resolvedFilters,
+        string $stream,
+        string $reviewStream,
+        bool $decodedFromNativePrefix = false,
+        array $nativePrefixFilters = [],
+        ?string $stoppedBeforeFilter = null
+    ): ?array
     {
         if (!in_array('DCTDecode', $resolvedFilters, true) && !in_array('DCT', $resolvedFilters, true)) {
             return null;
@@ -8337,6 +8402,11 @@ final class PdfImageRenderer
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            ...($decodedFromNativePrefix ? [
+                'review_stream_decoded_from_native_prefix' => true,
+                'native_prefix_filters' => $nativePrefixFilters,
+                'stopped_before_filter' => $stoppedBeforeFilter,
+            ] : []),
             'sos_marker_seen' => str_contains($jpegBytes, "\xff\xda"),
             'byte_stuffed_ff00_seen' => str_contains($jpegBytes, "\xff\x00"),
             'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $jpegBytes) === 1,
