@@ -3920,6 +3920,66 @@ final class PdfMetadataExtractor
             return $review;
         }
 
+        if (!$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)) {
+            $review = $base + [
+                'status' => 'rejected_malformed_outline_item_metadata_stream',
+                'object_number' => $objectNumber,
+                'bytes' => strlen($stream['content']),
+                'sha256' => hash('sha256', $stream['content']),
+            ];
+
+            foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                $review[$key] = $metadataValue;
+            }
+
+            $filters = $this->streamFilters($stream['dictionary'], $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $declaredLength = $this->streamLength($stream['dictionary'], $objects);
+            if ($declaredLength !== null) {
+                $review['declared_length'] = $declaredLength;
+            }
+
+            $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+            if ($xmpSummary !== []) {
+                $review['xmp_summary'] = $xmpSummary;
+            }
+
+            return $review;
+        }
+
+        if (!$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)) {
+            $review = $base + [
+                'status' => 'rejected_non_metadata_outline_item_stream',
+                'object_number' => $objectNumber,
+                'bytes' => strlen($stream['content']),
+                'sha256' => hash('sha256', $stream['content']),
+            ];
+
+            foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                $review[$key] = $metadataValue;
+            }
+
+            $filters = $this->streamFilters($stream['dictionary'], $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $declaredLength = $this->streamLength($stream['dictionary'], $objects);
+            if ($declaredLength !== null) {
+                $review['declared_length'] = $declaredLength;
+            }
+
+            $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
+            if ($xmpSummary !== []) {
+                $review['xmp_summary'] = $xmpSummary;
+            }
+
+            return $review;
+        }
+
         $review = $base + [
             'status' => 'reviewed_outline_item_metadata_stream',
             'object_number' => $objectNumber,
