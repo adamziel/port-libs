@@ -37839,11 +37839,16 @@ final class PdfTextExtractor
     private function zeroPaddedSourceKeysForFontWidths(string $hex, array $widthMap, array $toUnicodeMap): array
     {
         $mappings = $widthMap['map'] ?? [];
-        if (!is_array($mappings) || $mappings === []) {
+        $rangeKeyLengths = $this->toUnicodeRangeKeyLengths($widthMap);
+        if ((!is_array($mappings) || $mappings === []) && $rangeKeyLengths === []) {
             return [];
         }
+        $mappings = is_array($mappings) ? $mappings : [];
 
-        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        $keyLengths = array_values(array_unique(array_merge(
+            array_map('strlen', array_keys($mappings)),
+            $rangeKeyLengths
+        )));
         rsort($keyLengths, SORT_NUMERIC);
         if ($keyLengths === []) {
             return [];
@@ -37866,7 +37871,7 @@ final class PdfTextExtractor
                 }
 
                 $exact = substr($normalized, $offset, $keyLength);
-                if (array_key_exists($exact, $mappings)) {
+                if ($this->sourceKeyIsMappedForZeroPaddedWidth($exact, $widthMap, $mappings)) {
                     $keys[] = $exact;
                     $offset += $keyLength;
                     $matched = true;
@@ -37883,7 +37888,7 @@ final class PdfTextExtractor
                         continue;
                     }
 
-                    if (!array_key_exists($suffix, $mappings)) {
+                    if (!$this->sourceKeyIsMappedForZeroPaddedWidth($suffix, $widthMap, $mappings)) {
                         break;
                     }
 
@@ -37925,6 +37930,15 @@ final class PdfTextExtractor
         }
 
         return $collapsed ? $keys : [];
+    }
+
+    /**
+     * @param array<string, string|int> $mappings
+     */
+    private function sourceKeyIsMappedForZeroPaddedWidth(string $sourceKey, array $widthMap, array $mappings): bool
+    {
+        return array_key_exists($sourceKey, $mappings)
+            || $this->toUnicodeRangeTextForSourceKey($sourceKey, $widthMap) !== null;
     }
 
     private function fontWidthMapContainsCid(int $cid, array $toUnicodeMap): bool
