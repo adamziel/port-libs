@@ -3394,6 +3394,113 @@ MARKDOWN);
         $t->same(['ETSI.CAdES.detached' => 1], $sequence['finalPdfSignatureSubFilters']);
     },
 
+    'fake runner extracts bounded pdf catalog permission signatures from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/permissions.pdf']);
+        $docMdpBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $usageRightsBytes = hex2bin('3082010A0282010100DDEEFF') ?: '';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Perms 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /DocMDP 9 0 R /UR3 << /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Migration Desk) /Reason (Usage rights review) /M (D:20260605121600Z) /ByteRange [0 45 90 135] /Contents <3082010A0282010100DDEEFF> /Reference [<< /TransformMethod /UR3 /TransformParams << /Type /TransformParams /P 3 /V /2.2 >> >>] >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /Reason (Certified review packet) /Location (Remote review) /ContactInfo (review@example.test) /M (D:20260605121500Z) /ByteRange [0 123 456 789] /Contents <3082010A0282010100AABBCC> /Reference [<< /TransformMethod /DocMDP /TransformParams << /Type /TransformParams /P 2 /V /1.2 >> >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/permissions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/permissions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'permission' => 'DocMDP',
+                'signatureObject' => '9 0 R',
+                'filter' => 'Adobe.PPKLite',
+                'subFilter' => 'ETSI.CAdES.detached',
+                'name' => 'Migration Desk',
+                'reason' => 'Certified review packet',
+                'location' => 'Remote review',
+                'contactInfo' => 'review@example.test',
+                'signingTime' => 'D:20260605121500Z',
+                'byteRange' => [0, 123, 456, 789],
+                'byteRangeSegmentCount' => 2,
+                'coveredBytes' => 912,
+                'contentsBytes' => strlen($docMdpBytes),
+                'contentsSha256' => hash('sha256', $docMdpBytes),
+                'contentsSkipped' => null,
+                'referenceTransforms' => [
+                    [
+                        'transformMethod' => 'DocMDP',
+                        'transformParamsType' => 'TransformParams',
+                        'permissions' => 2,
+                        'action' => null,
+                        'fields' => [],
+                    ],
+                ],
+            ],
+            [
+                'permission' => 'UR3',
+                'signatureObject' => 'inline',
+                'filter' => 'Adobe.PPKLite',
+                'subFilter' => 'adbe.pkcs7.detached',
+                'name' => 'Migration Desk',
+                'reason' => 'Usage rights review',
+                'location' => null,
+                'contactInfo' => null,
+                'signingTime' => 'D:20260605121600Z',
+                'byteRange' => [0, 45, 90, 135],
+                'byteRangeSegmentCount' => 2,
+                'coveredBytes' => 180,
+                'contentsBytes' => strlen($usageRightsBytes),
+                'contentsSha256' => hash('sha256', $usageRightsBytes),
+                'contentsSkipped' => null,
+                'referenceTransforms' => [
+                    [
+                        'transformMethod' => 'UR3',
+                        'transformParamsType' => 'TransformParams',
+                        'permissions' => 3,
+                        'action' => null,
+                        'fields' => [],
+                    ],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfCatalogPermissions']);
+        $t->contains('pdf-byte-catalog-permissions:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-catalog-permission-byte-ranges:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-catalog-permission-reference-transforms:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-catalog-permission-subfilter:ETSI.CAdES.detached:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-catalog-permission-subfilter:adbe.pkcs7.detached:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfCatalogPermissions']);
+    },
+
     'fake runner extracts bounded pdf active actions and javascript hashes from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/active.pdf']);

@@ -299,6 +299,7 @@ final class PdfEngineHandoff
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
+     *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -711,6 +712,7 @@ final class PdfEngineHandoff
         $pdfCollectionMetadata = [];
         $pdfAcroFormMetadata = [];
         $pdfThreads = [];
+        $pdfCatalogPermissions = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
@@ -781,6 +783,7 @@ final class PdfEngineHandoff
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfThreads = $pdfInspection['threads'];
+                $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
@@ -1283,6 +1286,28 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-thread-info-titles:' . $titleCount;
                     }
                 }
+                if ($pdfCatalogPermissions !== []) {
+                    $diagnostics[] = 'pdf-byte-catalog-permissions:' . count($pdfCatalogPermissions);
+                    $permissionByteRangeCount = 0;
+                    $permissionTransformCount = 0;
+                    foreach ($pdfCatalogPermissions as $permission) {
+                        if (($permission['byteRange'] ?? []) !== []) {
+                            $permissionByteRangeCount++;
+                        }
+                        if (isset($permission['referenceTransforms']) && is_array($permission['referenceTransforms'])) {
+                            $permissionTransformCount += count($permission['referenceTransforms']);
+                        }
+                    }
+                    if ($permissionByteRangeCount > 0) {
+                        $diagnostics[] = 'pdf-byte-catalog-permission-byte-ranges:' . $permissionByteRangeCount;
+                    }
+                    if ($permissionTransformCount > 0) {
+                        $diagnostics[] = 'pdf-byte-catalog-permission-reference-transforms:' . $permissionTransformCount;
+                    }
+                    foreach ($this->summarizePdfSignatureSubFilters($pdfCatalogPermissions) as $subFilter => $subFilterCount) {
+                        $diagnostics[] = 'pdf-byte-catalog-permission-subfilter:' . $subFilter . ':' . $subFilterCount;
+                    }
+                }
                 if ($pdfSignatures !== []) {
                     $diagnostics[] = 'pdf-byte-signatures:' . count($pdfSignatures);
                     $byteRangeCount = 0;
@@ -1586,6 +1611,7 @@ final class PdfEngineHandoff
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfThreads' => $pdfThreads,
+            'pdfCatalogPermissions' => $pdfCatalogPermissions,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
@@ -1677,6 +1703,7 @@ final class PdfEngineHandoff
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
+     *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -1882,6 +1909,7 @@ final class PdfEngineHandoff
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
+            'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
@@ -2971,6 +2999,7 @@ final class PdfEngineHandoff
      *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
+     *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -3071,6 +3100,7 @@ final class PdfEngineHandoff
             'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'threads' => $this->extractPdfThreads($pdfBytes, $catalog),
+            'catalogPermissions' => $this->extractPdfCatalogPermissions($pdfBytes, $catalog),
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
@@ -6151,6 +6181,99 @@ final class PdfEngineHandoff
         }
 
         return [];
+    }
+
+    /**
+     * @return list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>
+     */
+    private function extractPdfCatalogPermissions(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Perms')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $permissionsDictionary = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Perms', $objects);
+        if ($permissionsDictionary === null) {
+            return [];
+        }
+
+        $permissions = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($permissionsDictionary) as $entry) {
+            $permission = $entry['key'];
+            if ($permission === 'Type' || $permission === '') {
+                continue;
+            }
+
+            $summary = null;
+            $value = $entry['value'];
+            if ($value['kind'] === 'reference') {
+                $reference = $this->pdfReferenceKey($value['value']);
+                $body = $objects[$reference] ?? null;
+                if ($body !== null) {
+                    $summary = $this->summarizePdfSignatureDictionary($body, null, null, $reference . ' R', $objects);
+                }
+            } elseif ($value['kind'] === 'dictionary') {
+                $summary = $this->summarizePdfSignatureDictionary($value['value'], null, null, 'inline', $objects);
+            }
+
+            if ($summary === null || !$this->isPdfSignatureLikeSummary($summary)) {
+                continue;
+            }
+
+            $permissions[] = [
+                'permission' => $permission,
+                'signatureObject' => $summary['signatureObject'],
+                'filter' => $summary['filter'],
+                'subFilter' => $summary['subFilter'],
+                'name' => $summary['name'],
+                'reason' => $summary['reason'],
+                'location' => $summary['location'],
+                'contactInfo' => $summary['contactInfo'],
+                'signingTime' => $summary['signingTime'],
+                'byteRange' => $summary['byteRange'],
+                'byteRangeSegmentCount' => $summary['byteRangeSegmentCount'],
+                'coveredBytes' => $summary['coveredBytes'],
+                'contentsBytes' => $summary['contentsBytes'],
+                'contentsSha256' => $summary['contentsSha256'],
+                'contentsSkipped' => $summary['contentsSkipped'],
+                'referenceTransforms' => $summary['referenceTransforms'],
+            ];
+        }
+
+        usort(
+            $permissions,
+            static fn (array $a, array $b): int => [
+                $a['permission'],
+                $a['signatureObject'] ?? '',
+            ] <=> [
+                $b['permission'],
+                $b['signatureObject'] ?? '',
+            ]
+        );
+
+        return $permissions;
+    }
+
+    /**
+     * @param array{filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, contentsBytes:int|null, referenceTransforms:list<array<string, mixed>>} $summary
+     */
+    private function isPdfSignatureLikeSummary(array $summary): bool
+    {
+        if (($summary['byteRange'] ?? []) !== [] || ($summary['contentsBytes'] ?? null) !== null) {
+            return true;
+        }
+        if (($summary['referenceTransforms'] ?? []) !== []) {
+            return true;
+        }
+
+        foreach (['filter', 'subFilter', 'name', 'reason', 'location', 'contactInfo', 'signingTime'] as $key) {
+            if (is_string($summary[$key] ?? null) && $summary[$key] !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
