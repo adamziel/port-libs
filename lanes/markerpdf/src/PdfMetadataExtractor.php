@@ -13551,17 +13551,27 @@ final class PdfMetadataExtractor
     private function withObjectStreamObjects(array $objects, array $xrefEntries): array
     {
         $expanded = $objects;
-        foreach ($xrefEntries as $objectNumber => $entry) {
-            if (($entry['type'] ?? null) !== 2 || isset($expanded[$objectNumber])) {
-                continue;
+        for ($pass = 0; $pass < 8; $pass++) {
+            $added = false;
+            foreach ($xrefEntries as $objectNumber => $entry) {
+                if (($entry['type'] ?? null) !== 2 || isset($expanded[$objectNumber])) {
+                    continue;
+                }
+
+                $body = $this->objectStreamMemberBodyForXrefEntry($expanded, $entry, (int) $objectNumber);
+                if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+                    continue;
+                }
+
+                $expanded[(int) $objectNumber] = $body;
+                $added = true;
             }
 
-            $body = $this->objectStreamMemberBodyForXrefEntry($expanded, $entry, (int) $objectNumber);
-            if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
-                continue;
+            if (!$added) {
+                break;
             }
 
-            $expanded[(int) $objectNumber] = $body;
+            ksort($expanded, SORT_NUMERIC);
         }
 
         ksort($expanded, SORT_NUMERIC);
