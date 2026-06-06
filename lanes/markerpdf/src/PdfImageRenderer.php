@@ -5575,6 +5575,14 @@ final class PdfImageRenderer
         }
 
         $resolved = trim($this->resolvePdfValue($value, $objects));
+        if ($resolved === 'null') {
+            if (!$defaultIfMissing) {
+                return null;
+            }
+
+            return $this->buildImageDecodeDetails([0.0, 1.0], $expectedComponents, 'default');
+        }
+
         if (!str_starts_with($resolved, '[')) {
             return $this->buildImageDecodeDetails([], $expectedComponents, 'invalid');
         }

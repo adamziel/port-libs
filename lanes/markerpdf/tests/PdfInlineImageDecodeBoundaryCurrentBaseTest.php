@@ -2054,6 +2054,62 @@ return [
             $t->contains('inline_image_decode_operand_review_only', implode(',', $review['notes']));
         }
     },
+    'treats direct null inline image Decode operands as omitted before preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $grayPayload = "\x80BT /F1 12 Tf 72 690 Td (Null Decode Inline Noise) Tj ET";
+        $content = "BT /F1 12 Tf 72 720 Td (Before Null Decode Inline) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC 8 /D null ID\n"
+            . $grayPayload . "\nEI\n"
+            . "BI /W 1 /H 1 /IM true /D null ID\n"
+            . "\x80\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Null Decode Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $grayPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            '/W 1 /H 1 /CS /G /BPC 8 /D null',
+            "\x80",
+            [],
+            1
+        );
+        $maskPreview = $renderer->inlineImageMaskPreviewRows(
+            '/W 1 /H 1 /IM true /D null',
+            "\x80",
+            [],
+            1
+        );
+        $grayReview = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS /G /BPC 8 /D null',
+            "\x80"
+        );
+
+        $t->same("Before Null Decode Inline\nAfter Null Decode Inline", $plainText);
+        $t->true(!str_contains($plainText, 'Null Decode Inline Noise'));
+        $t->same(null, $grayReview['image_decode']);
+        $t->same(false, $grayReview['image_decode_component_mismatch']);
+        $t->same(false, $grayReview['inline_image_review_only']);
+        $t->same(true, $grayReview['inline_image']['native_raster_decode']);
+        $t->true(!str_contains(implode(',', $grayReview['notes']), 'inline_image_decode_operand_review_only'));
+        $t->same(null, $grayPreview['image_decode']);
+        $t->same(true, $grayPreview['inline_image']['native_raster_decode']);
+        $t->same(false, $grayPreview['review_only_image_stream']);
+        $t->same([128.0], $grayPreview['pixels'][0]['raw_sample']);
+        $t->same(128 / 255, $grayPreview['pixels'][0]['decoded_gray']);
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => true,
+            'inverted_components' => [],
+            'source' => 'default',
+        ], $maskPreview['image_mask']['decode']);
+        $t->same(true, $maskPreview['inline_image']['native_raster_decode']);
+        $t->same([1.0], array_column($maskPreview['pixels'], 'opacity'));
+    },
     'fails closed on malformed inline image Decode operands before RGB preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $renderer = new PdfImageRenderer();
         $extractor = new PdfTextExtractor();

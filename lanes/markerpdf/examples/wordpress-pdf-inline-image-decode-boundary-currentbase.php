@@ -241,6 +241,9 @@ $duplicateInlineDecodeDictionary = '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [
 $commentInlineDecodePayload = "\x00";
 $commentInlineDecodeDictionary = "/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3 % decoy 0 1 0 1\n]";
 $commentInlineMaskDictionary = "/W 2 /H 1 /IM true /D [1 0 % decoy 0 1\n]";
+$nullInlineDecodePayload = "\x80BT /F1 12 Tf 72 478 Td (Null Decode Inline Noise) Tj ET";
+$nullInlineDecodeDictionary = '/W 1 /H 1 /CS /G /BPC 8 /D null';
+$nullInlineMaskDecodeDictionary = '/W 1 /H 1 /IM true /D null';
 $overlargeInlineGeometryInteger = '9' . str_repeat('0', 40);
 $overlargeInlineGeometryPayload = 'abc EI BT /F1 12 Tf 72 476 Td (Overlarge Geometry Inline Noise) Tj ET rawtail';
 $overlargeInlineGeometryDictionary = "/W {$overlargeInlineGeometryInteger} /H 1 /CS /G /BPC 8 /D [0 1]";
@@ -477,6 +480,12 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI {$commentInlineMaskDictionary} ID\n"
     . "\x80\nEI\n"
     . "BT /F1 12 Tf 72 492 Td (After Comment Inline Decode) Tj ET\n"
+    . "BT /F1 12 Tf 72 491 Td (Before Null Decode Inline) Tj ET\n"
+    . "BI {$nullInlineDecodeDictionary} ID\n"
+    . $nullInlineDecodePayload . "\nEI\n"
+    . "BI {$nullInlineMaskDecodeDictionary} ID\n"
+    . "\x80\nEI\n"
+    . "BT /F1 12 Tf 72 490 Td (After Null Decode Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 490 Td (Before Overlarge Geometry Inline) Tj ET\n"
     . "BI {$overlargeInlineGeometryDictionary} ID\n"
     . $overlargeInlineGeometryPayload . "\nEI\n"
@@ -893,6 +902,22 @@ $commentInlineMaskPreview = $renderer->inlineImageMaskPreviewRows(
     [],
     2
 );
+$nullInlineDecodeReview = $renderer->inlineImageReviewPlan(
+    $nullInlineDecodeDictionary,
+    "\x80"
+);
+$nullInlineDecodePreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $nullInlineDecodeDictionary,
+    "\x80",
+    [],
+    1
+);
+$nullInlineMaskDecodePreview = $renderer->inlineImageMaskPreviewRows(
+    $nullInlineMaskDecodeDictionary,
+    "\x80",
+    [],
+    1
+);
 $literalInlineDecodeReview = $renderer->inlineImageReviewPlan(
     '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3 (0 1 0 1)]',
     "\x00",
@@ -1180,6 +1205,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Duplicate Inline Decode',
         'Before Comment Inline Decode',
         'After Comment Inline Decode',
+        'Before Null Decode Inline',
+        'After Null Decode Inline',
+        'Before Overlarge Geometry Inline',
+        'After Overlarge Geometry Inline',
         'Before A85 No Floor Inline Image',
         'After A85 No Floor Inline Image',
         'Before AHx No Floor Inline Image',
@@ -1446,6 +1475,17 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'comment_inline_mask_decode_preview_accepted' => ($commentInlineMaskPreview['image_mask']['decode']['valid_for_components'] ?? false) === true
         && ($commentInlineMaskPreview['image_mask']['decode']['inverted_components'] ?? []) === [0],
     'comment_inline_mask_opacity' => array_column($commentInlineMaskPreview['pixels'] ?? [], 'opacity'),
+    'null_inline_decode_operand_treated_as_omitted' => array_key_exists('image_decode', $nullInlineDecodeReview)
+        && $nullInlineDecodeReview['image_decode'] === null
+        && ($nullInlineDecodeReview['image_decode_component_mismatch'] ?? true) === false
+        && ($nullInlineDecodeReview['inline_image_review_only'] ?? true) === false
+        && ($nullInlineDecodeReview['inline_image']['native_raster_decode'] ?? false) === true,
+    'null_inline_decode_preview_decoded_gray' => $nullInlineDecodePreview['pixels'][0]['decoded_gray'] ?? null,
+    'null_inline_decode_preview_native_raster_decode' => $nullInlineDecodePreview['inline_image']['native_raster_decode'] ?? null,
+    'null_inline_imagemask_default_decode_source' => $nullInlineMaskDecodePreview['image_mask']['decode']['source'] ?? null,
+    'null_inline_imagemask_opacity' => array_column($nullInlineMaskDecodePreview['pixels'] ?? [], 'opacity'),
+    'null_inline_decode_payload_excluded' => in_array('After Null Decode Inline', $lines, true)
+        && !str_contains($plainText, 'Null Decode Inline Noise'),
     'literal_inline_decode_decoy_fails_closed' => ($literalInlineDecodeReview['image_decode_component_mismatch'] ?? false) === true
         && ($literalInlineDecodeReview['image_decode']['component_count'] ?? null) === 0
         && ($literalInlineDecodeReview['inline_image_review_only'] ?? false) === true,
@@ -1509,6 +1549,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Identity Crypt Flate Inline Noise')
         && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
         && !str_contains($plainText, 'Duplicate Inline Decode Noise')
+        && !str_contains($plainText, 'Null Decode Inline Noise')
         && !str_contains($plainText, 'Overlarge Geometry Inline Noise')
         && !str_contains($plainText, 'decoy 0 1')
         && !str_contains($plainText, 'A85 No Floor Inline Noise')
