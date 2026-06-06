@@ -8434,6 +8434,9 @@ final class PdfTextExtractor
         $decodeParmsOperandFailure = $decodeParms === null && $decodeParmsPresent
             ? $this->imageXObjectDecodeParmsOperandFailureReview($dictionary ?? '', $objects)
             : null;
+        $dctDecodeParmsOperandFailure = $decodeParms === null && $decodeParmsPresent
+            ? $this->imageXObjectDctDecodeParmsOperandFailureReview($dictionary ?? '', $objects)
+            : null;
 
         foreach ($filters as $index => $filter) {
             if (!is_string($filter)) {
@@ -8460,14 +8463,18 @@ final class PdfTextExtractor
                     $reviewDecodeParmsValue,
                     $objects
                 )
-                    ?? (($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
-                    ? $decodeParmsOperandFailure
+                    ?? (($decodeParmsValue === null && $dctDecodeParmsOperandFailure !== null && ($filter === 'DCTDecode' || $filter === 'DCT'))
+                    ? $dctDecodeParmsOperandFailure
                     : (
-                        $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
-                        ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
-                        ?? $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
-                        ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
-                        ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
+                        ($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
+                        ? $decodeParmsOperandFailure
+                        : (
+                            $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
+                            ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
+                            ?? $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                            ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
+                            ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
+                        )
                     )),
             ];
         }
@@ -8605,6 +8612,69 @@ final class PdfTextExtractor
                 : 'malformed_ccitt_decodeparms_fail_closed',
             'decode_parms_operand' => $operand,
         ];
+    }
+
+    /**
+     * @return array<string, bool|string|null|list<string>>|null
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectDctDecodeParmsOperandFailureReview(string $dictionary, array $objects): ?array
+    {
+        $offset = $this->topLevelNameValueOffset($dictionary, 'DecodeParms');
+        $value = $offset === null ? null : $this->pdfValueAtOffset($dictionary, $offset);
+        if (!is_string($value) || strtolower(trim($value)) === 'null') {
+            return null;
+        }
+        if ($this->imageXObjectDecodeParmsValueResolvesToDictionary($value, $objects)) {
+            return null;
+        }
+
+        $operand = $this->imageXObjectDecodeParmsOperandFailureKind($value, $objects);
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => null,
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_operand'],
+            'decode_parms_review' => $operand === 'unresolved_reference'
+                ? 'unresolved_dctdecode_decodeparms_fail_closed'
+                : 'malformed_dctdecode_decodeparms_fail_closed',
+            'decode_parms_operand' => $operand,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenReferences
+     */
+    private function imageXObjectDecodeParmsValueResolvesToDictionary(
+        string $value,
+        array $objects,
+        array $seenReferences = []
+    ): bool {
+        $trimmed = trim($value);
+        if (str_starts_with($trimmed, '<<')) {
+            return true;
+        }
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $trimmed, $match) !== 1) {
+            return false;
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seenReferences[$key])) {
+            return false;
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return false;
+        }
+
+        $seenReferences[$key] = true;
+
+        return $this->imageXObjectDecodeParmsValueResolvesToDictionary($body, $objects, $seenReferences);
     }
 
     /**

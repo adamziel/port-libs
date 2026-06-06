@@ -148,9 +148,11 @@ final class PdfImageRenderer
         $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
         $decodeParmsDeclarationDuplicated = $this->duplicatePdfNameDeclarationCount($imageDictionary, 'DecodeParms') > 0;
         $decodeParmsAlignmentInvalid = $this->dctDecodeParmsAlignmentIsInvalid($imageDictionary, $objects);
+        $decodeParmsOperandFailure = $this->dctDecodeParmsOperandFailureInDictionary($imageDictionary, $objects);
         $decodeParmsDuplicateColorTransform = $this->dctDecodeParmsColorTransformIsDuplicated($imageDictionary, $objects);
         $decodeParmsTransformValid = !$decodeParmsDeclarationDuplicated
             && !$decodeParmsAlignmentInvalid
+            && $decodeParmsOperandFailure === null
             && !$decodeParmsDuplicateColorTransform
             && ($decodeParmsTransform === null || in_array($decodeParmsTransform, [0, 1, 2], true));
         $effectiveDecodeParmsTransform = $decodeParmsTransformValid ? $decodeParmsTransform : null;
@@ -168,6 +170,8 @@ final class PdfImageRenderer
             $notes[] = 'duplicate_dctdecode_decodeparms_declaration_fail_closed';
         } elseif ($decodeParmsAlignmentInvalid) {
             $notes[] = 'unaligned_dctdecode_decodeparms_fail_closed';
+        } elseif ($decodeParmsOperandFailure !== null) {
+            $notes[] = $decodeParmsOperandFailure['decode_parms_review'];
         } elseif ($decodeParmsDuplicateColorTransform) {
             $notes[] = 'duplicate_dctdecode_decodeparms_parameter_fail_closed';
         } elseif (!$decodeParmsTransformValid) {
@@ -617,7 +621,7 @@ final class PdfImageRenderer
             $decodeParmsReview = is_array($detail['decode_parms'] ?? null)
                 ? ($detail['decode_parms']['decode_parms_review'] ?? null)
                 : null;
-            if (is_string($decodeParmsReview) && str_starts_with($decodeParmsReview, 'duplicate_dctdecode_')) {
+            if (is_string($decodeParmsReview) && str_contains($decodeParmsReview, '_dctdecode_decodeparms_')) {
                 $notes[] = $decodeParmsReview;
             }
         }
@@ -4318,6 +4322,7 @@ final class PdfImageRenderer
                 'decode_parms' => $this->dctDecodeDuplicateDecodeParmsDeclarationReview($filter, $dictionary, $decodeParmsValue, $objects)
                     ?? $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
+                    ?? $this->dctDecodeParmsOperandFailureReview($filter, $decodeParmsValue, $objects)
                     ?? $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
                     ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex)
                     ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex),
@@ -4880,6 +4885,80 @@ final class PdfImageRenderer
             'decode_parms_review' => 'duplicate_dctdecode_decodeparms_declaration_fail_closed',
             'duplicate_decode_parms_declaration_count' => $duplicateCount,
             'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, bool|string|null|list<string>>|null
+     */
+    private function dctDecodeParmsOperandFailureInDictionary(string $dictionary, array $objects): ?array
+    {
+        $filters = $this->imageFilterValues($dictionary, $objects);
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        foreach ($filters as $index => $filter) {
+            if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+                continue;
+            }
+
+            return $this->dctDecodeParmsOperandFailureReviewFromValue(
+                $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index),
+                $objects
+            );
+        }
+
+        return $this->dctDecodeParmsOperandFailureReviewFromValue(
+            $this->extractPdfNameValue($dictionary, 'DecodeParms'),
+            $objects
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, bool|string|null|list<string>>|null
+     */
+    private function dctDecodeParmsOperandFailureReview(string $filter, ?string $value, array $objects): ?array
+    {
+        if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+            return null;
+        }
+
+        return $this->dctDecodeParmsOperandFailureReviewFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, bool|string|null|list<string>>|null
+     */
+    private function dctDecodeParmsOperandFailureReviewFromValue(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || strtolower($trimmed) === 'null') {
+            return null;
+        }
+
+        $resolved = trim($this->resolvePdfValue($trimmed, $objects));
+        if (str_starts_with($resolved, '<<')) {
+            return null;
+        }
+
+        $operand = preg_match('/^\d+\s+\d+\s+R$/', $resolved) === 1
+            ? 'unresolved_reference'
+            : 'malformed_operand';
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => null,
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_operand'],
+            'decode_parms_review' => $operand === 'unresolved_reference'
+                ? 'unresolved_dctdecode_decodeparms_fail_closed'
+                : 'malformed_dctdecode_decodeparms_fail_closed',
+            'decode_parms_operand' => $operand,
         ];
     }
 

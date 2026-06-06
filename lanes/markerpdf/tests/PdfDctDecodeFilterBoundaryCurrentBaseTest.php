@@ -588,6 +588,12 @@ return [
                 'preview_only' => false,
                 'decode_parms' => [
                     'type' => 'FlateDecode',
+                    'predictor' => 12,
+                    'columns' => 16,
+                    'colors' => 1,
+                    'bits_per_component' => 8,
+                    'early_change' => null,
+                    'valid_decode_parms' => true,
                 ],
             ],
             [
