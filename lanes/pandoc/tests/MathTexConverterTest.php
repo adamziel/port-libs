@@ -321,6 +321,41 @@ return [
         $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignAtMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{alignat*}{2}f(x) &amp;= x^2 &amp; g(x) &amp;= x + 1\\end{alignat*}</annotation>', $alignAtMathml);
     },
+    'converts bounded tex eqnarray environments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $eqnarrayMathml = $converter->texToMathMl('\\begin{eqnarray}p_i &=& m_i \\\\ x_i &=& y_i \\label{eq:eqn-row} \\tag{E-1}\\end{eqnarray}', true);
+        $starredMathml = $converter->texToMathMl('\\begin{eqnarray*}a &=& b \\\\ c &=& d\\end{eqnarray*}');
+        $document = new AstNode('document', [], [
+            new AstNode('math', [
+                'text' => '\\begin{eqnarray}p_i &=& m_i \\label{eq:eqn-auto} \\\\ x_i &=& y_i \\notag \\\\ u_i &=& v_i \\label{eq:eqn-tag} \\tag*{review}\\end{eqnarray}',
+                'display' => true,
+            ]),
+        ]);
+        $labels = $converter->equationReferenceLabelsFromDocument($document);
+        $resolvedMathml = $converter->texToMathMl('\\eqref{eq:eqn-auto} + \\eqref{eq:eqn-tag}', false, [], $labels);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $eqnarrayMathml);
+        $t->contains('<mtable columnalign="right center left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mlabeledtr id="eq:eqn-row"><mtd><mtext>(E-1)</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo></mtd><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>', $eqnarrayMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\label{eq:eqn-row} \\tag{E-1}\\end{eqnarray}</annotation>', $eqnarrayMathml);
+        $t->contains('<mtable columnalign="right center left"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mo>=</mo></mtd><mtd><mi>d</mi></mtd></mtr></mtable>', $starredMathml);
+        $t->same([
+            'eq:eqn-auto' => [
+                'label' => 'eq:eqn-auto',
+                'id' => 'eq:eqn-auto',
+                'reference' => '1',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+            'eq:eqn-tag' => [
+                'label' => 'eq:eqn-tag',
+                'id' => 'eq:eqn-tag',
+                'reference' => 'review',
+                'tag' => 'review',
+                'tagStarred' => true,
+            ],
+        ], $labels);
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:eqn-auto">1</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:eqn-tag">review</mtext><mo>)</mo></mrow>', $resolvedMathml);
+    },
     'converts bounded tex flalign environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $flalignMathml = $converter->texToMathMl('\\begin{flalign}\\text{source} && p_i &= m_i && \\text{review} \\\\ \\text{target} && x_i &= y_i \\tag{F-1} && \\text{done}\\end{flalign}', true);
@@ -947,6 +982,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{flalign}x\\end{flalign}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{flalign}a &= b & c &= d & e &= f & g &= h & i &= j\\end{flalign}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{flalign}a &= b \\\\ \\end{flalign}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{eqnarray}a &= b\\end{eqnarray}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{eqnarray}a &=& b \\\\ \\end{eqnarray}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{eqnarray*}\\end{eqnarray*}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multline}\\end{multline}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multline}a & b\\end{multline}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multlined}a \\\\\\end{multlined}'));

@@ -319,6 +319,12 @@ final class MathTexConverter
         'flaligned*' => true,
     ];
 
+    /** @var array<string, true> */
+    private const EQNARRAY_ENVIRONMENTS = [
+        'eqnarray' => true,
+        'eqnarray*' => true,
+    ];
+
     /** @var array<string, bool> */
     private const EQUATION_WRAPPER_ENVIRONMENTS = [
         'equation' => true,
@@ -1578,6 +1584,10 @@ final class MathTexConverter
             return $this->parseAmsFlushAlignedEnvironment($source, $offset, $environment);
         }
 
+        if (isset(self::EQNARRAY_ENVIRONMENTS[$environment])) {
+            return $this->parseEqnarrayEnvironment($source, $offset, $environment);
+        }
+
         if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
@@ -1899,6 +1909,19 @@ final class MathTexConverter
         $columns = $this->validateAmsFlushAlignedRows($rows, $environment);
 
         return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"', true, $environment);
+    }
+
+    private function parseEqnarrayEnvironment(string $source, int &$offset, string $environment): string
+    {
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, $environment);
+        $this->validateAmsRowEnvironmentRows($rows, $environment, 3);
+
+        return $this->environmentTable($rows, ' columnalign="right center left"', true, $environment);
     }
 
     private function parseTextModeCommand(string $source, int &$offset, string $command): string
@@ -3209,6 +3232,14 @@ final class MathTexConverter
 
                 $rows = $this->splitAlignmentRows($content, $environment);
                 $this->validateAmsFlushAlignedRows($rows, $environment);
+                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
+            } elseif (isset(self::EQNARRAY_ENVIRONMENTS[$environment])) {
+                if ($this->endsWithTopLevelRowSeparator($content)) {
+                    throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+                }
+
+                $rows = $this->splitAlignmentRows($content, $environment);
+                $this->validateAmsRowEnvironmentRows($rows, $environment, 3);
                 $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
             } elseif ($alignedAtPairs !== null) {
                 if ($this->endsWithTopLevelRowSeparator($content)) {

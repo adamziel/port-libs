@@ -61,6 +61,8 @@ Alignedat audit $\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\ x &= y & u &= v\
 
 Flush alignment audit $\begin{flalign}\text{source} && p_i &= m_i && \text{review} \\ \text{target} && x_i &= y_i \tag{WP-F}\end{flalign}$ stays semantic.
 
+Eqnarray audit $\begin{eqnarray}p_i &=& m_i \\ x_i &=& y_i \tag{WP-E}\end{eqnarray}$ stays semantic.
+
 Multline audit $\begin{multline}p_i + m_i \\[.5em] = a_i + b_i \\ + \frac{x}{y}\end{multline} + \left(\begin{multlined}u+v \\ w\end{multlined}\right)$ stays semantic.
 
 Compact environment audit $\left(\begin{smallmatrix}p_1 & m_1 \\ p_2 & m_2\end{smallmatrix}\right) + \sum_{\begin{subarray}{c}i=1 \\ i\ne j\end{subarray}}^{n} a_i$ stays semantic.
@@ -160,6 +162,7 @@ $summary = [
     'amsEnvironmentMathml' => $converter->texToMathMl('\\begin{align}f(p_i) &= m_i \\\\ g(p_i) &= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &= \\sum_{i=1}^{n} p_i \\\\ &= \\frac{a}{b}\\end{split}'),
     'alignedAtMathml' => $converter->texToMathMl('\\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\\\ x &= y & u &= v\\end{alignedat}'),
     'flalignMathml' => $converter->texToMathMl('\\begin{flalign}\\text{source} && p_i &= m_i && \\text{review} \\\\ \\text{target} && x_i &= y_i \\tag{WP-F}\\end{flalign}', true),
+    'eqnarrayMathml' => $converter->texToMathMl('\\begin{eqnarray}p_i &=& m_i \\\\ x_i &=& y_i \\tag{WP-E}\\end{eqnarray}', true),
     'multlineMathml' => $converter->texToMathMl('\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)'),
     'compactEnvironmentMathml' => $converter->texToMathMl('\\left(\\begin{smallmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i'),
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
@@ -229,6 +232,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}\\)</span>',
         '<span class="math inline">\\(\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}\\)</span>',
         '<span class="math inline">\\(\\begin{flalign}\\text{source} &amp;&amp; p_i &amp;= m_i &amp;&amp; \\text{review} \\\\ \\text{target} &amp;&amp; x_i &amp;= y_i \\tag{WP-F}\\end{flalign}\\)</span>',
+        '<span class="math inline">\\(\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}\\)</span>',
         '<span class="math inline">\\(\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)\\)</span>',
         '<span class="math inline">\\(\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i\\)</span>',
         '<span class="math display">\\[\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}\\]</span>',
@@ -378,6 +382,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{flalign}\\text{source} &amp;&amp; p_i &amp;= m_i &amp;&amp; \\text{review} \\\\ \\text{target} &amp;&amp; x_i &amp;= y_i \\tag{WP-F}\\end{flalign}</annotation>',
+        '<mtable columnalign="right center left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mlabeledtr><mtd><mtext>(WP-E)</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo></mtd><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>',
+        '<annotation encoding="application/x-tex">\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)</annotation>',
         '<annotation encoding="application/x-tex">\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}</annotation>',
