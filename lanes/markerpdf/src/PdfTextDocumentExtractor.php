@@ -114,12 +114,14 @@ final class PdfTextDocumentExtractor
      */
     private function normalizeSuppliedDictionaryPageList(array $pdftextPages): array
     {
-        if (
-            !array_key_exists('blocks', $pdftextPages)
-            && array_key_exists('pages', $pdftextPages)
-            && is_array($pdftextPages['pages'])
-        ) {
-            return array_values($pdftextPages['pages']);
+        if (!array_key_exists('blocks', $pdftextPages) && array_key_exists('pages', $pdftextPages)) {
+            $pages = $pdftextPages['pages'];
+            if ($pages instanceof \stdClass) {
+                $pages = get_object_vars($pages);
+            }
+            if (is_array($pages)) {
+                return array_values($pages);
+            }
         }
 
         return array_values($pdftextPages);

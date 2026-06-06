@@ -394,6 +394,61 @@ return [
         $t->true(!str_contains($encoded, 'envelope metadata payload must not cross'));
         $t->true(!str_contains($encoded, 'top-level envelope payload must not cross'));
     },
+    'unwraps json object pages inside cached pdftext dictionary envelopes' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $cover = $pdftextLinkedPage();
+        $cover['page'] = 40;
+        $cover['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Skipped object-envelope cover';
+
+        $selected = $pdftextLinkedPage();
+        $selected['page'] = 41;
+        $selected['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Object envelope selected ';
+        $selected['blocks'][0]['lines'][0]['spans'][1]['text'] = 'page link';
+        $selected['blocks'][0]['lines'][0]['spans'][2]['text'] = ' keeps object pages safe';
+        unset($selected['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $appendix = $pdftextLinkedPage();
+        $appendix['page'] = 42;
+        $appendix['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Skipped object-envelope appendix';
+
+        $envelope = (array) json_decode(json_encode([
+            'metadata' => [
+                'source' => 'json cached pdftext dictionary_output',
+                'raw_private_payload' => 'object envelope metadata payload must not cross dictionary_output',
+            ],
+            'pages' => [
+                40 => $cover,
+                41 => $selected,
+                42 => $appendix,
+            ],
+            'raw_adapter_payload' => 'object envelope top-level payload must not cross dictionary_output',
+        ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}');
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks(
+            $envelope,
+            maxPages: 1,
+            startPage: 1,
+            toc: [['title' => 'Object envelope selected page', 'level' => 1, 'page_index' => 41]]
+        );
+
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->true($envelope['pages'] instanceof stdClass);
+        $t->same([1], $document['page_range']);
+        $t->same(41, $page['pnum']);
+        $t->same('Object envelope selected [page link](https://example.com/import\\)docs) keeps object pages safe', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same([[
+            'url' => '#page-3-xy',
+            'page' => 3,
+            'dest_pos' => [72.0, 96.0],
+        ]], $page['pdftext_source']['refs']);
+        $t->true(!str_contains($encoded, 'Skipped object-envelope cover'));
+        $t->true(!str_contains($encoded, 'Skipped object-envelope appendix'));
+        $t->true(!str_contains($encoded, 'object envelope metadata payload must not cross'));
+        $t->true(!str_contains($encoded, 'object envelope top-level payload must not cross'));
+    },
     'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';
