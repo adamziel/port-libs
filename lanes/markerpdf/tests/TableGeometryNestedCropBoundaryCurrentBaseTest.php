@@ -77,6 +77,25 @@ function markerpdf_nested_crop_boundary_table(string $nestedKey = 'table_image',
     ];
 }
 
+function markerpdf_nested_crop_polygon_stale_bbox_boundary_points(float $x1, float $y1, float $x2, float $y2): array
+{
+    return [
+        ['x' => (string) $x1, 'y' => (string) $y1],
+        ['x' => (string) $x2, 'y' => (string) $y1],
+        ['x' => (string) $x2, 'y' => (string) $y2],
+        ['x' => (string) $x1, 'y' => (string) $y2],
+    ];
+}
+
+function markerpdf_nested_crop_polygon_stale_bbox_boundary_table(): array
+{
+    $table = markerpdf_nested_crop_boundary_table('crop', 'bbox');
+    $table['crop']['bbox'] = [400.0, 300.0, 520.0, 340.0];
+    $table['crop']['polygon'] = markerpdf_nested_crop_polygon_stale_bbox_boundary_points(72.0, 150.0, 312.0, 230.0);
+
+    return $table;
+}
+
 return [
     'derives page-image crop boundary from nested saved table image metadata' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
@@ -132,6 +151,29 @@ return [
         $t->same('crop.bbox', $cropReview['table_bbox_source'] ?? null);
         $t->same(['width' => 240, 'height' => 80], $cropReview['table_crop_size'] ?? null);
         $t->same(['Feature', 'Status', 'Images', 'Ready'], array_column($cropFormatted['assigned_cells'][0] ?? [], 'text'));
+    },
+    'prefers nested crop polygon over stale generic bbox before table geometry localization' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $formatted = $recognizer->formatRecognizedTables(
+            [markerpdf_nested_crop_polygon_stale_bbox_boundary_table()],
+            [[]]
+        );
+
+        $review = $formatted['coordinate_space_reviews'][0] ?? [];
+        $localized = $formatted['recognized_tables'][0] ?? [];
+        $assignedTexts = array_column($formatted['assigned_cells'][0] ?? [], 'text');
+
+        $t->same('translated_to_table_crop', $review['status'] ?? null);
+        $t->same([72.0, 150.0, 312.0, 230.0], $review['table_bbox'] ?? null);
+        $t->same('crop.polygon', $review['table_bbox_source'] ?? null);
+        $t->same(['x' => -72.0, 'y' => -150.0], $review['translation'] ?? null);
+        $t->same([0.0, 0.0, 240.0, 32.0], $localized['rows'][0]['bbox'] ?? null);
+        $t->same([10.0, 5.0, 90.0, 20.0], $localized['cells'][0]['bbox'] ?? null);
+        $t->same(['Feature', 'Status', 'Images', 'Ready'], $assignedTexts);
+        $t->true(!in_array('Stale nested row', $assignedTexts, true));
+        $t->true(!in_array('Stale nested column', $assignedTexts, true));
+        $t->contains('| Feature | Status |', $formatted['markdown_tables'][0] ?? '');
+        $t->contains('| Images  | Ready  |', $formatted['markdown_tables'][0] ?? '');
     },
     'surfaces nested crop table geometry through supplied WordPress conversion metadata' => static function (
         TestRunner $t

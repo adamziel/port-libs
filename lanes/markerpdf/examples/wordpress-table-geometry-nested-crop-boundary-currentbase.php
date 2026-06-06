@@ -66,9 +66,28 @@ function markerpdf_wordpress_nested_crop_boundary_table(string $nestedKey = 'tab
     ];
 }
 
+function markerpdf_wordpress_nested_crop_polygon_boundary_points(float $x1, float $y1, float $x2, float $y2): array
+{
+    return [
+        ['x' => (string) $x1, 'y' => (string) $y1],
+        ['x' => (string) $x2, 'y' => (string) $y1],
+        ['x' => (string) $x2, 'y' => (string) $y2],
+        ['x' => (string) $x1, 'y' => (string) $y2],
+    ];
+}
+
+function markerpdf_wordpress_nested_crop_polygon_stale_bbox_boundary_table(): array
+{
+    $table = markerpdf_wordpress_nested_crop_boundary_table('crop', 'bbox');
+    $table['crop']['bbox'] = [400.0, 300.0, 520.0, 340.0];
+    $table['crop']['polygon'] = markerpdf_wordpress_nested_crop_polygon_boundary_points(72.0, 150.0, 312.0, 230.0);
+
+    return $table;
+}
+
 $recognizer = new TableRecognizer();
 $direct = $recognizer->formatRecognizedTables(
-    [markerpdf_wordpress_nested_crop_boundary_table()],
+    [markerpdf_wordpress_nested_crop_polygon_stale_bbox_boundary_table()],
     [[]]
 );
 
@@ -95,7 +114,7 @@ try {
                     ['label' => 'Text', 'bbox' => [72.0, 276.0, 480.0, 294.0]],
                 ],
             ]],
-            'recognized_tables' => [markerpdf_wordpress_nested_crop_boundary_table('crop', 'bbox')],
+            'recognized_tables' => [markerpdf_wordpress_nested_crop_polygon_stale_bbox_boundary_table()],
             'table_text_lines' => [['blocks' => []]],
             'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
         ],
@@ -114,12 +133,15 @@ $gridReview = $document['metadata']['table_spanning_grid_review'][0] ?? [];
 
 echo json_encode([
     'scenario' => 'wordpress-table-geometry-nested-crop-boundary-currentbase',
-    'native_boundary' => 'saved table-recognition sidecars can carry crop geometry in nested table_image/crop records before tabled assignment',
+    'native_boundary' => 'saved table-recognition sidecars can carry crop geometry in nested table_image/crop records before tabled assignment; polygon aliases outrank stale generic nested bbox values',
     'direct_nested_crop_source' => $directReview['table_bbox_source'] ?? null,
+    'direct_nested_polygon_selected' => ($directReview['table_bbox_source'] ?? null) === 'crop.polygon',
+    'direct_stale_nested_bbox_excluded' => ($directReview['table_bbox'] ?? null) === [72.0, 150.0, 312.0, 230.0],
     'direct_table_crop_size' => $directReview['table_crop_size'] ?? null,
     'direct_translated_cell_count' => $directReview['translated_cell_count'] ?? null,
     'conversion_table_bbox_source' => $conversionReview['table_bbox_source'] ?? null,
     'conversion_table_bbox' => $conversionReview['table_bbox'] ?? null,
+    'conversion_stale_nested_bbox_excluded' => ($conversionReview['table_bbox'] ?? null) === [72.0, 150.0, 312.0, 230.0],
     'assigned_texts' => array_column($document['metadata']['table_assigned_cells'][0] ?? [], 'text'),
     'grid_review_target' => $gridReview['geometry_boundary_review']['review_target'] ?? null,
     'excluded_stale_pdftext_table_line' => !str_contains($markdown, 'Stale nested crop table line should be replaced.'),

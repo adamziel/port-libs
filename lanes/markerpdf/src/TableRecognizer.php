@@ -2078,7 +2078,7 @@ final class TableRecognizer
                 continue;
             }
 
-            foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox', 'source_bbox', 'bbox', 'box'] as $bboxKey) {
+            foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $bboxKey) {
                 if (!array_key_exists($bboxKey, $container)) {
                     continue;
                 }
@@ -2099,6 +2099,20 @@ final class TableRecognizer
                     return [
                         'bbox' => $polygonBbox,
                         'source' => $containerKey . '.' . $sourceKey,
+                    ];
+                }
+            }
+
+            foreach (['source_bbox', 'bbox', 'box'] as $bboxKey) {
+                if (!array_key_exists($bboxKey, $container)) {
+                    continue;
+                }
+
+                $bbox = $this->bboxFromGeometryValue($container[$bboxKey]);
+                if ($bbox !== null) {
+                    return [
+                        'bbox' => $bbox,
+                        'source' => $containerKey . '.' . $bboxKey,
                     ];
                 }
             }
