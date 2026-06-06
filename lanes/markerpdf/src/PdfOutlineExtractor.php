@@ -5806,7 +5806,27 @@ final class PdfOutlineExtractor
             }
         }
 
+        for ($index = 2 + count($requiredOperands), $count = count($array); $index < $count; $index++) {
+            if (!$this->destinationSurplusOperandIsBenign($array[$index], $objects)) {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function destinationSurplusOperandIsBenign(mixed $value, array $objects): bool
+    {
+        if ($this->isReferenceValue($value) && $this->validReferenceObjectNumber($value, $objects) === null) {
+            return false;
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+
+        return $resolved === null || is_int($resolved) || is_float($resolved);
     }
 
     /**

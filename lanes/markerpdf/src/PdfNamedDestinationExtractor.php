@@ -1532,7 +1532,28 @@ final class PdfNamedDestinationExtractor
             }
         }
 
+        for ($index = 2 + count($requiredOperands), $count = count($destination); $index < $count; $index++) {
+            if (!$this->destinationSurplusOperandIsBenign($destination[$index], $objects, $cache)) {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function destinationSurplusOperandIsBenign(mixed $value, array $objects, array &$cache): bool
+    {
+        if ($this->isRefValue($value) && $this->validRefObjectId($value, $objects) === null) {
+            return false;
+        }
+
+        $resolved = $this->resolve($value, $objects, $cache);
+
+        return $resolved === null || is_int($resolved) || is_float($resolved);
     }
 
     /**

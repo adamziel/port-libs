@@ -5316,6 +5316,12 @@ final class PdfMetadataExtractor
             }
         }
 
+        for ($index = 2 + count($requiredOperands), $count = count($items); $index < $count; $index++) {
+            if (!$this->documentDestinationCoordinateOperandIsValid($items[$index], $objects, true)) {
+                return false;
+            }
+        }
+
         return true;
     }
 

@@ -1139,7 +1139,20 @@ final class PdfActionReviewExtractor
             }
         }
 
+        for ($index = 2 + count($requiredOperands), $count = count($array); $index < $count; $index++) {
+            if (!$this->destinationSurplusOperandIsBenign($array[$index])) {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    private function destinationSurplusOperandIsBenign(mixed $value): bool
+    {
+        $resolved = $this->resolveValue($value);
+
+        return $resolved === null || is_int($resolved) || is_float($resolved);
     }
 
     /**
