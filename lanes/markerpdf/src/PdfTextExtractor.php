@@ -17509,6 +17509,10 @@ final class PdfTextExtractor
         }
 
         if (str_starts_with($value, '<<')) {
+            if ($this->topLevelDirectDictionaryValueHasTrailingNonName($objectBody, 'Resources')) {
+                return ['state' => 'blocked'];
+            }
+
             $body = $this->readPdfDictionaryAt($value, 0);
             return $body === null
                 ? ['state' => 'blocked']
@@ -17516,6 +17520,58 @@ final class PdfTextExtractor
         }
 
         return ['state' => 'blocked'];
+    }
+
+    private function topLevelDirectDictionaryValueHasTrailingNonName(string $objectBody, string $name): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($objectBody) ?? $objectBody;
+        $offset = 0;
+        $length = strlen($dictionary);
+        $invalid = false;
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName(substr($dictionary, $keyStart, $keyEnd - $keyStart));
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            if ($key === $name) {
+                $afterOffset = $nextOffset;
+                $this->skipContentWhitespaceAndComments($dictionary, $afterOffset);
+                $invalid = substr($dictionary, $valueOffset, 2) === '<<'
+                    && $afterOffset < $length
+                    && ($dictionary[$afterOffset] ?? '') !== '/';
+            }
+
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return $invalid;
     }
 
     /**

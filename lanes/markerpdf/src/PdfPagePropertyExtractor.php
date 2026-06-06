@@ -1321,6 +1321,14 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
+            if ($this->topLevelDirectDictionaryValueHasTrailingNonName($objectDictionary, 'Resources')) {
+                return $this->malformedPageResourcesMetadata(
+                    $pageObjectNumber,
+                    $objectNumber,
+                    $resourceValue
+                );
+            }
+
             if ($this->pageResourceValueAllowsInheritance($resourceValue, $objects)) {
                 continue;
             }
@@ -1386,6 +1394,46 @@ final class PdfPagePropertyExtractor
         }
 
         return null;
+    }
+
+    private function topLevelDirectDictionaryValueHasTrailingNonName(string $dictionary, string $key): bool
+    {
+        $invalid = false;
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $value = $this->readPdfValueAt($dictionary, $offset);
+                $offset = $value !== null && $value['end'] > $offset ? $value['end'] : $offset + 1;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if ($this->decodePdfName($match[1]) === $key) {
+                $afterOffset = $this->skipWhitespace($dictionary, $value['end']);
+                $invalid = str_starts_with($value['raw'], '<<')
+                    && $afterOffset < $length
+                    && ($dictionary[$afterOffset] ?? '') !== '/';
+            }
+
+            $offset = $value['end'];
+        }
+
+        return $invalid;
     }
 
     /**
