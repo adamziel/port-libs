@@ -899,6 +899,102 @@ final class TableGeometry
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function rowGroups(AstNode $table, ?int $columnCount = null): array
+    {
+        $columnCount = max(0, $columnCount ?? self::columnCount($table));
+        $groups = [];
+        $bodyIndex = 0;
+        foreach ($table->children as $section) {
+            if ($section->type === 'table_head') {
+                $rows = self::sectionRows($section);
+                $record = [
+                    'section' => 'head',
+                    'kind' => 'table-head',
+                    'rowCount' => count($rows),
+                    'headRowCount' => count($rows),
+                    'bodyHeadRowCount' => 0,
+                    'bodyRowCount' => 0,
+                    'footRowCount' => 0,
+                    'rowHeadColumns' => 0,
+                    'hasBodyHeadRows' => false,
+                    'hasRowHeadColumns' => false,
+                    'cellCount' => self::rowCellCount($rows),
+                    'rowRoles' => $rows === [] ? [] : ['head'],
+                ];
+                $sourceAttributes = self::sourceAttributeSummary($section);
+                if ($sourceAttributes !== []) {
+                    $record['sourceAttributes'] = $sourceAttributes;
+                }
+                $groups[] = $record;
+                continue;
+            }
+
+            if ($section->type === 'table_body') {
+                $bodyHeadRows = self::bodyHeadRows($section);
+                $bodyRows = self::sectionRows($section);
+                $rowHeadColumns = self::rowHeadColumns($section, $columnCount);
+                $rowRoles = [];
+                if ($bodyHeadRows !== []) {
+                    $rowRoles[] = 'body-head';
+                }
+                if ($bodyRows !== []) {
+                    $rowRoles[] = 'body';
+                }
+
+                $record = [
+                    'section' => 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex),
+                    'kind' => 'table-body',
+                    'bodyIndex' => $bodyIndex,
+                    'rowCount' => count($bodyHeadRows) + count($bodyRows),
+                    'headRowCount' => count($bodyHeadRows),
+                    'bodyHeadRowCount' => count($bodyHeadRows),
+                    'bodyRowCount' => count($bodyRows),
+                    'footRowCount' => 0,
+                    'rowHeadColumns' => $rowHeadColumns,
+                    'hasBodyHeadRows' => $bodyHeadRows !== [],
+                    'hasRowHeadColumns' => $rowHeadColumns > 0,
+                    'cellCount' => self::rowCellCount([...$bodyHeadRows, ...$bodyRows]),
+                    'rowRoles' => $rowRoles,
+                ];
+                $sourceAttributes = self::sourceAttributeSummary($section);
+                if ($sourceAttributes !== []) {
+                    $record['sourceAttributes'] = $sourceAttributes;
+                }
+                $groups[] = $record;
+                $bodyIndex++;
+                continue;
+            }
+
+            if ($section->type === 'table_foot') {
+                $rows = self::sectionRows($section);
+                $record = [
+                    'section' => 'foot',
+                    'kind' => 'table-foot',
+                    'rowCount' => count($rows),
+                    'headRowCount' => 0,
+                    'bodyHeadRowCount' => 0,
+                    'bodyRowCount' => 0,
+                    'footRowCount' => count($rows),
+                    'rowHeadColumns' => 0,
+                    'hasBodyHeadRows' => false,
+                    'hasRowHeadColumns' => false,
+                    'cellCount' => self::rowCellCount($rows),
+                    'rowRoles' => $rows === [] ? [] : ['foot'],
+                ];
+                $sourceAttributes = self::sourceAttributeSummary($section);
+                if ($sourceAttributes !== []) {
+                    $record['sourceAttributes'] = $sourceAttributes;
+                }
+                $groups[] = $record;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
      * @return array{
      *     columnCount:int,
      *     hasExplicitWidths:bool,
@@ -1019,6 +1115,7 @@ final class TableGeometry
      *     declaredColumnCount:int,
      *     columns:list<array{column:int,alignment:string,width:?float,declared:bool}>,
      *     columnGroups:list<array<string, mixed>>,
+     *     rowGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
      *     coverage:list<array<string, mixed>>,
@@ -1037,6 +1134,7 @@ final class TableGeometry
         $captions = self::captionMetadata($table);
         $widthSummary = self::columnWidthSummary($table, $columnCount);
         $columnGroups = self::columnGroups($table, $columnCount);
+        $rowGroups = self::rowGroups($table, $columnCount);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
             $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer, $table);
@@ -1055,6 +1153,7 @@ final class TableGeometry
             'columnGroups' => $columnGroups,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
+            'rowGroups' => $rowGroups,
             'coverage' => $coverage,
             'diagnostics' => $diagnostics,
             'writerDowngrades' => $writerDowngrades,
@@ -1065,7 +1164,8 @@ final class TableGeometry
                 $diagnostics,
                 $writerDowngrades,
                 $captions,
-                $columnGroups
+                $columnGroups,
+                $rowGroups
             ),
         ];
 
@@ -1798,6 +1898,7 @@ final class TableGeometry
      * @param array<string, list<array<string, mixed>>> $writerDowngrades
      * @param array{long:array<string, mixed>,short:array<string, mixed>} $captions
      * @param list<array<string, mixed>> $columnGroups
+     * @param list<array<string, mixed>> $rowGroups
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -1806,7 +1907,8 @@ final class TableGeometry
         array $diagnostics,
         array $writerDowngrades,
         array $captions,
-        array $columnGroups
+        array $columnGroups,
+        array $rowGroups
     ): array
     {
         $rowCount = 0;
@@ -1907,6 +2009,8 @@ final class TableGeometry
         }
         sort($writerDowngradeWriters);
 
+        $rowGroupSummary = self::rowGroupSummary($rowGroups);
+
         return [
             'sectionCount' => count($sections),
             'rowCount' => $rowCount,
@@ -1952,9 +2056,93 @@ final class TableGeometry
             'cellBlockTypes' => array_values(array_unique($cellBlockTypes)),
             'columnGroupCount' => count($columnGroups),
             'hasColumnGroups' => $columnGroups !== [],
+            'rowGroupCount' => $rowGroupSummary['rowGroupCount'],
+            'bodyGroupCount' => $rowGroupSummary['bodyGroupCount'],
+            'hasMultipleBodyGroups' => $rowGroupSummary['hasMultipleBodyGroups'],
+            'tableHeadRowCount' => $rowGroupSummary['tableHeadRowCount'],
+            'bodyHeadRowCount' => $rowGroupSummary['bodyHeadRowCount'],
+            'bodyRowCount' => $rowGroupSummary['bodyRowCount'],
+            'tableFootRowCount' => $rowGroupSummary['tableFootRowCount'],
+            'hasTableFoot' => $rowGroupSummary['hasTableFoot'],
+            'hasBodyHeadRows' => $rowGroupSummary['hasBodyHeadRows'],
+            'bodyHeadRowGroupCount' => $rowGroupSummary['bodyHeadRowGroupCount'],
+            'rowHeadGroupCount' => $rowGroupSummary['rowHeadGroupCount'],
+            'maxRowHeadColumns' => $rowGroupSummary['maxRowHeadColumns'],
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
             'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rowGroups
+     * @return array{
+     *     rowGroupCount:int,
+     *     bodyGroupCount:int,
+     *     hasMultipleBodyGroups:bool,
+     *     tableHeadRowCount:int,
+     *     bodyHeadRowCount:int,
+     *     bodyRowCount:int,
+     *     tableFootRowCount:int,
+     *     hasTableFoot:bool,
+     *     hasBodyHeadRows:bool,
+     *     bodyHeadRowGroupCount:int,
+     *     rowHeadGroupCount:int,
+     *     maxRowHeadColumns:int
+     * }
+     */
+    private static function rowGroupSummary(array $rowGroups): array
+    {
+        $bodyGroupCount = 0;
+        $tableHeadRowCount = 0;
+        $bodyHeadRowCount = 0;
+        $bodyRowCount = 0;
+        $tableFootRowCount = 0;
+        $bodyHeadRowGroupCount = 0;
+        $rowHeadGroupCount = 0;
+        $maxRowHeadColumns = 0;
+        foreach ($rowGroups as $rowGroup) {
+            $kind = (string) ($rowGroup['kind'] ?? '');
+            if ($kind === 'table-head') {
+                $tableHeadRowCount += max(0, (int) ($rowGroup['headRowCount'] ?? $rowGroup['rowCount'] ?? 0));
+                continue;
+            }
+
+            if ($kind === 'table-body') {
+                $bodyGroupCount++;
+                $groupBodyHeadRows = max(0, (int) ($rowGroup['bodyHeadRowCount'] ?? 0));
+                $groupBodyRows = max(0, (int) ($rowGroup['bodyRowCount'] ?? 0));
+                $groupRowHeadColumns = max(0, (int) ($rowGroup['rowHeadColumns'] ?? 0));
+                $bodyHeadRowCount += $groupBodyHeadRows;
+                $bodyRowCount += $groupBodyRows;
+                if ($groupBodyHeadRows > 0) {
+                    $bodyHeadRowGroupCount++;
+                }
+                if ($groupRowHeadColumns > 0) {
+                    $rowHeadGroupCount++;
+                    $maxRowHeadColumns = max($maxRowHeadColumns, $groupRowHeadColumns);
+                }
+                continue;
+            }
+
+            if ($kind === 'table-foot') {
+                $tableFootRowCount += max(0, (int) ($rowGroup['footRowCount'] ?? $rowGroup['rowCount'] ?? 0));
+            }
+        }
+
+        return [
+            'rowGroupCount' => count($rowGroups),
+            'bodyGroupCount' => $bodyGroupCount,
+            'hasMultipleBodyGroups' => $bodyGroupCount > 1,
+            'tableHeadRowCount' => $tableHeadRowCount,
+            'bodyHeadRowCount' => $bodyHeadRowCount,
+            'bodyRowCount' => $bodyRowCount,
+            'tableFootRowCount' => $tableFootRowCount,
+            'hasTableFoot' => $tableFootRowCount > 0,
+            'hasBodyHeadRows' => $bodyHeadRowCount > 0,
+            'bodyHeadRowGroupCount' => $bodyHeadRowGroupCount,
+            'rowHeadGroupCount' => $rowHeadGroupCount,
+            'maxRowHeadColumns' => $maxRowHeadColumns,
         ];
     }
 
@@ -3204,18 +3392,13 @@ final class TableGeometry
 
             if ($section->type === 'table_body') {
                 $entries = [];
-                $bodyHeadRows = $section->attr('headRows', []);
-                if (is_array($bodyHeadRows)) {
-                    foreach ($bodyHeadRows as $row) {
-                        if ($row instanceof AstNode && $row->type === 'table_row') {
-                            $entries[] = [
-                                'row' => $row,
-                                'header' => true,
-                                'rowHeadColumns' => 0,
-                                'rowRole' => 'body-head',
-                            ];
-                        }
-                    }
+                foreach (self::bodyHeadRows($section) as $row) {
+                    $entries[] = [
+                        'row' => $row,
+                        'header' => true,
+                        'rowHeadColumns' => 0,
+                        'rowRole' => 'body-head',
+                    ];
                 }
                 $rowHeadColumns = self::rowHeadColumns($section, max(0, $columnCount ?? self::columnCountForRows(self::bodyRows($section))));
                 array_push($entries, ...self::rowEntries(self::sectionRows($section), false, $rowHeadColumns, 'body'));
@@ -3259,6 +3442,18 @@ final class TableGeometry
      */
     private static function bodyRows(AstNode $body): array
     {
+        $rows = self::bodyHeadRows($body);
+
+        array_push($rows, ...self::sectionRows($body));
+
+        return $rows;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private static function bodyHeadRows(AstNode $body): array
+    {
         $rows = [];
         $bodyHeadRows = $body->attr('headRows', []);
         if (is_array($bodyHeadRows)) {
@@ -3269,9 +3464,24 @@ final class TableGeometry
             }
         }
 
-        array_push($rows, ...self::sectionRows($body));
-
         return $rows;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private static function rowCellCount(array $rows): int
+    {
+        $cellCount = 0;
+        foreach ($rows as $row) {
+            foreach ($row->children as $child) {
+                if ($child instanceof AstNode && $child->type === 'table_cell') {
+                    $cellCount++;
+                }
+            }
+        }
+
+        return $cellCount;
     }
 
     /**

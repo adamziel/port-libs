@@ -1247,6 +1247,90 @@ return [
         $t->contains('<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Body-local head row review</figcaption>', $blocks);
     },
+    'summarizes pandoc table row groups for importer review packets' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Grouped table review',
+            'alignments' => ['left', 'right', 'center'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Document'], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'rowHeadColumns' => 1,
+                'headRows' => [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                        new AstNode('table_cell', ['text' => 'Queue'], [new AstNode('text', ['text' => 'Queue'])]),
+                        new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                    ]),
+                ],
+                'htmlAttributes' => ['data-group' => 'posts'],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Import'], [new AstNode('text', ['text' => 'Import'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'htmlAttributes' => ['id' => 'pages-group'],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Pages'], [new AstNode('text', ['text' => 'Pages'])]),
+                    new AstNode('table_cell', ['text' => '5'], [new AstNode('text', ['text' => '5'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+            new AstNode('table_foot', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Total'], [new AstNode('text', ['text' => 'Total'])]),
+                    new AstNode('table_cell', ['text' => '54'], [new AstNode('text', ['text' => '54'])]),
+                    new AstNode('table_cell', ['text' => 'Complete'], [new AstNode('text', ['text' => 'Complete'])]),
+                ]),
+            ]),
+        ]);
+
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $rowGroups = $packet['rowGroups'] ?? [];
+
+        $t->same(['head', 'body', 'body1', 'foot'], array_map(static fn (array $group): string => $group['section'], $rowGroups));
+        $t->same(['table-head', 'table-body', 'table-body', 'table-foot'], array_map(static fn (array $group): string => $group['kind'], $rowGroups));
+        $t->same([1, 3, 1, 1], array_map(static fn (array $group): int => $group['rowCount'], $rowGroups));
+        $t->same([3, 8, 3, 3], array_map(static fn (array $group): int => $group['cellCount'], $rowGroups));
+        $t->same(['body-head', 'body'], $rowGroups[1]['rowRoles'] ?? null);
+        $t->same(0, $rowGroups[1]['bodyIndex'] ?? null);
+        $t->same(1, $rowGroups[1]['bodyHeadRowCount'] ?? null);
+        $t->same(2, $rowGroups[1]['bodyRowCount'] ?? null);
+        $t->same(1, $rowGroups[1]['rowHeadColumns'] ?? null);
+        $t->same(true, $rowGroups[1]['hasBodyHeadRows'] ?? null);
+        $t->same(true, $rowGroups[1]['hasRowHeadColumns'] ?? null);
+        $t->same('posts', $rowGroups[1]['sourceAttributes']['htmlAttributes']['data-group'] ?? null);
+        $t->same(1, $rowGroups[2]['bodyIndex'] ?? null);
+        $t->same(0, $rowGroups[2]['bodyHeadRowCount'] ?? null);
+        $t->same(1, $rowGroups[2]['bodyRowCount'] ?? null);
+        $t->same('pages-group', $rowGroups[2]['sourceAttributes']['id'] ?? null);
+        $t->same(4, $packet['summary']['rowGroupCount'] ?? null);
+        $t->same(2, $packet['summary']['bodyGroupCount'] ?? null);
+        $t->same(true, $packet['summary']['hasMultipleBodyGroups'] ?? null);
+        $t->same(1, $packet['summary']['tableHeadRowCount'] ?? null);
+        $t->same(1, $packet['summary']['bodyHeadRowCount'] ?? null);
+        $t->same(3, $packet['summary']['bodyRowCount'] ?? null);
+        $t->same(1, $packet['summary']['tableFootRowCount'] ?? null);
+        $t->same(true, $packet['summary']['hasTableFoot'] ?? null);
+        $t->same(true, $packet['summary']['hasBodyHeadRows'] ?? null);
+        $t->same(1, $packet['summary']['bodyHeadRowGroupCount'] ?? null);
+        $t->same(1, $packet['summary']['rowHeadGroupCount'] ?? null);
+        $t->same(1, $packet['summary']['maxRowHeadColumns'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'computes accessible header scopes and wordpress headers attributes across visual spans' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
         $document = $buildAccessibleHeaderDocument();
         $table = $document->children[0];

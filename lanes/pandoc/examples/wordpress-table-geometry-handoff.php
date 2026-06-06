@@ -889,6 +889,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bodyHeadCoverage[6]['rowRole'] ?? null) !== 'body' || ($bodyHeadCoverage[6]['rowHeadColumns'] ?? null) !== 1 || ($bodyHeadCoverage[6]['headerCell'] ?? null) !== true) {
         throw new RuntimeException('Table geometry self-test missing row-head coverage metadata');
     }
+    $bodyHeadPacket = TableGeometry::reviewPacket($document->children[3], ['accessibility' => false]);
+    if (($bodyHeadPacket['summary']['rowGroupCount'] ?? null) !== 2 || ($bodyHeadPacket['summary']['hasBodyHeadRows'] ?? null) !== true) {
+        throw new RuntimeException('Table geometry self-test missing body-local row-group summary');
+    }
+    if (($bodyHeadPacket['summary']['bodyHeadRowCount'] ?? null) !== 1 || ($bodyHeadPacket['summary']['rowHeadGroupCount'] ?? null) !== 1 || ($bodyHeadPacket['summary']['maxRowHeadColumns'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing body-local row-group counters');
+    }
+    if (($bodyHeadPacket['rowGroups'][1]['rowRoles'] ?? null) !== ['body-head', 'body'] || ($bodyHeadPacket['rowGroups'][1]['bodyHeadRowCount'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing body-local row-group roles');
+    }
     if (!str_contains($blocks, '<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>')) {
         throw new RuntimeException('Table geometry self-test missing body-local head rows in WordPress tbody output');
     }
@@ -1081,6 +1091,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($rowspanZeroPacket['sections'][1]['summary']['coveredSlotCount'] ?? null) !== 2 || ($rowspanZeroPacket['sections'][2]['summary']['coveredSlotCount'] ?? null) !== 0) {
         throw new RuntimeException('Table geometry self-test let HTML rowspan-zero cross tbody boundaries');
+    }
+    if (($rowspanZeroPacket['summary']['bodyGroupCount'] ?? null) !== 2 || ($rowspanZeroPacket['summary']['hasMultipleBodyGroups'] ?? null) !== true || ($rowspanZeroPacket['summary']['bodyRowCount'] ?? null) !== 4) {
+        throw new RuntimeException('Table geometry self-test missing HTML row-group summary');
+    }
+    if (($rowspanZeroPacket['rowGroups'][1]['sourceAttributes']['id'] ?? null) !== 'posts-body' || ($rowspanZeroPacket['rowGroups'][2]['sourceAttributes']['id'] ?? null) !== 'pages-body') {
+        throw new RuntimeException('Table geometry self-test missing HTML row-group source attributes');
     }
     if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero Markdown downgrade packet');
