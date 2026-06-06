@@ -199,6 +199,7 @@ final class OdfReader
                     'tableOfContentsCount' => $contentStats['tableOfContentsCount'],
                     'generatedIndexCount' => $contentStats['generatedIndexCount'],
                     'tableCaptionCount' => $contentStats['tableCaptionCount'],
+                    'preformattedCodeBlockCount' => $contentStats['preformattedCodeBlockCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
@@ -685,6 +686,19 @@ final class OdfReader
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
             $attrs['style'] = $style;
+        }
+
+        if ($this->isPreformattedParagraphStyle($styleName, $style)) {
+            $codeAttrs = $attrs;
+            $codeAttrs['odfPreformatted'] = true;
+            $codeAttrs['attributes'] = [
+                'data-odf-preformatted' => 'true',
+            ];
+            if ($styleName !== '') {
+                $codeAttrs['attributes']['data-odf-style-name'] = $styleName;
+            }
+
+            return new AstNode('code_block', $codeAttrs);
         }
 
         $headingLevel = (int) ($style['headingLevel'] ?? 0);
@@ -4104,6 +4118,19 @@ final class OdfReader
         );
     }
 
+    /**
+     * @param array<string, mixed> $style
+     */
+    private function isPreformattedParagraphStyle(string $styleName, array $style): bool
+    {
+        if ($style === []) {
+            return false;
+        }
+
+        return $styleName === 'Preformatted_20_Text'
+            || (string) ($style['parentName'] ?? '') === 'Preformatted_20_Text';
+    }
+
     private function isQuoteWidth(string $textIndent, string $marginLeft): bool
     {
         $indent = $this->quoteMeasure($textIndent);
@@ -4288,7 +4315,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -4318,6 +4345,7 @@ final class OdfReader
             'tableOfContentsCount' => 0,
             'generatedIndexCount' => 0,
             'tableCaptionCount' => 0,
+            'preformattedCodeBlockCount' => 0,
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
             'tableTemplateReferenceCount' => 0,
@@ -4346,6 +4374,9 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-caption')) {
                 $stats['tableCaptionCount']++;
+            }
+            if ($node->type === 'code_block' && $node->attr('odfPreformatted') === true) {
+                $stats['preformattedCodeBlockCount']++;
             }
             if ($node->type === 'table' && (string) $node->attr('templateName', '') !== '') {
                 $stats['tableTemplateReferenceCount']++;

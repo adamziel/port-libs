@@ -409,6 +409,56 @@ XML;
         $t->contains('<blockquote class="wp-block-quote"><p>Inherited quoted detail.</p></blockquote>', $blocksHtml);
         $t->contains('<p>Indented but not quoted.</p>', $blocksHtml);
     },
+    'maps ODT preformatted paragraph styles into code blocks' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithPreformattedParagraph = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="Preformatted_20_Text" style:family="paragraph" style:display-name="Preformatted Text"/>
+    <style:style style:name="InheritedSourceCode" style:family="paragraph" style:parent-style-name="Preformatted_20_Text" style:display-name="Inherited Source Code"/>
+    <style:style style:name="BodyText" style:family="paragraph" style:display-name="Body Text"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithPreformattedParagraph = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="InheritedSourceCode">define('WP_DEBUG', true);<text:line-break/>echo <text:span>sanitize_text_field</text:span>($title);<text:tab/>// review</text:p>
+      <text:p text:style-name="BodyText">Following review prose stays a paragraph.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPreformattedParagraph, null, $stylesWithPreformattedParagraph));
+        $blocks = $result['document']->children;
+        $code = $blocks[0];
+        $paragraph = $blocks[1];
+
+        $t->same(2, count($blocks));
+        $t->same('code_block', $code->type);
+        $t->same("define('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review", $code->attr('text'));
+        $t->same('odt', $code->attr('sourceFormat'));
+        $t->same(true, $code->attr('odfPreformatted'));
+        $t->same('InheritedSourceCode', $code->attr('styleName'));
+        $t->same('Preformatted_20_Text', $code->attr('style')['parentName']);
+        $t->same('true', $code->attr('attributes')['data-odf-preformatted']);
+        $t->same('InheritedSourceCode', $code->attr('attributes')['data-odf-style-name']);
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Following review prose stays a paragraph.', $paragraph->attr('text'));
+        $t->same(1, $result['importReport']['content']['preformattedCodeBlockCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains("```{data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
+        $t->contains('<pre class="wp-block-code"><code>define(&#039;WP_DEBUG&#039;, true);', $blocksHtml);
+        $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
+        $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
+    },
     'maps ODT content XML blocks to the shared Pandoc-like AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage());
         $document = $result['document'];

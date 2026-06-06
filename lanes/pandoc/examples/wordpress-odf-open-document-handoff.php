@@ -47,6 +47,8 @@ $stylesXml = <<<'XML'
     <style:style style:name="ReviewQuote" style:family="paragraph" style:display-name="Review Quote">
       <style:paragraph-properties fo:margin-left="6mm"/>
     </style:style>
+    <style:style style:name="Preformatted_20_Text" style:family="paragraph" style:display-name="Preformatted Text"/>
+    <style:style style:name="SourceCode" style:family="paragraph" style:parent-style-name="Preformatted_20_Text" style:display-name="Source Code"/>
     <style:style style:name="Table" style:family="paragraph" style:display-name="Table"/>
     <style:style style:name="StrongSource" style:family="text">
       <style:text-properties fo:font-weight="bold" fo:font-style="italic"/>
@@ -169,6 +171,7 @@ $contentXml = <<<'XML'
       </text:section>
       <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps localized <text:ruby><text:ruby-base>漢字</text:ruby-base><text:ruby-text>kanji</text:ruby-text></text:ruby> source mark<text:span text:style-name="SourceSuperscript">TM</text:span> and H<text:span text:style-name="SourceSubscript">2</text:span>O, <office:annotation office:name="ann-source-range"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated source claim<office:annotation-end office:name="ann-source-range"/>, <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, index mark <text:alphabetical-index-mark-start text:id="idx-source-claim" text:string-value="source claim" text:key1="Migration" text:key2="ODT" text:main-entry="true"/>source claim<text:alphabetical-index-mark-end text:id="idx-source-claim"/>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, review field <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> from source package <text:user-field-get text:name="SourcePackage"/> on page <text:page-number text:select-page="current">2</text:page-number>, approval <draw:control draw:control="ctrl-review-approval"/>, <text:a xlink:href="https://example.test/odt-source" xlink:type="simple" xlink:show="new" xlink:actuate="onRequest" office:name="Source Packet Link" office:title="ODT source package" office:target-frame-name="_blank" text:style-name="SourceLink" text:visited-style-name="VisitedSourceLink">source URL</text:a>, page boundary <text:soft-page-break/>after source page boundary, tab stop<text:tab/>converted, citation <text:bibliography-mark text:identifier="source-review" text:number="2">source review packet</text:bibliography-mark>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object%201"/></draw:frame>, spreadsheet <draw:frame draw:name="Source spreadsheet"><draw:object-ole xlink:href="./Object%202"/></draw:frame>, chart <draw:frame draw:name="Source chart"><svg:desc>Source chart placeholder</svg:desc><draw:object xlink:href="./Object%203"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:p text:style-name="ReviewQuote">Quoted source decision survives as review context.</text:p>
+      <text:p text:style-name="SourceCode">define('WP_IMPORTING', true);<text:line-break/>echo sanitize_text_field($title);<text:tab/>// source audit</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-header><text:p>Review packet checklist</text:p></text:list-header>
         <text:list-item>
@@ -376,6 +379,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<blockquote class="wp-block-quote"><p>Quoted source decision survives as review context.</p></blockquote>')) {
         throw new RuntimeException('Expected ODT indented paragraph style to render as a WordPress quote block');
+    }
+    if (($result['importReport']['content']['preformattedCodeBlockCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT preformatted paragraph styles to be counted as code block handoffs');
+    }
+    if (!str_contains($blocks, '<pre class="wp-block-code"><code>define(&#039;WP_IMPORTING&#039;, true);')) {
+        throw new RuntimeException('Expected ODT preformatted source style to render as a WordPress code block');
+    }
+    if (!str_contains($blocks, 'echo sanitize_text_field($title); // source audit</code></pre>')) {
+        throw new RuntimeException('Expected ODT preformatted source line-break and tab content to normalize in WordPress code output');
     }
     if (!str_contains($blocks, 'data-odf-section-source-href="Sections/policy-appendix.odt"')) {
         throw new RuntimeException('Expected ODT linked section source href to render in WordPress blocks');
