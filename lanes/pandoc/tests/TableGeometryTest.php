@@ -785,6 +785,87 @@ $buildMalformedSpanNormalizationDocument = static function (): AstNode {
     ]);
 };
 
+$buildColgroupWriterHandoffDocument = static function (): AstNode {
+    $colgroupAttributes = [
+        'htmlAttributes' => [
+            'data-source' => 'legacy-doc',
+            'data-review' => 'import',
+        ],
+    ];
+
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Column source writer audit',
+            'alignments' => ['right', 'right', 'center'],
+            'widths' => [0.25, 0.25, 0.5],
+            'columnSources' => [
+                [
+                    'column' => 0,
+                    'kind' => 'col',
+                    'colgroupIndex' => 0,
+                    'colIndex' => 0,
+                    'sourceSpan' => 2,
+                    'spanOffset' => 0,
+                    'verticalAlignment' => 'bottom',
+                    'colgroupAttributes' => $colgroupAttributes,
+                    'colAttributes' => [
+                        'htmlAttributes' => [
+                            'data-origin' => 'col-a',
+                            'title' => 'Scope pair',
+                        ],
+                    ],
+                ],
+                [
+                    'column' => 1,
+                    'kind' => 'col',
+                    'colgroupIndex' => 0,
+                    'colIndex' => 0,
+                    'sourceSpan' => 2,
+                    'spanOffset' => 1,
+                    'verticalAlignment' => 'bottom',
+                    'colgroupAttributes' => $colgroupAttributes,
+                    'colAttributes' => [
+                        'htmlAttributes' => [
+                            'data-origin' => 'col-a',
+                            'title' => 'Scope pair',
+                        ],
+                    ],
+                ],
+                [
+                    'column' => 2,
+                    'kind' => 'col',
+                    'colgroupIndex' => 0,
+                    'colIndex' => 1,
+                    'sourceSpan' => 1,
+                    'spanOffset' => 0,
+                    'verticalAlignment' => 'top',
+                    'colgroupAttributes' => $colgroupAttributes,
+                    'colAttributes' => [
+                        'htmlAttributes' => [
+                            'data-origin' => 'col-b',
+                        ],
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -883,6 +964,70 @@ return [
         $t->same(true, $partialDiagnostics[0]['hasPartialWidths'] ?? null);
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($partialDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'reports colgroup provenance writer handoff diagnostics for non-html table writers' => static function (TestRunner $t) use ($buildColgroupWriterHandoffDocument): void {
+        $table = $buildColgroupWriterHandoffDocument()->children[0];
+        $columnGroups = TableGeometry::columnGroups($table);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex', 'wordpress'],
+        ]);
+
+        $t->same(2, count($columnGroups));
+        $t->same([0, 1], $columnGroups[0]['columns'] ?? null);
+        $t->same([0, 1], $columnGroups[0]['spanOffsets'] ?? null);
+        $t->same('legacy-doc', $columnGroups[0]['source']['colgroupAttributes']['htmlAttributes']['data-source'] ?? null);
+        $t->same('col-a', $columnGroups[0]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same([2], $columnGroups[1]['columns'] ?? null);
+        $t->same('top', $columnGroups[1]['source']['verticalAlignment'] ?? null);
+        $t->same('col-b', $columnGroups[1]['source']['colAttributes']['htmlAttributes']['data-origin'] ?? null);
+
+        $t->same([
+            'markdown-column-widths-approximated',
+            'markdown-colgroup-provenance-require-raw-html',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same(['asciidoc-colgroup-provenance-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same(['latex-colgroup-provenance-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same($asciidocDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'adoc'));
+        $t->same($latexDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+
+        $colgroupDiagnostic = $markdownDiagnostics[1];
+        $t->same('colgroup-provenance', $colgroupDiagnostic['reason'] ?? null);
+        $t->same('raw-html-colgroup-provenance', $colgroupDiagnostic['requiredFeature'] ?? null);
+        $t->same('pandoc-column-sources', $colgroupDiagnostic['source'] ?? null);
+        $t->same('Column source writer audit', $colgroupDiagnostic['caption'] ?? null);
+        $t->same(true, $colgroupDiagnostic['hasCaption'] ?? null);
+        $t->same(3, $colgroupDiagnostic['columnCount'] ?? null);
+        $t->same(2, $colgroupDiagnostic['columnGroupCount'] ?? null);
+        $t->same(3, $colgroupDiagnostic['groupedColumnCount'] ?? null);
+        $t->same(2, $colgroupDiagnostic['sourceAttributeGroupCount'] ?? null);
+        $t->same(7, $colgroupDiagnostic['sourceAttributeCount'] ?? null);
+        $t->same(['col'], $colgroupDiagnostic['groupKinds'] ?? null);
+        $t->same($columnGroups, $colgroupDiagnostic['groups'] ?? null);
+
+        $t->same('colgroup-provenance-review', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(2, $asciidocDiagnostics[0]['columnGroupCount'] ?? null);
+        $t->same('colgroup-provenance-review', $latexDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(7, $latexDiagnostics[0]['sourceAttributeCount'] ?? null);
+
+        $t->same(['markdown', 'asciidoc', 'latex', 'wordpress'], array_keys($packet['writerDowngrades']));
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->same(4, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-column-widths-approximated',
+            'markdown-colgroup-provenance-require-raw-html',
+            'asciidoc-colgroup-provenance-review-required',
+            'latex-colgroup-provenance-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'normalizes declared and implicit pandoc column specs for review handoff' => static function (TestRunner $t) use ($buildDefaultColumnSpecDocument): void {

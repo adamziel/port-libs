@@ -1421,7 +1421,29 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<table id="colgroup-alignment-grid" data-source="html-reader"><colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup><thead><tr><th style="text-align:right; vertical-align:bottom">Scope</th><th style="text-align:right; vertical-align:bottom">Items</th><th style="text-align:center; vertical-align:top">State</th></tr></thead>')) {
         throw new RuntimeException('Table geometry self-test missing WordPress output for expanded colgroup alignment metadata');
     }
+    $colgroupWriterPacket = TableGeometry::reviewPacket($colgroupAlignmentTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoctor', 'xelatex', 'wordpress'],
+    ]);
+    if (
+        ($colgroupWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== [
+            'markdown-column-widths-approximated',
+            'markdown-colgroup-provenance-require-raw-html',
+            'asciidoc-colgroup-provenance-review-required',
+            'latex-colgroup-provenance-review-required',
+        ]
+        || ($colgroupWriterPacket['writerDowngrades']['markdown'][1]['source'] ?? null) !== 'pandoc-column-sources'
+        || ($colgroupWriterPacket['writerDowngrades']['markdown'][1]['columnGroupCount'] ?? null) !== 2
+        || ($colgroupWriterPacket['writerDowngrades']['markdown'][1]['sourceAttributeGroupCount'] ?? null) !== 2
+        || ($colgroupWriterPacket['writerDowngrades']['markdown'][1]['groups'][0]['source']['colgroupAttributes']['htmlAttributes']['data-source'] ?? null) !== 'legacy-doc'
+        || ($colgroupWriterPacket['writerDowngrades']['asciidoc'][0]['requiredFeature'] ?? null) !== 'colgroup-provenance-review'
+        || ($colgroupWriterPacket['writerDowngrades']['latex'][0]['requiredFeature'] ?? null) !== 'colgroup-provenance-review'
+        || ($colgroupWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing non-HTML colgroup provenance writer diagnostics');
+    }
     json_encode($colgroupAlignmentPacket, JSON_THROW_ON_ERROR);
+    json_encode($colgroupWriterPacket, JSON_THROW_ON_ERROR);
 
     $colgroupMismatchTable = null;
     foreach ($document->children as $node) {

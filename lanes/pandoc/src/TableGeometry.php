@@ -2795,6 +2795,7 @@ final class TableGeometry
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
@@ -2861,6 +2862,7 @@ final class TableGeometry
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
@@ -2927,6 +2929,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::markdownColumnWidthDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
@@ -3059,6 +3062,119 @@ final class TableGeometry
             'scopes' => array_values(array_unique($scopes)),
             'locations' => $locations,
         ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function columnGroupWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-colgroup-provenance-require-raw-html', 'raw-html-colgroup-provenance'],
+            'asciidoc' => ['asciidoc-colgroup-provenance-review-required', 'colgroup-provenance-review'],
+            'latex' => ['latex-colgroup-provenance-review-required', 'colgroup-provenance-review'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $columnCount = self::columnCount($table);
+        $columnGroups = self::columnGroups($table, $columnCount);
+        if ($columnGroups === []) {
+            return [];
+        }
+
+        $groupedColumnCount = 0;
+        $sourceAttributeGroupCount = 0;
+        $sourceAttributeCount = 0;
+        $groupKinds = [];
+        foreach ($columnGroups as $group) {
+            $groupedColumnCount += count(is_array($group['columns'] ?? null) ? $group['columns'] : []);
+            $sourceAttributes = self::columnGroupSourceAttributeCount($group);
+            if ($sourceAttributes > 0) {
+                $sourceAttributeGroupCount++;
+                $sourceAttributeCount += $sourceAttributes;
+            }
+
+            $kind = trim((string) ($group['kind'] ?? ''));
+            if ($kind !== '') {
+                $groupKinds[] = $kind;
+            }
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'colgroup-provenance',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'pandoc-column-sources',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => $columnCount,
+            'columnGroupCount' => count($columnGroups),
+            'groupedColumnCount' => $groupedColumnCount,
+            'sourceAttributeGroupCount' => $sourceAttributeGroupCount,
+            'sourceAttributeCount' => $sourceAttributeCount,
+            'groupKinds' => array_values(array_unique($groupKinds)),
+            'groups' => $columnGroups,
+        ]];
+    }
+
+    /**
+     * @param array<string, mixed> $group
+     */
+    private static function columnGroupSourceAttributeCount(array $group): int
+    {
+        $source = $group['source'] ?? null;
+        if (!is_array($source)) {
+            return 0;
+        }
+
+        return self::sourceAttributeSummaryCount($source['colgroupAttributes'] ?? null)
+            + self::sourceAttributeSummaryCount($source['colAttributes'] ?? null);
+    }
+
+    private static function sourceAttributeSummaryCount(mixed $summary): int
+    {
+        if (!is_array($summary)) {
+            return 0;
+        }
+
+        $count = 0;
+        $id = trim((string) ($summary['id'] ?? ''));
+        if ($id !== '') {
+            $count++;
+        }
+
+        $classes = $summary['classes'] ?? [];
+        if (is_array($classes)) {
+            foreach ($classes as $class) {
+                if (is_scalar($class) && trim((string) $class) !== '') {
+                    $count++;
+                }
+            }
+        }
+
+        foreach (['attributes', 'htmlAttributes'] as $attributeKey) {
+            $attributes = $summary[$attributeKey] ?? [];
+            if (!is_array($attributes)) {
+                continue;
+            }
+
+            foreach ($attributes as $name => $value) {
+                if (!is_scalar($name) || trim((string) $name) === '') {
+                    continue;
+                }
+
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    $count++;
+                }
+            }
+        }
+
+        return $count;
     }
 
     /**
