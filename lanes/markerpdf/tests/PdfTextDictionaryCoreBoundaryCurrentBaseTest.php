@@ -605,6 +605,48 @@ return [
         $t->true(!str_contains($encoded, 'hidden disabled-link ref payload'));
         $t->true(!str_contains($encoded, 'javascript:alert'));
     },
+    'drops empty pdftext spans before link promotion at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['blocks'][0]['lines'][0]['spans'] = [
+            [
+                'text' => '',
+                'bbox' => [72.0, 96.0, 72.0, 110.0],
+                'font' => ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0],
+                'url' => 'https://example.com/empty-link',
+                'raw_empty_payload' => 'empty safe-link span payload must not cross dictionary_output',
+            ],
+            [
+                'text' => "\x00",
+                'bbox' => [74.0, 96.0, 74.0, 110.0],
+                'font' => ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0],
+                'url' => 'javascript:empty()',
+                'raw_empty_payload' => 'empty unsafe-link span payload must not cross dictionary_output',
+            ],
+            [
+                'text' => "Visible import\n",
+                'bbox' => [76.0, 96.0, 176.0, 110.0],
+                'font' => ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0],
+                'url' => 'https://example.com/visible',
+            ],
+        ];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
+        $charSpans = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(1, count($spans));
+        $t->same(1, count($charSpans));
+        $t->same('Visible import', $spans[0]['text']);
+        $t->same("Visible import\n", $charSpans[0]['text']);
+        $t->same('https://example.com/visible', $spans[0]['url']);
+        $t->same('[Visible import](https://example.com/visible)', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'https://example.com/empty-link'));
+        $t->true(!str_contains($encoded, 'javascript:empty'));
+        $t->true(!str_contains($encoded, 'empty safe-link span payload'));
+        $t->true(!str_contains($encoded, 'empty unsafe-link span payload'));
+    },
     'rejects non string pdftext span urls before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['blocks'][0]['lines'][0]['spans'][1]['url'] = ['https://example.com/not-a-string'];

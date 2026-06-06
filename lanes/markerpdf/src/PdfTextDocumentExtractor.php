@@ -382,6 +382,9 @@ final class PdfTextDocumentExtractor
                 }
                 if (array_key_exists('text', $span) && is_string($span['text'])) {
                     $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
+                    if ($sanitizedSpan['text'] === '') {
+                        continue;
+                    }
                 }
                 if ($keepChars) {
                     if (!array_key_exists('chars', $span)) {
