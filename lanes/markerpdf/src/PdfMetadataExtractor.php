@@ -8985,7 +8985,7 @@ final class PdfMetadataExtractor
      */
     private function xmpRdfCollectionItems(DOMElement $element): array
     {
-        $directItems = $this->xmpChildElements($element, self::NS_RDF, 'li');
+        $directItems = $this->xmpDirectRdfCollectionItems($element);
         if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
@@ -9036,7 +9036,7 @@ final class PdfMetadataExtractor
      */
     private function xmpRdfContainerItems(DOMElement $container): array
     {
-        $directItems = $this->xmpChildElements($container, self::NS_RDF, 'li');
+        $directItems = $this->xmpDirectRdfCollectionItems($container);
         if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
@@ -9056,7 +9056,7 @@ final class PdfMetadataExtractor
      */
     private function xmpRdfResourceWrappedCollectionItems(DOMElement $description): array
     {
-        $directItems = $this->xmpChildElements($description, self::NS_RDF, 'li');
+        $directItems = $this->xmpDirectRdfCollectionItems($description);
         if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
@@ -9084,7 +9084,7 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $directItems = $this->xmpChildElements($target, self::NS_RDF, 'li');
+        $directItems = $this->xmpDirectRdfCollectionItems($target);
         if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
@@ -9106,6 +9106,42 @@ final class PdfMetadataExtractor
         }
 
         return $this->xmpRdfResourceReferenceCollectionItems($target, $seenResourceIds);
+    }
+
+    /**
+     * RDF/XML permits container membership properties such as rdf:_1 and
+     * rdf:_2 in addition to the common XMP rdf:li shorthand.
+     *
+     * @return list<DOMElement>
+     */
+    private function xmpDirectRdfCollectionItems(DOMElement $element): array
+    {
+        $items = $this->xmpChildElements($element, self::NS_RDF, 'li');
+        if ($this->xmpRdfCollectionItemsHaveValues($items)) {
+            return $items;
+        }
+
+        $members = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof DOMElement || $child->namespaceURI !== self::NS_RDF) {
+                continue;
+            }
+
+            if (preg_match('/^_([1-9][0-9]*)$/', $child->localName, $match) !== 1) {
+                continue;
+            }
+
+            $index = (int) $match[1];
+            $members[$index] ??= $child;
+        }
+
+        if ($members === []) {
+            return [];
+        }
+
+        ksort($members, SORT_NUMERIC);
+
+        return array_values($members);
     }
 
     /**
