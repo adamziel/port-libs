@@ -11448,6 +11448,13 @@ final class PdfMetadataExtractor
             return $entries;
         }
 
+        if (
+            $this->dictionaryTopLevelRawValue($sectionBody, 'XRefStm') !== null
+            && $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($sectionBody, 'Prev')) !== null
+        ) {
+            return $entries;
+        }
+
         $pending = [];
         foreach (['Root', 'Info'] as $name) {
             $reference = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($sectionBody, $name));
@@ -11897,6 +11904,7 @@ final class PdfMetadataExtractor
         if (
             $this->tokenStartsInPdfCommentLine($pdfBytes, $offset)
             || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $offset, $definitions)
+            || $this->xrefCandidateStartsAfterUnclosedTopLevelComposite($pdfBytes, $offset)
         ) {
             return null;
         }
@@ -11944,6 +11952,31 @@ final class PdfMetadataExtractor
             'entries' => $entries,
             'trailer' => $trailer,
         ];
+    }
+
+    private function xrefCandidateStartsAfterUnclosedTopLevelComposite(string $pdfBytes, int $offset): bool
+    {
+        $before = substr($pdfBytes, 0, $offset);
+        $lastEndObject = strrpos($before, 'endobj');
+        $lastEof = strrpos($before, '%%EOF');
+        $lastStartxref = strrpos($before, 'startxref');
+        $tailStart = max(
+            $lastEndObject === false ? 0 : $lastEndObject + strlen('endobj'),
+            $lastEof === false ? 0 : $lastEof + strlen('%%EOF'),
+            $lastStartxref === false ? 0 : $lastStartxref + strlen('startxref')
+        );
+        $tail = substr($pdfBytes, $tailStart, $offset - $tailStart);
+
+        $lastDictionaryOpen = strrpos($tail, '<<');
+        $lastDictionaryClose = strrpos($tail, '>>');
+        if ($lastDictionaryOpen !== false && ($lastDictionaryClose === false || $lastDictionaryOpen > $lastDictionaryClose)) {
+            return true;
+        }
+
+        $lastArrayOpen = strrpos($tail, '[');
+        $lastArrayClose = strrpos($tail, ']');
+
+        return $lastArrayOpen !== false && ($lastArrayClose === false || $lastArrayOpen > $lastArrayClose);
     }
 
     /**
