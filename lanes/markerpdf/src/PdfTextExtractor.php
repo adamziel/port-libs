@@ -7647,7 +7647,7 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             ...$dctFilterReview,
-            'dctdecode_stream_boundary' => $dctStreamBoundary,
+            ...($dctStreamBoundary === null ? [] : ['dctdecode_stream_boundary' => $dctStreamBoundary]),
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $decoded !== null && $previewOnlyFilters === [],
             'raw_length' => strlen($reviewStream),
@@ -11431,12 +11431,15 @@ final class PdfTextExtractor
             return $this->readPdfDictionaryAt($value, $offset);
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $value, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
         $objectNumber = (int) $match[1];
-        return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+        $generation = (int) $match[2];
+        $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+
+        return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
     }
 
     private function isStreamObject(string $objectBody): bool

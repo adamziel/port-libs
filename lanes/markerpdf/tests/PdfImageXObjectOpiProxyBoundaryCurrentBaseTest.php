@@ -68,4 +68,66 @@ return [
         $t->same(false, $opiEntry['payload_in_visible_text']);
         $t->same(true, $opiEntry['review_only']);
     },
+    'resolves image XObject OPI proxy dictionaries by exact generation' => static function (TestRunner $t): void {
+        $pageContent = 'BT /F1 12 Tf 72 740 Td (Before generation OPI image) Tj ET '
+            . 'q 30 0 0 15 72 690 cm /Generation#20Proxy#20Image Do Q '
+            . 'BT /F1 12 Tf 72 660 Td (After generation OPI image) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Generation OPI image payload noise) Tj ET';
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 800] /Resources << /Font << /F1 4 0 R >> /XObject << /Generation#20Proxy#20Image 5 0 R >> >> /Contents 6 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /OPI 7 1 R /Length " . strlen($imagePayload) . " >>\nstream\n{$imagePayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "7 1 obj\n<< /Type /OPI /Version 2.0 /F (current-highres-wordpress-hero.tif) /ImageType /current /IncludedImageDimensions [1200 600] /CropRect [0 0 300 150] /Position [0 0 30 0 30 15 0 15] /Resolution [600 300] /Overprint false >>\nendobj\n"
+            . "7 0 obj\n<< /Type /OPI /Version 1.3 /F (stale-highres-wordpress-hero.tif) /ImageType /stale /Resolution [72 72] >>\nendobj\n"
+            . "xref\n0 8\n0000000000 65535 f \ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+
+        $t->same("Before generation OPI image\nAfter generation OPI image", $plainText);
+        $t->true(!str_contains($plainText, 'Generation OPI image payload noise'));
+        $t->true(!str_contains($plainText, 'stale-highres-wordpress-hero.tif'));
+        $t->true(!str_contains($plainText, 'current-highres-wordpress-hero.tif'));
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+
+        $entry = $review['entries'][0];
+        $encodedReview = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same('Generation Proxy Image', $entry['resource_name']);
+        $t->same(hash('sha256', $imagePayload), $entry['decoded_sha256']);
+        $t->same(false, $entry['payload_in_visible_text']);
+        $t->true(!str_contains($encodedReview, 'Generation OPI image payload noise'));
+        $t->true(!str_contains($encodedReview, 'stale-highres-wordpress-hero.tif'));
+        $t->true(str_contains($encodedReview, 'current-highres-wordpress-hero.tif'));
+
+        $opi = $entry['opi_proxy_review'];
+        $t->same(true, $opi['present']);
+        $t->same(true, $opi['resolved']);
+        $t->same(1, $opi['entry_count']);
+        $t->same([], $opi['unresolved_versions']);
+        $t->same(false, $opi['payload_in_visible_text']);
+        $t->same(true, $opi['review_only']);
+
+        $opiEntry = $opi['entries'][0];
+        $t->same('2', $opiEntry['version']);
+        $t->same(true, $opiEntry['resolved']);
+        $t->same('OPI', $opiEntry['type']);
+        $t->same(2.0, $opiEntry['version_value']);
+        $t->same('current-highres-wordpress-hero.tif', $opiEntry['file_specification']);
+        $t->same('current', $opiEntry['image_type']);
+        $t->same([1200.0, 600.0], $opiEntry['included_image_dimensions']);
+        $t->same([0.0, 0.0, 300.0, 150.0], $opiEntry['crop_rect']);
+        $t->same([0.0, 0.0, 30.0, 0.0, 30.0, 15.0, 0.0, 15.0], $opiEntry['position']);
+        $t->same([600.0, 300.0], $opiEntry['resolution']);
+        $t->same(false, $opiEntry['overprint']);
+        $t->same(false, $opiEntry['payload_in_visible_text']);
+        $t->same(true, $opiEntry['review_only']);
+    },
 ];
