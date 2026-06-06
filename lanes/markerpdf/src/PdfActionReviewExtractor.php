@@ -19,6 +19,51 @@ final class PdfActionReviewExtractor
         'XYZ' => true,
     ];
 
+    private const PDF_DOC_ENCODING_OVERRIDES = [
+        0x18 => 0x02d8,
+        0x19 => 0x02c7,
+        0x1a => 0x02c6,
+        0x1b => 0x02d9,
+        0x1c => 0x02dd,
+        0x1d => 0x02db,
+        0x1e => 0x02da,
+        0x1f => 0x02dc,
+        0x7f => 0xfffd,
+        0x80 => 0x2022,
+        0x81 => 0x2020,
+        0x82 => 0x2021,
+        0x83 => 0x2026,
+        0x84 => 0x2014,
+        0x85 => 0x2013,
+        0x86 => 0x0192,
+        0x87 => 0x2044,
+        0x88 => 0x2039,
+        0x89 => 0x203a,
+        0x8a => 0x2212,
+        0x8b => 0x2030,
+        0x8c => 0x201e,
+        0x8d => 0x201c,
+        0x8e => 0x201d,
+        0x8f => 0x2018,
+        0x90 => 0x2019,
+        0x91 => 0x201a,
+        0x92 => 0x2122,
+        0x93 => 0xfb01,
+        0x94 => 0xfb02,
+        0x95 => 0x0141,
+        0x96 => 0x0152,
+        0x97 => 0x0160,
+        0x98 => 0x0178,
+        0x99 => 0x017d,
+        0x9a => 0x0131,
+        0x9b => 0x0142,
+        0x9c => 0x0153,
+        0x9d => 0x0161,
+        0x9e => 0x017e,
+        0x9f => 0xfffd,
+        0xa0 => 0x20ac,
+    ];
+
     private const SUBMIT_FORM_FLAG_NAMES = [
         2 => 'include_no_value_fields',
         3 => 'html_format',
@@ -1903,7 +1948,7 @@ final class PdfActionReviewExtractor
      * @param array<string, mixed> $node
      * @param array<string, mixed> $destinations
      * @param array<string, true> $seen
-     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      */
     private function collectNameTreeDestinations(
         array $node,
@@ -1925,18 +1970,18 @@ final class PdfActionReviewExtractor
                 : $inheritedLimits;
 
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
-                $name = $this->stringValue($this->resolveValue($names[$index]));
+                $name = $this->pdfStringDetails($this->resolveValue($names[$index]));
                 if ($name === null) {
                     $index++;
                     continue;
                 }
 
                 if (
-                    $name !== ''
-                    && $this->nameTreeNameWithinLimits($name, $entryLimits)
+                    $name['text'] !== ''
+                    && $this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationValueAllowedForMap($names[$index + 1])
                 ) {
-                    $destinations[$name] = $names[$index + 1];
+                    $destinations[$name['text']] = $names[$index + 1];
                 }
                 $index += 2;
             }
@@ -1967,8 +2012,8 @@ final class PdfActionReviewExtractor
 
     /**
      * @param array<string, mixed> $node
-     * @param array{lower: string, upper: string}|null $inheritedLimits
-     * @return array{lower: string, upper: string}|null
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeEffectiveLimits(array $node, ?array $inheritedLimits): ?array
     {
@@ -1981,21 +2026,28 @@ final class PdfActionReviewExtractor
             return $nodeLimits;
         }
 
-        $limits = [
-            'lower' => strcmp($nodeLimits['lower'], $inheritedLimits['lower']) < 0
-                ? $inheritedLimits['lower']
-                : $nodeLimits['lower'],
-            'upper' => strcmp($nodeLimits['upper'], $inheritedLimits['upper']) > 0
-                ? $inheritedLimits['upper']
-                : $nodeLimits['upper'],
-        ];
+        $lower = strcmp($nodeLimits['lower_bytes'], $inheritedLimits['lower_bytes']) < 0
+            ? ['text' => $inheritedLimits['lower'], 'bytes' => $inheritedLimits['lower_bytes']]
+            : ['text' => $nodeLimits['lower'], 'bytes' => $nodeLimits['lower_bytes']];
+        $upper = strcmp($nodeLimits['upper_bytes'], $inheritedLimits['upper_bytes']) > 0
+            ? ['text' => $inheritedLimits['upper'], 'bytes' => $inheritedLimits['upper_bytes']]
+            : ['text' => $nodeLimits['upper'], 'bytes' => $nodeLimits['upper_bytes']];
 
-        return strcmp($limits['lower'], $limits['upper']) > 0 ? $inheritedLimits : $limits;
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
+            return $inheritedLimits;
+        }
+
+        return [
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
+        ];
     }
 
     /**
      * @param array<string, mixed> $node
-     * @return array{lower: string, upper: string}|null
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeNodeLimits(array $node): ?array
     {
@@ -2004,38 +2056,44 @@ final class PdfActionReviewExtractor
             return null;
         }
 
-        $lower = $this->stringValue($this->resolveValue($limits[0]));
-        $upper = $this->stringValue($this->resolveValue($limits[1]));
-        if ($lower === null || $upper === null || $lower === '' || $upper === '') {
+        $lower = $this->pdfStringDetails($this->resolveValue($limits[0]));
+        $upper = $this->pdfStringDetails($this->resolveValue($limits[1]));
+        if ($lower === null || $upper === null || $lower['text'] === '' || $upper['text'] === '') {
             return null;
         }
-        if (strcmp($lower, $upper) > 0) {
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
             return null;
         }
 
         return [
-            'lower' => $lower,
-            'upper' => $upper,
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
         ];
     }
 
     /**
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
-    private function nameTreeNameWithinLimits(string $name, ?array $limits): bool
+    private function nameTreeNameWithinLimits(string $name, ?array $limits, ?string $nameBytes = null): bool
     {
         if ($limits === null) {
             return true;
         }
 
-        return strcmp($limits['lower'], $limits['upper']) <= 0
-            && strcmp($name, $limits['lower']) >= 0
-            && strcmp($name, $limits['upper']) <= 0;
+        $candidate = $nameBytes ?? $name;
+        $lower = $limits['lower_bytes'] ?? $limits['lower'];
+        $upper = $limits['upper_bytes'] ?? $limits['upper'];
+
+        return strcmp($lower, $upper) <= 0
+            && strcmp($candidate, $lower) >= 0
+            && strcmp($candidate, $upper) <= 0;
     }
 
     /**
      * @param list<mixed> $items
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
     private function nameTreeLimitsMatchAnyPairKey(array $items, ?array $limits): bool
     {
@@ -2044,13 +2102,13 @@ final class PdfActionReviewExtractor
         }
 
         for ($index = 0, $count = count($items); $index + 1 < $count;) {
-            $name = $this->stringValue($this->resolveValue($items[$index]));
+            $name = $this->pdfStringDetails($this->resolveValue($items[$index]));
             if ($name === null) {
                 $index++;
                 continue;
             }
 
-            if ($this->nameTreeNameWithinLimits($name, $limits)) {
+            if ($this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
             $index += 2;
@@ -2186,11 +2244,15 @@ final class PdfActionReviewExtractor
         }
 
         if (str_starts_with($token, '(')) {
-            return ['pdfType' => 'string', 'value' => $this->decodeLiteralString($token)];
+            $bytes = $this->literalStringBytes($token);
+
+            return ['pdfType' => 'string', 'value' => $this->decodePdfStringBytes($bytes), 'bytes' => $bytes];
         }
 
         if (str_starts_with($token, '<')) {
-            return ['pdfType' => 'string', 'value' => $this->decodeHexString($token)];
+            $bytes = $this->hexStringBytes($token);
+
+            return ['pdfType' => 'string', 'value' => $this->decodePdfStringBytes($bytes), 'bytes' => $bytes];
         }
 
         if ($token === 'null') {
@@ -2371,6 +2433,21 @@ final class PdfActionReviewExtractor
             : null;
     }
 
+    /**
+     * @return array{text: string, bytes: string}|null
+     */
+    private function pdfStringDetails(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['pdfType'] ?? null) !== 'string' || !is_string($value['value'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'text' => $value['value'],
+            'bytes' => is_string($value['bytes'] ?? null) ? $value['bytes'] : $value['value'],
+        ];
+    }
+
     private function stringOrNameValue(mixed $value): ?string
     {
         $string = $this->stringValue($value);
@@ -2538,7 +2615,7 @@ final class PdfActionReviewExtractor
         return strtolower($match[1]);
     }
 
-    private function decodeLiteralString(string $token): string
+    private function literalStringBytes(string $token): string
     {
         $bytes = substr($token, 1, -1);
         $decoded = '';
@@ -2579,10 +2656,10 @@ final class PdfActionReviewExtractor
             };
         }
 
-        return $this->decodePdfStringBytes($decoded);
+        return $decoded;
     }
 
-    private function decodeHexString(string $token): string
+    private function hexStringBytes(string $token): string
     {
         $hex = preg_replace('/\s+/', '', substr($token, 1, -1));
         if ($hex === null || $hex === '' || preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
@@ -2593,7 +2670,7 @@ final class PdfActionReviewExtractor
         }
 
         $bytes = hex2bin($hex);
-        return $bytes === false ? '' : $this->decodePdfStringBytes($bytes);
+        return $bytes === false ? '' : $bytes;
     }
 
     private function decodePdfStringBytes(string $bytes): string
@@ -2618,6 +2695,21 @@ final class PdfActionReviewExtractor
             return $decoded === false ? '' : $decoded;
         }
 
-        return $bytes;
+        return $this->decodePdfDocEncoding($bytes);
+    }
+
+    private function decodePdfDocEncoding(string $bytes): string
+    {
+        $decoded = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            $codepoint = self::PDF_DOC_ENCODING_OVERRIDES[$byte] ?? $byte;
+            $char = mb_chr($codepoint, 'UTF-8');
+            if ($char !== false) {
+                $decoded .= $char;
+            }
+        }
+
+        return $decoded;
     }
 }
