@@ -2083,6 +2083,143 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamAuto($zipUpload, strlen($zipPackage->bytes()) - 1));
     },
 
+    'discovers nested archive package streams without extracting package entries' => static function (TestRunner $t): void {
+        $innerZip = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Nested ZIP review packet</w:p></w:body></w:document>',
+            ],
+        ]);
+        $innerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/inner.md',
+                'data' => "# Nested TAR packet\n\nReady for review.\n",
+            ],
+            [
+                'name' => 'packet/deeper/export.zip',
+                'data' => $innerZip->bytes(),
+            ],
+        ]);
+        $gzipInnerTar = GzipStream::build($innerTar->bytes(), [
+            'filename' => 'review-inner.tar',
+            'comment' => 'nested gzip tar packet',
+        ]);
+        $gzipInnerZip = GzipStream::build($innerZip->bytes(), [
+            'filename' => 'signature-only.zip',
+        ]);
+        $outerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Outer packet\n\nDo not treat this as an archive.\n",
+            ],
+            [
+                'name' => 'packet/nested/review.tar.gz',
+                'data' => $gzipInnerTar,
+            ],
+            [
+                'name' => 'packet/nested/document.docx',
+                'data' => $innerZip->bytes(),
+            ],
+            [
+                'name' => 'packet/nested/signature.bin',
+                'data' => $gzipInnerZip,
+            ],
+            [
+                'name' => 'packet/nested/broken.zip',
+                'data' => "PK\x03\x04truncated-review-candidate",
+            ],
+        ]);
+        $upload = GzipStream::build($outerTar->bytes(), [
+            'filename' => 'wordpress-nested-review.tar',
+            'comment' => 'outer archive with nested packages',
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            2
+        );
+        $depthOne = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            1
+        );
+
+        $byPath = [];
+        foreach ($inspection['entries'] as $entry) {
+            $byPath[$entry['path']] = $entry;
+        }
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $inspection['rootKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['rootFormat']);
+        $t->same('metadata-only-no-extraction', $inspection['policy']);
+        $t->same(2, $inspection['maxDepth']);
+        $t->same(5, $inspection['candidateCount']);
+        $t->same(4, $inspection['packageCount']);
+        $t->same(1, $inspection['diagnosticCount']);
+        $t->same([
+            'packet/nested/review.tar.gz',
+            'packet/nested/review.tar.gz!packet/deeper/export.zip',
+            'packet/nested/document.docx',
+            'packet/nested/signature.bin',
+            'packet/nested/broken.zip',
+        ], array_map(static fn (array $entry): string => $entry['path'], $inspection['entries']));
+
+        $t->same('package', $byPath['packet/nested/review.tar.gz']['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $byPath['packet/nested/review.tar.gz']['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $byPath['packet/nested/review.tar.gz']['format']);
+        $t->same(['extension:gzip-tar', 'signature:gzip'], $byPath['packet/nested/review.tar.gz']['candidateReasons']);
+        $t->same(['packet/inner.md', 'packet/deeper/export.zip'], $byPath['packet/nested/review.tar.gz']['entryNames']);
+        $t->same('tar', $byPath['packet/nested/review.tar.gz']['parentKind']);
+        $t->same(1, $byPath['packet/nested/review.tar.gz']['depth']);
+        $t->same(strlen($gzipInnerTar), $byPath['packet/nested/review.tar.gz']['size']);
+        $t->same([], $byPath['packet/nested/review.tar.gz']['diagnostics']);
+
+        $t->same('package', $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['format']);
+        $t->same(['extension:zip', 'signature:zip'], $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['candidateReasons']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['entryNames']);
+        $t->same('tar', $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['parentKind']);
+        $t->same(2, $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['depth']);
+
+        $t->same('package', $byPath['packet/nested/document.docx']['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath['packet/nested/document.docx']['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $byPath['packet/nested/document.docx']['format']);
+        $t->same(['extension:zip-package', 'signature:zip'], $byPath['packet/nested/document.docx']['candidateReasons']);
+        $t->same(2, $byPath['packet/nested/document.docx']['entryCount']);
+
+        $t->same('package', $byPath['packet/nested/signature.bin']['status']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath['packet/nested/signature.bin']['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $byPath['packet/nested/signature.bin']['format']);
+        $t->same(['signature:gzip'], $byPath['packet/nested/signature.bin']['candidateReasons']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $byPath['packet/nested/signature.bin']['entryNames']);
+
+        $t->same('unreadable', $byPath['packet/nested/broken.zip']['status']);
+        $t->same(null, $byPath['packet/nested/broken.zip']['kind']);
+        $t->same(null, $byPath['packet/nested/broken.zip']['format']);
+        $t->same(['extension:zip', 'signature:zip'], $byPath['packet/nested/broken.zip']['candidateReasons']);
+        $t->true(str_contains($byPath['packet/nested/broken.zip']['diagnostics'][0] ?? '', 'nested-package-detection-failed:'));
+
+        $t->same(4, $depthOne['candidateCount']);
+        $t->same(3, $depthOne['packageCount']);
+        $t->same(1, $depthOne['diagnosticCount']);
+        $t->same([
+            'packet/nested/review.tar.gz',
+            'packet/nested/document.docx',
+            'packet/nested/signature.bin',
+            'packet/nested/broken.zip',
+        ], array_map(static fn (array $entry): string => $entry['path'], $depthOne['entries']));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectNestedPackageStreamsAuto($upload, null, null, -1));
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

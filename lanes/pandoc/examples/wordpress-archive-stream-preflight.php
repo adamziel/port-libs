@@ -8,6 +8,7 @@ use PortLibs\Pandoc\ArchiveCompressionStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
+use PortLibs\Pandoc\ZipPackage;
 
 $rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, bool $withEndMarker = true): string {
     $octal = static function (int $value, int $length): string {
@@ -102,6 +103,8 @@ $linkPolicySourceBytes = "# Link target source\n\nReady for WordPress archive li
 $sparsePolicyTypePayload = 'gnu sparse payload fragment';
 $sparsePolicyPaxPayload = 'schily sparse payload fragment';
 $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
+$nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
+$nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 
 $archive = TarArchive::fromEntries([
     [
@@ -259,6 +262,58 @@ $signedChecksumInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     strlen($signedChecksumArchiveBytes),
     strlen($signedChecksumContentBytes)
 );
+$nestedZipPackage = ZipPackage::fromParts([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $nestedWordXml,
+    ],
+]);
+$nestedInnerTar = TarArchive::fromEntries([
+    [
+        'name' => 'packet/nested-source.md',
+        'data' => $nestedSourceBytes,
+    ],
+    [
+        'name' => 'packet/deeper/document.docx',
+        'data' => $nestedZipPackage->bytes(),
+    ],
+]);
+$nestedArchiveBytes = TarArchive::fromEntries([
+    [
+        'name' => 'packet/content.md',
+        'data' => "# Nested outer packet\n\nReady for WordPress review.\n",
+    ],
+    [
+        'name' => 'packet/nested/review.tar.gz',
+        'data' => GzipStream::build($nestedInnerTar->bytes(), [
+            'filename' => 'nested-review.tar',
+            'comment' => 'nested tar review packet',
+        ]),
+    ],
+    [
+        'name' => 'packet/nested/document.docx',
+        'data' => $nestedZipPackage->bytes(),
+    ],
+    [
+        'name' => 'packet/nested/broken.zip',
+        'data' => "PK\x03\x04truncated-nested-review",
+    ],
+])->bytes();
+$nestedGzip = GzipStream::build($nestedArchiveBytes, [
+    'filename' => 'wordpress-nested-archive-review.tar',
+    'comment' => 'nested archive discovery preflight',
+]);
+$nestedInspection = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+    $nestedGzip,
+    strlen($nestedArchiveBytes),
+    strlen($nestedArchiveBytes),
+    2
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -306,6 +361,14 @@ if (in_array('--self-test', $argv, true)) {
         'signedChecksumFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'signedChecksumName' => "packet/signed-\u{2603}-checksum.md",
         'signedChecksumModifiedAt' => 1780479083,
+        'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'nestedCandidateCount' => 4,
+        'nestedPackageCount' => 3,
+        'nestedDiagnosticCount' => 1,
+        'nestedFirstPath' => 'packet/nested/review.tar.gz',
+        'nestedDeeperPath' => 'packet/nested/review.tar.gz!packet/deeper/document.docx',
+        'nestedBrokenPath' => 'packet/nested/broken.zip',
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -370,6 +433,21 @@ if (in_array('--self-test', $argv, true)) {
         || ($signedChecksumInspection['entryLayouts'][0]['modifiedAt'] ?? null) !== $expected['signedChecksumModifiedAt']
         || ($signedChecksumInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-signed-checksum.tar'
         || $signedChecksumInspection['archive']->read('/' . $expected['signedChecksumName']) !== $signedChecksumContentBytes
+        || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
+        || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
+        || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
+        || $nestedInspection['packageCount'] !== $expected['nestedPackageCount']
+        || $nestedInspection['diagnosticCount'] !== $expected['nestedDiagnosticCount']
+        || ($nestedInspection['entries'][0]['path'] ?? null) !== $expected['nestedFirstPath']
+        || ($nestedInspection['entries'][0]['kind'] ?? null) !== ArchiveCompressionStream::PACKAGE_KIND_TAR
+        || ($nestedInspection['entries'][0]['format'] ?? null) !== ArchiveCompressionStream::FORMAT_GZIP_TAR
+        || ($nestedInspection['entries'][1]['path'] ?? null) !== $expected['nestedDeeperPath']
+        || ($nestedInspection['entries'][1]['kind'] ?? null) !== ArchiveCompressionStream::PACKAGE_KIND_ZIP
+        || ($nestedInspection['entries'][1]['format'] ?? null) !== ArchiveCompressionStream::FORMAT_ZIP
+        || ($nestedInspection['entries'][2]['path'] ?? null) !== 'packet/nested/document.docx'
+        || ($nestedInspection['entries'][2]['candidateReasons'] ?? []) !== ['extension:zip-package', 'signature:zip']
+        || ($nestedInspection['entries'][3]['path'] ?? null) !== $expected['nestedBrokenPath']
+        || ($nestedInspection['entries'][3]['status'] ?? null) !== 'unreadable'
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -418,3 +496,9 @@ echo 'sparsePolicy.schilyName=' . $sparsePolicyInspection['entries'][1]['name'] 
 echo 'signedChecksum.format=' . $signedChecksumInspection['format'] . "\n";
 echo 'signedChecksum.entry=' . $signedChecksumInspection['entryNames'][0] . "\n";
 echo 'signedChecksum.modifiedAt=' . $signedChecksumInspection['entryLayouts'][0]['modifiedAt'] . "\n";
+echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
+echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
+echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";
+echo 'nested.packageCount=' . $nestedInspection['packageCount'] . "\n";
+echo 'nested.diagnosticCount=' . $nestedInspection['diagnosticCount'] . "\n";
+echo 'nested.paths=' . implode(',', array_map(static fn (array $entry): string => $entry['path'], $nestedInspection['entries'])) . "\n";

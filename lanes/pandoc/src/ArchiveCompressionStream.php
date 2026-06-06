@@ -120,6 +120,70 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{
+     *     rootKind:string,
+     *     rootFormat:string,
+     *     rootEntryCount:int,
+     *     maxDepth:int,
+     *     policy:string,
+     *     candidateCount:int,
+     *     packageCount:int,
+     *     diagnosticCount:int,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectNestedPackageStreamsAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null,
+        int $maxDepth = 1
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($maxDepth < 0) {
+            throw new \RuntimeException('Nested archive inspection max depth must not be negative');
+        }
+
+        $root = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+        $entries = [];
+        if ($maxDepth > 0) {
+            self::collectNestedPackageEntries(
+                $root,
+                '',
+                1,
+                $maxDepth,
+                $maxUncompressedBytes,
+                $maxUnpackedBytes,
+                $entries
+            );
+        }
+
+        $packageCount = 0;
+        $diagnosticCount = 0;
+        foreach ($entries as $entry) {
+            if (($entry['status'] ?? null) === 'package') {
+                $packageCount++;
+            }
+
+            if (($entry['diagnostics'] ?? []) !== []) {
+                $diagnosticCount++;
+            }
+        }
+
+        return [
+            'rootKind' => $root['kind'],
+            'rootFormat' => $root['format'],
+            'rootEntryCount' => count(self::candidateEntryNames($root)),
+            'maxDepth' => $maxDepth,
+            'policy' => 'metadata-only-no-extraction',
+            'candidateCount' => count($entries),
+            'packageCount' => $packageCount,
+            'diagnosticCount' => $diagnosticCount,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function inspectPackageStreamAuto(
@@ -1033,6 +1097,296 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @param array<string, mixed> $candidate
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function collectNestedPackageEntries(
+        array $candidate,
+        string $parentPath,
+        int $depth,
+        int $maxDepth,
+        ?int $maxUncompressedBytes,
+        ?int $maxUnpackedBytes,
+        array &$entries
+    ): void {
+        foreach (self::nestedPackagePayloads($candidate, $maxUncompressedBytes) as $payload) {
+            $reasons = self::nestedPackageCandidateReasons($payload['entryName'], $payload['data']);
+            if ($reasons === []) {
+                continue;
+            }
+
+            $path = $parentPath === ''
+                ? $payload['entryName']
+                : $parentPath . '!' . $payload['entryName'];
+            $base = [
+                'path' => $path,
+                'parentPath' => $parentPath,
+                'parentKind' => $payload['parentKind'],
+                'entryName' => $payload['entryName'],
+                'depth' => $depth,
+                'size' => $payload['size'],
+                'candidateReasons' => $reasons,
+                'policy' => 'metadata-only-no-extraction',
+            ];
+
+            if ($payload['readError'] !== null) {
+                $entries[] = $base + [
+                    'status' => 'unreadable',
+                    'kind' => null,
+                    'format' => null,
+                    'entryCount' => 0,
+                    'entryNames' => [],
+                    'uncompressedSize' => null,
+                    'packageByteSize' => null,
+                    'diagnostics' => ['nested-package-read-failed: ' . $payload['readError']],
+                ];
+                continue;
+            }
+
+            try {
+                $nested = self::detectPackageCandidate(
+                    $payload['data'],
+                    $maxUncompressedBytes,
+                    $maxUnpackedBytes
+                );
+            } catch (\RuntimeException $exception) {
+                $entries[] = $base + [
+                    'status' => 'unreadable',
+                    'kind' => null,
+                    'format' => null,
+                    'entryCount' => 0,
+                    'entryNames' => [],
+                    'uncompressedSize' => null,
+                    'packageByteSize' => null,
+                    'diagnostics' => ['nested-package-detection-failed: ' . $exception->getMessage()],
+                ];
+                continue;
+            }
+
+            $entries[] = $base + self::nestedPackageSummary($nested);
+            if ($depth < $maxDepth) {
+                self::collectNestedPackageEntries(
+                    $nested,
+                    $path,
+                    $depth + 1,
+                    $maxDepth,
+                    $maxUncompressedBytes,
+                    $maxUnpackedBytes,
+                    $entries
+                );
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     * @return iterable<array{parentKind:string, entryName:string, size:int, data:?string, readError:?string}>
+     */
+    private static function nestedPackagePayloads(array $candidate, ?int $maxUncompressedBytes): iterable
+    {
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR) {
+            $archive = $candidate['archive'] ?? null;
+            if (!$archive instanceof TarArchive) {
+                return;
+            }
+
+            foreach ($archive->entries() as $entry) {
+                if (!$entry->isRegularFile()) {
+                    continue;
+                }
+
+                yield [
+                    'parentKind' => self::PACKAGE_KIND_TAR,
+                    'entryName' => $entry->name,
+                    'size' => $entry->size,
+                    'data' => $archive->read($entry->name),
+                    'readError' => null,
+                ];
+            }
+
+            return;
+        }
+
+        $package = $candidate['package'] ?? null;
+        if (!$package instanceof ZipPackage) {
+            return;
+        }
+
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory()) {
+                continue;
+            }
+
+            try {
+                $data = $package->read($entry->name, $maxUncompressedBytes);
+                $readError = null;
+            } catch (\RuntimeException $exception) {
+                $data = null;
+                $readError = $exception->getMessage();
+            }
+
+            yield [
+                'parentKind' => self::PACKAGE_KIND_ZIP,
+                'entryName' => $entry->name,
+                'size' => $entry->uncompressedSize,
+                'data' => $data,
+                'readError' => $readError,
+            ];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     * @return array<string, mixed>
+     */
+    private static function nestedPackageSummary(array $candidate): array
+    {
+        $entryNames = self::candidateEntryNames($candidate);
+        $summary = [
+            'status' => 'package',
+            'kind' => $candidate['kind'],
+            'format' => $candidate['format'],
+            'entryCount' => count($entryNames),
+            'entryNames' => $entryNames,
+            'uncompressedSize' => self::candidateUncompressedSize($candidate),
+            'packageByteSize' => self::candidatePackageByteSize($candidate),
+            'diagnostics' => [],
+        ];
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR) {
+            $archive = $candidate['archive'];
+            $summary['regularFileCount'] = count(array_filter(
+                $archive->entries(),
+                static fn (TarArchiveEntry $entry): bool => $entry->isRegularFile()
+            ));
+            $summary['directoryCount'] = count(array_filter(
+                $archive->entries(),
+                static fn (TarArchiveEntry $entry): bool => $entry->isDirectory()
+            ));
+            $summary['unpackedSize'] = self::archiveUnpackedSize($archive);
+        } elseif (($candidate['kind'] ?? null) === self::PACKAGE_KIND_ZIP) {
+            $summary['entryUncompressedSize'] = self::zipPackageUncompressedSize($candidate['package']);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     * @return list<string>
+     */
+    private static function candidateEntryNames(array $candidate): array
+    {
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR && ($candidate['archive'] ?? null) instanceof TarArchive) {
+            return $candidate['archive']->names();
+        }
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_ZIP && ($candidate['package'] ?? null) instanceof ZipPackage) {
+            return $candidate['package']->names();
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     */
+    private static function candidateUncompressedSize(array $candidate): ?int
+    {
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR && isset($candidate['tarBytes']) && is_string($candidate['tarBytes'])) {
+            return strlen($candidate['tarBytes']);
+        }
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_ZIP && isset($candidate['zipBytes']) && is_string($candidate['zipBytes'])) {
+            return strlen($candidate['zipBytes']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     */
+    private static function candidatePackageByteSize(array $candidate): ?int
+    {
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR && isset($candidate['tarBytes']) && is_string($candidate['tarBytes'])) {
+            return strlen($candidate['tarBytes']);
+        }
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_ZIP && isset($candidate['zipBytes']) && is_string($candidate['zipBytes'])) {
+            return strlen($candidate['zipBytes']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function nestedPackageCandidateReasons(string $entryName, ?string $data): array
+    {
+        $reasons = self::nestedPackageNameCandidateReasons($entryName);
+        if ($data !== null) {
+            if (self::startsWithZipHeader($data)) {
+                $reasons[] = 'signature:zip';
+            }
+            if (self::startsWithGzipHeader($data)) {
+                $reasons[] = 'signature:gzip';
+            }
+            if (self::startsWithZlibHeader($data)) {
+                $reasons[] = 'signature:zlib';
+            }
+            if (self::startsWithLz4Header($data)) {
+                $reasons[] = 'signature:lz4';
+            }
+            if (self::startsWithTarHeader($data)) {
+                $reasons[] = 'signature:tar';
+            }
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function nestedPackageNameCandidateReasons(string $entryName): array
+    {
+        $lower = strtolower($entryName);
+        $extensionMap = [
+            '.tar.gz' => 'extension:gzip-tar',
+            '.tgz' => 'extension:gzip-tar',
+            '.tar.zlib' => 'extension:zlib-tar',
+            '.tar.deflate' => 'extension:raw-deflate-tar',
+            '.tar.lz4' => 'extension:lz4-tar',
+            '.tlz4' => 'extension:lz4-tar',
+            '.tar' => 'extension:tar',
+            '.zip.gz' => 'extension:gzip-zip',
+            '.zip.zlib' => 'extension:zlib-zip',
+            '.zip.deflate' => 'extension:raw-deflate-zip',
+            '.zip.lz4' => 'extension:lz4-zip',
+            '.zip' => 'extension:zip',
+            '.docx' => 'extension:zip-package',
+            '.dotx' => 'extension:zip-package',
+            '.docm' => 'extension:zip-package',
+            '.odt' => 'extension:zip-package',
+            '.ods' => 'extension:zip-package',
+            '.odp' => 'extension:zip-package',
+            '.epub' => 'extension:zip-package',
+        ];
+
+        $reasons = [];
+        foreach ($extensionMap as $suffix => $reason) {
+            if (str_ends_with($lower, $suffix)) {
+                $reasons[] = $reason;
+                break;
+            }
+        }
+
+        return $reasons;
+    }
+
+    /**
      * @return list<string>
      */
     private static function candidateTarFormats(string $bytes): array
@@ -1122,6 +1476,15 @@ final class ArchiveCompressionStream
         $magic = (int) $values['magic'];
 
         return $magic === 0x184d2204 || ($magic >= 0x184d2a50 && $magic <= 0x184d2a5f);
+    }
+
+    private static function startsWithTarHeader(string $bytes): bool
+    {
+        return strlen($bytes) >= 512
+            && (
+                substr($bytes, 257, 6) === "ustar\0"
+                || substr($bytes, 257, 8) === "ustar  \0"
+            );
     }
 
     /**
