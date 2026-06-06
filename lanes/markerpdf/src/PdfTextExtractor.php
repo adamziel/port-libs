@@ -6362,7 +6362,7 @@ final class PdfTextExtractor
                 $formHasOwnResources,
                 $formInvocationStates,
                 $pageBoundaryClipReview,
-                $formHasOwnResources ? null : $pageResourceReview
+                $pageResourceReview
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
             }
