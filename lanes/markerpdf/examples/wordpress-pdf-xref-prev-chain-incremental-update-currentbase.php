@@ -44,6 +44,7 @@ $addObject = static function (int $objectNumber, int $generation, string $body) 
 };
 $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
 $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+$zeroWidthXrefStreamRow = static fn (int $type, int $generation): string => chr($type) . chr($generation);
 
 $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R >>');
 $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
@@ -804,6 +805,63 @@ $compressedPrevAttachmentPdf .= "40 0 obj\n"
     . "stream\n{$compressedPrevAttachmentRowsCompressed}\nendstream\nendobj\n"
     . "startxref\n{$compressedPrevAttachmentCurrentXrefOffset}\n%%EOF";
 
+$zeroWidthOffsetStalePayload = '<wp-export><post id="stale-zero-width-offset-smoke"/></wp-export>';
+$zeroWidthOffsetCurrentPayload = '<wp-export><post id="current-zero-width-offset-smoke"/></wp-export>';
+$zeroWidthOffsetPdf = "%PDF-1.7\n";
+$zeroWidthOffsetOffsets = [];
+$addZeroWidthOffsetObject = static function (int $objectNumber, int $generation, string $body) use (&$zeroWidthOffsetPdf, &$zeroWidthOffsetOffsets): int {
+    $offset = strlen($zeroWidthOffsetPdf);
+    $zeroWidthOffsetOffsets[$objectNumber . ':' . $generation] = $offset;
+    $zeroWidthOffsetPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addZeroWidthOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addZeroWidthOffsetObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+$addZeroWidthOffsetObject(8, 0, '<< /Names [(stale-zero-width-offset-smoke.xml) 10 0 R] >>');
+$addZeroWidthOffsetObject(10, 0, '<< /Type /Filespec /F (stale-zero-width-offset-smoke.xml) /Desc (Stale zero-width offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addZeroWidthOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($zeroWidthOffsetStalePayload) . " >>\nstream\n{$zeroWidthOffsetStalePayload}\nendstream");
+
+$zeroWidthOffsetPreviousXrefOffset = strlen($zeroWidthOffsetPdf);
+$zeroWidthOffsetPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($zeroWidthOffsetOffsets['1:0'])
+    . $xrefTableRow($zeroWidthOffsetOffsets['2:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($zeroWidthOffsetOffsets['8:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($zeroWidthOffsetOffsets['10:0'])
+    . $xrefTableRow($zeroWidthOffsetOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+    . "startxref\n{$zeroWidthOffsetPreviousXrefOffset}\n%%EOF\n";
+
+$addZeroWidthOffsetObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+$addZeroWidthOffsetObject(8, 0, '<< /Names [(current-zero-width-offset-smoke.xml) 10 0 R] >>');
+$addZeroWidthOffsetObject(10, 0, '<< /Type /Filespec /F (current-zero-width-offset-smoke.xml) /Desc (Current zero-width offset smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addZeroWidthOffsetObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($zeroWidthOffsetCurrentPayload) . " >>\nstream\n{$zeroWidthOffsetCurrentPayload}\nendstream");
+
+$zeroWidthOffsetRows = ''
+    . $zeroWidthXrefStreamRow(1, 0)
+    . $zeroWidthXrefStreamRow(1, 0)
+    . $zeroWidthXrefStreamRow(1, 0)
+    . $zeroWidthXrefStreamRow(1, 0);
+$zeroWidthOffsetRowsCompressed = gzcompress($zeroWidthOffsetRows);
+if (!is_string($zeroWidthOffsetRowsCompressed)) {
+    throw new RuntimeException('Unable to compress zero-width xref-stream offset smoke rows.');
+}
+
+$zeroWidthOffsetCurrentXrefOffset = strlen($zeroWidthOffsetPdf);
+$zeroWidthOffsetPdf .= "40 0 obj\n"
+    . '<< /Type /XRef /Size 41 /Root 1 0 R /Prev ' . $zeroWidthOffsetPreviousXrefOffset . ' /Index [1 1 8 1 10 2] /W [1 0 1] /Filter /FlateDecode /Length ' . strlen($zeroWidthOffsetRowsCompressed) . " >>\n"
+    . "stream\n{$zeroWidthOffsetRowsCompressed}\nendstream\nendobj\n"
+    . "startxref\n{$zeroWidthOffsetCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -878,6 +936,12 @@ $infoNullEncoded = json_encode([
 ], JSON_UNESCAPED_SLASHES);
 $compressedPrevAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($compressedPrevAttachmentPdf);
 $compressedPrevAttachmentSummaryEncoded = json_encode($compressedPrevAttachmentSummary, JSON_UNESCAPED_SLASHES);
+$zeroWidthOffsetFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($zeroWidthOffsetPdf);
+$zeroWidthOffsetAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($zeroWidthOffsetPdf);
+$zeroWidthOffsetEncoded = json_encode([
+    'files' => $zeroWidthOffsetFiles,
+    'attachment_summary' => $zeroWidthOffsetAttachmentSummary,
+], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF xref /Prev chain current trailer generations repair damaged current in-use offsets before metadata import',
@@ -978,6 +1042,17 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'compressed_object_stream_prev_stale_attachment_excluded' => is_string($compressedPrevAttachmentSummaryEncoded)
         && !str_contains($compressedPrevAttachmentSummaryEncoded, 'previous-compressed-prev-smoke')
         && !str_contains($compressedPrevAttachmentSummaryEncoded, 'Previous compressed Prev smoke'),
+    'zero_width_xref_stream_offset_current_attachment_selected' => ($zeroWidthOffsetFiles[0]['filename'] ?? null) === 'current-zero-width-offset-smoke.xml'
+        && ($zeroWidthOffsetFiles[0]['content'] ?? null) === $zeroWidthOffsetCurrentPayload,
+    'zero_width_xref_stream_offset_attachment_preflight_selected' => ($zeroWidthOffsetAttachmentSummary['filenames'] ?? []) === ['current-zero-width-offset-smoke.xml']
+        && ($zeroWidthOffsetAttachmentSummary['total_bytes'] ?? null) === strlen($zeroWidthOffsetCurrentPayload),
+    'zero_width_xref_stream_offset_attachment_description_selected' => ($zeroWidthOffsetAttachmentSummary['attachments'][0]['description'] ?? null) === 'Current zero-width offset smoke attachment',
+    'zero_width_xref_stream_offset_field_omitted' => str_contains($zeroWidthOffsetPdf, '/W [1 0 1]'),
+    'zero_width_xref_stream_offset_stale_prev_excluded' => is_string($zeroWidthOffsetEncoded)
+        && !str_contains($zeroWidthOffsetEncoded, 'stale-zero-width-offset-smoke')
+        && !str_contains($zeroWidthOffsetEncoded, 'Stale zero-width offset smoke'),
+    'zero_width_xref_stream_offset_no_runtime_execution' => ($zeroWidthOffsetAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($zeroWidthOffsetAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

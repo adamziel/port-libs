@@ -4012,7 +4012,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      * @return array<int, array{generation: int, body: string, value: mixed, stream: string|null}>
      */
     private function withReferencedDirectGenerationObjects(array $objects, array $definitions, array $xrefEntries): array
@@ -4099,7 +4099,7 @@ final class PdfAttachmentExtractor
      * keep stream payloads attached only to direct EmbeddedFile stream objects.
      *
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
      * @return array<int, array{generation: int, body: string, value: mixed, stream: string|null}>
      */
     private function withCompressedObjectStreamObjects(array $objects, array $xrefEntries): array
@@ -4473,7 +4473,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param list<array{generation: int, offset: int, body: string}> $definitions
-     * @param array{type: int, generation?: int, offset?: int}|null $xrefEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}|null $xrefEntry
      * @return array{generation: int, offset: int, body: string}|null
      */
     private function selectedDirectObjectDefinition(array $definitions, ?array $xrefEntry): ?array
@@ -4515,7 +4515,9 @@ final class PdfAttachmentExtractor
                 return $definition;
             }
 
-            return null;
+            if (($xrefEntry['offsetIsExplicit'] ?? true) === true) {
+                return null;
+            }
         }
 
         $candidates = [];
@@ -4742,7 +4744,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
-     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
     {
@@ -5206,7 +5208,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
      * @param array<int, true> $seenOffsets
-     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefEntriesAtOffset(string $pdfBytes, int $offset, array $definitions, array $seenOffsets = []): array
     {
@@ -5315,10 +5317,10 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @param array<string, mixed> $sectionDictionary
-     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function repairOmittedCurrentUpdateGraphRows(
         array $entries,
@@ -5413,6 +5415,7 @@ final class PdfAttachmentExtractor
                 'type' => 1,
                 'generation' => $definition['generation'],
                 'offset' => $definition['offset'],
+                'offsetIsExplicit' => true,
             ];
 
             $valueOffset = 0;
@@ -5426,7 +5429,7 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int} $entry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array{generation: int, offset: int, body: string}|null
      */
@@ -5464,8 +5467,8 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
     private function currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
@@ -5535,9 +5538,9 @@ final class PdfAttachmentExtractor
      * object stream while omitting the carrier row. Recover only an in-window
      * direct /ObjStm carrier before stale /Prev rows are inherited.
      *
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function repairCurrentObjectStreamCarrierRows(
         array $entries,
@@ -5568,6 +5571,7 @@ final class PdfAttachmentExtractor
                     'type' => 1,
                     'generation' => $definition['generation'],
                     'offset' => $definition['offset'],
+                    'offsetIsExplicit' => true,
                 ];
                 continue;
             }
@@ -5593,6 +5597,7 @@ final class PdfAttachmentExtractor
                 'type' => 1,
                 'generation' => $definition['generation'],
                 'offset' => $definition['offset'],
+                'offsetIsExplicit' => true,
             ];
         }
 
@@ -5600,9 +5605,9 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $currentEntries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
     private function previousCompressedEntryUsesUpdatedObjectStream(
@@ -5655,9 +5660,9 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $currentEntry
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $previousEntry
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $currentEntry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $previousEntry
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $previousEntries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      */
     private function currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
@@ -5685,7 +5690,7 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
      */
     private function xrefEntriesContainType2CarrierReference(array $entries, int $objectStreamNumber): bool
     {
@@ -5699,7 +5704,7 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array{generation: int, offset: int, body: string}|null
      */
@@ -5713,8 +5718,8 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $left
-     * @param array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $right
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $left
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $right
      */
     private function xrefEntriesSelectSameStorage(array $left, array $right): bool
     {
@@ -5833,7 +5838,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
-     * @return array{entries: array<int, array{type: int, generation: int, offset: int}>, trailer: array<string, mixed>}|null
+     * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: array<string, mixed>}|null
      */
     private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
     {
@@ -6347,6 +6352,7 @@ final class PdfAttachmentExtractor
                     'type' => $match[3] === 'n' ? 1 : 0,
                     'generation' => (int) $match[2],
                     'offset' => (int) $match[1],
+                    'offsetIsExplicit' => true,
                 ];
                 $rowIndex++;
             }
@@ -6397,7 +6403,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array{dictionary: array<string, mixed>, stream: string, offset?: int} $section
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function xrefStreamEntriesFromSection(array $section, array $definitions = []): array
     {
@@ -6471,6 +6477,7 @@ final class PdfAttachmentExtractor
                         'type' => 1,
                         'offset' => $fieldTwo,
                         'generation' => $generation,
+                        'offsetIsExplicit' => $widths[1] > 0,
                     ];
                     continue;
                 }
