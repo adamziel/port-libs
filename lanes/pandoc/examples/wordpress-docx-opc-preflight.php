@@ -1027,6 +1027,8 @@ $strictXmlShapeGuards = [
     'contentTypeDefaultDotExtensionRejected' => false,
     'contentTypeOverrideRelativePartNameRejected' => false,
     'contentTypeOverrideDotSegmentRejected' => false,
+    'contentTypeOverrideRawSpaceRejected' => false,
+    'contentTypeOverrideTrailingDotSegmentRejected' => false,
     'contentTypeRootAttributeRejected' => false,
     'relationshipChildContentRejected' => false,
     'relationshipRootTextRejected' => false,
@@ -1057,6 +1059,16 @@ try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/./document.xml" ContentType="application/xml"/></Types>');
 } catch (InvalidArgumentException) {
     $strictXmlShapeGuards['contentTypeOverrideDotSegmentRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/media/raw source.png" ContentType="image/png"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeOverrideRawSpaceRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/media/trailing./source.png" ContentType="image/png"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeOverrideTrailingDotSegmentRejected'] = true;
 }
 try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" Extra="1"><Default Extension="xml" ContentType="application/xml"/></Types>');
@@ -1477,6 +1489,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeDefaultDotExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRelativePartNameRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideDotSegmentRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRawSpaceRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideTrailingDotSegmentRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeRootAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipChildContentRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipRootTextRejected'] ?? null) !== true

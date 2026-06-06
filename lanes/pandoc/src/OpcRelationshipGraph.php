@@ -2163,6 +2163,10 @@ final class OpcRelationshipGraph
             self::appendUniqueString($issues, 'internal-target-package-root-traversal');
         }
 
+        if (str_contains($parseError, 'segments must not end with a dot')) {
+            self::appendUniqueString($issues, 'internal-target-trailing-dot-segment');
+        }
+
         if (str_contains($parseError, 'target path must not be empty') || str_contains($parseError, 'target must not be empty')) {
             self::appendUniqueString($issues, 'internal-target-empty-path');
         }

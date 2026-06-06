@@ -212,12 +212,20 @@ final class OpcContentTypes
             throw new \InvalidArgumentException('OPC Override part name must be an absolute package URI');
         }
 
+        if (preg_match('/[\x00-\x20\x7F]/', $partName) === 1) {
+            throw new \InvalidArgumentException('OPC Override part name must not contain raw whitespace or control characters');
+        }
+
         $segments = explode('/', $partName);
         array_shift($segments);
         foreach ($segments as $segment) {
             $decoded = rawurldecode($segment);
             if ($decoded === '' || $decoded === '.' || $decoded === '..') {
                 throw new \InvalidArgumentException('OPC Override part name must not contain empty or dot path segments');
+            }
+
+            if (str_ends_with($decoded, '.')) {
+                throw new \InvalidArgumentException('OPC Override part name segments must not end with a dot');
             }
         }
     }

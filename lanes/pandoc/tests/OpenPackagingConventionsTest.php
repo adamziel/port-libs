@@ -314,10 +314,60 @@ XML;
             '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/./document.xml" ContentType="application/xml"/></Types>',
             '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word//document.xml" ContentType="application/xml"/></Types>',
             '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/%2E/document.xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/media/raw source.png" ContentType="image/png"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/media/trailing./source.png" ContentType="image/png"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/media/source%2E" ContentType="image/png"/></Types>',
             '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="/word/document.xml/" ContentType="application/xml"/></Types>',
         ] as $xml) {
             $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
         }
+    },
+    'rejects OPC package URI part names with raw whitespace or trailing dot segments' => static function (TestRunner $t): void {
+        $validXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/media/source%20diagram.png" ContentType="image/png"/>
+</Types>
+XML;
+
+        $types = OpcContentTypes::fromXml($validXml);
+        $t->same('image/png', $types->contentTypeForPart('/word/media/source diagram.png'));
+        $t->same('image/png', $types->contentTypeForPart('/word/media/source%20diagram.png'));
+        $t->contains('PartName="/word/media/source%20diagram.png"', $types->toXml());
+
+        foreach ([
+            '/word/media/raw source.png',
+            '/word/media/trailing./source.png',
+            '/word/media/source%2E',
+        ] as $partName) {
+            $xml = '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="' . $partName . '" ContentType="image/png"/></Types>';
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+
+        $relationships = new OpcRelationships('/word/document.xml');
+        $relationships->add(new OpcRelationship('rIdTrailingDotSegment', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', 'media/trailing./image.png'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdTrailingDotSegment'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/trailing./document.xml'));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $validXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdTrailingDotSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/trailing./image.png"/></Relationships>'],
+            ['name' => 'word/media/source diagram.png', 'data' => 'PNG'],
+        ]));
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $t->same(false, $targets['rIdTrailingDotSegment']['valid']);
+        $t->same(['invalid-target', 'internal-target-trailing-dot-segment'], $targets['rIdTrailingDotSegment']['issues']);
+        $t->same(null, $targets['rIdTrailingDotSegment']['exists']);
+        $t->same(null, $targets['rIdTrailingDotSegment']['contentType']);
     },
     'rejects OPC content type records with unexpected attributes or child content' => static function (TestRunner $t): void {
         $validWithWhitespace = OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml">   </Default><Override PartName="/word/document.xml" ContentType="application/xml"/></Types>');
@@ -1123,6 +1173,7 @@ XML;
   <Relationship Id="rIdEncodedDotSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="media/%2E%2E/styles.xml"/>
   <Relationship Id="rIdEncodedBackslash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%5Chidden.png"/>
   <Relationship Id="rIdEncodedNul" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%00hidden.png"/>
+  <Relationship Id="rIdTrailingDotSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/trailing./image.png"/>
 </Relationships>
 XML;
 
@@ -1150,6 +1201,7 @@ XML;
             'rIdEncodedDotSegment',
             'rIdEncodedBackslash',
             'rIdEncodedNul',
+            'rIdTrailingDotSegment',
         ], array_keys($preflight));
         $t->same(['invalid-target', 'internal-target-absolute-uri'], $preflight['rIdAbsoluteUri']['issues']);
         $t->same(['invalid-target', 'internal-target-network-path-reference'], $preflight['rIdAuthority']['issues']);
@@ -1160,11 +1212,12 @@ XML;
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-dot-segment'], $preflight['rIdEncodedDotSegment']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedBackslash']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedNul']['issues']);
-        $t->same(array_fill(0, 9, null), array_column(array_filter(
+        $t->same(['invalid-target', 'internal-target-trailing-dot-segment'], $preflight['rIdTrailingDotSegment']['issues']);
+        $t->same(array_fill(0, 10, null), array_column(array_filter(
             $graph->preflightAllRelationshipTargets(),
             static fn (array $target): bool => $target['source'] === '/word/document.xml',
         ), 'targetPart'));
-        $t->same(array_fill(0, 9, false), array_column($preflight, 'valid'));
+        $t->same(array_fill(0, 10, false), array_column($preflight, 'valid'));
     },
     'rejects percent encoded OPC relationship target dot segments' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
@@ -3742,12 +3795,14 @@ XML;
         $relationships->add(new OpcRelationship('rIdEncodedSlash', 't', 'media%2Fhidden.png'));
         $relationships->add(new OpcRelationship('rIdEncodedBackslash', 't', 'media%5Chidden.png'));
         $relationships->add(new OpcRelationship('rIdEncodedNul', 't', 'media%00hidden.png'));
+        $relationships->add(new OpcRelationship('rIdTrailingDotSegment', 't', 'media/trailing./image.png'));
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdBadEscape'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdAuthority'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedSlash'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedBackslash'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedNul'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdTrailingDotSegment'));
     },
     'rejects raw whitespace in internal OPC relationship target URI references' => static function (TestRunner $t): void {
         $relationships = new OpcRelationships('/word/document.xml');
@@ -3812,8 +3867,10 @@ XML;
         $t->same('/media/image.png?variant=review', OpcPackagePath::resolveInternalTarget('/word/document.xml', '../media/image.png?variant=review'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/document.xml#frag'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/trailing./document.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', ''));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', '../../evil.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'file:///tmp/evil.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'media/trailing./image.png'));
     },
 ];

@@ -35,6 +35,10 @@ final class OpcPackagePath
                 continue;
             }
 
+            if (str_ends_with($segment, '.')) {
+                throw new \InvalidArgumentException('OPC part path segments must not end with a dot');
+            }
+
             $segments[] = $segment;
         }
 
