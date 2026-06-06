@@ -17,6 +17,7 @@ final class PdfEngineHandoff
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
     private const MAX_FORM_XOBJECT_STREAM_BYTES = 262144;
+    private const MAX_PAGE_CONTENT_STREAM_BYTES = 262144;
     private const MAX_XREF_STREAM_BYTES = 262144;
     private const MAX_OBJECT_STREAM_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
@@ -270,6 +271,8 @@ final class PdfEngineHandoff
      *     pdfPageRotations: array<int, int>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
+     *     pdfPageContentResourceUsage: array<string, int>,
      *     pdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     pdfFontSubtypes: array<string, int>,
      *     pdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -685,6 +688,8 @@ final class PdfEngineHandoff
         $pdfPageRotations = [];
         $pdfPageLabels = [];
         $pdfPageTimings = [];
+        $pdfPageContentStreams = [];
+        $pdfPageContentResourceUsage = [];
         $pdfFonts = [];
         $pdfFontSubtypes = [];
         $pdfImages = [];
@@ -758,6 +763,8 @@ final class PdfEngineHandoff
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
+                $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
+                $pdfPageContentResourceUsage = $pdfInspection['pageContentResourceUsage'];
                 $pdfFonts = $pdfInspection['fonts'];
                 $pdfFontSubtypes = $pdfInspection['fontSubtypes'];
                 $pdfImages = $pdfInspection['images'];
@@ -854,6 +861,44 @@ final class PdfEngineHandoff
                     }
                     foreach ($this->summarizePdfPageTransitionTypes($pdfPageTimings) as $transitionType => $transitionCount) {
                         $diagnostics[] = 'pdf-byte-page-transition-type:' . $transitionType . ':' . $transitionCount;
+                    }
+                }
+                if ($pdfPageContentStreams !== []) {
+                    $diagnostics[] = 'pdf-byte-page-content-streams:' . count($pdfPageContentStreams);
+                    $pageContentTextObjects = 0;
+                    $pageContentImages = 0;
+                    $pageContentForms = 0;
+                    $pageContentMarkedBegins = 0;
+                    $pageContentStreamSkips = [];
+                    foreach ($pdfPageContentStreams as $contentStream) {
+                        $pageContentTextObjects += $contentStream['textObjectCount'] ?? 0;
+                        $pageContentImages += $contentStream['imagePaintCount'] ?? 0;
+                        $pageContentForms += $contentStream['formPaintCount'] ?? 0;
+                        $pageContentMarkedBegins += $contentStream['markedContentBeginCount'] ?? 0;
+                        if (is_string($contentStream['streamSkipped'] ?? null) && $contentStream['streamSkipped'] !== '') {
+                            $pageContentStreamSkips[$contentStream['streamSkipped']] = true;
+                        }
+                    }
+                    if ($pageContentTextObjects > 0) {
+                        $diagnostics[] = 'pdf-byte-page-content-text-objects:' . $pageContentTextObjects;
+                    }
+                    if ($pageContentImages > 0) {
+                        $diagnostics[] = 'pdf-byte-page-content-image-paints:' . $pageContentImages;
+                    }
+                    if ($pageContentForms > 0) {
+                        $diagnostics[] = 'pdf-byte-page-content-form-paints:' . $pageContentForms;
+                    }
+                    if ($pageContentMarkedBegins > 0) {
+                        $diagnostics[] = 'pdf-byte-page-content-marked-begins:' . $pageContentMarkedBegins;
+                    }
+                    foreach (array_keys($pageContentStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-page-content-stream-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfPageContentResourceUsage !== []) {
+                    $diagnostics[] = 'pdf-byte-page-content-resources:' . count($pdfPageContentResourceUsage);
+                    foreach ($pdfPageContentResourceUsage as $resourceName => $resourceUseCount) {
+                        $diagnostics[] = 'pdf-byte-page-content-resource:' . $resourceName . ':' . $resourceUseCount;
                     }
                 }
                 if ($pdfFonts !== []) {
@@ -1618,6 +1663,8 @@ final class PdfEngineHandoff
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageTimings' => $pdfPageTimings,
+            'pdfPageContentStreams' => $pdfPageContentStreams,
+            'pdfPageContentResourceUsage' => $pdfPageContentResourceUsage,
             'pdfFonts' => $pdfFonts,
             'pdfFontSubtypes' => $pdfFontSubtypes,
             'pdfImages' => $pdfImages,
@@ -1704,6 +1751,8 @@ final class PdfEngineHandoff
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
+     *     finalPdfPageContentResourceUsage: array<string, int>,
      *     finalPdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     finalPdfFontSubtypes: array<string, int>,
      *     finalPdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -1912,6 +1961,8 @@ final class PdfEngineHandoff
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
+            'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
+            'finalPdfPageContentResourceUsage' => is_array($finalRun) && is_array($finalRun['pdfPageContentResourceUsage'] ?? null) ? $finalRun['pdfPageContentResourceUsage'] : [],
             'finalPdfFonts' => is_array($finalRun) && is_array($finalRun['pdfFonts'] ?? null) ? $finalRun['pdfFonts'] : [],
             'finalPdfFontSubtypes' => is_array($finalRun) && is_array($finalRun['pdfFontSubtypes'] ?? null) ? $finalRun['pdfFontSubtypes'] : [],
             'finalPdfImages' => is_array($finalRun) && is_array($finalRun['pdfImages'] ?? null) ? $finalRun['pdfImages'] : [],
@@ -3017,6 +3068,8 @@ final class PdfEngineHandoff
      *     pageRotations:array<int, int>,
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
+     *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
+     *     pageContentResourceUsage:array<string, int>,
      *     fonts:list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
      *     fontSubtypes:array<string, int>,
      *     images:list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -3080,6 +3133,7 @@ final class PdfEngineHandoff
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
+        $pageContentStreams = $this->extractPdfPageContentStreams($pdfBytes, $catalog);
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
         $formXObjects = $this->extractPdfFormXObjects($pdfBytes, $catalog);
@@ -3114,6 +3168,8 @@ final class PdfEngineHandoff
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
+            'pageContentStreams' => $pageContentStreams,
+            'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
             'fonts' => $fonts,
             'fontSubtypes' => $this->summarizePdfFontSubtypes($fonts),
             'images' => $images,
@@ -8018,6 +8074,314 @@ final class PdfEngineHandoff
         ksort($types);
 
         return $types;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>
+     */
+    private function extractPdfPageContentStreams(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $streams = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageContentStreamsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                null,
+                $visited,
+                $streams,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($streams === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $pageStreams = $this->summarizePdfPageContentStreams($body, $reference, null, $objects);
+                foreach ($pageStreams as &$stream) {
+                    $stream['page'] = $pageNumber;
+                }
+                unset($stream);
+                array_push($streams, ...$pageStreams);
+            }
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}> $streams
+     */
+    private function collectPdfPageContentStreamsFromTree(
+        array $objects,
+        string $reference,
+        ?string $inheritedResources,
+        array &$visited,
+        array &$streams,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($body, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $pageStreams = $this->summarizePdfPageContentStreams($body, $reference, $resources, $objects);
+            foreach ($pageStreams as &$stream) {
+                $stream['page'] = $pageNumber;
+            }
+            unset($stream);
+            array_push($streams, ...$pageStreams);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageContentStreamsFromTree(
+                $objects,
+                $kidReference,
+                $resources,
+                $visited,
+                $streams,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>
+     */
+    private function summarizePdfPageContentStreams(string $pageDictionary, string $pageReference, ?string $resources, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($pageDictionary, 'Contents');
+        if ($value === null) {
+            return [];
+        }
+
+        $xobjectTypes = $resources === null ? [] : $this->pdfPageXObjectResourceTypes($resources, $objects);
+        $contentValues = [];
+        if ($value['kind'] === 'array') {
+            foreach ($this->pdfTopLevelArrayValues($value['value']) as $index => $arrayValue) {
+                $contentValues[] = [$arrayValue, 'Contents[' . $index . ']'];
+            }
+        } else {
+            $contentValues[] = [$value, 'Contents'];
+        }
+
+        $streams = [];
+        foreach ($contentValues as [$contentValue, $sourceSuffix]) {
+            $stream = $this->summarizePdfPageContentStreamValue(
+                $contentValue,
+                $objects,
+                $pageReference,
+                'page:' . $pageReference . ' R.' . $sourceSuffix,
+                $xobjectTypes
+            );
+            if ($stream !== null) {
+                $streams[] = $stream;
+            }
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int} $value
+     * @param array<string, string> $objects
+     * @param array<string, string> $xobjectTypes
+     * @return array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}|null
+     */
+    private function summarizePdfPageContentStreamValue(array $value, array $objects, string $pageReference, string $source, array $xobjectTypes): ?array
+    {
+        $contentObject = null;
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $contentDictionary = $objects[$reference] ?? null;
+            $contentObject = $reference . ' R';
+        } elseif ($value['kind'] === 'dictionary') {
+            $contentDictionary = $value['value'];
+        } else {
+            return null;
+        }
+
+        if ($contentDictionary === null) {
+            return null;
+        }
+
+        $filters = $this->extractPdfFilterNames($contentDictionary, $objects);
+        $bytes = $this->extractPdfStreamBytes($contentDictionary);
+        $summary = [
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'contentObject' => $contentObject,
+            'source' => $source,
+            'filters' => $filters,
+            'streamBytes' => $bytes === null ? null : strlen($bytes),
+            'streamSha256' => null,
+            'streamSkipped' => null,
+            'textObjectCount' => 0,
+            'imagePaintCount' => 0,
+            'formPaintCount' => 0,
+            'markedContentBeginCount' => 0,
+            'markedContentEndCount' => 0,
+            'mcidValues' => [],
+            'propertyNames' => [],
+            'resourceNames' => [],
+        ];
+
+        if ($bytes === null) {
+            return $summary;
+        }
+        if ($filters !== []) {
+            $summary['streamSkipped'] = 'filtered';
+
+            return $summary;
+        }
+        if (strlen($bytes) > self::MAX_PAGE_CONTENT_STREAM_BYTES) {
+            $summary['streamSkipped'] = 'too-large';
+
+            return $summary;
+        }
+
+        $summary['streamSha256'] = hash('sha256', $bytes);
+        $operators = $this->summarizePdfPageContentOperators($bytes, $xobjectTypes);
+        $summary['textObjectCount'] = $operators['textObjectCount'];
+        $summary['imagePaintCount'] = $operators['imagePaintCount'];
+        $summary['formPaintCount'] = $operators['formPaintCount'];
+        $summary['markedContentBeginCount'] = $operators['markedContentBeginCount'];
+        $summary['markedContentEndCount'] = $operators['markedContentEndCount'];
+        $summary['mcidValues'] = $operators['mcidValues'];
+        $summary['propertyNames'] = $operators['propertyNames'];
+        $summary['resourceNames'] = $operators['resourceNames'];
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array<string, string>
+     */
+    private function pdfPageXObjectResourceTypes(string $resources, array $objects): array
+    {
+        $xobjectDictionary = $this->extractPdfDictionaryOrReferenceValue($resources, 'XObject', $objects);
+        if ($xobjectDictionary === null) {
+            return [];
+        }
+
+        $types = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($xobjectDictionary) as $entry) {
+            $objectDictionary = null;
+            if ($entry['value']['kind'] === 'reference') {
+                $objectDictionary = $objects[$this->pdfReferenceKey($entry['value']['value'])] ?? null;
+            } elseif ($entry['value']['kind'] === 'dictionary') {
+                $objectDictionary = $entry['value']['value'];
+            }
+
+            if ($objectDictionary === null) {
+                continue;
+            }
+            $subtype = $this->extractPdfNameToken($objectDictionary, 'Subtype');
+            if ($subtype !== null && $subtype !== '') {
+                $types[$entry['key']] = $subtype;
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * @param array<string, string> $xobjectTypes
+     * @return array{textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}
+     */
+    private function summarizePdfPageContentOperators(string $bytes, array $xobjectTypes): array
+    {
+        $summary = [
+            'textObjectCount' => (int) preg_match_all('/(?<![A-Za-z0-9])BT(?![A-Za-z0-9])/', $bytes),
+            'imagePaintCount' => 0,
+            'formPaintCount' => 0,
+            'markedContentBeginCount' => (int) preg_match_all('/(?<![A-Za-z0-9])(?:BMC|BDC)(?![A-Za-z0-9])/', $bytes),
+            'markedContentEndCount' => (int) preg_match_all('/(?<![A-Za-z0-9])EMC(?![A-Za-z0-9])/', $bytes),
+            'mcidValues' => [],
+            'propertyNames' => [],
+            'resourceNames' => [],
+        ];
+
+        if (preg_match_all('/\/([A-Za-z0-9_.#+-]+)\s+Do\b/', $bytes, $matches) >= 1) {
+            foreach ($matches[1] as $name) {
+                $resourceName = $this->decodePdfNameToken($name);
+                if ($resourceName === '') {
+                    continue;
+                }
+                $summary['resourceNames'][] = $resourceName;
+                $subtype = $xobjectTypes[$resourceName] ?? null;
+                if ($subtype === 'Image') {
+                    $summary['imagePaintCount']++;
+                } elseif ($subtype === 'Form') {
+                    $summary['formPaintCount']++;
+                }
+            }
+        }
+        if (preg_match_all('/\/MCID\s+(-?\d+)/', $bytes, $matches) >= 1) {
+            foreach ($matches[1] as $mcid) {
+                $summary['mcidValues'][] = (int) $mcid;
+            }
+        }
+        if (preg_match_all('/\/([A-Za-z0-9_.#+-]+)(?:\s+(?:<<.*?>>|\/[A-Za-z0-9_.#+-]+))?\s+(?:BMC|BDC)\b/sU', $bytes, $matches) >= 1) {
+            foreach ($matches[1] as $name) {
+                $propertyName = $this->decodePdfNameToken($name);
+                if ($propertyName !== '') {
+                    $summary['propertyNames'][] = $propertyName;
+                }
+            }
+        }
+
+        $summary['mcidValues'] = array_values(array_unique($summary['mcidValues']));
+        sort($summary['mcidValues']);
+        $summary['propertyNames'] = $this->uniqueStrings($summary['propertyNames']);
+        $summary['resourceNames'] = $this->uniqueStrings($summary['resourceNames']);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}> $streams
+     * @return array<string, int>
+     */
+    private function summarizePdfPageContentResourceUsage(array $streams): array
+    {
+        $usage = [];
+        foreach ($streams as $stream) {
+            foreach ($stream['resourceNames'] as $resourceName) {
+                if (!is_string($resourceName) || $resourceName === '') {
+                    continue;
+                }
+
+                $usage[$resourceName] = ($usage[$resourceName] ?? 0) + 1;
+            }
+        }
+
+        ksort($usage);
+
+        return $usage;
     }
 
     /**

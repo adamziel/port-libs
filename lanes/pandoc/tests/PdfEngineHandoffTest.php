@@ -3035,6 +3035,151 @@ MARKDOWN);
         $t->same($expectedFiles, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner extracts bounded pdf page content stream operator metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-content.pdf']);
+        $contentOne = implode("\n", [
+            'q',
+            '/Span << /MCID 4 >> BDC',
+            'BT /F1 12 Tf (Review) Tj ET',
+            '/ImChart Do',
+            'EMC',
+            'Q',
+            '',
+        ]);
+        $contentTwo = "q /FxOverlay Do Q\n";
+        $filteredContent = "compressed content bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /ImChart 4 0 R /FxOverlay 5 0 R >> >> /Contents [6 0 R 7 0 R 8 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 320 /Height 180 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 144 72] /Length 0 >>',
+            'stream',
+            '',
+            'endstream',
+            'endobj',
+            '6 0 obj',
+            '<< /Length ' . strlen($contentOne) . ' >>',
+            'stream',
+            $contentOne,
+            'endstream',
+            'endobj',
+            '7 0 obj',
+            '<< /Length ' . strlen($contentTwo) . ' >>',
+            'stream',
+            $contentTwo,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Length ' . strlen($filteredContent) . ' /Filter /FlateDecode >>',
+            'stream',
+            $filteredContent,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-content.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-content.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'contentObject' => '6 0 R',
+                'source' => 'page:3 0 R.Contents[0]',
+                'filters' => [],
+                'streamBytes' => strlen($contentOne),
+                'streamSha256' => hash('sha256', $contentOne),
+                'streamSkipped' => null,
+                'textObjectCount' => 1,
+                'imagePaintCount' => 1,
+                'formPaintCount' => 0,
+                'markedContentBeginCount' => 1,
+                'markedContentEndCount' => 1,
+                'mcidValues' => [4],
+                'propertyNames' => ['Span'],
+                'resourceNames' => ['ImChart'],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'contentObject' => '7 0 R',
+                'source' => 'page:3 0 R.Contents[1]',
+                'filters' => [],
+                'streamBytes' => strlen($contentTwo),
+                'streamSha256' => hash('sha256', $contentTwo),
+                'streamSkipped' => null,
+                'textObjectCount' => 0,
+                'imagePaintCount' => 0,
+                'formPaintCount' => 1,
+                'markedContentBeginCount' => 0,
+                'markedContentEndCount' => 0,
+                'mcidValues' => [],
+                'propertyNames' => [],
+                'resourceNames' => ['FxOverlay'],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'contentObject' => '8 0 R',
+                'source' => 'page:3 0 R.Contents[2]',
+                'filters' => ['FlateDecode'],
+                'streamBytes' => strlen($filteredContent),
+                'streamSha256' => null,
+                'streamSkipped' => 'filtered',
+                'textObjectCount' => 0,
+                'imagePaintCount' => 0,
+                'formPaintCount' => 0,
+                'markedContentBeginCount' => 0,
+                'markedContentEndCount' => 0,
+                'mcidValues' => [],
+                'propertyNames' => [],
+                'resourceNames' => [],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageContentStreams'] ?? null);
+        $t->same(['FxOverlay' => 1, 'ImChart' => 1], $result['pdfPageContentResourceUsage'] ?? null);
+        $t->contains('pdf-byte-page-content-streams:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-content-text-objects:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-content-image-paints:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-content-form-paints:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-content-marked-begins:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-content-stream-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-content-resource:ImChart:1', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalPdfPageContentStreams'] ?? null);
+        $t->same(['FxOverlay' => 1, 'ImChart' => 1], $sequence['finalPdfPageContentResourceUsage'] ?? null);
+    },
+
     'fake runner extracts bounded pdf collection portfolio metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio.pdf']);
