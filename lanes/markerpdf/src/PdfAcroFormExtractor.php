@@ -9853,6 +9853,10 @@ final class PdfAcroFormExtractor
 
         $objectNumber = $this->validObjectReferenceFromValue($value, $objects);
         if ($objectNumber !== null) {
+            if ($this->objectIsStreamObject($objectNumber, $objects)) {
+                return null;
+            }
+
             return $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
         }
 
