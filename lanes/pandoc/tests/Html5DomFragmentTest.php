@@ -1034,6 +1034,49 @@ return [
         $t->same('<img src="https://example.test/import/assets/cover.png" srcset="https://example.test/import/assets/cover.png 1x, https://example.test/import/assets/cover@2x.png 2x" alt="Cover">', $relativeHtml);
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<a href="/review">review</a>', 'file:///tmp/source.html'));
     },
+    'converts safe meta refresh targets into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<meta http-equiv="refresh" content="5; url= ./next.html?draft=1&#10;">'
+            . '<meta http-equiv="Refresh" content="0; URL=java&#10;script:alert(1)">'
+            . '<meta name="viewport" content="width=device-width">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-refresh-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/next.html?draft=1" data-pandoc-meta-refresh="true">Refresh target</a><p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Refresh targetafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'meta'], $summary['blockedTags']);
+        $t->same(['content'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag'], $policyDiagnostics);
+        $t->same('a', $nodes[0]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/next.html?draft=1',
+            'data-pandoc-meta-refresh' => 'true',
+        ], $nodes[0]['attrs']);
+        $t->same('Refresh target', $nodes[0]['children'][0]['text']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('/migration/meta-refresh-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<meta'), 'Expected meta refresh elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe meta refresh URL to be stripped');
+        $t->true(!str_contains($html, 'width=device-width'), 'Expected passive viewport metadata to stay out of review HTML');
+    },
     'ignores inactive fallback base elements before resolving reviewer URLs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base href="https://inactive.example/assets/"><a href="template-note.html">template note</a></template>'

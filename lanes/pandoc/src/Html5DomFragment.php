@@ -442,6 +442,10 @@ final class Html5DomFragment
             return $label === null ? null : [['type' => 'text', 'text' => $label]];
         }
 
+        if ($mode === 'html' && $name === 'meta') {
+            return self::normalizeHtmlMetaElement($node, $diagnostics, $baseUrl);
+        }
+
         if ($mode === 'html' && self::isBlockedElement($name)) {
             $diagnostics[] = [
                 'code' => 'blocked-tag',
@@ -778,6 +782,86 @@ final class Html5DomFragment
         $label = str_replace("\0", '', $element->getAttribute($attribute));
 
         return trim($label) === '' ? null : $label;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>|null
+     */
+    private static function normalizeHtmlMetaElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
+    {
+        $diagnostics[] = [
+            'code' => 'blocked-tag',
+            'tag' => 'meta',
+        ];
+
+        $target = self::htmlMetaRefreshTarget($element);
+        if ($target === null) {
+            return null;
+        }
+
+        $normalizedTarget = self::normalizeUrlAttributeValue($target);
+        if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => 'meta',
+                'attribute' => 'content',
+            ];
+
+            return null;
+        }
+
+        if ($normalizedTarget !== $target) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => 'meta',
+                'attribute' => 'content',
+            ];
+        }
+
+        $href = $baseUrl !== null
+            ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+            : $normalizedTarget;
+
+        return [[
+            'type' => 'element',
+            'name' => 'a',
+            'attrs' => [
+                'href' => $href,
+                'data-pandoc-meta-refresh' => 'true',
+            ],
+            'children' => [
+                [
+                    'type' => 'text',
+                    'text' => 'Refresh target',
+                ],
+            ],
+        ]];
+    }
+
+    private static function htmlMetaRefreshTarget(\DOMElement $element): ?string
+    {
+        if (strcasecmp(trim($element->getAttribute('http-equiv')), 'refresh') !== 0) {
+            return null;
+        }
+        if (!$element->hasAttribute('content')) {
+            return null;
+        }
+
+        $content = $element->getAttribute('content');
+        if (preg_match('/(?:^|;)\s*url\s*=\s*(.+)\s*$/is', $content, $matches) !== 1) {
+            return null;
+        }
+
+        $target = trim((string) $matches[1]);
+        if (strlen($target) >= 2) {
+            $quote = $target[0];
+            if (($quote === '"' || $quote === "'") && str_ends_with($target, $quote)) {
+                $target = substr($target, 1, -1);
+            }
+        }
+
+        return $target;
     }
 
     /**
