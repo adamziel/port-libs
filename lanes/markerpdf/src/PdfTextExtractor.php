@@ -11033,6 +11033,18 @@ final class PdfTextExtractor
         array $objects,
         array $optionalContentStates
     ): bool {
+        $visibilityExpression = $this->pdfValueAfterName($dictionary, 'VE');
+        if ($visibilityExpression !== null) {
+            $expressionVisible = $this->optionalContentVisibilityExpressionVisible(
+                $visibilityExpression,
+                $objects,
+                $optionalContentStates
+            );
+            if ($expressionVisible !== null) {
+                return $expressionVisible;
+            }
+        }
+
         $ocgs = $this->pdfValueAfterName($dictionary, 'OCGs');
         if ($ocgs === null) {
             return true;
@@ -11050,6 +11062,167 @@ final class PdfTextExtractor
             'AllOff' => !in_array(true, $values, true),
             default => in_array(true, $values, true),
         };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int|string, bool> $optionalContentStates
+     * @param array<string, true> $seen
+     */
+    private function optionalContentVisibilityExpressionVisible(
+        string $value,
+        array $objects,
+        array $optionalContentStates,
+        array $seen = []
+    ): ?bool {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $key = $this->optionalContentReferenceKey($reference['objectNumber'], $reference['generation']);
+            if (isset($seen[$key])) {
+                return null;
+            }
+
+            $body = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$key] = true;
+            return $this->optionalContentVisibilityExpressionVisible(
+                $body,
+                $objects,
+                $optionalContentStates,
+                $seen
+            );
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $items = $this->pdfArrayItems($arrayBody);
+        if ($items === []) {
+            return null;
+        }
+
+        $operator = array_shift($items);
+        if (!is_string($operator) || !str_starts_with($operator, '/')) {
+            return null;
+        }
+
+        $operator = $this->decodePdfName(substr($operator, 1));
+        if (($operator === 'And' || $operator === 'Or') && $items === []) {
+            return null;
+        }
+        if ($operator === 'Not' && count($items) !== 1) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($items as $item) {
+            $visible = $this->optionalContentVisibilityExpressionOperandVisible(
+                $item,
+                $objects,
+                $optionalContentStates,
+                $seen
+            );
+            if ($visible === null) {
+                return null;
+            }
+            $values[] = $visible;
+        }
+
+        return match ($operator) {
+            'And' => !in_array(false, $values, true),
+            'Or' => in_array(true, $values, true),
+            'Not' => !$values[0],
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int|string, bool> $optionalContentStates
+     * @param array<string, true> $seen
+     */
+    private function optionalContentVisibilityExpressionOperandVisible(
+        string $operand,
+        array $objects,
+        array $optionalContentStates,
+        array $seen
+    ): ?bool {
+        $operand = trim($operand);
+        if ($operand === '') {
+            return null;
+        }
+
+        if (str_starts_with($operand, '[')) {
+            return $this->optionalContentVisibilityExpressionVisible(
+                $operand,
+                $objects,
+                $optionalContentStates,
+                $seen
+            );
+        }
+
+        if (str_starts_with($operand, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($operand, 0);
+            return $dictionary === null
+                ? null
+                : $this->optionalContentDictionaryVisible($dictionary, $objects, $optionalContentStates);
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($operand);
+        if ($reference === null) {
+            return null;
+        }
+
+        $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+        if ($body !== null) {
+            $trimmed = trim($body);
+            if (str_starts_with($trimmed, '[')) {
+                $key = $this->optionalContentReferenceKey($reference['objectNumber'], $reference['generation']);
+                if (isset($seen[$key])) {
+                    return null;
+                }
+
+                $seen[$key] = true;
+                return $this->optionalContentVisibilityExpressionVisible(
+                    $trimmed,
+                    $objects,
+                    $optionalContentStates,
+                    $seen
+                );
+            }
+
+            $dictionary = $this->dictionaryObjectBody($body);
+            if ($dictionary !== null) {
+                return $this->optionalContentDictionaryVisible(
+                    $dictionary,
+                    $objects,
+                    $optionalContentStates,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+            }
+        }
+
+        return $this->optionalContentReferenceVisible(
+            $reference['objectNumber'],
+            $reference['generation'],
+            $objects,
+            $optionalContentStates
+        );
     }
 
     /**

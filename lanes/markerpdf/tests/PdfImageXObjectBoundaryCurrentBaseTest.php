@@ -590,6 +590,68 @@ return [
         $t->true(!str_contains($plainText, 'Visible Inline OCMD Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Plain Inline OCMD Image Payload Noise'));
     },
+    'honors OCMD visibility expressions before counting image XObject invocations' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before VE OCMD images) Tj ET\n"
+            . "q 16 0 0 8 72 690 cm /Expression#20Hidden Do Q\n"
+            . "q 12 0 0 6 96 690 cm /Expression#20Visible Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After VE OCMD images) Tj ET';
+        $hiddenPayload = 'BT /F1 12 Tf 72 720 Td (Hidden VE OCMD Image Payload Noise) Tj ET';
+        $visiblePayload = 'BT /F1 12 Tf 72 720 Td (Visible VE OCMD Image Payload Noise) Tj ET';
+        $hiddenCompressed = gzcompress($hiddenPayload);
+        $visibleCompressed = gzcompress($visiblePayload);
+        if (!is_string($hiddenCompressed) || !is_string($visibleCompressed)) {
+            throw new RuntimeException('Unable to compress visibility-expression OCMD image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.6\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R 22 0 R] /D << /BaseState /OFF /ON [20 0 R 22 0 R] /Order [20 0 R 21 0 R 22 0 R] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Expression#20Hidden 5 0 R /Expression#20Visible 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /OC << /Type /OCMD /OCGs [20 0 R 21 0 R] /P /AnyOn /VE [/And 20 0 R 21 0 R] >> /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($hiddenCompressed) . " >>\nstream\n{$hiddenCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /OC << /Type /OCMD /OCGs [20 0 R 21 0 R] /P /AllOn /VE [/And 20 0 R [/Not 21 0 R]] >> /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($visibleCompressed) . " >>\nstream\n{$visibleCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /OCG /Name (Visible VE Base Layer) >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (Hidden VE Layer) >>\nendobj\n"
+            . "22 0 obj\n<< /Type /OCG /Name (Unused Visible VE Layer) >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+        $t->same(['Before VE OCMD images', 'After VE OCMD images'], $extractor->extractTextLines($pdf));
+        $t->same("Before VE OCMD images\nAfter VE OCMD images", $plainText);
+
+        $hidden = $entriesByName['Expression Hidden'];
+        $t->same(false, $hidden['optional_content_visible']);
+        $t->same(false, $hidden['invoked']);
+        $t->same(0, $hidden['invocation_count']);
+        $t->same(true, $hidden['decoded_with_current_filters']);
+        $t->same(hash('sha256', $hiddenPayload), $hidden['decoded_sha256']);
+
+        $visible = $entriesByName['Expression Visible'];
+        $t->same(true, $visible['optional_content_visible']);
+        $t->same(true, $visible['invoked']);
+        $t->same(1, $visible['invocation_count']);
+        $t->same([[12.0, 0.0, 0.0, 6.0, 96.0, 690.0]], $visible['invocation_matrices']);
+        $t->same([96.0, 690.0, 108.0, 696.0], $visible['image_unit_bbox']);
+        $t->same(true, $visible['decoded_with_current_filters']);
+        $t->same(hash('sha256', $visiblePayload), $visible['decoded_sha256']);
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $hiddenPayload));
+        $t->true(!str_contains($encoded, $visiblePayload));
+        $t->true(!str_contains($plainText, 'Hidden VE OCMD Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Visible VE OCMD Image Payload Noise'));
+    },
     'records image XObject invocation CTM placement for WordPress media review' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before placed images) Tj ET\n"
             . "q 2 0 0 2 10 20 cm q 12 0 0 8 5 6 cm /Placed#20Image Do Q Q\n"
