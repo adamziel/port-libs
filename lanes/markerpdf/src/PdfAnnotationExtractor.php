@@ -2551,23 +2551,13 @@ final class PdfAnnotationExtractor
      */
     private function numberArrayValueAfterName(string $body, string $name, array $objects): ?array
     {
-        $offset = 0;
-        while (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $valueOffset = $match[0][1] + strlen($match[0][0]);
-            $value = $this->valueStartingAtOffset($body, $valueOffset);
-            if ($value === null) {
-                return null;
-            }
-
-            $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
-            if ($arrayBody !== null) {
-                return $this->numbersFromPdfArray($arrayBody, $objects);
-            }
-
-            $offset = $valueOffset;
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
         }
 
-        return null;
+        $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
+        return $arrayBody === null ? null : $this->numbersFromPdfArray($arrayBody, $objects);
     }
 
     /**
@@ -2722,7 +2712,7 @@ final class PdfAnnotationExtractor
 
     private function valueAfterName(string $body, string $name): ?string
     {
-        $value = $this->dictionaryRawValue($body, $name);
+        $value = $this->lastDictionaryRawValue($body, $name);
         if ($value !== null) {
             return $value;
         }

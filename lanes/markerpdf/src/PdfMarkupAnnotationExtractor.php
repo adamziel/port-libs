@@ -974,12 +974,55 @@ final class PdfMarkupAnnotationExtractor
 
     private function valueAfterName(string $body, string $name): ?string
     {
+        $dictionary = str_starts_with(ltrim($body), '<<') ? $this->dictionaryObjectBody($body) : null;
+        $value = $dictionary === null
+            ? $this->dictionaryValueAfterName($body, $name)
+            : $this->dictionaryValueAfterName($dictionary, $name);
+        if ($value !== null) {
+            return $value;
+        }
+
         if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
 
         $offset = $match[0][1] + strlen($match[0][0]);
         return $this->valueStartingAtOffsetWithEnd($body, $offset);
+    }
+
+    private function dictionaryValueAfterName(string $dictionary, string $name): ?string
+    {
+        $selected = null;
+        $offset = 0;
+        $length = strlen($dictionary);
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($dictionary, $offset);
+            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
+            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
+                $offset = max($nameEnd, $offset + 1);
+                continue;
+            }
+
+            if ($key === $name) {
+                $selected = $value;
+            }
+
+            $offset = $valueEnd;
+        }
+
+        return $selected;
     }
 
     private function valueStartingAtOffsetWithEnd(string $body, int $offset, ?int &$endOffset = null): ?string
@@ -1040,25 +1083,8 @@ final class PdfMarkupAnnotationExtractor
 
     private function stringAfterName(string $body, string $name, array $objects = []): ?string
     {
-        $offset = 0;
-        while (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $valueOffset = $match[0][1] + strlen($match[0][0]);
-            $valueEnd = null;
-            $value = $this->valueStartingAtOffsetWithEnd($body, $valueOffset, $valueEnd);
-            if ($value === null || $valueEnd === null || $valueEnd <= $valueOffset) {
-                $offset = $valueOffset + 1;
-                continue;
-            }
-
-            $string = $this->stringFromPdfValue($value, $objects);
-            if ($string !== null) {
-                return $string;
-            }
-
-            $offset = $valueEnd;
-        }
-
-        return null;
+        $value = $this->valueAfterName($body, $name);
+        return $value === null ? null : $this->stringFromPdfValue($value, $objects);
     }
 
     private function stringFromPdfValue(string $value, array $objects): ?string
