@@ -146,9 +146,11 @@ final class PdfImageRenderer
         $adobeTransform = $this->jpegAdobeApp14Transform($jpegBytes);
         $dctFilter = $this->dctDecodeFilterName($imageDictionary, $objects);
         $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
+        $decodeParmsDeclarationDuplicated = $this->duplicatePdfNameDeclarationCount($imageDictionary, 'DecodeParms') > 0;
         $decodeParmsAlignmentInvalid = $this->dctDecodeParmsAlignmentIsInvalid($imageDictionary, $objects);
         $decodeParmsDuplicateColorTransform = $this->dctDecodeParmsColorTransformIsDuplicated($imageDictionary, $objects);
-        $decodeParmsTransformValid = !$decodeParmsAlignmentInvalid
+        $decodeParmsTransformValid = !$decodeParmsDeclarationDuplicated
+            && !$decodeParmsAlignmentInvalid
             && !$decodeParmsDuplicateColorTransform
             && ($decodeParmsTransform === null || in_array($decodeParmsTransform, [0, 1, 2], true));
         $effectiveDecodeParmsTransform = $decodeParmsTransformValid ? $decodeParmsTransform : null;
@@ -162,7 +164,9 @@ final class PdfImageRenderer
         if ($adobeTransform !== null && $decodeParmsTransform !== null) {
             $notes[] = 'adobe_app14_transform_overrides_decodeparms';
         }
-        if ($decodeParmsAlignmentInvalid) {
+        if ($decodeParmsDeclarationDuplicated) {
+            $notes[] = 'duplicate_dctdecode_decodeparms_declaration_fail_closed';
+        } elseif ($decodeParmsAlignmentInvalid) {
             $notes[] = 'unaligned_dctdecode_decodeparms_fail_closed';
         } elseif ($decodeParmsDuplicateColorTransform) {
             $notes[] = 'duplicate_dctdecode_decodeparms_parameter_fail_closed';
@@ -4309,7 +4313,8 @@ final class PdfImageRenderer
             $details[] = [
                 'filter' => $filter,
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
-                'decode_parms' => $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
+                'decode_parms' => $this->dctDecodeDuplicateDecodeParmsDeclarationReview($filter, $dictionary, $decodeParmsValue, $objects)
+                    ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
                     ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex)
                     ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex),
@@ -4735,6 +4740,36 @@ final class PdfImageRenderer
             'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
             'filter_slot_count' => $filterSlots,
             'decode_parms_slot_count' => $decodeParmsSlots,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function dctDecodeDuplicateDecodeParmsDeclarationReview(
+        string $filter,
+        string $dictionary,
+        ?string $decodeParmsValue,
+        array $objects
+    ): ?array {
+        if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+            return null;
+        }
+
+        $duplicateCount = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms');
+        if ($duplicateCount < 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => $this->dctDecodeParmsColorTransformFromValue($decodeParmsValue, $objects),
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_dctdecode_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => $duplicateCount,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
         ];
     }
 

@@ -8308,18 +8308,28 @@ final class PdfTextExtractor
             $decodeParmsValue = $decodeParmsIndex === null || $decodeParms === null
                 ? null
                 : ($decodeParms[$decodeParmsIndex] ?? null);
+            $reviewDecodeParmsValue = $decodeParmsValue;
+            if ($reviewDecodeParmsValue === null && $decodeParmsPresent && $dictionary !== null) {
+                $reviewDecodeParmsValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'DecodeParms');
+            }
 
             $details[] = [
                 'filter' => $filter,
                 'preview_only' => in_array($filter, ['DCTDecode', 'DCT', 'CCITTFaxDecode', 'CCF', 'JPXDecode', 'JBIG2Decode'], true),
-                'decode_parms' => ($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
+                'decode_parms' => $this->dctDecodeDuplicateDecodeParmsDeclarationReview(
+                    $filter,
+                    $dictionary ?? '',
+                    $reviewDecodeParmsValue,
+                    $objects
+                )
+                    ?? (($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
                     ? $decodeParmsOperandFailure
                     : (
                         $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
                         ?? $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
                         ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
                         ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
-                    ),
+                    )),
             ];
         }
 
@@ -8590,6 +8600,36 @@ final class PdfTextExtractor
             'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
             'filter_slot_count' => $filterSlots,
             'decode_parms_slot_count' => $decodeParmsSlots,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function dctDecodeDuplicateDecodeParmsDeclarationReview(
+        string $filter,
+        string $dictionary,
+        ?string $decodeParmsValue,
+        array $objects
+    ): ?array {
+        if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+            return null;
+        }
+
+        $duplicateCount = $this->duplicateTopLevelPdfNameDeclarationCount($dictionary, 'DecodeParms');
+        if ($duplicateCount < 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => $this->decodeParmsInt($decodeParmsValue, 'ColorTransform', $objects),
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_dctdecode_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => $duplicateCount,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
         ];
     }
 
