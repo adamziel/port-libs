@@ -1033,11 +1033,7 @@ final class LayoutAnnotator
         $xs = [];
         $ys = [];
         foreach (array_values($polygon) as $point) {
-            if (!is_array($point) || count($point) !== 2) {
-                return null;
-            }
-
-            $coordinates = $this->numericCoordinates(array_values($point));
+            $coordinates = $this->pointCoordinates($point);
             if ($coordinates === null) {
                 return null;
             }
@@ -1051,6 +1047,39 @@ final class LayoutAnnotator
             max($xs),
             max($ys),
         ];
+    }
+
+    /**
+     * @return array{0: float, 1: float}|null
+     */
+    private function pointCoordinates(mixed $point): ?array
+    {
+        if (!is_array($point)) {
+            return null;
+        }
+
+        foreach ([['x', 'y'], ['x0', 'y0'], ['left', 'top']] as $keys) {
+            [$xKey, $yKey] = $keys;
+            if (!array_key_exists($xKey, $point) || !array_key_exists($yKey, $point)) {
+                continue;
+            }
+
+            $x = $this->numericScalar($point[$xKey]);
+            $y = $this->numericScalar($point[$yKey]);
+            if ($x !== null && $y !== null) {
+                return [$x, $y];
+            }
+        }
+
+        if (array_is_list($point) && count($point) === 2) {
+            $x = $this->numericScalar($point[0]);
+            $y = $this->numericScalar($point[1]);
+            if ($x !== null && $y !== null) {
+                return [$x, $y];
+            }
+        }
+
+        return null;
     }
 
     /**

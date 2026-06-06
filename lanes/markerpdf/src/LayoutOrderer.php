@@ -936,18 +936,12 @@ final class LayoutOrderer
         $xs = [];
         $ys = [];
         foreach (array_values($polygon) as $point) {
-            if (!is_array($point) || count($point) !== 2) {
+            $coordinates = $this->pointCoordinates($point);
+            if ($coordinates === null) {
                 return null;
             }
-
-            $coordinates = array_values($point);
-            $x = $this->numericValue($coordinates[0]);
-            $y = $this->numericValue($coordinates[1]);
-            if ($x === null || $y === null) {
-                return null;
-            }
-            $xs[] = $x;
-            $ys[] = $y;
+            $xs[] = $coordinates[0];
+            $ys[] = $coordinates[1];
         }
 
         return [
@@ -956,6 +950,39 @@ final class LayoutOrderer
             max($xs),
             max($ys),
         ];
+    }
+
+    /**
+     * @return array{0: float, 1: float}|null
+     */
+    private function pointCoordinates(mixed $point): ?array
+    {
+        if (!is_array($point)) {
+            return null;
+        }
+
+        foreach ([['x', 'y'], ['x0', 'y0'], ['left', 'top']] as $keys) {
+            [$xKey, $yKey] = $keys;
+            if (!array_key_exists($xKey, $point) || !array_key_exists($yKey, $point)) {
+                continue;
+            }
+
+            $x = $this->numericValue($point[$xKey]);
+            $y = $this->numericValue($point[$yKey]);
+            if ($x !== null && $y !== null) {
+                return [$x, $y];
+            }
+        }
+
+        if (array_is_list($point) && count($point) === 2) {
+            $x = $this->numericValue($point[0]);
+            $y = $this->numericValue($point[1]);
+            if ($x !== null && $y !== null) {
+                return [$x, $y];
+            }
+        }
+
+        return null;
     }
 
     /**

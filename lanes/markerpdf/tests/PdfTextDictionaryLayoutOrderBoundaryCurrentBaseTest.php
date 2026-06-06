@@ -352,6 +352,177 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'uses object-point polygon order rows before pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(3600, [
+                    ['text' => 'Object polygon cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(3601, [
+                    ['text' => 'Second object polygon order column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First object polygon order column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 3601,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        [
+                            'position' => 1,
+                            'polygon' => [
+                                ['x' => 60.0, 'y' => 96.0, 'confidence' => 0.99],
+                                ['x' => 290.0, 'y' => 96.0, 'confidence' => 0.99],
+                                ['x' => 290.0, 'y' => 144.0, 'confidence' => 0.98],
+                                ['x' => 60.0, 'y' => 144.0, 'confidence' => 0.98],
+                            ],
+                            'raw_payload' => 'object polygon left order payload must stay review-only',
+                        ],
+                        [
+                            'position' => 2,
+                            'polygon' => [
+                                ['x' => 318.0, 'y' => 96.0, 'score' => 0.97],
+                                ['x' => 570.0, 'y' => 96.0, 'score' => 0.97],
+                                ['x' => 570.0, 'y' => 144.0, 'score' => 0.96],
+                                ['x' => 318.0, 'y' => 144.0, 'score' => 0.96],
+                            ],
+                            'raw_payload' => 'object polygon right order payload must stay review-only',
+                        ],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 3601, 'image' => 'object-polygon-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(3601, $result['pages'][0]['pnum']);
+        $t->same(['First object polygon order column', 'Second object polygon order column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First object polygon order column Second object polygon order column', $blocks[0]['text']);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $result['pages'][0]['order']['bboxes']);
+        $t->true(!str_contains($encoded, 'object polygon left order payload'));
+        $t->true(!str_contains($encoded, 'object polygon right order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses object-point polygon layout and order rows for WordPress supplied imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-object-point-polygon-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% object-point polygon pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(3700, [
+                        ['text' => 'Object polygon converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(3701, [
+                        ['text' => 'Object polygon converter title', 'bbox' => [72.0, 48.0, 360.0, 68.0]],
+                        ['text' => 'Object polygon converter body.', 'bbox' => [72.0, 112.0, 480.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 3701, 'image' => 'object-polygon-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'page' => 3701,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            [
+                                'label' => 'Title',
+                                'polygon' => [
+                                    ['x' => 60.0, 'y' => 42.0, 'confidence' => 0.99],
+                                    ['x' => 370.0, 'y' => 42.0, 'confidence' => 0.99],
+                                    ['x' => 370.0, 'y' => 76.0, 'confidence' => 0.98],
+                                    ['x' => 60.0, 'y' => 76.0, 'confidence' => 0.98],
+                                ],
+                                'raw_payload' => 'object polygon title layout payload must stay hidden',
+                            ],
+                            [
+                                'label' => 'Text',
+                                'polygon' => [
+                                    ['x' => 60.0, 'y' => 100.0, 'score' => 0.97],
+                                    ['x' => 490.0, 'y' => 100.0, 'score' => 0.97],
+                                    ['x' => 490.0, 'y' => 140.0, 'score' => 0.96],
+                                    ['x' => 60.0, 'y' => 140.0, 'score' => 0.96],
+                                ],
+                                'raw_payload' => 'object polygon body layout payload must stay hidden',
+                            ],
+                        ],
+                    ]],
+                    'order_images' => [
+                        ['page' => 3701, 'image' => 'object-polygon-order-render'],
+                    ],
+                    'order_results' => [[
+                        'page' => 3701,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            [
+                                'position' => 1,
+                                'polygon' => [
+                                    ['x' => 60.0, 'y' => 42.0, 'confidence' => 0.99],
+                                    ['x' => 370.0, 'y' => 42.0, 'confidence' => 0.99],
+                                    ['x' => 370.0, 'y' => 76.0, 'confidence' => 0.98],
+                                    ['x' => 60.0, 'y' => 76.0, 'confidence' => 0.98],
+                                ],
+                                'raw_payload' => 'object polygon title order payload must stay hidden',
+                            ],
+                            [
+                                'position' => 2,
+                                'polygon' => [
+                                    ['x' => 60.0, 'y' => 100.0, 'score' => 0.97],
+                                    ['x' => 490.0, 'y' => 100.0, 'score' => 0.97],
+                                    ['x' => 490.0, 'y' => 140.0, 'score' => 0.96],
+                                    ['x' => 60.0, 'y' => 140.0, 'score' => 0.96],
+                                ],
+                                'raw_payload' => 'object polygon body order payload must stay hidden',
+                            ],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# Object Polygon Converter Title', $text);
+        $t->contains('Object polygon converter body.', $text);
+        $t->true(strpos($text, '# Object Polygon Converter Title') < strpos($text, 'Object polygon converter body.'));
+        $t->true(!str_contains($text, 'Object polygon converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'object polygon title layout payload'));
+        $t->true(!str_contains($encoded, 'object polygon body layout payload'));
+        $t->true(!str_contains($encoded, 'object polygon title order payload'));
+        $t->true(!str_contains($encoded, 'object polygon body order payload'));
+    },
     'uses named object order bboxes before selected pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
