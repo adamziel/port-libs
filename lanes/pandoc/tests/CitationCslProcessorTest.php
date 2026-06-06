@@ -7922,6 +7922,99 @@ XML
 XML
         ));
     },
+    'surfaces nested csl bibliography display parts from macros and choose branches' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'nested-display',
+                'type' => 'report',
+                'title' => 'Nested Display Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/nested-display',
+            ],
+            [
+                'id' => 'offline-display',
+                'type' => 'report',
+                'title' => 'Offline Display Packet',
+                'author' => [
+                    ['family' => 'Olsen', 'given' => 'Ira'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Nested Display Style</title>
+    <id>https://example.test/styles/bounded-nested-display</id>
+    <updated>2026-06-06T15:15:00+00:00</updated>
+  </info>
+  <macro name="nested-entry-line">
+    <group delimiter=". ">
+      <names variable="author" display="left-margin">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <group display="right-inline" delimiter=". " suffix=".">
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+      <choose>
+        <if variable="URL">
+          <text variable="URL" display="block" prefix="Source: "/>
+        </if>
+        <else>
+          <text value="No source URL" display="indent"/>
+        </else>
+      </choose>
+    </group>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <layout delimiter=" ">
+      <group>
+        <text macro="nested-entry-line"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $t->same('Ng, N. Nested Display Packet. 2026. Source: https://example.test/nested-display', $processor->renderBibliographyEntry('nested-display'));
+        $t->same('Olsen, I. Offline Display Packet. 2025. No source URL', $processor->renderBibliographyEntry('offline-display'));
+
+        $document = (new MarkdownReader())->read('Review cites @nested-display and @offline-display for nested display output.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $bibliography = $processed->children[2];
+        $firstItem = $bibliography->children[0];
+        $secondItem = $bibliography->children[1];
+        $t->same('definition_list', $bibliography->type);
+        $t->same('flush', $bibliography->attr('secondFieldAlign'));
+        $t->same([
+            ['display' => 'left-margin', 'text' => 'Ng, N.'],
+            ['display' => 'right-inline', 'text' => 'Nested Display Packet. 2026.'],
+            ['display' => 'block', 'text' => 'Source: https://example.test/nested-display'],
+        ], $firstItem->attr('cslDisplayParts'));
+        $t->same([
+            ['display' => 'left-margin', 'text' => 'Olsen, I.'],
+            ['display' => 'right-inline', 'text' => 'Offline Display Packet. 2025.'],
+            ['display' => 'indent', 'text' => 'No source URL'],
+        ], $secondItem->attr('cslDisplayParts'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<dt>Ng 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">Ng, N.</div><div class="csl-right-inline">Nested Display Packet. 2026.</div><div class="csl-block">Source: https://example.test/nested-display</div></div></dd>', $blocks);
+        $t->contains('<dt>Olsen 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">Olsen, I.</div><div class="csl-right-inline">Offline Display Packet. 2025.</div><div class="csl-indent">No source URL</div></div></dd>', $blocks);
+    },
     'applies bounded csl year suffix disambiguation for ambiguous author dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

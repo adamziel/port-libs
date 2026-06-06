@@ -3445,26 +3445,89 @@ final class CitationCslProcessor
      */
     private function bibliographyDisplayParts(array $item): array
     {
+        return $this->bibliographyDisplayPartsForElements($this->style->bibliographyRenderingElements(), $item);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     * @return list<array{display:string, text:string}>
+     */
+    private function bibliographyDisplayPartsForElements(array $elements, array $item, array $macroStack = []): array
+    {
         $parts = [];
-        foreach ($this->style->bibliographyRenderingElements() as $element) {
+        foreach ($elements as $element) {
             if (!is_array($element)) {
                 continue;
             }
 
-            $display = $this->renderingDisplay($element);
-            if ($display === '') {
-                continue;
+            foreach ($this->bibliographyDisplayPartsForElement($element, $item, $macroStack) as $part) {
+                $parts[] = $part;
             }
-
-            $value = $this->renderRenderingElement($element, $item, 'bibliography');
-            if ($value === '') {
-                continue;
-            }
-
-            $parts[] = ['display' => $display, 'text' => $value];
         }
 
         return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     * @return list<array{display:string, text:string}>
+     */
+    private function bibliographyDisplayPartsForElement(array $element, array $item, array $macroStack = []): array
+    {
+        $display = $this->renderingDisplay($element);
+        if ($display !== '') {
+            $value = $this->renderRenderingElement($element, $item, 'bibliography', $macroStack);
+
+            return $value === '' ? [] : [['display' => $display, 'text' => $value]];
+        }
+
+        $type = (string) ($element['type'] ?? '');
+        if ($type === 'group') {
+            $children = $element['children'] ?? [];
+
+            return is_array($children)
+                ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack)
+                : [];
+        }
+
+        if ($type === 'text' && isset($element['macro']) && is_string($element['macro'])) {
+            $name = $element['macro'];
+            if (in_array($name, $macroStack, true)) {
+                throw new \InvalidArgumentException('CSL macro recursion detected: ' . implode(' -> ', [...$macroStack, $name]));
+            }
+
+            $children = $this->style->macroRenderingElements($name);
+
+            return is_array($children)
+                ? $this->bibliographyDisplayPartsForElements($children, $item, [...$macroStack, $name])
+                : [];
+        }
+
+        if ($type === 'choose') {
+            foreach (($element['branches'] ?? []) as $branch) {
+                if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, 'bibliography')) {
+                    continue;
+                }
+
+                $children = $branch['children'] ?? [];
+
+                return is_array($children)
+                    ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack)
+                    : [];
+            }
+
+            $children = $element['else'] ?? [];
+
+            return is_array($children)
+                ? $this->bibliographyDisplayPartsForElements($children, $item, $macroStack)
+                : [];
+        }
+
+        return [];
     }
 
     /**
