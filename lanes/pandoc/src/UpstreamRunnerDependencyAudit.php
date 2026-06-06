@@ -1260,6 +1260,7 @@ final class UpstreamRunnerDependencyAudit
         $stanzas = [];
         $currentKey = null;
         $lastField = null;
+        $conditionalIndent = null;
 
         foreach (preg_split('/\R/', $contents) ?: [] as $line) {
             if (preg_match('/^library\s*$/i', $line) === 1) {
@@ -1270,6 +1271,7 @@ final class UpstreamRunnerDependencyAudit
                     'fields' => [],
                 ];
                 $lastField = null;
+                $conditionalIndent = null;
                 continue;
             }
 
@@ -1283,6 +1285,7 @@ final class UpstreamRunnerDependencyAudit
                         'fields' => [],
                     ];
                     $lastField = null;
+                    $conditionalIndent = null;
                     continue;
                 }
             }
@@ -1293,6 +1296,33 @@ final class UpstreamRunnerDependencyAudit
 
             if (preg_match('/^\S/', $line) === 1) {
                 $currentKey = null;
+                $lastField = null;
+                $conditionalIndent = null;
+                continue;
+            }
+
+            $trimmed = trim($line);
+            $indent = strlen($line) - strlen(ltrim($line));
+
+            if ($conditionalIndent !== null) {
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                if ($indent > $conditionalIndent) {
+                    continue;
+                }
+
+                if ($indent === $conditionalIndent && preg_match('/^(?:elif|else)\b/i', $trimmed) === 1) {
+                    $lastField = null;
+                    continue;
+                }
+
+                $conditionalIndent = null;
+            }
+
+            if (preg_match('/^(?:if|elif|else)\b/i', $trimmed) === 1) {
+                $conditionalIndent = $indent;
                 $lastField = null;
                 continue;
             }

@@ -975,6 +975,45 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
         $t->same([], $audit['blockedReasons']);
     },
+    'ignores conditional cabal runner fields when auditing unconditional closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] .= implode("\n", [
+            '',
+            '  if flag(optional-runner-fixtures)',
+            '    build-depends: optional-runner-helper',
+            '    ghc-options: -eventlog',
+            '    other-modules: Tests.Optional.Runner',
+            '  else',
+            '    build-depends: optional-runner-fallback',
+        ]);
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] .= implode("\n", [
+            '',
+            '  if os(windows)',
+            '    build-depends: Win32',
+            '    other-modules: Tests.Lua.WindowsOnly',
+        ]);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same(false, in_array('optional-runner-helper', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
+        $t->same(false, in_array('-eventlog', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['ghcOptions'], true));
+        $t->same(false, in_array('Tests.Optional.Runner', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['otherModules'], true));
+        $t->same(false, in_array('Win32', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
+        $t->same(false, in_array('Tests.Lua.WindowsOnly', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['otherModules'], true));
+        $t->same([], $audit['blockedReasons']);
+    },
     'does not count commented runner fields as present before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(
