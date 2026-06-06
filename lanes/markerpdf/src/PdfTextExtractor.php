@@ -40339,7 +40339,7 @@ final class PdfTextExtractor
 
     private function numericOperand(string $operand): ?float
     {
-        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $operand) !== 1) {
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/', $operand) !== 1) {
             return null;
         }
 
