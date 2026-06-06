@@ -338,6 +338,48 @@ return [
         $t->true(!str_contains($encoded, 'json ref payload must not cross dictionary_output'));
         $t->true(!str_contains($blocks[0]['text'], 'javascript:'), 'Unsafe URI text from JSON-decoded pdftext spans stays review-only.');
     },
+    'wraps direct supplied pdftext page dictionaries at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['page'] = 92;
+        $page['raw_direct_page_payload'] = 'direct page adapter payload must not cross dictionary_output';
+        $page['blocks'][0]['raw_direct_block_payload'] = 'direct page block payload must not cross dictionary_output';
+        $page['blocks'][0]['lines'][0]['raw_direct_line_payload'] = 'direct page line payload must not cross dictionary_output';
+        $page['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Direct page ';
+        $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'dictionary link';
+        $page['blocks'][0]['lines'][0]['spans'][1]['raw_direct_span_payload'] = 'direct page span payload must not cross dictionary_output';
+        $page['blocks'][0]['lines'][0]['spans'][2]['text'] = ' stays single page';
+        unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks(
+            $page,
+            maxPages: 1,
+            toc: [['title' => 'Direct page dictionary', 'level' => 1, 'page_index' => 92]]
+        );
+        $pageOut = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $document['page_range']);
+        $t->same(1, $document['metadata']['source_pages']);
+        $t->same(1, $document['metadata']['pages']);
+        $t->same(0, $document['metadata']['start_page']);
+        $t->same(1, $document['metadata']['max_pages']);
+        $t->same(92, $pageOut['pnum']);
+        $t->same('Direct page [dictionary link](https://example.com/import\\)docs) stays single page', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $pageOut['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same('https://example.com/import)docs', $pageOut['char_blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same([
+            [
+                'url' => '#page-3-xy',
+                'page' => 3,
+                'dest_pos' => [72.0, 96.0],
+            ],
+        ], $pageOut['pdftext_source']['refs']);
+        $t->true(!str_contains($encoded, 'direct page adapter payload'));
+        $t->true(!str_contains($encoded, 'direct page block payload'));
+        $t->true(!str_contains($encoded, 'direct page line payload'));
+        $t->true(!str_contains($encoded, 'direct page span payload'));
+    },
     'unwraps cached pdftext dictionary page envelopes at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $cover = $pdftextLinkedPage();
         $cover['page'] = 20;

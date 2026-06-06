@@ -472,6 +472,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-table-normalized-crop-bbox-boundary-currentbase.php` maps supplied table recognition results whose `table_bbox` is explicitly in 1000-unit normalized page-image coordinates into WordPress table output. It unnormalizes the crop bbox against the page `image_bbox` before translating rows, columns, cells, and OCR conflict geometry into table-crop coordinates, emits the expected Gutenberg heading/table/paragraph blocks, and excludes stale normalized table lines without Python, tabled/Surya model inference, OCR, PDFium, PIL, or external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-direct-page-currentbase.php` maps direct supplied pdftext page dictionaries with top-level `blocks` into WordPress paragraph output. It wraps the dictionary as one selected `dictionary_output` page, preserves source metadata, safe links, refs, and sanitized char-block review, excludes raw adapter payloads, and avoids Python pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

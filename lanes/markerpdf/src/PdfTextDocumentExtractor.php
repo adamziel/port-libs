@@ -116,7 +116,7 @@ final class PdfTextDocumentExtractor
     private function normalizeSuppliedDictionaryPageList(array $pdftextPages): array
     {
         if (array_key_exists('blocks', $pdftextPages)) {
-            return array_values($pdftextPages);
+            return [$pdftextPages];
         }
 
         foreach (['pages', 'dictionary_output'] as $pageListKey) {
