@@ -46,6 +46,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BI\0/W 1\0/H 1\0/CS /G\0/BPC 8\0ID\0"
     . "x\0BT /F1 12 Tf 72 652 Td (NUL Inline Payload Noise) Tj ET rawtail\0EI\0"
     . "BT /F1 12 Tf 72 653 Td (After NUL Whitespace Boundary) Tj ET\n"
+    . "BI\v/W 1 /H 1 /CS /G /BPC 8 ID\n"
+    . "BT /F1 12 Tf 72 652 Td (Vertical Tab BI Text Survives) Tj ET\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 653 Td (After Vertical Tab Boundary) Tj ET\n"
     . "BI/W 16/H 1/CS/G/BPC 8 ID\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Compact Delimiter Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -376,7 +380,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, vertical-tab non-whitespace malformed BI boundaries, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -399,6 +403,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && !str_contains($plainText, 'NUL Inline Payload Noise')
         && !str_contains($plainText, "\0")
         && !str_contains($plainText, 'rawtail'),
+    'pdf_vertical_tab_not_inline_image_separator' => str_contains($plainText, 'Vertical Tab BI Text Survives')
+        && str_contains($plainText, 'After Vertical Tab Boundary')
+        && !str_contains($plainText, "\v")
+        && !str_contains($plainText, '/W 1'),
     'compact_slash_delimited_inline_image_excluded' => !str_contains($plainText, 'Compact Delimiter Inline Payload Noise')
         && !str_contains($plainText, 'BI/W')
         && str_contains($plainText, 'After Compact Delimiter Boundary'),
