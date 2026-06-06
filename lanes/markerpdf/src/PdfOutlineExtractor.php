@@ -334,9 +334,9 @@ final class PdfOutlineExtractor
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
         $pageReviews = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes);
-        $outlineStructureByObject = $this->outlineItemStructureMetadataByObject($pdfBytes);
+        $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObject($pdfBytes);
 
-        return $this->withOutlineItemStructureMetadataRows(
+        return $this->withOutlineItemDocumentReviewMetadataRows(
             $this->outlineStructureDestinationPageContextItems(
                 $outlineRoot['First'] ?? null,
                 $objects,
@@ -353,7 +353,7 @@ final class PdfOutlineExtractor
                 $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
                 max(1, $maxDepth)
             ),
-            $outlineStructureByObject,
+            $outlineReviewMetadataByObject,
             false
         );
     }
@@ -546,7 +546,7 @@ final class PdfOutlineExtractor
         $articleBeadsByPage = $this->articleBeadsByPageIndex($articleThreads);
         $pageReviews = $includePageReview ? (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) : [];
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
-        $outlineStructureByObject = $this->outlineItemStructureMetadataByObject($pdfBytes);
+        $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObject($pdfBytes);
 
         $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot !== null) {
@@ -567,7 +567,7 @@ final class PdfOutlineExtractor
                     $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
                     15
                 ) as $item) {
-                    $metadata['outline'][] = $this->withOutlineItemStructureMetadata($item, $outlineStructureByObject, false);
+                    $metadata['outline'][] = $this->withOutlineItemDocumentReviewMetadata($item, $outlineReviewMetadataByObject, false);
                 }
                 if ($metadata['outline'] !== []) {
                     $metadata['source'][] = 'outline';
@@ -589,9 +589,9 @@ final class PdfOutlineExtractor
                 );
                 if ($outlineActionReviews !== []) {
                     $metadata['source'][] = 'outline_actions';
-                    $metadata['outline_action_review_actions'] = $this->withOutlineItemStructureMetadataRows(
+                    $metadata['outline_action_review_actions'] = $this->withOutlineItemDocumentReviewMetadataRows(
                         $outlineActionReviews,
-                        $outlineStructureByObject,
+                        $outlineReviewMetadataByObject,
                         true
                     );
                 }
@@ -1133,9 +1133,12 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * Document-outline metadata already applies the payload-safety checks for
+     * `/SE` and `/Metadata`; navigation rows reuse those review summaries.
+     *
      * @return array<int, array<string, mixed>>
      */
-    private function outlineItemStructureMetadataByObject(string $pdfBytes): array
+    private function outlineItemDocumentReviewMetadataByObject(string $pdfBytes): array
     {
         $documentMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
         $items = $documentMetadata['document_outline']['items'] ?? null;
@@ -1160,6 +1163,7 @@ final class PdfOutlineExtractor
                 'structure_element_page_object',
                 'structure_element_mcids',
                 'structure_element_associated_file_count',
+                'metadata_stream_review',
             ] as $key) {
                 if (array_key_exists($key, $item)) {
                     $context[$key] = $item[$key];
@@ -1176,14 +1180,14 @@ final class PdfOutlineExtractor
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @param array<int, array<string, mixed>> $outlineStructureByObject
+     * @param array<int, array<string, mixed>> $outlineReviewMetadataByObject
      * @return list<array<string, mixed>>
      */
-    private function withOutlineItemStructureMetadataRows(array $rows, array $outlineStructureByObject, bool $prefix): array
+    private function withOutlineItemDocumentReviewMetadataRows(array $rows, array $outlineReviewMetadataByObject, bool $prefix): array
     {
         foreach ($rows as $index => $row) {
             if (is_array($row)) {
-                $rows[$index] = $this->withOutlineItemStructureMetadata($row, $outlineStructureByObject, $prefix);
+                $rows[$index] = $this->withOutlineItemDocumentReviewMetadata($row, $outlineReviewMetadataByObject, $prefix);
             }
         }
 
@@ -1192,17 +1196,17 @@ final class PdfOutlineExtractor
 
     /**
      * @param array<string, mixed> $row
-     * @param array<int, array<string, mixed>> $outlineStructureByObject
+     * @param array<int, array<string, mixed>> $outlineReviewMetadataByObject
      * @return array<string, mixed>
      */
-    private function withOutlineItemStructureMetadata(array $row, array $outlineStructureByObject, bool $prefix): array
+    private function withOutlineItemDocumentReviewMetadata(array $row, array $outlineReviewMetadataByObject, bool $prefix): array
     {
         $outlineObject = $row['outline_object'] ?? null;
-        if (!is_int($outlineObject) || !isset($outlineStructureByObject[$outlineObject])) {
+        if (!is_int($outlineObject) || !isset($outlineReviewMetadataByObject[$outlineObject])) {
             return $row;
         }
 
-        foreach ($outlineStructureByObject[$outlineObject] as $key => $value) {
+        foreach ($outlineReviewMetadataByObject[$outlineObject] as $key => $value) {
             $targetKey = $prefix ? 'outline_' . $key : $key;
             if (!array_key_exists($targetKey, $row)) {
                 $row[$targetKey] = $value;
