@@ -484,6 +484,9 @@ final class Html5DomFragment
             self::childForeignContext($node, $rawName, $elementForeignContext),
             $baseUrl
         );
+        if ($mode === 'html' && $name === 'details') {
+            self::markClosedHtmlDetailsReviewMetadata($node, $attrs, $children, $diagnostics);
+        }
 
         if ($mode === 'html' && self::isEmptyHtmlPictureSourceElement($node, $name, $attrs)) {
             $diagnostics[] = [
@@ -511,6 +514,41 @@ final class Html5DomFragment
         }
 
         return [$element];
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markClosedHtmlDetailsReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array &$children,
+        array &$diagnostics
+    ): void {
+        if ($element->hasAttribute('open')) {
+            return;
+        }
+
+        $attrs['data-pandoc-details-state'] = 'closed';
+        foreach ($children as $index => $child) {
+            if (($child['type'] ?? '') !== 'element' || strtolower((string) ($child['name'] ?? '')) !== 'summary') {
+                continue;
+            }
+
+            $childAttrs = is_array($child['attrs'] ?? null) ? $child['attrs'] : [];
+            $childAttrs['data-pandoc-details-summary'] = 'true';
+            $child['attrs'] = $childAttrs;
+            $children[$index] = $child;
+            break;
+        }
+
+        $diagnostics[] = [
+            'code' => 'closed-details-review',
+            'tag' => 'details',
+            'reason' => 'collapsed-content-preserved',
+        ];
     }
 
     /**

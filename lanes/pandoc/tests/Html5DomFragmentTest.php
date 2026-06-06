@@ -731,6 +731,50 @@ return [
         $t->true(!str_contains($fragment->serialize(), 'open="open"'), 'Expected open to serialize as an HTML5 boolean attribute');
         $t->true(!str_contains($fragment->serialize(), 'controls=""'), 'Expected controls to serialize as an HTML5 boolean attribute');
     },
+    'marks closed details disclosure content for WordPress review handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<details data-pandoc-details-state="source-spoof"><summary onclick="alert(1)">Migration notes</summary>'
+            . '<p>Hidden <a href="./packet.html">packet</a><a href="java&#10;script:alert(1)">bad</a></p></details>'
+            . '<details open><summary>Open notes</summary><p>Visible</p></details>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/details-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<details data-pandoc-details-state="closed"><summary data-pandoc-details-summary="true">Migration notes</summary>'
+            . '<p>Hidden <a href="https://source.example.test/import/posts/packet.html">packet</a><a>bad</a></p></details>'
+            . '<details open><summary>Open notes</summary><p>Visible</p></details>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Migration notesHidden packetbadOpen notesVisible', $fragment->textContent());
+        $t->same(['a', 'details', 'p', 'summary'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['data-pandoc-details-state', 'href', 'onclick'], $summary['filteredAttributes']);
+        $t->same(['unsafe-attribute', 'unsafe-attribute', 'unsafe-url', 'closed-details-review'], $policyDiagnostics);
+        $t->same('details', $nodes[0]['name']);
+        $t->same(['data-pandoc-details-state' => 'closed'], $nodes[0]['attrs']);
+        $t->same('summary', $nodes[0]['children'][0]['name']);
+        $t->same(['data-pandoc-details-summary' => 'true'], $nodes[0]['children'][0]['attrs']);
+        $t->same('https://source.example.test/import/posts/packet.html', $nodes[0]['children'][1]['children'][1]['attrs']['href']);
+        $t->same([], $nodes[0]['children'][1]['children'][2]['attrs']);
+        $t->same(['open' => ''], $nodes[1]['attrs']);
+        $t->same([], $nodes[1]['children'][0]['attrs']);
+        $t->same('/migration/details-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned data-pandoc disclosure state to be stripped');
+        $t->true(!str_contains($html, 'onclick='), 'Expected active summary handlers to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside closed details to be stripped');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();
