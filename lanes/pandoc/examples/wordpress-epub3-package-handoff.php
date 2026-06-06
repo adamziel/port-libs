@@ -179,6 +179,7 @@ $chapterXhtml = <<<'XML'
     <span id="page-1"></span>
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
     <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
+    <p>Responsive cover candidate: <img src="../images/cover.png" srcset="../images/cover.png 1x, ../images/legacy-cover.jpg 2x" alt="responsive cover"/></p>
     <p><span id="source-play" role="button" tabindex="0">Play source audio</span></p>
     <audio id="source-audio" src="../audio/chapter.mp3"/>
     <epub:trigger id="source-audio-trigger" ev:observer="source-play" ev:event="click" action="play" ref="source-audio"/>
@@ -830,6 +831,30 @@ XML;
     }
     if (($result['document']->children[0]->attr('contentReferences')[0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose remote XHTML content reference diagnostics');
+    }
+    $chapterReferences = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['references'] ?? [];
+    $chapterSrcsetReferences = array_values(array_filter(
+        $chapterReferences,
+        static fn (array $reference): bool => ($reference['attribute'] ?? null) === 'srcset'
+    ));
+    if (count($chapterSrcsetReferences) !== 2) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to preserve responsive srcset candidates');
+    }
+    if (($chapterSrcsetReferences[0]['target'] ?? null) !== '/EPUB/images/cover.png' || ($chapterSrcsetReferences[1]['target'] ?? null) !== '/EPUB/images/legacy-cover.jpg') {
+        throw new RuntimeException('Expected EPUB XHTML srcset candidates to resolve against package image parts');
+    }
+    if (($chapterSrcsetReferences[0]['srcsetDescriptor'] ?? null) !== '1x' || ($chapterSrcsetReferences[1]['srcsetDescriptor'] ?? null) !== '2x') {
+        throw new RuntimeException('Expected EPUB XHTML srcset descriptors to stay available for review');
+    }
+    if (($chapterSrcsetReferences[0]['manifestId'] ?? null) !== 'cover-image' || ($chapterSrcsetReferences[1]['manifestId'] ?? null) !== 'legacy-cover') {
+        throw new RuntimeException('Expected EPUB XHTML srcset candidates to retain OPF manifest handoff metadata');
+    }
+    $chapterBlockSrcsetReferences = array_values(array_filter(
+        $result['document']->children[0]->attr('contentReferences') ?? [],
+        static fn (array $reference): bool => ($reference['attribute'] ?? null) === 'srcset'
+    ));
+    if ($chapterBlockSrcsetReferences !== $chapterSrcsetReferences) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML srcset metadata');
     }
     if (($result['remoteResources']['declaredCount'] ?? null) !== 1 || ($result['remoteResources']['observedAssetCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB remote-resources declarations to reconcile with observed XHTML resource references');

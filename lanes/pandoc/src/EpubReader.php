@@ -6955,7 +6955,7 @@ final class EpubReader
         }
 
         foreach (self::xhtmlReferenceAttributes($element) as $attribute) {
-            $href = trim($attribute['href']);
+            $href = is_string($attribute['href'] ?? null) ? trim($attribute['href']) : '';
             if ($href === '') {
                 continue;
             }
@@ -6963,7 +6963,7 @@ final class EpubReader
                 $flags['scripted'] = true;
             }
 
-            $references[] = $this->xhtmlContentReference(
+            $reference = $this->xhtmlContentReference(
                 $package,
                 $part,
                 $element->localName,
@@ -6973,6 +6973,17 @@ final class EpubReader
                 count($references),
                 $flags
             );
+            if (isset($attribute['srcsetCandidateIndex'])) {
+                $reference['srcsetCandidateIndex'] = (int) $attribute['srcsetCandidateIndex'];
+                $reference['srcsetCandidate'] = is_string($attribute['srcsetCandidate'] ?? null)
+                    ? $attribute['srcsetCandidate']
+                    : $href;
+                $reference['srcsetDescriptor'] = is_string($attribute['srcsetDescriptor'] ?? null)
+                    ? $attribute['srcsetDescriptor']
+                    : null;
+            }
+
+            $references[] = $reference;
         }
 
         foreach (self::childElements($element) as $child) {
@@ -7218,7 +7229,7 @@ final class EpubReader
     }
 
     /**
-     * @return list<array{attribute:string, href:string}>
+     * @return list<array<string, mixed>>
      */
     private static function xhtmlReferenceAttributes(\DOMElement $element): array
     {
@@ -7230,17 +7241,24 @@ final class EpubReader
             'embed' => ['src'],
             'iframe' => ['src'],
             'image' => ['href', 'xlink:href'],
-            'img' => ['src'],
+            'img' => ['src', 'srcset'],
             'link' => ['href'],
             'object' => ['data'],
             'script' => ['src'],
-            'source' => ['src'],
+            'source' => ['src', 'srcset'],
             'track' => ['src'],
             'use' => ['href', 'xlink:href'],
             'video' => ['src', 'poster'],
         ][$localName] ?? [] as $attributeName) {
             $value = self::xhtmlAttributeValue($element, $attributeName);
             if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            if ($attributeName === 'srcset') {
+                foreach (self::xhtmlSrcsetReferenceAttributes($value) as $candidate) {
+                    $attributes[] = $candidate;
+                }
                 continue;
             }
 
@@ -7251,6 +7269,77 @@ final class EpubReader
         }
 
         return $attributes;
+    }
+
+    /**
+     * @return list<array{attribute:string, href:string, srcsetCandidateIndex:int, srcsetCandidate:string, srcsetDescriptor:string|null}>
+     */
+    private static function xhtmlSrcsetReferenceAttributes(string $value): array
+    {
+        $attributes = [];
+        foreach (self::splitXhtmlSrcsetCandidates($value) as $candidateIndex => $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+
+            $parts = preg_split('/[\x00-\x20]+/', $candidate);
+            if (!is_array($parts) || $parts === []) {
+                continue;
+            }
+
+            $href = trim((string) array_shift($parts));
+            if ($href === '') {
+                continue;
+            }
+
+            $descriptor = trim(implode(' ', $parts));
+            $attributes[] = [
+                'attribute' => 'srcset',
+                'href' => $href,
+                'srcsetCandidateIndex' => $candidateIndex,
+                'srcsetCandidate' => $candidate,
+                'srcsetDescriptor' => $descriptor === '' ? null : $descriptor,
+            ];
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitXhtmlSrcsetCandidates(string $value): array
+    {
+        $candidates = [];
+        $start = 0;
+        $offset = 0;
+
+        while (($comma = strpos($value, ',', $offset)) !== false) {
+            $candidatePrefix = substr($value, $start, $comma - $start);
+            if (self::isXhtmlDataUrlPayloadComma($candidatePrefix)) {
+                $offset = $comma + 1;
+                continue;
+            }
+
+            $candidates[] = $candidatePrefix;
+            $start = $comma + 1;
+            $offset = $start;
+        }
+
+        $candidates[] = substr($value, $start);
+
+        return $candidates;
+    }
+
+    private static function isXhtmlDataUrlPayloadComma(string $candidatePrefix): bool
+    {
+        $trimmed = trim($candidatePrefix);
+        if ($trimmed === '' || preg_match('/[\x00-\x20]/', $trimmed) === 1) {
+            return false;
+        }
+
+        return preg_match('/^data:[^,]*$/i', $trimmed) === 1;
     }
 
     private static function xhtmlAttributeValue(\DOMElement $element, string $attributeName): ?string

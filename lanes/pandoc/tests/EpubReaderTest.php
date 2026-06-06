@@ -2492,6 +2492,97 @@ XML;
         $t->same($asset['references'], $scanBlock->attr('contentReferences'));
         $t->same($asset['diagnostics'], $scanBlock->attr('contentDiagnostics'));
     },
+    'scans EPUB XHTML srcset candidates for responsive image review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $responsiveXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <picture>
+      <source srcset="../images/cover.png 1x, ../images/hero@2x.webp 2x, https://cdn.example.test/epub/hero.avif 640w" type="image/avif"/>
+      <img src="../images/cover.png" srcset="../images/cover.png 1x, ../images/missing-large.png 2x" alt="Responsive cover"/>
+    </picture>
+  </body>
+</html>
+XML;
+        $opfWithSrcset = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="hero-webp" href="images/hero@2x.webp" media-type="image/webp"/>'
+                . '<item id="responsive-srcset" href="text/responsive-srcset.xhtml" media-type="application/xhtml+xml" properties="remote-resources"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithSrcset = str_replace(
+            '</spine>',
+            '<itemref idref="responsive-srcset"/></spine>',
+            $opfWithSrcset
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithSrcset,
+            null,
+            [
+                ['name' => 'OEBPS/text/responsive-srcset.xhtml', 'data' => $responsiveXhtml],
+                ['name' => 'OEBPS/images/hero@2x.webp', 'data' => 'WEBP2X', 'compressionMethod' => 0],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/responsive-srcset.xhtml'];
+        $srcsetReferences = array_values(array_filter(
+            $asset['references'],
+            static fn (array $reference): bool => ($reference['attribute'] ?? null) === 'srcset'
+        ));
+
+        $t->same(true, $report['present']);
+        $t->same(4, $report['assetCount']);
+        $t->same(6, $asset['referenceCount']);
+        $t->same(5, count($srcsetReferences));
+        $t->same(1, $report['externalReferenceCount']);
+        $t->same(1, $report['missingReferenceCount']);
+        $t->same(['remote-resources', 'missing-references'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['remoteResources']);
+        $t->same(true, $asset['flags']['missingReferences']);
+
+        $t->same('source', $srcsetReferences[0]['element']);
+        $t->same('/OEBPS/images/cover.png', $srcsetReferences[0]['target']);
+        $t->same('cover-image', $srcsetReferences[0]['manifestId']);
+        $t->same(0, $srcsetReferences[0]['srcsetCandidateIndex']);
+        $t->same('../images/cover.png 1x', $srcsetReferences[0]['srcsetCandidate']);
+        $t->same('1x', $srcsetReferences[0]['srcsetDescriptor']);
+
+        $t->same('/OEBPS/images/hero@2x.webp', $srcsetReferences[1]['target']);
+        $t->same('hero-webp', $srcsetReferences[1]['manifestId']);
+        $t->same(6, $srcsetReferences[1]['byteLength']);
+        $t->same('2x', $srcsetReferences[1]['srcsetDescriptor']);
+
+        $t->same(true, $srcsetReferences[2]['external']);
+        $t->same('https://cdn.example.test/epub/hero.avif', $srcsetReferences[2]['target']);
+        $t->same('640w', $srcsetReferences[2]['srcsetDescriptor']);
+        $t->same('external-xhtml-content-reference', $srcsetReferences[2]['diagnostics'][0]['type']);
+
+        $t->same('img', $srcsetReferences[3]['element']);
+        $t->same('/OEBPS/images/cover.png', $srcsetReferences[3]['target']);
+        $t->same('1x', $srcsetReferences[3]['srcsetDescriptor']);
+
+        $t->same(false, $srcsetReferences[4]['external']);
+        $t->same(false, $srcsetReferences[4]['exists']);
+        $t->same('/OEBPS/images/missing-large.png', $srcsetReferences[4]['part']);
+        $t->same('2x', $srcsetReferences[4]['srcsetDescriptor']);
+        $t->same('missing-xhtml-content-reference', $srcsetReferences[4]['diagnostics'][0]['type']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['declaredCount']);
+        $t->same(1, $remoteResources['observedAssetCount']);
+        $t->same(1, $remoteResources['remoteReferenceCount']);
+        $t->same('srcset', $remoteResources['observedItemsByPart']['/OEBPS/text/responsive-srcset.xhtml']['remoteReferences'][0]['attribute']);
+        $t->same('640w', $remoteResources['observedItemsByPart']['/OEBPS/text/responsive-srcset.xhtml']['remoteReferences'][0]['srcsetDescriptor']);
+
+        $scanBlock = $result['document']->children[2];
+        $t->same('/OEBPS/text/responsive-srcset.xhtml', $scanBlock->attr('part'));
+        $t->same($asset['references'], $scanBlock->attr('contentReferences'));
+        $t->same($asset['reviewFlags'], $scanBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'flags EPUB switch XHTML content for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $switchXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
