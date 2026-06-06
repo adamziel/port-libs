@@ -231,6 +231,28 @@ return [
         $t->contains('<h1 id="ελληνικά">Ελληνικά</h1>', $blocks);
         $t->contains('<p>Συντάκτης «κείμενο» ― €20; Τόνος και ος.</p>', $blocks);
     },
+    'decodes iso 8859 8 hebrew source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xF2\xE1\xF8\xE9\xFA\n\n\xF2\xE5\xF8\xEA \xF2\xE1\xF8\xE9\xFA \xAB\xEE\xF7\xE5\xF8\xBB \xDF 12; \xFERTL.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-138');
+        $document = (new MarkdownReader())->readBytes($bytes, 'hebrew');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA0\xAA\xBA\xDF\xFD\xFE", 'iso-8859-8');
+        $undefined = UnicodeText::decodeBytes("A\xA1B\xBFC\xFBD\xFFE", 'iso-8859-8');
+
+        $t->same('iso-8859-8', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# עברית\n\nעורך עברית «מקור» ‗ 12; \u{200F}RTL.", $decoded['text']);
+        $t->same("\u{00A0}×÷‗\u{200E}\u{200F}", $specials['text']);
+        $t->same(4, UnicodeText::displayWidth($specials['text']));
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E", $undefined['text']);
+        $t->same(4, $undefined['repairs']);
+        $t->same(['encoding' => 'iso-8859-8', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('עברית', $document->children[0]->attr('text'));
+        $t->same("עורך עברית «מקור» ‗ 12; \u{200F}RTL.", $document->children[1]->attr('text'));
+        $t->same(28, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="עברית">עברית</h1>', $blocks);
+        $t->contains("<p>עורך עברית «מקור» ‗ 12; \u{200F}RTL.</p>", $blocks);
+    },
     'decodes shift jis japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
         $decoded = UnicodeText::decodeBytes($bytes, 'windows-31j');

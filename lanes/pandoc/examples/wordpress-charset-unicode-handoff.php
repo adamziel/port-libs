@@ -44,6 +44,9 @@ $iso88595Text = (string) $iso88595Source->children[1]->attr('text');
 $iso88597Bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
 $iso88597Source = (new MarkdownReader())->readBytes($iso88597Bytes, 'iso-ir-126');
 $iso88597Text = (string) $iso88597Source->children[1]->attr('text');
+$iso88598Bytes = "# \xF2\xE1\xF8\xE9\xFA\n\n\xF2\xE5\xF8\xEA \xF2\xE1\xF8\xE9\xFA \xAB\xEE\xF7\xE5\xF8\xBB \xDF 12; \xFERTL.";
+$iso88598Source = (new MarkdownReader())->readBytes($iso88598Bytes, 'iso-ir-138');
+$iso88598Text = (string) $iso88598Source->children[1]->attr('text');
 $shiftJisBytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
 $shiftJisSource = (new MarkdownReader())->readBytes($shiftJisBytes, 'windows-31j');
 $shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
@@ -362,6 +365,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88597Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88597Text) . '/' . UnicodeText::displayWidth($iso88597Text, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-8859-8 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso88598Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88598Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88598Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Shift_JIS source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $shiftJisText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($shiftJisText) . '/' . UnicodeText::displayWidth($shiftJisText, 'wide')])]),
@@ -581,6 +589,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>ISO-8859-7 source</td><td>Συντάκτης «κείμενο» ― €20; Τόνος και ος.</td><td>iso-8859-7:40/62</td>')) {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-7 Greek decode audit row');
+    }
+    if (($iso88598Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-8') {
+        throw new RuntimeException('charset handoff self-test missing ISO-8859-8 source encoding');
+    }
+    if (!str_contains($blocks, "<td>ISO-8859-8 source</td><td>עורך עברית «מקור» ‗ 12; \u{200F}RTL.</td><td>iso-8859-8:28</td>")) {
+        throw new RuntimeException('charset handoff self-test missing ISO-8859-8 Hebrew decode audit row');
     }
     if (($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') !== 'shift_jis') {
         throw new RuntimeException('charset handoff self-test missing Shift_JIS source encoding');
