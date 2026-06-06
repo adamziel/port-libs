@@ -1952,6 +1952,59 @@ return [
         $t->same('explicit-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-tag-yaml-body">Explicit tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml boolean synonym metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Boolean synonym **Packet**',
+            'review:',
+            '  approved: yes',
+            '  blocked: NO',
+            '  live: On',
+            '  archived: off',
+            '  abbreviated-yes: y',
+            '  abbreviated-no: N',
+            '  explicit-on: !!bool ON',
+            '  explicit-off: !<tag:yaml.org,2002:bool> off',
+            '  quoted-yes: "yes"',
+            "  quoted-no: 'NO'",
+            'flow-review: {published: y, archived: n, enabled: ON, disabled: OFF, quoted: "off", typed: !!bool yes}',
+            'references:',
+            '  - id: boolean-synonym-ref',
+            '    metadata: {draft: no, ready: !!bool On, quoted: "n"}',
+            '...',
+            '',
+            '# Boolean synonym YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Boolean synonym **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(true, $meta['review']['approved']);
+        $t->same(false, $meta['review']['blocked']);
+        $t->same(true, $meta['review']['live']);
+        $t->same(false, $meta['review']['archived']);
+        $t->same(true, $meta['review']['abbreviated-yes']);
+        $t->same(false, $meta['review']['abbreviated-no']);
+        $t->same(true, $meta['review']['explicit-on']);
+        $t->same(false, $meta['review']['explicit-off']);
+        $t->same('yes', $meta['review']['quoted-yes']);
+        $t->same('NO', $meta['review']['quoted-no']);
+        $t->same(true, $meta['flow-review']['published']);
+        $t->same(false, $meta['flow-review']['archived']);
+        $t->same(true, $meta['flow-review']['enabled']);
+        $t->same(false, $meta['flow-review']['disabled']);
+        $t->same('off', $meta['flow-review']['quoted']);
+        $t->same(true, $meta['flow-review']['typed']);
+        $t->same('boolean-synonym-ref', $meta['references'][0]['id']);
+        $t->same(false, $meta['references'][0]['metadata']['draft']);
+        $t->same(true, $meta['references'][0]['metadata']['ready']);
+        $t->same('n', $meta['references'][0]['metadata']['quoted']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('boolean-synonym-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="boolean-synonym-yaml-body">Boolean synonym YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml special float metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

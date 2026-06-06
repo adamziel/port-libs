@@ -48,6 +48,12 @@ typed-review:
   invalid-review-duration: !!int 1:60
   confidence: !!float "0.75"
   approved: !!bool "true"
+  legacy-approved: yes
+  legacy-blocked: NO
+  legacy-enabled: On
+  legacy-disabled: off
+  explicit-legacy-enabled: !!bool y
+  quoted-legacy-approved: "yes"
   withdrawn: !!null "not carried"
 source-captured-at: !!timestamp 2026-06-05 06:46:51Z
 review-binary:
@@ -60,6 +66,7 @@ blank-note: # intentionally blank in source packet
 explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
 typed-flow-review: {priority: !!int "4", elapsed: !!int 0:01:05, enabled: !!bool "false", ticket: !!str 009}
+boolean-synonym-flow-review: {published: y, archived: n, enabled: ON, disabled: OFF, quoted: "off"}
 tag-directive-review:
   owner: !wpd!reviewer Directive Desk
   ticket: !yaml!str 010
@@ -448,6 +455,33 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['typed-review']['approved'] ?? null) !== true) {
         throw new RuntimeException('YAML metadata self-test missing explicit bool tag coercion');
+    }
+    if (($meta['typed-review']['legacy-approved'] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing yes boolean synonym');
+    }
+    if (($meta['typed-review']['legacy-blocked'] ?? null) !== false) {
+        throw new RuntimeException('YAML metadata self-test missing NO boolean synonym');
+    }
+    if (($meta['typed-review']['legacy-enabled'] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing On boolean synonym');
+    }
+    if (($meta['typed-review']['legacy-disabled'] ?? null) !== false) {
+        throw new RuntimeException('YAML metadata self-test missing off boolean synonym');
+    }
+    if (($meta['typed-review']['explicit-legacy-enabled'] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing explicit y boolean synonym');
+    }
+    if (($meta['typed-review']['quoted-legacy-approved'] ?? null) !== 'yes') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve quoted yes string');
+    }
+    if (($meta['boolean-synonym-flow-review']['published'] ?? null) !== true || ($meta['boolean-synonym-flow-review']['archived'] ?? null) !== false) {
+        throw new RuntimeException('YAML metadata self-test missing flow y/n boolean synonyms');
+    }
+    if (($meta['boolean-synonym-flow-review']['enabled'] ?? null) !== true || ($meta['boolean-synonym-flow-review']['disabled'] ?? null) !== false) {
+        throw new RuntimeException('YAML metadata self-test missing flow on/off boolean synonyms');
+    }
+    if (($meta['boolean-synonym-flow-review']['quoted'] ?? null) !== 'off') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve quoted off string');
     }
     if (!array_key_exists('withdrawn', $meta['typed-review'] ?? []) || $meta['typed-review']['withdrawn'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit null tag coercion');
@@ -1054,6 +1088,15 @@ echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log']
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Typed review duration seconds: ' . ($meta['typed-review']['review-duration-seconds'] ?? '') . ' / flow ' . ($meta['typed-flow-review']['elapsed'] ?? '') . "\n";
+echo 'Boolean synonym review: '
+    . (($meta['typed-review']['legacy-approved'] ?? null) === true ? 'yes=true' : 'yes=missing')
+    . ' / '
+    . (($meta['typed-review']['legacy-blocked'] ?? null) === false ? 'NO=false' : 'NO=missing')
+    . ' / '
+    . (($meta['boolean-synonym-flow-review']['enabled'] ?? null) === true ? 'ON=true' : 'ON=missing')
+    . ' / '
+    . (($meta['boolean-synonym-flow-review']['disabled'] ?? null) === false ? 'OFF=false' : 'OFF=missing')
+    . "\n";
 echo 'Tag directive review: ' . ($meta['tag-directive-review']['owner'] ?? '') . ' / priority ' . ($meta['tag-directive-review']['priority'] ?? '') . "\n";
 echo 'Non-specific tag review: ' . ($meta['non-specific-review']['owner'] ?? '') . ' / ' . implode(', ', $meta['non-specific-review']['labels'] ?? []) . "\n";
 echo 'Source captured at: ' . ($meta['source-captured-at'] ?? '') . "\n";

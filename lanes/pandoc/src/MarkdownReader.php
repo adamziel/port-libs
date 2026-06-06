@@ -1922,11 +1922,12 @@ final class MarkdownReader
             return $parsed;
         }
 
-        $parsed = match (strtolower($value)) {
-            'true' => true,
-            'false' => false,
-            'null', '~' => null,
-            default => is_numeric($value) ? $this->parseYamlNumericScalar($value) : $value,
+        $boolean = $this->parseYamlBooleanScalar($value);
+        $parsed = match (true) {
+            $boolean !== null => $boolean,
+            strtolower($value) === 'null' || $value === '~' => null,
+            is_numeric($value) => $this->parseYamlNumericScalar($value),
+            default => $value,
         };
         $this->rememberYamlAnchor($anchorName, $parsed);
 
@@ -3165,10 +3166,15 @@ final class MarkdownReader
 
     private function parseYamlExplicitBooleanScalar(string $value): bool|string
     {
+        return $this->parseYamlBooleanScalar($value) ?? $value;
+    }
+
+    private function parseYamlBooleanScalar(string $value): ?bool
+    {
         return match (strtolower(trim($value))) {
-            'true' => true,
-            'false' => false,
-            default => $value,
+            'y', 'yes', 'true', 'on' => true,
+            'n', 'no', 'false', 'off' => false,
+            default => null,
         };
     }
 
