@@ -4290,7 +4290,7 @@ final class PdfTextExtractor
         }
 
         $resourceObjects = [];
-        foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
+        foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary, true) as $resourceName => $resource) {
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
             $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
@@ -4326,7 +4326,7 @@ final class PdfTextExtractor
 
         $references = [];
         $duplicateResourceNames = $this->duplicateTopLevelResourceReferenceNames($xObjectDictionary);
-        foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
+        foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary, true) as $resourceName => $resource) {
             if (isset($duplicateResourceNames[$resourceName])) {
                 continue;
             }
@@ -4698,7 +4698,7 @@ final class PdfTextExtractor
     /**
      * @return array<string, array{objectNumber: int, generation: int}>
      */
-    private function topLevelResourceReferenceEntries(string $dictionary): array
+    private function topLevelResourceReferenceEntries(string $dictionary, bool $rejectMalformedValueTails = false): array
     {
         $dictionary = trim($dictionary);
         if (str_starts_with($dictionary, '<<')) {
@@ -4745,10 +4745,18 @@ final class PdfTextExtractor
             $referenceOffset = $valueOffset;
             $reference = $this->readPdfIndirectReferenceToken($dictionary, $referenceOffset);
             if ($reference !== null) {
-                $references[$resourceName] = [
-                    'objectNumber' => $reference['objectNumber'],
-                    'generation' => $reference['generation'],
-                ];
+                $next = $this->skipPdfValueAt($dictionary, $valueOffset);
+                $tailOffset = $next;
+                $this->skipContentWhitespaceAndComments($dictionary, $tailOffset);
+                $malformedTail = $rejectMalformedValueTails
+                    && $tailOffset < $length
+                    && ($dictionary[$tailOffset] ?? '') !== '/';
+                if (!$malformedTail) {
+                    $references[$resourceName] = [
+                        'objectNumber' => $reference['objectNumber'],
+                        'generation' => $reference['generation'],
+                    ];
+                }
             }
 
             $next = $this->skipPdfValueAt($dictionary, $valueOffset);
