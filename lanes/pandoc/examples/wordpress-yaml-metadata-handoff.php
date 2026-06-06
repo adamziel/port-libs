@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -22,6 +23,11 @@ author:
   - "WordPress #import editor"
 date: 2026-06-03
 keywords: [migration, wordpress, metadata] # reviewer labels
+abstract: |
+  Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).
+
+  - Preserve front matter
+  - Keep `source:key` audit
 reviewDefaults_: &review_defaults
   status: queued
   priority: 3
@@ -349,6 +355,10 @@ $meta = $document->attr('meta', []);
 $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $blocks = (new WordPressBlockWriter())->write($document);
+$abstractBlocks = $meta['abstractBlocks'] ?? [];
+$abstractWordPress = $abstractBlocks === []
+    ? ''
+    : (new WordPressBlockWriter())->write(new AstNode('document', [], $abstractBlocks));
 $metadataMarkdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
 $metadataRoundTripMeta = (new MarkdownReader())->read($metadataMarkdown)->attr('meta', []);
 
@@ -456,6 +466,25 @@ $plainNumericMeta = $plainNumericDocument->attr('meta', []);
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
+    }
+    if (($meta['abstract'] ?? '') !== "Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).\n\n- Preserve front matter\n- Keep `source:key` audit\n") {
+        throw new RuntimeException('YAML metadata self-test failed to preserve raw abstract metadata');
+    }
+    if (
+        !isset($meta['abstractBlocks'][0], $meta['abstractBlocks'][1])
+        || !$meta['abstractBlocks'][0] instanceof AstNode
+        || !$meta['abstractBlocks'][1] instanceof AstNode
+        || $meta['abstractBlocks'][0]->type !== 'paragraph'
+        || $meta['abstractBlocks'][1]->type !== 'bullet_list'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing parsed abstract block metadata');
+    }
+    if (
+        !str_contains($abstractWordPress, '<strong>review</strong>')
+        || !str_contains($abstractWordPress, '<a href="https://example.test/exports/packet#abstract">source</a>')
+        || !str_contains($abstractWordPress, '<code>source:key</code>')
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing WordPress abstract block handoff');
     }
     if (($meta['typed-review']['source-revision'] ?? '') !== '007') {
         throw new RuntimeException('YAML metadata self-test failed to preserve explicit string revision');
@@ -1138,6 +1167,8 @@ echo 'Authors: ' . implode(', ', $meta['authors'] ?? []) . "\n";
 echo 'Review status: ' . ($meta['review']['status'] ?? '') . "\n";
 echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
+echo 'Abstract blocks: ' . implode(', ', array_map(static fn (AstNode $node): string => $node->type, $abstractBlocks)) . "\n";
+echo $abstractWordPress . "\n\n";
 echo 'Writer YAML round-trip review: ' . ($metadataRoundTripMeta['review']['status'] ?? '') . "\n";
 echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadline', $meta) && $meta['optional-deadline'] === null) ? 'yes' : 'no') . "\n";
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";

@@ -45,7 +45,7 @@ final class MarkdownReader
     private bool $resolveFootnoteReferences = true;
 
     /**
-     * @param array{literateHaskell?: bool} $options
+     * @param array{literateHaskell?: bool, yamlMetadata?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -88,7 +88,10 @@ final class MarkdownReader
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
         $documentAttrs = [];
-        [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
+        $yamlMetadata = null;
+        if (($this->options['yamlMetadata'] ?? true) !== false) {
+            [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
+        }
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
@@ -3455,6 +3458,15 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($fieldName === 'abstract') {
+                $meta['abstract'] = $value;
+                $abstractBlocks = $this->metadataBlocksFromYamlValue($value);
+                if ($abstractBlocks !== []) {
+                    $meta['abstractBlocks'] = $abstractBlocks;
+                }
+                continue;
+            }
+
             $meta[$fieldName] = $value;
         }
 
@@ -3501,6 +3513,32 @@ final class MarkdownReader
         }
 
         return is_scalar($value) ? explode("\n", (string) $value) : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metadataBlocksFromYamlValue(mixed $value): array
+    {
+        $markdown = $this->metadataMarkdownSourceFromYamlValue($value);
+        if ($markdown === '') {
+            return [];
+        }
+
+        $reader = new self(array_replace($this->options, ['yamlMetadata' => false]));
+
+        return $reader->read($markdown)->children;
+    }
+
+    private function metadataMarkdownSourceFromYamlValue(mixed $value): string
+    {
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        $lines = $this->metadataLinesFromYamlValue($value);
+
+        return trim(implode("\n", $lines));
     }
 
     /**

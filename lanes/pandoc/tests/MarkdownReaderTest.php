@@ -842,6 +842,33 @@ return [
         $t->same('import-packet', $document->children[0]->attr('id'));
         $t->contains('<h1 id="import-packet">Import packet</h1>', $blocks);
     },
+    'maps pandoc yaml abstract metadata as markdown blocks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Abstract **Packet**',
+            'abstract: |',
+            '  First abstract paragraph with **review** and [source](https://example.test/source).',
+            '',
+            '  - Preserve *front matter*',
+            '  - Keep `source:key` audit',
+            '...',
+            '',
+            '# Body after abstract',
+        ]));
+        $meta = $document->attr('meta');
+        $abstractBlocks = $meta['abstractBlocks'] ?? [];
+        $abstractHtml = (new WordPressBlockWriter())->write(new AstNode('document', [], $abstractBlocks));
+
+        $t->same("First abstract paragraph with **review** and [source](https://example.test/source).\n\n- Preserve *front matter*\n- Keep `source:key` audit\n", $meta['abstract']);
+        $t->same(['paragraph', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $abstractBlocks));
+        $t->same(['text', 'strong', 'text', 'link', 'text'], array_map(static fn (AstNode $node): string => $node->type, $abstractBlocks[0]->children));
+        $t->same('review', $abstractBlocks[0]->children[1]->children[0]->attr('text'));
+        $t->same('https://example.test/source', $abstractBlocks[0]->children[3]->attr('url'));
+        $t->same(2, count($abstractBlocks[1]->children));
+        $t->contains('<p>First abstract paragraph with <strong>review</strong> and <a href="https://example.test/source">source</a>.</p>', $abstractHtml);
+        $t->contains('<ul><li>Preserve <em>front matter</em></li><li>Keep <code>source:key</code> audit</li></ul>', $abstractHtml);
+        $t->same('body-after-abstract', $document->children[0]->attr('id'));
+    },
     'keeps invalid pandoc yaml block scalar indentation as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
