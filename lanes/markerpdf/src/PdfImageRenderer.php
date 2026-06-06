@@ -6405,6 +6405,10 @@ final class PdfImageRenderer
         ) {
             $boundary['raw_dct_preview_boundary'] = true;
         }
+        $dctBoundary = $this->dctPreviewStreamBoundaryReview($boundary['filters'], $stream, $stream);
+        if ($dctBoundary !== null) {
+            $boundary['dctdecode_stream_boundary'] = $dctBoundary;
+        }
 
         return $boundary;
     }
@@ -6520,6 +6524,10 @@ final class PdfImageRenderer
 
         if (($boundary['raw_dct_preview_boundary'] ?? false) === true) {
             $metadata['raw_dct_preview_boundary'] = true;
+        }
+
+        if (is_array($boundary['dctdecode_stream_boundary'] ?? null)) {
+            $metadata['dctdecode_stream_boundary'] = $boundary['dctdecode_stream_boundary'];
         }
 
         if (($boundary['native_prefix_decoded'] ?? false) === true) {
@@ -7933,6 +7941,57 @@ final class PdfImageRenderer
         }
 
         return substr($stream, 0, $eoiEnd);
+    }
+
+    /**
+     * @param list<string> $resolvedFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewStreamBoundaryReview(array $resolvedFilters, string $stream, string $reviewStream): ?array
+    {
+        if (!in_array('DCTDecode', $resolvedFilters, true) && !in_array('DCT', $resolvedFilters, true)) {
+            return null;
+        }
+
+        $start = 0;
+        $length = strlen($reviewStream);
+        while ($start < $length && str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
+            $start++;
+        }
+        if (substr($reviewStream, $start, 2) !== "\xff\xd8") {
+            return null;
+        }
+
+        $eoiEnd = null;
+        foreach ($this->dctPreviewEoiEndOffsets($reviewStream, $start) as $candidateEnd) {
+            if ($this->skipDctPreviewPadding($reviewStream, $candidateEnd) === $length) {
+                $eoiEnd = $candidateEnd;
+                break;
+            }
+        }
+        if ($eoiEnd === null) {
+            return null;
+        }
+
+        $jpegBytes = substr($reviewStream, $start, $eoiEnd - $start);
+        $paddingEnd = $this->skipDctPreviewPadding($reviewStream, $eoiEnd);
+
+        return [
+            'source' => 'dctdecode_jpeg_marker_boundary',
+            'jpeg_soi_offset' => $start,
+            'jpeg_eoi_end_offset' => $eoiEnd,
+            'raw_stream_length' => strlen($stream),
+            'review_stream_length' => strlen($reviewStream),
+            'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
+            'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            'sos_marker_seen' => str_contains($jpegBytes, "\xff\xda"),
+            'byte_stuffed_ff00_seen' => str_contains($jpegBytes, "\xff\x00"),
+            'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $jpegBytes) === 1,
+            'jpeg_marker_framing_used' => true,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ];
     }
 
     /**
