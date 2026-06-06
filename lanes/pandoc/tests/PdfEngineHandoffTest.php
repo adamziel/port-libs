@@ -2124,6 +2124,53 @@ MARKDOWN);
         $t->same($result['pdfViewerPreferences'], $sequence['finalPdfViewerPreferences']);
     },
 
+    'fake runner extracts bounded pdf catalog uri base from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/uri-base.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /URI 6 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Link /Rect [72 640 360 672] /A << /S /URI /URI (assets/review-chart.png) >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Base <FEFF00680074007400700073003A002F002F006500780061006D0070006C0065002E0074006500730074002F007200650076006900650077002F> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/uri-base.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/uri-base.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same('https://example.test/review/', $result['pdfUriBase']);
+        $t->same(['assets/review-chart.png'], $result['pdfLinkTargets']);
+        $t->contains('pdf-byte-uri-base:https://example.test/review/', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same('https://example.test/review/', $sequence['finalPdfUriBase']);
+    },
+
     'fake runner extracts bounded pdf named destination name trees from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/named-dests.pdf']);

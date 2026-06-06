@@ -289,6 +289,7 @@ final class PdfEngineHandoff
      *     pdfPageMode: string|null,
      *     pdfOpenAction: array<string, mixed>|null,
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     pdfUriBase: string|null,
      *     pdfViewerPreferences: array<string, bool|int|string>,
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
@@ -699,6 +700,7 @@ final class PdfEngineHandoff
         $pdfPageMode = null;
         $pdfOpenAction = null;
         $pdfNamedDestinations = [];
+        $pdfUriBase = null;
         $pdfViewerPreferences = [];
         $pdfTaggingMetadata = [];
         $pdfStructureElements = [];
@@ -767,6 +769,7 @@ final class PdfEngineHandoff
                 $pdfPageMode = $pdfInspection['pageMode'];
                 $pdfOpenAction = $pdfInspection['openAction'];
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
+                $pdfUriBase = $pdfInspection['uriBase'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
@@ -1116,6 +1119,9 @@ final class PdfEngineHandoff
                 }
                 if ($pdfNamedDestinations !== []) {
                     $diagnostics[] = 'pdf-byte-named-destinations:' . count($pdfNamedDestinations);
+                }
+                if ($pdfUriBase !== null) {
+                    $diagnostics[] = 'pdf-byte-uri-base:' . $pdfUriBase;
                 }
                 if ($pdfViewerPreferences !== []) {
                     $diagnostics[] = 'pdf-byte-viewer-preferences:' . count($pdfViewerPreferences);
@@ -1548,6 +1554,7 @@ final class PdfEngineHandoff
             'pdfPageMode' => $pdfPageMode,
             'pdfOpenAction' => $pdfOpenAction,
             'pdfNamedDestinations' => $pdfNamedDestinations,
+            'pdfUriBase' => $pdfUriBase,
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureElements' => $pdfStructureElements,
@@ -1637,6 +1644,7 @@ final class PdfEngineHandoff
      *     finalPdfPageMode: string|null,
      *     finalPdfOpenAction: array<string, mixed>|null,
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     finalPdfUriBase: string|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
@@ -1840,6 +1848,7 @@ final class PdfEngineHandoff
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
             'finalPdfOpenAction' => is_array($finalRun) && is_array($finalRun['pdfOpenAction'] ?? null) ? $finalRun['pdfOpenAction'] : null,
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
+            'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
@@ -3026,6 +3035,7 @@ final class PdfEngineHandoff
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
+            'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
@@ -5265,6 +5275,28 @@ final class PdfEngineHandoff
         }
 
         return $preferences;
+    }
+
+    private function extractPdfUriBase(string $pdfBytes, ?string $catalog): ?string
+    {
+        if ($catalog === null || !str_contains($catalog, '/URI')) {
+            return null;
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $uriDictionary = $this->extractPdfDictionaryOrReferenceValue($catalog, 'URI', $objects);
+        if ($uriDictionary === null) {
+            return null;
+        }
+
+        $base = $this->extractPdfStringOrNameValue($uriDictionary, 'Base');
+        if ($base === null) {
+            return null;
+        }
+
+        $base = trim($base);
+
+        return $base === '' ? null : $base;
     }
 
     /**
