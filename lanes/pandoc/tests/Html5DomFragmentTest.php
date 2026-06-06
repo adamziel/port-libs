@@ -739,6 +739,62 @@ return [
         $t->true(!str_contains($html, 'https://source.example.test/import/post.html#icon'), 'Expected SVG use reference to stay local under base URL metadata');
         $t->true(!str_contains($html, 'https://source.example.test/import/post.html#label'), 'Expected SVG textPath reference to stay local under base URL metadata');
     },
+    'preserves safe raster data svg image resources before WordPress handoff' => static function (TestRunner $t): void {
+        $pngData = 'data:image/png;base64,iVBORw0KGgo=';
+        $gifData = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+        $webpData = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAQAcJaQAA3AA/vuUAAA=';
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure><svg xmlns:xlink="http://www.w3.org/1999/xlink">'
+            . '<image href="' . $pngData . '"></image>'
+            . '<image xlink:href="' . $webpData . '"></image>'
+            . '<feImage href="' . $gifData . '"></feImage>'
+            . '<image href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></image>'
+            . '<image href="data:text/html;base64,PHNjcmlwdD4="></image>'
+            . '<a href="' . $pngData . '">linked data image</a>'
+            . '</svg></figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/svg-data-image-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $svg = $nodes[0]['children'][0];
+
+        $expected = '<figure><svg xmlns:xlink="http://www.w3.org/1999/xlink">'
+            . '<image href="' . $pngData . '"></image>'
+            . '<image xlink:href="' . $webpData . '"></image>'
+            . '<feImage href="' . $gifData . '"></feImage>'
+            . '<image></image><image></image><a>linked data image</a></svg></figure>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['a', 'feImage', 'figure', 'image', 'svg'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(['unsafe-url', 'unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same(['href' => $pngData], $svg['children'][0]['attrs']);
+        $t->same(['xlink:href' => $webpData], $svg['children'][1]['attrs']);
+        $t->same(['href' => $gifData], $svg['children'][2]['attrs']);
+        $t->same([], $svg['children'][3]['attrs']);
+        $t->same([], $svg['children'][4]['attrs']);
+        $t->same([], $svg['children'][5]['attrs']);
+        $t->same('/migration/svg-data-image-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(str_contains($html, $pngData), 'Expected safe raster SVG image href data to survive');
+        $t->true(str_contains($html, $webpData), 'Expected safe raster SVG image xlink:href data to survive');
+        $t->true(str_contains($html, $gifData), 'Expected safe raster SVG feImage data to survive');
+        $t->true(!str_contains($html, 'data:image/svg+xml'), 'Expected script-capable SVG image data to be stripped');
+        $t->true(!str_contains($html, 'data:text/html'), 'Expected active HTML data payloads to be stripped');
+        $t->true(!str_contains($html, '<a href="data:'), 'Expected data URLs to remain blocked for SVG navigational links');
+    },
     'filters svg presentation resource attributes before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<figure><svg>'

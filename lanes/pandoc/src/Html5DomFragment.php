@@ -1303,7 +1303,7 @@ final class Html5DomFragment
             return self::isSafeImageMapReference($value);
         }
 
-        if (self::isSafeRasterImageSourceAttribute($tagName, $name, $value)) {
+        if (self::isSafeRasterImageSourceAttribute($tagName, $name, $value, $foreignContext)) {
             return true;
         }
 
@@ -1331,9 +1331,16 @@ final class Html5DomFragment
         return self::isSafeUrl($value);
     }
 
-    private static function isSafeRasterImageSourceAttribute(string $tagName, string $name, string $value): bool
+    private static function isSafeRasterImageSourceAttribute(string $tagName, string $name, string $value, ?string $foreignContext): bool
     {
-        if (strtolower($tagName) !== 'img' || strtolower($name) !== 'src') {
+        $lowerTagName = strtolower($tagName);
+        $lowerName = strtolower($name);
+        $isHtmlImageSource = $lowerTagName === 'img' && $lowerName === 'src';
+        $isSvgImageResource = $foreignContext === 'svg'
+            && in_array($lowerTagName, ['image', 'feimage'], true)
+            && in_array($lowerName, ['href', 'xlink:href'], true);
+
+        if (!$isHtmlImageSource && !$isSvgImageResource) {
             return false;
         }
 

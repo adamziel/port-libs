@@ -24,7 +24,7 @@ $source = <<<HTML
   <!--review--->
   <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;">source note</a>.</p>
   <iframe srcdoc="$srcdoc"></iframe>
-  <svg><desc><![CDATA[Legacy <source> & review notes]]></desc><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path=" url( #review-clip ) " filter="url(javascript:alert(1))" mask="url(./masks/review.svg#mask)" marker-start="url(ja/**/vascript:alert(1))"><path d="M0 0" fill="url(#paint)" stroke="url( java&#10;script:alert(1) )"></path></g></svg>
+  <svg><desc><![CDATA[Legacy <source> & review notes]]></desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path=" url( #review-clip ) " filter="url(javascript:alert(1))" mask="url(./masks/review.svg#mask)" marker-start="url(ja/**/vascript:alert(1))"><path d="M0 0" fill="url(#paint)" stroke="url( java&#10;script:alert(1) )"></path></g></svg>
   <figure><img src=" cover.png&#13;" srcset=" h&#9;ttps://cdn.example.test/cover.png?x=1&amp;y=2 01.00x, cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
   <picture><source srcset="data:image/png;base64,iVBORw0KGgo= 1x, data:text/html;base64,PHNjcmlwdD4= 2x" type="image/png"><source srcset="hero.avif 1x, javascript:alert(1) 2x" media="(min-width: 48em)" type="image/avif"><source srcset="mailto:bad@example.test 1x" media="(max-width: 47em)"><img src="fallback.jpg" alt="Responsive cover"></picture>
   <p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline raster"><img src="data:text/html;base64,PHNjcmlwdD4=" alt="HTML data"></p>
@@ -52,7 +52,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://source.example.test/import/posts/refresh-target.html" data-pandoc-meta-refresh="true">Refresh target</a>',
         '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
         '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
-        '<svg><desc>Legacy &lt;source&gt; &amp; review notes</desc><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path="url(#review-clip)" mask="url(https://source.example.test/import/posts/masks/review.svg#mask)"><path d="M0 0" fill="url(#paint)"></path></g></svg>',
+        '<svg><desc>Legacy &lt;source&gt; &amp; review notes</desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path="url(#review-clip)" mask="url(https://source.example.test/import/posts/masks/review.svg#mask)"><path d="M0 0" fill="url(#paint)"></path></g></svg>',
         '<img src="https://source.example.test/import/posts/cover.png" srcset="https://cdn.example.test/cover.png?x=1&amp;y=2 1x, https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover">',
         '<source srcset="data:image/png;base64,iVBORw0KGgo= 1x" type="image/png">',
         '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif">',
@@ -66,7 +66,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'javascript:', 'ja/**/vascript', 'inactive.example', 'mailto:bad@example.test', 'data:text/html', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft'] as $blocked) {
+    foreach (['<base', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'javascript:', 'ja/**/vascript', 'inactive.example', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
