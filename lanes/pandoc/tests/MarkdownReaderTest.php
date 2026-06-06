@@ -958,6 +958,49 @@ return [
         $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($implicitTags, 'tag'), true));
         $t->true(in_array('/review/owner', array_column($implicitTags, 'path'), true));
     },
+    'maps pandoc yaml document markers with trailing comments in metadata blocks' => static function (TestRunner $t): void {
+        $explicit = (new MarkdownReader())->read(implode("\n", [
+            '--- # source export front matter',
+            '%YAML 1.2',
+            '%TAG !wp! tag:example.test,2026:',
+            '--- # YAML document starts after directives',
+            'title: Commented marker **Packet**',
+            'review:',
+            '  owner: !wp!reviewer Import Desk',
+            '  status: queued',
+            '... # metadata ends before body',
+            '',
+            '# Commented marker body',
+        ]));
+        $explicitMeta = $explicit->attr('meta');
+        $explicitTags = $explicit->attr('yamlMetadataTagProvenance', []);
+        $explicitBlocks = (new WordPressBlockWriter())->write($explicit);
+
+        $implicit = (new MarkdownReader())->read(implode("\n", [
+            'title: Implicit commented marker **Packet**',
+            'review: {owner: Flow Desk, priority: !!int "5"}',
+            '... # implicit YAML metadata ends',
+            '',
+            '# Implicit commented body',
+        ]));
+        $implicitMeta = $implicit->attr('meta');
+        $implicitBlocks = (new WordPressBlockWriter())->write($implicit);
+
+        $t->same('Commented marker **Packet**', $explicitMeta['title']);
+        $t->same('Import Desk', $explicitMeta['review']['owner']);
+        $t->same('queued', $explicitMeta['review']['status']);
+        $t->same('heading', $explicit->children[0]->type);
+        $t->same('commented-marker-body', $explicit->children[0]->attr('id'));
+        $t->contains('<h1 id="commented-marker-body">Commented marker body</h1>', $explicitBlocks);
+        $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($explicitTags, 'tag'), true));
+        $t->true(in_array('/review/owner', array_column($explicitTags, 'path'), true));
+        $t->same('Implicit commented marker **Packet**', $implicitMeta['title']);
+        $t->same('Flow Desk', $implicitMeta['review']['owner']);
+        $t->same(5, $implicitMeta['review']['priority']);
+        $t->same('heading', $implicit->children[0]->type);
+        $t->same('implicit-commented-body', $implicit->children[0]->attr('id'));
+        $t->contains('<h1 id="implicit-commented-body">Implicit commented body</h1>', $implicitBlocks);
+    },
     'maps pandoc yaml folded metadata and scalar author aliases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

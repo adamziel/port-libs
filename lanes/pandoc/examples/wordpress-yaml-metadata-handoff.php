@@ -11,11 +11,11 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $markdown = <<<'MARKDOWN'
 The source export starts with a migration preface before metadata.
 
----
+--- # source export front matter
 %YAML 1.2
 %TAG !wpd! tag:directive.example,2026:
 %TAG !yaml! tag:yaml.org,2002:
----
+--- # YAML document starts after directives
 title: "Migration **Packet**" # source export title
 author:
   - Data Liberation reviewer
@@ -308,7 +308,7 @@ references:
         - - 2026
           - 6
           - 3
----
+--- # source metadata block ends before body
 
 # Imported Body
 

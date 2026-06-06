@@ -415,8 +415,9 @@ final class MarkdownReader
         $yamlLines = [];
         $count = count($lines);
         for ($cursor = 0; $cursor < $count; $cursor++) {
-            if ($cursor > 0 && preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
-                if (trim($lines[$cursor]) === '---' && $this->isYamlDirectiveDocumentStartMarker($yamlLines)) {
+            $marker = $this->yamlMetadataDocumentMarker($lines[$cursor]);
+            if ($cursor > 0 && $marker !== null) {
+                if ($marker === '---' && $this->isYamlDirectiveDocumentStartMarker($yamlLines)) {
                     $yamlLines[] = $lines[$cursor];
                     continue;
                 }
@@ -462,7 +463,7 @@ final class MarkdownReader
      */
     private function tryReadYamlMetadataBlock(array $lines, int $start): ?array
     {
-        if (preg_match('/^---[ \t]*$/', $lines[$start] ?? '') !== 1) {
+        if ($this->yamlMetadataDocumentMarker($lines[$start] ?? '') !== '---') {
             return null;
         }
 
@@ -477,8 +478,9 @@ final class MarkdownReader
         $yamlLines = [];
         $count = count($lines);
         for ($cursor = $start + 1; $cursor < $count; $cursor++) {
-            if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
-                if (trim($lines[$cursor]) === '---' && $this->isYamlDirectiveDocumentStartMarker($yamlLines)) {
+            $marker = $this->yamlMetadataDocumentMarker($lines[$cursor]);
+            if ($marker !== null) {
+                if ($marker === '---' && $this->isYamlDirectiveDocumentStartMarker($yamlLines)) {
                     $yamlLines[] = $lines[$cursor];
                     continue;
                 }
@@ -844,11 +846,21 @@ final class MarkdownReader
             break;
         }
 
-        if (preg_match('/^---[ \t]*$/', $lines[$index] ?? '') === 1) {
+        if ($this->yamlMetadataDocumentMarker($lines[$index] ?? '') === '---') {
             $index++;
         }
 
         return array_slice($lines, $index);
+    }
+
+    private function yamlMetadataDocumentMarker(string $line): ?string
+    {
+        $marker = trim($this->stripYamlTrailingComment($line));
+
+        return match ($marker) {
+            '---', '...' => $marker,
+            default => null,
+        };
     }
 
     private function isYamlDirectiveLine(string $trimmed): bool
