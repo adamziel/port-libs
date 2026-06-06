@@ -3136,6 +3136,17 @@ final class MarkdownReader
     private function parseYamlExplicitFloatScalar(string $value): float|string
     {
         $normalized = str_replace('_', '', trim($value));
+        $lower = strtolower($normalized);
+        if ($lower === '.inf' || $lower === '+.inf') {
+            return INF;
+        }
+        if ($lower === '-.inf') {
+            return -INF;
+        }
+        if ($lower === '.nan' || $lower === '+.nan' || $lower === '-.nan') {
+            return NAN;
+        }
+
         if (preg_match('/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/', $normalized) !== 1) {
             return $value;
         }

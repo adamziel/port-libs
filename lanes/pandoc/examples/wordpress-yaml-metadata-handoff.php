@@ -392,6 +392,23 @@ $duplicateKeyMeta = $duplicateKeyDocument->attr('meta', []);
 $duplicateKeyDiagnostics = $duplicateKeyDocument->attr('yamlMetadataDiagnostics', []);
 $duplicateKeyBlocks = (new WordPressBlockWriter())->write($duplicateKeyDocument);
 
+$specialFloatMarkdown = <<<'MARKDOWN'
+---
+title: Special float packet
+review:
+  positive-infinity: !!float .Inf
+  negative-infinity: !!float -.inf
+  not-a-number: !!float .NaN
+  invalid-special: !!float .infinite
+flow-review: {ceiling: !!float +.INF, missing: !!float .nan}
+...
+
+# Special float body
+MARKDOWN;
+
+$specialFloatDocument = (new MarkdownReader())->read($specialFloatMarkdown);
+$specialFloatMeta = $specialFloatDocument->attr('meta', []);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -974,6 +991,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($duplicateKeyBlocks, '<h1 id="duplicate-key-body">Duplicate key body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing duplicate key body heading');
     }
+    if (!is_infinite($specialFloatMeta['review']['positive-infinity'] ?? null) || ($specialFloatMeta['review']['positive-infinity'] ?? 0.0) < 0) {
+        throw new RuntimeException('YAML metadata self-test missing positive infinity float metadata');
+    }
+    if (!is_infinite($specialFloatMeta['review']['negative-infinity'] ?? null) || ($specialFloatMeta['review']['negative-infinity'] ?? 0.0) > 0) {
+        throw new RuntimeException('YAML metadata self-test missing negative infinity float metadata');
+    }
+    if (!is_nan($specialFloatMeta['review']['not-a-number'] ?? null)) {
+        throw new RuntimeException('YAML metadata self-test missing NaN float metadata');
+    }
+    if (($specialFloatMeta['review']['invalid-special'] ?? null) !== '.infinite') {
+        throw new RuntimeException('YAML metadata self-test did not preserve invalid special float source text');
+    }
+    if (!is_infinite($specialFloatMeta['flow-review']['ceiling'] ?? null) || ($specialFloatMeta['flow-review']['ceiling'] ?? 0.0) < 0) {
+        throw new RuntimeException('YAML metadata self-test missing flow positive infinity float metadata');
+    }
+    if (!is_nan($specialFloatMeta['flow-review']['missing'] ?? null)) {
+        throw new RuntimeException('YAML metadata self-test missing flow NaN float metadata');
+    }
 
     echo "yaml metadata handoff self-test ok\n";
     return;
@@ -1026,3 +1061,10 @@ echo $implicitOpeningBlocks . "\n";
 echo 'Duplicate key diagnostics: ' . implode(', ', array_column($duplicateKeyDiagnostics, 'path')) . "\n";
 echo 'Duplicate key final review: ' . ($duplicateKeyMeta['review']['status'] ?? '') . ' / ' . ($duplicateKeyMeta['flow-review']['owner'] ?? '') . "\n";
 echo $duplicateKeyBlocks . "\n";
+echo 'Special float review: '
+    . (is_infinite($specialFloatMeta['review']['positive-infinity'] ?? null) ? '+inf' : 'missing')
+    . ' / '
+    . (is_infinite($specialFloatMeta['review']['negative-infinity'] ?? null) ? '-inf' : 'missing')
+    . ' / '
+    . (is_nan($specialFloatMeta['review']['not-a-number'] ?? null) ? 'nan' : 'missing')
+    . "\n";

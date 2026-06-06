@@ -1910,6 +1910,46 @@ return [
         $t->same('explicit-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-tag-yaml-body">Explicit tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml special float metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Special float **Packet**',
+            'review:',
+            '  positive-infinity: !!float .inf',
+            '  explicit-positive-infinity: !!float +.Inf',
+            '  negative-infinity: !!float -.INF',
+            '  not-a-number: !!float .NaN',
+            '  invalid-special: !!float .infinite',
+            'flow-review: {priority: !!float "1.5", ceiling: !!float .Inf, floor: !!float -.inf, missing: !!float .nan}',
+            'references:',
+            '  - id: special-float-ref',
+            '    metadata: {score: !!float .INF, invalid: !!float not-a-float}',
+            '...',
+            '',
+            '# Special float YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Special float **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->true(is_infinite($meta['review']['positive-infinity']) && $meta['review']['positive-infinity'] > 0, 'positive .inf should parse to +INF');
+        $t->true(is_infinite($meta['review']['explicit-positive-infinity']) && $meta['review']['explicit-positive-infinity'] > 0, 'explicit +.Inf should parse to +INF');
+        $t->true(is_infinite($meta['review']['negative-infinity']) && $meta['review']['negative-infinity'] < 0, '-.INF should parse to -INF');
+        $t->true(is_nan($meta['review']['not-a-number']), '.NaN should parse to NAN');
+        $t->same('.infinite', $meta['review']['invalid-special']);
+        $t->same(1.5, $meta['flow-review']['priority']);
+        $t->true(is_infinite($meta['flow-review']['ceiling']) && $meta['flow-review']['ceiling'] > 0, 'flow .Inf should parse to +INF');
+        $t->true(is_infinite($meta['flow-review']['floor']) && $meta['flow-review']['floor'] < 0, 'flow -.inf should parse to -INF');
+        $t->true(is_nan($meta['flow-review']['missing']), 'flow .nan should parse to NAN');
+        $t->same('special-float-ref', $meta['references'][0]['id']);
+        $t->true(is_infinite($meta['references'][0]['metadata']['score']) && $meta['references'][0]['metadata']['score'] > 0, 'nested .INF should parse to +INF');
+        $t->same('not-a-float', $meta['references'][0]['metadata']['invalid']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('special-float-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="special-float-yaml-body">Special float YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit integer base metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
