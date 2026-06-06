@@ -434,6 +434,30 @@ $parserStreamFilterStackBoundaryCurrentBaseFlateFirstPdf = static function () us
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseMissingInnerAscii85EodPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $unterminatedContent = 'BT /F1 12 Tf 72 720 Td (Missing Inner ASCII85 EOD Leak) Tj ET';
+    $unterminatedAscii85 = $parserStreamFilterStackBoundaryCurrentBaseAscii85($unterminatedContent);
+    $unterminatedCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($unterminatedAscii85);
+
+    $validContent = 'BT /F1 12 Tf 72 700 Td (Valid Inner ASCII85 EOD Import) Tj ET';
+    $validAscii85 = $parserStreamFilterStackBoundaryCurrentBaseAscii85($validContent) . '~>';
+    $validCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($validAscii85);
+    $visibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Missing Inner EOD Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /FlateDecode /ASCII85Decode ] /Length " . strlen($unterminatedCompressed) . " >>\nstream\n{$unterminatedCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ /FlateDecode /ASCII85Decode ] /Length " . strlen($validCompressed) . " >>\nstream\n{$validCompressed}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf = static function (
     ?int &$declaredLength = null
 ) use (
@@ -1093,6 +1117,27 @@ return [
         $t->true(!str_contains($text, 'endstream'));
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, "\xd6\x6c\x4a\xc5"));
+    },
+    'rejects Flate then ASCII85 stack streams whose inner ASCII85 data is missing its EOD marker' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseMissingInnerAscii85EodPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseMissingInnerAscii85EodPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Valid Inner ASCII85 EOD Import',
+            'Visible After Missing Inner EOD Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Missing Inner ASCII85 EOD Leak'));
+        $t->true(!str_contains($text, 'ASCII85Decode'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, '~>'));
+        $t->true(!str_contains($text, "\0"));
     },
     'requires RunLength EOD before accepting missing or stale filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf): void {
         $extractor = new PdfTextExtractor();

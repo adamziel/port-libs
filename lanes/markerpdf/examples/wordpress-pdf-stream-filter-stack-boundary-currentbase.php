@@ -224,6 +224,21 @@ $flateFirstPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$missingInnerAscii85EodLeak = 'BT /F1 12 Tf 72 720 Td (Missing Inner ASCII85 EOD Leak) Tj ET';
+$missingInnerAscii85EodEncoded = $zlibStored($ascii85Encode($missingInnerAscii85EodLeak));
+$validInnerAscii85EodContent = 'BT /F1 12 Tf 72 700 Td (Valid Inner ASCII85 EOD Import) Tj ET';
+$validInnerAscii85EodEncoded = $zlibStored($ascii85Encode($validInnerAscii85EodContent) . '~>');
+$missingInnerAscii85EodVisibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Missing Inner EOD Boundary) Tj ET';
+$missingInnerAscii85EodPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /FlateDecode /ASCII85Decode ] /Length " . strlen($missingInnerAscii85EodEncoded) . " >>\nstream\n{$missingInnerAscii85EodEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter [ /FlateDecode /ASCII85Decode ] /Length " . strlen($validInnerAscii85EodEncoded) . " >>\nstream\n{$validInnerAscii85EodEncoded}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Length " . strlen($missingInnerAscii85EodVisibleAfter) . " >>\nstream\n{$missingInnerAscii85EodVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $runLengthBefore = "BT /F1 12 Tf 72 720 Td (RunLength Flate Stack Before) Tj ET\n";
 $runLengthAfter = "BT /F1 12 Tf 72 704 Td (RunLength Flate Stack After) Tj ET";
 $runLengthEncoded = $runLengthEncode($zlibStored($runLengthBefore . "\nendstream\n" . $runLengthAfter));
@@ -524,6 +539,7 @@ $stackLines = $extractor->extractTextLines($stackPdf);
 $declaredLengthLines = $extractor->extractTextLines($declaredLengthPdf);
 $shortLengthLines = $extractor->extractTextLines($shortLengthPdf);
 $flateFirstLines = $extractor->extractTextLines($flateFirstPdf);
+$missingInnerAscii85EodLines = $extractor->extractTextLines($missingInnerAscii85EodPdf);
 $runLengthLines = $extractor->extractTextLines($runLengthPdf);
 $runLengthDeclaredLines = $extractor->extractTextLines($runLengthDeclaredPdf);
 $nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParmsPdf);
@@ -547,6 +563,7 @@ $allLines = [
     ...$declaredLengthLines,
     ...$shortLengthLines,
     ...$flateFirstLines,
+    ...$missingInnerAscii85EodLines,
     ...$runLengthLines,
     ...$runLengthDeclaredLines,
     ...$nullFilterDecodeParmsLines,
@@ -574,6 +591,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['ASCII85Decode', 'FlateDecode'],
         ['ASCII85Decode', 'FlateDecode'],
         ['ASCII85Decode', 'FlateDecode'],
+        ['FlateDecode', 'ASCII85Decode'],
         ['FlateDecode', 'ASCII85Decode'],
         ['RunLengthDecode', 'FlateDecode'],
         ['RunLengthDecode', 'FlateDecode'],
@@ -630,6 +648,11 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'Indirect Null Filter Predictor',
         'Indirect Null DecodeParms Applies',
         'Visible After Indirect Null Filter',
+    ],
+    'missing_inner_ascii85_eod_stack_fail_closed' => !str_contains($joined, 'Missing Inner ASCII85 EOD Leak'),
+    'valid_inner_ascii85_eod_stack_preserved' => $missingInnerAscii85EodLines === [
+        'Valid Inner ASCII85 EOD Import',
+        'Visible After Missing Inner EOD Boundary',
     ],
     'short_declared_length_lzw_stack_recovers_after_eod' => $lzwShortLengthLines === [
         'LZW Short Length Before',
@@ -700,6 +723,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'requires_lzw_eod_before_flate_stack_boundary' => true,
     'requires_complete_filter_stack_before_boundary' => true,
     'requires_flate_stage_before_ascii85_eod_boundary' => true,
+    'requires_inner_ascii85_eod_after_flate_stack_boundary' => true,
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'stray_decodeparms_helper_excluded' => !str_contains($joined, 'Stray DecodeParms Helper Leak'),
     'all_null_decodeparms_helper_excluded' => !str_contains($joined, 'All Null DecodeParms Helper Leak'),

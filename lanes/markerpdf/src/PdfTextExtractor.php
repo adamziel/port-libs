@@ -15083,7 +15083,7 @@ final class PdfTextExtractor
                     $stream,
                     $filterDecodeParms,
                     $objects,
-                    !$requireExplicitFilterEndMarkers
+                    false
                 )
             ) {
                 return null;
