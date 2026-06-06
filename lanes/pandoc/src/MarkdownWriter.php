@@ -26,7 +26,7 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -47,6 +47,13 @@ final class MarkdownWriter
         $this->lastReferenceIndex = 0;
 
         $blocks = [];
+        if ((bool) ($this->options['yamlMetadata'] ?? false)) {
+            $metadataBlock = $this->renderYamlMetadataBlock($document->attr('meta', []));
+            if ($metadataBlock !== []) {
+                $blocks[] = implode("\n", $metadataBlock);
+            }
+        }
+
         foreach ($document->children as $index => $node) {
             if ($this->referenceLocation() === 'end_of_section' && $node->type === 'heading' && $index > 0) {
                 $this->appendPendingDefinitions($blocks);
@@ -68,6 +75,274 @@ final class MarkdownWriter
         $this->appendPendingDefinitions($blocks);
 
         return implode("\n\n", $blocks);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderYamlMetadataBlock(mixed $metadata): array
+    {
+        $metadata = $this->yamlMetadataForWriting($metadata);
+        if ($metadata === []) {
+            return [];
+        }
+
+        $lines = ['---'];
+        foreach ($metadata as $key => $value) {
+            $this->appendYamlMetadataMappingLines($lines, (string) $key, $value, 0);
+        }
+        $lines[] = '...';
+
+        return $lines;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function yamlMetadataForWriting(mixed $metadata): array
+    {
+        if (!is_array($metadata)) {
+            return [];
+        }
+
+        $filtered = [];
+        foreach ($metadata as $key => $value) {
+            $field = (string) $key;
+            if (
+                $field === ''
+                || str_ends_with($field, 'Inlines')
+                || str_ends_with($field, '_')
+                || str_starts_with($field, '__yamlMetadata')
+                || ($field === 'authors' && array_key_exists('author', $metadata) && $metadata['author'] === $value)
+                || !$this->isYamlMetadataWritableValue($value)
+            ) {
+                continue;
+            }
+
+            $filtered[$field] = $value;
+        }
+
+        return $filtered;
+    }
+
+    private function isYamlMetadataWritableValue(mixed $value): bool
+    {
+        if ($value === null || is_bool($value) || is_int($value) || is_string($value)) {
+            return true;
+        }
+
+        if (is_float($value)) {
+            return is_finite($value);
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $key => $item) {
+            if (!is_int($key) && !is_string($key)) {
+                return false;
+            }
+
+            if (!$this->isYamlMetadataWritableValue($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataMappingLines(array &$lines, string $key, mixed $value, int $indent): void
+    {
+        $prefix = str_repeat(' ', $indent) . $this->formatYamlMetadataKey($key);
+        if (!$this->isYamlMetadataCollection($value)) {
+            $lines[] = $prefix . ': ' . $this->formatYamlMetadataScalar($value);
+            return;
+        }
+
+        if ($value === []) {
+            $lines[] = $prefix . ': []';
+            return;
+        }
+
+        $lines[] = $prefix . ':';
+        $this->appendYamlMetadataValueLines($lines, $value, $indent + 2);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataValueLines(array &$lines, mixed $value, int $indent): void
+    {
+        if (!$this->isYamlMetadataCollection($value)) {
+            $lines[] = str_repeat(' ', $indent) . $this->formatYamlMetadataScalar($value);
+            return;
+        }
+
+        if (!array_is_list($value)) {
+            foreach ($value as $key => $item) {
+                $this->appendYamlMetadataMappingLines($lines, (string) $key, $item, $indent);
+            }
+            return;
+        }
+
+        $prefix = str_repeat(' ', $indent);
+        foreach ($value as $item) {
+            if (!$this->isYamlMetadataCollection($item)) {
+                $lines[] = $prefix . '- ' . $this->formatYamlMetadataScalar($item);
+                continue;
+            }
+
+            if ($item === []) {
+                $lines[] = $prefix . '- []';
+                continue;
+            }
+
+            if (!array_is_list($item)) {
+                $this->appendYamlMetadataMappingListItemLines($lines, $item, $indent);
+                continue;
+            }
+
+            $lines[] = $prefix . '-';
+            $this->appendYamlMetadataValueLines($lines, $item, $indent + 2);
+        }
+    }
+
+    /**
+     * @param array<string|int, mixed> $map
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataMappingListItemLines(array &$lines, array $map, int $indent): void
+    {
+        $prefix = str_repeat(' ', $indent);
+        $first = true;
+        foreach ($map as $key => $value) {
+            $field = $this->formatYamlMetadataKey((string) $key);
+            if (!$this->isYamlMetadataCollection($value)) {
+                $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ': ' . $this->formatYamlMetadataScalar($value);
+                $first = false;
+                continue;
+            }
+
+            if ($value === []) {
+                $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ': []';
+                $first = false;
+                continue;
+            }
+
+            $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ':';
+            $this->appendYamlMetadataValueLines($lines, $value, $indent + 4);
+            $first = false;
+        }
+    }
+
+    private function isYamlMetadataCollection(mixed $value): bool
+    {
+        return is_array($value);
+    }
+
+    private function formatYamlMetadataKey(string $key): string
+    {
+        if ($this->isPlainYamlMetadataKey($key)) {
+            return $key;
+        }
+
+        return $this->doubleQuoteYamlMetadataString($key);
+    }
+
+    private function isPlainYamlMetadataKey(string $key): bool
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $key) !== 1) {
+            return false;
+        }
+
+        return !$this->isYamlMetadataAmbiguousPlainScalar($key);
+    }
+
+    private function formatYamlMetadataScalar(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_float($value)) {
+            return (string) $value;
+        }
+
+        $value = (string) $value;
+        if ($this->isPlainYamlMetadataScalar($value)) {
+            return $value;
+        }
+
+        return $this->doubleQuoteYamlMetadataString($value);
+    }
+
+    private function isPlainYamlMetadataScalar(string $value): bool
+    {
+        if ($value === '' || $this->isYamlMetadataAmbiguousPlainScalar($value)) {
+            return false;
+        }
+
+        if (preg_match('/[\x00-\x1F\r\n\t]/', $value) === 1) {
+            return false;
+        }
+
+        if (preg_match('/^[A-Za-z0-9_\/.:%#?&=+@~-]+$/', $value) !== 1) {
+            return false;
+        }
+
+        return !str_starts_with($value, '-')
+            && !str_starts_with($value, '?')
+            && !str_starts_with($value, '!')
+            && !str_starts_with($value, '&')
+            && !str_starts_with($value, '*')
+            && !str_starts_with($value, '%')
+            && !str_starts_with($value, '@')
+            && !str_starts_with($value, '`');
+    }
+
+    private function isYamlMetadataAmbiguousPlainScalar(string $value): bool
+    {
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['true', 'false', 'null', '~', 'yes', 'no', 'on', 'off'], true)) {
+            return true;
+        }
+
+        return is_numeric($value)
+            || preg_match('/^[+-]?0x[0-9a-f]+$/i', $value) === 1
+            || preg_match('/^[+-]?0o[0-7]+$/i', $value) === 1
+            || preg_match('/^[+-]?0b[01]+$/i', $value) === 1;
+    }
+
+    private function doubleQuoteYamlMetadataString(string $value): string
+    {
+        $escaped = '';
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            $escaped .= match ($char) {
+                '\\' => '\\\\',
+                '"' => '\\"',
+                "\n" => '\\n',
+                "\r" => '\\r',
+                "\t" => '\\t',
+                "\0" => '\\0',
+                default => ord($char) < 0x20 ? sprintf('\\x%02X', ord($char)) : $char,
+            };
+        }
+
+        return '"' . $escaped . '"';
     }
 
     /**

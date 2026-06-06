@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $markdown = <<<'MARKDOWN'
@@ -329,6 +330,8 @@ $meta = $document->attr('meta', []);
 $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $blocks = (new WordPressBlockWriter())->write($document);
+$metadataMarkdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+$metadataRoundTripMeta = (new MarkdownReader())->read($metadataMarkdown)->attr('meta', []);
 
 $implicitOpeningMarkdown = <<<'MARKDOWN'
 title: "Implicit **Packet**"
@@ -863,6 +866,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<h1 id="imported-body">Imported Body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing imported body heading');
     }
+    if (!str_contains($metadataMarkdown, "---\ntitle: \"Migration **Packet**\"")) {
+        throw new RuntimeException('YAML metadata self-test missing writer YAML metadata block');
+    }
+    if (str_contains($metadataMarkdown, 'titleInlines') || str_contains($metadataMarkdown, 'authorInlines')) {
+        throw new RuntimeException('YAML metadata self-test leaked derived inline metadata into writer front matter');
+    }
+    if (($metadataRoundTripMeta['review']['status'] ?? '') !== 'needs-review') {
+        throw new RuntimeException('YAML metadata self-test failed writer metadata round trip');
+    }
+    if (($metadataRoundTripMeta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
+        throw new RuntimeException('YAML metadata self-test lost quoted writer source URI during round trip');
+    }
     if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
     }
@@ -894,6 +909,7 @@ echo 'Authors: ' . implode(', ', $meta['authors'] ?? []) . "\n";
 echo 'Review status: ' . ($meta['review']['status'] ?? '') . "\n";
 echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
+echo 'Writer YAML round-trip review: ' . ($metadataRoundTripMeta['review']['status'] ?? '') . "\n";
 echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadline', $meta) && $meta['optional-deadline'] === null) ? 'yes' : 'no') . "\n";
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / ' . ($meta['explicit-review']['source:key'] ?? '') . "\n";

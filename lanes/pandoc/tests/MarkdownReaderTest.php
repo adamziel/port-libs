@@ -4192,6 +4192,69 @@ MD;
             (new MarkdownWriter(['setextHeadings' => true]))->write($document)
         );
     },
+    'writes pandoc yaml metadata blocks when requested' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Migration **Packet**',
+                'titleInlines' => [$text('Migration **Packet**')],
+                'author' => ['Reviewer One', 'WordPress Editor'],
+                'authors' => ['Reviewer One', 'WordPress Editor'],
+                'date' => '2026-06-06',
+                'keywords' => ['migration', 'Data Liberation', 'wordpress'],
+                'review' => [
+                    'status' => 'needs-review',
+                    'priority' => 2,
+                    'published' => false,
+                    'optional' => null,
+                    'source uri' => 'https://example.test/export#front',
+                    'quoted:field' => 'metadata: value',
+                ],
+                'references' => [
+                    [
+                        'id' => 'yaml-writer-ref',
+                        'issued' => [
+                            'date-parts' => [[2026, 6, 6]],
+                        ],
+                    ],
+                ],
+                'yes' => 'quoted boolean-looking field',
+                'draft_' => 'reviewer scratch field',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-body'], [$text('YAML writer body')]),
+        ]);
+
+        $defaultMarkdown = (new MarkdownWriter())->write($document);
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+
+        $t->same('# YAML writer body {#yaml-writer-body}', $defaultMarkdown);
+        $t->contains("---\ntitle: \"Migration **Packet**\"", $markdown);
+        $t->contains("author:\n  - \"Reviewer One\"\n  - \"WordPress Editor\"", $markdown);
+        $t->contains("\"source uri\": https://example.test/export#front", $markdown);
+        $t->contains("\"quoted:field\": \"metadata: value\"", $markdown);
+        $t->contains("\"yes\": \"quoted boolean-looking field\"", $markdown);
+        $t->same(false, str_contains($markdown, 'titleInlines'));
+        $t->same(false, str_contains($markdown, 'authors:'));
+        $t->same(false, str_contains($markdown, 'draft_'));
+        $t->same('Migration **Packet**', $meta['title']);
+        $t->same(['Reviewer One', 'WordPress Editor'], $meta['author']);
+        $t->same('2026-06-06', $meta['date']);
+        $t->same(['migration', 'Data Liberation', 'wordpress'], $meta['keywords']);
+        $t->same('needs-review', $meta['review']['status']);
+        $t->same(2, $meta['review']['priority']);
+        $t->same(false, $meta['review']['published']);
+        $t->true(array_key_exists('optional', $meta['review']) && $meta['review']['optional'] === null);
+        $t->same('https://example.test/export#front', $meta['review']['source uri']);
+        $t->same('metadata: value', $meta['review']['quoted:field']);
+        $t->same('yaml-writer-ref', $meta['references'][0]['id']);
+        $t->same([[2026, 6, 6]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('quoted boolean-looking field', $meta['yes']);
+        $t->same('heading', $roundTripped->children[0]->type);
+        $t->same('yaml-writer-body', $roundTripped->children[0]->attr('id'));
+    },
     'maps upstream markdown writer softbreak space option' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
