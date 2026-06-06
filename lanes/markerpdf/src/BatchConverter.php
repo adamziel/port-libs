@@ -1220,6 +1220,7 @@ final class BatchConverter
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
                 'pool_context_manager' => $this->convertMainPoolContextManagerPlan($totalProcesses, $modelHandoff),
+                'worker_initializer' => $this->convertMainWorkerInitializerPlan($totalProcesses, $modelHandoff),
                 'task_arg_identity_review' => $taskArgIdentityReview,
                 'process_single_pdf_preflight' => $processSinglePdfPreflight,
                 'pool_result_drain' => $poolResultDrain,
@@ -3081,6 +3082,65 @@ final class BatchConverter
             'context_exit_reached' => $entered,
             'context_exit_after_worker_handler_override' => $entered,
             'model_list_delete_after_context_exit' => $entered,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $modelHandoff
+     * @return array{
+     *     source: string,
+     *     order: string,
+     *     initializer_reached: bool,
+     *     blocked_by: string|null,
+     *     initializer: string,
+     *     initializer_argument_name: string,
+     *     pool_initargs_source: string,
+     *     processes: int,
+     *     shared_model_value: string|null,
+     *     shared_model_is_none: bool,
+     *     loads_models_in_worker: bool,
+     *     parent_shared_model_reused: bool,
+     *     load_all_models_call: string|null,
+     *     worker_global_variable: string,
+     *     model_refs_assignment: string,
+     *     model_refs_source: string|null,
+     *     process_single_pdf_after_initializer: bool,
+     *     upstream_worker_model_execution_required: bool,
+     *     executes_python_or_models: false,
+     *     executes_multiprocessing: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    private function convertMainWorkerInitializerPlan(int $totalProcesses, array $modelHandoff): array
+    {
+        $reached = $totalProcesses >= 1;
+        $usesWorkerModelLoad = $reached && (bool) ($modelHandoff['worker_loads_models_when_init_arg_null'] ?? false);
+        $reusesParentModelList = $reached && !$usesWorkerModelLoad;
+
+        return [
+            'source' => 'convert.py worker_init shared_model boundary',
+            'order' => 'after_pool_enter_before_process_single_pdf',
+            'initializer_reached' => $reached,
+            'blocked_by' => $reached ? null : 'pool-process-count-failed',
+            'initializer' => 'worker_init',
+            'initializer_argument_name' => 'shared_model',
+            'pool_initargs_source' => 'initargs=(model_lst,)',
+            'processes' => $totalProcesses,
+            'shared_model_value' => $reached ? ($usesWorkerModelLoad ? 'None' : 'model_lst') : null,
+            'shared_model_is_none' => $usesWorkerModelLoad,
+            'loads_models_in_worker' => $usesWorkerModelLoad,
+            'parent_shared_model_reused' => $reusesParentModelList,
+            'load_all_models_call' => $usesWorkerModelLoad ? 'load_all_models()' : null,
+            'worker_global_variable' => 'model_refs',
+            'model_refs_assignment' => 'model_refs = shared_model',
+            'model_refs_source' => $reached
+                ? ($usesWorkerModelLoad ? 'worker-loaded-model-list' : 'parent-shared-model-list')
+                : null,
+            'process_single_pdf_after_initializer' => $reached,
+            'upstream_worker_model_execution_required' => $usesWorkerModelLoad,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,
