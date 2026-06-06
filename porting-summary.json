@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 19:20:18 UTC",
-    "sourceCommit": "bb917acd81d1fad49fba55aebd1c4cf923641f0d",
-    "sourceCommitShort": "bb917acd81d1",
+    "generated": "2026-06-06 19:20:26 UTC",
+    "sourceCommit": "b88baeba2d6786c298492e63af3cfa8fb2c019bd",
+    "sourceCommitShort": "b88baeba2d67",
     "sourceBranch": "unknown",
-    "dashboardCommit": "bb917acd81d1fad49fba55aebd1c4cf923641f0d",
-    "dashboardCommitShort": "bb917acd81d1",
+    "dashboardCommit": "b88baeba2d6786c298492e63af3cfa8fb2c019bd",
+    "dashboardCommitShort": "b88baeba2d67",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1804",
-            "coverage": "1,804 / 2,276 (79.3%)",
+            "mapped": "1805",
+            "coverage": "1,805 / 2,276 (79.3%)",
             "mapPercent": "79.3%",
-            "unmapped": "472",
-            "php": "1,391 pass / 0 fail",
+            "unmapped": "471",
+            "php": "1,392 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC ZIP package current-base invalid DOS timestamp slice o...",
+            "audit": "2026-06-06 UTC charset/Unicode current-base ISO-8859-13 Latin-7 slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Continue bounded ZIP/OPC package closure with a non-overlappi...",
+            "nextTarget": "Continue bounded charset/Unicode closure with a non-overlappi...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

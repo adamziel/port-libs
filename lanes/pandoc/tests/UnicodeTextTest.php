@@ -210,6 +210,25 @@ return [
         $t->contains('<h1 id="latin6-import">Latin6 Import</h1>', $blocks);
         $t->contains('<p>Nordic Ķķ Ŧŧ; Sami Ŋŋĸ; Baltic Ąą Ēē Ūū; ― and Ũũ.</p>', $blocks);
     },
+    'decodes iso 8859 13 latin7 source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Latin7 Import\n\nBaltic \xC2\xE2 \xD1\xF1 \xD2\xF2 \xD8\xF8 \xDA\xFA \xDD\xFD \xFE; quotes \xA5\xB4text\xA1\xFF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-179');
+        $document = (new MarkdownReader())->readBytes($bytes, 'latin7');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA1\xA5\xA8\xAA\xAF\xB4\xB8\xBA\xBF\xC0\xC1\xC2\xC3\xC6\xC7\xC8\xCA\xCB\xCC\xCD\xCE\xCF\xD0\xD1\xD2\xD4\xD8\xD9\xDA\xDB\xDD\xDE\xE0\xE1\xE2\xE3\xE6\xE7\xE8\xEA\xEB\xEC\xED\xEE\xEF\xF0\xF1\xF2\xF4\xF8\xF9\xFA\xFB\xFD\xFE\xFF", 'iso-8859-13');
+
+        $t->same('iso-8859-13', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Latin7 Import\n\nBaltic Āā Ńń Ņņ Ųų Śś Żż ž; quotes „“text”’.", $decoded['text']);
+        $t->same('”„ØŖÆ“øŗæĄĮĀĆĘĒČŹĖĢĶĪĻŠŃŅŌŲŁŚŪŻŽąįāćęēčźėģķīļšńņōųłśūżž’', $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same(['encoding' => 'iso-8859-13', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Latin7 Import', $document->children[0]->attr('text'));
+        $t->same('Baltic Āā Ńń Ņņ Ųų Śś Żż ž; quotes „“text”’.', $document->children[1]->attr('text'));
+        $t->same(44, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="latin7-import">Latin7 Import</h1>', $blocks);
+        $t->contains('<p>Baltic Āā Ńń Ņņ Ųų Śś Żż ž; quotes „“text”’.</p>', $blocks);
+    },
     'decodes windows 1251 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp1251');
