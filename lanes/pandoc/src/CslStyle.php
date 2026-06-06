@@ -22,6 +22,8 @@ final class CslStyle
         'ellipsis|long' => ['single' => "\u{2026}", 'multiple' => "\u{2026}"],
         'no date|long' => ['single' => 'n.d.', 'multiple' => 'n.d.'],
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
+        'circa|long' => ['single' => 'circa', 'multiple' => 'circa'],
+        'circa|short' => ['single' => 'c.', 'multiple' => 'cc.'],
         'event|long' => ['single' => 'Event', 'multiple' => 'Events'],
         'event-title-addon|long' => ['single' => 'Event addendum', 'multiple' => 'Event addenda'],
         'event-type|long' => ['single' => 'Event type', 'multiple' => 'Event types'],

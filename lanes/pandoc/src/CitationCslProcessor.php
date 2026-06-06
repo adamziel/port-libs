@@ -4237,7 +4237,7 @@ final class CitationCslProcessor
     {
         $date = $this->dateVariableForRendering($item, $variable);
 
-        return is_array($date) && ($date['uncertain'] ?? false) === true;
+        return is_array($date) && (($date['uncertain'] ?? false) === true || ($date['circa'] ?? false) === true);
     }
 
     /**

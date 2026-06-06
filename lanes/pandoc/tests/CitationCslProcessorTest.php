@@ -5970,7 +5970,7 @@ XML
         $t->same(['issued', 'event-date'], $summary['bibliographyRendering'][1]['branches'][0]['isUncertainDate'] ?? null);
         $t->same('none', $summary['bibliographyRendering'][1]['branches'][1]['match'] ?? null);
 
-        $t->same('(de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team 2024; Review Desk 2023)', $processor->renderCitationCluster([
+        $t->same('(de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team uncertain 2024; Review Desk 2023)', $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'uncertain-issued', 'text' => '[@uncertain-issued]']),
             new AstNode('citation', ['id' => 'uncertain-accessed', 'text' => '[@uncertain-accessed]']),
             new AstNode('citation', ['id' => 'uncertain-event', 'text' => '[@uncertain-event]']),
@@ -5983,11 +5983,124 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites [@uncertain-issued; @uncertain-accessed; @uncertain-event; @stable-source] before WordPress review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Review cites (de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team 2024; Review Desk 2023) before WordPress review.</p>', $blocks);
+        $t->contains('<p>Review cites (de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team uncertain 2024; Review Desk 2023) before WordPress review.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>Uncertain Issued Packet :: Date markers: issued uncertain (2026?)</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Uncertain Access Packet :: access date uncertain</dd>', $blocks);
         $t->contains('<dt>Archive Team 2024</dt><dd>Event Date Packet :: Date markers: issued circa (2024~); event-date uncertain (2024-10-03?)</dd>', $blocks);
         $t->contains('<dt>Review Desk 2023</dt><dd>Stable Date Packet :: stable access date</dd>', $blocks);
+    },
+    'treats bounded csl approximate dates as uncertain date conditionals' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'circa-issued',
+                'type' => 'report',
+                'title' => 'Approximate Issued Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]], 'circa' => true, 'raw' => '2026~'],
+            ],
+            [
+                'id' => 'circa-accessed',
+                'type' => 'webpage',
+                'title' => 'Approximate Access Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'accessed' => ['date-parts' => [[2026, 6, 6]], 'circa' => true, 'raw' => '2026-06-06~'],
+                'URL' => 'https://example.test/circa-accessed',
+            ],
+            [
+                'id' => 'stable-source',
+                'type' => 'report',
+                'title' => 'Stable Source Packet',
+                'author' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'accessed' => ['date-parts' => [[2026, 6, 1]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Approximate Date Conditional Review Style</title>
+    <id>https://example.test/styles/bounded-approximate-date-conditional-review</id>
+    <updated>2026-06-06T05:18:02+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <choose>
+        <if is-uncertain-date="issued" match="all">
+          <group delimiter=" ">
+            <names variable="author"/>
+            <group delimiter="">
+              <text term="circa" form="short" suffix=" "/>
+              <date variable="issued"><date-part name="year"/></date>
+            </group>
+          </group>
+        </if>
+        <else-if is-uncertain-date="accessed" match="any">
+          <group delimiter=" ">
+            <names variable="author"/>
+            <text value="accessed"/>
+            <group delimiter="">
+              <text term="circa" form="short" suffix=" "/>
+              <date variable="accessed"/>
+            </group>
+          </group>
+        </else-if>
+        <else>
+          <group delimiter=" ">
+            <names variable="author"/>
+            <date variable="issued"><date-part name="year"/></date>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <choose>
+        <if is-uncertain-date="issued" match="any">
+          <group delimiter="">
+            <text term="circa" form="short" suffix=" "/>
+            <date variable="issued"/>
+          </group>
+        </if>
+        <else-if is-uncertain-date="accessed" match="any">
+          <text variable="date-marker-summary"/>
+        </else-if>
+        <else>
+          <text value="stable date"/>
+        </else>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Approximate Date Conditional Review Style', $summary['title'] ?? null);
+        $t->same(['issued'], $summary['citationRendering'][0]['branches'][0]['isUncertainDate'] ?? null);
+        $t->same(['accessed'], $summary['citationRendering'][0]['branches'][1]['isUncertainDate'] ?? null);
+
+        $t->same('(Smith c. 2026; Ng accessed c. 2026-06-06; Review Desk 2024)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'circa-issued', 'text' => '[@circa-issued]']),
+            new AstNode('citation', ['id' => 'circa-accessed', 'text' => '[@circa-accessed]']),
+            new AstNode('citation', ['id' => 'stable-source', 'text' => '[@stable-source]']),
+        ]));
+        $t->same('Approximate Issued Packet :: c. 2026', $processor->renderBibliographyEntry('circa-issued'));
+        $t->same('Approximate Access Packet :: Date markers: accessed circa (2026-06-06~)', $processor->renderBibliographyEntry('circa-accessed'));
+        $t->same('Stable Source Packet :: stable date', $processor->renderBibliographyEntry('stable-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@circa-issued; @circa-accessed; @stable-source] before WordPress review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites (Smith c. 2026; Ng accessed c. 2026-06-06; Review Desk 2024) before WordPress review.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Approximate Issued Packet :: c. 2026</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Approximate Access Packet :: Date markers: accessed circa (2026-06-06~)</dd>', $blocks);
     },
     'applies bounded csl locator and page label rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
