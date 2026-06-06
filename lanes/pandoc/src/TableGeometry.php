@@ -591,6 +591,7 @@ final class TableGeometry
     public static function diagnostics(AstNode $table): array
     {
         $diagnostics = self::columnDiagnostics($table);
+        array_push($diagnostics, ...self::emptyTableDiagnostics($table));
         array_push($diagnostics, ...self::widthDiagnostics($table, $diagnostics !== []));
         array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
@@ -643,6 +644,75 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function emptyTableDiagnostics(AstNode $table): array
+    {
+        if (self::cellCoverage($table) !== []) {
+            return [];
+        }
+
+        $columnCount = self::columnCount($table);
+        $rowGroups = self::rowGroups($table, $columnCount);
+        $rowGroupSummary = self::rowGroupSummary($rowGroups);
+
+        return [[
+            'code' => 'table-has-no-cells',
+            'source' => 'pandoc-table-geometry',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => $columnCount,
+            'declaredColumnCount' => self::declaredColumnCount($table),
+            'sectionCount' => (int) $rowGroupSummary['rowGroupCount'],
+            'rowCount' => self::tableRowCountFromRowGroupSummary($rowGroupSummary),
+            'bodyCount' => (int) $rowGroupSummary['bodyGroupCount'],
+            'headRowCount' => (int) $rowGroupSummary['tableHeadRowCount'],
+            'bodyHeadRowCount' => (int) $rowGroupSummary['bodyHeadRowCount'],
+            'bodyRowCount' => (int) $rowGroupSummary['bodyRowCount'],
+            'footRowCount' => (int) $rowGroupSummary['tableFootRowCount'],
+            'hasTableFoot' => (bool) $rowGroupSummary['hasTableFoot'],
+            'hasBodyHeadRows' => (bool) $rowGroupSummary['hasBodyHeadRows'],
+            'sections' => self::emptyTableDiagnosticSections($rowGroups),
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rowGroups
+     * @return list<array<string, mixed>>
+     */
+    private static function emptyTableDiagnosticSections(array $rowGroups): array
+    {
+        $sections = [];
+        foreach ($rowGroups as $rowGroup) {
+            $section = [
+                'section' => (string) ($rowGroup['section'] ?? ''),
+                'kind' => (string) ($rowGroup['kind'] ?? ''),
+                'rowCount' => max(0, (int) ($rowGroup['rowCount'] ?? 0)),
+                'cellCount' => max(0, (int) ($rowGroup['cellCount'] ?? 0)),
+                'rowRoles' => self::stringList($rowGroup['rowRoles'] ?? []),
+            ];
+            if (array_key_exists('bodyIndex', $rowGroup)) {
+                $section['bodyIndex'] = max(0, (int) $rowGroup['bodyIndex']);
+            }
+
+            $sections[] = $section;
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroupSummary
+     */
+    private static function tableRowCountFromRowGroupSummary(array $rowGroupSummary): int
+    {
+        return max(0, (int) $rowGroupSummary['tableHeadRowCount'])
+            + max(0, (int) $rowGroupSummary['bodyHeadRowCount'])
+            + max(0, (int) $rowGroupSummary['bodyRowCount'])
+            + max(0, (int) $rowGroupSummary['tableFootRowCount']);
     }
 
     /**
@@ -2717,6 +2787,8 @@ final class TableGeometry
 
         $diagnosticCodes = [];
         $normalizedSpanCount = 0;
+        $emptyTableSectionCount = 0;
+        $emptyTableRowCount = 0;
         foreach ($diagnostics as $diagnostic) {
             $code = (string) ($diagnostic['code'] ?? '');
             if ($code !== '') {
@@ -2724,6 +2796,9 @@ final class TableGeometry
             }
             if ($code === 'cell-span-normalized') {
                 $normalizedSpanCount++;
+            } elseif ($code === 'table-has-no-cells') {
+                $emptyTableSectionCount = max($emptyTableSectionCount, (int) ($diagnostic['sectionCount'] ?? 0));
+                $emptyTableRowCount = max($emptyTableRowCount, (int) ($diagnostic['rowCount'] ?? 0));
             }
         }
 
@@ -2783,6 +2858,9 @@ final class TableGeometry
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
             'hasNormalizedSpans' => $normalizedSpanCount > 0,
             'normalizedSpanCount' => $normalizedSpanCount,
+            'hasEmptyTable' => in_array('table-has-no-cells', $diagnosticCodes, true),
+            'emptyTableSectionCount' => $emptyTableSectionCount,
+            'emptyTableRowCount' => $emptyTableRowCount,
             'hasCaption' => (string) ($captions['long']['text'] ?? '') !== '',
             'hasShortCaption' => (string) ($captions['short']['text'] ?? '') !== '',
             'captionInlineTypes' => array_values(array_map(
@@ -2957,6 +3035,7 @@ final class TableGeometry
             if ($writer === 'latex') {
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
+                    array_push($diagnostics, ...self::emptyTableWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
@@ -3024,6 +3103,7 @@ final class TableGeometry
             if ($writer === 'asciidoc') {
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
+                    array_push($diagnostics, ...self::emptyTableWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
@@ -3090,6 +3170,7 @@ final class TableGeometry
 
         $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
         if ($table instanceof AstNode) {
+            array_push($diagnostics, ...self::emptyTableWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::markdownColumnWidthDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
@@ -3137,6 +3218,46 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function emptyTableWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-empty-table-omitted', 'raw-html-empty-table-or-placeholder'],
+            'asciidoc' => ['asciidoc-empty-table-review-required', 'empty-table-placeholder'],
+            'latex' => ['latex-empty-table-review-required', 'empty-tabular-placeholder'],
+        ];
+        if (!isset($requirements[$writer]) || self::cellCoverage($table) !== []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+        $columnCount = self::columnCount($table);
+        $rowGroups = self::rowGroups($table, $columnCount);
+        $rowGroupSummary = self::rowGroupSummary($rowGroups);
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'empty-table',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'pandoc-empty-table',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => $columnCount,
+            'declaredColumnCount' => self::declaredColumnCount($table),
+            'sectionCount' => (int) $rowGroupSummary['rowGroupCount'],
+            'rowCount' => self::tableRowCountFromRowGroupSummary($rowGroupSummary),
+            'bodyCount' => (int) $rowGroupSummary['bodyGroupCount'],
+            'headRowCount' => (int) $rowGroupSummary['tableHeadRowCount'],
+            'bodyHeadRowCount' => (int) $rowGroupSummary['bodyHeadRowCount'],
+            'bodyRowCount' => (int) $rowGroupSummary['bodyRowCount'],
+            'footRowCount' => (int) $rowGroupSummary['tableFootRowCount'],
+            'sections' => self::emptyTableDiagnosticSections($rowGroups),
+        ]];
     }
 
     /**

@@ -479,6 +479,17 @@ $abbreviatedHeaderTable = new AstNode('table', [
     ]),
 ]);
 
+$emptyReviewTable = new AstNode('table', [
+    'caption' => 'Empty import table audit',
+], [
+    new AstNode('table_head'),
+    new AstNode('table_body', [
+        'htmlAttributes' => [
+            'id' => 'empty-body',
+        ],
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -783,6 +794,7 @@ $document = new AstNode('document', [], [
         ]),
     ]),
     $abbreviatedHeaderTable,
+    $emptyReviewTable,
     new AstNode('table', [
         'caption' => 'Implicit source shift review',
         'id' => 'implicit-source-shift-grid',
@@ -1783,6 +1795,28 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing Markdown/AsciiDoc footer-section writer diagnostics');
     }
     json_encode($footerSectionPacket, JSON_THROW_ON_ERROR);
+
+    $emptyReviewPacket = TableGeometry::reviewPacket($emptyReviewTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+    ]);
+    if (
+        ($emptyReviewPacket['summary']['diagnosticCodes'] ?? null) !== ['table-has-no-cells']
+        || ($emptyReviewPacket['summary']['hasEmptyTable'] ?? null) !== true
+        || ($emptyReviewPacket['summary']['emptyTableSectionCount'] ?? null) !== 2
+        || ($emptyReviewPacket['summary']['writerDowngradeCodes'] ?? null) !== [
+            'markdown-empty-table-omitted',
+            'asciidoc-empty-table-review-required',
+            'latex-empty-table-review-required',
+        ]
+        || ($emptyReviewPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing empty-table review diagnostics');
+    }
+    if (!str_contains($blocks, '<table><tbody id="empty-body"></tbody></table><figcaption class="wp-element-caption">Empty import table audit</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing empty-table WordPress output');
+    }
+    json_encode($emptyReviewPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

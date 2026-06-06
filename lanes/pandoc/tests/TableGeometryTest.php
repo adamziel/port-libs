@@ -3190,6 +3190,73 @@ return [
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports empty table review and writer handoff diagnostics' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Empty import table audit',
+        ], [
+            new AstNode('table_head'),
+            new AstNode('table_body', [
+                'htmlAttributes' => [
+                    'id' => 'empty-body',
+                ],
+            ]),
+        ]);
+
+        $diagnostics = TableGeometry::diagnostics($table);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+        ]);
+        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same(0, TableGeometry::columnCount($table));
+        $t->same([], TableGeometry::cellCoverage($table));
+        $t->same(['table-has-no-cells'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same('pandoc-table-geometry', $diagnostics[0]['source'] ?? null);
+        $t->same(true, $diagnostics[0]['hasCaption'] ?? null);
+        $t->same(0, $diagnostics[0]['columnCount'] ?? null);
+        $t->same(0, $diagnostics[0]['declaredColumnCount'] ?? null);
+        $t->same(2, $diagnostics[0]['sectionCount'] ?? null);
+        $t->same(0, $diagnostics[0]['rowCount'] ?? null);
+        $t->same(1, $diagnostics[0]['bodyCount'] ?? null);
+        $t->same(['head', 'body'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $diagnostics[0]['sections'] ?? []));
+        $t->same([0, 0], array_map(static fn (array $section): int => (int) ($section['rowCount'] ?? -1), $diagnostics[0]['sections'] ?? []));
+
+        $t->same(['markdown-empty-table-omitted'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $markdownDiagnostics));
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('empty-table', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-empty-table-or-placeholder', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('pandoc-empty-table', $markdownDiagnostics[0]['source'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['sectionCount'] ?? null);
+        $t->same(['asciidoc-empty-table-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
+        $t->same('empty-table-placeholder', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(['latex-empty-table-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $latexDiagnostics));
+        $t->same('empty-tabular-placeholder', $latexDiagnostics[0]['requiredFeature'] ?? null);
+
+        $t->same(['table-has-no-cells'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(true, $packet['summary']['hasEmptyTable'] ?? null);
+        $t->same(2, $packet['summary']['emptyTableSectionCount'] ?? null);
+        $t->same(0, $packet['summary']['emptyTableRowCount'] ?? null);
+        $t->same(0, $packet['summary']['cellCount'] ?? null);
+        $t->same(0, $packet['summary']['rowCount'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-empty-table-omitted',
+            'asciidoc-empty-table-review-required',
+            'latex-empty-table-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->same('', trim($markdown));
+        $t->contains('<table><tbody id="empty-body"></tbody></table><figcaption class="wp-element-caption">Empty import table audit</figcaption>', $blocks);
+        json_encode($diagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports caption writer requirements for short and block captions' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Fallback caption text',
