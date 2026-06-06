@@ -388,6 +388,8 @@ final class SuppliedDocumentConverter
             $imageBboxes = isset($tableOrPageResult['image_bboxes']) && is_array($tableOrPageResult['image_bboxes'])
                 ? array_values($tableOrPageResult['image_bboxes'])
                 : [];
+            $sharedImageBbox = $this->pageResultSharedImageBboxValue($tableOrPageResult);
+            $sharedImageBboxSource = $this->pageResultSharedImageBboxSource($tableOrPageResult);
 
             $firstFlattenedIndex = count($tables);
             $tableCount = max(count($cellsByTable), count($rowsColsByTable), count($tableBboxes), count($imageBboxes));
@@ -407,9 +409,14 @@ final class SuppliedDocumentConverter
                 }
 
                 $imageBbox = $this->pageResultBboxValue($imageBboxes[$tableIndex] ?? null);
+                if ($imageBbox === null) {
+                    $imageBbox = $sharedImageBbox;
+                }
                 if ($imageBbox !== null) {
                     $table['image_bbox'] = $imageBbox;
                 }
+
+                $table = $this->withPageResultGeometryMetadata($table, $tableOrPageResult);
 
                 if (isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || is_string($tableOrPageResult['pnum']))) {
                     $table['pnum'] = is_numeric($tableOrPageResult['pnum'])
@@ -433,6 +440,7 @@ final class SuppliedDocumentConverter
                 'rows_cols_table_count' => count($rowsColsByTable),
                 'table_bbox_count' => count($tableBboxes),
                 'image_bbox_count' => count($imageBboxes),
+                'shared_image_bbox_source' => $sharedImageBboxSource,
                 'pnum' => isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || (is_string($tableOrPageResult['pnum']) && is_numeric($tableOrPageResult['pnum'])))
                     ? (int) $tableOrPageResult['pnum']
                     : ($tableOrPageResult['pnum'] ?? null),
@@ -497,6 +505,84 @@ final class SuppliedDocumentConverter
         }
 
         return $value;
+    }
+
+    private function pageResultSharedImageBboxValue(array $pageResult): mixed
+    {
+        $source = $this->pageResultSharedImageBboxSource($pageResult);
+        if ($source === null) {
+            return null;
+        }
+
+        return $this->pageResultBboxValue($pageResult[$source] ?? null);
+    }
+
+    private function pageResultSharedImageBboxSource(array $pageResult): ?string
+    {
+        foreach (['image_bbox', 'page_image_bbox', 'rendered_image_bbox'] as $key) {
+            if ($this->pageResultBboxValue($pageResult[$key] ?? null) !== null) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param array<string, mixed> $pageResult
+     * @return array<string, mixed>
+     */
+    private function withPageResultGeometryMetadata(array $table, array $pageResult): array
+    {
+        foreach ($this->pageResultGeometryMetadataKeys() as $key) {
+            if (array_key_exists($key, $table) || !array_key_exists($key, $pageResult)) {
+                continue;
+            }
+
+            $value = $pageResult[$key];
+            if (is_int($value) || is_float($value) || is_string($value) || is_bool($value)) {
+                $table[$key] = $value;
+            }
+        }
+
+        return $table;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultGeometryMetadataKeys(): array
+    {
+        return [
+            'coordinate_space',
+            'geometry_coordinate_space',
+            'bbox_coordinate_space',
+            'rows_coordinate_space',
+            'row_coordinate_space',
+            'rows_geometry_space',
+            'row_geometry_space',
+            'cols_coordinate_space',
+            'col_coordinate_space',
+            'cols_geometry_space',
+            'col_geometry_space',
+            'columns_coordinate_space',
+            'column_coordinate_space',
+            'columns_geometry_space',
+            'column_geometry_space',
+            'cells_coordinate_space',
+            'cell_coordinate_space',
+            'cells_geometry_space',
+            'cell_geometry_space',
+            'ocr_grid_border_conflicts_coordinate_space',
+            'ocr_grid_border_conflict_coordinate_space',
+            'grid_border_conflicts_coordinate_space',
+            'grid_border_conflict_coordinate_space',
+            'ocr_grid_border_conflicts_geometry_space',
+            'ocr_grid_border_conflict_geometry_space',
+            'grid_border_conflicts_geometry_space',
+            'grid_border_conflict_geometry_space',
+        ];
     }
 
     /**
