@@ -128,6 +128,10 @@ final class SyntaxHighlighter
         'mjs' => 'javascript',
         'node' => 'javascript',
         'nodejs' => 'javascript',
+        'nginx' => 'nginx',
+        'nginx-conf' => 'nginx',
+        'nginx-config' => 'nginx',
+        'nginxconf' => 'nginx',
         'perl' => 'perl',
         'pl' => 'perl',
         'pgsql' => 'sql',
@@ -614,6 +618,7 @@ final class SyntaxHighlighter
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
+            'nginx' => $this->tokenizeNginx($code),
             'nix' => $this->tokenizeNix($code),
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
@@ -702,6 +707,28 @@ final class SyntaxHighlighter
             ['function', '/^\\b(?:add|cmake|target)_[A-Za-z0-9_]+\\b(?=\\s*\\()/i'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_:-]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeNginx(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', '/^\\$\\{?[A-Za-z_][A-Za-z0-9_]*\\}?/'],
+            ['keyword', '/^\\b(?:add_header|access_log|allow|auth_basic|auth_basic_user_file|break|client_body_buffer_size|client_max_body_size|deny|error_log|expires|fastcgi_index|fastcgi_param|fastcgi_pass|fastcgi_read_timeout|fastcgi_split_path_info|gzip|if|include|index|listen|location|proxy_pass|proxy_read_timeout|proxy_redirect|proxy_set_header|return|rewrite|root|server|server_name|set|try_files|types)\\b/i'],
+            ['constant', '/^\\b(?:always|break|default_server|http2|last|off|on|permanent|redirect|ssl)\\b/i'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?(?:[kKmMgGsSmMhHdD])?\\b/'],
+            ['string', '/^unix:[^\\s{};#\'"$]+/'],
+            ['string', '/^(?:\\/|\\.\\.?\\/|@)[^\\s{};#\'"$]*/'],
+            ['string', '/^\\\\\\.[A-Za-z0-9_.-]*\\$?/'],
+            ['string', '/^(?:\\\\.|[\\^$.*+?()[\\]|-])+/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*\\b/'],
+            ['operator', '/^(?:\\^~|~\\*?|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:|&^-])/'],
         ]);
     }
 

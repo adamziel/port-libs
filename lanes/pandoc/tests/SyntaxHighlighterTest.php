@@ -89,6 +89,10 @@ return [
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-expr'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-shell'));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginx'));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginxconf'));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginx-config'));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('language-nginx'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('make'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('makefile'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('GNUmakefile'));
@@ -757,6 +761,52 @@ return [
         $t->same('cmake', $directCMake['language']);
         $t->same('CMakeLists.txt', $directCMake['requestedLanguage']);
         $t->contains('<span class="fu">message</span><span class="op">(</span><span class="va">STATUS</span> <span class="st">&quot;review ok&quot;</span><span class="op">)</span>', $directCMake['html']);
+    },
+    'highlights nginx server review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[38] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Nginx code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directNginx = $highlighter->highlight('location ~ \.php$ { fastcgi_pass unix:/run/php/php-fpm.sock; }', 'nginxconf');
+
+        $t->same('nginx', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginx'));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginxconf'));
+        $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginx-config'));
+        $t->same('nginx', $highlighted['language']);
+        $t->same('nginx', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(390, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource nginx numberLines"><code class="sourceCode nginx" style="counter-reset: source-line 389;">', $highlighted['html']);
+        $t->contains('<span id="nginx-review-390"><a href="#nginx-review-390"></a><span class="co"># WordPress Nginx permalink and PHP-FPM review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">server</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">listen</span> <span class="dv">443</span> <span class="cn">ssl</span> <span class="cn">http2</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">server_name</span> <span class="va">example.test</span> <span class="va">www.example.test</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">root</span> <span class="st">/srv/www/legacy-import</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">location</span> <span class="st">/</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">try_files</span> <span class="va">$uri</span> <span class="va">$uri</span><span class="st">/</span> <span class="st">/index.php?</span><span class="va">$args</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">location</span> <span class="op">~</span> <span class="st">\\.php$</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">include</span> <span class="va">fastcgi_params</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">fastcgi_param</span> <span class="va">SCRIPT_FILENAME</span> <span class="va">$document_root$fastcgi_script_name</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">fastcgi_pass</span> <span class="st">unix:/run/php/php-fpm.sock</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">add_header</span> <span class="va">X-Import-Source</span> <span class="st">&quot;legacy&quot;</span> <span class="cn">always</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">rewrite</span> <span class="st">^</span> <span class="st">/index.php</span> <span class="cn">last</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="kw">fastcgi_pass</span> <span class="st">unix:/run/php/php-fpm.sock</span>', $wordpressBlock);
+        $t->same('nginx', $directNginx['language']);
+        $t->same('nginxconf', $directNginx['requestedLanguage']);
+        $t->contains('<span class="kw">location</span> <span class="op">~</span> <span class="st">\\.php$</span> <span class="op">{</span> <span class="kw">fastcgi_pass</span> <span class="st">unix:/run/php/php-fpm.sock</span><span class="op">;</span> <span class="op">}</span>', $directNginx['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

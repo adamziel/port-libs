@@ -583,3 +583,28 @@ target_compile_definitions(wp_import_review PRIVATE
 target_include_directories(wp_import_review PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 install(TARGETS wp_import_review LIBRARY DESTINATION lib/wordpress/plugins/${PLUGIN_SLUG})
 ```
+
+``` {.nginx #nginx-review .numberLines startFrom=390}
+# WordPress Nginx permalink and PHP-FPM review
+server {
+  listen 443 ssl http2;
+  server_name example.test www.example.test;
+  root /srv/www/legacy-import;
+
+  location / {
+    try_files $uri $uri/ /index.php?$args;
+  }
+
+  location ~ \.php$ {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_pass unix:/run/php/php-fpm.sock;
+  }
+
+  add_header X-Import-Source "legacy" always;
+
+  location @wordpress {
+    rewrite ^ /index.php last;
+  }
+}
+```
