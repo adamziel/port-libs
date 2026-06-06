@@ -262,9 +262,78 @@ final class PdfXrefFreeObjectMap
         }
 
         $bodyStart = $offset + strlen($match[0]);
-        $bodyEnd = strpos($pdfBytes, 'endobj', $bodyStart);
+        $bodyEnd = self::directObjectEndOffset($pdfBytes, $bodyStart);
 
-        return $bodyEnd === false ? null : $bodyEnd + strlen('endobj');
+        return $bodyEnd === null ? null : $bodyEnd + strlen('endobj');
+    }
+
+    private static function directObjectEndOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if ($char === '%') {
+                self::skipComment($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                self::skipLiteralString($pdfBytes, $offset);
+                continue;
+            }
+
+            if (substr($pdfBytes, $offset, 2) === '<<') {
+                $dictionary = self::readDictionaryAt($pdfBytes, $offset);
+                if ($dictionary !== null) {
+                    $offset += strlen($dictionary);
+                    continue;
+                }
+            }
+
+            if ($char === '[') {
+                $array = self::readArrayAt($pdfBytes, $offset);
+                if ($array !== null) {
+                    $offset += strlen($array);
+                    continue;
+                }
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                self::skipHexString($pdfBytes, $offset);
+                continue;
+            }
+
+            if (self::keywordAt($pdfBytes, $offset, 'stream')) {
+                $streamEnd = self::directObjectStreamEndOffset($pdfBytes, $offset);
+                if ($streamEnd !== null) {
+                    $offset = $streamEnd + strlen('endstream');
+                    continue;
+                }
+            }
+
+            if (self::keywordAt($pdfBytes, $offset, 'endobj')) {
+                return $offset;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private static function directObjectStreamEndOffset(string $pdfBytes, int $streamKeywordOffset): ?int
+    {
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($pdfBytes[$streamStart] ?? '') === "\n" || ($pdfBytes[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $streamEnd = strpos($pdfBytes, 'endstream', $streamStart);
+
+        return is_int($streamEnd) ? $streamEnd : null;
     }
 
     private static function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int

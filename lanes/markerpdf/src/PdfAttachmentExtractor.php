@@ -4358,26 +4358,95 @@ final class PdfAttachmentExtractor
      */
     private function directObjectDefinitions(string $pdfBytes): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
-            return [];
-        }
-
         $definitions = [];
-        foreach ($matches as $match) {
-            $bodyStart = $match[3][1];
-            $bodyEnd = $bodyStart + strlen($match[3][0]);
+        $offset = 0;
+        while (preg_match('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $bodyStart = $match[0][1] + strlen($match[0][0]);
+            $bodyEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
+            if ($bodyEnd === null) {
+                break;
+            }
+
             $definitions[(int) $match[1][0]][] = [
                 'generation' => (int) $match[2][0],
                 'offset' => $match[0][1],
                 'bodyStart' => $bodyStart,
                 'bodyEnd' => $bodyEnd,
-                'body' => $match[3][0],
+                'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
             ];
+            $offset = $bodyEnd + strlen('endobj');
         }
 
         ksort($definitions, SORT_NUMERIC);
 
         return $definitions;
+    }
+
+    private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($pdfBytes, $offset);
+                if ($end === null) {
+                    return null;
+                }
+
+                $offset = $end;
+                continue;
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'stream')) {
+                $streamEnd = $this->directObjectStreamEndOffset($pdfBytes, $offset);
+                if ($streamEnd !== null) {
+                    $offset = $streamEnd + strlen('endstream');
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'endobj')) {
+                return $offset;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function directObjectStreamEndOffset(string $pdfBytes, int $streamKeywordOffset): ?int
+    {
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($pdfBytes[$streamStart] ?? '') === "\n" || ($pdfBytes[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $streamEnd = strpos($pdfBytes, 'endstream', $streamStart);
+
+        return is_int($streamEnd) ? $streamEnd : null;
     }
 
     /**
