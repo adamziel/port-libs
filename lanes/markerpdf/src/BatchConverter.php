@@ -281,6 +281,15 @@ final class BatchConverter
             'metadata_file' => true,
             'min_length' => true,
         ];
+        $optionOccurrences = [
+            'chunk_idx' => 0,
+            'num_chunks' => 0,
+            'max' => 0,
+            'workers' => 0,
+            'metadata_file' => 0,
+            'min_length' => 0,
+        ];
+        $optionValueHistory = [];
         $definitions = $this->runtimeMainArgparseOptionDefinitions();
         $positionals = [];
 
@@ -326,6 +335,7 @@ final class BatchConverter
 
                 $definition = $definitions[$optionName];
                 $key = $definition['key'];
+                $previousValue = $options[$key];
                 if ($definition['type'] === 'int') {
                     $integer = $this->runtimeMainArgparseIntegerValue((string) $value);
                     if ($integer === null) {
@@ -336,10 +346,23 @@ final class BatchConverter
                         );
                     }
 
-                    $options[$key] = $integer;
+                    $parsedValue = $integer;
                 } else {
-                    $options[$key] = (string) $value;
+                    $parsedValue = (string) $value;
                 }
+
+                $optionOccurrences[$key]++;
+                $optionValueHistory[] = [
+                    'option' => $optionName,
+                    'key' => $key,
+                    'value' => $parsedValue,
+                    'value_type' => $definition['type'],
+                    'occurrence' => $optionOccurrences[$key],
+                    'previous_value' => $optionOccurrences[$key] > 1 ? $previousValue : null,
+                    'overrides_previous' => $optionOccurrences[$key] > 1,
+                ];
+
+                $options[$key] = $parsedValue;
                 $defaultsApplied[$key] = false;
                 continue;
             }
@@ -383,6 +406,11 @@ final class BatchConverter
         }
 
         $metadataFileTruthy = is_string($options['metadata_file']) && $options['metadata_file'] !== '';
+        $repeatedOptionCounts = array_filter(
+            $optionOccurrences,
+            static fn (int $count): bool => $count > 1
+        );
+        $repeatedOptions = array_keys($repeatedOptionCounts);
 
         return [
             'schema' => 'markerpdf.convert_main_argparse_preflight.v1',
@@ -426,6 +454,11 @@ final class BatchConverter
                 ],
                 'options' => $options,
                 'defaults_applied' => $defaultsApplied,
+                'option_occurrences' => $optionOccurrences,
+                'option_value_history' => $optionValueHistory,
+                'repeated_options' => $repeatedOptions,
+                'repeated_option_counts' => $repeatedOptionCounts,
+                'last_occurrence_wins' => $repeatedOptions !== [],
             ],
             'semantic_boundaries' => [
                 'input_folder_exists_checked_by_argparse' => false,
@@ -438,6 +471,7 @@ final class BatchConverter
                 'metadata_file_read_deferred_until_after_chunk_files' => $metadataFileTruthy,
                 'metadata_file_truthy_for_json_load' => $metadataFileTruthy,
                 'empty_metadata_file_skips_json_load' => $options['metadata_file'] === '',
+                'repeated_options_last_occurrence_wins' => $repeatedOptions !== [],
             ],
             'blocked_by' => null,
             'blocked_stages' => [],
