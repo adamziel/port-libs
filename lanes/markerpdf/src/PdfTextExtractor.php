@@ -18959,6 +18959,19 @@ final class PdfTextExtractor
         return $this->pdfNumberValueAt($value, 0, $objects);
     }
 
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfLastNumberValueAfterName(string $objectBody, string $name, array $objects): ?float
+    {
+        $value = $this->topLevelPdfLastValueAfterName($objectBody, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfNumberValueAt($value, 0, $objects);
+    }
+
     private function normalizedPageRotation(int $rotation): int
     {
         $rotation %= 360;
@@ -20789,19 +20802,19 @@ final class PdfTextExtractor
      */
     private function simpleFontExplicitWidths(string $fontBody, array $objects): array
     {
-        $firstChar = $this->topLevelPdfNumberValueAfterName($fontBody, 'FirstChar', $objects);
+        $firstChar = $this->topLevelPdfLastNumberValueAfterName($fontBody, 'FirstChar', $objects);
         $firstCode = $this->simpleFontWidthRangeCode($firstChar);
         if ($firstCode === null) {
             return [];
         }
 
-        $lastChar = $this->topLevelPdfNumberValueAfterName($fontBody, 'LastChar', $objects);
+        $lastChar = $this->topLevelPdfLastNumberValueAfterName($fontBody, 'LastChar', $objects);
         $lastCode = $lastChar === null ? null : $this->simpleFontWidthRangeCode($lastChar);
         if ($lastChar !== null && ($lastCode === null || $lastCode < $firstCode)) {
             return [];
         }
 
-        $widthArray = $this->topLevelPdfSingleArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
+        $widthArray = $this->topLevelPdfLastSingleArrayValueAfterNameResolvingObjects($fontBody, 'Widths', $objects);
         if ($widthArray === null) {
             return [];
         }
@@ -21654,6 +21667,19 @@ final class PdfTextExtractor
     private function topLevelPdfSingleArrayValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
     {
         $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfSingleArrayFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfLastSingleArrayValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->topLevelPdfLastValueAfterName($body, $name);
         if ($value === null) {
             return null;
         }
