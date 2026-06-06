@@ -422,7 +422,7 @@ $subdocumentSeparatorBytes = $utf16le("\r");
 $footnoteSubdocumentText = "Footnote body retained for metadata-only review.\r";
 $headerSubdocumentText = 'H ' . $fieldBegin . ' DATE ' . $fieldSeparator . '2026-06-06' . $fieldEnd . "\r\r";
 $commentSubdocumentText = "Comment body retained for annotation review.\r";
-$endnoteSubdocumentText = "Endnote body retained for metadata-only review.\r";
+$endnoteSubdocumentText = 'Endnote ' . $fieldBegin . ' NOTEREF "_RefNote" \f ' . $fieldSeparator . '1' . $fieldEnd . "\r";
 $footnoteSubdocumentBytes = $utf16le($footnoteSubdocumentText);
 $headerSubdocumentBytes = $utf16le($headerSubdocumentText);
 $commentSubdocumentBytes = $utf16le($commentSubdocumentText);
@@ -485,6 +485,7 @@ if (!is_array($mainTextCharacters) || count($mainTextCharacters) !== $totalPiece
 }
 $fieldTypeCodes = [
     'HYPERLINK' => 0x58,
+    'NOTEREF' => 0x05,
     'REF' => 0x03,
     'PAGEREF' => 0x25,
     'PAGE' => 0x21,
@@ -538,8 +539,10 @@ $fieldRecordsForText = static function (string $text) use ($fieldBegin, $fieldSe
 };
 $fieldRecords = $fieldRecordsForText($mainText);
 $headerFieldRecords = $fieldRecordsForText($headerSubdocumentText);
+$endnoteFieldRecords = $fieldRecordsForText($endnoteSubdocumentText);
 $plcfldMom = $buildPlcfldMom($fieldRecords, $totalPieceCharacters);
 $plcfldHdr = $buildPlcfldMom($headerFieldRecords, $headerSubdocumentCharacters);
+$plcfldEdn = $buildPlcfldMom($endnoteFieldRecords, $endnoteSubdocumentCharacters);
 $plcfHdd = $u32(0)
     . $u32(0)
     . $u32(0)
@@ -682,7 +685,8 @@ $associatedStringsTable = $sttbfAssoc([
 ]);
 $fcPlcfFldMom = strlen($clx);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
-$fcPlcfHdd = $fcPlcfFldHdr + strlen($plcfldHdr);
+$fcPlcfFldEdn = $fcPlcfFldHdr + strlen($plcfldHdr);
+$fcPlcfHdd = $fcPlcfFldEdn + strlen($plcfldEdn);
 $fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
 $fcSttbfBkmk = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
@@ -700,7 +704,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $plcfldMom . $plcfldHdr . $plcfHdd . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -713,6 +717,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldMom), 0x011a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldMom)), 0x011e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldHdr), 0x0122, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldHdr)), 0x0126, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldEdn), 0x021a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldEdn)), 0x021e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfSed), 0x00ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfSed)), 0x00ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
@@ -1576,26 +1582,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['textSource'] ?? '') !== 'piece-table' || ($summary['fib']['complex'] ?? null) !== true || ($summary['fib']['tableStream'] ?? '') !== '1Table') {
         throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
     }
-    $totalFieldRecordCount = count($fieldRecords) + count($headerFieldRecords);
+    $totalFieldRecordCount = count($fieldRecords) + count($headerFieldRecords) + count($endnoteFieldRecords);
     if (($summary['metadata']['fieldCharacterCount'] ?? null) !== $totalFieldRecordCount || count($summary['fieldCharacters'] ?? []) !== $totalFieldRecordCount) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field-character inventory');
     }
-    if (($summary['metadata']['fieldCount'] ?? null) !== 8 || count($summary['fields'] ?? []) !== 8) {
+    if (($summary['metadata']['fieldCount'] ?? null) !== 9 || count($summary['fields'] ?? []) !== 9) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field range inventory');
     }
     if (($summary['metadata']['fields'] ?? []) !== ($summary['fields'] ?? [])) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld fields in metadata');
     }
-    if (($summary['metadata']['fieldStoryCount'] ?? null) !== 2 || ($summary['metadata']['fieldStories'] ?? []) !== ($summary['fieldStories'] ?? [])) {
+    if (($summary['metadata']['fieldStoryCount'] ?? null) !== 3 || ($summary['metadata']['fieldStories'] ?? []) !== ($summary['fieldStories'] ?? [])) {
         throw new RuntimeException('Legacy DOC handoff self-test missing supplemental Plcfld story inventory');
     }
-    if (array_column($summary['fieldStories'] ?? [], 'story') !== ['main', 'header'] || array_column($summary['fieldStories'] ?? [], 'table') !== ['PlcfldMom', 'PlcfldHdr']) {
+    if (array_column($summary['fieldStories'] ?? [], 'story') !== ['main', 'header', 'endnote'] || array_column($summary['fieldStories'] ?? [], 'table') !== ['PlcfldMom', 'PlcfldHdr', 'PlcfldEdn']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story table mapping');
     }
-    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [7, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords)]) {
+    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [7, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords)]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story field counts');
     }
-    if (array_column($summary['fieldStories'] ?? [], 'characterCount') !== [$totalPieceCharacters, $headerSubdocumentCharacters]) {
+    if (array_column($summary['fieldStories'] ?? [], 'characterCount') !== [$totalPieceCharacters, $headerSubdocumentCharacters, $endnoteSubdocumentCharacters]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story character counts');
     }
     if (array_column($summary['fields'] ?? [], 'type') !== [
@@ -1607,6 +1613,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'formtext',
         'symbol',
         'date',
+        'noteref',
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field type mapping');
     }
@@ -1618,6 +1625,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['fields'][7]['story'] ?? '') !== 'header' || ($summary['fields'][7]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][7]['type'] ?? '') !== 'date') {
         throw new RuntimeException('Legacy DOC handoff self-test missing header Plcfld DATE metadata');
+    }
+    if (($summary['fields'][8]['story'] ?? '') !== 'endnote' || ($summary['fields'][8]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][8]['type'] ?? '') !== 'noteref') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing endnote Plcfld NOTEREF metadata');
     }
     foreach ([
         '<p><span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="0" data-legacy-doc-bookmark-end-cp="21">Legacy DOC import ΩЖ魚</span></p>',
@@ -1639,7 +1649,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
         }
     }
-    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'FORMTEXT', 'SYMBOL', 'DATE'] as $instruction) {
+    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'FORMTEXT', 'SYMBOL', 'DATE', 'NOTEREF'] as $instruction) {
         if (str_contains(strip_tags($blocks), $instruction)) {
             throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instruction: ' . $instruction);
         }

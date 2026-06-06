@@ -49,6 +49,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_REF = 0x020e;
     private const FIB_FC_PLCFEND_TXT = 0x0212;
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
+    private const FIB_FC_PLCF_FLD_EDN = 0x021a;
+    private const FIB_LCB_PLCF_FLD_EDN = 0x021e;
     private const FIB_FC_PLF_LST = 0x02e2;
     private const FIB_LCB_PLF_LST = 0x02e6;
     private const FIB_FC_PLF_LFO = 0x02ea;
@@ -4260,6 +4262,7 @@ final class LegacyDocReader
         $characters = [];
         $fields = [];
         $stories = [];
+        $fib = $this->readFib($wordDocument);
         $appendParsed = function (array $parsed, string $story, string $table, int $storyCharacterCount) use (&$characters, &$fields, &$stories): void {
             if ($parsed['characters'] === [] && $parsed['fields'] === []) {
                 return;
@@ -4306,6 +4309,9 @@ final class LegacyDocReader
             $fcOffset = (int) $descriptor['fcOffset'];
             $lcbOffset = (int) $descriptor['lcbOffset'];
             if (strlen($wordDocument) < $lcbOffset + 4) {
+                continue;
+            }
+            if ((int) ($fib['fcMin'] ?? 0) > 0 && $lcbOffset + 4 > (int) $fib['fcMin']) {
                 continue;
             }
 
@@ -4364,6 +4370,12 @@ final class LegacyDocReader
                 'table' => 'PlcfldAtn',
                 'fcOffset' => self::FIB_FC_PLCF_FLD_ATN,
                 'lcbOffset' => self::FIB_LCB_PLCF_FLD_ATN,
+            ],
+            [
+                'story' => 'endnote',
+                'table' => 'PlcfldEdn',
+                'fcOffset' => self::FIB_FC_PLCF_FLD_EDN,
+                'lcbOffset' => self::FIB_LCB_PLCF_FLD_EDN,
             ],
         ];
     }
