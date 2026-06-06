@@ -11093,6 +11093,10 @@ final class PdfTextExtractor
         foreach ($this->pageLabelKidDictionaryNodes($dictionary, $objects, $seen) as $kidDictionaryNode) {
             $kidDictionary = $kidDictionaryNode['dictionary'];
             $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
+            if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidDictionary, $objects)) {
+                continue;
+            }
+
             $kidMergedLimits = $this->pageLabelMergedLimits($limits, $kidLocalLimits);
             $kidNodes[] = [
                 'dictionary' => $kidDictionary,
@@ -11342,6 +11346,30 @@ final class PdfTextExtractor
         }
 
         return $lower <= $upper ? [$lower, $upper] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelLimitsReversed(string $dictionary, array $objects): bool
+    {
+        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
+        if ($arrayBody === null) {
+            return false;
+        }
+
+        $items = $this->pdfArrayItems($arrayBody);
+        if (count($items) !== 2) {
+            return false;
+        }
+
+        $lower = $this->pageLabelLimitOperand($items[0], $objects);
+        $upper = $this->pageLabelLimitOperand($items[1], $objects);
+        if ($lower === null || $upper === null) {
+            return false;
+        }
+
+        return $lower > $upper;
     }
 
     /**

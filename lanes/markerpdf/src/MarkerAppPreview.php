@@ -1674,6 +1674,10 @@ final class MarkerAppPreview
                 $directKidBody = $this->pageLabelDictionaryToken($kid);
                 if ($directKidBody !== null) {
                     $kidLocalLimits = $this->pageLabelLimits($directKidBody, $objects, $seen);
+                    if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($directKidBody, $objects, $seen)) {
+                        continue;
+                    }
+
                     $kidMergedLimits = $this->mergePageLabelLimits($limits, $kidLocalLimits);
                     $kidNodes[] = [
                         'body' => $directKidBody,
@@ -1699,6 +1703,10 @@ final class MarkerAppPreview
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
                 $kidLocalLimits = $this->pageLabelLimits($kidBody, $objects, $kidSeen);
+                if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidBody, $objects, $kidSeen)) {
+                    continue;
+                }
+
                 $kidMergedLimits = $this->mergePageLabelLimits($limits, $kidLocalLimits);
                 $kidNodes[] = [
                     'body' => $kidBody,
@@ -1891,6 +1899,31 @@ final class MarkerAppPreview
         }
 
         return $lower <= $upper ? [$lower, $upper] : null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelLimitsReversed(string $dict, array $objects, array $seen): bool
+    {
+        $limits = $this->valueAfterName($dict, 'Limits');
+        if ($limits === null) {
+            return false;
+        }
+
+        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
+        if (count($elements) !== 2) {
+            return false;
+        }
+
+        $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
+        $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
+        if ($lower === null || $upper === null) {
+            return false;
+        }
+
+        return $lower > $upper;
     }
 
     /**
