@@ -907,13 +907,17 @@ final class LayoutOrderer
     private function numericValue(mixed $value): ?float
     {
         if (is_int($value) || is_float($value)) {
-            return (float) $value;
+            $number = (float) $value;
+
+            return is_finite($number) ? $number : null;
         }
 
         if (is_string($value)) {
             $trimmed = trim($value);
             if ($trimmed !== '' && is_numeric($trimmed)) {
-                return (float) $trimmed;
+                $number = (float) $trimmed;
+
+                return is_finite($number) ? $number : null;
             }
         }
 

@@ -165,10 +165,14 @@ final class LayoutAnnotator
     {
         $sanitized = [];
         $payload = $this->layoutResultPayloadSource($layoutResult);
-        foreach (['image_bbox', 'bboxes'] as $key) {
-            if (array_key_exists($key, $payload)) {
-                $sanitized[$key] = $payload[$key];
-            }
+
+        $imageBbox = $this->bbox($payload['image_bbox'] ?? null);
+        if ($imageBbox !== null && $this->rectWidth($imageBbox) > 0.0 && $this->rectHeight($imageBbox) > 0.0) {
+            $sanitized['image_bbox'] = $imageBbox;
+        }
+
+        if (array_key_exists('bboxes', $payload)) {
+            $sanitized['bboxes'] = $this->sanitizeSuppliedLayoutBboxes($payload['bboxes']);
         }
 
         foreach ($this->layoutResultPageMarkerSources($layoutResult) as $source) {
@@ -182,6 +186,39 @@ final class LayoutAnnotator
                     $sanitized[$key] = $value;
                 }
             }
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * @param mixed $boxes
+     * @return list<array{label: string, bbox: list<float>}>
+     */
+    private function sanitizeSuppliedLayoutBboxes(mixed $boxes): array
+    {
+        if (!is_array($boxes) || !array_is_list($boxes)) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ($boxes as $box) {
+            if (!is_array($box)) {
+                continue;
+            }
+
+            $label = (string) ($box['label'] ?? '');
+            $bbox = $label === 'Table'
+                ? $this->tableRegionBbox($box)
+                : $this->bbox($box);
+            if ($bbox === null || $this->rectWidth($bbox) <= 0.0 || $this->rectHeight($bbox) <= 0.0) {
+                continue;
+            }
+
+            $sanitized[] = [
+                'label' => $label,
+                'bbox' => $bbox,
+            ];
         }
 
         return $sanitized;
