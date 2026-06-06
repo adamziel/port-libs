@@ -1555,7 +1555,7 @@ return [
         $expected = '<p>'
             . '<a href="https://source.example.test/import/posts/packet.html" rel="noopener noreferrer">packet</a>'
             . '<a href="https://source.example.test/import/posts/safe.html" rel="author tag">safe</a>'
-            . '<map name="review-map"><area href="https://source.example.test/import/posts/map.html" rel="nofollow" alt="map"></map>'
+            . '<a href="https://source.example.test/import/posts/map.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="map" rel="nofollow">map</a>'
             . '</p>';
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
@@ -1565,11 +1565,11 @@ return [
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
-        $t->same('packetsafe', $fragment->textContent());
-        $t->same(['a', 'area', 'map', 'p'], $summary['elementNames']);
-        $t->same(['base'], $summary['blockedTags']);
+        $t->same('packetsafemap', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['area', 'base', 'map'], $summary['blockedTags']);
         $t->same(['download', 'rel', 'target'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
         $t->same('p', $nodes[0]['name']);
         $t->same([
             'href' => 'https://source.example.test/import/posts/packet.html',
@@ -1581,16 +1581,96 @@ return [
         ], $nodes[0]['children'][1]['attrs']);
         $t->same([
             'href' => 'https://source.example.test/import/posts/map.html',
+            'data-pandoc-image-map-area' => 'true',
+            'data-pandoc-image-map-name' => 'review-map',
+            'data-pandoc-image-map-alt' => 'map',
             'rel' => 'nofollow',
-            'alt' => 'map',
-        ], $nodes[0]['children'][2]['children'][0]['attrs']);
+        ], $nodes[0]['children'][2]['attrs']);
         $t->same('/migration/navigation-side-effect-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->true(!str_contains($html, 'target='), 'Expected browsing-context targets to be stripped');
         $t->true(!str_contains($html, 'download='), 'Expected download side effects to be stripped');
+        $t->true(!str_contains($html, '<map'), 'Expected live image map wrapper to be stripped');
+        $t->true(!str_contains($html, '<area'), 'Expected live image map area to be converted into an inert reviewer link');
         $t->same(0, preg_match('/(?:^|[\s"])opener(?:[\s"]|$)/', $html), 'Expected opener rel tokens to be stripped');
         $t->true(!str_contains($blocks, 'target='), 'Expected WordPress blocks to omit target attributes');
         $t->true(!str_contains($blocks, 'download='), 'Expected WordPress blocks to omit download attributes');
+    },
+    'converts image map areas into inert reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<figure><img src="./floorplan.png" usemap="#review-map" alt="Floor plan">'
+            . '<map name="review-map">'
+            . '<area shape="rect" coords=" 0, 0, 150, 120 " href="./lead.html" alt="Lead story" target="_blank">'
+            . '<area shape="circle" coords="75,80,12" href="mailto:editor@example.test" alt="Editor contact" rel="noopener opener">'
+            . '<area shape="poly" coords="0,0,10,0,10,10" href="java&#10;script:alert(1)" alt="Bad region">'
+            . '<area shape="star" coords="1,2,bad" href="./bad-shape.html" alt="Bad shape">'
+            . '</map></figure>',
+            'https://fallback.example.test/source.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/image-map-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<figure><img src="https://source.example.test/import/posts/floorplan.png" usemap="#review-map" alt="Floor plan">'
+            . '<a href="https://source.example.test/import/posts/lead.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-shape="rect" data-pandoc-image-map-coords="0,0,150,120" data-pandoc-image-map-alt="Lead story">Lead story</a>'
+            . '<a href="mailto:editor@example.test" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-shape="circle" data-pandoc-image-map-coords="75,80,12" data-pandoc-image-map-alt="Editor contact" rel="noopener">Editor contact</a>'
+            . '<a href="https://source.example.test/import/posts/bad-shape.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Bad shape">Bad shape</a>'
+            . '</figure>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Lead storyEditor contactBad shape', $fragment->textContent());
+        $t->same(['a', 'figure', 'img'], $summary['elementNames']);
+        $t->same(['area', 'base', 'map'], $summary['blockedTags']);
+        $t->same(['coords', 'href', 'rel', 'shape', 'target'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'blocked-tag', 'unsafe-attribute', 'blocked-tag', 'unsafe-url', 'blocked-tag', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same('figure', $nodes[0]['name']);
+        $t->same('img', $nodes[0]['children'][0]['name']);
+        $t->same('https://source.example.test/import/posts/floorplan.png', $nodes[0]['children'][0]['attrs']['src']);
+        $t->same('#review-map', $nodes[0]['children'][0]['attrs']['usemap']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/lead.html',
+            'data-pandoc-image-map-area' => 'true',
+            'data-pandoc-image-map-name' => 'review-map',
+            'data-pandoc-image-map-shape' => 'rect',
+            'data-pandoc-image-map-coords' => '0,0,150,120',
+            'data-pandoc-image-map-alt' => 'Lead story',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'href' => 'mailto:editor@example.test',
+            'data-pandoc-image-map-area' => 'true',
+            'data-pandoc-image-map-name' => 'review-map',
+            'data-pandoc-image-map-shape' => 'circle',
+            'data-pandoc-image-map-coords' => '75,80,12',
+            'data-pandoc-image-map-alt' => 'Editor contact',
+            'rel' => 'noopener',
+        ], $nodes[0]['children'][2]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/bad-shape.html',
+            'data-pandoc-image-map-area' => 'true',
+            'data-pandoc-image-map-name' => 'review-map',
+            'data-pandoc-image-map-alt' => 'Bad shape',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same('/migration/image-map-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<map'), 'Expected image map wrapper to be stripped');
+        $t->true(!str_contains($html, '<area'), 'Expected active area elements to be converted to reviewer links');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe area href to be stripped');
+        $t->true(!str_contains($html, 'Bad region'), 'Expected unsafe area alt text to stay hidden with its blocked href');
+        $t->true(!str_contains($html, 'shape="star"'), 'Expected unknown area shape to be diagnostics-only');
+        $t->true(!str_contains($html, 'coords="1,2,bad"'), 'Expected invalid area coords to be diagnostics-only');
+        $t->true(!str_contains($html, 'target='), 'Expected area browsing-context targets to be stripped');
+        $t->same(0, preg_match('/(?:^|[\s"])opener(?:[\s"]|$)/', $html), 'Expected opener rel tokens to be stripped');
     },
     'ignores inactive fallback base elements before resolving reviewer URLs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -1655,23 +1735,31 @@ return [
         $expected = '<p>'
             . '<img src="https://source.example.test/media/cover.png" alt="Cover">'
             . '<img src="https://source.example.test/import/posts/safe.png" dynsrc="https://source.example.test/import/posts/intro.avi" lowsrc="https://source.example.test/import/low.jpg" usemap="#review-map" alt="Safe">'
-            . '<map name="review-map"><area href="https://source.example.test/review" alt="Review"></map>'
+            . '<a href="https://source.example.test/review" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Review">Review</a>'
             . '</p>';
 
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same(['dynsrc', 'lowsrc', 'usemap'], $summary['filteredAttributes']);
-        $t->same(['unsafe-url', 'unsafe-url', 'unsafe-url', 'normalized-url'], $fragment->diagnosticCodes());
+        $t->same(['unsafe-url', 'unsafe-url', 'unsafe-url', 'normalized-url', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
         $t->same('https://source.example.test/media/cover.png', $nodes[0]['children'][0]['attrs']['src']);
         $t->same(['src' => 'https://source.example.test/media/cover.png', 'alt' => 'Cover'], $nodes[0]['children'][0]['attrs']);
         $t->same('https://source.example.test/import/posts/intro.avi', $nodes[0]['children'][1]['attrs']['dynsrc']);
         $t->same('https://source.example.test/import/low.jpg', $nodes[0]['children'][1]['attrs']['lowsrc']);
         $t->same('#review-map', $nodes[0]['children'][1]['attrs']['usemap']);
+        $t->same([
+            'href' => 'https://source.example.test/review',
+            'data-pandoc-image-map-area' => 'true',
+            'data-pandoc-image-map-name' => 'review-map',
+            'data-pandoc-image-map-alt' => 'Review',
+        ], $nodes[0]['children'][2]['attrs']);
         $t->same('/migration/obsolete-media-url-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe obsolete media URLs to be stripped');
         $t->true(!str_contains($html, 'mailto:cover@example.test'), 'Expected mailto lowsrc fetch URL to be stripped');
         $t->true(!str_contains($html, 'https://source.example.test/import/posts/post.html#review-map'), 'Expected local usemap references to avoid base URL expansion');
+        $t->true(!str_contains($html, '<map'), 'Expected image map wrapper to be stripped');
+        $t->true(!str_contains($html, '<area'), 'Expected image map area to become an inert reviewer link');
     },
     'prunes empty picture sources after unsafe candidate filtering before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(

@@ -82,6 +82,7 @@ final class Html5DomFragment
         'form' => true,
         'iframe' => true,
         'math' => true,
+        'map' => true,
         'noembed' => true,
         'noframes' => true,
         'noscript' => true,
@@ -452,6 +453,10 @@ final class Html5DomFragment
             $label = self::visibleInputLabel($node);
 
             return $label === null ? null : [['type' => 'text', 'text' => $label]];
+        }
+
+        if ($mode === 'html' && $name === 'area') {
+            return self::normalizeHtmlAreaElement($node, $diagnostics, $baseUrl);
         }
 
         if ($mode === 'html' && $name === 'link') {
@@ -972,6 +977,7 @@ final class Html5DomFragment
             'form',
             'applet',
             'iframe',
+            'map',
             'noembed',
             'noframes',
             'noscript',
@@ -1037,6 +1043,217 @@ final class Html5DomFragment
         $label = str_replace("\0", '', $element->getAttribute('label'));
 
         return trim($label) === '' ? null : $label;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>|null
+     */
+    private static function normalizeHtmlAreaElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
+    {
+        $diagnostics[] = [
+            'code' => 'blocked-tag',
+            'tag' => 'area',
+        ];
+
+        foreach (['download', 'ping', 'target'] as $attributeName) {
+            if ($element->hasAttribute($attributeName)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'area',
+                    'attribute' => $attributeName,
+                ];
+            }
+        }
+
+        if (!$element->hasAttribute('href')) {
+            return null;
+        }
+
+        $target = $element->getAttribute('href');
+        $normalizedTarget = self::normalizeUrlAttributeValue($target);
+        if ($normalizedTarget === '' || !self::isSafeUrl($normalizedTarget)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => 'area',
+                'attribute' => 'href',
+            ];
+
+            return null;
+        }
+
+        if ($normalizedTarget !== $target) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => 'area',
+                'attribute' => 'href',
+            ];
+        }
+
+        $href = $baseUrl !== null
+            ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+            : $normalizedTarget;
+        $attrs = [
+            'href' => $href,
+            'data-pandoc-image-map-area' => 'true',
+        ];
+
+        $mapName = self::nearestHtmlMapName($element);
+        if ($mapName !== null) {
+            $attrs['data-pandoc-image-map-name'] = $mapName;
+        }
+
+        if ($element->hasAttribute('shape')) {
+            $shape = self::normalizeHtmlAreaShapeAttribute($element->getAttribute('shape'), $diagnostics);
+            if ($shape !== null) {
+                $attrs['data-pandoc-image-map-shape'] = $shape;
+            }
+        }
+
+        if ($element->hasAttribute('coords')) {
+            $coords = self::normalizeHtmlAreaCoordsAttribute($element->getAttribute('coords'), $diagnostics);
+            if ($coords !== null) {
+                $attrs['data-pandoc-image-map-coords'] = $coords;
+            }
+        }
+
+        $label = null;
+        if ($element->hasAttribute('alt')) {
+            $alt = self::cleanHtmlMetadataAttribute($element->getAttribute('alt'));
+            if ($alt !== '') {
+                $attrs['data-pandoc-image-map-alt'] = $alt;
+                $label = $alt;
+            }
+        }
+
+        if ($element->hasAttribute('title')) {
+            $title = self::cleanHtmlMetadataAttribute($element->getAttribute('title'));
+            if ($title !== '') {
+                $attrs['title'] = $title;
+                $label ??= $title;
+            }
+        }
+
+        if ($element->hasAttribute('rel')) {
+            $rel = self::normalizeHtmlRelAttribute($element->getAttribute('rel'), 'area', $diagnostics);
+            if ($rel !== null) {
+                $attrs['rel'] = $rel;
+            }
+        }
+
+        return [[
+            'type' => 'element',
+            'name' => 'a',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $label ?? 'Image map region',
+            ]],
+        ]];
+    }
+
+    private static function nearestHtmlMapName(\DOMElement $element): ?string
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (strtolower($parent->tagName) === 'map') {
+                foreach (['name', 'id'] as $attributeName) {
+                    if (!$parent->hasAttribute($attributeName)) {
+                        continue;
+                    }
+
+                    $name = self::cleanHtmlMetadataAttribute($parent->getAttribute($attributeName));
+                    if ($name !== '') {
+                        return $name;
+                    }
+                }
+
+                return null;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAreaShapeAttribute(string $value, array &$diagnostics): ?string
+    {
+        $shape = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($shape === '') {
+            return null;
+        }
+
+        if (in_array($shape, ['circle', 'default', 'poly', 'rect'], true)) {
+            return $shape;
+        }
+
+        $diagnostics[] = [
+            'code' => 'unsafe-attribute',
+            'tag' => 'area',
+            'attribute' => 'shape',
+            'value' => $shape,
+        ];
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlAreaCoordsAttribute(string $value, array &$diagnostics): ?string
+    {
+        $cleaned = trim(str_replace("\0", '', $value));
+        if ($cleaned === '') {
+            return null;
+        }
+
+        $parts = preg_split('/[\s,]+/u', $cleaned, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($parts) || $parts === []) {
+            return null;
+        }
+
+        $coords = [];
+        foreach ($parts as $part) {
+            $coord = self::normalizeHtmlAreaCoord((string) $part);
+            if ($coord === null) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'area',
+                    'attribute' => 'coords',
+                    'value' => $cleaned,
+                ];
+
+                return null;
+            }
+
+            $coords[] = $coord;
+        }
+
+        return implode(',', $coords);
+    }
+
+    private static function normalizeHtmlAreaCoord(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if (preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        if (str_contains($trimmed, '.')) {
+            [$integer, $fraction] = explode('.', $trimmed, 2);
+            $integer = ltrim($integer, '0');
+            $fraction = rtrim($fraction, '0');
+
+            return ($integer === '' ? '0' : $integer) . ($fraction === '' ? '' : '.' . $fraction);
+        }
+
+        $integer = ltrim($trimmed, '0');
+
+        return $integer === '' ? '0' : $integer;
     }
 
     /**

@@ -44,6 +44,7 @@ $source = <<<HTML
   <iframe src="java&#10;script:alert(1)" title="Bad frame"></iframe>
   <svg><desc><![CDATA[Legacy <source> & review notes]]></desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path=" url( #review-clip ) " filter="url(javascript:alert(1))" mask="url(./masks/review.svg#mask)" marker-start="url(ja/**/vascript:alert(1))"><path d="M0 0" fill="url(#paint)" stroke="url( java&#10;script:alert(1) )"></path></g></svg>
   <figure><img src=" cover.png&#13;" srcset=" h&#9;ttps://cdn.example.test/cover.png?x=1&amp;y=2 01.00x, cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
+  <figure><img src="./floorplan.png" usemap="#review-map" alt="Review floor plan"><map name="review-map"><area shape="rect" coords="0,0,120,80" href="./map/lead.html" alt="Mapped lead" target="_blank"><area shape="star" coords="1,2,bad" href="java&#10;script:alert(1)" alt="Bad map region"></map></figure>
   <picture><source srcset="data:image/png;base64,iVBORw0KGgo= 1x, data:text/html;base64,PHNjcmlwdD4= 2x" type="image/png"><source srcset="hero.avif 1x, javascript:alert(1) 2x" media="(min-width: 48em)" type="image/avif"><source srcset="mailto:bad@example.test 1x" media="(max-width: 47em)"><img src="fallback.jpg" alt="Responsive cover"></picture>
   <p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline raster"><img src="data:text/html;base64,PHNjcmlwdD4=" alt="HTML data"></p>
   <form><p><input type="submit" value="Send review"><input type="button" value="Preview packet"><input type="image" src="javascript:alert(1)" alt="Image submit"><input type="text" value="Hidden draft"></p></form>
@@ -57,7 +58,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -84,6 +85,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://source.example.test/import/posts/frames/source.html?review=1" data-pandoc-iframe-src="true" title="Embedded frame source" data-pandoc-iframe-sandbox="allow-scripts allow-same-origin" data-pandoc-iframe-allow="fullscreen; clipboard-write" data-pandoc-iframe-referrerpolicy="strict-origin-when-cross-origin" data-pandoc-iframe-allowfullscreen="true">Embedded frame source</a>',
         '<svg><desc>Legacy &lt;source&gt; &amp; review notes</desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path="url(#review-clip)" mask="url(https://source.example.test/import/posts/masks/review.svg#mask)"><path d="M0 0" fill="url(#paint)"></path></g></svg>',
         '<img src="https://source.example.test/import/posts/cover.png" srcset="https://cdn.example.test/cover.png?x=1&amp;y=2 1x, https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover">',
+        '<img src="https://source.example.test/import/posts/floorplan.png" usemap="#review-map" alt="Review floor plan"><a href="https://source.example.test/import/posts/map/lead.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-shape="rect" data-pandoc-image-map-coords="0,0,120,80" data-pandoc-image-map-alt="Mapped lead">Mapped lead</a>',
         '<source srcset="data:image/png;base64,iVBORw0KGgo= 1x" type="image/png">',
         '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif">',
         '<img src="https://source.example.test/import/posts/fallback.jpg" alt="Responsive cover">',
@@ -96,7 +98,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
