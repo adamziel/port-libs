@@ -13168,14 +13168,69 @@ final class PdfTextExtractor
         $offset = $this->skipPdfWhitespace($dict, $offset);
         $reference = $this->pdfIndirectReferenceTokenAt($dict, $offset);
         if ($reference === null) {
-            return true;
+            if (preg_match('/\G([+-]?\d+)/s', $dict, $match, 0, $offset) !== 1) {
+                return true;
+            }
+
+            return $this->streamLengthTailPermitsStreamPayload($dict, $offset + strlen($match[0]), $objects);
         }
 
         return $this->standaloneStreamLengthReferenceIsInteger(
             $reference['objectNumber'],
             $reference['generation'],
             $objects
-        );
+        ) && $this->streamLengthTailPermitsStreamPayload($dict, $reference['endOffset'], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamLengthTailPermitsStreamPayload(string $dict, int $offset, array $objects): bool
+    {
+        if ($this->streamLengthTailIsWellFormed($dict, $offset)) {
+            return true;
+        }
+
+        return $this->streamFilters($dict, $objects, true) === null;
+    }
+
+    private function streamLengthTailIsWellFormed(string $dict, int $offset): bool
+    {
+        $index = $this->skipPdfWhitespace($dict, $offset);
+        $length = strlen($dict);
+
+        while ($index < $length) {
+            if (substr($dict, $index, 2) === '>>' || ($dict[$index] ?? '') === ']') {
+                return true;
+            }
+
+            if (($dict[$index] ?? '') !== '/') {
+                return false;
+            }
+
+            $nameEnd = $this->pdfNameTokenEndOffset($dict, $index);
+            if ($nameEnd <= $index + 1) {
+                return false;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($dict, $nameEnd);
+            if (
+                $valueOffset >= $length
+                || substr($dict, $valueOffset, 2) === '>>'
+                || ($dict[$valueOffset] ?? '') === ']'
+            ) {
+                return false;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dict, $valueOffset);
+            if ($nextOffset <= $valueOffset) {
+                return false;
+            }
+
+            $index = $this->skipPdfWhitespace($dict, $nextOffset);
+        }
+
+        return true;
     }
 
     /**
