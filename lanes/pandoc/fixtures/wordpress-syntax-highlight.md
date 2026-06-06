@@ -666,3 +666,14 @@ flowchart LR
   </script>
 </div>
 ```
+
+``` {.html #html-php-template-review .numberLines startFrom=490}
+<!-- WordPress PHP template review -->
+<article class="wp-block-import-card">
+  <?php if (! empty($post_title)) : ?>
+    <h2><?= esc_html($post_title) ?></h2>
+  <?php else : ?>
+    <h2>Untitled</h2>
+  <?php endif; ?>
+</article>
+```

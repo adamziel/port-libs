@@ -989,6 +989,46 @@ return [
         $t->contains('<span class="dt">.wp-block</span> <span class="op">{</span> <span class="ot">color</span><span class="op">:</span> <span class="fu">var</span><span class="op">(</span><span class="ot">--accent-color</span><span class="op">);</span>', $directHtml['html']);
         $t->contains('<span class="kw">const</span> <span class="va">block</span> <span class="op">=</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>', $directHtml['html']);
     },
+    'highlights embedded php islands inside html template snippets' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[43] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an HTML/PHP template code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directHtml = $highlighter->highlight(
+            '<article><?php if (! empty($title)) : ?><h2><?= esc_html($title) ?></h2><?php endif; ?></article>',
+            'html'
+        );
+
+        $t->same('html', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('html', $highlighted['language']);
+        $t->same('html', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(490, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource html numberLines"><code class="sourceCode html" style="counter-reset: source-line 489;">', $highlighted['html']);
+        $t->contains('<span id="html-php-template-review-490"><a href="#html-php-template-review-490"></a><span class="co">&lt;!-- WordPress PHP template review --&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;article</span> <span class="ot">class</span><span class="op">=</span><span class="st">&quot;wp-block-import-card&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="pp">&lt;?php</span> <span class="kw">if</span>', $highlighted['html']);
+        $t->contains('<span class="fu">empty</span><span class="op">(</span><span class="va">$post_title</span><span class="op">))</span> <span class="op">:</span> <span class="pp">?&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="pp">&lt;?=</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$post_title</span><span class="op">)</span> <span class="pp">?&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="pp">&lt;?php</span> <span class="kw">else</span> <span class="op">:</span> <span class="pp">?&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="pp">&lt;?php</span> <span class="kw">endif</span><span class="op">;</span> <span class="pp">?&gt;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="fu">esc_html</span><span class="op">(</span><span class="va">$post_title</span>', $wordpressBlock);
+        $t->same('html', $directHtml['language']);
+        $t->contains('<span class="pp">&lt;?php</span> <span class="kw">if</span>', $directHtml['html']);
+        $t->contains('<span class="pp">&lt;?=</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">)</span> <span class="pp">?&gt;</span>', $directHtml['html']);
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');

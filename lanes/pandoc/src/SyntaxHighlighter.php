@@ -766,7 +766,7 @@ final class SyntaxHighlighter
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
             ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
-            ['keyword', '/^\\b(?:abstract|array|as|break|case|catch|class|clone|const|continue|declare|default|do|echo|else|elseif|extends|final|finally|for|foreach|function|global|if|implements|interface|match|namespace|new|private|protected|public|readonly|return|static|switch|throw|trait|try|use|while|yield)\\b/i'],
+            ['keyword', '/^\\b(?:abstract|array|as|break|case|catch|class|clone|const|continue|declare|default|do|echo|else|elseif|endforeach|endif|extends|final|finally|for|foreach|function|global|if|implements|interface|match|namespace|new|private|protected|public|readonly|return|static|switch|throw|trait|try|use|while|yield)\\b/i'],
             ['constant', '/^\\b(?:false|null|true)\\b/i'],
             ['number', '/^\\b(?:0x[0-9A-Fa-f]+|\\d+(?:\\.\\d+)?)\\b/'],
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
@@ -1343,6 +1343,31 @@ final class SyntaxHighlighter
      */
     private function scanHtmlFragment(string $code, array &$tokens): void
     {
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $phpIsland = self::nextHtmlPhpIsland($code, $offset);
+            if ($phpIsland === null) {
+                $this->scanPlainHtmlFragment(substr($code, $offset), $tokens);
+                break;
+            }
+
+            [$phpOffset, $phpLength] = $phpIsland;
+            if ($phpOffset > $offset) {
+                $this->scanPlainHtmlFragment(substr($code, $offset, $phpOffset - $offset), $tokens);
+            }
+
+            $this->appendEmbeddedHtmlPhpTokens(substr($code, $phpOffset, $phpLength), $tokens);
+            $offset = $phpOffset + $phpLength;
+        }
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function scanPlainHtmlFragment(string $code, array &$tokens): void
+    {
         $this->scanInto($code, [
             ['comment', '/^<!--[\\s\\S]*?-->/'],
             ['keyword', '/^<\\/?[A-Za-z][A-Za-z0-9:-]*/'],
@@ -1365,6 +1390,16 @@ final class SyntaxHighlighter
     }
 
     /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendEmbeddedHtmlPhpTokens(string $code, array &$tokens): void
+    {
+        foreach ($this->tokenizePhp($code) as $token) {
+            $this->appendToken($tokens, $token['type'], $token['text']);
+        }
+    }
+
+    /**
      * @return array{0:string, 1:int}|null
      */
     private static function nextHtmlRawTextTag(string $code, int $offset): ?array
@@ -1374,6 +1409,24 @@ final class SyntaxHighlighter
         }
 
         return [strtolower($matches[1][0]), $matches[0][1]];
+    }
+
+    /**
+     * @return array{0:int, 1:int}|null
+     */
+    private static function nextHtmlPhpIsland(string $code, int $offset): ?array
+    {
+        if (preg_match('/<\\?(?:php\\b|=)/i', $code, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+            return null;
+        }
+
+        $start = $matches[0][1];
+        $end = strpos($code, '?>', $start + strlen($matches[0][0]));
+        if ($end === false) {
+            return [$start, strlen($code) - $start];
+        }
+
+        return [$start, $end - $start + 2];
     }
 
     private static function htmlTagEndOffset(string $code, int $offset): ?int

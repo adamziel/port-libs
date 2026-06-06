@@ -298,6 +298,12 @@ if (!$htmlEmbeddedCodeBlock instanceof PortLibs\Pandoc\AstNode || $htmlEmbeddedC
 }
 $htmlEmbedded = $highlighter->highlightCodeBlock($htmlEmbeddedCodeBlock, 'pygments');
 $htmlEmbeddedWordpressBlock = $highlighter->wordpressHtmlBlock($htmlEmbeddedCodeBlock, 'pygments');
+$htmlPhpCodeBlock = $document->children[43] ?? null;
+if (!$htmlPhpCodeBlock instanceof PortLibs\Pandoc\AstNode || $htmlPhpCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an HTML/PHP template code block');
+}
+$htmlPhp = $highlighter->highlightCodeBlock($htmlPhpCodeBlock, 'breezedark');
+$htmlPhpWordpressBlock = $highlighter->wordpressHtmlBlock($htmlPhpCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1259,6 +1265,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($htmlEmbeddedWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
         throw new RuntimeException('Expected embedded HTML WordPress style metadata');
     }
+    if (($htmlPhp['language'] ?? '') !== 'html') {
+        throw new RuntimeException('Expected HTML/PHP template fixture to normalize to HTML highlighting');
+    }
+    if (($htmlPhp['lineNumbering']['start'] ?? null) !== 490) {
+        throw new RuntimeException('Expected HTML/PHP template source startFrom line-number handoff');
+    }
+    if (!str_contains($htmlPhp['html'], '<span class="pp">&lt;?php</span> <span class="kw">if</span>')) {
+        throw new RuntimeException('Expected embedded PHP if token handoff');
+    }
+    if (!str_contains($htmlPhp['html'], '<span class="pp">&lt;?=</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$post_title</span>')) {
+        throw new RuntimeException('Expected embedded PHP echo shortcode token handoff');
+    }
+    if (!str_contains($htmlPhp['html'], '<span class="pp">&lt;?php</span> <span class="kw">endif</span><span class="op">;</span> <span class="pp">?&gt;</span>')) {
+        throw new RuntimeException('Expected embedded PHP alternative-syntax closing token handoff');
+    }
+    if (!str_contains($htmlPhpWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected HTML/PHP template WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1326,6 +1350,7 @@ echo "twigHighlightedHtml:\n" . $twig['html'] . "\n";
 echo "handlebarsHighlightedHtml:\n" . $handlebars['html'] . "\n";
 echo "mermaidHighlightedHtml:\n" . $mermaid['html'] . "\n";
 echo "htmlEmbeddedHighlightedHtml:\n" . $htmlEmbedded['html'] . "\n";
+echo "htmlPhpHighlightedHtml:\n" . $htmlPhp['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1364,4 +1389,5 @@ echo "twigWordpressBlock:\n" . $twigWordpressBlock . "\n";
 echo "handlebarsWordpressBlock:\n" . $handlebarsWordpressBlock . "\n";
 echo "mermaidWordpressBlock:\n" . $mermaidWordpressBlock . "\n";
 echo "htmlEmbeddedWordpressBlock:\n" . $htmlEmbeddedWordpressBlock . "\n";
+echo "htmlPhpWordpressBlock:\n" . $htmlPhpWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
