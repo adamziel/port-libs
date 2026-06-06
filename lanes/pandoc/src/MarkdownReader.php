@@ -6077,6 +6077,12 @@ final class MarkdownReader
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
         }
+        if ($caption instanceof \DOMElement) {
+            $captionSource = $this->htmlTableCaptionSource($table, $caption);
+            if ($captionSource !== []) {
+                $attrs['captionSource'] = $captionSource;
+            }
+        }
 
         $widths = $columnMetadata['widths'];
         if ($widths !== null) {
@@ -6097,6 +6103,96 @@ final class MarkdownReader
         }
 
         return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlTableCaptionSource(\DOMElement $table, \DOMElement $caption): array
+    {
+        $record = [
+            'element' => 'caption',
+        ];
+
+        $childIndex = $this->htmlTableCaptionChildIndex($table, $caption);
+        if ($childIndex !== null) {
+            $record['childIndex'] = $childIndex;
+            $record['position'] = $this->htmlTableCaptionPosition($table, $childIndex);
+        }
+
+        $captionSide = $this->htmlTableCaptionSide($caption);
+        if ($captionSide !== '') {
+            $record['captionSide'] = $captionSide;
+        }
+
+        $sourceAttributes = $this->htmlElementPandocAttrs($caption);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    private function htmlTableCaptionChildIndex(\DOMElement $table, \DOMElement $caption): ?int
+    {
+        $index = 0;
+        foreach ($table->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->isSameNode($caption)) {
+                return $index;
+            }
+
+            $index++;
+        }
+
+        return null;
+    }
+
+    private function htmlTableCaptionPosition(\DOMElement $table, int $captionIndex): string
+    {
+        $firstContentIndex = null;
+        $lastContentIndex = null;
+        $index = 0;
+        foreach ($table->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if (in_array($name, ['thead', 'tbody', 'tfoot', 'tr'], true)) {
+                $firstContentIndex ??= $index;
+                $lastContentIndex = $index;
+            }
+
+            $index++;
+        }
+
+        if ($firstContentIndex === null || $captionIndex < $firstContentIndex) {
+            return 'before-table-sections';
+        }
+
+        if ($lastContentIndex !== null && $captionIndex > $lastContentIndex) {
+            return 'after-table-sections';
+        }
+
+        return 'between-table-sections';
+    }
+
+    private function htmlTableCaptionSide(\DOMElement $caption): string
+    {
+        $style = $caption->getAttribute('style');
+        if ($style === '') {
+            return '';
+        }
+
+        if (preg_match('/(?:^|;)\s*caption-side\s*:\s*([a-z-]+)/i', $style, $match) !== 1) {
+            return '';
+        }
+
+        return strtolower($match[1]);
     }
 
     /**

@@ -1640,8 +1640,103 @@ final class TableGeometry
         if ($rawText !== '' && $rawText !== $text) {
             $record['rawText'] = $rawText;
         }
+        if ($textAttribute === 'caption') {
+            $captionSource = self::captionSourceMetadata($table);
+            if ($captionSource !== []) {
+                $record = array_replace($record, $captionSource);
+            }
+        }
 
         return $record;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function captionSourceMetadata(AstNode $table): array
+    {
+        $source = $table->attr('captionSource', []);
+        if (!is_array($source)) {
+            return [];
+        }
+
+        $record = [];
+        $element = trim((string) ($source['element'] ?? ''));
+        if ($element !== '') {
+            $record['sourceElement'] = $element;
+        }
+
+        $position = trim((string) ($source['position'] ?? ''));
+        if ($position !== '') {
+            $record['sourcePosition'] = $position;
+        }
+
+        if (isset($source['childIndex']) && is_numeric($source['childIndex'])) {
+            $record['sourceChildIndex'] = max(0, (int) $source['childIndex']);
+        }
+
+        $captionSide = trim((string) ($source['captionSide'] ?? ''));
+        if ($captionSide !== '') {
+            $record['captionSide'] = $captionSide;
+        }
+
+        $sourceAttributes = self::captionSourceAttributeSummary($source['sourceAttributes'] ?? []);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array{id?:string,classes?:list<string>,attributes?:array<string, string>,htmlAttributes?:array<string, string>}
+     */
+    private static function captionSourceAttributeSummary(mixed $sourceAttributes): array
+    {
+        if (!is_array($sourceAttributes)) {
+            return [];
+        }
+
+        $summary = [];
+        $id = trim((string) ($sourceAttributes['id'] ?? ''));
+        if ($id === '' && isset($sourceAttributes['htmlAttributes']) && is_array($sourceAttributes['htmlAttributes'])) {
+            $id = trim((string) ($sourceAttributes['htmlAttributes']['id'] ?? ''));
+        }
+        if ($id !== '') {
+            $summary['id'] = $id;
+        }
+
+        $classes = [];
+        if (isset($sourceAttributes['classes']) && is_array($sourceAttributes['classes'])) {
+            foreach ($sourceAttributes['classes'] as $class) {
+                if (!is_scalar($class)) {
+                    continue;
+                }
+
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+        if ($classes === [] && isset($sourceAttributes['htmlAttributes']) && is_array($sourceAttributes['htmlAttributes'])) {
+            $classes = preg_split('/\s+/', trim((string) ($sourceAttributes['htmlAttributes']['class'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+        if ($classes !== []) {
+            $summary['classes'] = array_values(array_unique($classes));
+        }
+
+        $attributes = self::stringAttributeMap($sourceAttributes['attributes'] ?? [], false);
+        if ($attributes !== []) {
+            $summary['attributes'] = $attributes;
+        }
+
+        $htmlAttributes = self::stringAttributeMap($sourceAttributes['htmlAttributes'] ?? [], true);
+        if ($htmlAttributes !== []) {
+            $summary['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $summary;
     }
 
     /**
@@ -2211,6 +2306,14 @@ final class TableGeometry
                 static fn (mixed $type): string => (string) $type,
                 is_array($captions['long']['blockTypes'] ?? null) ? $captions['long']['blockTypes'] : []
             )),
+            'hasCaptionSourceAttributes' => is_array($captions['long']['sourceAttributes'] ?? null)
+                && ($captions['long']['sourceAttributes'] ?? []) !== [],
+            'captionSourceElement' => (string) ($captions['long']['sourceElement'] ?? ''),
+            'captionSourcePosition' => (string) ($captions['long']['sourcePosition'] ?? ''),
+            'captionSourceChildIndex' => is_numeric($captions['long']['sourceChildIndex'] ?? null)
+                ? (int) $captions['long']['sourceChildIndex']
+                : null,
+            'captionSide' => (string) ($captions['long']['captionSide'] ?? ''),
             'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
             'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
             'shortCaptionBlockTypes' => array_values(array_map(
@@ -2781,7 +2884,65 @@ final class TableGeometry
             }
         }
 
+        $sourceAttributes = is_array($long['sourceAttributes'] ?? null) ? $long['sourceAttributes'] : [];
+        if ($sourceAttributes !== []) {
+            $captionSourceRequirements = [
+                'markdown' => ['markdown-caption-source-attributes-require-raw-html', 'raw-html-caption-attributes'],
+                'asciidoc' => ['asciidoc-caption-source-attributes-require-raw-html', 'raw-html-caption-attributes'],
+                'latex' => ['latex-caption-source-attributes-review-required', 'caption-attribute-review-comments'],
+            ];
+            if (isset($captionSourceRequirements[$writer])) {
+                [$code, $requiredFeature] = $captionSourceRequirements[$writer];
+                $attributes = self::captionSourceNativeAttributeMap($sourceAttributes);
+                $diagnostics[] = [
+                    'code' => $code,
+                    'writer' => $writer,
+                    'reason' => 'caption-source-attributes',
+                    'requiredFeature' => $requiredFeature,
+                    'source' => 'html-caption',
+                    'caption' => (string) ($long['text'] ?? ''),
+                    'captionSource' => (string) ($long['source'] ?? 'none'),
+                    'sourceElement' => (string) ($long['sourceElement'] ?? ''),
+                    'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
+                    'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
+                    'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'attributeCount' => count($attributes),
+                    'attributes' => $attributes,
+                    'sourceAttributes' => $sourceAttributes,
+                ];
+            }
+        }
+
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @return array<string, string>
+     */
+    private static function captionSourceNativeAttributeMap(array $sourceAttributes): array
+    {
+        $attributes = self::stringAttributeMap($sourceAttributes['attributes'] ?? [], false);
+        $htmlAttributes = self::stringAttributeMap($sourceAttributes['htmlAttributes'] ?? [], true);
+
+        foreach ($htmlAttributes as $name => $value) {
+            if ($name === 'id' || $name === 'class' || array_key_exists($name, $attributes)) {
+                continue;
+            }
+
+            $attributes[$name] = $value;
+        }
+
+        if (isset($sourceAttributes['id']) && is_scalar($sourceAttributes['id'])) {
+            $attributes['id'] = (string) $sourceAttributes['id'];
+        }
+        if (isset($sourceAttributes['classes']) && is_array($sourceAttributes['classes']) && $sourceAttributes['classes'] !== []) {
+            $attributes['class'] = implode(' ', array_map(static fn (mixed $class): string => (string) $class, $sourceAttributes['classes']));
+        }
+
+        ksort($attributes);
+
+        return $attributes;
     }
 
     /**

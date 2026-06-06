@@ -432,7 +432,7 @@ final class WordPressBlockWriter
         $html .= '</table>';
 
         if ($this->tableHasCaption($node)) {
-            $html .= '<figcaption class="wp-element-caption">' . $this->renderTableCaptionContent($node) . '</figcaption>';
+            $html .= '<figcaption' . $this->renderTableCaptionAttrs($node) . '>' . $this->renderTableCaptionContent($node) . '</figcaption>';
         }
 
         return $html;
@@ -486,6 +486,76 @@ final class WordPressBlockWriter
         }
 
         return $this->renderCaptionInlines($node);
+    }
+
+    private function renderTableCaptionAttrs(AstNode $node): string
+    {
+        $captionSource = $node->attr('captionSource', []);
+        $sourceAttributes = is_array($captionSource) && is_array($captionSource['sourceAttributes'] ?? null)
+            ? $captionSource['sourceAttributes']
+            : [];
+        $htmlAttributes = is_array($sourceAttributes['htmlAttributes'] ?? null) ? $sourceAttributes['htmlAttributes'] : [];
+        $attributes = is_array($sourceAttributes['attributes'] ?? null) ? $sourceAttributes['attributes'] : [];
+
+        $merged = [];
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower(trim((string) $name));
+            if ($name === '' || !is_scalar($value)) {
+                continue;
+            }
+
+            $merged[$name] = (string) $value;
+        }
+        foreach ($attributes as $name => $value) {
+            $name = strtolower(trim((string) $name));
+            if ($name === '' || !is_scalar($value) || array_key_exists($name, $merged)) {
+                continue;
+            }
+
+            $merged[$name] = (string) $value;
+        }
+
+        if (isset($sourceAttributes['id']) && is_scalar($sourceAttributes['id'])) {
+            $id = trim((string) $sourceAttributes['id']);
+            if ($id !== '') {
+                $merged['id'] = $id;
+            }
+        }
+
+        $classes = ['wp-element-caption'];
+        if (isset($sourceAttributes['classes']) && is_array($sourceAttributes['classes'])) {
+            foreach ($sourceAttributes['classes'] as $class) {
+                if (!is_scalar($class)) {
+                    continue;
+                }
+
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        } elseif (isset($merged['class'])) {
+            foreach (preg_split('/\s+/', trim((string) $merged['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+                $classes[] = $class;
+            }
+        }
+
+        $attrs = '';
+        if (isset($merged['id']) && trim((string) $merged['id']) !== '') {
+            $attrs .= ' id="' . $this->esc((string) $merged['id']) . '"';
+        }
+        $attrs .= ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+
+        foreach ($merged as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id' || $name === 'class' || !$this->isAllowedTableHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
     }
 
     /**

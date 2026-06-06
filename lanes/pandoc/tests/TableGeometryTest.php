@@ -1983,6 +1983,98 @@ return [
         $t->same(false, array_key_exists('node', $packet['captions']['long']['inlines'][1] ?? []));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'serializes caption source attributes and writer diagnostics for importer review packets' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Caption source audit',
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'Caption ']),
+                new AstNode('emph', [], [new AstNode('text', ['text' => 'source'])]),
+                new AstNode('text', ['text' => ' audit']),
+            ],
+            'captionSource' => [
+                'element' => 'caption',
+                'position' => 'before-table-sections',
+                'childIndex' => 0,
+                'captionSide' => 'bottom',
+                'sourceAttributes' => [
+                    'id' => 'native-caption',
+                    'classes' => ['review-caption'],
+                    'attributes' => [
+                        'data-pandoc-source' => 'native-ast',
+                        'aria-label' => 'Caption source',
+                        'onclick' => 'blocked',
+                    ],
+                    'htmlAttributes' => [
+                        'id' => 'native-caption',
+                        'class' => 'review-caption',
+                        'data-pandoc-source' => 'native-ast',
+                        'aria-label' => 'Caption source',
+                        'onclick' => 'blocked',
+                    ],
+                ],
+            ],
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same('Caption source audit', $packet['captions']['long']['text'] ?? null);
+        $t->same('captionInlines', $packet['captions']['long']['source'] ?? null);
+        $t->same('caption', $packet['captions']['long']['sourceElement'] ?? null);
+        $t->same('before-table-sections', $packet['captions']['long']['sourcePosition'] ?? null);
+        $t->same(0, $packet['captions']['long']['sourceChildIndex'] ?? null);
+        $t->same('bottom', $packet['captions']['long']['captionSide'] ?? null);
+        $t->same('native-caption', $packet['captions']['long']['sourceAttributes']['id'] ?? null);
+        $t->same(['review-caption'], $packet['captions']['long']['sourceAttributes']['classes'] ?? null);
+        $t->same('native-ast', $packet['captions']['long']['sourceAttributes']['attributes']['data-pandoc-source'] ?? null);
+        $t->same(true, $packet['summary']['hasCaptionSourceAttributes'] ?? null);
+        $t->same('caption', $packet['summary']['captionSourceElement'] ?? null);
+        $t->same('before-table-sections', $packet['summary']['captionSourcePosition'] ?? null);
+        $t->same(0, $packet['summary']['captionSourceChildIndex'] ?? null);
+        $t->same('bottom', $packet['summary']['captionSide'] ?? null);
+
+        $t->same(['markdown-caption-source-attributes-require-raw-html'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same(['asciidoc-caption-source-attributes-require-raw-html'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same(['latex-caption-source-attributes-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same('caption-source-attributes', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-caption-attributes', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(5, $markdownDiagnostics[0]['attributeCount'] ?? null);
+        $t->same('native-caption', $markdownDiagnostics[0]['attributes']['id'] ?? null);
+        $t->same('review-caption', $markdownDiagnostics[0]['attributes']['class'] ?? null);
+        $t->same('native-ast', $markdownDiagnostics[0]['attributes']['data-pandoc-source'] ?? null);
+        $t->same('bottom', $markdownDiagnostics[0]['captionSide'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['sourceChildIndex'] ?? null);
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-caption-source-attributes-require-raw-html',
+            'asciidoc-caption-source-attributes-require-raw-html',
+            'latex-caption-source-attributes-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+        $t->contains('<figcaption id="native-caption" class="wp-element-caption review-caption" data-pandoc-source="native-ast" aria-label="Caption source">Caption <em>source</em> audit</figcaption>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+    },
     'serializes block-level table caption provenance for importer review packets' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Fallback block caption text',

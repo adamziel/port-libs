@@ -110,6 +110,18 @@ $verticalAlignmentTables = array_values(array_filter(
     $verticalAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$captionSourceDocument = (new MarkdownReader())->read(<<<'HTML'
+<table>
+<caption id="caption-source-handoff" class="source-caption" data-origin="html-reader" aria-label="Caption source" style="caption-side: bottom" onclick="blocked()">Caption source handoff</caption>
+<tbody>
+<tr><th>Scope</th><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$captionSourceTables = array_values(array_filter(
+    $captionSourceDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionMetadataTables = [
     new AstNode('table', [
         'caption' => 'Long caption for reviewer',
@@ -759,6 +771,7 @@ $document = new AstNode('document', [], [
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
     ...$readerHandoffTables,
+    ...$captionSourceTables,
     ...$captionMetadataTables,
     $blockCaptionTable,
     $malformedSpanTable,
@@ -1428,6 +1441,31 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Reader packet import metrics</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing Markdown reader table WordPress output');
     }
+
+    $captionSourceTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('caption') === 'Caption source handoff') {
+            $captionSourceTable = $node;
+            break;
+        }
+    }
+    $captionSourcePacket = $captionSourceTable instanceof AstNode ? $captionSourceTable->attr('tableGeometry') : null;
+    if (
+        !is_array($captionSourcePacket)
+        || ($captionSourcePacket['captions']['long']['sourceAttributes']['id'] ?? null) !== 'caption-source-handoff'
+        || ($captionSourcePacket['summary']['hasCaptionSourceAttributes'] ?? null) !== true
+        || ($captionSourcePacket['summary']['captionSide'] ?? null) !== 'bottom'
+        || ($captionSourcePacket['writerDowngrades']['markdown'][0]['code'] ?? null) !== 'markdown-caption-source-attributes-require-raw-html'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing caption source attribute handoff metadata');
+    }
+    if (!str_contains($blocks, '<figcaption id="caption-source-handoff" class="wp-element-caption source-caption" data-origin="html-reader" aria-label="Caption source" style="caption-side: bottom">Caption source handoff</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for caption source attributes');
+    }
+    if (str_contains($blocks, 'onclick=')) {
+        throw new RuntimeException('Table geometry self-test rendered unsafe caption source event attributes');
+    }
+    json_encode($captionSourcePacket, JSON_THROW_ON_ERROR);
 
     $captionMetadataTable = null;
     foreach ($document->children as $node) {

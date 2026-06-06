@@ -249,6 +249,57 @@ HTML;
         $t->contains('<thead id="source-head" data-section="thead"><tr data-row="head-1"><th id="source-scope" class="header-cell" data-origin="docx">Scope</th><th data-origin="manual">State</th></tr></thead>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html caption source attributes into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table>
+<caption id="source-caption" class="caption-title imported" data-origin="html-reader" aria-label="Caption provenance" style="caption-side: bottom; color: red" onclick="blocked()">Caption <em>source</em></caption>
+<tbody>
+<tr><th>Scope</th><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $captionSource = $table->attr('captionSource');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $markdownCodes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics);
+
+        $t->same('Caption source', $table->attr('caption'));
+        $t->same(true, is_array($captionSource));
+        $captionSource = is_array($captionSource) ? $captionSource : [];
+        $t->same('caption', $captionSource['element'] ?? null);
+        $t->same(0, $captionSource['childIndex'] ?? null);
+        $t->same('before-table-sections', $captionSource['position'] ?? null);
+        $t->same('bottom', $captionSource['captionSide'] ?? null);
+        $t->same('source-caption', $captionSource['sourceAttributes']['id'] ?? null);
+        $t->same(['caption-title', 'imported'], $captionSource['sourceAttributes']['classes'] ?? null);
+        $t->same('html-reader', $captionSource['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('Caption provenance', $captionSource['sourceAttributes']['htmlAttributes']['aria-label'] ?? null);
+        $t->same('caption-side: bottom; color: red', $captionSource['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('source-caption', $packet['captions']['long']['sourceAttributes']['id'] ?? null);
+        $t->same(['caption-title', 'imported'], $packet['captions']['long']['sourceAttributes']['classes'] ?? null);
+        $t->same('before-table-sections', $packet['captions']['long']['sourcePosition'] ?? null);
+        $t->same(0, $packet['captions']['long']['sourceChildIndex'] ?? null);
+        $t->same('bottom', $packet['captions']['long']['captionSide'] ?? null);
+        $t->same(true, $packet['summary']['hasCaptionSourceAttributes'] ?? null);
+        $t->same('caption', $packet['summary']['captionSourceElement'] ?? null);
+        $t->same('before-table-sections', $packet['summary']['captionSourcePosition'] ?? null);
+        $t->same(0, $packet['summary']['captionSourceChildIndex'] ?? null);
+        $t->same('bottom', $packet['summary']['captionSide'] ?? null);
+
+        $t->same(true, in_array('markdown-caption-source-attributes-require-raw-html', $markdownCodes, true));
+        $t->same('raw-html-caption-attributes', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('source-caption', $markdownDiagnostics[0]['sourceAttributes']['id'] ?? null);
+        $t->contains('<figcaption id="source-caption" class="wp-element-caption caption-title imported" data-origin="html-reader" aria-label="Caption provenance" style="caption-side: bottom; color: red">Caption <em>source</em></figcaption>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'expands html rowspan zero through the current tbody geometry group' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="rowspan-zero-grid" data-source="html-reader">
