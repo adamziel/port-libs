@@ -11299,6 +11299,10 @@ final class PdfTextExtractor
         foreach ($this->type3PrivateColorSpaceResourceValues($resourceOwnerBody, $objects) as $value) {
             $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
         }
+
+        foreach ($this->type3PrivateShadingResourceValues($resourceOwnerBody, $objects) as $value) {
+            $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+        }
     }
 
     /**
@@ -11307,57 +11311,79 @@ final class PdfTextExtractor
      */
     private function type3PrivateColorSpaceResourceValues(string $resourceOwnerBody, array $objects): array
     {
+        return $this->type3PrivateResourceCategoryValues($resourceOwnerBody, $objects, 'ColorSpace');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function type3PrivateShadingResourceValues(string $resourceOwnerBody, array $objects): array
+    {
+        return $this->type3PrivateResourceCategoryValues($resourceOwnerBody, $objects, 'Shading');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function type3PrivateResourceCategoryValues(
+        string $resourceOwnerBody,
+        array $objects,
+        string $category
+    ): array
+    {
         $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
         if ($resourceDictionary === null) {
             return [];
         }
 
-        $colorSpaceDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ColorSpace');
-        if ($colorSpaceDictionary === null) {
+        $categoryDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, $category);
+        if ($categoryDictionary === null) {
             return [];
         }
 
-        $colorSpaceDictionary = trim($colorSpaceDictionary);
-        if (str_starts_with($colorSpaceDictionary, '<<')) {
-            $body = $this->readPdfDictionaryAt($colorSpaceDictionary, 0);
+        $categoryDictionary = trim($categoryDictionary);
+        if (str_starts_with($categoryDictionary, '<<')) {
+            $body = $this->readPdfDictionaryAt($categoryDictionary, 0);
             if ($body === null) {
                 return [];
             }
-            $colorSpaceDictionary = $body;
+            $categoryDictionary = $body;
         }
 
         $values = [];
         $offset = 0;
-        $length = strlen($colorSpaceDictionary);
+        $length = strlen($categoryDictionary);
         while ($offset < $length) {
-            $this->skipContentWhitespaceAndComments($colorSpaceDictionary, $offset);
+            $this->skipContentWhitespaceAndComments($categoryDictionary, $offset);
             if ($offset >= $length) {
                 break;
             }
 
-            if ($colorSpaceDictionary[$offset] !== '/') {
-                $next = $this->skipPdfValueAt($colorSpaceDictionary, $offset);
+            if ($categoryDictionary[$offset] !== '/') {
+                $next = $this->skipPdfValueAt($categoryDictionary, $offset);
                 $offset = $next > $offset ? $next : $offset + 1;
                 continue;
             }
 
             $nameEnd = $offset + 1;
-            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $colorSpaceDictionary[$nameEnd])) {
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $categoryDictionary[$nameEnd])) {
                 $nameEnd++;
             }
 
             $valueOffset = $nameEnd;
-            $this->skipContentWhitespaceAndComments($colorSpaceDictionary, $valueOffset);
+            $this->skipContentWhitespaceAndComments($categoryDictionary, $valueOffset);
             if ($valueOffset >= $length) {
                 break;
             }
 
-            $value = $this->pdfValueAtOffset($colorSpaceDictionary, $valueOffset);
+            $value = $this->pdfValueAtOffset($categoryDictionary, $valueOffset);
             if ($value !== null) {
                 $values[] = $value;
             }
 
-            $next = $this->skipPdfValueAt($colorSpaceDictionary, $valueOffset);
+            $next = $this->skipPdfValueAt($categoryDictionary, $valueOffset);
             $offset = $next > $valueOffset ? $next : $valueOffset + 1;
         }
 
