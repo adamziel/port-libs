@@ -360,6 +360,7 @@ final class DocTemplate
         return match ($path) {
             'templates/default.html5' => $this->defaultHtml5Template(),
             'templates/default.markdown', 'templates/default.commonmark' => $this->defaultMarkdownTemplate(),
+            'templates/default.latex' => $this->defaultLatexTemplate(),
             'templates/default.openxml' => $this->defaultOpenXmlTemplate(),
             'templates/default.opendocument' => $this->defaultOpenDocumentTemplate(),
             'templates/default.epub3' => $this->defaultEpub3Template(),
@@ -392,6 +393,91 @@ $for(include-after)$
 $include-after$
 $endfor$
 MD;
+    }
+
+    private function defaultLatexTemplate(): string
+    {
+        return <<<'LATEX'
+\documentclass$if(classoption)$[$for(classoption)$$classoption$$sep$, $endfor$]$endif${$if(documentclass)$$documentclass$$else$article$endif$}
+$if(geometry)$
+\usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}
+$endif$
+\usepackage{amsmath,amssymb}
+$if(linestretch)$
+\usepackage{setspace}
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$if(title)$
+\title{$title$$if(thanks)$\thanks{$thanks$}$endif$}
+$endif$
+\author{$for(author)$$author$$sep$ \and $endfor$}
+\date{$date$}
+\begin{document}
+$if(has-frontmatter)$
+\frontmatter
+$endif$
+$if(title)$
+\maketitle
+$if(abstract)$
+\begin{abstract}
+$abstract$
+\end{abstract}
+$endif$
+$endif$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+$if(toc-title)$
+\renewcommand*\contentsname{$toc-title$}
+$endif$
+\setcounter{tocdepth}{$if(toc-depth)$$toc-depth$$else$3$endif$}
+\tableofcontents
+$endif$
+$if(lof)$
+\listoffigures
+$endif$
+$if(lot)$
+\listoftables
+$endif$
+$if(linestretch)$
+\setstretch{$linestretch$}
+$endif$
+$if(has-frontmatter)$
+\mainmatter
+$endif$
+$body$
+$if(has-frontmatter)$
+\backmatter
+$endif$
+$if(nocite-ids)$
+\nocite{$for(nocite-ids)$$it$$sep$, $endfor$}
+$endif$
+$if(natbib)$
+$if(bibliography)$
+$if(biblio-title)$
+$if(has-chapters)$
+\renewcommand\bibname{$biblio-title$}
+$else$
+\renewcommand\refname{$biblio-title$}
+$endif$
+$endif$
+\bibliography{$for(bibliography)$$bibliography$$sep$,$endfor$}
+$endif$
+$endif$
+$if(biblatex)$
+\printbibliography$if(biblio-title)$[title=$biblio-title$]$endif$
+$endif$
+$for(include-after)$
+
+$include-after$
+$endfor$
+\end{document}
+LATEX;
     }
 
     private function defaultOpenXmlTemplate(): string

@@ -318,6 +318,31 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     $officeFallbacks = [
+        'latex' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'documentclass' => 'article',
+                'classoption' => ['oneside'],
+                'title' => 'LaTeX Default Review',
+                'author' => ['Migration bot'],
+                'date' => '2026-06-06',
+                'body' => '\\section{LaTeX body}',
+                'toc' => true,
+                'toc-depth' => 2,
+                'bibliography' => ['review'],
+                'natbib' => true,
+            ], null, 'latex'),
+            [
+                '\\documentclass[oneside]{article}',
+                '\\title{LaTeX Default Review}',
+                '\\author{Migration bot}',
+                '\\date{2026-06-06}',
+                '\\setcounter{tocdepth}{2}',
+                '\\tableofcontents',
+                '\\section{LaTeX body}',
+                '\\bibliography{review}',
+                '\\end{document}',
+            ],
+        ],
         'docx' => [
             (new DocTemplate())->renderResource('templates/default', [], [
                 'title' => 'DOCX Default Review',

@@ -1301,6 +1301,83 @@ HTML,
         ], null, 'commonmark_x'));
     },
 
+    'renders bounded pandoc default latex template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $latex = $renderer->renderResource('templates/default', [], [
+            'documentclass' => 'report',
+            'classoption' => ['oneside', 'openany'],
+            'geometry' => ['margin=1in', 'includeheadfoot'],
+            'title' => 'Batch 42 Review',
+            'thanks' => 'Internal migration packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-06',
+            'abstract' => 'Native LaTeX template review.',
+            'header-includes' => ['\\usepackage{microtype}'],
+            'include-before' => ['\\chapter*{Reviewer Queue}'],
+            'toc' => true,
+            'toc-title' => 'Review Contents',
+            'toc-depth' => 2,
+            'lof' => true,
+            'lot' => true,
+            'linestretch' => '1.15',
+            'has-frontmatter' => true,
+            'body' => '\\section{Imported Body}',
+            'nocite-ids' => ['doe2024', 'roe2025'],
+            'natbib' => true,
+            'bibliography' => ['review', 'migration'],
+            'biblio-title' => 'Review Bibliography',
+            'include-after' => ['\\appendix'],
+        ], null, 'latex');
+
+        foreach ([
+            '\\documentclass[oneside, openany]{report}',
+            '\\usepackage[margin=1in,includeheadfoot]{geometry}',
+            '\\usepackage{amsmath,amssymb}',
+            '\\usepackage{setspace}',
+            '\\usepackage{microtype}',
+            '\\title{Batch 42 Review\\thanks{Internal migration packet}}',
+            '\\author{Migration bot \\and Content editor}',
+            '\\date{2026-06-06}',
+            '\\begin{document}',
+            '\\frontmatter',
+            '\\maketitle',
+            '\\begin{abstract}',
+            'Native LaTeX template review.',
+            '\\chapter*{Reviewer Queue}',
+            '\\renewcommand*\\contentsname{Review Contents}',
+            '\\setcounter{tocdepth}{2}',
+            '\\tableofcontents',
+            '\\listoffigures',
+            '\\listoftables',
+            '\\setstretch{1.15}',
+            '\\mainmatter',
+            '\\section{Imported Body}',
+            '\\backmatter',
+            '\\nocite{doe2024, roe2025}',
+            '\\renewcommand\\refname{Review Bibliography}',
+            '\\bibliography{review,migration}',
+            '\\appendix',
+            '\\end{document}',
+        ] as $needle) {
+            $t->contains($needle, $latex);
+        }
+
+        $biblatex = $renderer->renderResource('templates/default.latex', [], [
+            'documentclass' => 'article',
+            'body' => 'Body',
+            'biblatex' => true,
+            'biblio-title' => 'Imported Sources',
+        ]);
+
+        $t->contains('\\printbibliography[title=Imported Sources]', $biblatex);
+        $t->same('custom latex', $renderer->renderResource('templates/default', [
+            'templates/default.latex' => 'custom $body$',
+        ], [
+            'body' => 'latex',
+        ], null, 'latex'));
+    },
+
     'renders bounded pandoc default office and epub template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
