@@ -172,6 +172,24 @@ return [
         $t->contains('<h1 id="latin3-import">Latin3 Import</h1>', $blocks);
         $t->contains('<p>Malti Ħħ u Ġġ; Esperanto Ĉĉ Ĝĝ Ŭŭ Ŝŝ; Turk İı; Żż.</p>', $blocks);
     },
+    'decodes iso 8859 4 latin4 source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Latin4 Import\n\nBaltic \xC0\xE0 \xD3\xF3 \xD1\xF1 \xA9\xB9 \xAE\xBE; \xBD\xBF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-110');
+        $document = (new MarkdownReader())->readBytes($bytes, 'latin4');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA1\xA2\xA3\xA5\xA6\xA9\xAA\xAB\xAC\xAE\xB1\xB2\xB3\xB5\xB6\xB7\xB9\xBA\xBB\xBC\xBD\xBE\xBF\xC0\xC7\xC8\xCA\xCC\xCF\xD0\xD1\xD2\xD3\xD9\xDD\xDE\xE0\xE7\xE8\xEA\xEC\xEF\xF0\xF1\xF2\xF3\xF9\xFD\xFE\xFF", 'iso-8859-4');
+
+        $t->same('iso-8859-4', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Latin4 Import\n\nBaltic Āā Ķķ Ņņ Šš Žž; Ŋŋ.", $decoded['text']);
+        $t->same('ĄĸŖĨĻŠĒĢŦŽą˛ŗĩļˇšēģŧŊžŋĀĮČĘĖĪĐŅŌĶŲŨŪāįčęėīđņōķųũū˙', $specials['text']);
+        $t->same(['encoding' => 'iso-8859-4', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Latin4 Import', $document->children[0]->attr('text'));
+        $t->same('Baltic Āā Ķķ Ņņ Šš Žž; Ŋŋ.', $document->children[1]->attr('text'));
+        $t->same(26, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="latin4-import">Latin4 Import</h1>', $blocks);
+        $t->contains('<p>Baltic Āā Ķķ Ņņ Šš Žž; Ŋŋ.</p>', $blocks);
+    },
     'decodes windows 1251 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp1251');
