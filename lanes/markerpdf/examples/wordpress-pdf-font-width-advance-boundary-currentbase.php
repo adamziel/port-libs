@@ -109,6 +109,17 @@ $tjDrawnExtentPdf = "%PDF-1.4\n"
     . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjDrawnExtentAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 70 /Widths [{$tjDrawnExtentWidths}] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($tjDrawnExtentContent) . " >>\nstream\n{$tjDrawnExtentContent}\nendstream\nendobj\n%%EOF";
 
+$tjInterElementSpacingContent = 'BT /Ftjsp 12 Tf '
+    . '6 Tc 1 0 0 1 72 720 Tm [(A)(B)] TJ '
+    . 'T* 0 Tc 18 Tw 1 0 0 1 72 704 Tm [(A )(B)] TJ '
+    . 'T* 3 Tc 9 Tw 1 0 0 1 72 688 Tm [(A )(B)] TJ '
+    . 'T* 6 Tc 0 Tw 1 0 0 1 72 672 Tm [(A) -500 (B)] TJ ET';
+$tjInterElementSpacingWidths = implode(' ', array_fill(0, 35, '1000'));
+$tjInterElementSpacingPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftjsp 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjInterElementSpacing /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 66 /Widths [{$tjInterElementSpacingWidths}] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($tjInterElementSpacingContent) . " >>\nstream\n{$tjInterElementSpacingContent}\nendstream\nendobj\n%%EOF";
+
 $absoluteTmStyledGapContent = 'BT /Ftm 12 Tf '
     . '1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj '
     . 'T* 1 0 0 1 72 704 Tm <4142> Tj 1 0 0 1 108 704 Tm <4344> Tj ET';
@@ -579,6 +590,30 @@ $tjDrawnExtentSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $tjDrawnExtentLine['spans'] ?? []
 );
+$tjInterElementSpacingLines = $extractor->extractTextLines($tjInterElementSpacingPdf);
+$tjInterElementSpacingPlainText = implode("\n", $tjInterElementSpacingLines);
+$tjInterElementSpacingPages = $extractor->extractStyledTextPages($tjInterElementSpacingPdf);
+$tjInterElementSpacingStyledLines = [];
+foreach (($tjInterElementSpacingPages[0]['blocks'] ?? []) as $block) {
+    foreach (($block['lines'] ?? []) as $line) {
+        $tjInterElementSpacingStyledLines[] = $line;
+    }
+}
+$tjInterElementSpacingSpanTexts = array_map(
+    static fn (array $line): string => implode('', array_column($line['spans'] ?? [], 'text')),
+    $tjInterElementSpacingStyledLines
+);
+$tjInterElementSpacingSpanBboxes = array_map(
+    static fn (array $line): array => array_map(
+        static fn (array $span): array => $span['bbox'] ?? [],
+        $line['spans'] ?? []
+    ),
+    $tjInterElementSpacingStyledLines
+);
+$tjInterElementSpacingLineBboxes = array_map(
+    static fn (array $line): array => $line['bbox'] ?? [],
+    $tjInterElementSpacingStyledLines
+);
 $absoluteTmStyledGapLines = $extractor->extractTextLines($absoluteTmStyledGapPdf);
 $absoluteTmStyledGapPlainText = implode("\n", $absoluteTmStyledGapLines);
 $absoluteTmStyledGapPages = $extractor->extractStyledTextPages($absoluteTmStyledGapPdf);
@@ -912,6 +947,17 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_drawn_extent_real_tm_gap_preserved' => ($tjDrawnExtentLines[1] ?? null) === 'ABCD EF',
     'tj_drawn_extent_double_gap_output_excluded' => !str_contains($tjDrawnExtentPlainText, 'ABCD EF' . "\n" . 'ABCD EF'),
     'tj_drawn_extent_styled_bboxes_preserved' => $tjDrawnExtentSpanBboxes === [[0.0, 0.0, 36.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
+    'tj_inter_element_spacing_lines_preserved' => $tjInterElementSpacingLines === ['AB', 'A B', 'A B', 'AB'],
+    'tj_inter_element_spacing_plain_text_preserved' => $tjInterElementSpacingPlainText === "AB\nA B\nA B\nAB",
+    'tj_inter_element_spacing_span_texts_preserved' => $tjInterElementSpacingSpanTexts === ['AB', 'A B', 'A B', 'AB'],
+    'tj_inter_element_tc_bbox_preserved' => ($tjInterElementSpacingSpanBboxes[0] ?? null) === [[0.0, 0.0, 30.0, 12.0]],
+    'tj_inter_element_tw_bbox_preserved' => ($tjInterElementSpacingSpanBboxes[1] ?? null) === [[0.0, 0.0, 54.0, 12.0]],
+    'tj_inter_element_tc_tw_bbox_preserved' => ($tjInterElementSpacingSpanBboxes[2] ?? null) === [[0.0, 0.0, 51.0, 12.0]],
+    'tj_inter_element_adjustment_bbox_preserved' => ($tjInterElementSpacingSpanBboxes[3] ?? null) === [[0.0, 0.0, 36.0, 12.0]],
+    'tj_inter_element_line_bboxes_preserved' => $tjInterElementSpacingLineBboxes === [[0.0, 0.0, 30.0, 12.0], [0.0, 0.0, 54.0, 12.0], [0.0, 0.0, 51.0, 12.0], [0.0, 0.0, 36.0, 12.0]],
+    'tj_inter_element_collapsed_tc_bbox_excluded' => ($tjInterElementSpacingSpanBboxes[0] ?? null) !== [[0.0, 0.0, 24.0, 12.0]],
+    'tj_inter_element_collapsed_tw_bbox_excluded' => ($tjInterElementSpacingSpanBboxes[1] ?? null) !== [[0.0, 0.0, 36.0, 12.0]],
+    'tj_inter_element_collapsed_adjustment_bbox_excluded' => ($tjInterElementSpacingSpanBboxes[3] ?? null) !== [[0.0, 0.0, 30.0, 12.0]],
     'absolute_tm_styled_gap_lines_preserved' => $absoluteTmStyledGapLines === ['ABCD', 'AB CD'],
     'absolute_tm_styled_gap_plain_text_preserved' => $absoluteTmStyledGapPlainText === "ABCD\nAB CD",
     'absolute_tm_styled_gap_first_bboxes_preserved' => $absoluteTmStyledGapFirstBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
@@ -1055,6 +1101,11 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_drawn_extent_plain_text' => $tjDrawnExtentPlainText,
     'tj_drawn_extent_span_bboxes' => $tjDrawnExtentSpanBboxes,
     'tj_drawn_extent_line_bbox' => $tjDrawnExtentLine['bbox'] ?? null,
+    'tj_inter_element_spacing_lines' => $tjInterElementSpacingLines,
+    'tj_inter_element_spacing_plain_text' => $tjInterElementSpacingPlainText,
+    'tj_inter_element_spacing_span_texts' => $tjInterElementSpacingSpanTexts,
+    'tj_inter_element_spacing_span_bboxes' => $tjInterElementSpacingSpanBboxes,
+    'tj_inter_element_spacing_line_bboxes' => $tjInterElementSpacingLineBboxes,
     'absolute_tm_styled_gap_lines' => $absoluteTmStyledGapLines,
     'absolute_tm_styled_gap_first_bboxes' => $absoluteTmStyledGapFirstBboxes,
     'absolute_tm_styled_gap_second_bboxes' => $absoluteTmStyledGapSecondBboxes,
@@ -1119,7 +1170,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

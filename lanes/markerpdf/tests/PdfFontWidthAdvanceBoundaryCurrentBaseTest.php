@@ -142,6 +142,20 @@ $fontWidthTjDrawnExtentTmBoundaryCurrentBasePdf = static function (): string {
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthTjInterElementSpacingBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Ftjsp 12 Tf '
+        . '6 Tc 1 0 0 1 72 720 Tm [(A)(B)] TJ '
+        . 'T* 0 Tc 18 Tw 1 0 0 1 72 704 Tm [(A )(B)] TJ '
+        . 'T* 3 Tc 9 Tw 1 0 0 1 72 688 Tm [(A )(B)] TJ '
+        . 'T* 6 Tc 0 Tw 1 0 0 1 72 672 Tm [(A) -500 (B)] TJ ET';
+    $widths = implode(' ', array_fill(0, 35, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftjsp 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjInterElementSpacing /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 66 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthAbsoluteTmStyledGapBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Ftm 12 Tf '
         . '1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj '
@@ -1072,6 +1086,42 @@ return [
         $t->true(str_contains($plainText, 'ABCD EF'));
         $t->true(!str_contains($plainText, 'TjDrawnExtentAdvance'));
         $t->true(!str_contains($plainText, 'FtjExtent'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'keeps TJ inter-element character and word spacing in native styled font bboxes on current base' => static function (TestRunner $t) use ($fontWidthTjInterElementSpacingBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthTjInterElementSpacingBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+
+        $t->same(['AB', 'A B', 'A B', 'AB'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'A B', 'A B', 'AB'], $extractor->extractTextRuns($pdf));
+        $t->same("AB\nA B\nA B\nAB", $plainText);
+        $t->same("AB\nA B\nA B\nAB\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'A B', 'A B', 'AB'], array_map(
+            static fn (array $line): string => implode('', array_column($line['spans'] ?? [], 'text')),
+            $styledLines
+        ));
+        $t->same([[0.0, 0.0, 30.0, 12.0]], array_column($styledLines[0]['spans'] ?? [], 'bbox'));
+        $t->same([[0.0, 0.0, 54.0, 12.0]], array_column($styledLines[1]['spans'] ?? [], 'bbox'));
+        $t->same([[0.0, 0.0, 51.0, 12.0]], array_column($styledLines[2]['spans'] ?? [], 'bbox'));
+        $t->same([[0.0, 0.0, 36.0, 12.0]], array_column($styledLines[3]['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 30.0, 12.0], $styledLines[0]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 54.0, 12.0], $styledLines[1]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 51.0, 12.0], $styledLines[2]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 36.0, 12.0], $styledLines[3]['bbox'] ?? null);
+        $t->true(array_column($styledLines[0]['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 24.0, 12.0]]);
+        $t->true(array_column($styledLines[1]['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 36.0, 12.0]]);
+        $t->true(array_column($styledLines[2]['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 36.0, 12.0]]);
+        $t->true(array_column($styledLines[3]['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 30.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'TjInterElementSpacing'));
+        $t->true(!str_contains($plainText, 'Ftjsp'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'preserves absolute Tm word-gap geometry in native styled bboxes on current base' => static function (TestRunner $t) use ($fontWidthAbsoluteTmStyledGapBoundaryCurrentBasePdf): void {

@@ -31283,7 +31283,18 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $cursorX = $extent['endX'];
+                $cursorAfterText = $this->advanceTextEndX(
+                    $cursorX,
+                    $this->decodeTextOperand($textOperand, $toUnicodeMap),
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $horizontalScale,
+                    $this->glyphWidthsForTextOperand($textOperand, $toUnicodeMap),
+                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap),
+                    true
+                );
+                $cursorX = $cursorAfterText ?? $extent['endX'];
                 $maxX = max($maxX, $extent['maxX']);
                 $hasTextExtent = true;
                 continue;
@@ -31341,7 +31352,18 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $cursorX = $extent['endX'];
+                $cursorAfterText = $this->advanceTextEndX(
+                    $cursorX,
+                    $this->decodeTextOperand($textOperand, $toUnicodeMap),
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $horizontalScale,
+                    $this->glyphWidthsForTextOperand($textOperand, $toUnicodeMap),
+                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap),
+                    true
+                );
+                $cursorX = $cursorAfterText ?? $extent['endX'];
                 $minX = min($minX, $extent['minX']);
                 $maxX = max($maxX, $extent['maxX']);
                 $hasTextExtent = true;
@@ -35702,7 +35724,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 1]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
     }
 
     /**
