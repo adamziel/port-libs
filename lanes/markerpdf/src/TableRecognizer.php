@@ -2058,7 +2058,12 @@ final class TableRecognizer
             return [
                 'bbox' => $this->bboxFromGeometryValue($table['bbox']),
                 'source' => is_array($table['bbox'])
-                ? ($this->bboxNamedFieldSource($table['bbox']) ?? $this->bboxWrappedFieldSource($table['bbox']) ?? 'bbox_array')
+                ? (
+                    $this->bboxNamedFieldSource($table['bbox'])
+                    ?? $this->bboxWrappedFieldSource($table['bbox'])
+                    ?? $this->bboxPolygonValueSource($table['bbox'])
+                    ?? 'bbox_array'
+                )
                 : 'bbox_array',
             ];
         }
@@ -3251,6 +3256,18 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $polygon
+     */
+    private function polygonValueCoordinateSource(array $polygon): ?string
+    {
+        if ($this->polygonBbox($polygon) === null) {
+            return null;
+        }
+
+        return count(array_values($polygon)) === 8 ? 'polygon_flat_coordinates' : 'polygon_points';
     }
 
     /**
@@ -6045,6 +6062,7 @@ final class TableRecognizer
 
         return $this->bboxFromNamedFields($bbox)
             ?? $this->bboxFromWrappedValue($bbox)
+            ?? $this->polygonBbox($bbox)
             ?? $this->nullableBbox($bbox);
     }
 
@@ -6194,6 +6212,7 @@ final class TableRecognizer
         if (is_array($bbox)) {
             return $this->bboxNamedFieldSource($bbox)
                 ?? $this->bboxWrappedFieldSource($bbox)
+                ?? $this->bboxPolygonValueSource($bbox)
                 ?? 'bbox_array';
         }
 
@@ -6318,6 +6337,16 @@ final class TableRecognizer
     /**
      * @param array<string|int, mixed> $record
      */
+    private function bboxPolygonValueSource(array $record): ?string
+    {
+        $source = $this->polygonValueCoordinateSource($record);
+
+        return $source === null ? null : 'bbox_' . $source;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
     private function bboxWrappedFieldSource(array $record): ?string
     {
         foreach (['bbox', 'box'] as $key) {
@@ -6333,6 +6362,11 @@ final class TableRecognizer
 
             if ($this->nullableBbox($value) !== null) {
                 return $key . '.bbox_array';
+            }
+
+            $source = $this->bboxPolygonValueSource($value);
+            if ($source !== null) {
+                return $key . '.' . $source;
             }
 
             $source = $this->polygonCoordinateSourceFromRecord($value);
@@ -6361,6 +6395,7 @@ final class TableRecognizer
 
         return $this->rawBboxCoordinatesFromNamedFields($bbox)
             ?? $this->rawBboxCoordinatesFromWrappedValue($bbox)
+            ?? $this->rawPolygonBboxCoordinates($bbox)
             ?? $this->rawBboxCoordinates(array_values($bbox));
     }
 
@@ -6377,6 +6412,7 @@ final class TableRecognizer
             }
 
             $raw = $this->rawBboxCoordinatesFromNamedFields($value)
+                ?? $this->rawPolygonBboxCoordinates($value)
                 ?? $this->rawBboxCoordinates(array_values($value));
             if ($raw !== null) {
                 return $raw;
@@ -6384,6 +6420,19 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param mixed $bbox
+     * @return list<float>|null
+     */
+    private function rawPolygonBboxCoordinates(mixed $bbox): ?array
+    {
+        if (!is_array($bbox)) {
+            return null;
+        }
+
+        return $this->polygonBbox($bbox);
     }
 
     /**

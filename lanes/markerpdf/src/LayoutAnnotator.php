@@ -936,11 +936,13 @@ final class LayoutAnnotator
         if (array_key_exists('bbox', $value)) {
             return $this->bbox($value['bbox'])
                 ?? $this->bboxFromNamedFields($value)
-                ?? $this->polygonBbox($value['polygon'] ?? null);
+                ?? $this->polygonBbox($value['polygon'] ?? null)
+                ?? $this->polygonBbox($value);
         }
 
         return $this->bboxFromNamedFields($value)
             ?? $this->polygonBbox($value['polygon'] ?? null)
+            ?? $this->polygonBbox($value)
             ?? $this->bboxFromCoordinateList($value);
     }
 
