@@ -1256,7 +1256,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>
+     * @return list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>
      */
     private static function names(mixed $value, string $id, string $field): array
     {
@@ -1275,6 +1275,7 @@ final class CitationCslProcessor
             }
 
             $literal = self::nameString($name['literal'] ?? '');
+            $short = self::nameString($name['short'] ?? $name['short-form'] ?? $name['literal-short'] ?? $name['shortLiteral'] ?? '');
             $family = self::nameString($name['family'] ?? '');
             $given = self::nameString($name['given'] ?? '');
             $nonDroppingParticle = self::nameString($name['non-dropping-particle'] ?? '');
@@ -1291,6 +1292,7 @@ final class CitationCslProcessor
                 'family' => $family,
                 'given' => $given,
                 'literal' => $literal,
+                'short' => $short,
                 'nonDroppingParticle' => $nonDroppingParticle,
                 'droppingParticle' => $droppingParticle,
                 'suffix' => $suffix,
@@ -1341,7 +1343,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{field:string, type:string, label:string, names:list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>}>
+     * @return list<array{field:string, type:string, label:string, names:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>}>
      */
     private static function editorialRoles(mixed $value, string $id): array
     {
@@ -3823,7 +3825,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
+     * @param list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
      */
     private function editorialRoleBibliographyPart(string $type, string $label, array $names): string
     {
@@ -5761,7 +5763,7 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>
+     * @return list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>
      */
     private function namesForRenderingVariable(array $item, string $variable): array
     {
@@ -6178,7 +6180,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
+     * @param list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
      * @param array<string, mixed> $options
      */
     private function renderNameList(array $names, array $options, bool $bibliography, ?AstNode $citation = null, ?array &$bibliographyState = null): string
@@ -6472,7 +6474,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     * @param array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
      * @param array<string, mixed> $options
      */
     private function renderCitationName(array $name, array $options): string
@@ -6495,7 +6497,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     * @param array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
      * @param array<string, mixed> $options
      */
     private function renderGivenNameDisambiguatedCitationName(array $name, array $options, string $mode): string
@@ -6514,7 +6516,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     * @param array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
      * @param array<string, mixed> $options
      */
     private function renderBibliographyName(array $name, array $options, int $index): string
@@ -6603,8 +6605,38 @@ final class CitationCslProcessor
 
         $parts = $institution['parts'] ?? [];
         $longPart = is_array($parts) && is_array($parts['long'] ?? null) ? $parts['long'] : null;
+        $shortPart = is_array($parts) && is_array($parts['short'] ?? null) ? $parts['short'] : null;
+        $institutionParts = (string) ($institution['institutionParts'] ?? 'long');
+        $delimiter = (string) ($institution['delimiter'] ?? ' ');
+        $short = trim((string) ($name['short'] ?? ''));
 
-        return $this->formatInstitutionPart($literal, $longPart);
+        $longRendered = $this->formatInstitutionPart($literal, $longPart);
+        $shortRendered = $this->formatInstitutionPart($short !== '' ? $short : $literal, $shortPart);
+
+        if ($institutionParts === 'short') {
+            return $shortRendered;
+        }
+
+        if ($institutionParts === 'long') {
+            return $longRendered;
+        }
+
+        $hasDistinctShort = $short !== '' && $short !== $literal;
+        if ($institutionParts === 'short-long') {
+            $rendered = $hasDistinctShort ? [$shortRendered, $longRendered] : [$longRendered];
+
+            return $this->joinRenderedElements(array_values(array_filter(
+                $rendered,
+                static fn (string $part): bool => $part !== ''
+            )), $delimiter);
+        }
+
+        $rendered = $hasDistinctShort ? [$longRendered, $shortRendered] : [$longRendered];
+
+        return $this->joinRenderedElements(array_values(array_filter(
+            $rendered,
+            static fn (string $part): bool => $part !== ''
+        )), $delimiter);
     }
 
     /**

@@ -21,7 +21,7 @@ $cslJson = <<<'JSON'
     "type": "webpage",
     "title": "Institutional Reviewer Packet",
     "author": [
-      {"literal": "W.P. Migration Desk"}
+      {"literal": "W.P. Migration Desk", "short": "WPMD"}
     ],
     "issued": {"date-parts": [[2026]]},
     "URL": "https://example.test/institution-source"
@@ -52,8 +52,8 @@ $styleXml = <<<'XML'
       <group delimiter=" ">
         <names variable="author">
           <name initialize-with=". "/>
-          <institution>
-            <institution-part name="long" prefix="org " strip-periods="true" text-case="uppercase"/>
+          <institution institution-parts="short">
+            <institution-part name="short" prefix="org " strip-periods="true" text-case="uppercase"/>
           </institution>
         </names>
         <date variable="issued"><date-part name="year"/></date>
@@ -64,8 +64,9 @@ $styleXml = <<<'XML'
     <layout delimiter=" :: ">
       <names variable="author">
         <name initialize-with=". " name-as-sort-order="all"/>
-        <institution>
+        <institution institution-parts="long-short" delimiter=" / ">
           <institution-part name="long" prefix="Institution: " strip-periods="true" text-case="capitalize-all"/>
+          <institution-part name="short" prefix="abbr " text-case="uppercase"/>
         </institution>
       </names>
       <text variable="title"/>
@@ -81,16 +82,22 @@ $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
     $summary = $processor->cslStyleSummary();
-    if (($summary['citationRendering'][0]['children'][0]['nameRendering']['institution']['parts']['long']['textCase'] ?? null) !== 'uppercase') {
+    if (($summary['citationRendering'][0]['children'][0]['nameRendering']['institution']['institutionParts'] ?? null) !== 'short') {
+        throw new RuntimeException('CSL institution handoff did not preserve citation institution-parts metadata');
+    }
+    if (($summary['citationRendering'][0]['children'][0]['nameRendering']['institution']['parts']['short']['textCase'] ?? null) !== 'uppercase') {
         throw new RuntimeException('CSL institution handoff did not preserve citation institution-part metadata');
     }
-    if (($summary['bibliographyRendering'][0]['nameRendering']['institution']['parts']['long']['prefix'] ?? null) !== 'Institution: ') {
+    if (($summary['bibliographyRendering'][0]['nameRendering']['institution']['institutionParts'] ?? null) !== 'long-short') {
+        throw new RuntimeException('CSL institution handoff did not preserve bibliography institution-parts metadata');
+    }
+    if (($summary['bibliographyRendering'][0]['nameRendering']['institution']['parts']['short']['prefix'] ?? null) !== 'abbr ') {
         throw new RuntimeException('CSL institution handoff did not preserve bibliography institution-part metadata');
     }
 
     foreach ([
-        '<p>Institution source (org WP MIGRATION DESK 2026; Cruz 2025) keeps organization authors readable.</p>',
-        '<dt>org WP MIGRATION DESK 2026</dt><dd>Institution: WP Migration Desk :: Institutional Reviewer Packet :: https://example.test/institution-source</dd>',
+        '<p>Institution source (org WPMD 2026; Cruz 2025) keeps organization authors readable.</p>',
+        '<dt>org WPMD 2026</dt><dd>Institution: WP Migration Desk / abbr WPMD :: Institutional Reviewer Packet :: https://example.test/institution-source</dd>',
         '<dt>Cruz 2025</dt><dd>Cruz, A. :: Personal Reviewer Packet :: https://example.test/person-source</dd>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

@@ -974,15 +974,16 @@ final class CslStyle
         if ($institutionParts === '') {
             $institutionParts = 'long';
         }
-        if (!in_array($institutionParts, ['long'], true)) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' institution-parts currently supports long');
+        $supportedInstitutionParts = ['long', 'short', 'long-short', 'short-long'];
+        if (!in_array($institutionParts, $supportedInstitutionParts, true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' institution-parts must be long, short, long-short, or short-long');
         }
 
         $parts = [];
         foreach (self::directChildren($institution, 'institution-part') as $part) {
             $partName = strtolower(trim($part->getAttribute('name')));
-            if ($partName !== 'long') {
-                throw new \InvalidArgumentException('CSL ' . $scope . ' institution-part name currently supports long');
+            if (!in_array($partName, ['long', 'short'], true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' institution-part name must be long or short');
             }
 
             if (array_key_exists($partName, $parts)) {

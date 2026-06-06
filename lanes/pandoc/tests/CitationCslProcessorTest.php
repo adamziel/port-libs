@@ -4334,7 +4334,7 @@ XML
             <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
-  <citation><layout><names variable="author"><institution institution-parts="short"/></names></layout></citation>
+  <citation><layout><names variable="author"><institution institution-parts="compact"/></names></layout></citation>
 </style>
 XML
         ));
@@ -4342,10 +4342,112 @@ XML
             <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
-  <citation><layout><names variable="author"><institution><institution-part name="short"/></institution></names></layout></citation>
+  <citation><layout><names variable="author"><institution><institution-part name="medium"/></institution></names></layout></citation>
 </style>
 XML
         ));
+    },
+    'renders bounded csl institution short and combined parts for literal names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'institution-short-source',
+                'type' => 'webpage',
+                'title' => 'Institutional Short Reviewer Packet',
+                'author' => [
+                    ['literal' => 'W.P. Migration Desk', 'short' => 'WPMD'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/institution-short-source',
+            ],
+            [
+                'id' => 'institution-fallback-source',
+                'type' => 'report',
+                'title' => 'Institutional Fallback Reviewer Packet',
+                'author' => [
+                    ['literal' => 'Archive Review Council'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/institution-fallback-source',
+            ],
+            [
+                'id' => 'person-source',
+                'type' => 'report',
+                'title' => 'Personal Reviewer Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/person-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Institution Short Name Review Style</title>
+    <id>https://example.test/styles/bounded-institution-short-name-review</id>
+    <updated>2026-06-06T16:40:29+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", ">
+          <name initialize-with=". "/>
+          <institution institution-parts="short">
+            <institution-part name="short" prefix="org " strip-periods="true" text-case="uppercase"/>
+          </institution>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <institution institution-parts="long-short" delimiter=" / ">
+          <institution-part name="long" prefix="Institution: " strip-periods="true" text-case="capitalize-all"/>
+          <institution-part name="short" prefix="abbr " text-case="uppercase"/>
+        </institution>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationInstitution = $summary['citationRendering'][0]['children'][0]['nameRendering']['institution'] ?? [];
+        $bibliographyInstitution = $summary['bibliographyRendering'][0]['nameRendering']['institution'] ?? [];
+        $normalizedShortItem = $processor->normalizeCitation(new AstNode('citation', ['id' => 'institution-short-source', 'text' => '[@institution-short-source]']))->attr('cslItem');
+        $normalizedFallbackItem = $processor->normalizeCitation(new AstNode('citation', ['id' => 'institution-fallback-source', 'text' => '[@institution-fallback-source]']))->attr('cslItem');
+        $t->same('short', $citationInstitution['institutionParts'] ?? null);
+        $t->same('long-short', $bibliographyInstitution['institutionParts'] ?? null);
+        $t->same('org ', $citationInstitution['parts']['short']['prefix'] ?? null);
+        $t->same(true, $citationInstitution['parts']['short']['stripPeriods'] ?? null);
+        $t->same('uppercase', $citationInstitution['parts']['short']['textCase'] ?? null);
+        $t->same(' / ', $bibliographyInstitution['delimiter'] ?? null);
+        $t->same('abbr ', $bibliographyInstitution['parts']['short']['prefix'] ?? null);
+        $t->same('WPMD', $normalizedShortItem['authors'][0]['short'] ?? null);
+        $t->same('', $normalizedFallbackItem['authors'][0]['short'] ?? null);
+
+        $t->same('(org WPMD 2026; org ARCHIVE REVIEW COUNCIL 2025; Cruz 2024)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'institution-short-source', 'text' => '[@institution-short-source]']),
+            new AstNode('citation', ['id' => 'institution-fallback-source', 'text' => '[@institution-fallback-source]']),
+            new AstNode('citation', ['id' => 'person-source', 'text' => '[@person-source]']),
+        ]));
+        $t->same('Institution: WP Migration Desk / abbr WPMD :: Institutional Short Reviewer Packet :: https://example.test/institution-short-source', $processor->renderBibliographyEntry('institution-short-source'));
+        $t->same('Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source', $processor->renderBibliographyEntry('institution-fallback-source'));
+        $t->same('Cruz, A. :: Personal Reviewer Packet :: https://example.test/person-source', $processor->renderBibliographyEntry('person-source'));
+
+        $document = (new MarkdownReader())->read('Institution short [@institution-short-source; @institution-fallback-source; @person-source] keeps abbreviations readable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Institution short (org WPMD 2026; org ARCHIVE REVIEW COUNCIL 2025; Cruz 2024) keeps abbreviations readable.</p>', $blocks);
+        $t->contains('<dt>org WPMD 2026</dt><dd>Institution: WP Migration Desk / abbr WPMD :: Institutional Short Reviewer Packet :: https://example.test/institution-short-source</dd>', $blocks);
+        $t->contains('<dt>org ARCHIVE REVIEW COUNCIL 2025</dt><dd>Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source</dd>', $blocks);
     },
     'applies bounded csl names substitutes for missing primary creators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
