@@ -1192,11 +1192,18 @@ final class PdfActionReviewExtractor
 
         $definitions = $this->rawObjectDefinitions($pdfBytes);
         $selectedDefinitions = $this->selectedObjectDefinitionsFromXrefStream($pdfBytes, $definitions);
+        $usesXrefStreamSelection = $selectedDefinitions !== [];
         if ($selectedDefinitions !== []) {
             $definitions = $selectedDefinitions;
         }
+        $freeObjectNumbers = $usesXrefStreamSelection ? [] : PdfXrefFreeObjectMap::freeObjectNumbers($pdfBytes);
 
         foreach ($definitions as $definition) {
+            $objectNumber = $definition['object'];
+            if (isset($freeObjectNumbers[$objectNumber])) {
+                continue;
+            }
+
             $tokens = $this->tokens($this->firstObjectValue(trim($definition['body'])));
             if ($tokens === []) {
                 continue;
@@ -1204,7 +1211,6 @@ final class PdfActionReviewExtractor
 
             $index = 0;
             $value = $this->parseValue($tokens, $index);
-            $objectNumber = $definition['object'];
             $generation = $definition['generation'];
             $this->objectsByGeneration[$objectNumber][$generation] = $value;
             $values[$objectNumber] = $value;
