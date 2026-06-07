@@ -4518,7 +4518,7 @@ final class PdfPagePropertyExtractor
     private function skipWhitespace(string $value, int $offset): int
     {
         for ($length = strlen($value); $offset < $length;) {
-            if (ctype_space($value[$offset])) {
+            if ($value[$offset] === "\0" || ctype_space($value[$offset])) {
                 $offset++;
                 continue;
             }

@@ -30007,11 +30007,16 @@ final class PdfTextExtractor
     private function readPdfUnsignedIntegerToken(string $value, int &$offset): ?int
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
-        if (preg_match('/\G\+?(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
+        if (preg_match('/\G\+?(\d+)/s', $value, $match, 0, $offset) !== 1) {
             return null;
         }
 
-        $offset += strlen($match[0]);
+        $end = $offset + strlen($match[0]);
+        if ($end < strlen($value) && !$this->isBareTokenDelimiter($value[$end])) {
+            return null;
+        }
+
+        $offset = $end;
 
         return (int) $match[1];
     }
