@@ -808,6 +808,65 @@ return [
         $t->contains('exact cabal.project source-repository Git types and locations', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks unexpected cabal project package repository flag and constraint drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = str_replace(
+            'packages: . pandoc-lua-engine pandoc-server pandoc-cli',
+            'packages: . pandoc-lua-engine pandoc-server pandoc-cli pandoc-runner-extra',
+            $pinnedProject()
+        );
+        $project = str_replace(
+            'constraints: skylighting-format-blaze-html >= 0.1.2, skylighting-format-context >= 0.1.0.2, auto-update >= 0.2.6, crypton >= 1.1.1',
+            'constraints: skylighting-format-blaze-html >= 0.1.2, skylighting-format-context >= 0.1.0.2, auto-update >= 0.2.6, crypton >= 1.1.1, lens >= 5.2',
+            $project
+        );
+        $project = str_replace(
+            '  flags: +embed_data_files +http',
+            '  flags: +embed_data_files +http +runner_audit',
+            $project
+        );
+        $project .= implode("\n", [
+            '',
+            'source-repository-package',
+            '  type: git',
+            '  location: https://github.com/jgm/pandoc-runner-tools.git',
+            '  tag: 1111111111111111111111111111111111111111',
+            '',
+        ]);
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['missing']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectPackageClosure']['missingFlags']);
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['projectConstraintClosure']['mismatchedConstraints']);
+        $t->same(['pandoc-runner-tools'], $audit['projectSourceRepositoryClosure']['unexpected'] ?? ['missing-key']);
+        $t->same(['pandoc-runner-extra'], $audit['projectPackageClosure']['unexpectedPackages'] ?? ['missing-key']);
+        $t->same(['runner_audit'], $audit['projectPackageClosure']['unexpectedFlags']['pandoc'] ?? ['missing-key']);
+        $t->same(['lens'], $audit['projectConstraintClosure']['unexpectedConstraints'] ?? ['missing-key']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected cabal.project source-repository packages: pandoc-runner-tools', $blocked);
+        $t->contains('unexpected cabal.project package entries: pandoc-runner-extra', $blocked);
+        $t->contains('unexpected cabal.project package flags: pandoc (runner_audit)', $blocked);
+        $t->contains('unexpected cabal.project solver constraints: lens', $blocked);
+        $t->contains('no unexpected cabal.project source-repository packages', $audit['activationGate']);
+        $t->contains('no unexpected cabal.project package entries or flags', $audit['activationGate']);
+        $t->contains('no unexpected cabal.project solver constraints', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks stale tested-with ghc matrix and unsupported local ghc before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(

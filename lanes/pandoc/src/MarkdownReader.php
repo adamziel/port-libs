@@ -357,18 +357,21 @@ final class MarkdownReader
         $metadata = [];
         $hasMetadata = false;
         $count = count($lines);
+        $previousYamlMetadataEndedWithDocumentEnd = false;
 
         for ($index = 0; $index < $count; $index++) {
             $implicitBlock = $index === 0 ? $this->tryReadImplicitYamlMetadataBlock($lines) : null;
             if ($implicitBlock !== null) {
                 $metadata = $this->mergeYamlMetadataBlock($metadata, $implicitBlock['metadata']);
                 $hasMetadata = true;
+                $previousYamlMetadataEndedWithDocumentEnd = ($implicitBlock['endMarker'] ?? null) === '...';
                 $index = $implicitBlock['end'];
                 continue;
             }
 
             $fencedCodeEnd = $this->yamlMetadataFencedCodeBlockEnd($lines, $index);
             if ($fencedCodeEnd !== null) {
+                $previousYamlMetadataEndedWithDocumentEnd = false;
                 for (; $index <= $fencedCodeEnd; $index++) {
                     $bodyLines[] = $lines[$index];
                 }
@@ -376,14 +379,16 @@ final class MarkdownReader
                 continue;
             }
 
-            $block = $this->tryReadYamlMetadataBlock($lines, $index);
+            $block = $this->tryReadYamlMetadataBlock($lines, $index, $previousYamlMetadataEndedWithDocumentEnd);
             if ($block !== null) {
                 $metadata = $this->mergeYamlMetadataBlock($metadata, $block['metadata']);
                 $hasMetadata = true;
+                $previousYamlMetadataEndedWithDocumentEnd = ($block['endMarker'] ?? null) === '...';
                 $index = $block['end'];
                 continue;
             }
 
+            $previousYamlMetadataEndedWithDocumentEnd = false;
             $bodyLines[] = $lines[$index];
         }
 
@@ -419,7 +424,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{end:int, metadata:array<string, mixed>}|null
+     * @return array{end:int, endMarker:string, metadata:array<string, mixed>}|null
      */
     private function tryReadImplicitYamlMetadataBlock(array $lines): ?array
     {
@@ -443,7 +448,7 @@ final class MarkdownReader
                     return null;
                 }
 
-                return ['end' => $cursor, 'metadata' => $metadata];
+                return ['end' => $cursor, 'endMarker' => $marker, 'metadata' => $metadata];
             }
 
             $yamlLines[] = $lines[$cursor];
@@ -475,15 +480,23 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{end:int, metadata:array<string, mixed>}|null
+     * @return array{end:int, endMarker:string, metadata:array<string, mixed>}|null
      */
-    private function tryReadYamlMetadataBlock(array $lines, int $start): ?array
+    private function tryReadYamlMetadataBlock(
+        array $lines,
+        int $start,
+        bool $allowAdjacentStreamDocument = false
+    ): ?array
     {
         if ($this->yamlMetadataDocumentMarker($lines[$start] ?? '') !== '---') {
             return null;
         }
 
-        if ($start > 0 && trim($lines[$start - 1]) !== '') {
+        if (
+            $start > 0
+            && trim($lines[$start - 1]) !== ''
+            && !($allowAdjacentStreamDocument && $this->yamlMetadataDocumentMarker($lines[$start - 1]) === '...')
+        ) {
             return null;
         }
 
@@ -506,7 +519,7 @@ final class MarkdownReader
                     return null;
                 }
 
-                return ['end' => $cursor, 'metadata' => $metadata];
+                return ['end' => $cursor, 'endMarker' => $marker, 'metadata' => $metadata];
             }
 
             $yamlLines[] = $lines[$cursor];

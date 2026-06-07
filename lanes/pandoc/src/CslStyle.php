@@ -487,6 +487,11 @@ final class CslStyle
         return $this->metadata['defaultLocale'];
     }
 
+    public function styleClass(): string
+    {
+        return $this->metadata['class'];
+    }
+
     public function pageRangeFormat(): string
     {
         return $this->metadata['pageRangeFormat'];

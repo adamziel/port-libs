@@ -601,9 +601,9 @@ final class UpstreamRunnerDependencyAudit
      *   benchmarkTargets:list<string>,
      *   benchmarkEntryPoints:array<string, array{packageFile:string, type:string, mainIs:string, sourceDirectory:string}>,
      *   projectSourceRepositoryPins:array{expected:array<string, string>, present:array<string, string>, missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>},
-     *   projectSourceRepositoryClosure:array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>},
-     *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
-     *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
+     *   projectSourceRepositoryClosure:array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>, unexpected:list<string>},
+     *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, unexpectedPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>, unexpectedFlags:array<string, list<string>>},
+     *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>, unexpectedConstraints:list<string>},
      *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedSourceDirectories:array<string, list<string>>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, expectedTestOptions:array<string, list<string>>, expectedDefaultExtensions:array<string, list<string>>, expectedOtherExtensions:array<string, list<string>>, expectedCppOptions:array<string, list<string>>, expectedAutogenModules:array<string, list<string>>, expectedReexportedModules:array<string, list<string>>, expectedExtraSourceFiles:array<string, list<string>>, expectedDataFiles:array<string, list<string>>, expectedNativeSystemFields:array<string, array<string, list<string>>>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, dataFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, testOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, otherModules:list<string>, nativeSystemFields:array<string, list<string>>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedTestOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>, missingOtherModules:array<string, list<string>>},
      *   benchmarkDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedSourceDirectories:array<string, list<string>>, expectedMixins:array<string, list<string>>, expectedBuildTools:array<string, list<string>>, expectedBenchmarkOptions:array<string, list<string>>, expectedDefaultExtensions:array<string, list<string>>, expectedOtherExtensions:array<string, list<string>>, expectedCppOptions:array<string, list<string>>, expectedAutogenModules:array<string, list<string>>, expectedReexportedModules:array<string, list<string>>, expectedExtraSourceFiles:array<string, list<string>>, expectedDataFiles:array<string, list<string>>, expectedNativeSystemFields:array<string, array<string, list<string>>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, dataFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, benchmarkOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, nativeSystemFields:array<string, list<string>>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedBenchmarkOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>},
      *   luaEngineLibraryClosure:array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, missingDependencies:list<string>},
@@ -690,8 +690,14 @@ final class UpstreamRunnerDependencyAudit
         if ($projectSourceRepositoryClosure['mismatched'] !== []) {
             $blockedReasons[] = 'mismatched cabal.project source-repository package locations/types: ' . implode(', ', array_keys($projectSourceRepositoryClosure['mismatched']));
         }
+        if ($projectSourceRepositoryClosure['unexpected'] !== []) {
+            $blockedReasons[] = 'unexpected cabal.project source-repository packages: ' . implode(', ', $projectSourceRepositoryClosure['unexpected']);
+        }
         if ($projectPackageClosure['missingPackages'] !== []) {
             $blockedReasons[] = 'missing cabal.project package entries: ' . implode(', ', $projectPackageClosure['missingPackages']);
+        }
+        if ($projectPackageClosure['unexpectedPackages'] !== []) {
+            $blockedReasons[] = 'unexpected cabal.project package entries: ' . implode(', ', $projectPackageClosure['unexpectedPackages']);
         }
         if ($projectPackageClosure['missingFlags'] !== []) {
             $blockedReasons[] = 'missing cabal.project package flags: ' . self::formatProjectFlagFailures($projectPackageClosure['missingFlags']);
@@ -699,11 +705,17 @@ final class UpstreamRunnerDependencyAudit
         if ($projectPackageClosure['mismatchedFlags'] !== []) {
             $blockedReasons[] = 'mismatched cabal.project package flags: ' . self::formatProjectFlagMismatches($projectPackageClosure['mismatchedFlags']);
         }
+        if ($projectPackageClosure['unexpectedFlags'] !== []) {
+            $blockedReasons[] = 'unexpected cabal.project package flags: ' . self::formatProjectFlagFailures($projectPackageClosure['unexpectedFlags']);
+        }
         if ($projectConstraintClosure['missingConstraints'] !== []) {
             $blockedReasons[] = 'missing cabal.project solver constraints: ' . implode(', ', $projectConstraintClosure['missingConstraints']);
         }
         if ($projectConstraintClosure['mismatchedConstraints'] !== []) {
             $blockedReasons[] = 'mismatched cabal.project solver constraints: ' . self::formatProjectConstraintMismatches($projectConstraintClosure['mismatchedConstraints']);
+        }
+        if ($projectConstraintClosure['unexpectedConstraints'] !== []) {
+            $blockedReasons[] = 'unexpected cabal.project solver constraints: ' . implode(', ', $projectConstraintClosure['unexpectedConstraints']);
         }
         if ($runnerDependencyClosure['missingTargets'] !== []) {
             $blockedReasons[] = 'missing Cabal runner test-suite stanzas: ' . implode(', ', $runnerDependencyClosure['missingTargets']);
@@ -888,8 +900,8 @@ final class UpstreamRunnerDependencyAudit
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
-                'record Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
-                'record cabal.project solver constraints and runner executable options before any solver/build command',
+                'record Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, no unexpected cabal.project package/source-repository entries or flags, non-empty runner source/golden fixture artifacts, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
+                'record cabal.project solver constraints and runner executable options, plus no unexpected cabal.project solver constraints before any solver/build command',
                 'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, no unexpected direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected test-options, native/system dependency fields, and pandoc-lua-engine library HsLua module dependency closure',
                 'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal benchmark direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, plus no unexpected benchmark-options or native/system dependency fields, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
@@ -1817,13 +1829,14 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>}
+     * @return array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>, unexpected:list<string>}
      */
     private static function auditProjectSourceRepositoryClosure(?string $contents): array
     {
         $present = $contents === null ? [] : self::parseCabalProjectSourceRepositories($contents);
         $missing = [];
         $mismatched = [];
+        $unexpected = [];
 
         foreach (self::PROJECT_SOURCE_REPOSITORIES as $name => $expected) {
             if (!array_key_exists($name, $present)) {
@@ -1843,28 +1856,43 @@ final class UpstreamRunnerDependencyAudit
             }
         }
 
+        foreach (array_keys($present) as $name) {
+            if (!array_key_exists($name, self::PROJECT_SOURCE_REPOSITORIES)) {
+                $unexpected[] = $name;
+            }
+        }
+
         return [
             'expected' => self::PROJECT_SOURCE_REPOSITORIES,
             'present' => $present,
             'missing' => $missing,
             'mismatched' => $mismatched,
+            'unexpected' => $unexpected,
         ];
     }
 
     /**
-     * @return array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>}
+     * @return array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, unexpectedPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>, unexpectedFlags:array<string, list<string>>}
      */
     private static function auditProjectPackageClosure(?string $contents): array
     {
         $presentPackages = $contents === null ? [] : self::parseCabalProjectPackages($contents);
         $presentFlags = $contents === null ? [] : self::parseCabalProjectFlags($contents);
         $missingPackages = [];
+        $unexpectedPackages = [];
         $missingFlags = [];
         $mismatchedFlags = [];
+        $unexpectedFlags = [];
 
         foreach (self::PROJECT_PACKAGES as $package) {
             if (!in_array($package, $presentPackages, true)) {
                 $missingPackages[] = $package;
+            }
+        }
+
+        foreach ($presentPackages as $package) {
+            if (!in_array($package, self::PROJECT_PACKAGES, true)) {
+                $unexpectedPackages[] = $package;
             }
         }
 
@@ -1884,25 +1912,37 @@ final class UpstreamRunnerDependencyAudit
             }
         }
 
+        foreach ($presentFlags as $package => $flags) {
+            $expectedFlags = self::PROJECT_FLAGS[$package] ?? [];
+            foreach (array_keys($flags) as $flag) {
+                if (!array_key_exists($flag, $expectedFlags)) {
+                    $unexpectedFlags[$package][] = $flag;
+                }
+            }
+        }
+
         return [
             'expectedPackages' => self::PROJECT_PACKAGES,
             'presentPackages' => $presentPackages,
             'missingPackages' => $missingPackages,
+            'unexpectedPackages' => $unexpectedPackages,
             'expectedFlags' => self::PROJECT_FLAGS,
             'presentFlags' => $presentFlags,
             'missingFlags' => $missingFlags,
             'mismatchedFlags' => $mismatchedFlags,
+            'unexpectedFlags' => $unexpectedFlags,
         ];
     }
 
     /**
-     * @return array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>}
+     * @return array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>, unexpectedConstraints:list<string>}
      */
     private static function auditProjectConstraintClosure(?string $contents): array
     {
         $present = $contents === null ? [] : self::parseCabalProjectConstraints($contents);
         $missing = [];
         $mismatched = [];
+        $unexpected = [];
 
         foreach (self::PROJECT_CONSTRAINTS as $name => $expectedConstraint) {
             if (!array_key_exists($name, $present)) {
@@ -1918,11 +1958,18 @@ final class UpstreamRunnerDependencyAudit
             }
         }
 
+        foreach (array_keys($present) as $name) {
+            if (!array_key_exists($name, self::PROJECT_CONSTRAINTS)) {
+                $unexpected[] = $name;
+            }
+        }
+
         return [
             'expectedConstraints' => self::PROJECT_CONSTRAINTS,
             'presentConstraints' => $present,
             'missingConstraints' => $missing,
             'mismatchedConstraints' => $mismatched,
+            'unexpectedConstraints' => $unexpected,
         ];
     }
 
@@ -3643,9 +3690,9 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missingHeaders:array<string, list<string>>, mismatchedHeaders:array<string, array<string, array{expected:string, actual:string|null}>>} $packageIdentityClosure
      * @param array{unexpectedCustomSetupStanzas:array<string, list<string>>, unexpectedSetupDependencies:array<string, list<string>>} $packageSetupClosure
      * @param array{missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>} $projectPins
-     * @param array{missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>} $projectSourceRepositoryClosure
-     * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
-     * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
+     * @param array{missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>, unexpected:list<string>} $projectSourceRepositoryClosure
+     * @param array{missingPackages:list<string>, unexpectedPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>, unexpectedFlags:array<string, list<string>>} $projectPackageClosure
+     * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>, unexpectedConstraints:list<string>} $projectConstraintClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedTestOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedBenchmarkOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>} $benchmarkDependencyClosure
      * @param array{missingDependencies:list<string>} $luaEngineLibraryClosure
@@ -3669,11 +3716,15 @@ final class UpstreamRunnerDependencyAudit
             && $projectPins['mismatched'] === []
             && $projectSourceRepositoryClosure['missing'] === []
             && $projectSourceRepositoryClosure['mismatched'] === []
+            && $projectSourceRepositoryClosure['unexpected'] === []
             && $projectPackageClosure['missingPackages'] === []
+            && $projectPackageClosure['unexpectedPackages'] === []
             && $projectPackageClosure['missingFlags'] === []
             && $projectPackageClosure['mismatchedFlags'] === []
+            && $projectPackageClosure['unexpectedFlags'] === []
             && $projectConstraintClosure['missingConstraints'] === []
             && $projectConstraintClosure['mismatchedConstraints'] === []
+            && $projectConstraintClosure['unexpectedConstraints'] === []
             && $runnerDependencyClosure['missingTargets'] === []
             && $runnerDependencyClosure['mismatchedEntryPoints'] === []
             && $runnerDependencyClosure['missingDependencies'] === []
@@ -3725,10 +3776,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, Haskell2010 default-language closure, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, Haskell2010 default-language closure, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

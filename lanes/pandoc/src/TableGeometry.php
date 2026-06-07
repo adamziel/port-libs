@@ -2777,6 +2777,7 @@ final class TableGeometry
         $blockContentCellCount = 0;
         $multiBlockCellCount = 0;
         $cellBlockTypes = [];
+        $columnSummaries = [];
 
         foreach ($rows as $rowIndex => $slots) {
             $rowCellCount = 0;
@@ -2788,6 +2789,7 @@ final class TableGeometry
 
             foreach ($slots as $column => $slot) {
                 $kind = (string) ($slot['kind'] ?? '');
+                self::appendColumnSummarySlot($columnSummaries, (int) $column, (int) $rowIndex, $globalRow, $kind, $slot);
                 if ($kind === 'covered') {
                     $coveredSlotCount++;
                     $rowCoveredSlotCount++;
@@ -2899,6 +2901,7 @@ final class TableGeometry
         sort($nestedTableCaptions);
         sort($nestedTableDescendantCaptions);
         sort($nestedTableDiagnosticCodes);
+        $columnRollup = self::columnSummaryRollup($columnSummaries);
 
         return [
             'cellCount' => $cellCount,
@@ -2917,6 +2920,18 @@ final class TableGeometry
             'hasCoveredRows' => $coveredRowCount > 0,
             'hasMissingRows' => $missingRowCount > 0,
             'rowSummaries' => $rowSummaries,
+            'columnSummaries' => $columnRollup['columnSummaries'],
+            'columnSlotCounts' => $columnRollup['columnSlotCounts'],
+            'columnCellCounts' => $columnRollup['columnCellCounts'],
+            'columnHeaderCellCounts' => $columnRollup['columnHeaderCellCounts'],
+            'columnDataCellCounts' => $columnRollup['columnDataCellCounts'],
+            'columnCoveredSlotCounts' => $columnRollup['columnCoveredSlotCounts'],
+            'columnMissingSlotCounts' => $columnRollup['columnMissingSlotCounts'],
+            'completeColumnCount' => $columnRollup['completeColumnCount'],
+            'incompleteColumnCount' => $columnRollup['incompleteColumnCount'],
+            'coveredColumnCount' => $columnRollup['coveredColumnCount'],
+            'missingColumnCount' => $columnRollup['missingColumnCount'],
+            'maxColumnCellCount' => $columnRollup['maxColumnCellCount'],
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
             'hasNestedTables' => $nestedTableCount > 0,
@@ -2929,6 +2944,167 @@ final class TableGeometry
             'hasBlockContentCells' => $blockContentCellCount > 0,
             'cellBlockTypes' => array_values(array_unique($cellBlockTypes)),
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $columnSummaries
+     * @param array<string, mixed> $slot
+     */
+    private static function appendColumnSummarySlot(
+        array &$columnSummaries,
+        int $column,
+        int $row,
+        int $globalRow,
+        string $kind,
+        array $slot
+    ): void {
+        if (!isset($columnSummaries[$column])) {
+            $columnSummaries[$column] = [
+                'column' => $column,
+                'slotCount' => 0,
+                'cellCount' => 0,
+                'headerCellCount' => 0,
+                'dataCellCount' => 0,
+                'coveredSlotCount' => 0,
+                'missingSlotCount' => 0,
+                'occupiedSlotCount' => 0,
+                'rows' => [],
+                'globalRows' => [],
+                'cellRows' => [],
+                'coveredRows' => [],
+                'missingRows' => [],
+            ];
+        }
+
+        $columnSummaries[$column]['slotCount']++;
+        $columnSummaries[$column]['rows'][] = $row;
+        $columnSummaries[$column]['globalRows'][] = $globalRow;
+
+        if ($kind === 'cell') {
+            $columnSummaries[$column]['cellCount']++;
+            $columnSummaries[$column]['occupiedSlotCount']++;
+            $columnSummaries[$column]['cellRows'][] = $row;
+            if (($slot['headerCell'] ?? false) === true) {
+                $columnSummaries[$column]['headerCellCount']++;
+            } else {
+                $columnSummaries[$column]['dataCellCount']++;
+            }
+
+            return;
+        }
+
+        if ($kind === 'covered') {
+            $columnSummaries[$column]['coveredSlotCount']++;
+            $columnSummaries[$column]['occupiedSlotCount']++;
+            $columnSummaries[$column]['coveredRows'][] = $row;
+
+            return;
+        }
+
+        if ($kind === 'missing') {
+            $columnSummaries[$column]['missingSlotCount']++;
+            $columnSummaries[$column]['missingRows'][] = $row;
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $columnSummaries
+     * @return array{
+     *     columnSummaries:list<array<string, mixed>>,
+     *     columnSlotCounts:list<int>,
+     *     columnCellCounts:list<int>,
+     *     columnHeaderCellCounts:list<int>,
+     *     columnDataCellCounts:list<int>,
+     *     columnCoveredSlotCounts:list<int>,
+     *     columnMissingSlotCounts:list<int>,
+     *     completeColumnCount:int,
+     *     incompleteColumnCount:int,
+     *     coveredColumnCount:int,
+     *     missingColumnCount:int,
+     *     maxColumnCellCount:int
+     * }
+     */
+    private static function columnSummaryRollup(array $columnSummaries): array
+    {
+        $summaries = self::finalizedColumnSummaries($columnSummaries);
+        $completeColumnCount = 0;
+        $incompleteColumnCount = 0;
+        $coveredColumnCount = 0;
+        $missingColumnCount = 0;
+        $maxColumnCellCount = 0;
+
+        foreach ($summaries as $summary) {
+            if (($summary['complete'] ?? false) === true) {
+                $completeColumnCount++;
+            } else {
+                $incompleteColumnCount++;
+            }
+            if (($summary['hasCoveredSlots'] ?? false) === true) {
+                $coveredColumnCount++;
+            }
+            if (($summary['hasMissingSlots'] ?? false) === true) {
+                $missingColumnCount++;
+            }
+            $maxColumnCellCount = max($maxColumnCellCount, (int) ($summary['cellCount'] ?? 0));
+        }
+
+        return [
+            'columnSummaries' => $summaries,
+            'columnSlotCounts' => array_map(static fn (array $summary): int => (int) $summary['slotCount'], $summaries),
+            'columnCellCounts' => array_map(static fn (array $summary): int => (int) $summary['cellCount'], $summaries),
+            'columnHeaderCellCounts' => array_map(static fn (array $summary): int => (int) $summary['headerCellCount'], $summaries),
+            'columnDataCellCounts' => array_map(static fn (array $summary): int => (int) $summary['dataCellCount'], $summaries),
+            'columnCoveredSlotCounts' => array_map(static fn (array $summary): int => (int) $summary['coveredSlotCount'], $summaries),
+            'columnMissingSlotCounts' => array_map(static fn (array $summary): int => (int) $summary['missingSlotCount'], $summaries),
+            'completeColumnCount' => $completeColumnCount,
+            'incompleteColumnCount' => $incompleteColumnCount,
+            'coveredColumnCount' => $coveredColumnCount,
+            'missingColumnCount' => $missingColumnCount,
+            'maxColumnCellCount' => $maxColumnCellCount,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $columnSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function finalizedColumnSummaries(array $columnSummaries): array
+    {
+        ksort($columnSummaries, SORT_NUMERIC);
+        $records = [];
+        foreach ($columnSummaries as $column => $summary) {
+            $slotCount = max(0, (int) ($summary['slotCount'] ?? 0));
+            $cellCount = max(0, (int) ($summary['cellCount'] ?? 0));
+            $headerCellCount = max(0, (int) ($summary['headerCellCount'] ?? 0));
+            $dataCellCount = max(0, (int) ($summary['dataCellCount'] ?? 0));
+            $coveredSlotCount = max(0, (int) ($summary['coveredSlotCount'] ?? 0));
+            $missingSlotCount = max(0, (int) ($summary['missingSlotCount'] ?? 0));
+            $occupiedSlotCount = max(0, (int) ($summary['occupiedSlotCount'] ?? ($cellCount + $coveredSlotCount)));
+
+            $records[] = [
+                'column' => (int) $column,
+                'slotCount' => $slotCount,
+                'cellCount' => $cellCount,
+                'headerCellCount' => $headerCellCount,
+                'dataCellCount' => $dataCellCount,
+                'coveredSlotCount' => $coveredSlotCount,
+                'missingSlotCount' => $missingSlotCount,
+                'occupiedSlotCount' => $occupiedSlotCount,
+                'complete' => $slotCount > 0 && $missingSlotCount === 0,
+                'hasCells' => $cellCount > 0,
+                'hasHeaderCells' => $headerCellCount > 0,
+                'hasDataCells' => $dataCellCount > 0,
+                'hasCoveredSlots' => $coveredSlotCount > 0,
+                'hasMissingSlots' => $missingSlotCount > 0,
+                'rows' => self::uniqueIntList($summary['rows'] ?? []),
+                'globalRows' => self::uniqueIntList($summary['globalRows'] ?? []),
+                'cellRows' => self::uniqueIntList($summary['cellRows'] ?? []),
+                'coveredRows' => self::uniqueIntList($summary['coveredRows'] ?? []),
+                'missingRows' => self::uniqueIntList($summary['missingRows'] ?? []),
+            ];
+        }
+
+        return $records;
     }
 
     /**
@@ -3015,11 +3191,13 @@ final class TableGeometry
         $missingRowCount = 0;
         $maxVisualWidth = 0;
         $globalRows = [];
+        $columnSummaries = [];
         foreach ($sections as $section) {
             $rowCount += count($section['rowEntries']);
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
             $sectionSummary = self::sectionGridSummary(
                 $section['rows'],
-                max(0, (int) ($section['globalRowStart'] ?? 0))
+                $globalRowStart
             );
             $completeRowCount += (int) ($sectionSummary['completeRowCount'] ?? 0);
             $incompleteRowCount += (int) ($sectionSummary['incompleteRowCount'] ?? 0);
@@ -3028,14 +3206,17 @@ final class TableGeometry
             $maxVisualWidth = max($maxVisualWidth, (int) ($sectionSummary['maxVisualWidth'] ?? 0));
             $sectionRowRange = self::sectionGridRowRange(
                 $section,
-                max(0, (int) ($section['globalRowStart'] ?? 0)),
+                $globalRowStart,
                 count($section['rowEntries'])
             );
             for ($globalRow = $sectionRowRange[0]; $globalRow < $sectionRowRange[1]; $globalRow++) {
                 $globalRows[$globalRow] = true;
             }
-            foreach ($section['rows'] as $slots) {
-                foreach ($slots as $slot) {
+            foreach ($section['rows'] as $rowIndex => $slots) {
+                $globalRow = self::rowGlobalRow($slots, $globalRowStart + (int) $rowIndex);
+                foreach ($slots as $column => $slot) {
+                    $kind = (string) ($slot['kind'] ?? '');
+                    self::appendColumnSummarySlot($columnSummaries, (int) $column, $globalRow, $globalRow, $kind, $slot);
                     if (($slot['kind'] ?? '') === 'covered') {
                         $coveredSlotCount++;
                     } elseif (($slot['kind'] ?? '') === 'missing') {
@@ -3149,6 +3330,7 @@ final class TableGeometry
         }
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
+        $columnRollup = self::columnSummaryRollup($columnSummaries);
 
         return [
             'sectionCount' => count($sections),
@@ -3171,6 +3353,18 @@ final class TableGeometry
             'hasIncompleteRows' => $incompleteRowCount > 0,
             'hasCoveredRows' => $coveredRowCount > 0,
             'hasMissingRows' => $missingRowCount > 0,
+            'columnSummaries' => $columnRollup['columnSummaries'],
+            'columnSlotCounts' => $columnRollup['columnSlotCounts'],
+            'columnCellCounts' => $columnRollup['columnCellCounts'],
+            'columnHeaderCellCounts' => $columnRollup['columnHeaderCellCounts'],
+            'columnDataCellCounts' => $columnRollup['columnDataCellCounts'],
+            'columnCoveredSlotCounts' => $columnRollup['columnCoveredSlotCounts'],
+            'columnMissingSlotCounts' => $columnRollup['columnMissingSlotCounts'],
+            'completeColumnCount' => $columnRollup['completeColumnCount'],
+            'incompleteColumnCount' => $columnRollup['incompleteColumnCount'],
+            'coveredColumnCount' => $columnRollup['coveredColumnCount'],
+            'missingColumnCount' => $columnRollup['missingColumnCount'],
+            'maxColumnCellCount' => $columnRollup['maxColumnCellCount'],
             'diagnosticCount' => count($diagnostics),
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
             'hasNormalizedSpans' => $normalizedSpanCount > 0,
@@ -4783,6 +4977,30 @@ final class TableGeometry
         }
 
         return array_values(array_map(static fn (mixed $value): int => (int) $value, $values));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function uniqueIntList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $unique = [];
+        foreach ($values as $value) {
+            if (!is_numeric($value)) {
+                continue;
+            }
+
+            $unique[(int) $value] = true;
+        }
+
+        $integers = array_keys($unique);
+        sort($integers, SORT_NUMERIC);
+
+        return array_values(array_map(static fn (mixed $value): int => (int) $value, $integers));
     }
 
     /**

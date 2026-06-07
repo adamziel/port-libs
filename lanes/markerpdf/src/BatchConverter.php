@@ -4548,6 +4548,13 @@ final class BatchConverter
         $inputIsSymlink = is_link($absoluteInputFolder);
         $inputSymlinkTargetExists = $inputIsSymlink && file_exists($absoluteInputFolder);
         $inputRealpath = realpath($absoluteInputFolder);
+        $inputRelativeToOutput = $this->pathIsStrictDescendant($absoluteInputFolder, $absoluteOutputFolder);
+        $outputRelativeToInput = $this->pathIsStrictDescendant($absoluteOutputFolder, $absoluteInputFolder);
+        $sameFolder = $absoluteInputFolder === $absoluteOutputFolder;
+        $outputExistedBeforeListing = file_exists($absoluteOutputFolder) || is_link($absoluteOutputFolder);
+        $outputPathTypeBeforeListing = $this->filesystemPathType($absoluteOutputFolder);
+        $outputTaskCandidateBeforeCreation = $outputRelativeToInput
+            && is_file($absoluteOutputFolder);
 
         return [
             'source' => 'convert.py os.path.abspath input/output boundary',
@@ -4577,8 +4584,16 @@ final class BatchConverter
             'task_filepaths_preserve_input_folder_prefix' => true,
             'input_folder_relative_to_process_cwd' => !$inputWasAbsolute,
             'output_folder_relative_to_process_cwd' => !$outputWasAbsolute,
-            'input_folder_relative_to_output_folder' => false,
-            'output_folder_relative_to_input_folder' => false,
+            'input_folder_relative_to_output_folder' => $inputRelativeToOutput,
+            'output_folder_relative_to_input_folder' => $outputRelativeToInput,
+            'input_output_same_folder' => $sameFolder,
+            'output_folder_nested_in_input_folder' => $outputRelativeToInput,
+            'output_folder_existed_before_input_listing' => $outputExistedBeforeListing,
+            'output_folder_path_type_before_input_listing' => $outputPathTypeBeforeListing,
+            'output_folder_creation_after_input_listing_required' => !$outputExistedBeforeListing,
+            'nested_output_folder_created_after_listing_not_task_candidate' => $outputRelativeToInput
+                && !$outputExistedBeforeListing,
+            'output_folder_task_candidate_before_creation' => $outputTaskCandidateBeforeCreation,
             'input_listing_uses_absolute_input_folder' => true,
             'output_creation_uses_absolute_output_folder' => true,
             'filesystem_touched_by_abspath' => false,
@@ -4615,6 +4630,21 @@ final class BatchConverter
         }
 
         return DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $segments);
+    }
+
+    private function pathIsStrictDescendant(string $path, string $parent): bool
+    {
+        $path = rtrim($this->normalizeAbsolutePath($path), DIRECTORY_SEPARATOR);
+        $parent = rtrim($this->normalizeAbsolutePath($parent), DIRECTORY_SEPARATOR);
+
+        if ($path === '' || $parent === '' || $path === $parent) {
+            return false;
+        }
+        if ($parent === '') {
+            return false;
+        }
+
+        return str_starts_with($path . DIRECTORY_SEPARATOR, $parent . DIRECTORY_SEPARATOR);
     }
 
     /**

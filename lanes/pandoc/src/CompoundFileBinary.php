@@ -607,6 +607,9 @@ final class CompoundFileBinary
             if (substr($entryBytes, $nameLength - 2, 2) !== "\0\0") {
                 throw new \RuntimeException('CFB active directory entry name is missing its UTF-16LE terminator');
             }
+            if ($nameLength < 64 && substr($entryBytes, $nameLength, 64 - $nameLength) !== str_repeat("\0", 64 - $nameLength)) {
+                throw new \RuntimeException('CFB active directory entry name padding must be zero');
+            }
             $nameBytes = substr($entryBytes, 0, $nameLength - 2);
             $name = self::decodeUtf16Le($nameBytes);
             if (strpbrk($name, '/\\:!') !== false) {

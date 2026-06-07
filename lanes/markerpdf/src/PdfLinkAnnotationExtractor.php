@@ -1269,9 +1269,15 @@ final class PdfLinkAnnotationExtractor
         if ($value === null) {
             return null;
         }
+        if ($this->dictionaryValueHasTrailingOperand($annotationBody, 'Rect')) {
+            return null;
+        }
 
         $value = $this->resolveIndirectObjectValue($value, $objects);
         if (!str_starts_with(trim($value), '[')) {
+            return null;
+        }
+        if ($this->arrayValueHasTrailingOperand($value)) {
             return null;
         }
 
@@ -1314,7 +1320,32 @@ final class PdfLinkAnnotationExtractor
             $offset = $numberEnd;
         }
 
+        $this->skipWhitespaceAndComments($arrayBody, $offset);
+        if ($offset < $length) {
+            return null;
+        }
+
         return $numbers;
+    }
+
+    private function arrayValueHasTrailingOperand(string $value): bool
+    {
+        $offset = 0;
+        $this->skipWhitespaceAndComments($value, $offset);
+        if (($value[$offset] ?? '') !== '[') {
+            return false;
+        }
+
+        $endOffset = null;
+        $this->readPdfArrayAt($value, $offset, $endOffset);
+        if ($endOffset === null) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipWhitespaceAndComments($value, $tailOffset);
+
+        return $tailOffset < strlen($value);
     }
 
     /**
@@ -2692,6 +2723,46 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $selected;
+    }
+
+    private function dictionaryValueHasTrailingOperand(string $body, string $name): bool
+    {
+        $dictionary = str_starts_with(ltrim($body), '<<') ? $this->dictionaryObjectBody($body) : null;
+        $dictionary ??= $body;
+
+        $selectedMalformed = false;
+        $offset = 0;
+        $length = strlen($dictionary);
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($dictionary, $offset);
+            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
+            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
+                $offset = max($nameEnd, $offset + 1);
+                continue;
+            }
+
+            if ($key === $name) {
+                $tailOffset = $valueEnd;
+                $this->skipWhitespaceAndComments($dictionary, $tailOffset);
+                $selectedMalformed = $tailOffset < $length && $dictionary[$tailOffset] !== '/';
+            }
+
+            $offset = $valueEnd;
+        }
+
+        return $selectedMalformed;
     }
 
     private function skipWhitespaceAndComments(string $value, int &$offset): void

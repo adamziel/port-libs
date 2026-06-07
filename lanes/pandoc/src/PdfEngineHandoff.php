@@ -293,6 +293,7 @@ final class PdfEngineHandoff
      *     pdfGraphicsStateBlendModes: array<string, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
+     *     pdfOutlineDisplayMetadata: list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
      *     pdfPageMetadata: list<array<string, mixed>>,
@@ -726,6 +727,7 @@ final class PdfEngineHandoff
         $pdfGraphicsStateBlendModes = [];
         $pdfOutlineTitles = [];
         $pdfOutlines = [];
+        $pdfOutlineDisplayMetadata = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
         $pdfPageMetadata = [];
@@ -817,6 +819,7 @@ final class PdfEngineHandoff
                 $pdfGraphicsStateBlendModes = $pdfInspection['graphicsStateBlendModes'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfOutlines = $pdfInspection['outlines'];
+                $pdfOutlineDisplayMetadata = $pdfInspection['outlineDisplayMetadata'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
@@ -1305,6 +1308,40 @@ final class PdfEngineHandoff
                     }
                     if ($outlineActionCount > 0) {
                         $diagnostics[] = 'pdf-byte-outline-actions:' . $outlineActionCount;
+                    }
+                }
+                if ($pdfOutlineDisplayMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-outline-display-metadata:' . count($pdfOutlineDisplayMetadata);
+                    $outlineColorCount = 0;
+                    $outlineFlagCount = 0;
+                    $outlineBoldCount = 0;
+                    $outlineItalicCount = 0;
+                    foreach ($pdfOutlineDisplayMetadata as $outlineDisplay) {
+                        if (($outlineDisplay['color'] ?? null) !== null) {
+                            $outlineColorCount++;
+                        }
+                        $flags = is_int($outlineDisplay['flags'] ?? null) ? $outlineDisplay['flags'] : 0;
+                        if ($flags !== 0) {
+                            $outlineFlagCount++;
+                        }
+                        if (($flags & 2) !== 0) {
+                            $outlineBoldCount++;
+                        }
+                        if (($flags & 1) !== 0) {
+                            $outlineItalicCount++;
+                        }
+                    }
+                    if ($outlineColorCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-display-colors:' . $outlineColorCount;
+                    }
+                    if ($outlineFlagCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-display-flags:' . $outlineFlagCount;
+                    }
+                    if ($outlineBoldCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-display-bold:' . $outlineBoldCount;
+                    }
+                    if ($outlineItalicCount > 0) {
+                        $diagnostics[] = 'pdf-byte-outline-display-italic:' . $outlineItalicCount;
                     }
                 }
                 if ($pdfDocumentInfo !== []) {
@@ -2148,6 +2185,7 @@ final class PdfEngineHandoff
             'pdfGraphicsStateBlendModes' => $pdfGraphicsStateBlendModes,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfOutlines' => $pdfOutlines,
+            'pdfOutlineDisplayMetadata' => $pdfOutlineDisplayMetadata,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
             'pdfPageMetadata' => $pdfPageMetadata,
@@ -2260,6 +2298,7 @@ final class PdfEngineHandoff
      *     finalPdfObjectStreamFilters: array<string, int>,
      *     finalPdfOutlineTitles: list<string>,
      *     finalPdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
+     *     finalPdfOutlineDisplayMetadata: list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfXmpMetadata: array<string, mixed>,
      *     finalPdfPageMetadata: list<array<string, mixed>>,
@@ -2486,6 +2525,7 @@ final class PdfEngineHandoff
             'finalPdfObjectStreamFilters' => is_array($finalRun) && is_array($finalRun['pdfObjectStreamFilters'] ?? null) ? $finalRun['pdfObjectStreamFilters'] : [],
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'finalPdfOutlines' => is_array($finalRun) && is_array($finalRun['pdfOutlines'] ?? null) ? $finalRun['pdfOutlines'] : [],
+            'finalPdfOutlineDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfOutlineDisplayMetadata'] ?? null) ? $finalRun['pdfOutlineDisplayMetadata'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
@@ -3597,6 +3637,7 @@ final class PdfEngineHandoff
      *     formXObjectFilters:array<string, int>,
      *     outlineTitles:list<string>,
      *     outlines:list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
+     *     outlineDisplayMetadata:list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
      *     pageMetadata:list<array<string, mixed>>,
@@ -3715,6 +3756,7 @@ final class PdfEngineHandoff
             'graphicsStateBlendModes' => $this->summarizePdfGraphicsStateBlendModes($graphicsStates),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'outlines' => $this->extractPdfOutlines($pdfBytes, $catalog),
+            'outlineDisplayMetadata' => $this->extractPdfOutlineDisplayMetadata($pdfBytes, $catalog),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
@@ -12728,6 +12770,51 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>
+     */
+    private function extractPdfOutlineDisplayMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $metadata = [];
+        $visited = [];
+        $outlinesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Outlines');
+        if ($outlinesReference !== null) {
+            $root = $objects[$this->pdfReferenceKey($outlinesReference)] ?? null;
+            if ($root !== null) {
+                $first = $this->extractPdfReferenceToken($root, 'First');
+                if ($first !== null) {
+                    $this->collectPdfOutlineDisplayMetadataFromSiblingChain(
+                        $objects,
+                        $this->pdfReferenceKey($first),
+                        $metadata,
+                        $visited,
+                        0
+                    );
+                }
+            }
+        }
+
+        if ($metadata === []) {
+            foreach ($objects as $reference => $body) {
+                if (!str_contains($body, '/Title')) {
+                    continue;
+                }
+                if (preg_match('/\/(?:Parent|Dest|A|Next|Prev|First|Last)\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $summary = $this->summarizePdfOutlineDisplayMetadata($reference, $body);
+                if ($summary !== null) {
+                    $metadata[] = $summary;
+                }
+            }
+            usort($metadata, fn (array $a, array $b): int => $this->pdfReferenceSortKey($a['object']) <=> $this->pdfReferenceSortKey($b['object']));
+        }
+
+        return $metadata;
+    }
+
+    /**
      * @param array<string, string> $objects
      * @param list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}> $outlines
      * @param array<string, bool> $visited
@@ -12754,6 +12841,47 @@ final class PdfEngineHandoff
                     $objects,
                     $this->pdfReferenceKey($first),
                     $outlines,
+                    $visited,
+                    $depth + 1
+                );
+            }
+
+            $next = $this->extractPdfReferenceToken($objects[$cursor], 'Next');
+            if ($next === null) {
+                return;
+            }
+            $cursor = $this->pdfReferenceKey($next);
+            $siblingCount++;
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}> $metadata
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfOutlineDisplayMetadataFromSiblingChain(
+        array $objects,
+        string $reference,
+        array &$metadata,
+        array &$visited,
+        int $depth
+    ): void {
+        $cursor = $reference;
+        $siblingCount = 0;
+        while ($depth <= 32 && $siblingCount < 256 && isset($objects[$cursor]) && !isset($visited[$cursor])) {
+            $visited[$cursor] = true;
+            $summary = $this->summarizePdfOutlineDisplayMetadata($cursor, $objects[$cursor]);
+            if ($summary !== null) {
+                $metadata[] = $summary;
+            }
+
+            $first = $this->extractPdfReferenceToken($objects[$cursor], 'First');
+            if ($first !== null) {
+                $this->collectPdfOutlineDisplayMetadataFromSiblingChain(
+                    $objects,
+                    $this->pdfReferenceKey($first),
+                    $metadata,
                     $visited,
                     $depth + 1
                 );
@@ -12805,6 +12933,54 @@ final class PdfEngineHandoff
             'actionType' => $action['type'],
             'actionTarget' => $action['target'],
         ];
+    }
+
+    /**
+     * @return array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}|null
+     */
+    private function summarizePdfOutlineDisplayMetadata(string $reference, string $dictionary): ?array
+    {
+        $title = null;
+        foreach ($this->extractPdfNamedStrings($dictionary, 'Title') as $value) {
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                $title = $trimmed;
+                break;
+            }
+        }
+        if ($title === null) {
+            return null;
+        }
+
+        $color = $this->extractPdfNumberArrayToken($dictionary, 'C', 3);
+        $flags = max(0, $this->extractPdfIntegerToken($dictionary, 'F') ?? 0);
+        if ($color === null && $flags === 0) {
+            return null;
+        }
+
+        return [
+            'object' => $reference . ' R',
+            'title' => $title,
+            'color' => $color,
+            'flags' => $flags,
+            'flagNames' => $this->pdfOutlineDisplayFlagNames($flags),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfOutlineDisplayFlagNames(int $flags): array
+    {
+        $names = [];
+        if (($flags & 1) !== 0) {
+            $names[] = 'italic';
+        }
+        if (($flags & 2) !== 0) {
+            $names[] = 'bold';
+        }
+
+        return $names;
     }
 
     /**

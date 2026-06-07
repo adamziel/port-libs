@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class BibtexCslParser
 {
     private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
+    private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
 
     private int $offset = 0;
     private readonly int $length;
@@ -701,6 +702,11 @@ final class BibtexCslParser
             $item['biblatex-custom-fields'] = $biblatexCustomFields;
         }
 
+        $biblatexCustomLists = self::biblatexCustomListsFromFields($fields);
+        if ($biblatexCustomLists !== []) {
+            $item['biblatex-custom-lists'] = $biblatexCustomLists;
+        }
+
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
@@ -1087,6 +1093,27 @@ final class BibtexCslParser
         }
 
         return $customFields;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, list<string>>
+     */
+    private static function biblatexCustomListsFromFields(array $fields): array
+    {
+        $customLists = [];
+        foreach (self::BIBLATEX_CUSTOM_LIST_FIELDS as $field) {
+            if (!isset($fields[$field]) || trim($fields[$field]) === '') {
+                continue;
+            }
+
+            $values = self::literalListFromText($fields[$field]);
+            if ($values !== []) {
+                $customLists[$field] = $values;
+            }
+        }
+
+        return $customLists;
     }
 
     /**

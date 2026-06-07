@@ -769,7 +769,7 @@ final class XmlHtmlDom
     private static function isHtmlIntegrationPoint(\DOMElement $element): bool
     {
         $name = strtolower($element->localName);
-        if ($name === 'foreignobject') {
+        if (self::isSvgHtmlIntegrationPointName($name)) {
             return true;
         }
         if (self::isMathMlTextIntegrationPointName($name)) {
@@ -782,6 +782,11 @@ final class XmlHtmlDom
         $encoding = strtolower(trim($element->getAttribute('encoding')));
 
         return $encoding === 'text/html' || $encoding === 'application/xhtml+xml';
+    }
+
+    private static function isSvgHtmlIntegrationPointName(string $name): bool
+    {
+        return in_array($name, ['foreignobject', 'desc'], true);
     }
 
     private static function isMathMlTextIntegrationPointName(string $name): bool

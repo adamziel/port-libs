@@ -241,7 +241,7 @@ final class PdfPageArtifactSelector
      */
     private static function artifactListFromEnvelope(array $value): ?array
     {
-        if (self::hasDirectArtifactPayload($value)) {
+        if (self::hasEnvelopeBlockingDirectArtifactPayload($value)) {
             return null;
         }
 
@@ -288,6 +288,39 @@ final class PdfPageArtifactSelector
         foreach ([
             'blocks',
             'bbox',
+            'bboxes',
+            'image',
+            'image_bbox',
+            'layout',
+            'layout_result',
+            'order',
+            'order_result',
+            'prediction',
+            'result',
+            'model_output',
+            'output',
+            'page_data',
+            'page_result',
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * pdftext page dictionaries carry page-level `bbox` and copied `blocks`.
+     * Those keys describe the wrapper page, not layout/order model geometry.
+     * Keep model-specific payload keys as envelope blockers, but allow
+     * pdftext-shaped wrapper geometry to unwrap nested page artifact maps.
+     *
+     * @param array<mixed> $value
+     */
+    private static function hasEnvelopeBlockingDirectArtifactPayload(array $value): bool
+    {
+        foreach ([
             'bboxes',
             'image',
             'image_bbox',

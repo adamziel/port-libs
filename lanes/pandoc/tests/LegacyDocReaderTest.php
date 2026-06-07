@@ -1650,6 +1650,21 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($invalidColor));
     },
+    'rejects dirty CFB directory name padding before stream lookup' => static function (TestRunner $t) use ($buildCfb, $utf16le): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $rootNamePaddingOffset = $directorySectorOffset + strlen($utf16le("Root Entry\0"));
+        $streamNamePaddingOffset = $directorySectorOffset + 128 + strlen($utf16le("WordDocument\0"));
+
+        foreach ([
+            'dirty root name padding' => substr_replace($bytes, "\x01", $rootNamePaddingOffset, 1),
+            'dirty stream name padding' => substr_replace($bytes, "\x01", $streamNamePaddingOffset, 1),
+        ] as $corruptDocBytes) {
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
+        }
+    },
     'rejects invalid CFB header versions and directory-sector counts before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

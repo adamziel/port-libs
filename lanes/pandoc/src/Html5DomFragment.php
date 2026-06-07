@@ -1040,7 +1040,7 @@ final class Html5DomFragment
 
     private static function childForeignContext(\DOMElement $element, string $rawName, ?string $elementForeignContext): ?string
     {
-        if ($elementForeignContext === 'svg' && $rawName === 'foreignobject') {
+        if ($elementForeignContext === 'svg' && self::isSvgHtmlIntegrationPointName($rawName)) {
             return null;
         }
         if ($elementForeignContext === 'math' && self::isMathMlTextIntegrationPointName($rawName)) {
@@ -1054,6 +1054,11 @@ final class Html5DomFragment
         }
 
         return $elementForeignContext;
+    }
+
+    private static function isSvgHtmlIntegrationPointName(string $name): bool
+    {
+        return in_array($name, ['foreignobject', 'desc'], true);
     }
 
     private static function isMathMlTextIntegrationPointName(string $name): bool

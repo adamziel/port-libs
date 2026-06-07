@@ -2494,6 +2494,34 @@ return [
             $t->true(!str_contains($html, $blocked), 'Expected source-owned reserved attribute to be stripped: ' . $blocked);
         }
     },
+    'treats svg desc descendants as html integration point content before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<svg><desc><p viewBox="html attr"><textPath>HTML fallback</textPath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></desc></svg>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/svg-desc-html-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<svg><desc><p viewbox="html attr"><textpath>HTML fallback</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></p></desc></svg>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['desc', 'linearGradient', 'p', 'svg', 'textpath'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same('svg', $nodes[0]['name']);
+        $t->same('desc', $nodes[0]['children'][0]['name']);
+        $t->same('p', $nodes[0]['children'][0]['children'][0]['name']);
+        $t->same(['viewbox' => 'html attr'], $nodes[0]['children'][0]['children'][0]['attrs']);
+        $t->same('textpath', $nodes[0]['children'][0]['children'][0]['children'][0]['name']);
+        $t->same(['viewBox' => '0 0 1 1'], $nodes[0]['children'][0]['children'][0]['children'][1]['attrs']);
+        $t->same('/migration/svg-desc-html-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, 'viewBox="html attr"'), 'Expected SVG desc fallback attributes to stay in HTML casing');
+        $t->true(!str_contains($html, '<textPath>'), 'Expected SVG desc fallback children to stay in HTML casing');
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

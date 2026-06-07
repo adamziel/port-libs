@@ -1101,6 +1101,28 @@ $parserStreamFilterStackBoundaryCurrentBaseBinaryCommentTailPdf = static functio
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseStreamHeaderWhitespacePdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $directContent = 'BT /F1 12 Tf 72 720 Td (Stream Header Comment Imports) Tj ET';
+    $directCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($directContent);
+
+    $stackContent = 'BT /F1 12 Tf 72 700 Td (Stream Header Stack Imports) Tj ET';
+    $stackCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($stackContent);
+
+    $visibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Stream Header Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /FlateDecode /Length " . strlen($directCompressed) . " >>\nstream \t% stream header comment before filtered bytes\n{$directCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ null /FlateDecode ] /DecodeParms [ null null ] /Length " . strlen($stackCompressed) . " >>\nstream" . "\0 " . "\r\n{$stackCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1402,6 +1424,26 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'Binary Filter Comment Tail Leak'));
         $t->true(!str_contains($text, 'binary-filter comment tail'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'skips stream keyword header whitespace before filtered page content bytes' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseStreamHeaderWhitespacePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseStreamHeaderWhitespacePdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Stream Header Comment Imports',
+            'Stream Header Stack Imports',
+            'Visible After Stream Header Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'stream header comment'));
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, "\0"));
     },

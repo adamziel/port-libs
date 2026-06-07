@@ -986,6 +986,82 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfOutlines']);
     },
 
+    'fake runner extracts bounded pdf outline display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/outline-display.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Outlines /First 6 0 R /Last 8 0 R /Count 3 >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Title (Review packet) /Parent 5 0 R /Dest [3 0 R /Fit] /Next 7 0 R /C [0 0.2 0.8] /F 2 >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Title (Plain appendix) /Parent 5 0 R /Dest [4 0 R /Fit] /Prev 6 0 R /Next 8 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Title <FEFF0049006D0070006F0072007400200063006800650063006B006C006900730074> /Parent 5 0 R /A << /S /URI /URI (https://example.test/import-checklist) >> /Prev 7 0 R /C [0.6 0 0] /F 3 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/outline-display.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/outline-display.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '6 0 R',
+                'title' => 'Review packet',
+                'color' => [0.0, 0.2, 0.8],
+                'flags' => 2,
+                'flagNames' => ['bold'],
+            ],
+            [
+                'object' => '8 0 R',
+                'title' => 'Import checklist',
+                'color' => [0.6, 0.0, 0.0],
+                'flags' => 3,
+                'flagNames' => ['italic', 'bold'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfOutlineDisplayMetadata']);
+        $t->contains('pdf-byte-outline-display-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-display-colors:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-display-flags:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-display-bold:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-display-italic:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfOutlineDisplayMetadata']);
+    },
+
     'fake runner extracts bounded pdf page boxes and rotations from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/geometry.pdf']);

@@ -866,6 +866,48 @@ return [
         $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorOffset'], $descriptorPreflight['descriptorEntries'][1]['valueOffset']);
     },
 
+    'reads unsigned data descriptors whose crc bytes equal the optional signature marker' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $reviewNote = "word comments descriptor crc-signature collision\n" . "\x71\xe1\xd2\x2b";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => $reviewNote,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>descriptor collision follower</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]);
+
+        $t->same(0x08074b50, $crc32($reviewNote));
+
+        $package = ZipPackage::fromString($zip);
+        $descriptorPreflight = $package->dataDescriptorPreflight();
+        $localHeaderPreflight = $package->localHeaderPreflight();
+
+        $t->same($reviewNote, $package->read('/word/comments.xml'));
+        $t->same('<w:document><w:p>descriptor collision follower</w:p></w:document>', $package->read('/word/document.xml'));
+        $t->same(2, $descriptorPreflight['entryCount']);
+        $t->same(1, $descriptorPreflight['descriptorEntryCount']);
+        $t->same(0, $descriptorPreflight['signedDescriptorEntryCount']);
+        $t->same(1, $descriptorPreflight['unsignedDescriptorEntryCount']);
+        $t->same('word/comments.xml', $descriptorPreflight['descriptorEntries'][0]['name']);
+        $t->same(false, $descriptorPreflight['descriptorEntries'][0]['hasSignature']);
+        $t->same(12, $descriptorPreflight['descriptorEntries'][0]['descriptorLength']);
+        $t->same($descriptorPreflight['descriptorEntries'][0]['descriptorOffset'], $descriptorPreflight['descriptorEntries'][0]['valueOffset']);
+        $t->same('08074b50', $descriptorPreflight['descriptorEntries'][0]['crc32Hex']);
+        $t->same(0x08074b50, $descriptorPreflight['descriptorEntries'][0]['crc32']);
+        $t->same(strlen($reviewNote), $descriptorPreflight['descriptorEntries'][0]['compressedSize']);
+        $t->same(strlen($reviewNote), $descriptorPreflight['descriptorEntries'][0]['uncompressedSize']);
+        $t->same(true, $descriptorPreflight['descriptorEntries'][0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(12, $localHeaderPreflight['entries'][0]['descriptorLength']);
+        $t->same(true, $localHeaderPreflight['entries'][0]['isContiguousWithNext']);
+    },
+
     'rejects data descriptor entries with nonzero local header placeholders' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

@@ -400,15 +400,29 @@ final class SuppliedDocumentConverter
 
             $firstFlattenedIndex = count($tables);
             $tableCount = max(count($cellsByTable), count($rowsColsByTable), count($tableBboxes), count($imageBboxes));
+            $rowAliases = [];
+            $colAliases = [];
             for ($tableIndex = 0; $tableIndex < $tableCount; $tableIndex++) {
                 $rowsCols = isset($rowsColsByTable[$tableIndex]) && is_array($rowsColsByTable[$tableIndex])
                     ? $rowsColsByTable[$tableIndex]
                     : [];
+                $rowRecords = $this->pageResultRowsColsRecords($rowsCols, 'rows');
+                $colRecords = $this->pageResultRowsColsRecords($rowsCols, 'cols');
                 $table = [
                     'cells' => $this->pageResultRecordList($cellsByTable[$tableIndex] ?? []),
-                    'rows' => $this->pageResultRecordList($rowsCols['rows'] ?? $rowsCols['row_bboxes'] ?? []),
-                    'cols' => $this->pageResultRecordList($rowsCols['cols'] ?? $rowsCols['columns'] ?? $rowsCols['col_bboxes'] ?? []),
+                    'rows' => $this->pageResultRecordList($rowRecords['records'] ?? []),
+                    'cols' => $this->pageResultRecordList($colRecords['records'] ?? []),
                 ];
+                if ($rowRecords !== null) {
+                    $table['rows_source_alias'] = 'rows_cols.' . $rowRecords['alias'];
+                    $rowAliases[] = $rowRecords['alias'];
+                    $table = $this->withPageResultRowsColsGeometryMetadata($table, $rowsCols, 'rows');
+                }
+                if ($colRecords !== null) {
+                    $table['cols_source_alias'] = 'rows_cols.' . $colRecords['alias'];
+                    $colAliases[] = $colRecords['alias'];
+                    $table = $this->withPageResultRowsColsGeometryMetadata($table, $rowsCols, 'cols');
+                }
 
                 $bbox = $this->pageResultBboxValue($tableBboxes[$tableIndex] ?? null);
                 if ($bbox !== null) {
@@ -447,6 +461,8 @@ final class SuppliedDocumentConverter
                 'rows_cols_table_count' => count($rowsColsByTable),
                 'table_bbox_count' => count($tableBboxes),
                 'image_bbox_count' => count($imageBboxes),
+                'rows_cols_row_aliases' => $rowAliases,
+                'rows_cols_col_aliases' => $colAliases,
                 'shared_image_bbox_source' => $sharedImageBboxSource,
                 'pnum' => isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || (is_string($tableOrPageResult['pnum']) && is_numeric($tableOrPageResult['pnum'])))
                     ? (int) $tableOrPageResult['pnum']
@@ -495,6 +511,250 @@ final class SuppliedDocumentConverter
             $records,
             static fn (mixed $record): bool => is_array($record)
         ));
+    }
+
+    /**
+     * @param array<string|int, mixed> $rowsCols
+     * @return array{alias: string, records: array<int|string, mixed>}|null
+     */
+    private function pageResultRowsColsRecords(array $rowsCols, string $field): ?array
+    {
+        foreach ($this->pageResultRowsColsAliases($field) as $alias) {
+            if (!isset($rowsCols[$alias]) || !is_array($rowsCols[$alias])) {
+                continue;
+            }
+
+            return [
+                'alias' => $alias,
+                'records' => $rowsCols[$alias],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultRowsColsAliases(string $field): array
+    {
+        if ($field === 'rows') {
+            return ['rows', 'row_bboxes', 'row_boxes', 'row_bounds'];
+        }
+
+        return ['cols', 'columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes'];
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param array<string|int, mixed> $rowsCols
+     * @return array<string, mixed>
+     */
+    private function withPageResultRowsColsGeometryMetadata(array $table, array $rowsCols, string $field): array
+    {
+        $space = $this->pageResultRowsColsCoordinateSpace($rowsCols, $field);
+        if ($space !== null) {
+            $table[$field . '_coordinate_space'] = $space;
+        }
+
+        $order = $this->pageResultRowsColsCoordinateOrder($rowsCols, $field);
+        if ($order !== null) {
+            $table[$field . '_bbox_order'] = $order;
+        }
+
+        $format = $this->pageResultRowsColsCoordinateFormat($rowsCols, $field);
+        if ($format !== null) {
+            $table[$field . '_bbox_format'] = $format;
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string|int, mixed> $rowsCols
+     */
+    private function pageResultRowsColsCoordinateSpace(array $rowsCols, string $field): ?string
+    {
+        foreach ($this->pageResultRowsColsCoordinateSpaceKeys($field) as $key) {
+            if (isset($rowsCols[$key]) && is_scalar($rowsCols[$key])) {
+                return (string) $rowsCols[$key];
+            }
+        }
+
+        foreach (['coordinate_space', 'geometry_coordinate_space', 'bbox_coordinate_space', 'geometry_space'] as $key) {
+            if (isset($rowsCols[$key]) && is_scalar($rowsCols[$key])) {
+                return (string) $rowsCols[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $rowsCols
+     */
+    private function pageResultRowsColsCoordinateOrder(array $rowsCols, string $field): ?string
+    {
+        foreach ($this->pageResultRowsColsCoordinateOrderKeys($field) as $key) {
+            if (isset($rowsCols[$key]) && is_scalar($rowsCols[$key])) {
+                return (string) $rowsCols[$key];
+            }
+        }
+
+        foreach (['bbox_order', 'bbox_coordinate_order', 'bbox_coordinate_format', 'bbox_format', 'coordinate_order'] as $key) {
+            if (isset($rowsCols[$key]) && is_scalar($rowsCols[$key])) {
+                return (string) $rowsCols[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $rowsCols
+     */
+    private function pageResultRowsColsCoordinateFormat(array $rowsCols, string $field): ?string
+    {
+        foreach ($this->pageResultRowsColsCoordinateFormatKeys($field) as $key) {
+            if (isset($rowsCols[$key]) && is_scalar($rowsCols[$key])) {
+                return (string) $rowsCols[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultRowsColsCoordinateSpaceKeys(string $field): array
+    {
+        if ($field === 'rows') {
+            return [
+                'row_bboxes_coordinate_space',
+                'row_bbox_coordinate_space',
+                'row_boxes_coordinate_space',
+                'row_box_coordinate_space',
+                'row_bounds_coordinate_space',
+                'row_bound_coordinate_space',
+                'rows_coordinate_space',
+                'row_coordinate_space',
+                'row_bboxes_geometry_space',
+                'row_bbox_geometry_space',
+                'row_boxes_geometry_space',
+                'row_box_geometry_space',
+                'row_bounds_geometry_space',
+                'row_bound_geometry_space',
+                'rows_geometry_space',
+                'row_geometry_space',
+            ];
+        }
+
+        return [
+            'columns_coordinate_space',
+            'column_coordinate_space',
+            'cols_coordinate_space',
+            'col_coordinate_space',
+            'column_bboxes_coordinate_space',
+            'column_bbox_coordinate_space',
+            'col_bboxes_coordinate_space',
+            'col_bbox_coordinate_space',
+            'column_boxes_coordinate_space',
+            'column_box_coordinate_space',
+            'col_boxes_coordinate_space',
+            'col_box_coordinate_space',
+            'columns_geometry_space',
+            'column_geometry_space',
+            'cols_geometry_space',
+            'col_geometry_space',
+            'column_bboxes_geometry_space',
+            'column_bbox_geometry_space',
+            'col_bboxes_geometry_space',
+            'col_bbox_geometry_space',
+            'column_boxes_geometry_space',
+            'column_box_geometry_space',
+            'col_boxes_geometry_space',
+            'col_box_geometry_space',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultRowsColsCoordinateOrderKeys(string $field): array
+    {
+        if ($field === 'rows') {
+            return [
+                'row_bboxes_order',
+                'row_bbox_order',
+                'row_bboxes_bbox_order',
+                'row_boxes_order',
+                'row_boxes_bbox_order',
+                'row_bounds_order',
+                'row_bounds_bbox_order',
+                'rows_bbox_order',
+                'row_bbox_order',
+                'rows_coordinate_order',
+                'row_coordinate_order',
+            ];
+        }
+
+        return [
+            'columns_order',
+            'column_order',
+            'cols_order',
+            'col_order',
+            'column_bboxes_order',
+            'column_bboxes_bbox_order',
+            'col_bboxes_order',
+            'col_bboxes_bbox_order',
+            'column_boxes_order',
+            'column_boxes_bbox_order',
+            'col_boxes_order',
+            'col_boxes_bbox_order',
+            'columns_bbox_order',
+            'column_bbox_order',
+            'cols_bbox_order',
+            'col_bbox_order',
+            'columns_coordinate_order',
+            'column_coordinate_order',
+            'cols_coordinate_order',
+            'col_coordinate_order',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultRowsColsCoordinateFormatKeys(string $field): array
+    {
+        if ($field === 'rows') {
+            return [
+                'row_bboxes_bbox_format',
+                'row_bboxes_coordinate_format',
+                'row_boxes_bbox_format',
+                'row_boxes_coordinate_format',
+                'row_bounds_bbox_format',
+                'row_bounds_coordinate_format',
+                'rows_bbox_format',
+                'row_bbox_format',
+            ];
+        }
+
+        return [
+            'column_bboxes_bbox_format',
+            'column_bboxes_coordinate_format',
+            'col_bboxes_bbox_format',
+            'col_bboxes_coordinate_format',
+            'column_boxes_bbox_format',
+            'column_boxes_coordinate_format',
+            'col_boxes_bbox_format',
+            'col_boxes_coordinate_format',
+            'columns_bbox_format',
+            'column_bbox_format',
+            'cols_bbox_format',
+            'col_bbox_format',
+        ];
     }
 
     private function pageResultBboxValue(mixed $value): mixed

@@ -3976,29 +3976,30 @@ final class ZipPackage
      */
     private function dataDescriptorMetadata(ZipPackageEntry $entry, int $offset, ?int $nextOffset = null): array
     {
-        $valuesOffset = $offset;
-        $hasSignature = substr($this->bytes, $offset, 4) === "PK\x07\x08";
-        if ($hasSignature) {
-            $valuesOffset += 4;
-        }
+        $hasSignatureMarker = substr($this->bytes, $offset, 4) === "PK\x07\x08";
 
-        if ($nextOffset !== null && $nextOffset - $offset === ($hasSignature ? 24 : 20)) {
-            self::assertRange($this->bytes, $valuesOffset, 20, "ZIP64-sized data descriptor for {$entry->name}");
-            $zip64Crc32 = self::readUInt32($this->bytes, $valuesOffset);
-            $zip64CompressedSize = self::readUInt64($this->bytes, $valuesOffset + 4);
-            $zip64UncompressedSize = self::readUInt64($this->bytes, $valuesOffset + 12);
-            if (
-                $zip64Crc32 === $entry->crc32
-                && $zip64CompressedSize === $entry->compressedSize
-                && $zip64UncompressedSize === $entry->uncompressedSize
-            ) {
-                throw new \RuntimeException(
-                    "ZIP data descriptor for {$entry->name} uses ZIP64-sized fields, "
-                    . 'which are not supported by this bounded package reader'
-                );
+        if ($nextOffset !== null) {
+            $descriptorSpan = $nextOffset - $offset;
+            if ($descriptorSpan === 20) {
+                $this->rejectMatchedZip64SizedDataDescriptor($entry, $offset);
+            } elseif ($descriptorSpan === 24 && $hasSignatureMarker) {
+                $this->rejectMatchedZip64SizedDataDescriptor($entry, $offset + 4);
             }
         }
 
+        if ($hasSignatureMarker) {
+            $signedValues = $this->matchingStandardDataDescriptorValues($entry, $offset + 4);
+            if ($signedValues !== null) {
+                return self::standardDataDescriptorSummary($offset, $offset + 4, 16, $signedValues, true);
+            }
+        }
+
+        $unsignedValues = $this->matchingStandardDataDescriptorValues($entry, $offset);
+        if ($unsignedValues !== null) {
+            return self::standardDataDescriptorSummary($offset, $offset, 12, $unsignedValues, false);
+        }
+
+        $valuesOffset = $hasSignatureMarker ? $offset + 4 : $offset;
         self::assertRange($this->bytes, $valuesOffset, 12, "data descriptor for {$entry->name}");
         if ($valuesOffset + 12 > $this->centralDirectoryOffset) {
             throw new \RuntimeException("ZIP data descriptor for {$entry->name} overlaps the central directory");
@@ -4017,12 +4018,81 @@ final class ZipPackage
         }
 
         return [
-            'hasSignature' => $hasSignature,
+            'hasSignature' => $hasSignatureMarker,
             'descriptorOffset' => $offset,
             'valueOffset' => $valuesOffset,
-            'descriptorLength' => ($hasSignature ? 16 : 12),
+            'descriptorLength' => ($hasSignatureMarker ? 16 : 12),
             'crc32' => $crc32,
             'crc32Hex' => sprintf('%08x', $crc32),
+            'usesZip64SizedDescriptor' => false,
+        ];
+    }
+
+    private function rejectMatchedZip64SizedDataDescriptor(ZipPackageEntry $entry, int $valuesOffset): void
+    {
+        self::assertRange($this->bytes, $valuesOffset, 20, "ZIP64-sized data descriptor for {$entry->name}");
+        $zip64Crc32 = self::readUInt32($this->bytes, $valuesOffset);
+        $zip64CompressedSize = self::readUInt64($this->bytes, $valuesOffset + 4);
+        $zip64UncompressedSize = self::readUInt64($this->bytes, $valuesOffset + 12);
+        if (
+            $zip64Crc32 === $entry->crc32
+            && $zip64CompressedSize === $entry->compressedSize
+            && $zip64UncompressedSize === $entry->uncompressedSize
+        ) {
+            throw new \RuntimeException(
+                "ZIP data descriptor for {$entry->name} uses ZIP64-sized fields, "
+                . 'which are not supported by this bounded package reader'
+            );
+        }
+    }
+
+    /**
+     * @return array{crc32:int, compressedSize:int, uncompressedSize:int}|null
+     */
+    private function matchingStandardDataDescriptorValues(ZipPackageEntry $entry, int $valuesOffset): ?array
+    {
+        self::assertRange($this->bytes, $valuesOffset, 12, "data descriptor for {$entry->name}");
+        if ($valuesOffset + 12 > $this->centralDirectoryOffset) {
+            return null;
+        }
+
+        $crc32 = self::readUInt32($this->bytes, $valuesOffset);
+        $compressedSize = self::readUInt32($this->bytes, $valuesOffset + 4);
+        $uncompressedSize = self::readUInt32($this->bytes, $valuesOffset + 8);
+
+        if (
+            $crc32 !== $entry->crc32
+            || $compressedSize !== $entry->compressedSize
+            || $uncompressedSize !== $entry->uncompressedSize
+        ) {
+            return null;
+        }
+
+        return [
+            'crc32' => $crc32,
+            'compressedSize' => $compressedSize,
+            'uncompressedSize' => $uncompressedSize,
+        ];
+    }
+
+    /**
+     * @param array{crc32:int, compressedSize:int, uncompressedSize:int} $values
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
+     */
+    private static function standardDataDescriptorSummary(
+        int $descriptorOffset,
+        int $valueOffset,
+        int $descriptorLength,
+        array $values,
+        bool $hasSignature
+    ): array {
+        return [
+            'hasSignature' => $hasSignature,
+            'descriptorOffset' => $descriptorOffset,
+            'valueOffset' => $valueOffset,
+            'descriptorLength' => $descriptorLength,
+            'crc32' => $values['crc32'],
+            'crc32Hex' => sprintf('%08x', $values['crc32']),
             'usesZip64SizedDescriptor' => false,
         ];
     }

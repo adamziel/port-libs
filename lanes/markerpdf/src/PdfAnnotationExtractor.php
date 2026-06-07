@@ -2500,6 +2500,9 @@ final class PdfAnnotationExtractor
         if ($value === null || !str_starts_with(trim($value), '[')) {
             return null;
         }
+        if ($this->dictionaryValueHasTrailingOperand($annotationBody, 'Rect')) {
+            return null;
+        }
 
         $arrayBody = $this->arrayBodyFromValue($value);
         if ($arrayBody === null) {
@@ -2538,6 +2541,11 @@ final class PdfAnnotationExtractor
 
             $numbers[] = $number;
             $offset = $numberEnd;
+        }
+
+        $this->skipWhitespaceAndComments($arrayBody, $offset);
+        if ($offset < $length) {
+            return null;
         }
 
         return $numbers;
@@ -2861,6 +2869,47 @@ final class PdfAnnotationExtractor
         }
 
         return $selected;
+    }
+
+    private function dictionaryValueHasTrailingOperand(string $body, string $name): bool
+    {
+        $dictionary = str_starts_with(ltrim($body), '<<') ? $this->dictionaryObjectBody($body) : null;
+        $dictionary ??= $body;
+
+        $selectedMalformed = false;
+        $offset = 0;
+        $length = strlen($dictionary);
+
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $nameEnd = $this->skipPdfName($dictionary, $offset);
+            $key = $this->decodePdfName(substr($dictionary, $offset + 1, $nameEnd - $offset - 1));
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($dictionary, $nameEnd, $valueEnd);
+            if ($value === null || $valueEnd === null || $valueEnd <= $nameEnd) {
+                $offset = max($nameEnd, $offset + 1);
+                continue;
+            }
+
+            if ($key === $name) {
+                $tailOffset = $valueEnd;
+                $this->skipWhitespaceAndComments($dictionary, $tailOffset);
+                $selectedMalformed = $tailOffset < $length && $dictionary[$tailOffset] !== '/';
+            }
+
+            $offset = $valueEnd;
+        }
+
+        return $selectedMalformed;
     }
 
     /**

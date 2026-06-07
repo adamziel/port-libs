@@ -1253,6 +1253,39 @@ return [
         $t->contains('<h1 id="imported-section">Imported Section</h1>', $blocks);
         $t->contains('<p>Published copy.</p>', $blocks);
     },
+    'maps pandoc adjacent yaml stream documents as metadata blocks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Stream draft **Packet**',
+            'review: {status: queued, priority: 4}',
+            '...',
+            '---',
+            'title: Stream final **Packet**',
+            'review: {status: approved, owner: Stream Desk}',
+            'references:',
+            '  - id: stream-doc-ref',
+            '    title: Second stream document',
+            '...',
+            '',
+            '# Stream body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Stream final **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['status' => 'approved', 'owner' => 'Stream Desk'], $meta['review']);
+        $t->same('stream-doc-ref', $meta['references'][0]['id']);
+        $t->same('Second stream document', $meta['references'][0]['title']);
+        $t->same(1, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('stream-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="stream-body">Stream body</h1>', $blocks);
+        $t->same(false, str_contains($blocks, 'Stream final **Packet**'));
+        $t->same(false, str_contains($blocks, 'title: Stream final'));
+    },
     'maps pandoc yaml metadata from json object documents' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

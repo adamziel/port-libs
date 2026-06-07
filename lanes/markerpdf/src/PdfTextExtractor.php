@@ -3992,35 +3992,73 @@ final class PdfTextExtractor
         }
 
         $properties = [];
-        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/s', $propertiesDictionary, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
-                $objectNumber = (int) $match[2];
-                $generation = (int) $match[3];
-                $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+        $offset = 0;
+        $length = strlen($propertiesDictionary);
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($propertiesDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($propertiesDictionary[$offset] ?? '') !== '/') {
+                $next = $this->skipPdfValueAt($propertiesDictionary, $offset);
+                $offset = $next > $offset ? $next : $offset + 1;
+                continue;
+            }
+
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $propertiesDictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName(substr($propertiesDictionary, $nameStart, $nameEnd - $nameStart));
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($propertiesDictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $dictionary = null;
+            $referenceOffset = $valueOffset;
+            $reference = $this->readPdfIndirectReferenceToken($propertiesDictionary, $referenceOffset);
+            if ($reference !== null) {
+                if ($this->resourceEntryValueHasMalformedTail($propertiesDictionary, $valueOffset)) {
+                    $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+                    $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+                    continue;
+                }
+
+                $resolved = $this->resolvedResourceObjectBody(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
                 $dictionary = $resolved === null || $this->objectBodyIsStreamObject($resolved['body'])
                     ? null
                     : $this->dictionaryObjectBody($resolved['body']);
-                if ($dictionary !== null) {
-                    $properties[$this->decodePdfName($match[1])] = $dictionary;
+            } elseif (substr($propertiesDictionary, $valueOffset, 2) === '<<') {
+                if ($this->resourceEntryValueHasMalformedTail($propertiesDictionary, $valueOffset)) {
+                    $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+                    $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+                    continue;
                 }
-            }
-        }
 
-        $offset = 0;
-        while (preg_match('/\/([^\s\[\]()<>{}\/%]+)\s*<</s', $propertiesDictionary, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $dictionaryOffset = strpos($propertiesDictionary, '<<', $match[0][1]);
-            if ($dictionaryOffset === false) {
-                break;
+                $dictionaryOffset = $valueOffset;
+                $dictionary = $this->readPdfDictionaryTokenAt($propertiesDictionary, $dictionaryOffset);
             }
 
-            $dictionary = $this->readPdfDictionaryAt($propertiesDictionary, $dictionaryOffset);
-            $end = $this->pdfDictionaryEndOffset($propertiesDictionary, $dictionaryOffset);
-            if ($dictionary === null || $end === null) {
-                break;
+            if ($dictionary !== null) {
+                $properties[$name] = $dictionary;
             }
 
-            $properties[$this->decodePdfName($match[1][0])] = $dictionary;
-            $offset = $end + 1;
+            $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+            $offset = $next > $valueOffset ? $next : $valueOffset + 1;
         }
 
         return $properties;
@@ -7153,6 +7191,13 @@ final class PdfTextExtractor
             'BitsPerComponent',
             $objects
         );
+        $bitsPerComponentBoundary = $this->imageXObjectIntegerOperandBoundaryReview(
+            $stream['dict'],
+            'BitsPerComponent',
+            $objects,
+            true,
+            false
+        );
         $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'ImageMask', $objects) === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $opiProxyReview = $this->imageXObjectOpiProxyReview($stream['dict'], $objects);
@@ -7466,6 +7511,9 @@ final class PdfTextExtractor
             'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
             'color_space_resource_source' => $colorSpaceReview['resource_source'],
             'bits_per_component' => $effectiveBitsPerComponent,
+            ...($bitsPerComponentBoundary === null ? [] : [
+                'bits_per_component_boundary' => $bitsPerComponentBoundary,
+            ]),
             'image_decode' => $imageDecode,
             'image_decode_applied_before_rgb' => $imageDecode !== null
                 && ($imageDecode['valid_for_components'] ?? false) === true,
@@ -7524,7 +7572,11 @@ final class PdfTextExtractor
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
             'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
-            'native_raster_decode' => $filters !== null && $decoded !== null && $previewOnlyFilters === [] && $imageDimensionsValid,
+            'native_raster_decode' => $filters !== null
+                && $decoded !== null
+                && $previewOnlyFilters === []
+                && $imageDimensionsValid
+                && $bitsPerComponentBoundary === null,
             'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
@@ -8138,16 +8190,33 @@ final class PdfTextExtractor
     ): ?array {
         $widthNumber = $this->topLevelPdfNumberValueAfterName($dictionary, 'Width', $objects);
         $heightNumber = $this->topLevelPdfNumberValueAfterName($dictionary, 'Height', $objects);
+        $widthOperandBoundary = $this->imageXObjectIntegerOperandBoundaryReview(
+            $dictionary,
+            'Width',
+            $objects,
+            true,
+            true
+        );
+        $heightOperandBoundary = $this->imageXObjectIntegerOperandBoundaryReview(
+            $dictionary,
+            'Height',
+            $objects,
+            true,
+            true
+        );
         $width = $widthNumber ?? ($resolvedWidth === null ? null : (float) $resolvedWidth);
         $height = $heightNumber ?? ($resolvedHeight === null ? null : (float) $resolvedHeight);
         $widthInteger = $width !== null && abs($width - round($width)) < 0.000001;
         $heightInteger = $height !== null && abs($height - round($height)) < 0.000001;
-        $widthPositive = $widthInteger && $width > 0.0;
-        $heightPositive = $heightInteger && $height > 0.0;
+        $widthPositive = $widthInteger && $width > 0.0 && $widthOperandBoundary === null;
+        $heightPositive = $heightInteger && $height > 0.0 && $heightOperandBoundary === null;
 
         if ($widthPositive && $heightPositive) {
             return null;
         }
+
+        $malformedOperandBoundary = $this->imageXObjectIntegerOperandBoundaryIsMalformed($widthOperandBoundary)
+            || $this->imageXObjectIntegerOperandBoundaryIsMalformed($heightOperandBoundary);
 
         return [
             'width' => $width === null ? null : $this->normalizedPdfReviewNumbers([$width])[0],
@@ -8156,11 +8225,239 @@ final class PdfTextExtractor
             'height_integer' => $heightInteger,
             'width_positive' => $widthPositive,
             'height_positive' => $heightPositive,
+            'width_operand_valid' => $widthOperandBoundary === null,
+            'height_operand_valid' => $heightOperandBoundary === null,
+            ...($widthOperandBoundary === null ? [] : [
+                'width_operand_boundary' => $widthOperandBoundary,
+            ]),
+            ...($heightOperandBoundary === null ? [] : [
+                'height_operand_boundary' => $heightOperandBoundary,
+            ]),
             'dimensions_valid' => false,
             'native_raster_decode_blocked' => true,
-            'policy' => 'reject_missing_or_nonpositive_image_dimensions',
+            'policy' => $malformedOperandBoundary
+                ? 'reject_malformed_image_dimension_operands'
+                : 'reject_missing_or_nonpositive_image_dimensions',
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectIntegerOperandBoundaryReview(
+        string $dictionary,
+        string $name,
+        array $objects,
+        bool $positiveRequired,
+        bool $missingInvalid
+    ): ?array {
+        $offset = $this->topLevelNameValueOffset($dictionary, $name);
+        if ($offset === null) {
+            if (!$missingInvalid) {
+                return null;
+            }
+
+            return [
+                'name' => $name,
+                'present' => false,
+                'resolved' => false,
+                'resolved_integer' => null,
+                'valid_integer' => false,
+                'positive_required' => $positiveRequired,
+                'positive' => false,
+                'trailing_top_level_operand' => false,
+                'native_raster_decode_blocked' => true,
+                'reason' => 'missing_operand',
+                'policy' => 'reject_malformed_image_numeric_operand',
+                'review_only' => true,
+            ];
+        }
+
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+        $analysis = $value === null
+            ? [
+                'resolved' => false,
+                'resolved_integer' => null,
+                'valid_integer' => false,
+                'trailing_operand' => false,
+                'reason' => 'missing_operand',
+                'value_preview' => null,
+            ]
+            : $this->imageXObjectIntegerOperandAnalysis($value, $objects);
+        $trailingTopLevelOperand = $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, $name)
+            || (($analysis['trailing_operand'] ?? false) === true);
+        $resolvedInteger = is_int($analysis['resolved_integer'] ?? null) ? $analysis['resolved_integer'] : null;
+        $positive = $resolvedInteger !== null && $resolvedInteger > 0;
+        $valid = ($analysis['valid_integer'] ?? false) === true
+            && !$trailingTopLevelOperand
+            && (!$positiveRequired || $positive);
+        if ($valid) {
+            return null;
+        }
+
+        $reason = $trailingTopLevelOperand
+            ? 'trailing_top_level_operand'
+            : (is_string($analysis['reason'] ?? null) ? $analysis['reason'] : 'malformed_integer_operand');
+        if ($reason === 'valid_integer' && $positiveRequired && !$positive) {
+            $reason = 'nonpositive_integer_operand';
+        }
+
+        return [
+            'name' => $name,
+            'present' => true,
+            'resolved' => ($analysis['resolved'] ?? false) === true,
+            'resolved_integer' => $resolvedInteger,
+            'valid_integer' => ($analysis['valid_integer'] ?? false) === true,
+            'positive_required' => $positiveRequired,
+            'positive' => $positive,
+            'trailing_top_level_operand' => $trailingTopLevelOperand,
+            'value_preview' => is_string($analysis['value_preview'] ?? null)
+                ? $analysis['value_preview']
+                : null,
+            'native_raster_decode_blocked' => true,
+            'reason' => $reason,
+            'policy' => 'reject_malformed_image_numeric_operand',
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{resolved: bool, resolved_integer: int|null, valid_integer: bool, trailing_operand: bool, reason: string, value_preview: string|null}
+     */
+    private function imageXObjectIntegerOperandAnalysis(
+        string $value,
+        array $objects,
+        array $seen = []
+    ): array {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [
+                'resolved' => false,
+                'resolved_integer' => null,
+                'valid_integer' => false,
+                'trailing_operand' => false,
+                'reason' => 'missing_operand',
+                'value_preview' => null,
+            ];
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($trimmed, 0);
+        if ($reference !== null) {
+            $afterReference = $this->skipPdfWhitespace($trimmed, $reference['endOffset']);
+            if ($afterReference < strlen($trimmed)) {
+                return [
+                    'resolved' => false,
+                    'resolved_integer' => null,
+                    'valid_integer' => false,
+                    'trailing_operand' => true,
+                    'reason' => 'trailing_top_level_operand',
+                    'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+                ];
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$key])) {
+                return [
+                    'resolved' => false,
+                    'resolved_integer' => null,
+                    'valid_integer' => false,
+                    'trailing_operand' => false,
+                    'reason' => 'cyclic_indirect_operand',
+                    'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+                ];
+            }
+
+            $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
+                return [
+                    'resolved' => false,
+                    'resolved_integer' => null,
+                    'valid_integer' => false,
+                    'trailing_operand' => false,
+                    'reason' => 'unresolved_indirect_operand',
+                    'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+                ];
+            }
+
+            $seen[$key] = true;
+            $analysis = $this->imageXObjectIntegerOperandAnalysis($objectBody, $objects, $seen);
+            $analysis['value_preview'] = $this->imageXObjectOperandPreview($objectBody);
+
+            return $analysis;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+\.\d*|\.\d+)$/s', $trimmed) === 1) {
+            return [
+                'resolved' => true,
+                'resolved_integer' => null,
+                'valid_integer' => false,
+                'trailing_operand' => false,
+                'reason' => 'non_integer_operand',
+                'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+            ];
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $trimmed, $match, 0, 0) !== 1) {
+            return [
+                'resolved' => false,
+                'resolved_integer' => null,
+                'valid_integer' => false,
+                'trailing_operand' => false,
+                'reason' => 'malformed_integer_operand',
+                'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+            ];
+        }
+
+        $afterInteger = $this->skipPdfWhitespace($trimmed, strlen($match[0]));
+        if ($afterInteger < strlen($trimmed)) {
+            return [
+                'resolved' => true,
+                'resolved_integer' => (int) $match[1],
+                'valid_integer' => false,
+                'trailing_operand' => true,
+                'reason' => 'trailing_top_level_operand',
+                'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+            ];
+        }
+
+        return [
+            'resolved' => true,
+            'resolved_integer' => (int) $match[1],
+            'valid_integer' => true,
+            'trailing_operand' => false,
+            'reason' => 'valid_integer',
+            'value_preview' => $this->imageXObjectOperandPreview($trimmed),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $boundary
+     */
+    private function imageXObjectIntegerOperandBoundaryIsMalformed(?array $boundary): bool
+    {
+        return in_array(
+            $boundary['reason'] ?? null,
+            [
+                'trailing_top_level_operand',
+                'malformed_integer_operand',
+                'unresolved_indirect_operand',
+                'cyclic_indirect_operand',
+            ],
+            true
+        );
+    }
+
+    private function imageXObjectOperandPreview(string $value): string
+    {
+        $preview = trim((string) preg_replace('/\s+/', ' ', $value));
+
+        return strlen($preview) > 80 ? substr($preview, 0, 77) . '...' : $preview;
     }
 
     /**
@@ -10935,13 +11232,13 @@ final class PdfTextExtractor
             return null;
         }
 
-        $fontArray = $this->pdfArrayFromValue($fontValue, $objects);
+        $fontArray = $this->pdfSingleArrayFromValue($fontValue, $objects);
         if ($fontArray === null) {
             return null;
         }
 
         $items = $this->pdfArrayItems($fontArray);
-        if (count($items) < 2 || !str_starts_with(trim($items[0]), '/')) {
+        if (count($items) !== 2 || !str_starts_with(trim($items[0]), '/')) {
             return null;
         }
 
@@ -15110,6 +15407,51 @@ final class PdfTextExtractor
         ];
     }
 
+    private function streamPayloadStartOffset(string $value, int $offset): int
+    {
+        $lineEndingEnd = $this->streamHeaderLineEndingEndOffset($value, $offset);
+        if ($lineEndingEnd !== null) {
+            return $lineEndingEnd;
+        }
+
+        $index = $offset;
+        $length = strlen($value);
+        while ($index < $length) {
+            $char = $value[$index];
+            if ($char === ' ' || $char === "\t" || $char === "\0" || $char === "\f") {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($value, $index);
+                continue;
+            }
+
+            $lineEndingEnd = $this->streamHeaderLineEndingEndOffset($value, $index);
+            if ($lineEndingEnd !== null) {
+                return $lineEndingEnd;
+            }
+
+            break;
+        }
+
+        return $offset;
+    }
+
+    private function streamHeaderLineEndingEndOffset(string $value, int $offset): ?int
+    {
+        if (substr($value, $offset, 2) === "\r\n") {
+            return $offset + 2;
+        }
+
+        if (($value[$offset] ?? '') === "\n" || ($value[$offset] ?? '') === "\r") {
+            return $offset + 1;
+        }
+
+        return null;
+    }
+
     /**
      * @param array<int, string> $objects
      */
@@ -15439,12 +15781,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $streamStart = $streamKeywordOffset + strlen('stream');
-        if (substr($value, $streamStart, 2) === "\r\n") {
-            $streamStart += 2;
-        } elseif (($value[$streamStart] ?? '') === "\n" || ($value[$streamStart] ?? '') === "\r") {
-            $streamStart++;
-        }
+        $streamStart = $this->streamPayloadStartOffset($value, $streamKeywordOffset + strlen('stream'));
 
         $stream = $this->streamPayloadAt($value, $streamStart, $dict, $objects);
         if ($stream === null) {
@@ -20272,6 +20609,10 @@ final class PdfTextExtractor
     {
         $value = $this->topLevelPdfLastValueAfterName($objectBody, 'Resources');
         if ($value === null) {
+            return null;
+        }
+
+        if ($this->topLevelDirectDictionaryValueHasTrailingNonName($objectBody, 'Resources')) {
             return null;
         }
 
@@ -34755,6 +35096,9 @@ final class PdfTextExtractor
             if (($tokens[$index]['type'] ?? null) !== 'hex' || ($tokens[$index + 1]['type'] ?? null) !== 'integer') {
                 continue;
             }
+            if (!$this->cMapSourceCodeTokenIsBounded($tokens[$index]['value'])) {
+                continue;
+            }
 
             $rows[] = [
                 'source' => $tokens[$index]['value'],
@@ -34868,6 +35212,12 @@ final class PdfTextExtractor
             ) {
                 continue;
             }
+            if (
+                !$this->cMapSourceCodeTokenIsBounded($tokens[$index]['value'])
+                || !$this->cMapSourceCodeTokenIsBounded($tokens[$index + 1]['value'])
+            ) {
+                continue;
+            }
 
             $ranges[] = [
                 'start' => $tokens[$index]['value'],
@@ -34890,6 +35240,13 @@ final class PdfTextExtractor
         }
 
         return $this->cMapCidRangeRowsFromTokens($tokens);
+    }
+
+    private function cMapSourceCodeTokenIsBounded(string $hex): bool
+    {
+        $source = $this->normalizeHexKey($hex);
+
+        return $source !== '' && strlen($source) <= 8;
     }
 
     /**
@@ -34918,7 +35275,7 @@ final class PdfTextExtractor
         foreach ($entries as $entry) {
             $source = $this->normalizeHexKey($entry['source']);
             $cid = $entry['cid'];
-            if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
+            if ($source !== '' && strlen($source) <= 8 && $cid >= 0 && $cid <= 0xffff) {
                 if (
                     !$overwrite
                     && (
@@ -34970,7 +35327,7 @@ final class PdfTextExtractor
             $last = hexdec($end);
             $cid = $range['cid'];
             $sourceWidth = strlen($start);
-            if ($cid < 0 || $cid > 0xffff || $source < 0 || $last < $source) {
+            if ($cid < 0 || $cid > 0xffff || $sourceWidth > 8 || $source < 0 || $last < $source) {
                 continue;
             }
             $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);

@@ -1305,7 +1305,7 @@ final class PdfOutlineExtractor
             }
 
             $outlineContext = $this->outlineActionStructureContext($dict, $objects);
-            if (array_key_exists('A', $dict)) {
+            if (array_key_exists('A', $dict) && !$this->outlineObjectDictionaryKeyHasTrailingOperands($current, 'A')) {
                 $seenActions = [];
                 $actions = $this->reviewActionsFromValue($dict['A'], $objects, $pageIndexes, $destinations, $seenActions);
                 $seenTargetContext = [];
@@ -1346,7 +1346,7 @@ final class PdfOutlineExtractor
                     }
                 }
             } else {
-                $destination = $this->outlineDestination($dict, $objects);
+                $destination = $this->outlineDestination($dict, $objects, $current);
                 $destinationAction = $this->destinationActionReviewValue($destination['value'], $objects, $destinations, $destination['name']);
                 if ($destinationAction !== null) {
                     $seenTargetContext = [];
@@ -4096,7 +4096,7 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            $destination = $this->outlineDestination($dict, $objects);
+            $destination = $this->outlineDestination($dict, $objects, $current);
             $page = $this->destinationPageIndex($destination['value'], $objects, $pageIndexes, $destinations);
             if ($page !== null) {
                 $items[] = [
@@ -4197,7 +4197,7 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            $destination = $this->outlineDestination($dict, $objects);
+            $destination = $this->outlineDestination($dict, $objects, $current);
             $details = $this->destinationViewDetails(
                 $destination['value'],
                 $objects,
@@ -4313,7 +4313,7 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            $destination = $this->outlineDestination($dict, $objects);
+            $destination = $this->outlineDestination($dict, $objects, $current);
             $details = $this->destinationViewDetails(
                 $destination['value'],
                 $objects,
@@ -4753,7 +4753,7 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            $target = $this->remoteGoToActionTarget($dict, $objects, $destinations);
+            $target = $this->remoteGoToActionTarget($dict, $objects, $destinations, $current);
             if ($target !== null) {
                 $row = [
                     'title' => $title,
@@ -4804,11 +4804,19 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $destinations
      * @return array{file: string, destination: string|null, page: int|null, new_window: bool|null}|null
      */
-    private function remoteGoToActionTarget(array $outline, array $objects, array $destinations): ?array
+    private function remoteGoToActionTarget(array $outline, array $objects, array $destinations, ?int $outlineObject = null): ?array
     {
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'A')) {
+            return null;
+        }
+
         $action = $this->resolveDictionary($outline['A'] ?? null, $objects);
         if ($action !== null && $this->nameValue($action['S'] ?? null) === 'GoToR') {
             return $this->remoteGoToTargetFromAction($action, $objects);
+        }
+
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Dest')) {
+            return null;
         }
 
         if (array_key_exists('Dest', $outline)) {
@@ -5887,13 +5895,21 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @return array{name: string|null, value: mixed}
      */
-    private function outlineDestination(array $outline, array $objects): array
+    private function outlineDestination(array $outline, array $objects, ?int $outlineObject = null): array
     {
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Dest')) {
+            return ['name' => null, 'value' => null];
+        }
+
         if (array_key_exists('Dest', $outline)) {
             return [
                 'name' => $this->destinationNameValue($outline['Dest'], $objects),
                 'value' => $outline['Dest'],
             ];
+        }
+
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'A')) {
+            return ['name' => null, 'value' => null];
         }
 
         $action = $this->resolveDictionary($outline['A'] ?? null, $objects);

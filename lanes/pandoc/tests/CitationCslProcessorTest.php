@@ -11250,6 +11250,86 @@ XML);
             ],
         ]]));
     },
+    'maps bounded biblatex custom literal list fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@misc{custom-list-review,
+  author = {Ng, Nia},
+  title  = {Custom List Packet},
+  date   = {2026},
+  lista  = {migration batch and review desk and {WordPress import}},
+  listc  = {\mkbibemph{archive queue} and internal QA},
+  listf  = {source preserved}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same([
+            'lista' => ['migration batch', 'review desk', 'WordPress import'],
+            'listc' => ['archive queue', 'internal QA'],
+            'listf' => ['source preserved'],
+        ], $items[0]['biblatex-custom-lists'] ?? null);
+        $t->same('\\mkbibemph{archive queue} and internal QA', $items[0]['rawBibtex']['fields']['listc'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('custom-list-review');
+        $t->same(['migration batch', 'review desk', 'WordPress import'], $item['biblatexCustomLists']['lista'] ?? null);
+        $t->same(['archive queue', 'internal QA'], $item['biblatexCustomLists']['listc'] ?? null);
+        $t->same('lista: migration batch; review desk; WordPress import; listc: archive queue; internal QA; listf: source preserved', $item['biblatexCustomListSummary'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('custom-list-review', '[@custom-list-review]')]));
+        $t->same(
+            'Ng, Nia. Custom List Packet. 2026. BibLaTeX custom lists: lista: migration batch; review desk; WordPress import; listc: archive queue; internal QA; listf: source preserved.',
+            $processor->renderBibliographyEntry('custom-list-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="lista"/>
+        <text variable="listc"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-custom-list-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Ng | migration batch; review desk; WordPress import | archive queue; internal QA', $styled->renderCitationCluster([$citation('custom-list-review', '[@custom-list-review]')]));
+        $t->same('Custom List Packet :: lista: migration batch; review desk; WordPress import; listc: archive queue; internal QA; listf: source preserved', $styled->renderBibliographyEntry('custom-list-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-custom-list',
+            'title' => 'Manual Custom List Packet',
+            'biblatex-custom-lists' => [
+                'listb' => ['Direct review queue', 'Block import'],
+                'liste' => 'fallback, media audit',
+            ],
+        ]]);
+        $directItem = $direct->item('manual-custom-list');
+        $t->same(['Direct review queue', 'Block import'], $directItem['biblatexCustomLists']['listb'] ?? null);
+        $t->same(['fallback', 'media audit'], $directItem['biblatexCustomLists']['liste'] ?? null);
+        $t->same('Manual Custom List Packet. BibLaTeX custom lists: listb: Direct review queue; Block import; liste: fallback; media audit.', $direct->renderBibliographyEntry('manual-custom-list'));
+
+        $document = (new MarkdownReader())->read('Custom list source @custom-list-review preserves reviewer list fields.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Custom list source Ng (2026) preserves reviewer list fields.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Custom List Packet. 2026. BibLaTeX custom lists: lista: migration batch; review desk; WordPress import; listc: archive queue; internal QA; listf: source preserved.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-custom-list',
+            'biblatex-custom-lists' => [
+                'lista' => [['not scalar']],
+            ],
+        ]]));
+    },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
@@ -11563,6 +11643,101 @@ XML);
   </citation>
 </style>
 XML));
+    },
+    'preserves bounded csl note-style context metadata for citation handoff' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'footnote-source',
+                'type' => 'report',
+                'title' => 'Footnote Source Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'endnote-source',
+                'type' => 'report',
+                'title' => 'Endnote Source Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note" default-locale="en-US">
+  <info>
+    <title>Bounded Note Style Context Review</title>
+    <id>https://example.test/styles/bounded-note-style-context-review</id>
+    <updated>2026-06-07T21:45:49+00:00</updated>
+  </info>
+  <citation near-note-distance="3">
+    <layout delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Footnote review']),
+                new AstNode('note', [], [
+                    new AstNode('paragraph', [], [
+                        new AstNode('text', ['text' => 'Footnote cites ']),
+                        new AstNode('citation', ['id' => 'footnote-source', 'text' => '[@footnote-source]']),
+                        new AstNode('text', ['text' => '.']),
+                    ]),
+                ]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Endnote review']),
+                new AstNode('note', ['sourceType' => 'endnote', 'noteIndex' => 7], [
+                    new AstNode('paragraph', [], [
+                        new AstNode('text', ['text' => 'Endnote cites ']),
+                        new AstNode('citation', ['id' => 'endnote-source', 'text' => '[@endnote-source]']),
+                        new AstNode('text', ['text' => '.']),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citations = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citations): void {
+            if ($node->type === 'citation') {
+                $citations[(string) $node->attr('id', '')] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+
+        $t->same('note', $processor->cslStyleSummary()['class'] ?? null);
+        $t->same('note', $citations['footnote-source']->attr('cslStyleClass'));
+        $t->same(1, $citations['footnote-source']->attr('cslNoteIndex'));
+        $t->same('footnote', $citations['footnote-source']->attr('cslNoteType'));
+        $t->same('first', $citations['footnote-source']->attr('cslPosition'));
+        $t->same('note', $citations['endnote-source']->attr('cslStyleClass'));
+        $t->same(7, $citations['endnote-source']->attr('cslNoteIndex'));
+        $t->same('endnote', $citations['endnote-source']->attr('cslNoteType'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<li id="fn-1"><p>Footnote cites Smith, 2026.</p>', $blocks);
+        $t->contains('<li id="fn-2"><p>Endnote cites Ng, 2025.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Footnote Source Packet.</dd>', $blocks);
     },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));

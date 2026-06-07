@@ -387,6 +387,7 @@ final class DocTemplate
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
+            'default.context' => $this->defaultContextTemplate(),
             'default.man' => $this->defaultManTemplate(),
             'default.ms' => $this->defaultMsTemplate(),
             'default.openxml' => $this->defaultOpenXmlTemplate(),
@@ -419,6 +420,7 @@ final class DocTemplate
             'default.asciidoc',
             'default.latex',
             'default.beamer',
+            'default.context',
             'default.man',
             'default.ms',
             'default.openxml',
@@ -596,6 +598,157 @@ $include-after$
 $endfor$
 \end{document}
 LATEX;
+    }
+
+    private function defaultContextTemplate(): string
+    {
+        return <<<'CONTEXT'
+$if(tagging)$
+\setupbackend[format=pdf/ua-2]
+\enabledirectives[backend.usetags=mkiv]
+\setuptagging[state=start]
+$endif$
+$if(context-lang)$
+\mainlanguage[$context-lang$]
+$endif$
+$if(context-dir)$
+\setupalign[$context-dir$]
+\setupdirections[bidi=on,method=two]
+$endif$
+\setupinteraction
+  [state=start,
+$if(title)$
+  title={$title$},
+$endif$
+$if(subtitle)$
+  subtitle={$subtitle$},
+$endif$
+$if(author)$
+  author={$for(author)$$author$$sep$; $endfor$},
+$endif$
+$if(keywords)$
+  keyword={$for(keywords)$$keywords$$sep$; $endfor$},
+$endif$
+  style=$linkstyle$,
+  color=$linkcolor$,
+  contrastcolor=$linkcontrastcolor$]
+\setupurl[style=$urlstyle$]
+\placebookmarks[chapter, section, subsection, subsubsection][chapter, section]
+\setupinteractionscreen[option={bookmark,title}]
+$if(papersize)$
+\setuppapersize[$for(papersize)$$papersize$$sep$,$endfor$]
+$endif$
+$if(layout)$
+\setuplayout[$for(layout)$$layout$$sep$,$endfor$]
+$endif$
+$if(pagenumbering)$
+\setuppagenumbering[$for(pagenumbering)$$pagenumbering$$sep$,$endfor$]
+$else$
+\setuppagenumbering[location={footer,middle}]
+$endif$
+$if(pdfa)$
+\setupbackend
+  [format=PDF/A-$pdfa$,
+   profile={$if(pdfaiccprofile)$$for(pdfaiccprofile)$$pdfaiccprofile$$sep$,$endfor$$else$sRGB.icc$endif$},
+   intent=$if(pdfaintent)$$pdfaintent$$else$sRGB IEC61966-2.1$endif$]
+$endif$
+\setupstructure[state=start,method=auto]
+$for(mainfontfallback)$
+\definefallbackfamily[mainface][rm][$mainfontfallback/nowrap$][range=0x0000-0xFFFF, check=yes, force=no]
+$endfor$
+\definefontfamily[mainface][rm][$if(mainfont)$$mainfont/nowrap$$else$Latin Modern Roman$endif$]
+\definefontfamily[mainface][mm][$if(mathfont)$$mathfont/nowrap$$else$Latin Modern Math$endif$]
+\definefontfamily[mainface][ss][$if(sansfont)$$sansfont/nowrap$$else$Latin Modern Sans$endif$]
+\definefontfamily[mainface][tt][$if(monofont)$$monofont/nowrap$$else$Latin Modern Typewriter$endif$][features=none]
+\setupbodyfont[mainface$if(fontsize)$,$fontsize$$endif$]
+\setupwhitespace[$if(whitespace)$$whitespace$$else$medium$endif$]
+$if(indenting)$
+\setupindenting[$for(indenting)$$indenting$$sep$,$endfor$]
+$endif$
+$if(interlinespace)$
+\setupinterlinespace[$for(interlinespace)$$interlinespace$$sep$,$endfor$]
+$endif$
+$if(headertext)$
+\setupheadertexts$for(headertext)$[$headertext$]$endfor$
+$endif$
+$if(footertext)$
+\setupfootertexts$for(footertext)$[$footertext$]$endfor$
+$endif$
+$if(number-sections)$
+$else$
+\setuphead[chapter, section, subsection, subsubsection][number=no]
+$endif$
+$if(emphasis-commands)$
+$emphasis-commands$
+$endif$
+$if(highlighting-commands)$
+$highlighting-commands$
+$endif$
+$if(csl-refs)$
+\definemeasure[cslhangindent][1.5em]
+\definenarrower[hangingreferences][left=\measure{cslhangindent}]
+\definestartstop [cslreferences] [
+$if(csl-hanging-indent)$
+  before={\starthangingreferences[left]},
+  after=\stophangingreferences,
+$endif$
+]
+$endif$
+$if(includesource)$
+$for(sourcefile)$
+\attachment[file=$curdir$/$sourcefile$,method=hidden]
+$endfor$
+$endif$
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\starttext
+$if(title)$
+\startalignment[middle]
+  {\tfd\setupinterlinespace $title$}
+$if(subtitle)$
+  \smallskip
+  {\tfa\setupinterlinespace $subtitle$}
+$endif$
+$if(author)$
+  \smallskip
+  {\tfa\setupinterlinespace $for(author)$$author$$sep$\crlf $endfor$}
+$endif$
+$if(date)$
+  \smallskip
+  {\tfa\setupinterlinespace $date$}
+$endif$
+  \bigskip
+\stopalignment
+$endif$
+$if(abstract)$
+\midaligned{\it Abstract}
+\startnarrower[2*middle]
+$abstract$
+\stopnarrower
+\blank[big]
+$endif$
+$for(include-before)$
+$include-before$
+$endfor$
+$if(toc)$
+\completecontent
+$endif$
+$if(lof)$
+\completelistoffigures
+$endif$
+$if(lot)$
+\completelistoftables
+$endif$
+
+$body$
+
+$for(include-after)$
+$include-after$
+$endfor$
+\stoptext
+CONTEXT;
     }
 
     private function defaultManTemplate(): string

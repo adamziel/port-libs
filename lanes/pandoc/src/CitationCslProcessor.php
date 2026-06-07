@@ -181,6 +181,7 @@ final class CitationCslProcessor
                 'citation',
                 [
                     ...$citation->attrs,
+                    'cslStyleClass' => $this->style->styleClass(),
                     'rendered' => $this->sourceCitationText($citation),
                     'missingCslItem' => true,
                 ],
@@ -194,6 +195,7 @@ final class CitationCslProcessor
             'citation',
             [
                 ...$citation->attrs,
+                'cslStyleClass' => $this->style->styleClass(),
                 'rendered' => $this->renderCitationCluster([$citation]),
                 'cslLabel' => $this->citationAuthorLabel($item, $citation),
                 'cslYear' => $this->citationYear($item),
@@ -719,6 +721,7 @@ final class CitationCslProcessor
             'event-date' => $eventDate,
         ]);
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
+        $biblatexCustomLists = self::biblatexCustomLists($item, $id);
 
         return [
             'id' => $id,
@@ -827,6 +830,8 @@ final class CitationCslProcessor
             'dateTimeSummary' => $dateTimeSummary,
             'biblatexCustomFields' => $biblatexCustomFields,
             'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
+            'biblatexCustomLists' => $biblatexCustomLists,
+            'biblatexCustomListSummary' => self::biblatexCustomListSummary($biblatexCustomLists),
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
@@ -1060,6 +1065,83 @@ final class CitationCslProcessor
         $parts = [];
         foreach (self::orderedBiblatexCustomFields($fields) as $field => $value) {
             $parts[] = $field . ': ' . $value;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, list<string>>
+     */
+    private static function biblatexCustomLists(array $item, string $id): array
+    {
+        $lists = [];
+        $value = $item['biblatex-custom-lists'] ?? $item['biblatexCustomLists'] ?? null;
+        if ($value !== null && $value !== []) {
+            if (!is_array($value) || array_is_list($value)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-lists must be an object map');
+            }
+
+            foreach ($value as $field => $fieldValue) {
+                $field = strtolower(trim((string) $field));
+                if (!in_array($field, self::biblatexCustomListNames(), true)) {
+                    throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-lists contains unsupported field ' . $field);
+                }
+
+                $fieldValues = self::stringListValue($fieldValue, 'biblatex-custom-lists.' . $field);
+                if ($fieldValues !== []) {
+                    $lists[$field] = $fieldValues;
+                }
+            }
+        }
+
+        foreach (self::biblatexCustomListNames() as $field) {
+            if (!array_key_exists($field, $item)) {
+                continue;
+            }
+
+            $fieldValues = self::stringListValue($item[$field], $field);
+            if ($fieldValues !== []) {
+                $lists[$field] = $fieldValues;
+            }
+        }
+
+        return self::orderedBiblatexCustomLists($lists);
+    }
+
+    /**
+     * @param array<string, list<string>> $lists
+     * @return array<string, list<string>>
+     */
+    private static function orderedBiblatexCustomLists(array $lists): array
+    {
+        $ordered = [];
+        foreach (self::biblatexCustomListNames() as $field) {
+            if (isset($lists[$field]) && $lists[$field] !== []) {
+                $ordered[$field] = $lists[$field];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function biblatexCustomListNames(): array
+    {
+        return ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
+    }
+
+    /**
+     * @param array<string, list<string>> $lists
+     */
+    private static function biblatexCustomListSummary(array $lists): string
+    {
+        $parts = [];
+        foreach (self::orderedBiblatexCustomLists($lists) as $field => $values) {
+            $parts[] = $field . ': ' . implode('; ', $values);
         }
 
         return implode('; ', $parts);
@@ -1839,11 +1921,18 @@ final class CitationCslProcessor
     {
         $info = $this->citationPositionInfo($citation, $noteContext);
         $position = $this->citationPositionForInfo($info, $state, $previousInUnit, $firstInUnit);
-        $annotated = new AstNode('citation', [
+        $attrs = [
             ...$citation->attrs,
+            'cslStyleClass' => $this->style->styleClass(),
             'cslPosition' => $position['position'],
             'cslPositionTests' => $position['tests'],
-        ], $citation->children);
+        ];
+        if (is_int($info['noteIndex'])) {
+            $attrs['cslNoteIndex'] = $info['noteIndex'];
+            $attrs['cslNoteType'] = $info['noteType'];
+        }
+
+        $annotated = new AstNode('citation', $attrs, $citation->children);
 
         if ($info['id'] !== '') {
             $state['seenIds'][$info['id']] = true;
@@ -4389,6 +4478,11 @@ final class CitationCslProcessor
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
         }
 
+        $customListSummary = trim((string) ($item['biblatexCustomListSummary'] ?? ''));
+        if ($customListSummary !== '') {
+            $parts[] = 'BibLaTeX custom lists: ' . $this->withTerminalPunctuation($customListSummary);
+        }
+
         return $parts;
     }
 
@@ -5884,6 +5978,8 @@ final class CitationCslProcessor
             'original-end-time' => $this->dateEndTimeForVariable($item, 'original-date'),
             'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),
             'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
+            'biblatex-custom-lists', 'biblatex-custom-list-summary', 'biblatex-custom-lists-summary' => (string) ($item['biblatexCustomListSummary'] ?? ''),
+            'lista', 'listb', 'listc', 'listd', 'liste', 'listf' => $this->biblatexCustomListValue($item, $normalized),
             'issued-status', 'issued-date-status' => $this->dateMarkerStatusForVariable($item, 'issued'),
             'accessed-status', 'accessed-date-status' => $this->dateMarkerStatusForVariable($item, 'accessed'),
             'event-date-status' => $this->dateMarkerStatusForVariable($item, 'event-date'),
@@ -5957,6 +6053,30 @@ final class CitationCslProcessor
         $value = $fields[$field] ?? '';
 
         return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function biblatexCustomListValue(array $item, string $field): string
+    {
+        $lists = $item['biblatexCustomLists'] ?? [];
+        if (!is_array($lists)) {
+            return '';
+        }
+
+        $values = $lists[$field] ?? [];
+        if (!is_array($values)) {
+            return '';
+        }
+
+        return implode('; ', array_values(array_filter(
+            array_map(
+                static fn (mixed $value): string => is_scalar($value) ? trim((string) $value) : '',
+                $values
+            ),
+            static fn (string $value): bool => $value !== ''
+        )));
     }
 
     /**

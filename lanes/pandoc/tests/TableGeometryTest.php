@@ -1496,6 +1496,42 @@ return [
         $t->same(2, $bodySummary['missingRowCount'] ?? null);
         $t->same(3, $bodySummary['maxVisualWidth'] ?? null);
         $t->same(false, $bodySummary['completeRectangle'] ?? null);
+        $t->same([1, 1, 1, 1], $headSummary['columnSlotCounts'] ?? null);
+        $t->same([1, 0, 1, 0], $headSummary['columnCellCounts'] ?? null);
+        $t->same([0, 1, 0, 0], $headSummary['columnCoveredSlotCounts'] ?? null);
+        $t->same([0, 0, 0, 1], $headSummary['columnMissingSlotCounts'] ?? null);
+        $t->same(3, $headSummary['completeColumnCount'] ?? null);
+        $t->same(1, $headSummary['incompleteColumnCount'] ?? null);
+        $t->same(1, $headSummary['coveredColumnCount'] ?? null);
+        $t->same(1, $headSummary['missingColumnCount'] ?? null);
+        $t->same([
+            'column' => 1,
+            'slotCount' => 1,
+            'cellCount' => 0,
+            'headerCellCount' => 0,
+            'dataCellCount' => 0,
+            'coveredSlotCount' => 1,
+            'missingSlotCount' => 0,
+            'occupiedSlotCount' => 1,
+            'complete' => true,
+            'hasCells' => false,
+            'hasHeaderCells' => false,
+            'hasDataCells' => false,
+            'hasCoveredSlots' => true,
+            'hasMissingSlots' => false,
+            'rows' => [0],
+            'globalRows' => [0],
+            'cellRows' => [],
+            'coveredRows' => [0],
+            'missingRows' => [],
+        ], $headSummary['columnSummaries'][1] ?? null);
+        $t->same([1, 0, 2, 0], $bodySummary['columnCellCounts'] ?? null);
+        $t->same([1, 2, 0, 0], $bodySummary['columnCoveredSlotCounts'] ?? null);
+        $t->same([0, 0, 0, 2], $bodySummary['columnMissingSlotCounts'] ?? null);
+        $t->same(3, $bodySummary['completeColumnCount'] ?? null);
+        $t->same(1, $bodySummary['incompleteColumnCount'] ?? null);
+        $t->same(2, $bodySummary['coveredColumnCount'] ?? null);
+        $t->same(1, $bodySummary['missingColumnCount'] ?? null);
 
         $t->same(0, $packet['summary']['completeRowCount'] ?? null);
         $t->same(3, $packet['summary']['incompleteRowCount'] ?? null);
@@ -1506,6 +1542,38 @@ return [
         $t->same(true, $packet['summary']['hasIncompleteRows'] ?? null);
         $t->same(true, $packet['summary']['hasCoveredRows'] ?? null);
         $t->same(true, $packet['summary']['hasMissingRows'] ?? null);
+        $t->same([3, 3, 3, 3], $packet['summary']['columnSlotCounts'] ?? null);
+        $t->same([2, 0, 3, 0], $packet['summary']['columnCellCounts'] ?? null);
+        $t->same([1, 0, 1, 0], $packet['summary']['columnHeaderCellCounts'] ?? null);
+        $t->same([1, 0, 2, 0], $packet['summary']['columnDataCellCounts'] ?? null);
+        $t->same([1, 3, 0, 0], $packet['summary']['columnCoveredSlotCounts'] ?? null);
+        $t->same([0, 0, 0, 3], $packet['summary']['columnMissingSlotCounts'] ?? null);
+        $t->same(3, $packet['summary']['completeColumnCount'] ?? null);
+        $t->same(1, $packet['summary']['incompleteColumnCount'] ?? null);
+        $t->same(2, $packet['summary']['coveredColumnCount'] ?? null);
+        $t->same(1, $packet['summary']['missingColumnCount'] ?? null);
+        $t->same(3, $packet['summary']['maxColumnCellCount'] ?? null);
+        $t->same([
+            'column' => 3,
+            'slotCount' => 3,
+            'cellCount' => 0,
+            'headerCellCount' => 0,
+            'dataCellCount' => 0,
+            'coveredSlotCount' => 0,
+            'missingSlotCount' => 3,
+            'occupiedSlotCount' => 0,
+            'complete' => false,
+            'hasCells' => false,
+            'hasHeaderCells' => false,
+            'hasDataCells' => false,
+            'hasCoveredSlots' => false,
+            'hasMissingSlots' => true,
+            'rows' => [0, 1, 2],
+            'globalRows' => [0, 1, 2],
+            'cellRows' => [],
+            'coveredRows' => [],
+            'missingRows' => [0, 1, 2],
+        ], $packet['summary']['columnSummaries'][3] ?? null);
 
         $completePacket = TableGeometry::reviewPacket($buildSpannedTableDocument()->children[0], ['accessibility' => false]);
         $t->same([true, true], array_map(static fn (array $section): bool => (bool) ($section['summary']['completeRectangle'] ?? false), $completePacket['sections']));
@@ -1514,6 +1582,8 @@ return [
         $t->same(0, $completePacket['summary']['incompleteRowCount'] ?? null);
         $t->same(true, $completePacket['summary']['completeRectangle'] ?? null);
         $t->same(false, $completePacket['summary']['hasMissingRows'] ?? null);
+        $t->same(3, $completePacket['summary']['completeColumnCount'] ?? null);
+        $t->same(0, $completePacket['summary']['incompleteColumnCount'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($completePacket, JSON_THROW_ON_ERROR);
     },
