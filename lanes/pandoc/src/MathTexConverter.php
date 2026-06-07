@@ -1491,6 +1491,10 @@ final class MathTexConverter
             return $this->parseEquationReferenceCommand($source, $offset, $command);
         }
 
+        if ($command === 'hyperref') {
+            return $this->parseHyperrefCommand($source, $offset);
+        }
+
         if ($command === 'not') {
             return $this->parseNotCommand($source, $offset);
         }
@@ -2551,6 +2555,21 @@ final class MathTexConverter
         }
 
         return $reference;
+    }
+
+    private function parseHyperrefCommand(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '[') {
+            $argument = $this->readTexBracketArgument($source, $offset);
+            if ($argument === null) {
+                throw new \InvalidArgumentException('Unterminated TeX hyperref target at offset ' . $offset);
+            }
+
+            $offset = $argument['next'];
+        }
+
+        return $this->parseRequiredNonEmptyGroup($source, $offset, 'hyperref content');
     }
 
     private function parseNotCommand(string $source, int &$offset): string

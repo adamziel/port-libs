@@ -119,6 +119,8 @@ Equation reference audit $\label{eq:plain}x_i + \eqref{eq:plain} + \ref{review r
 
 Resolved equation reference audit $\eqref{eq:review-flow} + \eqref{eq:row-review}$ keeps known tags.
 
+Hyperref wrapper audit $\hyperref[eq:review-flow]{p_i + m_i} + \hyperref{q_i}$ stays semantic.
+
 Automatic numbering audit:
 $$p_i + m_i \label{eq:auto-one}$$
 
@@ -213,6 +215,7 @@ $summary = [
     'equationReferenceMathml' => $converter->texToMathMl('\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}', true),
     'equationReferenceLabels' => $equationReferenceLabels,
     'resolvedEquationReferenceMathml' => $converter->texToMathMl('\\eqref{eq:review-flow} + \\eqref{eq:row-review}', false, [], $equationReferenceLabels),
+    'hyperrefMathml' => $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}'),
     'automaticNumberReferenceMathml' => $converter->texToMathMl('\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}', false, [], $equationReferenceLabels),
     'accessibleMathml' => $converter->texToAccessibleMathMl('\\frac{a_1}{\\sqrt{b^2}} + \\alpha', true),
 ];
@@ -250,6 +253,10 @@ if (($argv[1] ?? '') === '--self-test') {
 
     if (str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\bm</mi>') || str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\mathbfit</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted texmath math alphabet aliases as literal identifiers');
+    }
+
+    if (str_contains($summary['hyperrefMathml'], '<mi>\\hyperref</mi>') || str_contains($summary['hyperrefMathml'], '<mo>[</mo><mi>e</mi><mi>q</mi>')) {
+        throw new RuntimeException('Math TeX handoff self-test emitted hyperref target syntax as rendered MathML');
     }
 
     $mathSymbol = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -308,6 +315,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math display">\\[p_i + m_i \\label{eq:auto-one}\\]</span>',
         '<span class="math display">\\[\\begin{align}x_i &amp;= y_i \\label{eq:auto-row} \\\\ u_i &amp;= v_i \\tag{manual}\\end{align}\\]</span>',
         '<span class="math inline">\\(\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}\\)</span>',
+        '<span class="math inline">\\(\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}\\)</span>',
         '<span class="math inline">\\(\\frac{a_1}{\\sqrt{b^2}} + \\alpha\\)</span>',
         '<mo>⟨</mo>',
         '<mo>⟩</mo>',
@@ -501,6 +509,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mrow><mo>(</mo><mtext href="#eq:review-flow">WP-2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:row-review">review</mtext><mo>)</mo></mrow>',
         '<annotation encoding="application/x-tex">\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}</annotation>',
         '<mrow><mo>(</mo><mtext href="#eq:auto-one">1</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:auto-row">2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:plain">eq:plain</mtext><mo>)</mo></mrow>',
+        '<annotation encoding="application/x-tex">\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}</annotation>',
+        '<mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub>',
         'display="block" alttext="fraction a sub 1 over square root of b superscript 2 plus alpha" intent="row(fraction(subscript(a,1),sqrt(superscript(b,2))),plus,alpha)"',
         '<annotation encoding="application/x-portlibs-math-alttext">fraction a sub 1 over square root of b superscript 2 plus alpha</annotation>',
         '<annotation encoding="application/x-portlibs-math-intent">row(fraction(subscript(a,1),sqrt(superscript(b,2))),plus,alpha)</annotation>',

@@ -51,6 +51,31 @@ return [
         $t->contains('alttext="p sub i over audit plus square root of x"', $accessibleMathml);
         $t->contains('intent="row(over(subscript(p,i),audit),plus,sqrt(x))"', $accessibleMathml);
     },
+    'unwraps bounded tex hyperref wrappers for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $mathml = $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}', true);
+        $resolvedMathml = $converter->texToMathMl('\\hyperref[eq:review-flow]{\\eqref{eq:review-flow} + x}', false, [], [
+            'eq:review-flow' => [
+                'label' => 'eq:review-flow',
+                'reference' => 'WP-2',
+                'tag' => 'WP-2',
+            ],
+        ]);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\hyperref[review]{x+y}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}</annotation>', $mathml);
+        $t->true(!str_contains($mathml, '<mi>\\hyperref</mi>'));
+        $t->true(!str_contains($mathml, '<mo>[</mo><mi>e</mi><mi>q</mi>'));
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:review-flow">WP-2</mtext><mo>)</mo></mrow><mo>+</mo><mi>x</mi>', $resolvedMathml);
+        $t->contains('alttext="x plus y"', $accessibleMathml);
+        $t->contains('intent="row(x,plus,y)"', $accessibleMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review]'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review]{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review{x}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);
