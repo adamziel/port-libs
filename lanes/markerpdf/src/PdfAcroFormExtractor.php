@@ -9800,7 +9800,106 @@ final class PdfAcroFormExtractor
 
     private function canonicalDictionaryComparisonBody(string $body): string
     {
-        return preg_replace('/\s+/', ' ', trim($body)) ?? trim($body);
+        $dictionaryBody = $this->topLevelDictionaryBody($body) ?? $body;
+        $entries = $this->topLevelDictionaryComparisonEntries($dictionaryBody);
+        if ($entries === []) {
+            return preg_replace('/\s+/', ' ', trim($dictionaryBody)) ?? trim($dictionaryBody);
+        }
+
+        ksort($entries, SORT_STRING);
+        $parts = [];
+        foreach ($entries as $name => $value) {
+            $parts[] = '/' . $name . ' ' . $this->canonicalPdfComparisonValue($value);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * PDF dictionaries are unordered, and keys may use #xx name escapes. Use the
+     * last top-level value for duplicate keys to mirror the existing extractor
+     * boundary helpers.
+     *
+     * @return array<string, string>
+     */
+    private function topLevelDictionaryComparisonEntries(string $body): array
+    {
+        $entries = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($body, $offset);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($body, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '/') {
+                $nameEnd = $this->skipPdfName($body, $offset);
+                $name = $this->decodePdfName(substr($body, $offset, $nameEnd - $offset));
+                $valueStart = $nameEnd;
+                $this->skipWhitespace($body, $valueStart);
+                $valueEnd = null;
+                $value = $this->readPdfValueAt($body, $valueStart, $valueEnd);
+                if ($value !== null && $valueEnd !== null) {
+                    $entries[$name] = $value;
+                }
+
+                $offset = $valueEnd !== null && $valueEnd > $nameEnd ? $valueEnd : $nameEnd;
+                continue;
+            }
+
+            if ($char === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $entries;
+    }
+
+    private function canonicalPdfComparisonValue(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if ($value[0] === '/') {
+            return '/' . $this->decodePdfName($value);
+        }
+
+        if (str_starts_with($value, '<<')) {
+            return '<<' . $this->canonicalDictionaryComparisonBody($value) . '>>';
+        }
+
+        return preg_replace('/\s+/', ' ', $value) ?? $value;
     }
 
     /**
