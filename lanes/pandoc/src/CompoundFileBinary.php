@@ -453,14 +453,15 @@ final class CompoundFileBinary
         $markReserved($difatSectorIds, 'DIFAT');
         $markReserved($this->regularSectorChainIds($this->firstDirectorySector, null, 'directory'), 'directory');
         if (self::isRegularSector($this->firstMiniFatSector) && $this->miniFatSectorCount > 0) {
-            $markReserved(
-                $this->regularSectorChainIds(
-                    $this->firstMiniFatSector,
-                    $this->miniFatSectorCount * $this->sectorSize,
-                    'MiniFAT'
-                ),
+            $miniFatSectorIds = $this->regularSectorChainIds(
+                $this->firstMiniFatSector,
+                $this->miniFatSectorCount * $this->sectorSize,
                 'MiniFAT'
             );
+            if (count($miniFatSectorIds) !== $this->miniFatSectorCount) {
+                throw new \RuntimeException('CFB MiniFAT sector count does not match the MiniFAT chain length');
+            }
+            $markReserved($miniFatSectorIds, 'MiniFAT');
         }
 
         $root = null;

@@ -1715,6 +1715,31 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects overlong CFB MiniFAT chains beyond the declared sector count' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            "\x05SummaryInformation" => 'summary bytes',
+        ]);
+        $sectorSize = 512;
+        $endOfChain = 0xfffffffe;
+        $miniFatStartSector = unpack('Vvalue', substr($bytes, 60, 4))['value'];
+        $extraMiniFatSector = intdiv(strlen($bytes) - $sectorSize, $sectorSize);
+        $overlongMiniFatChain = $bytes . str_repeat("\0", $sectorSize);
+        $overlongMiniFatChain = substr_replace(
+            $overlongMiniFatChain,
+            $u32($extraMiniFatSector),
+            $sectorSize + ((int) $miniFatStartSector * 4),
+            4
+        );
+        $overlongMiniFatChain = substr_replace(
+            $overlongMiniFatChain,
+            $u32($endOfChain),
+            $sectorSize + ($extraMiniFatSector * 4),
+            4
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($overlongMiniFatChain));
+    },
     'rejects small CFB streams when MiniFAT metadata is absent before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Small regular stream must stay guarded\r"),
