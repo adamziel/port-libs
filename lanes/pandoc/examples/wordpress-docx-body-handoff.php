@@ -310,6 +310,15 @@ XML],
       <w:r><w:t>Centered source packet layout remains labeled.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:val="single" w:sz="8" w:space="4" w:color="4F81BD"/>
+          <w:bottom w:val="double" w:sz="12" w:space="6" w:themeColor="accent2" w:themeShade="66"/>
+        </w:pBdr>
+      </w:pPr>
+      <w:r><w:t>Bordered source packet callout remains labeled.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Textbox lead </w:t></w:r>
       <w:r>
         <w:pict>
@@ -1088,6 +1097,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-paragraph-tabs docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-tab-stop-count="2" data-docx-tab-1-val="left" data-docx-tab-1-pos-twips="720" data-docx-tab-2-val="decimal" data-docx-tab-2-pos-twips="1440" data-docx-tab-2-leader="dot" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
+        '<p><span class="docx-paragraph-border docx-border-top docx-border-top-single docx-border-bottom docx-border-bottom-double" data-docx-border-top-val="single" data-docx-border-top-size-eighth-points="8" data-docx-border-top-space-points="4" data-docx-border-top-color="4F81BD" data-docx-border-bottom-val="double" data-docx-border-bottom-size-eighth-points="12" data-docx-border-bottom-space-points="6" data-docx-border-bottom-theme-color="accent2" data-docx-border-bottom-theme-shade="66">Bordered source packet callout remains labeled.</span></p>',
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',

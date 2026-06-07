@@ -1829,6 +1829,7 @@ final class DocxReader
         $this->appendParagraphSpacingMetadata($properties, $classes, $attributes);
         $this->appendParagraphIndentMetadata($properties, $classes, $attributes);
         $this->appendParagraphTabsMetadata($properties, $classes, $attributes);
+        $this->appendParagraphBorderMetadata($properties, $classes, $attributes);
 
         if ($this->hasOnOffChild($properties, 'keepNext')) {
             $classes[] = 'docx-keep-next';
@@ -2130,6 +2131,74 @@ final class DocxReader
                 $attributes['data-docx-tab-' . $index . '-' . $name] = $tabValue;
             }
         }
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphBorderMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $borders = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'pBdr');
+        if (!$borders instanceof \DOMElement) {
+            return;
+        }
+
+        $borderClasses = [];
+        $borderAttributes = [];
+        foreach (['top', 'left', 'bottom', 'right', 'between', 'bar'] as $edge) {
+            $border = $this->firstChildElement($borders, self::WORDPROCESSINGML_NS, $edge);
+            if (!$border instanceof \DOMElement) {
+                continue;
+            }
+
+            $edgeAttributes = [];
+            $value = strtolower(trim((string) ($this->wordAttr($border, 'val') ?? '')));
+            if (in_array($value, ['none', 'nil', '0', 'false', 'off'], true)) {
+                continue;
+            }
+            if ($value !== '') {
+                $edgeAttributes['val'] = $value;
+            }
+
+            foreach ([
+                'sz' => 'size-eighth-points',
+                'space' => 'space-points',
+                'color' => 'color',
+                'themeColor' => 'theme-color',
+                'themeTint' => 'theme-tint',
+                'themeShade' => 'theme-shade',
+                'frame' => 'frame',
+                'shadow' => 'shadow',
+            ] as $source => $target) {
+                $metadata = trim((string) ($this->wordAttr($border, $source) ?? ''));
+                if ($metadata !== '') {
+                    $edgeAttributes[$target] = $metadata;
+                }
+            }
+
+            if ($edgeAttributes === []) {
+                continue;
+            }
+
+            $borderClasses[] = 'docx-border-' . $edge;
+            $suffix = isset($edgeAttributes['val']) ? $this->metadataClassSuffix($edgeAttributes['val']) : null;
+            if ($suffix !== null) {
+                $borderClasses[] = 'docx-border-' . $edge . '-' . $suffix;
+            }
+
+            foreach ($edgeAttributes as $name => $metadata) {
+                $borderAttributes['data-docx-border-' . $edge . '-' . $name] = $metadata;
+            }
+        }
+
+        if ($borderAttributes === []) {
+            return;
+        }
+
+        $classes[] = 'docx-paragraph-border';
+        array_push($classes, ...$borderClasses);
+        $attributes += $borderAttributes;
     }
 
     /**

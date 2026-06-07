@@ -1804,6 +1804,33 @@ $paragraphLayoutDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$paragraphBorderDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:val="single" w:sz="8" w:space="4" w:color="4F81BD"/>
+          <w:left w:val="dashed" w:sz="12" w:space="2" w:themeColor="accent1" w:themeTint="33"/>
+          <w:bottom w:val="double" w:sz="16" w:space="6" w:color="auto"/>
+          <w:right w:val="nil" w:sz="24" w:color="FF0000"/>
+        </w:pBdr>
+      </w:pPr>
+      <w:r><w:t>Bordered review callout.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pBdr>
+          <w:between w:val="dotted" w:sz="6" w:space="1" w:color="999999"/>
+          <w:bar w:val="single" w:sz="10" w:space="3" w:color="C00000" w:shadow="1" w:frame="1"/>
+        </w:pBdr>
+      </w:pPr>
+      <w:r><w:t>Border separator metadata.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -2564,6 +2591,14 @@ $buildParagraphLayoutPackage = static function () use ($contentTypesXml, $packag
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $paragraphLayoutDocumentXml],
+    ]);
+};
+
+$buildParagraphBorderPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $paragraphBorderDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $paragraphBorderDocumentXml],
     ]);
 };
 
@@ -5045,6 +5080,61 @@ return [
         $t->contains('<p><span class="docx-paragraph-align docx-align-both docx-paragraph-spacing docx-paragraph-indent" data-docx-paragraph-align="both" data-docx-spacing-before-lines="100" data-docx-spacing-after-lines="50" data-docx-indent-start-twips="480" data-docx-indent-end-twips="240">Justified source packet paragraph.</span></p>', $blocks);
         $t->contains('<p><span class="docx-paragraph-align docx-align-end" data-docx-paragraph-align="end">Trailing aligned paragraph.</span></p>', $blocks);
         $t->contains('<h2 id="aligned-review-heading"><span class="docx-paragraph-align docx-align-right" data-docx-paragraph-align="right">Aligned review heading</span></h2>', $blocks);
+    },
+    'preserves DOCX paragraph border metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphBorderPackage): void {
+        $document = (new DocxReader())->readDocument($buildParagraphBorderPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $callout = $document->children[0]->children[0];
+        $t->same('span', $callout->type);
+        $t->same([
+            'docx-paragraph-border',
+            'docx-border-top',
+            'docx-border-top-single',
+            'docx-border-left',
+            'docx-border-left-dashed',
+            'docx-border-bottom',
+            'docx-border-bottom-double',
+        ], $callout->attr('classes'));
+        $calloutAttrs = $callout->attr('attributes');
+        $t->same('single', $calloutAttrs['data-docx-border-top-val']);
+        $t->same('8', $calloutAttrs['data-docx-border-top-size-eighth-points']);
+        $t->same('4', $calloutAttrs['data-docx-border-top-space-points']);
+        $t->same('4F81BD', $calloutAttrs['data-docx-border-top-color']);
+        $t->same('dashed', $calloutAttrs['data-docx-border-left-val']);
+        $t->same('accent1', $calloutAttrs['data-docx-border-left-theme-color']);
+        $t->same('33', $calloutAttrs['data-docx-border-left-theme-tint']);
+        $t->same('double', $calloutAttrs['data-docx-border-bottom-val']);
+        $t->same('auto', $calloutAttrs['data-docx-border-bottom-color']);
+        $t->true(!isset($calloutAttrs['data-docx-border-right-val']), 'DOCX nil paragraph border should not create reviewer metadata');
+        $t->same('Bordered review callout.', $callout->children[0]->attr('text'));
+
+        $separator = $document->children[1]->children[0];
+        $t->same('span', $separator->type);
+        $t->same([
+            'docx-paragraph-border',
+            'docx-border-between',
+            'docx-border-between-dotted',
+            'docx-border-bar',
+            'docx-border-bar-single',
+        ], $separator->attr('classes'));
+        $separatorAttrs = $separator->attr('attributes');
+        $t->same('dotted', $separatorAttrs['data-docx-border-between-val']);
+        $t->same('6', $separatorAttrs['data-docx-border-between-size-eighth-points']);
+        $t->same('999999', $separatorAttrs['data-docx-border-between-color']);
+        $t->same('single', $separatorAttrs['data-docx-border-bar-val']);
+        $t->same('C00000', $separatorAttrs['data-docx-border-bar-color']);
+        $t->same('1', $separatorAttrs['data-docx-border-bar-frame']);
+        $t->same('1', $separatorAttrs['data-docx-border-bar-shadow']);
+        $t->same('Border separator metadata.', $separator->children[0]->attr('text'));
+
+        $t->contains('[Bordered review callout.]{.docx-paragraph-border .docx-border-top .docx-border-top-single .docx-border-left .docx-border-left-dashed .docx-border-bottom .docx-border-bottom-double data-docx-border-top-val="single" data-docx-border-top-size-eighth-points="8" data-docx-border-top-space-points="4" data-docx-border-top-color="4F81BD" data-docx-border-left-val="dashed" data-docx-border-left-size-eighth-points="12" data-docx-border-left-space-points="2" data-docx-border-left-theme-color="accent1" data-docx-border-left-theme-tint="33" data-docx-border-bottom-val="double" data-docx-border-bottom-size-eighth-points="16" data-docx-border-bottom-space-points="6" data-docx-border-bottom-color="auto"}', $markdown);
+        $t->contains('[Border separator metadata.]{.docx-paragraph-border .docx-border-between .docx-border-between-dotted .docx-border-bar .docx-border-bar-single data-docx-border-between-val="dotted" data-docx-border-between-size-eighth-points="6" data-docx-border-between-space-points="1" data-docx-border-between-color="999999" data-docx-border-bar-val="single" data-docx-border-bar-size-eighth-points="10" data-docx-border-bar-space-points="3" data-docx-border-bar-color="C00000" data-docx-border-bar-frame="1" data-docx-border-bar-shadow="1"}', $markdown);
+        $t->contains('<p><span class="docx-paragraph-border docx-border-top docx-border-top-single docx-border-left docx-border-left-dashed docx-border-bottom docx-border-bottom-double" data-docx-border-top-val="single" data-docx-border-top-size-eighth-points="8" data-docx-border-top-space-points="4" data-docx-border-top-color="4F81BD" data-docx-border-left-val="dashed" data-docx-border-left-size-eighth-points="12" data-docx-border-left-space-points="2" data-docx-border-left-theme-color="accent1" data-docx-border-left-theme-tint="33" data-docx-border-bottom-val="double" data-docx-border-bottom-size-eighth-points="16" data-docx-border-bottom-space-points="6" data-docx-border-bottom-color="auto">Bordered review callout.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-border docx-border-between docx-border-between-dotted docx-border-bar docx-border-bar-single" data-docx-border-between-val="dotted" data-docx-border-between-size-eighth-points="6" data-docx-border-between-space-points="1" data-docx-border-between-color="999999" data-docx-border-bar-val="single" data-docx-border-bar-size-eighth-points="10" data-docx-border-bar-space-points="3" data-docx-border-bar-color="C00000" data-docx-border-bar-frame="1" data-docx-border-bar-shadow="1">Border separator metadata.</span></p>', $blocks);
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();
