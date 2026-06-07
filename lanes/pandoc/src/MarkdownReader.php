@@ -40,6 +40,9 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataDirectiveProvenance = [];
 
+    /** @var list<array<string, string>> */
+    private array $yamlMetadataCommentProvenance = [];
+
     private bool $yamlMetadataInvalid = false;
 
     /** @var array<string, string> */
@@ -518,6 +521,7 @@ final class MarkdownReader
         $previousYamlMetadataDiagnosticPath = $this->yamlMetadataDiagnosticPath;
         $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
         $previousYamlMetadataDirectiveProvenance = $this->yamlMetadataDirectiveProvenance;
+        $previousYamlMetadataCommentProvenance = $this->yamlMetadataCommentProvenance;
         $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
         $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
         $this->yamlMetadataAnchors = [];
@@ -525,6 +529,7 @@ final class MarkdownReader
         $this->yamlMetadataDiagnosticPath = [];
         $this->yamlMetadataTagProvenance = [];
         $this->yamlMetadataDirectiveProvenance = [];
+        $this->yamlMetadataCommentProvenance = [];
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
         try {
@@ -541,6 +546,9 @@ final class MarkdownReader
             if ($this->yamlMetadataDirectiveProvenance !== []) {
                 $metadata['__yamlMetadataDirectiveProvenance'] = $this->yamlMetadataDirectiveProvenance;
             }
+            if ($this->yamlMetadataCommentProvenance !== []) {
+                $metadata['__yamlMetadataCommentProvenance'] = $this->yamlMetadataCommentProvenance;
+            }
 
             return $metadata;
         } finally {
@@ -549,6 +557,7 @@ final class MarkdownReader
             $this->yamlMetadataDiagnosticPath = $previousYamlMetadataDiagnosticPath;
             $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
             $this->yamlMetadataDirectiveProvenance = $previousYamlMetadataDirectiveProvenance;
+            $this->yamlMetadataCommentProvenance = $previousYamlMetadataCommentProvenance;
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
         }
@@ -567,6 +576,8 @@ final class MarkdownReader
         $nextTags = $this->yamlMetadataTagProvenanceList($next['__yamlMetadataTagProvenance'] ?? []);
         $currentDirectives = $this->yamlMetadataDirectiveProvenanceList($current['__yamlMetadataDirectiveProvenance'] ?? []);
         $nextDirectives = $this->yamlMetadataDirectiveProvenanceList($next['__yamlMetadataDirectiveProvenance'] ?? []);
+        $currentComments = $this->yamlMetadataCommentProvenanceList($current['__yamlMetadataCommentProvenance'] ?? []);
+        $nextComments = $this->yamlMetadataCommentProvenanceList($next['__yamlMetadataCommentProvenance'] ?? []);
         $currentFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($current['__yamlMetadataFieldQuoteMap'] ?? []);
         $nextFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($next['__yamlMetadataFieldQuoteMap'] ?? []);
         unset(
@@ -576,6 +587,8 @@ final class MarkdownReader
             $next['__yamlMetadataTagProvenance'],
             $current['__yamlMetadataDirectiveProvenance'],
             $next['__yamlMetadataDirectiveProvenance'],
+            $current['__yamlMetadataCommentProvenance'],
+            $next['__yamlMetadataCommentProvenance'],
             $current['__yamlMetadataFieldQuoteMap'],
             $next['__yamlMetadataFieldQuoteMap']
         );
@@ -592,6 +605,10 @@ final class MarkdownReader
         $directiveProvenance = array_merge($currentDirectives, $nextDirectives);
         if ($directiveProvenance !== []) {
             $merged['__yamlMetadataDirectiveProvenance'] = $directiveProvenance;
+        }
+        $commentProvenance = array_merge($currentComments, $nextComments);
+        if ($commentProvenance !== []) {
+            $merged['__yamlMetadataCommentProvenance'] = $commentProvenance;
         }
         $fieldQuoteMap = array_replace($currentFieldQuoteMap, $nextFieldQuoteMap);
         if ($fieldQuoteMap !== []) {
@@ -684,6 +701,28 @@ final class MarkdownReader
     }
 
     /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataCommentProvenanceList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $provenance = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $provenance[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $provenance;
+    }
+
+    /**
      * @return array<string, bool>
      */
     private function yamlMetadataFieldQuoteMap(mixed $value): array
@@ -747,6 +786,40 @@ final class MarkdownReader
         }
     }
 
+    private function recordYamlStandaloneCommentProvenance(string $trimmed): void
+    {
+        if (!str_starts_with($trimmed, '#')) {
+            return;
+        }
+
+        $comment = ltrim(substr($trimmed, 1));
+        if ($comment === '') {
+            return;
+        }
+
+        $this->yamlMetadataCommentProvenance[] = [
+            'type' => 'yaml-comment',
+            'context' => 'standalone',
+            'comment' => $comment,
+            'path' => $this->currentYamlMetadataDiagnosticPath() ?? '',
+        ];
+    }
+
+    private function recordYamlTrailingCommentProvenance(string $source, int|string $segment): void
+    {
+        [, $comment] = $this->splitYamlTrailingComment($source);
+        if ($comment === null || $comment === '') {
+            return;
+        }
+
+        $this->yamlMetadataCommentProvenance[] = [
+            'type' => 'yaml-comment',
+            'context' => 'trailing',
+            'comment' => $comment,
+            'path' => $this->yamlMetadataPathWithSegment($segment),
+        ];
+    }
+
     /**
      * @param list<string> $lines
      * @return array<string, mixed>
@@ -783,7 +856,12 @@ final class MarkdownReader
         for ($index = 0; $index < $count;) {
             $line = $lines[$index];
             $trimmed = trim($line);
-            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+            if ($trimmed === '') {
+                $index++;
+                continue;
+            }
+            if (str_starts_with($trimmed, '#')) {
+                $this->recordYamlStandaloneCommentProvenance($trimmed);
                 $index++;
                 continue;
             }
@@ -796,6 +874,9 @@ final class MarkdownReader
             $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index);
             if ($explicitMapping !== null) {
                 [$key, $sourceValue, $children, $nextIndex, $quotedKey] = $explicitMapping;
+                if (!$this->isYamlMetadataMergeKey($key)) {
+                    $this->recordYamlTrailingCommentProvenance($sourceValue, $key);
+                }
                 [$value] = $this->withYamlMetadataPathSegment(
                     (string) $key,
                     fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
@@ -840,6 +921,9 @@ final class MarkdownReader
             }
 
             [$key, $sourceValue, $quotedKey] = $mapping;
+            if (!$this->isYamlMetadataMergeKey($key)) {
+                $this->recordYamlTrailingCommentProvenance($sourceValue, $key);
+            }
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
             [$value] = $this->withYamlMetadataPathSegment(
                 (string) $key,
@@ -1327,6 +1411,7 @@ final class MarkdownReader
     private function parseYamlMetadataValue(string $sourceValue, array $children): array
     {
         [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
+        $sourceValue = $this->stripYamlTrailingComment($sourceValue);
         if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
             $value = $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children);
             $this->rememberYamlAnchor($anchorName, $value);
@@ -1654,6 +1739,8 @@ final class MarkdownReader
                 $itemPath,
                 fn (): array => $this->parseYamlValueDirectives($sourceValue)
             );
+            $sourceValueWithComment = $sourceValue;
+            $sourceValue = $this->stripYamlTrailingComment($sourceValue);
             $children = [];
             $index++;
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
@@ -1742,10 +1829,10 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($this->isYamlCompactSequenceMappingSource($sourceValue)) {
+            if ($this->isYamlCompactSequenceMappingSource($sourceValueWithComment)) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): array => $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false)
+                    fn (): array => $this->parseYamlMetadataLines(array_merge([$sourceValueWithComment], $childLines), false)
                 );
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
@@ -1990,6 +2077,14 @@ final class MarkdownReader
 
     private function stripYamlTrailingComment(string $value): string
     {
+        return $this->splitYamlTrailingComment($value)[0];
+    }
+
+    /**
+     * @return array{0:string, 1:string|null}
+     */
+    private function splitYamlTrailingComment(string $value): array
+    {
         $quote = null;
         $squareDepth = 0;
         $curlyDepth = 0;
@@ -2038,11 +2133,14 @@ final class MarkdownReader
                 && $curlyDepth === 0
                 && ($offset === 0 || ctype_space($value[$offset - 1]))
             ) {
-                return rtrim(substr($value, 0, $offset));
+                return [
+                    rtrim(substr($value, 0, $offset)),
+                    ltrim(substr($value, $offset + 1)),
+                ];
             }
         }
 
-        return $value;
+        return [$value, null];
     }
 
     /**
@@ -3613,6 +3711,7 @@ final class MarkdownReader
         $diagnostics = [];
         $tagProvenance = [];
         $directiveProvenance = [];
+        $commentProvenance = [];
         $fieldQuoteMap = $this->yamlMetadataFieldQuoteMap($metadata['__yamlMetadataFieldQuoteMap'] ?? []);
         foreach ($metadata as $key => $value) {
             $fieldName = (string) $key;
@@ -3626,6 +3725,10 @@ final class MarkdownReader
             }
             if ($fieldName === '__yamlMetadataDirectiveProvenance') {
                 $directiveProvenance = array_merge($directiveProvenance, $this->yamlMetadataDirectiveProvenanceList($value));
+                continue;
+            }
+            if ($fieldName === '__yamlMetadataCommentProvenance') {
+                $commentProvenance = array_merge($commentProvenance, $this->yamlMetadataCommentProvenanceList($value));
                 continue;
             }
             if ($fieldName === '__yamlMetadataFieldQuoteMap') {
@@ -3707,6 +3810,9 @@ final class MarkdownReader
         }
         if ($directiveProvenance !== []) {
             $attrs['yamlMetadataDirectiveProvenance'] = $directiveProvenance;
+        }
+        if ($commentProvenance !== []) {
+            $attrs['yamlMetadataCommentProvenance'] = $commentProvenance;
         }
 
         return $attrs;

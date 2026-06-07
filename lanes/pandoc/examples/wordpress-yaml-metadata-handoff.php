@@ -449,6 +449,7 @@ $meta = $document->attr('meta', []);
 $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
+$yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
 $invalidTagDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-tag-directive'
@@ -1253,6 +1254,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($aliasYamlDiagnostics[0]['definedAnchor'] ?? '') !== 'alias_diag_self') {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic anchor provenance');
     }
+    $yamlCommentPairs = [];
+    foreach ($yamlCommentProvenance as $entry) {
+        $yamlCommentPairs[] = ($entry['path'] ?? '') . "\0" . ($entry['comment'] ?? '');
+    }
+    foreach ([
+        "/title\0source export title",
+        "/keywords\0reviewer labels",
+        "/source-summary\0folded source note for reviewer queue",
+        "/source-review-log\0folded reviewer log with preserved nested lines",
+        "/summary\0later metadata block overrides the first review status",
+    ] as $expectedCommentPair) {
+        if (!in_array($expectedCommentPair, $yamlCommentPairs, true)) {
+            throw new RuntimeException('YAML metadata self-test missing comment provenance ' . str_replace("\0", ' ', $expectedCommentPair));
+        }
+    }
     if (($meta['authors'][1] ?? '') !== 'WordPress #import editor') {
         throw new RuntimeException('YAML metadata self-test stripped quoted author hash');
     }
@@ -1486,6 +1502,8 @@ echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";
+echo 'YAML comment provenance: ' . count($yamlCommentProvenance) . "\n";
+echo 'YAML comment provenance paths: ' . implode(', ', array_filter(array_column($yamlCommentProvenance, 'path'))) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";

@@ -1993,6 +1993,77 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-comments-body', $document->children[0]->attr('id'));
     },
+    'records pandoc yaml source comments as review provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '# packet source comment',
+            'title: Comment provenance **Packet** # title source comment',
+            'review: # review map comment',
+            '  # owner source comment',
+            '  owner: Import Desk # owner value comment',
+            '  source-uri: "https://example.test/import#not-comment" # uri value comment',
+            '  labels: [metadata, "#literal"] # labels value comment',
+            'references:',
+            '  - id: comment-ref # reference id comment',
+            '    metadata:',
+            '      # nested metadata comment',
+            '      source: wp-export.xml # source file comment',
+            '...',
+            '',
+            '# Comment provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Comment provenance **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('https://example.test/import#not-comment', $meta['review']['source-uri']);
+        $t->same(['metadata', '#literal'], $meta['review']['labels']);
+        $t->same('comment-ref', $meta['references'][0]['id']);
+        $t->same('wp-export.xml', $meta['references'][0]['metadata']['source']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->same(10, count($comments));
+        $t->same(array_fill(0, 10, 'yaml-comment'), array_column($comments, 'type'));
+        $t->same([
+            'packet source comment',
+            'title source comment',
+            'review map comment',
+            'owner source comment',
+            'owner value comment',
+            'uri value comment',
+            'labels value comment',
+            'reference id comment',
+            'nested metadata comment',
+            'source file comment',
+        ], array_column($comments, 'comment'));
+        $t->same([
+            '',
+            '/title',
+            '/review',
+            '/review',
+            '/review/owner',
+            '/review/source-uri',
+            '/review/labels',
+            '/references/0/id',
+            '/references/0/metadata',
+            '/references/0/metadata/source',
+        ], array_column($comments, 'path'));
+        $t->same([
+            'standalone',
+            'trailing',
+            'trailing',
+            'standalone',
+            'trailing',
+            'trailing',
+            'trailing',
+            'trailing',
+            'standalone',
+            'trailing',
+        ], array_column($comments, 'context'));
+        $t->same('comment-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="comment-provenance-body">Comment provenance body</h1>', $blocks);
+    },
     'maps pandoc yaml folded block scalars with more indented metadata lines' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
