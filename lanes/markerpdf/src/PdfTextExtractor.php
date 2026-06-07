@@ -19953,6 +19953,12 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($this->resourceEntryValueHasMalformedTail($fontDictionary, $valueOffset)) {
+                $nextOffset = $this->skipPdfValueAt($fontDictionary, $valueOffset);
+                $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+                continue;
+            }
+
             $dictionaryOffset = $valueOffset;
             $dictionary = $this->readPdfDictionaryTokenAt($fontDictionary, $dictionaryOffset);
             if ($dictionary === null) {
