@@ -66,6 +66,10 @@ return [
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('nodejs'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('ecmascript'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('es6'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('jsonc'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json5'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json-with-comments'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('language-json.comments'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('jsx'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('javascript-react'));
         $t->same('c', SyntaxHighlighter::normalizeLanguage('c'));
@@ -1365,6 +1369,56 @@ return [
         $t->same('elm', $directElm['language']);
         $t->same('elm-source', $directElm['requestedLanguage']);
         $t->contains('<span class="va">view</span> <span class="va">model</span> <span class="op">=</span> <span class="fu">Html.text</span> <span class="op">(</span><span class="kw">if</span> <span class="cn">True</span> <span class="kw">then</span> <span class="st">&quot;Published&quot;</span> <span class="kw">else</span> <span class="st">&quot;Draft&quot;</span><span class="op">)</span>', $directElm['html']);
+    },
+    'highlights json with comments review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[51] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a JSON-with-comments code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directJson5 = $highlighter->highlight(
+            "// note\n{enabled: true, limit: +10, ratio: .5, value: NaN}\n",
+            'json5'
+        );
+
+        $t->same('jsonc', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('jsonc'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json5'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json-with-comments'));
+        $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('language-json.comments'));
+        $t->same('jsonc', $highlighted['language']);
+        $t->same('jsonc', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(660, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource jsonc numberLines"><code class="sourceCode jsonc" style="counter-reset: source-line 659;">', $highlighted['html']);
+        $t->contains('<span id="jsonc-review-660"><a href="#jsonc-review-660"></a><span class="co">// WordPress import review settings</span></span>', $highlighted['html']);
+        $t->contains('<span class="co">// Keep unsafe legacy shortcodes visible for editors.</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;source&quot;</span><span class="op">:</span> <span class="st">&quot;legacy-42&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">unlistedBlocks</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;core/html&quot;</span><span class="op">,</span> <span class="st">&quot;legacy/shortcode&quot;</span><span class="op">],</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;download&quot;</span><span class="op">:</span> <span class="cn">true</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;maxBytes&quot;</span><span class="op">:</span> <span class="dv">1048576</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="co">/* Reviewer-only routing; ignored by strict JSON consumers. */</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;notify&quot;</span><span class="op">:</span> <span class="cn">null</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="ot">&quot;dryRun&quot;</span><span class="op">:</span> <span class="cn">false</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="co">/* Reviewer-only routing; ignored by strict JSON consumers. */</span>', $wordpressBlock);
+        $t->same('jsonc', $directJson5['language']);
+        $t->same('json5', $directJson5['requestedLanguage']);
+        $t->contains('<span class="co">// note</span>', $directJson5['html']);
+        $t->contains('<span class="ot">enabled</span><span class="op">:</span> <span class="cn">true</span>', $directJson5['html']);
+        $t->contains('<span class="ot">limit</span><span class="op">:</span> <span class="dv">+10</span>', $directJson5['html']);
+        $t->contains('<span class="ot">ratio</span><span class="op">:</span> <span class="dv">.5</span>', $directJson5['html']);
+        $t->contains('<span class="ot">value</span><span class="op">:</span> <span class="cn">NaN</span>', $directJson5['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

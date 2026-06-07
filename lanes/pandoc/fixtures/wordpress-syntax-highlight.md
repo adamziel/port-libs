@@ -839,3 +839,22 @@ view model =
         , Html.button [] [ Html.text (if model.published then "Published" else "Needs review") ]
         ]
 ```
+
+``` {.jsonc #jsonc-review .numberLines startFrom=660}
+// WordPress import review settings
+{
+  // Keep unsafe legacy shortcodes visible for editors.
+  "source": "legacy-42",
+  unlistedBlocks: ["core/html", "legacy/shortcode"],
+  "media": {
+    "download": true,
+    "maxBytes": 1048576,
+  },
+  /* Reviewer-only routing; ignored by strict JSON consumers. */
+  "review": {
+    "queue": "needs-review",
+    "notify": null,
+    "dryRun": false,
+  },
+}
+```

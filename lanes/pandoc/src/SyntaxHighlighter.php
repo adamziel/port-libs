@@ -114,6 +114,10 @@ final class SyntaxHighlighter
         'js' => 'javascript',
         'jsx' => 'jsx',
         'json' => 'json',
+        'json-comments' => 'jsonc',
+        'json-with-comments' => 'jsonc',
+        'json5' => 'jsonc',
+        'jsonc' => 'jsonc',
         'kcfgc' => 'ini',
         'latex' => 'tex',
         'lhs' => 'haskell',
@@ -659,6 +663,7 @@ final class SyntaxHighlighter
             'javascript' => $this->tokenizeJavaScript($code),
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
+            'jsonc' => $this->tokenizeJsonWithComments($code),
             'liquid' => $this->tokenizeLiquid($code),
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
@@ -1130,6 +1135,25 @@ final class SyntaxHighlighter
             ['constant', '/^\\b(?:false|null|true)\\b/'],
             ['number', '/^-?\\b(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b/'],
             ['operator', '/^[{}[\\]:,]/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeJsonWithComments(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\/\/[^\n]*/'],
+            ['comment', '/^\/\*[\s\S]*?\*\//'],
+            ['attribute', '/^"(?:\\\\.|[^"\\\\])*"(?=\\s*:)/s'],
+            ['attribute', "/^'(?:\\\\.|[^'\\\\])*'(?=\\s*:)/s"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['constant', '/^\b(?:false|null|true|Infinity|NaN)\b/i'],
+            ['number', '/^[+-]?(?:0[xX][0-9A-Fa-f]+|(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?)\b/'],
+            ['attribute', '/^[A-Za-z_$][A-Za-z0-9_$-]*(?=\s*:)/'],
+            ['operator', '/^[{}[\]:,]/'],
         ]);
     }
 

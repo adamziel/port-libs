@@ -346,6 +346,12 @@ if (!$elmCodeBlock instanceof PortLibs\Pandoc\AstNode || $elmCodeBlock->type !==
 }
 $elm = $highlighter->highlightCodeBlock($elmCodeBlock, 'breezedark');
 $elmWordpressBlock = $highlighter->wordpressHtmlBlock($elmCodeBlock, 'breezedark');
+$jsoncCodeBlock = $document->children[51] ?? null;
+if (!$jsoncCodeBlock instanceof PortLibs\Pandoc\AstNode || $jsoncCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a JSON-with-comments code block');
+}
+$jsonc = $highlighter->highlightCodeBlock($jsoncCodeBlock, 'kate');
+$jsoncWordpressBlock = $highlighter->wordpressHtmlBlock($jsoncCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1472,6 +1478,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($elmWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Elm WordPress style metadata');
     }
+    if (($jsonc['language'] ?? '') !== 'jsonc') {
+        throw new RuntimeException('Expected JSON-with-comments fixture to normalize to jsonc highlighting');
+    }
+    if (($jsonc['lineNumbering']['start'] ?? null) !== 660) {
+        throw new RuntimeException('Expected JSON-with-comments source startFrom line-number handoff');
+    }
+    if (!str_contains($jsonc['html'], '<span class="co">// WordPress import review settings</span>')) {
+        throw new RuntimeException('Expected JSON-with-comments line comment token handoff');
+    }
+    if (!str_contains($jsonc['html'], '<span class="ot">unlistedBlocks</span><span class="op">:</span>')) {
+        throw new RuntimeException('Expected JSON-with-comments unquoted key token handoff');
+    }
+    if (!str_contains($jsonc['html'], '<span class="co">/* Reviewer-only routing; ignored by strict JSON consumers. */</span>')) {
+        throw new RuntimeException('Expected JSON-with-comments block comment token handoff');
+    }
+    if (!str_contains($jsonc['html'], '<span class="ot">&quot;dryRun&quot;</span><span class="op">:</span> <span class="cn">false</span>')) {
+        throw new RuntimeException('Expected JSON-with-comments constant token handoff');
+    }
+    if (!str_contains($jsoncWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected JSON-with-comments WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1547,6 +1574,7 @@ echo "phpdocHighlightedHtml:\n" . $phpdoc['html'] . "\n";
 echo "terraformHighlightedHtml:\n" . $terraform['html'] . "\n";
 echo "liquidHighlightedHtml:\n" . $liquid['html'] . "\n";
 echo "elmHighlightedHtml:\n" . $elm['html'] . "\n";
+echo "jsoncHighlightedHtml:\n" . $jsonc['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1593,4 +1621,5 @@ echo "phpdocWordpressBlock:\n" . $phpdocWordpressBlock . "\n";
 echo "terraformWordpressBlock:\n" . $terraformWordpressBlock . "\n";
 echo "liquidWordpressBlock:\n" . $liquidWordpressBlock . "\n";
 echo "elmWordpressBlock:\n" . $elmWordpressBlock . "\n";
+echo "jsoncWordpressBlock:\n" . $jsoncWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
