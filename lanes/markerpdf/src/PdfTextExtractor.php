@@ -6985,7 +6985,7 @@ final class PdfTextExtractor
             'BitsPerComponent',
             $objects
         );
-        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'ImageMask', $objects) === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
         $opiProxyReview = $this->imageXObjectOpiProxyReview($stream['dict'], $objects);
         $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
@@ -7621,7 +7621,7 @@ final class PdfTextExtractor
         );
         $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
         $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
-        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'ImageMask', $objects) === true;
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
         $decode = $this->imageXObjectDecodeReview(
@@ -7821,7 +7821,7 @@ final class PdfTextExtractor
         );
         $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
         $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
-        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'ImageMask', $objects) === true;
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
         $decode = $this->imageXObjectDecodeReview($stream['dict'], $objects, $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace), $imageMask);
@@ -8119,7 +8119,7 @@ final class PdfTextExtractor
         );
         $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
         $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
-        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'ImageMask', $objects) === true;
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
         $decode = $this->imageXObjectDecodeReview(
@@ -12755,7 +12755,7 @@ final class PdfTextExtractor
 
         $hasBitsPerComponent = $this->hasPdfNumberishName($dict, 'BitsPerComponent')
             || $this->hasPdfNumberishName($dict, 'BPC');
-        $imageMask = $this->topLevelPdfBooleanValueAfterName($dict, 'ImageMask') === true;
+        $imageMask = $this->topLevelPdfBooleanValueAfterNameResolvingObjects($dict, 'ImageMask', $objects) === true;
         if (!$hasBitsPerComponent && !$imageMask) {
             return false;
         }
@@ -12790,6 +12790,63 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function topLevelPdfBooleanValueAfterNameResolvingObjects(
+        string $dict,
+        string $name,
+        array $objects,
+        array $seen = []
+    ): ?bool {
+        $offset = $this->topLevelNameValueOffset($dict, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->pdfBooleanValueAtOffsetResolvingObjects($dict, $offset, $objects, $seen);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfBooleanValueAtOffsetResolvingObjects(
+        string $value,
+        int $offset,
+        array $objects,
+        array $seen = []
+    ): ?bool {
+        $this->skipContentWhitespaceAndComments($value, $offset);
+        if (preg_match('/\Gtrue\b/s', $value, $match, 0, $offset) === 1) {
+            return true;
+        }
+        if (preg_match('/\Gfalse\b/s', $value, $match, 0, $offset) === 1) {
+            return false;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference === null) {
+            return null;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return null;
+        }
+
+        $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+        if ($objectBody === null) {
+            return null;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->pdfBooleanValueAtOffsetResolvingObjects(trim($objectBody), 0, $objects, $seen);
     }
 
     /**
