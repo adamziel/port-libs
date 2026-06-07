@@ -806,3 +806,36 @@ output "review_packet" {
   {% render "review-badge", source_id: product.id, status: "needs-review" %}
 </article>
 ```
+
+``` {.elm #elm-review .numberLines startFrom=640}
+{- WordPress import review UI state -}
+module ImportReview exposing (Model, Msg(..), view)
+
+import Html exposing (Html)
+import Html.Attributes as Attr
+import Json.Decode as Decode
+
+type alias Model =
+    { title : String
+    , sourceId : Int
+    , published : Bool
+    }
+
+type Msg
+    = Approve
+    | Reject String
+
+decoder : Decode.Decoder Model
+decoder =
+    Decode.map3 Model
+        (Decode.field "title" Decode.string)
+        (Decode.field "sourceId" Decode.int)
+        (Decode.succeed False)
+
+view : Model -> Html Msg
+view model =
+    Html.div [ Attr.class "wp-block-import-card", Attr.attribute "data-source" (String.fromInt model.sourceId) ]
+        [ Html.h2 [] [ Html.text model.title ]
+        , Html.button [] [ Html.text (if model.published then "Published" else "Needs review") ]
+        ]
+```

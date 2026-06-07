@@ -340,6 +340,12 @@ if (!$liquidCodeBlock instanceof PortLibs\Pandoc\AstNode || $liquidCodeBlock->ty
 }
 $liquid = $highlighter->highlightCodeBlock($liquidCodeBlock, 'tango');
 $liquidWordpressBlock = $highlighter->wordpressHtmlBlock($liquidCodeBlock, 'tango');
+$elmCodeBlock = $document->children[50] ?? null;
+if (!$elmCodeBlock instanceof PortLibs\Pandoc\AstNode || $elmCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an Elm code block');
+}
+$elm = $highlighter->highlightCodeBlock($elmCodeBlock, 'breezedark');
+$elmWordpressBlock = $highlighter->wordpressHtmlBlock($elmCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1442,6 +1448,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($liquidWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Liquid WordPress style metadata');
     }
+    if (($elm['language'] ?? '') !== 'elm') {
+        throw new RuntimeException('Expected Elm fixture to normalize to Elm highlighting');
+    }
+    if (($elm['lineNumbering']['start'] ?? null) !== 640) {
+        throw new RuntimeException('Expected Elm source startFrom line-number handoff');
+    }
+    if (!str_contains($elm['html'], '<span class="kw">module</span> <span class="dt">ImportReview</span> <span class="kw">exposing</span>')) {
+        throw new RuntimeException('Expected Elm module token handoff');
+    }
+    if (!str_contains($elm['html'], '<span class="kw">type</span> <span class="kw">alias</span> <span class="dt">Model</span>')) {
+        throw new RuntimeException('Expected Elm type alias token handoff');
+    }
+    if (!str_contains($elm['html'], '<span class="fu">Decode.map3</span> <span class="dt">Model</span>')) {
+        throw new RuntimeException('Expected Elm qualified decoder function handoff');
+    }
+    if (!str_contains($elm['html'], '<span class="fu">Html.div</span> <span class="op">[</span> <span class="fu">Attr.class</span>')) {
+        throw new RuntimeException('Expected Elm qualified view function handoff');
+    }
+    if (!str_contains($elm['html'], '<span class="kw">if</span> <span class="va">model</span><span class="op">.</span><span class="va">published</span> <span class="kw">then</span>')) {
+        throw new RuntimeException('Expected Elm if/then branch token handoff');
+    }
+    if (!str_contains($elmWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Elm WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1516,6 +1546,7 @@ echo "asciidocHighlightedHtml:\n" . $asciidoc['html'] . "\n";
 echo "phpdocHighlightedHtml:\n" . $phpdoc['html'] . "\n";
 echo "terraformHighlightedHtml:\n" . $terraform['html'] . "\n";
 echo "liquidHighlightedHtml:\n" . $liquid['html'] . "\n";
+echo "elmHighlightedHtml:\n" . $elm['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1561,4 +1592,5 @@ echo "asciidocWordpressBlock:\n" . $asciidocWordpressBlock . "\n";
 echo "phpdocWordpressBlock:\n" . $phpdocWordpressBlock . "\n";
 echo "terraformWordpressBlock:\n" . $terraformWordpressBlock . "\n";
 echo "liquidWordpressBlock:\n" . $liquidWordpressBlock . "\n";
+echo "elmWordpressBlock:\n" . $elmWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

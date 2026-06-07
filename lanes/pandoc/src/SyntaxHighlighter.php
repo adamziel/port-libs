@@ -72,6 +72,9 @@ final class SyntaxHighlighter
         'docker' => 'dockerfile',
         'dockerfile' => 'dockerfile',
         'dot' => 'dot',
+        'elm' => 'elm',
+        'elm-module' => 'elm',
+        'elm-source' => 'elm',
         'git-diff' => 'diff',
         'graphviz' => 'dot',
         'gv' => 'dot',
@@ -645,6 +648,7 @@ final class SyntaxHighlighter
             'diff' => $this->tokenizeDiff($code),
             'dot' => $this->tokenizeDot($code),
             'dockerfile' => $this->tokenizeDockerfile($code),
+            'elm' => $this->tokenizeElm($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
             'hcl' => $this->tokenizeHcl($code),
@@ -2154,6 +2158,29 @@ final class SyntaxHighlighter
             ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[oO][0-7]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
             ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeElm(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\{-[\\s\\S]*?-\\}/'],
+            ['comment', '/^--[^\\n]*/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['constant', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['keyword', '/^\\b(?:alias|as|case|effect|else|exposing|if|import|in|let|module|of|port|then|type|where)\\b/'],
+            ['constant', '/^\\b(?:Err|False|Just|Nothing|Ok|True)\\b/'],
+            ['datatype', '/^\\b(?:Bool|Char|Cmd|Decoder|Dict|Float|Html|Int|Json|List|Maybe|Model|Msg|Never|Program|Result|String|Sub|Task|Text|Tuple)\\b(?!\\.)/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['function', '/^\\b[A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*\\.[a-z_][A-Za-z0-9_]*\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*\\b(?!\\.)/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s*\\()/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
+            ['operator', '/^(?:->|<-|=>|::|==|\\/=|>=|<=|&&|\\|\\||\\|>|<\\||\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
         ]);
     }
 

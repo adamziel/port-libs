@@ -35,6 +35,9 @@ return [
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Containerfile'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('language-docker'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('dot'));
+        $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm'));
+        $t->same('elm', SyntaxHighlighter::normalizeLanguage('language-elm-module'));
+        $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm.source'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('graphviz'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('gv'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache'));
@@ -1311,6 +1314,57 @@ return [
         $t->same('liquid-html', $directLiquid['requestedLanguage']);
         $t->contains('<span class="op">{{</span> <span class="va">product.title</span> <span class="op">|</span> <span class="fu">default</span><span class="op">:</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">|</span> <span class="fu">escape</span> <span class="op">}}</span>', $directLiquid['html']);
         $t->contains('<span class="op">{%</span> <span class="kw">render</span> <span class="st">&quot;badge&quot;</span><span class="op">,</span> <span class="ot">source_id</span><span class="op">:</span> <span class="va">product.id</span> <span class="op">%}</span>', $directLiquid['html']);
+    },
+    'highlights elm architecture review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[50] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Elm code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directElm = $highlighter->highlight(
+            'view model = Html.text (if True then "Published" else "Draft")',
+            'elm-source'
+        );
+
+        $t->same('elm', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm'));
+        $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm-module'));
+        $t->same('elm', SyntaxHighlighter::normalizeLanguage('language-elm-source'));
+        $t->same('elm', $highlighted['language']);
+        $t->same('elm', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(640, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource elm numberLines"><code class="sourceCode elm" style="counter-reset: source-line 639;">', $highlighted['html']);
+        $t->contains('<span id="elm-review-640"><a href="#elm-review-640"></a><span class="co">{- WordPress import review UI state -}</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">ImportReview</span> <span class="kw">exposing</span> <span class="op">(</span><span class="dt">Model</span><span class="op">,</span> <span class="dt">Msg</span><span class="op">(..),</span> <span class="va">view</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="dt">Html.Attributes</span> <span class="kw">as</span> <span class="dt">Attr</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="kw">alias</span> <span class="dt">Model</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span> <span class="op">:</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="va">published</span> <span class="op">:</span> <span class="dt">Bool</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">Msg</span>', $highlighted['html']);
+        $t->contains('<span class="op">=</span> <span class="dt">Approve</span>', $highlighted['html']);
+        $t->contains('<span class="va">decoder</span> <span class="op">:</span> <span class="dt">Decode.Decoder</span> <span class="dt">Model</span>', $highlighted['html']);
+        $t->contains('<span class="fu">Decode.map3</span> <span class="dt">Model</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="fu">Decode.field</span> <span class="st">&quot;title&quot;</span> <span class="fu">Decode.string</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="fu">Decode.succeed</span> <span class="cn">False</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">Html.div</span> <span class="op">[</span> <span class="fu">Attr.class</span> <span class="st">&quot;wp-block-import-card&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">Attr.attribute</span> <span class="st">&quot;data-source&quot;</span> <span class="op">(</span><span class="fu">String.fromInt</span> <span class="va">model</span><span class="op">.</span><span class="va">sourceId</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">Html.text</span> <span class="op">(</span><span class="kw">if</span> <span class="va">model</span><span class="op">.</span><span class="va">published</span> <span class="kw">then</span> <span class="st">&quot;Published&quot;</span> <span class="kw">else</span> <span class="st">&quot;Needs review&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="fu">Html.div</span> <span class="op">[</span> <span class="fu">Attr.class</span>', $wordpressBlock);
+        $t->same('elm', $directElm['language']);
+        $t->same('elm-source', $directElm['requestedLanguage']);
+        $t->contains('<span class="va">view</span> <span class="va">model</span> <span class="op">=</span> <span class="fu">Html.text</span> <span class="op">(</span><span class="kw">if</span> <span class="cn">True</span> <span class="kw">then</span> <span class="st">&quot;Published&quot;</span> <span class="kw">else</span> <span class="st">&quot;Draft&quot;</span><span class="op">)</span>', $directElm['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
