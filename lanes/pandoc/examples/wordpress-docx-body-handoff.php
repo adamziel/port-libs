@@ -491,6 +491,41 @@ XML],
         <w:p><w:r><w:t>Content-control checklist for reviewer handoff.</w:t></w:r></w:p>
       </w:sdtContent>
     </w:sdt>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Approval controls </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="142"/>
+          <w:alias w:val="Approval Checkbox"/>
+          <w:tag w:val="approval_checkbox"/>
+          <w:checkBox>
+            <w:checked w:val="0"/>
+            <w:checkedState w:val="2612" w:font="MS Gothic"/>
+            <w:uncheckedState w:val="2610" w:font="MS Gothic"/>
+          </w:checkBox>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Needs review</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t xml:space="preserve"> target </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="143"/>
+          <w:alias w:val="Publish Target"/>
+          <w:tag w:val="publish_target"/>
+          <w:dropDownList>
+            <w:lastValue w:val="publish"/>
+            <w:listItem w:displayText="Draft review" w:value="draft"/>
+            <w:listItem w:displayText="Publish to site" w:value="publish"/>
+          </w:dropDownList>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Publish to site</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
     <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
     <w:p><w:r><w:pict><v:shape id="_x0000_i42" alt="VML badge alt"><v:imagedata r:id="rIdVmlBadge" o:title="VML badge title"/></v:shape></w:pict></w:r></w:p>
     <w:p>
@@ -1127,6 +1162,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'data-docx-sdt-doc-part-gallery="Quick Parts"',
         'data-docx-sdt-doc-part-category="Migration Review"',
         '<p>Content-control checklist for reviewer handoff.</p>',
+        '<span class="docx-content-control docx-content-control-checkbox" data-docx-sdt-id="142" data-docx-sdt-alias="Approval Checkbox" data-docx-sdt-tag="approval_checkbox" data-docx-sdt-type="checkbox" data-docx-sdt-checkbox-checked="false" data-docx-sdt-checkbox-checked-state-value="2612" data-docx-sdt-checkbox-checked-state-font="MS Gothic" data-docx-sdt-checkbox-unchecked-state-value="2610" data-docx-sdt-checkbox-unchecked-state-font="MS Gothic">Needs review</span>',
+        '<span class="docx-content-control docx-content-control-drop-down-list" data-docx-sdt-id="143" data-docx-sdt-alias="Publish Target" data-docx-sdt-tag="publish_target" data-docx-sdt-type="drop-down-list" data-docx-sdt-list-kind="drop-down-list" data-docx-sdt-list-last-value="publish" data-docx-sdt-list-item-1-display-text="Draft review" data-docx-sdt-list-item-1-value="draft" data-docx-sdt-list-item-2-display-text="Publish to site" data-docx-sdt-list-item-2-value="publish" data-docx-sdt-list-item-count="2">Publish to site</span>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
         '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
         '<img src="word/media/vml-badge.png" alt="VML badge alt" title="VML badge title"/>',

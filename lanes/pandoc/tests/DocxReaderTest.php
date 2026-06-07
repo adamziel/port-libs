@@ -1341,6 +1341,84 @@ $structuredDocumentTagXml = <<<'XML'
 </w:document>
 XML;
 
+$sdtFormControlDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Form controls </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="201"/>
+          <w:alias w:val="Approved Checkbox"/>
+          <w:tag w:val="approved_checkbox"/>
+          <w:checkBox>
+            <w:checked w:val="1"/>
+            <w:checkedState w:val="2612" w:font="MS Gothic"/>
+            <w:uncheckedState w:val="2610" w:font="MS Gothic"/>
+          </w:checkBox>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Approved</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t xml:space="preserve"> due </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="202"/>
+          <w:alias w:val="Publish Date"/>
+          <w:tag w:val="publish_date"/>
+          <w:date w:fullDate="2026-06-07T00:00:00Z">
+            <w:dateFormat w:val="MMMM d, yyyy"/>
+            <w:lid w:val="en-US"/>
+            <w:storeMappedDataAs w:val="dateTime"/>
+            <w:calendar w:val="gregorian"/>
+          </w:date>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>June 7, 2026</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="203"/>
+        <w:alias w:val="Publish Target"/>
+        <w:tag w:val="publish_target"/>
+        <w:dropDownList>
+          <w:lastValue w:val="publish"/>
+          <w:listItem w:displayText="Draft review" w:value="draft"/>
+          <w:listItem w:displayText="Publish to site" w:value="publish"/>
+          <w:listItem w:displayText="Archive only" w:value="archive"/>
+        </w:dropDownList>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:r><w:t>Publish to site</w:t></w:r></w:p>
+      </w:sdtContent>
+    </w:sdt>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Owner </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="204"/>
+          <w:alias w:val="Review Owner"/>
+          <w:tag w:val="review_owner"/>
+          <w:comboBox>
+            <w:lastValue w:val="migration-desk"/>
+            <w:listItem w:displayText="Migration desk" w:value="migration-desk"/>
+            <w:listItem w:displayText="Legal review" w:value="legal"/>
+          </w:comboBox>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Migration desk</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t xml:space="preserve"> remains selectable.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $glossaryContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2463,6 +2541,14 @@ $buildStructuredDocumentTagPackage = static function () use ($contentTypesXml, $
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $structuredDocumentTagXml],
+    ]);
+};
+
+$buildSdtFormControlPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $sdtFormControlDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sdtFormControlDocumentXml],
     ]);
 };
 
@@ -4470,6 +4556,98 @@ return [
         $t->contains('data-docx-sdt-type="rich-text"', $blocks);
         $t->contains('data-docx-sdt-xpath="/packet/review/checklist"', $blocks);
         $t->contains('<table><tbody><tr><td><p>Owner</p></td><td><p>Migration desk</p></td></tr></tbody></table>', $blocks);
+    },
+    'preserves DOCX structured document tag form-control metadata' => static function (TestRunner $t) use ($buildSdtFormControlPackage): void {
+        $document = (new DocxReader())->readDocument($buildSdtFormControlPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Form controls ', $paragraph->children[0]->attr('text'));
+
+        $checkbox = $paragraph->children[1];
+        $t->same('span', $checkbox->type);
+        $t->same(['docx-content-control', 'docx-content-control-checkbox'], $checkbox->attr('classes'));
+        $checkboxAttrs = $checkbox->attr('attributes');
+        $t->same('201', $checkboxAttrs['data-docx-sdt-id']);
+        $t->same('Approved Checkbox', $checkboxAttrs['data-docx-sdt-alias']);
+        $t->same('approved_checkbox', $checkboxAttrs['data-docx-sdt-tag']);
+        $t->same('checkbox', $checkboxAttrs['data-docx-sdt-type']);
+        $t->same('true', $checkboxAttrs['data-docx-sdt-checkbox-checked']);
+        $t->same('2612', $checkboxAttrs['data-docx-sdt-checkbox-checked-state-value']);
+        $t->same('MS Gothic', $checkboxAttrs['data-docx-sdt-checkbox-checked-state-font']);
+        $t->same('2610', $checkboxAttrs['data-docx-sdt-checkbox-unchecked-state-value']);
+        $t->same('MS Gothic', $checkboxAttrs['data-docx-sdt-checkbox-unchecked-state-font']);
+        $t->same('Approved', $checkbox->children[0]->attr('text'));
+
+        $date = $paragraph->children[3];
+        $t->same(['docx-content-control', 'docx-content-control-date'], $date->attr('classes'));
+        $dateAttrs = $date->attr('attributes');
+        $t->same('202', $dateAttrs['data-docx-sdt-id']);
+        $t->same('Publish Date', $dateAttrs['data-docx-sdt-alias']);
+        $t->same('publish_date', $dateAttrs['data-docx-sdt-tag']);
+        $t->same('date', $dateAttrs['data-docx-sdt-type']);
+        $t->same('2026-06-07T00:00:00Z', $dateAttrs['data-docx-sdt-date-full-date']);
+        $t->same('MMMM d, yyyy', $dateAttrs['data-docx-sdt-date-format']);
+        $t->same('en-US', $dateAttrs['data-docx-sdt-date-lang']);
+        $t->same('dateTime', $dateAttrs['data-docx-sdt-date-store-mapped-data-as']);
+        $t->same('gregorian', $dateAttrs['data-docx-sdt-date-calendar']);
+        $t->same('June 7, 2026', $date->children[0]->attr('text'));
+
+        $dropDown = $document->children[1];
+        $t->same('div', $dropDown->type);
+        $t->same(['docx-content-control', 'docx-content-control-drop-down-list'], $dropDown->attr('classes'));
+        $dropDownAttrs = $dropDown->attr('attributes');
+        $t->same('203', $dropDownAttrs['data-docx-sdt-id']);
+        $t->same('Publish Target', $dropDownAttrs['data-docx-sdt-alias']);
+        $t->same('publish_target', $dropDownAttrs['data-docx-sdt-tag']);
+        $t->same('drop-down-list', $dropDownAttrs['data-docx-sdt-type']);
+        $t->same('drop-down-list', $dropDownAttrs['data-docx-sdt-list-kind']);
+        $t->same('publish', $dropDownAttrs['data-docx-sdt-list-last-value']);
+        $t->same('3', $dropDownAttrs['data-docx-sdt-list-item-count']);
+        $t->same('Draft review', $dropDownAttrs['data-docx-sdt-list-item-1-display-text']);
+        $t->same('draft', $dropDownAttrs['data-docx-sdt-list-item-1-value']);
+        $t->same('Publish to site', $dropDownAttrs['data-docx-sdt-list-item-2-display-text']);
+        $t->same('publish', $dropDownAttrs['data-docx-sdt-list-item-2-value']);
+        $t->same('Archive only', $dropDownAttrs['data-docx-sdt-list-item-3-display-text']);
+        $t->same('archive', $dropDownAttrs['data-docx-sdt-list-item-3-value']);
+        $t->same('Publish to site', $dropDown->children[0]->children[0]->attr('text'));
+
+        $comboParagraph = $document->children[2];
+        $combo = $comboParagraph->children[1];
+        $t->same(['docx-content-control', 'docx-content-control-combo-box'], $combo->attr('classes'));
+        $comboAttrs = $combo->attr('attributes');
+        $t->same('204', $comboAttrs['data-docx-sdt-id']);
+        $t->same('Review Owner', $comboAttrs['data-docx-sdt-alias']);
+        $t->same('review_owner', $comboAttrs['data-docx-sdt-tag']);
+        $t->same('combo-box', $comboAttrs['data-docx-sdt-type']);
+        $t->same('combo-box', $comboAttrs['data-docx-sdt-list-kind']);
+        $t->same('migration-desk', $comboAttrs['data-docx-sdt-list-last-value']);
+        $t->same('2', $comboAttrs['data-docx-sdt-list-item-count']);
+        $t->same('Migration desk', $comboAttrs['data-docx-sdt-list-item-1-display-text']);
+        $t->same('migration-desk', $comboAttrs['data-docx-sdt-list-item-1-value']);
+        $t->same('Legal review', $comboAttrs['data-docx-sdt-list-item-2-display-text']);
+        $t->same('legal', $comboAttrs['data-docx-sdt-list-item-2-value']);
+        $t->same('Migration desk', $combo->children[0]->attr('text'));
+
+        $t->contains('Form controls [Approved]{.docx-content-control .docx-content-control-checkbox data-docx-sdt-id="201"', $markdown);
+        $t->contains('data-docx-sdt-checkbox-checked-state-value="2612"', $markdown);
+        $t->contains('[June 7, 2026]{.docx-content-control .docx-content-control-date data-docx-sdt-id="202"', $markdown);
+        $t->contains('data-docx-sdt-date-format="MMMM d, yyyy"', $markdown);
+        $t->contains('::: {.docx-content-control .docx-content-control-drop-down-list data-docx-sdt-id="203"', $markdown);
+        $t->contains('data-docx-sdt-list-item-2-display-text="Publish to site"', $markdown);
+
+        $t->contains('<span class="docx-content-control docx-content-control-checkbox" data-docx-sdt-id="201"', $blocks);
+        $t->contains('data-docx-sdt-checkbox-checked="true"', $blocks);
+        $t->contains('<span class="docx-content-control docx-content-control-date" data-docx-sdt-id="202"', $blocks);
+        $t->contains('data-docx-sdt-date-full-date="2026-06-07T00:00:00Z"', $blocks);
+        $t->contains('<div class="docx-content-control docx-content-control-drop-down-list" data-docx-sdt-id="203"', $blocks);
+        $t->contains('data-docx-sdt-list-last-value="publish"', $blocks);
+        $t->contains('<span class="docx-content-control docx-content-control-combo-box" data-docx-sdt-id="204"', $blocks);
+        $t->contains('data-docx-sdt-list-kind="combo-box"', $blocks);
     },
     'imports DOCX glossary document parts and docPart content control metadata' => static function (TestRunner $t) use ($buildGlossaryPackage): void {
         $reader = new DocxReader();

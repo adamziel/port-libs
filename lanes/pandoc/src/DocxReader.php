@@ -3036,6 +3036,10 @@ final class DocxReader
             foreach ($this->structuredDocumentTagDocPartAttrs($properties) as $name => $value) {
                 $attributes[$name] = $value;
             }
+
+            foreach ($this->structuredDocumentTagFormControlAttrs($properties) as $name => $value) {
+                $attributes[$name] = $value;
+            }
         }
 
         $classes = ['docx-content-control'];
@@ -3087,6 +3091,104 @@ final class DocxReader
         return [];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function structuredDocumentTagFormControlAttrs(\DOMElement $properties): array
+    {
+        $attributes = [];
+
+        $checkBox = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'checkBox');
+        if ($checkBox instanceof \DOMElement) {
+            $checked = $this->firstChildElement($checkBox, self::WORDPROCESSINGML_NS, 'checked');
+            if ($checked instanceof \DOMElement) {
+                $attributes['data-docx-sdt-checkbox-checked'] = $this->onOffWordAttr($checked, 'val', true) ? 'true' : 'false';
+            }
+
+            foreach ([
+                'checkedState' => 'checked-state',
+                'uncheckedState' => 'unchecked-state',
+            ] as $localName => $attributePrefix) {
+                $state = $this->firstChildElement($checkBox, self::WORDPROCESSINGML_NS, $localName);
+                if (!$state instanceof \DOMElement) {
+                    continue;
+                }
+
+                foreach ([
+                    'val' => 'value',
+                    'font' => 'font',
+                ] as $source => $target) {
+                    $value = $this->wordAttr($state, $source);
+                    if ($value !== null && $value !== '') {
+                        $attributes['data-docx-sdt-checkbox-' . $attributePrefix . '-' . $target] = $value;
+                    }
+                }
+            }
+        }
+
+        foreach ([
+            'dropDownList' => 'drop-down-list',
+            'comboBox' => 'combo-box',
+        ] as $localName => $kind) {
+            $list = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+            if (!$list instanceof \DOMElement) {
+                continue;
+            }
+
+            $attributes['data-docx-sdt-list-kind'] = $kind;
+            $lastValue = $this->structuredDocumentTagPropertyValue($list, 'lastValue');
+            if ($lastValue !== null && $lastValue !== '') {
+                $attributes['data-docx-sdt-list-last-value'] = $lastValue;
+            }
+
+            $index = 0;
+            foreach ($list->childNodes as $child) {
+                if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'listItem')) {
+                    continue;
+                }
+
+                $index++;
+                foreach ([
+                    'displayText' => 'display-text',
+                    'value' => 'value',
+                ] as $source => $target) {
+                    $value = $this->wordAttr($child, $source);
+                    if ($value !== null && $value !== '') {
+                        $attributes['data-docx-sdt-list-item-' . $index . '-' . $target] = $value;
+                    }
+                }
+            }
+
+            if ($index > 0) {
+                $attributes['data-docx-sdt-list-item-count'] = (string) $index;
+            }
+
+            break;
+        }
+
+        $date = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'date');
+        if ($date instanceof \DOMElement) {
+            $fullDate = $this->wordAttr($date, 'fullDate');
+            if ($fullDate !== null && $fullDate !== '') {
+                $attributes['data-docx-sdt-date-full-date'] = $fullDate;
+            }
+
+            foreach ([
+                'dateFormat' => 'format',
+                'lid' => 'lang',
+                'storeMappedDataAs' => 'store-mapped-data-as',
+                'calendar' => 'calendar',
+            ] as $localName => $target) {
+                $value = $this->structuredDocumentTagPropertyValue($date, $localName);
+                if ($value !== null && $value !== '') {
+                    $attributes['data-docx-sdt-date-' . $target] = $value;
+                }
+            }
+        }
+
+        return $attributes;
+    }
+
     private function structuredDocumentTagPropertyValue(\DOMElement $properties, string $localName): ?string
     {
         $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
@@ -3107,7 +3209,7 @@ final class DocxReader
             'comboBox' => 'combo-box',
             'dropDownList' => 'drop-down-list',
             'date' => 'date',
-            'checkbox' => 'checkbox',
+            'checkBox' => 'checkbox',
             'picture' => 'picture',
             'repeatingSection' => 'repeating-section',
             'repeatingSectionItem' => 'repeating-section-item',
