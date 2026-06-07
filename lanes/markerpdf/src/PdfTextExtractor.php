@@ -1938,7 +1938,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $firstItemObject = $this->topLevelObjectReferenceValueAfterName($outlineRootBody, 'First');
+        $firstItemObject = $this->topLevelExactObjectReferenceValueAfterName($outlineRootBody, 'First');
         if ($firstItemObject === null) {
             return [];
         }
@@ -1951,7 +1951,7 @@ final class PdfTextExtractor
             $objects,
             $pageIndexes,
             $outlineRootNumber,
-            $this->topLevelObjectReferenceValueAfterName($outlineRootBody, 'Last')
+            $this->topLevelExactObjectReferenceValueAfterName($outlineRootBody, 'Last')
         );
     }
 
@@ -1995,7 +1995,7 @@ final class PdfTextExtractor
                     break;
                 }
 
-                $nextObjectNumber = $this->topLevelObjectReferenceValueAfterName($body, 'Next');
+                $nextObjectNumber = $this->topLevelExactObjectReferenceValueAfterName($body, 'Next');
                 if ($nextObjectNumber === null) {
                     break;
                 }
@@ -2015,7 +2015,7 @@ final class PdfTextExtractor
                 ];
             }
 
-            $firstChildObject = $this->topLevelObjectReferenceValueAfterName($body, 'First');
+            $firstChildObject = $this->topLevelExactObjectReferenceValueAfterName($body, 'First');
             if (
                 $firstChildObject !== null
                 && $this->lightweightOutlineItemAllowsChildTraversal($body, $objects)
@@ -2026,7 +2026,7 @@ final class PdfTextExtractor
                     $objects,
                     $pageIndexes,
                     $objectNumber,
-                    $this->topLevelObjectReferenceValueAfterName($body, 'Last'),
+                    $this->topLevelExactObjectReferenceValueAfterName($body, 'Last'),
                     $seen
                 ) as $child) {
                     $items[] = $child;
@@ -2037,7 +2037,7 @@ final class PdfTextExtractor
                 break;
             }
 
-            $nextObjectNumber = $this->topLevelObjectReferenceValueAfterName($body, 'Next');
+            $nextObjectNumber = $this->topLevelExactObjectReferenceValueAfterName($body, 'Next');
             if ($nextObjectNumber === null) {
                 break;
             }
@@ -2075,6 +2075,10 @@ final class PdfTextExtractor
         array $objects,
         ?int $expectedParentObject
     ): bool {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, 'Parent')) {
+            return false;
+        }
+
         $parent = $this->topLevelObjectReferenceValueAfterName($body, 'Parent');
         if ($expectedParentObject === null) {
             return $parent === null;
@@ -2120,6 +2124,10 @@ final class PdfTextExtractor
 
     private function lightweightOutlineItemPrevMatches(string $body, ?int $previousSiblingObject): bool
     {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, 'Prev')) {
+            return false;
+        }
+
         $previous = $this->topLevelObjectReferenceValueAfterName($body, 'Prev');
         if ($previous === null) {
             return true;
@@ -23276,6 +23284,15 @@ final class PdfTextExtractor
         $reference = $this->readPdfIndirectReferenceToken($value, $offset);
 
         return $reference === null ? null : $reference['objectNumber'];
+    }
+
+    private function topLevelExactObjectReferenceValueAfterName(string $body, string $name): ?int
+    {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, $name)) {
+            return null;
+        }
+
+        return $this->topLevelObjectReferenceValueAfterName($body, $name);
     }
 
     /**

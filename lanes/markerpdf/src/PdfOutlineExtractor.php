@@ -1280,10 +1280,10 @@ final class PdfOutlineExtractor
             if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
-            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
                 break;
             }
-            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject, $current)) {
                 break;
             }
 
@@ -1580,7 +1580,12 @@ final class PdfOutlineExtractor
     /**
      * @param array<string, mixed> $outline
      */
-    private function outlineItemParentMatches(array $outline, array $objects, ?int $expectedParentObject): bool
+    private function outlineItemParentMatches(
+        array $outline,
+        array $objects,
+        ?int $expectedParentObject,
+        ?int $outlineObject
+    ): bool
     {
         if (!array_key_exists('Parent', $outline)) {
             if ($expectedParentObject === null) {
@@ -1588,6 +1593,10 @@ final class PdfOutlineExtractor
             }
 
             return $this->isOutlineRootObject($expectedParentObject, $objects);
+        }
+
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Parent')) {
+            return false;
         }
 
         if ($expectedParentObject === null) {
@@ -1607,10 +1616,19 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $outline
      * @param array<int, mixed> $objects
      */
-    private function outlineItemPrevMatches(array $outline, array $objects, ?int $previousSiblingObject): bool
+    private function outlineItemPrevMatches(
+        array $outline,
+        array $objects,
+        ?int $previousSiblingObject,
+        ?int $outlineObject
+    ): bool
     {
         if (!array_key_exists('Prev', $outline)) {
             return true;
+        }
+
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Prev')) {
+            return false;
         }
 
         $previous = $this->validReferenceObjectNumber($outline['Prev'], $objects);
@@ -4008,10 +4026,10 @@ final class PdfOutlineExtractor
             if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
-            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
                 break;
             }
-            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject, $current)) {
                 break;
             }
 
@@ -4109,10 +4127,10 @@ final class PdfOutlineExtractor
             if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
-            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
                 break;
             }
-            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject, $current)) {
                 break;
             }
 
@@ -4225,10 +4243,10 @@ final class PdfOutlineExtractor
             if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
-            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
                 break;
             }
-            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject, $current)) {
                 break;
             }
 
@@ -4665,10 +4683,10 @@ final class PdfOutlineExtractor
             if (!$this->outlineItemDictionaryAllowsTraversal($dict, $objects)) {
                 break;
             }
-            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject)) {
+            if (!$this->outlineItemParentMatches($dict, $objects, $expectedParentObject, $current)) {
                 break;
             }
-            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject)) {
+            if (!$this->outlineItemPrevMatches($dict, $objects, $previousSiblingObject, $current)) {
                 break;
             }
 
