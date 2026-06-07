@@ -869,6 +869,84 @@ return [
         $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned data-pandoc hidden metadata to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside hidden content to be stripped');
     },
+    'converts microdata and rdfa attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Article ./types/Local" itemid="./articles/42" itemref="headline author bad<tag">'
+            . '<h1 itemprop="headline schema:name bad<tag">Title</h1>'
+            . '<a property="schema:url og:url" typeof="schema:Article https://schema.org/NewsArticle" about="#article" resource="./canonical.html" vocab="https://schema.org/" prefix="schema: https://schema.org/ og: https://ogp.me/ns# bad: javascript:alert(1)" href="./canonical.html">Canonical</a>'
+            . '<span itemtype="ftp://bad.example/Type" property="og:title bad<>">Social</span>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/semantic-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/types/Local" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline author">'
+            . '<h1 data-pandoc-microdata-property="headline schema:name">Title</h1>'
+            . '<a data-pandoc-rdfa-property="schema:url og:url" data-pandoc-rdfa-typeof="schema:Article https://schema.org/NewsArticle" data-pandoc-rdfa-about="https://source.example.test/import/posts/post.html#article" data-pandoc-rdfa-resource="https://source.example.test/import/posts/canonical.html" data-pandoc-rdfa-vocab="https://schema.org/" data-pandoc-rdfa-prefix="schema: https://schema.org/ og: https://ogp.me/ns#" href="https://source.example.test/import/posts/canonical.html">Canonical</a>'
+            . '<span data-pandoc-rdfa-property="og:title">Social</span></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('TitleCanonicalSocial', $fragment->textContent());
+        $t->same(['a', 'article', 'h1', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['itemprop', 'itemref', 'itemtype', 'prefix', 'property'], $summary['filteredAttributes']);
+        $t->same([
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'unsafe-attribute',
+            'semantic-metadata-review',
+            'unsafe-attribute',
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'semantic-metadata-review',
+            'unsafe-url',
+            'semantic-metadata-review',
+            'unsafe-url',
+            'unsafe-attribute',
+            'semantic-metadata-review',
+        ], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Article https://source.example.test/import/posts/types/Local',
+            'data-pandoc-microdata-id' => 'https://source.example.test/import/posts/articles/42',
+            'data-pandoc-microdata-ref' => 'headline author',
+        ], $nodes[0]['attrs']);
+        $t->same(['data-pandoc-microdata-property' => 'headline schema:name'], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-rdfa-property' => 'schema:url og:url',
+            'data-pandoc-rdfa-typeof' => 'schema:Article https://schema.org/NewsArticle',
+            'data-pandoc-rdfa-about' => 'https://source.example.test/import/posts/post.html#article',
+            'data-pandoc-rdfa-resource' => 'https://source.example.test/import/posts/canonical.html',
+            'data-pandoc-rdfa-vocab' => 'https://schema.org/',
+            'data-pandoc-rdfa-prefix' => 'schema: https://schema.org/ og: https://ogp.me/ns#',
+            'href' => 'https://source.example.test/import/posts/canonical.html',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same(['data-pandoc-rdfa-property' => 'og:title'], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/semantic-metadata-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source semantic attribute to be replaced: ' . $sourceAttribute);
+        }
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe semantic metadata URLs to be stripped');
+        $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed semantic term tokens to be stripped');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();

@@ -2260,6 +2260,20 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlSemanticMetadataAttribute($name)) {
+                $metadataAttrs = self::normalizeHtmlSemanticMetadataAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $diagnostics,
+                    $baseUrl
+                );
+                foreach ($metadataAttrs as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && strtolower($name) === 'srcset') {
                 $srcset = self::normalizeSrcsetAttribute($value, $tagName, $diagnostics, $baseUrl);
                 if ($srcset === null) {
@@ -2377,6 +2391,326 @@ final class Html5DomFragment
     private static function isSafeAttributeName(string $name): bool
     {
         return preg_match('/^(?:[A-Za-z_:][A-Za-z0-9:._-]*|aria-[A-Za-z0-9._-]+|data-[A-Za-z0-9._:-]+)$/', $name) === 1;
+    }
+
+    private static function isHtmlSemanticMetadataAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), [
+            'about',
+            'datatype',
+            'inlist',
+            'itemid',
+            'itemprop',
+            'itemref',
+            'itemscope',
+            'itemtype',
+            'prefix',
+            'property',
+            'resource',
+            'typeof',
+            'vocab',
+        ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlSemanticMetadataAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): array {
+        $name = strtolower($name);
+        if ($name === 'itemscope' || $name === 'inlist') {
+            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name);
+
+            return [
+                $name === 'itemscope' ? 'data-pandoc-microdata-scope' : 'data-pandoc-rdfa-inlist' => 'true',
+            ];
+        }
+
+        if ($name === 'itemtype') {
+            $tokens = self::normalizeHtmlSemanticUrlTokenList($value, $tagName, $name, $diagnostics, $baseUrl);
+
+            return $tokens === null ? [] : ['data-pandoc-microdata-type' => $tokens];
+        }
+
+        if ($name === 'itemid') {
+            $url = self::normalizeHtmlSemanticUrl($value, $tagName, $name, $diagnostics, $baseUrl);
+            if ($url !== null) {
+                self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name);
+            }
+
+            return $url === null ? [] : ['data-pandoc-microdata-id' => $url];
+        }
+
+        if ($name === 'about' || $name === 'resource' || $name === 'vocab') {
+            $url = self::normalizeHtmlSemanticUrl($value, $tagName, $name, $diagnostics, $baseUrl);
+            if ($url === null) {
+                return [];
+            }
+
+            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $name);
+
+            return ['data-pandoc-rdfa-' . $name => $url];
+        }
+
+        if ($name === 'prefix') {
+            $prefixes = self::normalizeHtmlRdfaPrefixMap($value, $tagName, $diagnostics, $baseUrl);
+
+            return $prefixes === null ? [] : ['data-pandoc-rdfa-prefix' => $prefixes];
+        }
+
+        $targetName = match ($name) {
+            'datatype' => 'data-pandoc-rdfa-datatype',
+            'itemprop' => 'data-pandoc-microdata-property',
+            'itemref' => 'data-pandoc-microdata-ref',
+            'property' => 'data-pandoc-rdfa-property',
+            'typeof' => 'data-pandoc-rdfa-typeof',
+            default => null,
+        };
+        if ($targetName === null) {
+            return [];
+        }
+
+        $tokens = self::normalizeHtmlSemanticTermTokenList($value, $tagName, $name, $diagnostics);
+
+        return $tokens === null ? [] : [$targetName => $tokens];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addSemanticMetadataDiagnostic(array &$diagnostics, string $tagName, string $attributeName): void
+    {
+        $diagnostics[] = [
+            'code' => 'semantic-metadata-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlSemanticUrl(
+        string $value,
+        string $tagName,
+        string $attributeName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        $normalized = self::normalizeUrlAttributeValue($value);
+        if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => $attributeName,
+            ];
+
+            return null;
+        }
+
+        if ($normalized !== $value) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => $tagName,
+                'attribute' => $attributeName,
+            ];
+        }
+
+        if ($baseUrl !== null) {
+            $normalized = self::resolveRelativeUrl($baseUrl, $normalized);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlSemanticUrlTokenList(
+        string $value,
+        string $tagName,
+        string $attributeName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        if (self::hasCompactUnsafeSemanticScheme($value)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => $attributeName,
+            ];
+
+            return null;
+        }
+
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $url = self::normalizeHtmlSemanticUrl($token, $tagName, $attributeName, $diagnostics, $baseUrl);
+            if ($url === null || in_array($url, $normalized, true)) {
+                continue;
+            }
+
+            $normalized[] = $url;
+        }
+
+        if ($normalized === []) {
+            return null;
+        }
+
+        self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $attributeName);
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlSemanticTermTokenList(
+        string $value,
+        string $tagName,
+        string $attributeName,
+        array &$diagnostics
+    ): ?string {
+        if (self::hasCompactUnsafeSemanticScheme($value)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attributeName,
+            ];
+
+            return null;
+        }
+
+        $tokens = self::splitHtmlSemanticTokens($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (!self::isSafeHtmlSemanticTermToken($token)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => $tagName,
+                    'attribute' => $attributeName,
+                    'token' => $token,
+                ];
+                continue;
+            }
+
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        if ($normalized === []) {
+            return null;
+        }
+
+        self::addSemanticMetadataDiagnostic($diagnostics, $tagName, $attributeName);
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitHtmlSemanticTokens(string $value): array
+    {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '') {
+            return [];
+        }
+
+        $tokens = preg_split('/[\x00-\x20]+/', $cleaned, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($tokens)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (string $token): string => trim($token), $tokens));
+    }
+
+    private static function isSafeHtmlSemanticTermToken(string $token): bool
+    {
+        if ($token === '' || preg_match('/[<>{}`]/', $token) === 1) {
+            return false;
+        }
+
+        if (self::isTrustedAbsoluteBaseUrl($token)) {
+            return true;
+        }
+
+        $scheme = strtolower(strstr($token, ':', true) ?: '');
+        if (in_array($scheme, ['javascript', 'vbscript', 'data'], true)) {
+            return false;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $token) === 1 && !str_contains($token, '://')) {
+            return preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*:[A-Za-z0-9_.-]+$/', $token) === 1;
+        }
+
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_.:-]*$/', $token) === 1;
+    }
+
+    private static function hasCompactUnsafeSemanticScheme(string $value): bool
+    {
+        $compact = strtolower(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+
+        return preg_match('/(?:javascript|vbscript|data):/', $compact) === 1;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlRdfaPrefixMap(
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '' || preg_match('/[<>{}`]/', $cleaned) === 1) {
+            return null;
+        }
+
+        if (preg_match_all('/([A-Za-z][A-Za-z0-9_-]*):\s+(\S+)/', $cleaned, $matches, PREG_SET_ORDER) !== false && $matches !== []) {
+            $prefixes = [];
+            foreach ($matches as $match) {
+                $prefix = strtolower((string) $match[1]);
+                $iri = self::normalizeHtmlSemanticUrl((string) $match[2], $tagName, 'prefix', $diagnostics, $baseUrl);
+                if ($iri === null) {
+                    continue;
+                }
+
+                $prefixes[$prefix] = $prefix . ': ' . $iri;
+            }
+
+            if ($prefixes === []) {
+                return null;
+            }
+
+            self::addSemanticMetadataDiagnostic($diagnostics, $tagName, 'prefix');
+
+            return implode(' ', array_values($prefixes));
+        }
+
+        $diagnostics[] = [
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => 'prefix',
+        ];
+
+        return null;
     }
 
     private static function xmlAttributeName(\DOMAttr $attribute): string

@@ -49,10 +49,10 @@ $source = <<<HTML
 <link rel="preload" as="image" href="./preload-cover.png">
 <meta http-equiv="refresh" content="5; url=./refresh-target.html">
 <meta http-equiv="refresh" content="0; url=java&#10;script:alert(1)">
-<article id="legacy-post-42" data-source="html-export" data-pandoc-link-rel="source-spoof" data-pandoc-meta-name="source-spoof" xmlns="http://www.w3.org/1999/xhtml">
-  <h1>Imported source packet</h1>
+<article id="legacy-post-42" data-source="html-export" data-pandoc-link-rel="source-spoof" data-pandoc-meta-name="source-spoof" xmlns="http://www.w3.org/1999/xhtml" itemscope itemtype="https://schema.org/Article ./schema/LegacyPost" itemid="./post-42.html#article" itemref="imported-headline legacy-author">
+  <h1 id="imported-headline" itemprop="headline schema:name">Imported source packet</h1>
   <!--review--->
-  <p style="color: #222; font-weight: 600; background-image:url(javascript:alert(1))">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
+  <p style="color: #222; font-weight: 600; background-image:url(javascript:alert(1))" property="schema:description og:description" typeof="schema:Article" about="#legacy-post-42" resource="./post-42.html#review" vocab="https://schema.org/" prefix="schema: https://schema.org/ og: https://ogp.me/ns# bad: javascript:alert(1)">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
   <details><summary>Collapsed migration notes</summary><p>Hidden packet <a href="./details/source.html">details source</a><a href="java&#10;script:alert(1)">bad details</a></p></details>
   <details open><summary>Open import note</summary><p>Visible disclosure text</p></details>
   <section hidden data-pandoc-hidden-state="source-spoof"><h2>Hidden migration note</h2><p>Hidden packet <a href="./hidden/source.html">hidden source</a><a href="java&#10;script:alert(1)">bad hidden</a></p></section>
@@ -111,7 +111,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://source.example.test/import/posts/post-42.html?help=import" data-pandoc-link-rel="help">Help source</a>',
         '<a href="https://source.example.test/import/posts/post-42.html?draft=1#chapter-1" data-pandoc-link-rel="bookmark" title="Chapter anchor">Chapter anchor</a>',
         '<a href="https://source.example.test/import/posts/refresh-target.html" data-pandoc-meta-refresh="true">Refresh target</a>',
-        '<p data-pandoc-style="color: #222; font-weight: 600">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href="https://source.example.test/import/media/source.html#note">source note</a>.</p>',
+        '<article id="legacy-post-42" data-source="html-export" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/schema/LegacyPost" data-pandoc-microdata-id="https://source.example.test/import/posts/post-42.html#article" data-pandoc-microdata-ref="imported-headline legacy-author">',
+        '<h1 id="imported-headline" data-pandoc-microdata-property="headline schema:name">Imported source packet</h1>',
+        '<p data-pandoc-style="color: #222; font-weight: 600" data-pandoc-rdfa-property="schema:description og:description" data-pandoc-rdfa-typeof="schema:Article" data-pandoc-rdfa-about="https://source.example.test/import/posts/post-42.html?draft=1#legacy-post-42" data-pandoc-rdfa-resource="https://source.example.test/import/posts/post-42.html#review" data-pandoc-rdfa-vocab="https://schema.org/" data-pandoc-rdfa-prefix="schema: https://schema.org/ og: https://ogp.me/ns#">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href="https://source.example.test/import/media/source.html#note">source note</a>.</p>',
         '<details data-pandoc-details-state="closed"><summary data-pandoc-details-summary="true">Collapsed migration notes</summary><p>Hidden packet <a href="https://source.example.test/import/posts/details/source.html">details source</a><a>bad details</a></p></details>',
         '<details open><summary>Open import note</summary><p>Visible disclosure text</p></details>',
         '<section data-pandoc-hidden-state="hidden"><h2>Hidden migration note</h2><p>Hidden packet <a href="https://source.example.test/import/posts/hidden/source.html">hidden source</a><a>bad hidden</a></p></section>',
@@ -133,7 +135,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml'] as $blocked) {
+    foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
