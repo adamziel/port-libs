@@ -220,6 +220,9 @@ final class SyntaxHighlighter
         'toml' => 'toml',
         'ts' => 'typescript',
         'tsx' => 'tsx',
+        'typ' => 'typst',
+        'typst' => 'typst',
+        'typst-source' => 'typst',
         'html+twig' => 'twig',
         'html-twig' => 'twig',
         'timber' => 'twig',
@@ -690,6 +693,7 @@ final class SyntaxHighlighter
             'toml' => $this->tokenizeToml($code),
             'twig' => $this->tokenizeTwig($code),
             'tsx' => $this->tokenizeTsx($code),
+            'typst' => $this->tokenizeTypst($code),
             'typescript' => $this->tokenizeTypeScript($code),
             'xml' => $this->tokenizeXml($code),
             'xslt' => $this->tokenizeXml($code),
@@ -2226,6 +2230,29 @@ final class SyntaxHighlighter
             ['number', '/^-?\\d+(?:\\.\\d+)?/'],
             ['variable', '/^[A-Za-z_][A-Za-z0-9_-]*/'],
             ['operator', '/^(?:\\\\[#$%&_{}]|[{}[\\](),=^_~&#+*\\/:;<>|-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeTypst(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['region', '/^={1,6}(?=\\s+#[A-Za-z_])/'],
+            ['keyword', '/^#(?:break|continue|context|else|for|if|import|include|in|let|return|set|show|while)\\b/'],
+            ['function', '/^#[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['variable', '/^#[A-Za-z_][A-Za-z0-9_-]*/'],
+            ['datatype', '/^\\b(?:array|block|bool|bytes|content|datetime|dictionary|figure|float|heading|image|int|label|link|metadata|none|page|raw|rect|str|table|text)\\b/'],
+            ['constant', '/^\\b(?:auto|false|none|true)\\b/'],
+            ['number', '/^-?\\b(?:\\d+\\.\\d+|\\.\\d+|\\d+)(?:deg|em|fr|in|mm|pt|px|rad|%)?\\b/i'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
+            ['operator', '/^(?:=>|==|!=|<=|>=|\\.\\.\\.|[{}()[\\],.:;=+*\\/%!<>?&|#~-])/'],
         ]);
     }
 

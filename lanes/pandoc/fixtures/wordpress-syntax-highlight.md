@@ -878,3 +878,30 @@ view model =
   .wp-block-import-card { content: "Read more"; }
 }
 ```
+
+``` {.typst #typst-review .numberLines startFrom=700}
+// WordPress import Typst review template
+#set page(width: 8.5in, height: 11in, margin: 1in)
+#set text(font: "Source Sans 3", size: 11pt)
+
+#let source-id = "legacy-42"
+#let title = "Imported post"
+#let badge(body) = rect(
+  fill: rgb("#005cc5"),
+  inset: 6pt,
+  radius: 3pt,
+  [#body]
+)
+
+= #title
+
+#badge([Needs review])
+#show link: it => underline(it)
+#link("https://example.test/wp-admin/post.php?post=#source-id")[Review source]
+
+#table(
+  columns: (1fr, 2fr),
+  [Field], [Value],
+  [Source], [#source-id],
+)
+```

@@ -175,6 +175,9 @@ return [
         $t->same('tsx', SyntaxHighlighter::normalizeLanguage('tsx'));
         $t->same('tsx', SyntaxHighlighter::normalizeLanguage('typescript-react'));
         $t->same('tsx', SyntaxHighlighter::normalizeLanguage('language-tsx'));
+        $t->same('typst', SyntaxHighlighter::normalizeLanguage('typst'));
+        $t->same('typst', SyntaxHighlighter::normalizeLanguage('typ'));
+        $t->same('typst', SyntaxHighlighter::normalizeLanguage('language-typst-source'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -1466,6 +1469,51 @@ return [
         $t->same('less-css', $directLess['requestedLanguage']);
         $t->contains('<span class="va">@width</span><span class="op">:</span> <span class="dv">10px</span>', $directLess['html']);
         $t->contains('<span class="dt">.card</span> <span class="op">{</span> <span class="ot">width</span><span class="op">:</span> <span class="va">@width</span> <span class="op">*</span> <span class="dv">2</span><span class="op">;</span>', $directLess['html']);
+    },
+    'highlights typst review templates with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[53] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Typst code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directTypst = $highlighter->highlight('#let card = rect(fill: rgb("#fff"))', 'typ');
+
+        $t->same('typst', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('typst', SyntaxHighlighter::normalizeLanguage('typst'));
+        $t->same('typst', SyntaxHighlighter::normalizeLanguage('typ'));
+        $t->same('typst', SyntaxHighlighter::normalizeLanguage('language-typst-source'));
+        $t->same('typst', $highlighted['language']);
+        $t->same('typst', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(700, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource typst numberLines"><code class="sourceCode typst" style="counter-reset: source-line 699;">', $highlighted['html']);
+        $t->contains('<span id="typst-review-700"><a href="#typst-review-700"></a><span class="co">// WordPress import Typst review template</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">#set</span> <span class="dt">page</span><span class="op">(</span><span class="ot">width</span><span class="op">:</span> <span class="dv">8.5in</span>', $highlighted['html']);
+        $t->contains('<span class="kw">#set</span> <span class="dt">text</span><span class="op">(</span><span class="ot">font</span><span class="op">:</span> <span class="st">&quot;Source Sans 3&quot;</span><span class="op">,</span> <span class="ot">size</span><span class="op">:</span> <span class="dv">11pt</span>', $highlighted['html']);
+        $t->contains('<span class="kw">#let</span> <span class="va">source-id</span> <span class="op">=</span> <span class="st">&quot;legacy-42&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">#let</span> <span class="fu">badge</span><span class="op">(</span><span class="va">body</span><span class="op">)</span> <span class="op">=</span> <span class="dt">rect</span><span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="fu">rgb</span><span class="op">(</span><span class="st">&quot;#005cc5&quot;</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="re">=</span> <span class="va">#title</span>', $highlighted['html']);
+        $t->contains('<span class="fu">#badge</span><span class="op">([</span><span class="va">Needs</span> <span class="va">review</span><span class="op">])</span>', $highlighted['html']);
+        $t->contains('<span class="kw">#show</span> <span class="dt">link</span><span class="op">:</span> <span class="va">it</span> <span class="op">=&gt;</span> <span class="fu">underline</span>', $highlighted['html']);
+        $t->contains('<span class="fu">#link</span><span class="op">(</span><span class="st">&quot;https://example.test/wp-admin/post.php?post=#source-id&quot;</span><span class="op">)[</span><span class="va">Review</span> <span class="va">source</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="fu">#table</span><span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="ot">columns</span><span class="op">:</span> <span class="op">(</span><span class="dv">1fr</span><span class="op">,</span> <span class="dv">2fr</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="fu">#table</span><span class="op">(</span>', $wordpressBlock);
+        $t->same('typst', $directTypst['language']);
+        $t->same('typ', $directTypst['requestedLanguage']);
+        $t->contains('<span class="kw">#let</span> <span class="va">card</span> <span class="op">=</span> <span class="dt">rect</span><span class="op">(</span><span class="ot">fill</span><span class="op">:</span> <span class="fu">rgb</span><span class="op">(</span><span class="st">&quot;#fff&quot;</span><span class="op">))</span>', $directTypst['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

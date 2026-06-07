@@ -358,6 +358,12 @@ if (!$lessCodeBlock instanceof PortLibs\Pandoc\AstNode || $lessCodeBlock->type !
 }
 $less = $highlighter->highlightCodeBlock($lessCodeBlock, 'espresso');
 $lessWordpressBlock = $highlighter->wordpressHtmlBlock($lessCodeBlock, 'espresso');
+$typstCodeBlock = $document->children[53] ?? null;
+if (!$typstCodeBlock instanceof PortLibs\Pandoc\AstNode || $typstCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Typst code block');
+}
+$typst = $highlighter->highlightCodeBlock($typstCodeBlock, 'haddock');
+$typstWordpressBlock = $highlighter->wordpressHtmlBlock($typstCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1529,6 +1535,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($lessWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
         throw new RuntimeException('Expected LESS WordPress style metadata');
     }
+    if (($typst['language'] ?? '') !== 'typst') {
+        throw new RuntimeException('Expected Typst language handoff');
+    }
+    if (($typst['lineNumbering']['start'] ?? null) !== 700) {
+        throw new RuntimeException('Expected Typst source startFrom line-number handoff');
+    }
+    if (!str_contains($typst['html'], '<span class="kw">#set</span> <span class="dt">page</span><span class="op">(</span><span class="ot">width</span><span class="op">:</span> <span class="dv">8.5in</span>')) {
+        throw new RuntimeException('Expected Typst page setup token handoff');
+    }
+    if (!str_contains($typst['html'], '<span class="kw">#let</span> <span class="va">source-id</span> <span class="op">=</span> <span class="st">&quot;legacy-42&quot;</span>')) {
+        throw new RuntimeException('Expected Typst variable assignment token handoff');
+    }
+    if (!str_contains($typst['html'], '<span class="kw">#show</span> <span class="dt">link</span><span class="op">:</span> <span class="va">it</span> <span class="op">=&gt;</span> <span class="fu">underline</span>')) {
+        throw new RuntimeException('Expected Typst show rule token handoff');
+    }
+    if (!str_contains($typst['html'], '<span class="fu">#table</span><span class="op">(</span>')) {
+        throw new RuntimeException('Expected Typst table function token handoff');
+    }
+    if (!str_contains($typstWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected Typst WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1605,6 +1632,7 @@ echo "terraformHighlightedHtml:\n" . $terraform['html'] . "\n";
 echo "liquidHighlightedHtml:\n" . $liquid['html'] . "\n";
 echo "elmHighlightedHtml:\n" . $elm['html'] . "\n";
 echo "jsoncHighlightedHtml:\n" . $jsonc['html'] . "\n";
+echo "typstHighlightedHtml:\n" . $typst['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
