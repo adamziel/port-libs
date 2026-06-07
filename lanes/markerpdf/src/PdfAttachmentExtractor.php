@@ -45,6 +45,8 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
+    private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
+
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
@@ -479,11 +481,6 @@ final class PdfAttachmentExtractor
             }
 
             $portfolio = $this->collectionMetadata($dict['Collection'] ?? null, $objects);
-            $names = $this->dict($this->resolveValue($dict['Names'] ?? null, $objects));
-            if ($names === null || !array_key_exists('EmbeddedFiles', $names)) {
-                continue;
-            }
-
             $rawEmbeddedFilesValue = null;
             $catalogDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
             if ($catalogDictionaryBody !== null) {
@@ -492,8 +489,16 @@ final class PdfAttachmentExtractor
                     ? $this->rawDictionaryBodyFromValue($rawNamesValue, $objects)
                     : null;
                 if ($rawNamesBody !== null) {
+                    if ($this->dictionaryHasDuplicateKeys($rawNamesBody, self::CATALOG_NAMES_BOUNDARY_KEYS)) {
+                        continue;
+                    }
                     $rawEmbeddedFilesValue = $this->rawDictionaryEntryValue($rawNamesBody, 'EmbeddedFiles');
                 }
+            }
+
+            $names = $this->dict($this->resolveValue($dict['Names'] ?? null, $objects));
+            if ($names === null || !array_key_exists('EmbeddedFiles', $names)) {
+                continue;
             }
 
             foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects, [], null, 0, $rawEmbeddedFilesValue) as $entry) {

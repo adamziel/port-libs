@@ -23,6 +23,8 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
+    private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
+
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
 
     private const PDF_DOC_ENCODING_OVERRIDES = [
@@ -92,7 +94,7 @@ final class PdfEmbeddedFileExtractor
         $catalogPieceInfo = $this->pieceInfoMetadata($this->dictionaryRawValue($catalog, 'PieceInfo'), $objects);
         $files = [];
         $names = $this->resolveDictionaryFromValue($this->dictionaryRawValue($catalog, 'Names'), $objects);
-        if ($names !== null) {
+        if ($names !== null && !$this->dictionaryHasDuplicateKeys($names['body'], self::CATALOG_NAMES_BOUNDARY_KEYS)) {
             $embeddedFiles = $this->resolveDictionaryFromValue($this->dictionaryRawValue($names['body'], 'EmbeddedFiles'), $objects);
             if ($embeddedFiles !== null) {
                 $this->collectNameTreeFiles($embeddedFiles['body'], $objects, $files, $portfolioMetadata, $catalogPieceInfo, $encryptionPolicy);
