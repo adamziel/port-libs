@@ -2840,20 +2840,13 @@ final class PdfPagePropertyExtractor
      */
     private function objectStreamMemberBody(array $memberTable, array $member): ?string
     {
-        $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
-        if ($member['offset'] < 0 || $member['offset'] >= $objectDataLength) {
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $member)) {
             return null;
         }
 
-        $endOffset = $objectDataLength;
-        foreach ($memberTable['members'] as $candidate) {
-            $candidateOffset = $candidate['offset'];
-            if ($candidateOffset > $member['offset'] && $candidateOffset < $endOffset) {
-                $endOffset = $candidateOffset;
-            }
-        }
-
-        if ($endOffset <= $member['offset']) {
+        $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+        $endOffset = $this->objectStreamMemberEndOffset($memberTable, $member, $objectDataLength);
+        if ($endOffset === null) {
             return null;
         }
 
@@ -2862,6 +2855,143 @@ final class PdfPagePropertyExtractor
             $memberTable['first'] + $member['offset'],
             $endOffset - $member['offset']
         ));
+    }
+
+    /**
+     * Object-stream xref rows point to header indexes, but body slicing is
+     * offset-owned. Ignore later malformed offsets so they cannot truncate an
+     * earlier valid page or metadata object.
+     *
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberEndOffset(array $memberTable, array $member, int $objectDataLength): ?int
+    {
+        if ($member['offset'] < 0 || $member['offset'] >= $objectDataLength) {
+            return null;
+        }
+
+        $endOffset = $objectDataLength;
+        foreach ($memberTable['members'] as $candidate) {
+            $candidateOffset = $candidate['offset'];
+            if ($candidateOffset > $member['offset'] && $candidateOffset < $endOffset) {
+                if (!$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $candidate)) {
+                    continue;
+                }
+
+                $endOffset = $candidateOffset;
+            }
+        }
+
+        return $endOffset > $member['offset'] ? $endOffset : null;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
+    {
+        $decoded = $memberTable['decoded'];
+        $absoluteOffset = $memberTable['first'] + $member['offset'];
+        if (
+            $member['offset'] < 0
+            || $absoluteOffset < $memberTable['first']
+            || $absoluteOffset >= strlen($decoded)
+        ) {
+            return false;
+        }
+
+        if ($this->isPdfWhitespace($decoded[$absoluteOffset]) || $decoded[$absoluteOffset] === '%') {
+            return false;
+        }
+
+        if ($absoluteOffset === $memberTable['first']) {
+            return true;
+        }
+
+        $index = $memberTable['first'];
+        $length = strlen($decoded);
+        while ($index < $absoluteOffset && $index < $length) {
+            $char = $decoded[$index];
+            if ($char === '<' && ($decoded[$index + 1] ?? '') === '<') {
+                $dictionary = $this->readPdfDictionaryAt($decoded, $index);
+                if ($dictionary === null || $dictionary['end'] <= $index) {
+                    return false;
+                }
+
+                if ($absoluteOffset < $dictionary['end']) {
+                    return false;
+                }
+
+                $index = $dictionary['end'];
+                continue;
+            }
+
+            if ($char === '[') {
+                $array = $this->readPdfArrayAt($decoded, $index);
+                if ($array === null || $array['end'] <= $index) {
+                    return false;
+                }
+
+                if ($absoluteOffset < $array['end']) {
+                    return false;
+                }
+
+                $index = $array['end'];
+                continue;
+            }
+
+            if ($char === '(') {
+                $literal = $this->readLiteralStringAt($decoded, $index);
+                if ($literal === null || $literal['end'] <= $index) {
+                    return false;
+                }
+
+                if ($absoluteOffset < $literal['end']) {
+                    return false;
+                }
+
+                $index = $literal['end'];
+                continue;
+            }
+
+            if ($char === '<') {
+                $end = $this->skipHexString($decoded, $index);
+                if ($end === null || $end <= $index) {
+                    return false;
+                }
+
+                if ($absoluteOffset < $end) {
+                    return false;
+                }
+
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '%') {
+                $end = $this->skipPdfCommentOffset($decoded, $index);
+                if ($end <= $index) {
+                    return false;
+                }
+
+                if ($absoluteOffset < $end) {
+                    return false;
+                }
+
+                $index = $end;
+                continue;
+            }
+
+            $index++;
+        }
+
+        if ($index !== $absoluteOffset) {
+            return false;
+        }
+
+        return $this->isPdfDelimiter($decoded[$absoluteOffset - 1]);
     }
 
     /**
@@ -4648,7 +4778,7 @@ final class PdfPagePropertyExtractor
     private function skipWhitespace(string $value, int $offset): int
     {
         for ($length = strlen($value); $offset < $length;) {
-            if ($value[$offset] === "\0" || ctype_space($value[$offset])) {
+            if ($this->isPdfWhitespace($value[$offset])) {
                 $offset++;
                 continue;
             }
@@ -4664,6 +4794,32 @@ final class PdfPagePropertyExtractor
         }
 
         return $offset;
+    }
+
+    private function skipPdfCommentOffset(string $value, int $offset): int
+    {
+        for ($length = strlen($value); $offset < $length; $offset++) {
+            if ($value[$offset] === "\n" || $value[$offset] === "\r") {
+                break;
+            }
+        }
+
+        return $offset;
+    }
+
+    private function isPdfDelimiter(string $char): bool
+    {
+        return $this->isPdfWhitespace($char) || str_contains('[]()<>{}%', $char);
+    }
+
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     private function decodePdfName(string $name): string
