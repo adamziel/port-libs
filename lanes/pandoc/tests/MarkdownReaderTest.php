@@ -1594,6 +1594,51 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-anchor-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml anchor and alias names with punctuation' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Anchor punctuation **Packet**',
+            'review-defaults_: &source:review/defaults {status: queued, priority: 2, labels: [source, review]}',
+            'review:',
+            '  <<: *source:review/defaults',
+            '  owner: Import Desk',
+            'flow-review: {defaults: *source:review/defaults, status: approved}',
+            'references:',
+            '  - &source/ref-primary',
+            '    id: anchored-ref',
+            '    title: Anchored Reference',
+            '    metadata: {owner: Import Desk, stage: collected}',
+            '  - <<: *source/ref-primary',
+            '    id: copied-ref',
+            '    metadata: {stage: copied}',
+            '...',
+            '',
+            '# Anchor punctuation body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Anchor punctuation **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('queued', $meta['review']['status']);
+        $t->same(2, $meta['review']['priority']);
+        $t->same(['source', 'review'], $meta['review']['labels']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('approved', $meta['flow-review']['status']);
+        $t->same(['status' => 'queued', 'priority' => 2, 'labels' => ['source', 'review']], $meta['flow-review']['defaults']);
+        $t->same('anchored-ref', $meta['references'][0]['id']);
+        $t->same('Anchored Reference', $meta['references'][0]['title']);
+        $t->same('Import Desk', $meta['references'][0]['metadata']['owner']);
+        $t->same('collected', $meta['references'][0]['metadata']['stage']);
+        $t->same('copied-ref', $meta['references'][1]['id']);
+        $t->same('Anchored Reference', $meta['references'][1]['title']);
+        $t->same('copied', $meta['references'][1]['metadata']['stage']);
+        $t->same([], $document->attr('yamlMetadataDiagnostics', []));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('anchor-punctuation-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="anchor-punctuation-body">Anchor punctuation body</h1>', $blocks);
+    },
     'maps pandoc yaml alias diagnostics without hiding metadata values' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

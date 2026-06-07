@@ -91,6 +91,11 @@ non-specific-defaults_: ! &non_specific_defaults {status: queued, priority: 8}
 non-specific-merge:
   <<: ! *non_specific_defaults
   status: ! approved
+source-anchor-defaults_: &source:review/defaults {status: queued, priority: 11, labels: [source, review]}
+source-anchor-review:
+  <<: *source:review/defaults
+  owner: Anchor Desk
+flow-source-anchor-review: {defaults: *source:review/defaults, status: approved}
 multiline-flow-labels: [
   migration,
   "Data Liberation",
@@ -319,6 +324,14 @@ plain-continuation-reference:
     source note:
       Source reviewer
       plain scalar
+punctuation-anchor-references:
+  - &source/ref-primary
+    id: anchor-punctuation-ref
+    title: Anchor punctuation source
+    metadata: {owner: Anchor Desk, stage: collected}
+  - <<: *source/ref-primary
+    id: anchor-punctuation-copy
+    metadata: {stage: copied}
 source-summary: >- # folded source note for reviewer queue
   Preserve front matter
   comments before rendering.
@@ -699,6 +712,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['non-specific-merge']['priority'] ?? null) !== 8 || ($meta['non-specific-merge']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing bare non-specific tag alias merge metadata');
+    }
+    if (($meta['source-anchor-review']['status'] ?? '') !== 'queued' || ($meta['source-anchor-review']['priority'] ?? null) !== 11) {
+        throw new RuntimeException('YAML metadata self-test missing punctuation anchor merge metadata');
+    }
+    if (($meta['source-anchor-review']['labels'] ?? []) !== ['source', 'review']) {
+        throw new RuntimeException('YAML metadata self-test missing punctuation anchor label metadata');
+    }
+    if (($meta['source-anchor-review']['owner'] ?? '') !== 'Anchor Desk') {
+        throw new RuntimeException('YAML metadata self-test missing punctuation anchor explicit owner');
+    }
+    if (($meta['flow-source-anchor-review']['defaults']['priority'] ?? null) !== 11) {
+        throw new RuntimeException('YAML metadata self-test missing punctuation anchor flow alias metadata');
+    }
+    if (($meta['flow-source-anchor-review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing punctuation anchor flow status');
     }
     if (($meta['multiline-flow-labels'] ?? []) !== ['migration', 'Data Liberation', 'wordpress']) {
         throw new RuntimeException('YAML metadata self-test missing multiline flow sequence metadata');
@@ -1101,6 +1129,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['plain-continuation-reference']['metadata']['source note'] ?? '') !== 'Source reviewer plain scalar') {
         throw new RuntimeException('YAML metadata self-test missing nested reference plain multiline folding');
+    }
+    if (($meta['punctuation-anchor-references'][0]['id'] ?? '') !== 'anchor-punctuation-ref') {
+        throw new RuntimeException('YAML metadata self-test missing punctuation anchor source reference');
+    }
+    if (($meta['punctuation-anchor-references'][1]['id'] ?? '') !== 'anchor-punctuation-copy') {
+        throw new RuntimeException('YAML metadata self-test missing punctuation alias copied reference id');
+    }
+    if (($meta['punctuation-anchor-references'][1]['title'] ?? '') !== 'Anchor punctuation source') {
+        throw new RuntimeException('YAML metadata self-test missing punctuation alias copied reference title');
+    }
+    if (($meta['punctuation-anchor-references'][1]['metadata']['stage'] ?? '') !== 'copied') {
+        throw new RuntimeException('YAML metadata self-test missing punctuation alias copied reference override');
     }
     if (($meta['source-revision'] ?? '') !== '007') {
         throw new RuntimeException('YAML metadata self-test missing tagged string revision');

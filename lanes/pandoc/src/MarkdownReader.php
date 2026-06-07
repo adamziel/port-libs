@@ -2916,7 +2916,7 @@ final class MarkdownReader
         $tags = [];
 
         while ($value !== '') {
-            if (preg_match('/^&([A-Za-z0-9_.-]+)(?=$|[ \t])/', $value, $m) === 1) {
+            if (preg_match('/^&([^\s\[\]\{\},]+)(?=$|[ \t])/', $value, $m) === 1) {
                 $anchorName = $m[1];
                 $value = ltrim(substr($value, strlen($m[0])));
                 continue;
@@ -3282,7 +3282,7 @@ final class MarkdownReader
 
     private function isYamlAliasScalar(string $value): bool
     {
-        return preg_match('/^\*[A-Za-z0-9_.-]+$/', $value) === 1;
+        return preg_match('/^\*[^\s\[\]\{\},]+$/', $value) === 1;
     }
 
     private function yamlAliasValue(string $aliasName, ?string $currentAnchorName): mixed
