@@ -331,6 +331,29 @@ return [
         $t->contains('<h1 id="ελληνικά">Ελληνικά</h1>', $blocks);
         $t->contains('<p>Συντάκτης «κείμενο» ― €20; Τόνος και ος.</p>', $blocks);
     },
+    'decodes windows 1253 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \x93\xEA\xE5\xDF\xEC\xE5\xED\xEF\x94 \x97 \x8020; \xD4\xFC\xED\xEF\xF2.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp1253');
+        $document = (new MarkdownReader())->readBytes($bytes, 'microsoft-cp1253');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x82\x83\x84\x85\x86\x87\x89\x8B\x91\x92\x93\x94\x95\x96\x97\x99\x9B\xA1\xA2\xAF\xB4\xB8\xB9\xBA\xBC\xBE\xBF\xC0\xE0", 'windows-1253');
+        $undefined = UnicodeText::decodeBytes("A\x81B\x88C\x8AD\xD2E\xFFF", 'windows-1253');
+
+        $t->same('windows-1253', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Ελληνικά\n\nΣυντάκτης “κείμενο” — €20; Τόνος.", $decoded['text']);
+        $t->same("€‚ƒ„…†‡‰‹‘’“”•–—™›΅Ά―΄ΈΉΊΌΎΏΐΰ", $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E\u{FFFD}F", $undefined['text']);
+        $t->same(5, $undefined['repairs']);
+        $t->same(['encoding' => 'windows-1253', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Ελληνικά', $document->children[0]->attr('text'));
+        $t->same('Συντάκτης “κείμενο” — €20; Τόνος.', $document->children[1]->attr('text'));
+        $t->same(33, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(53, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="ελληνικά">Ελληνικά</h1>', $blocks);
+        $t->contains('<p>Συντάκτης “κείμενο” — €20; Τόνος.</p>', $blocks);
+    },
     'decodes iso 8859 8 hebrew source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xF2\xE1\xF8\xE9\xFA\n\n\xF2\xE5\xF8\xEA \xF2\xE1\xF8\xE9\xFA \xAB\xEE\xF7\xE5\xF8\xBB \xDF 12; \xFERTL.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-138');

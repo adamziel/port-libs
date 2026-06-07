@@ -354,6 +354,59 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const WINDOWS_1253_REPLACEMENTS = [
+        0x80 => 0x20ac,
+        0x82 => 0x201a,
+        0x83 => 0x0192,
+        0x84 => 0x201e,
+        0x85 => 0x2026,
+        0x86 => 0x2020,
+        0x87 => 0x2021,
+        0x89 => 0x2030,
+        0x8b => 0x2039,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+        0x99 => 0x2122,
+        0x9b => 0x203a,
+        0xa1 => 0x0385,
+        0xa2 => 0x0386,
+        0xaf => 0x2015,
+        0xb4 => 0x0384,
+        0xb8 => 0x0388,
+        0xb9 => 0x0389,
+        0xba => 0x038a,
+        0xbc => 0x038c,
+        0xbe => 0x038e,
+        0xbf => 0x038f,
+    ];
+
+    /** @var array<int, true> */
+    private const WINDOWS_1253_UNDEFINED = [
+        0x81 => true,
+        0x88 => true,
+        0x8a => true,
+        0x8c => true,
+        0x8d => true,
+        0x8e => true,
+        0x8f => true,
+        0x90 => true,
+        0x98 => true,
+        0x9a => true,
+        0x9c => true,
+        0x9d => true,
+        0x9e => true,
+        0x9f => true,
+        0xaa => true,
+        0xd2 => true,
+        0xff => true,
+    ];
+
+    /** @var array<int, int> */
     private const KOI8_R_REPLACEMENTS = [
         0x80 => 0x2500,
         0x81 => 0x2502,
@@ -1363,6 +1416,7 @@ final class UnicodeText
         if ($normalized === 'windows-1252'
             || $normalized === 'windows-1250'
             || $normalized === 'windows-1251'
+            || $normalized === 'windows-1253'
             || $normalized === 'koi8-r'
             || $normalized === 'iso-8859-1'
             || $normalized === 'iso-8859-2'
@@ -1848,6 +1902,7 @@ final class UnicodeText
             'windows1252', 'cp1252', 'msansi' => 'windows-1252',
             'windows1250', 'cp1250', 'microsoftcp1250' => 'windows-1250',
             'windows1251', 'cp1251', 'microsoftcp1251', 'ms1251', 'xcp1251' => 'windows-1251',
+            'windows1253', 'cp1253', 'microsoftcp1253', 'ms1253', 'xcp1253' => 'windows-1253',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
@@ -2250,6 +2305,29 @@ final class UnicodeText
                     }
                     continue;
                 }
+            }
+            if ($encoding === 'windows-1253' && $byte >= 0x80) {
+                if (isset(self::WINDOWS_1253_UNDEFINED[$byte])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+                if (isset(self::WINDOWS_1253_REPLACEMENTS[$byte])) {
+                    $out .= self::fromCodepoint(self::WINDOWS_1253_REPLACEMENTS[$byte]);
+                    continue;
+                }
+                if ($byte >= 0xc0 && isset(self::ISO_8859_7_REPLACEMENTS[$byte])) {
+                    $out .= self::fromCodepoint(self::ISO_8859_7_REPLACEMENTS[$byte]);
+                    continue;
+                }
+                if ($byte >= 0xa0) {
+                    $out .= self::fromCodepoint($byte);
+                    continue;
+                }
+
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
             }
             if ($encoding === 'koi8-r' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::KOI8_R_REPLACEMENTS[$byte]);
