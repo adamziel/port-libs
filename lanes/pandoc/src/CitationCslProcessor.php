@@ -127,7 +127,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -5220,7 +5220,11 @@ final class CitationCslProcessor
 
         $value = $this->formatCslNumber($value, (string) ($element['form'] ?? 'numeric'));
 
-        return $variable === 'locator' ? $this->formatCslLocatorRanges($value) : $value;
+        if ($variable === 'locator') {
+            return $this->formatCslLocatorRanges($value);
+        }
+
+        return $variable === 'page' ? $this->formatCslPageRanges($value) : $value;
     }
 
     private function formatCslNumber(string $value, string $form): string
@@ -5746,7 +5750,7 @@ final class CitationCslProcessor
             'publisher-place' => (string) $item['publisherPlace'],
             'publisher-list' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
             'publisher-place-list' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
-            'page' => (string) $item['page'],
+            'page' => $this->formatCslPageRanges((string) $item['page']),
             'page-first' => (string) $item['pageFirst'],
             'pagination', 'page-label' => (string) $item['pagination'],
             'book-pagination', 'bookpagination' => (string) $item['bookPagination'],
@@ -5976,6 +5980,108 @@ final class CitationCslProcessor
         }
 
         return preg_replace('/(?<=[\p{L}\p{N}])\s*[-\x{2010}-\x{2015}]\s*(?=[\p{L}\p{N}])/u', "\u{2013}", $value) ?? $value;
+    }
+
+    private function formatCslPageRanges(string $value): string
+    {
+        $format = $this->style->pageRangeFormat();
+        if ($value === '' || $format === '') {
+            return $value;
+        }
+
+        $delimiter = $this->style->term('page-range-delimiter');
+        if ($delimiter === '' || $delimiter === 'page-range-delimiter') {
+            $delimiter = "\u{2013}";
+        }
+
+        return preg_replace_callback(
+            '/(?<![\p{L}\p{N}])(\d+)\s*[-\x{2010}-\x{2015}]\s*(\d+)(?![\p{L}\p{N}])/u',
+            fn (array $matches): string => $this->formatCslPageRangePair((string) $matches[1], (string) $matches[2], $format, $delimiter),
+            $value
+        ) ?? $value;
+    }
+
+    private function formatCslPageRangePair(string $startText, string $endText, string $format, string $delimiter): string
+    {
+        if ($startText === '' || $endText === '') {
+            return $startText . $delimiter . $endText;
+        }
+
+        $start = (int) $startText;
+        $end = $this->expandedCslPageRangeEnd($start, $endText);
+        if ($end === null || $end <= $start) {
+            return $startText . $delimiter . $endText;
+        }
+
+        $expandedEndText = (string) $end;
+
+        return match ($format) {
+            'expanded' => $startText . $delimiter . $expandedEndText,
+            'minimal' => $startText . $delimiter . $this->collapsedCslPageRangeEnd($startText, $expandedEndText, 1),
+            'minimal-two' => $startText . $delimiter . $this->collapsedCslPageRangeEnd($startText, $expandedEndText, 2),
+            'chicago' => $startText . $delimiter . $this->chicagoCslPageRangeEnd($start, $startText, $end, $expandedEndText),
+            default => $startText . $delimiter . $expandedEndText,
+        };
+    }
+
+    private function expandedCslPageRangeEnd(int $start, string $endText): ?int
+    {
+        if ($endText === '' || preg_match('/^\d+$/', $endText) !== 1) {
+            return null;
+        }
+
+        $end = (int) $endText;
+        $digits = strlen($endText);
+        if ($digits >= strlen((string) $start)) {
+            return $end;
+        }
+
+        $power = 10 ** $digits;
+        $candidate = intdiv($start, $power) * $power + $end;
+        while ($candidate < $start) {
+            $candidate += $power;
+        }
+
+        return $candidate;
+    }
+
+    private function collapsedCslPageRangeEnd(string $startText, string $endText, int $minimumDigits): string
+    {
+        $minimumDigits = max(1, $minimumDigits);
+        $limit = min(strlen($startText), strlen($endText));
+        $offset = 0;
+        while ($offset < $limit && $startText[$offset] === $endText[$offset]) {
+            $offset++;
+        }
+
+        $changed = substr($endText, $offset);
+        if ($changed === '') {
+            return $endText;
+        }
+
+        if (strlen($changed) < $minimumDigits && strlen($endText) >= $minimumDigits) {
+            return substr($endText, -$minimumDigits);
+        }
+
+        return $changed;
+    }
+
+    private function chicagoCslPageRangeEnd(int $start, string $startText, int $end, string $endText): string
+    {
+        if ($start < 100 || $start % 100 === 0) {
+            return $endText;
+        }
+
+        if (strlen((string) $start) === 4 && intdiv($start, 100) !== intdiv($end, 100)) {
+            return $endText;
+        }
+
+        $lastTwoDigits = $start % 100;
+        if ($lastTwoDigits >= 1 && $lastTwoDigits <= 9) {
+            return $this->collapsedCslPageRangeEnd($startText, $endText, 1);
+        }
+
+        return $this->collapsedCslPageRangeEnd($startText, $endText, 2);
     }
 
     /**

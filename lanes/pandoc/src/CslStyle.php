@@ -55,6 +55,7 @@ final class CslStyle
         'paragraph|long' => ['single' => 'paragraph', 'multiple' => 'paragraphs'],
         'paragraph|short' => ['single' => 'para.', 'multiple' => 'paras.'],
         'paragraph|symbol' => ['single' => "\u{00B6}", 'multiple' => "\u{00B6}\u{00B6}"],
+        'page-range-delimiter|long' => ['single' => "\u{2013}", 'multiple' => "\u{2013}"],
         'verse|long' => ['single' => 'verse', 'multiple' => 'verses'],
         'verse|short' => ['single' => 'v.', 'multiple' => 'vv.'],
         'volume|long' => ['single' => 'volume', 'multiple' => 'volumes'],
@@ -180,7 +181,7 @@ final class CslStyle
      * @param array{citation:array<string, mixed>, bibliography:array<string, mixed>} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool} $localeOptions
-     * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
+     * @param array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string} $metadata
      */
     private function __construct(
         private readonly array $citationLayout,
@@ -214,7 +215,7 @@ final class CslStyle
             self::DEFAULT_NAME_RENDERING,
             self::DEFAULT_TERMS,
             self::DEFAULT_LOCALE_OPTIONS,
-            ['title' => '', 'id' => '', 'class' => 'in-text', 'defaultLocale' => '']
+            ['title' => '', 'id' => '', 'class' => 'in-text', 'defaultLocale' => '', 'pageRangeFormat' => '']
         );
     }
 
@@ -282,6 +283,7 @@ final class CslStyle
             'id' => $info instanceof \DOMElement ? self::childText($info, 'id') : '',
             'class' => trim($root->getAttribute('class')),
             'defaultLocale' => $defaultLocale,
+            'pageRangeFormat' => self::pageRangeFormatAttribute($root),
         ];
 
         $citationRenderingElements = self::renderingElements($layout, 'citation');
@@ -457,6 +459,11 @@ final class CslStyle
         return $this->metadata['defaultLocale'];
     }
 
+    public function pageRangeFormat(): string
+    {
+        return $this->metadata['pageRangeFormat'];
+    }
+
     public function punctuationInQuote(): bool
     {
         return $this->localeOptions['punctuationInQuote'];
@@ -468,7 +475,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
      */
     public function summary(): array
     {
@@ -520,6 +527,20 @@ final class CslStyle
         }
 
         return $macros;
+    }
+
+    private static function pageRangeFormatAttribute(\DOMElement $style): string
+    {
+        $format = strtolower(trim($style->getAttribute('page-range-format')));
+        if ($format === '') {
+            return '';
+        }
+
+        if (!in_array($format, ['chicago', 'expanded', 'minimal', 'minimal-two'], true)) {
+            throw new \InvalidArgumentException('CSL style page-range-format must be chicago, expanded, minimal, or minimal-two');
+        }
+
+        return $format;
     }
 
     /**

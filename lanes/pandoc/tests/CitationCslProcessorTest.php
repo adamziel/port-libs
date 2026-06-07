@@ -7993,6 +7993,128 @@ XML
         $t->contains('<p>Locator ranges (Smith | pp. 12–14 | ordinal 12th–14th; Smith | p. ii–iv | ordinal ii–iv) stay reviewable.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Locator Range Source. pp. 12-18.</dd>', $blocks);
     },
+    'applies bounded csl page range format options to page variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'page-range-source',
+                'type' => 'article-journal',
+                'title' => 'Page Range Source',
+                'container-title' => 'Import Review',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'page' => '321-328, 415-532, 100-104, 107-108, 1496-1504, A-D',
+            ],
+            [
+                'id' => 'abbreviated-range-source',
+                'type' => 'report',
+                'title' => 'Abbreviated Page Range Source',
+                'author' => [
+                    ['literal' => 'Range Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'page' => '42-5, 321-28, 2787-816',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" page-range-format="chicago">
+  <info>
+    <title>Page Range Format Review Style</title>
+    <id>https://example.test/styles/page-range-format-review</id>
+    <updated>2026-06-07T07:30:45+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="page" form="short"/>
+          <text variable="page"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="page" form="short"/>
+        <number variable="page"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Page Range Format Review Style', $summary['title'] ?? null);
+        $t->same('chicago', $summary['pageRangeFormat'] ?? null);
+
+        $cluster = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'page-range-source', 'text' => '[@page-range-source]', 'locator' => 'pp. 321-328']),
+        ]);
+        $t->same('(Smith | pp. 321–328 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D)', $cluster);
+        $t->same('Page Range Source. pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D.', $processor->renderBibliographyEntry('page-range-source'));
+
+        $expanded = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" page-range-format="expanded">
+  <citation><layout><text variable="page"/></layout></citation>
+  <bibliography><layout><text variable="page"/></layout></bibliography>
+</style>
+XML
+        );
+        $t->same('42–45, 321–328, 2787–2816', $expanded->renderBibliographyEntry('abbreviated-range-source'));
+
+        $minimal = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" page-range-format="minimal">
+  <citation><layout><text variable="page"/></layout></citation>
+  <bibliography><layout><text variable="page"/></layout></bibliography>
+</style>
+XML
+        );
+        $t->same('42–5, 321–8, 2787–816', $minimal->renderBibliographyEntry('abbreviated-range-source'));
+
+        $minimalTwo = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" page-range-format="minimal-two">
+  <locale>
+    <terms>
+      <term name="page-range-delimiter">~</term>
+    </terms>
+  </locale>
+  <citation><layout><text variable="page"/></layout></citation>
+  <bibliography><layout><text variable="page"/></layout></bibliography>
+</style>
+XML
+        );
+        $t->same('42~45, 321~28, 2787~816', $minimalTwo->renderBibliographyEntry('abbreviated-range-source'));
+
+        $document = (new MarkdownReader())->read('Page range packet [@page-range-source, pp. 321-328] keeps CSL collapsing reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Page range packet (Smith | pp. 321–328 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D) keeps CSL collapsing reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Page Range Source. pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" page-range-format="minimum">
+  <citation><layout/></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl number rendering forms for page issue and edition variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
