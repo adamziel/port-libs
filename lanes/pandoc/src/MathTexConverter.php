@@ -238,16 +238,31 @@ final class MathTexConverter
 
     /** @var array<string, string> */
     private const MATH_VARIANT_COMMANDS = [
+        'bm' => 'bold',
         'boldsymbol' => 'bold',
         'mathbf' => 'bold',
+        'mathbfcal' => 'bold-script',
+        'mathbfup' => 'bold',
         'mathbb' => 'double-struck',
+        'mathbffrak' => 'bold-fraktur',
+        'mathbfit' => 'bold-italic',
+        'mathbfscr' => 'bold-script',
+        'mathbfsfit' => 'sans-serif-bold-italic',
+        'mathbfsfup' => 'bold-sans-serif',
+        'mathbold' => 'bold',
         'mathcal' => 'script',
+        'mathds' => 'double-struck',
         'mathfrak' => 'fraktur',
         'mathit' => 'italic',
+        'mathsfit' => 'sans-serif-italic',
         'mathscr' => 'script',
         'mathsf' => 'sans-serif',
+        'mathsfup' => 'sans-serif',
         'mathtt' => 'monospace',
+        'mathup' => 'normal',
+        'pmb' => 'bold',
         'mathrm' => 'normal',
+        'symbf' => 'bold',
     ];
 
     /** @var array<string, string> */
@@ -2328,11 +2343,17 @@ final class MathTexConverter
 
         return match ($variant) {
             'bold' => $this->mathVariantOffsetCodepoint($ord, 0x1D400, 0x1D41A, 0x1D7CE),
+            'bold-fraktur' => $this->mathVariantOffsetCodepoint($ord, 0x1D56C, 0x1D586, null),
+            'bold-italic' => $this->mathVariantOffsetCodepoint($ord, 0x1D468, 0x1D482, null),
+            'bold-sans-serif' => $this->mathVariantOffsetCodepoint($ord, 0x1D5D4, 0x1D5EE, 0x1D7EC),
+            'bold-script' => $this->mathVariantOffsetCodepoint($ord, 0x1D4D0, 0x1D4EA, null),
             'double-struck' => $this->mathDoubleStruckCodepoint($ord, $character),
             'fraktur' => $this->mathFrakturCodepoint($ord, $character),
             'italic' => $this->mathItalicCodepoint($ord, $character),
             'monospace' => $this->mathVariantOffsetCodepoint($ord, 0x1D670, 0x1D68A, 0x1D7F6),
             'sans-serif' => $this->mathVariantOffsetCodepoint($ord, 0x1D5A0, 0x1D5BA, 0x1D7E2),
+            'sans-serif-bold-italic' => $this->mathVariantOffsetCodepoint($ord, 0x1D63C, 0x1D656, null),
+            'sans-serif-italic' => $this->mathVariantOffsetCodepoint($ord, 0x1D608, 0x1D622, null),
             'script' => $this->mathScriptCodepoint($ord, $character),
             default => null,
         };

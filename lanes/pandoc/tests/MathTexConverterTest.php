@@ -1079,6 +1079,28 @@ return [
         $t->contains('<msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub>', $scriptVariantMathml);
         $t->contains('<mstyle mathvariant="bold"><mi>' . $u(0x1D431) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $u(0x211D) . '</mi></mstyle>', $singleTokenMathml);
     },
+    'converts bounded texmath math alphabet aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $u = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $aliasMathml = $converter->texToMathMl('\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\pmb{q} + \\mathbold{z} + \\mathbfup{B}', true);
+        $extendedAliasMathml = $converter->texToMathMl('\\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $aliasMathml);
+        $t->contains('<mstyle mathvariant="normal"><mi>x</mi></mstyle>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="bold"><mrow><mi>' . $u(0x1D400) . '</mi><mn>' . $u(0x1D7CF) . '</mn></mrow></mstyle>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="bold"><msub><mi>α</mi><mi>' . $u(0x1D422) . '</mi></msub></mstyle>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="bold"><mi>' . $u(0x1D42A) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>' . $u(0x1D433) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>' . $u(0x1D401) . '</mi></mstyle>', $aliasMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\pmb{q} + \\mathbold{z} + \\mathbfup{B}</annotation>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="double-struck"><mrow><mi>' . $u(0x211D) . '</mi><mn>' . $u(0x1D7DA) . '</mn></mrow></mstyle>', $extendedAliasMathml);
+        $t->contains('<mstyle mathvariant="bold-italic"><mrow><mi>' . $u(0x1D468) . '</mi><mi>' . $u(0x1D49B) . '</mi></mrow></mstyle>', $extendedAliasMathml);
+        $t->contains('<mstyle mathvariant="bold-sans-serif"><mrow><mi>' . $u(0x1D5E5) . '</mi><mn>' . $u(0x1D7EE) . '</mn></mrow></mstyle>', $extendedAliasMathml);
+        $t->contains('<mstyle mathvariant="sans-serif-bold-italic"><mrow><mi>' . $u(0x1D63C) . '</mi><mi>' . $u(0x1D66F) . '</mi></mrow></mstyle>', $extendedAliasMathml);
+        $t->contains('<mstyle mathvariant="bold-script"><mi>' . $u(0x1D4D5) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-script"><mi>' . $u(0x1D4DB) . '</mi></mstyle>', $extendedAliasMathml);
+        $t->contains('<mstyle mathvariant="bold-fraktur"><mi>' . $u(0x1D58C) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-italic"><mi>' . $u(0x1D62F) . '</mi></mstyle>', $extendedAliasMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}</annotation>', $extendedAliasMathml);
+        $t->true(!str_contains($aliasMathml, '<mi>\\bm</mi>'));
+        $t->true(!str_contains($extendedAliasMathml, '<mi>\\mathbfit</mi>'));
+    },
     'rewrites bounded tex math alphabet ascii runs to unicode alphanumeric mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $u = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');

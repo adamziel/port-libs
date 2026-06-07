@@ -57,6 +57,8 @@ Math alphabet audit $\mathrm{d}x + \mathbf{v_i} + \mathit{n} + \mathsf{S} + \mat
 
 Math alphanumeric audit $\mathbb{AZ09} + \mathcal{FLO} + \mathfrak{gR} + \mathtt{code42}$ keeps Unicode MathML review glyphs.
 
+Math alphabet alias audit $\mathup{x} + \symbf{A1} + \bm{\alpha_i} + \mathds{R2} + \mathbfit{Az} + \mathbfsfup{R2} + \mathbfsfit{Az} + \mathbfscr{F} + \mathbfcal{L} + \mathbffrak{g} + \mathsfit{n}$ keeps texmath aliases semantic.
+
 Stacked limits audit $\sum_{\substack{i=1 \\ i\ne j}}^{n} a_i + \lim_{\substack{x \to 0 \\ x > 0}} f(x)$ stays semantic.
 
 Operator limits audit $\sum\limits_{i=1}^{n} p_i + \lim\limits_{x \to 0} f(x) + \int\nolimits_{0}^{1} g(x) dx$ stays semantic.
@@ -180,6 +182,7 @@ $summary = [
     'smashOverlapMathml' => $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}'),
     'mathVariantMathml' => $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i'),
     'mathAlphanumericMathml' => $converter->texToMathMl('\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}'),
+    'mathAlphabetAliasMathml' => $converter->texToMathMl('\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}'),
     'substackMathml' => $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)'),
     'operatorLimitsMathml' => $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx'),
     'starredOperatorLimitsMathml' => $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j'),
@@ -245,6 +248,10 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test emitted TeX comment content as rendered MathML');
     }
 
+    if (str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\bm</mi>') || str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\mathbfit</mi>')) {
+        throw new RuntimeException('Math TeX handoff self-test emitted texmath math alphabet aliases as literal identifiers');
+    }
+
     $mathSymbol = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     foreach ([
@@ -268,6 +275,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}\\)</span>',
         '<span class="math inline">\\(\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i\\)</span>',
         '<span class="math inline">\\(\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}\\)</span>',
+        '<span class="math inline">\\(\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}\\)</span>',
         '<span class="math inline">\\(\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)\\)</span>',
         '<span class="math inline">\\(\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx\\)</span>',
         '<span class="math inline">\\(\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j\\)</span>',
@@ -444,6 +452,12 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}</annotation>',
         '<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i</annotation>',
         '<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>',
+        '<mstyle mathvariant="normal"><mi>x</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mrow><mi>' . $mathSymbol(0x1D400) . '</mi><mn>' . $mathSymbol(0x1D7CF) . '</mn></mrow></mstyle>',
+        '<mstyle mathvariant="bold"><msub><mi>α</mi><mi>' . $mathSymbol(0x1D422) . '</mi></msub></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mrow><mi>' . $mathSymbol(0x211D) . '</mi><mn>' . $mathSymbol(0x1D7DA) . '</mn></mrow></mstyle>',
+        '<mstyle mathvariant="bold-italic"><mrow><mi>' . $mathSymbol(0x1D468) . '</mi><mi>' . $mathSymbol(0x1D49B) . '</mi></mrow></mstyle><mo>+</mo><mstyle mathvariant="bold-sans-serif"><mrow><mi>' . $mathSymbol(0x1D5E5) . '</mi><mn>' . $mathSymbol(0x1D7EE) . '</mn></mrow></mstyle>',
+        '<mstyle mathvariant="sans-serif-bold-italic"><mrow><mi>' . $mathSymbol(0x1D63C) . '</mi><mi>' . $mathSymbol(0x1D66F) . '</mi></mrow></mstyle><mo>+</mo><mstyle mathvariant="bold-script"><mi>' . $mathSymbol(0x1D4D5) . '</mi></mstyle>',
+        '<mstyle mathvariant="bold-script"><mi>' . $mathSymbol(0x1D4DB) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-fraktur"><mi>' . $mathSymbol(0x1D58C) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-italic"><mi>' . $mathSymbol(0x1D62F) . '</mi></mstyle>',
+        '<annotation encoding="application/x-tex">\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}</annotation>',
         '<annotation encoding="application/x-tex">\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)</annotation>',
         '<annotation encoding="application/x-tex">\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>',
