@@ -7263,6 +7263,13 @@ final class PdfMetadataExtractor
                 'encrypt_dictionary_resolved_entry_count',
                 'encrypt_dictionary_entry_statuses',
                 'encrypt_dictionary_entry_shapes',
+                'encrypt_operand_single_value',
+                'encrypt_trailing_operand',
+                'encrypt_trailing_operand_shape',
+                'encrypt_trailing_operand_preview',
+                'encrypt_trailing_operand_name',
+                'encrypt_trailing_operand_object_number',
+                'encrypt_trailing_operand_generation',
             ] as $key) {
                 if (array_key_exists($key, $entry)) {
                     $metadata[$key] = $entry[$key];
@@ -7945,7 +7952,11 @@ final class PdfMetadataExtractor
         $trailerEntry = $this->trailerDictionaryEntry($pdfBytes);
         if ($trailerEntry !== null) {
             $trailer = $trailerEntry['body'];
-            $values = $this->dictionaryTopLevelRawValues($trailer, 'Encrypt');
+            $valueReviews = $this->dictionaryTopLevelValueReviews($trailer, 'Encrypt');
+            $values = array_values(array_map(
+                static fn (array $entry): string => (string) $entry['value'],
+                $valueReviews
+            ));
             $source = $trailerEntry['source'] === 'xref_stream_trailer'
                 ? 'xref_stream_trailer_encrypt'
                 : 'trailer_encrypt';
@@ -7959,8 +7970,13 @@ final class PdfMetadataExtractor
                     return null;
                 }
 
-                $entry = $this->resolvedEncryptionDictionary($value, $objects, $source)
-                    ?? $this->malformedEncryptionDictionaryEntry($value, $source);
+                $valueReview = $valueReviews[0] ?? [];
+                $entry = ($valueReview['single_value'] ?? true) !== true
+                    ? $this->malformedEncryptionDictionaryEntry($value, $source, $valueReview)
+                    : (
+                        $this->resolvedEncryptionDictionary($value, $objects, $source)
+                        ?? $this->malformedEncryptionDictionaryEntry($value, $source)
+                    );
                 if ($entry !== null) {
                     return $entry;
                 }
@@ -7972,7 +7988,11 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $values = $this->dictionaryTopLevelRawValues($body, 'Encrypt');
+            $valueReviews = $this->dictionaryTopLevelValueReviews($body, 'Encrypt');
+            $values = array_values(array_map(
+                static fn (array $entry): string => (string) $entry['value'],
+                $valueReviews
+            ));
             $entry = $values === []
                 ? null
                 : (
@@ -7982,8 +8002,12 @@ final class PdfMetadataExtractor
                             trim($values[0]) === 'null'
                                 ? null
                                 : (
-                                    $this->resolvedEncryptionDictionary($values[0], $objects, 'xref_stream_encrypt')
-                                    ?? $this->malformedEncryptionDictionaryEntry($values[0], 'xref_stream_encrypt')
+                                    (($valueReviews[0]['single_value'] ?? true) !== true
+                                        ? $this->malformedEncryptionDictionaryEntry($values[0], 'xref_stream_encrypt', $valueReviews[0])
+                                        : (
+                                            $this->resolvedEncryptionDictionary($values[0], $objects, 'xref_stream_encrypt')
+                                            ?? $this->malformedEncryptionDictionaryEntry($values[0], 'xref_stream_encrypt')
+                                        ))
                                 )
                         )
                 );
@@ -8039,7 +8063,11 @@ final class PdfMetadataExtractor
             return ['parsed' => false, 'entry' => null];
         }
 
-        $values = $this->dictionaryTopLevelRawValues($trailer, 'Encrypt');
+        $valueReviews = $this->dictionaryTopLevelValueReviews($trailer, 'Encrypt');
+        $values = array_values(array_map(
+            static fn (array $entry): string => (string) $entry['value'],
+            $valueReviews
+        ));
         if ($values !== []) {
             if (count($values) > 1) {
                 return [
@@ -8058,7 +8086,10 @@ final class PdfMetadataExtractor
             }
 
             $source = $this->trailerEncryptionSourceAtOffset($pdfBytes, $offset, $depth);
-            $entry = $this->resolvedEncryptionDictionary($value, $objects, $source);
+            $valueReview = $valueReviews[0] ?? [];
+            $entry = ($valueReview['single_value'] ?? true) !== true
+                ? $this->malformedEncryptionDictionaryEntry($value, $source, $valueReview)
+                : $this->resolvedEncryptionDictionary($value, $objects, $source);
 
             return [
                 'parsed' => true,
@@ -8104,6 +8135,12 @@ final class PdfMetadataExtractor
         if ($trimmed === '' || $trimmed === 'null') {
             return null;
         }
+
+        $firstToken = $this->firstPdfValueToken($trimmed);
+        if ($firstToken === '' || !$this->pdfValueIsSingleToken($trimmed, $firstToken)) {
+            return null;
+        }
+        $trimmed = $firstToken;
 
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $trimmed, $match) === 1) {
             $objectNumber = (int) $match[1];
@@ -8154,29 +8191,44 @@ final class PdfMetadataExtractor
      *
      * @return array{body: string, object: int|null, generation?: int, source: string, malformed_encrypt_dictionary: bool, encrypt_operand_shape: string, encrypt_operand_status: string}
      */
-    private function malformedEncryptionDictionaryEntry(string $value, string $source): array
+    private function malformedEncryptionDictionaryEntry(string $value, string $source, ?array $valueReview = null): array
     {
         $trimmed = $this->trimPdfWhitespaceAndComments($value);
-        $reference = $this->objectReferenceFromValue($trimmed);
+        $firstToken = $this->firstPdfValueToken($trimmed);
+        $singleValue = $valueReview !== null && array_key_exists('single_value', $valueReview)
+            ? (bool) $valueReview['single_value']
+            : ($firstToken !== '' && $this->pdfValueIsSingleToken($trimmed, $firstToken));
+        $reference = $this->objectReferenceFromValue($singleValue ? $trimmed : $firstToken);
         $shape = $this->encryptionDictionaryOperandShape($trimmed);
         $entry = [
             'body' => '',
             'object' => null,
             'source' => $source,
             'malformed_encrypt_dictionary' => true,
-            'encrypt_operand_shape' => $shape,
-            'encrypt_operand_status' => $reference !== null
-                ? 'encrypt_dictionary_unresolved_reference'
+            'encrypt_operand_shape' => $singleValue
+                ? $shape
+                : ($firstToken === '' ? 'empty' : $this->encryptionDictionaryOperandShape($firstToken)),
+            'encrypt_operand_single_value' => $singleValue,
+            'encrypt_operand_status' => !$singleValue && $firstToken !== ''
+                ? 'encrypt_dictionary_trailing_operand_review'
                 : (
-                    $shape === 'dictionary'
-                        ? 'encrypt_dictionary_malformed_direct_dictionary'
-                        : 'encrypt_dictionary_non_dictionary_operand'
+                    $reference !== null
+                        ? 'encrypt_dictionary_unresolved_reference'
+                        : (
+                            $shape === 'dictionary'
+                                ? 'encrypt_dictionary_malformed_direct_dictionary'
+                                : 'encrypt_dictionary_non_dictionary_operand'
+                        )
                 ),
         ];
 
         if ($reference !== null) {
             $entry['object'] = $reference['objectNumber'];
             $entry['generation'] = $reference['generation'];
+        }
+
+        if (!$singleValue && $firstToken !== '') {
+            $entry = array_merge($entry, $this->encryptionDictionaryTrailingOperandReview($trimmed, $firstToken, $valueReview));
         }
 
         return $entry;
@@ -8256,6 +8308,67 @@ final class PdfMetadataExtractor
         }
 
         return 'token';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function encryptionDictionaryTrailingOperandReview(
+        string $value,
+        string $firstToken,
+        ?array $valueReview = null
+    ): array {
+        if ($valueReview !== null && ($valueReview['trailing_operand'] ?? false) === true) {
+            $review = [
+                'encrypt_trailing_operand' => true,
+                'encrypt_trailing_operand_shape' => $valueReview['trailing_operand_shape'] ?? 'malformed',
+                'encrypt_trailing_operand_preview' => $valueReview['trailing_operand_preview'] ?? 'malformed_top_level_token',
+            ];
+            foreach ([
+                'trailing_operand_name' => 'encrypt_trailing_operand_name',
+                'trailing_operand_object_number' => 'encrypt_trailing_operand_object_number',
+                'trailing_operand_generation' => 'encrypt_trailing_operand_generation',
+            ] as $sourceKey => $targetKey) {
+                if (array_key_exists($sourceKey, $valueReview)) {
+                    $review[$targetKey] = $valueReview[$sourceKey];
+                }
+            }
+
+            return $review;
+        }
+
+        $offset = $this->skipPdfWhitespace($value, 0);
+        $after = $this->skipPdfWhitespace($value, $offset + strlen($firstToken));
+        $operand = $after < strlen($value) ? $this->readPdfValueAt($value, $after) : null;
+        if ($operand === null || $operand === '') {
+            return [
+                'encrypt_trailing_operand' => true,
+                'encrypt_trailing_operand_shape' => 'malformed',
+                'encrypt_trailing_operand_preview' => 'malformed_top_level_token',
+            ];
+        }
+
+        $shape = $this->metadataStreamFilterOperandTokenType($operand);
+        $review = [
+            'encrypt_trailing_operand' => true,
+            'encrypt_trailing_operand_shape' => $shape,
+            'encrypt_trailing_operand_preview' => $this->metadataStreamFilterOperandPreview($operand),
+        ];
+
+        if ($shape === 'name') {
+            $name = $this->nameValueAt($operand, 0);
+            if ($name !== null) {
+                $review['encrypt_trailing_operand_name'] = $name;
+            }
+        }
+
+        $reference = $this->objectReferenceFromValue($operand);
+        if ($reference !== null) {
+            $review['encrypt_trailing_operand_object_number'] = $reference['objectNumber'];
+            $review['encrypt_trailing_operand_generation'] = $reference['generation'];
+        }
+
+        return $review;
     }
 
     private function encryptionAlgorithmLabel(int $version): string
@@ -18252,6 +18365,98 @@ final class PdfMetadataExtractor
         }
 
         return $values;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dictionaryTopLevelValueReviews(string $dictionary, string $key): array
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $reviews = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $valueEnd = $valueOffset + strlen($value);
+            if ($this->decodePdfName($match[1]) === $key) {
+                $reviews[] = $this->dictionaryTopLevelValueReview($body, $value, $valueEnd);
+            }
+
+            $offset = $valueEnd;
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dictionaryTopLevelValueReview(string $body, string $value, int $valueEnd): array
+    {
+        $after = $this->skipPdfWhitespace($body, $valueEnd);
+        if ($after >= strlen($body) || $body[$after] === '/') {
+            return [
+                'value' => $value,
+                'single_value' => true,
+                'trailing_operand' => false,
+            ];
+        }
+
+        $operand = $this->readPdfValueAt($body, $after);
+        if ($operand === null || $operand === '') {
+            return [
+                'value' => $value,
+                'single_value' => false,
+                'trailing_operand' => true,
+                'trailing_operand_shape' => 'malformed',
+                'trailing_operand_preview' => 'malformed_top_level_token',
+            ];
+        }
+
+        $shape = $this->metadataStreamFilterOperandTokenType($operand);
+        $review = [
+            'value' => $value,
+            'single_value' => false,
+            'trailing_operand' => true,
+            'trailing_operand_shape' => $shape,
+            'trailing_operand_preview' => $this->metadataStreamFilterOperandPreview($operand),
+        ];
+
+        if ($shape === 'name') {
+            $name = $this->nameValueAt($operand, 0);
+            if ($name !== null) {
+                $review['trailing_operand_name'] = $name;
+            }
+        }
+
+        $reference = $this->objectReferenceFromValue($operand);
+        if ($reference !== null) {
+            $review['trailing_operand_object_number'] = $reference['objectNumber'];
+            $review['trailing_operand_generation'] = $reference['generation'];
+        }
+
+        return $review;
     }
 
     /**

@@ -389,6 +389,13 @@ final class PdfSecurityPreflight
                 : [],
             'encrypt_operand_shape' => $encryption['encrypt_operand_shape'] ?? null,
             'encrypt_operand_status' => $encryption['encrypt_operand_status'] ?? null,
+            'encrypt_operand_single_value' => $encryption['encrypt_operand_single_value'] ?? null,
+            'encrypt_trailing_operand' => (bool) ($encryption['encrypt_trailing_operand'] ?? false),
+            'encrypt_trailing_operand_shape' => $encryption['encrypt_trailing_operand_shape'] ?? null,
+            'encrypt_trailing_operand_preview' => $encryption['encrypt_trailing_operand_preview'] ?? null,
+            'encrypt_trailing_operand_name' => $encryption['encrypt_trailing_operand_name'] ?? null,
+            'encrypt_trailing_operand_object_number' => $encryption['encrypt_trailing_operand_object_number'] ?? null,
+            'encrypt_trailing_operand_generation' => $encryption['encrypt_trailing_operand_generation'] ?? null,
             'encrypt_metadata' => $encryption['encrypt_metadata'] ?? null,
             'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
             'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
@@ -5939,6 +5946,13 @@ final class PdfSecurityPreflight
                 : [],
             'encrypt_operand_shape' => $encryption['encrypt_operand_shape'] ?? null,
             'encrypt_operand_status' => $encryption['encrypt_operand_status'] ?? null,
+            'encrypt_operand_single_value' => $encryption['encrypt_operand_single_value'] ?? null,
+            'encrypt_trailing_operand' => (bool) ($encryption['encrypt_trailing_operand'] ?? false),
+            'encrypt_trailing_operand_shape' => $encryption['encrypt_trailing_operand_shape'] ?? null,
+            'encrypt_trailing_operand_preview' => $encryption['encrypt_trailing_operand_preview'] ?? null,
+            'encrypt_trailing_operand_name' => $encryption['encrypt_trailing_operand_name'] ?? null,
+            'encrypt_trailing_operand_object_number' => $encryption['encrypt_trailing_operand_object_number'] ?? null,
+            'encrypt_trailing_operand_generation' => $encryption['encrypt_trailing_operand_generation'] ?? null,
             'applicable_permission_names' => $permissionBitsReliable && is_array($permissions['applicable_permission_names'] ?? null)
                 ? $permissions['applicable_permission_names']
                 : [],
@@ -6082,6 +6096,9 @@ final class PdfSecurityPreflight
                 $reasons[] = 'encryption_permissions_unknown';
                 if (($permissionPreflight['duplicate_encrypt_dictionary_entries'] ?? false) === true) {
                     $reasons[] = 'duplicate_encrypt_dictionary_entries';
+                }
+                if (($permissionPreflight['encrypt_operand_status'] ?? null) === 'encrypt_dictionary_trailing_operand_review') {
+                    $reasons[] = 'encrypt_dictionary_trailing_operand';
                 }
             } elseif ($permissionPolicy === 'permissions_malformed_blocked_without_decryption') {
                 if (($permissionPreflight['security_handler_declaration_fail_closed'] ?? false) === true) {
