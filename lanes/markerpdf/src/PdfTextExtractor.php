@@ -9385,6 +9385,7 @@ final class PdfTextExtractor
                     $reviewDecodeParmsValue,
                     $objects
                 )
+                    ?? $this->ccittFaxDuplicateDecodeParmsDeclarationReview($filter, $dictionary ?? '')
                     ?? (($decodeParmsValue === null && $dctDecodeParmsOperandFailure !== null && ($filter === 'DCTDecode' || $filter === 'DCT'))
                     ? $dctDecodeParmsOperandFailure
                     : (
@@ -9493,7 +9494,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (array_key_exists($decodeParmsIndex, $filters) && is_string($filters[$decodeParmsIndex])) {
+            if (array_key_exists($decodeParmsIndex, $filters)) {
                 continue;
             }
 
@@ -9788,6 +9789,38 @@ final class PdfTextExtractor
             'valid_color_transform' => false,
             'invalid_decode_parms_fields' => ['decode_parms_declaration'],
             'decode_parms_review' => 'duplicate_dctdecode_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => $duplicateCount,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+    }
+
+    /**
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function ccittFaxDuplicateDecodeParmsDeclarationReview(string $filter, string $dictionary): ?array
+    {
+        if ($filter !== 'CCITTFaxDecode' && $filter !== 'CCF') {
+            return null;
+        }
+
+        $duplicateCount = $this->duplicateTopLevelPdfNameDeclarationCount($dictionary, 'DecodeParms');
+        if ($duplicateCount < 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_ccitt_decodeparms_declaration_fail_closed',
             'duplicate_decode_parms_declaration_count' => $duplicateCount,
             'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
         ];

@@ -3080,6 +3080,129 @@ return [
         $t->same("Before invalid CCITT geometry\nAfter invalid CCITT geometry", $plainText);
         $t->true(!str_contains($plainText, 'Invalid-dimension fax payload noise'));
     },
+    'marks duplicate top-level CCITT Fax DecodeParms declarations fail closed before image review' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $expectedDecodeParms = [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_ccitt_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => 1,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+        $expectedEffective = [
+            'k' => 0,
+            'columns' => 1728,
+            'rows' => 0,
+            'black_is_1' => false,
+            'encoded_byte_align' => false,
+            'end_of_line' => false,
+            'end_of_block' => true,
+            'damaged_rows_before_error' => 0,
+        ];
+        $expectedDefaults = [
+            'k',
+            'columns',
+            'rows',
+            'black_is_1',
+            'encoded_byte_align',
+            'end_of_line',
+            'end_of_block',
+            'damaged_rows_before_error',
+        ];
+
+        $directPlan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 '
+            . '/Filter /CCF '
+            . '/DecodeParms << /K -1 /Columns 16 /Rows 1 /BlackIs1 true >> '
+            . '/DecodeParms << /K /Bad /Columns 1 /Rows 1 /EndOfBlock false >> >>'
+        );
+        $directParms = $directPlan['image_filter_details'][0]['decode_parms'] ?? null;
+        $directBoundary = $directPlan['ccitt_fax_decode_boundary'] ?? [];
+
+        $t->same(['CCF'], $directPlan['image_filters']);
+        $t->same($expectedDecodeParms, $directParms);
+        $t->same(true, $directBoundary['decode_parms_present'] ?? null);
+        $t->same(true, $directBoundary['invalid_decode_parms'] ?? null);
+        $t->same(['decode_parms_declaration'], $directBoundary['invalid_decode_parms_fields'] ?? null);
+        $t->same($expectedEffective, $directBoundary['effective_decode_parms'] ?? null);
+        $t->same($expectedDefaults, $directBoundary['defaults_applied'] ?? null);
+        $t->same(16, $directBoundary['dictionary_width'] ?? null);
+        $t->same(1, $directBoundary['dictionary_height'] ?? null);
+        $t->same(16, $directBoundary['effective_width'] ?? null);
+        $t->same(1, $directBoundary['effective_height'] ?? null);
+        $t->same('image_dictionary', $directBoundary['width_source'] ?? null);
+        $t->same('image_dictionary', $directBoundary['height_source'] ?? null);
+        $t->same(false, $directBoundary['columns_match_width'] ?? null);
+        $t->same(null, $directBoundary['rows_match_height'] ?? null);
+        $t->same(true, $directBoundary['dimension_mismatch'] ?? null);
+        $t->contains('duplicate_ccitt_decodeparms_declaration_fail_closed', implode(',', $directPlan['notes']));
+
+        $inlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline duplicate declaration CCITT payload noise) Tj ET final";
+        $inlinePlan = $renderer->inlineImageReviewPlan(
+            '/W 16 /H 1 /IM true /F /CCF /DP << /K -1 /Columns 16 /Rows 1 /BlackIs1 true >> /DP << /K /Bad /Columns 1 /Rows 1 /EndOfBlock false >> /D [1 0]',
+            $inlinePayload
+        );
+        $inlineParms = $inlinePlan['image_filter_details'][0]['decode_parms'] ?? null;
+        $inlineBoundary = $inlinePlan['ccitt_fax_decode_boundary'] ?? [];
+
+        $t->same(['CCITTFaxDecode'], $inlinePlan['image_filters']);
+        $t->same($expectedDecodeParms, $inlineParms);
+        $t->same(true, $inlineBoundary['decode_parms_present'] ?? null);
+        $t->same(true, $inlineBoundary['invalid_decode_parms'] ?? null);
+        $t->same(['decode_parms_declaration'], $inlineBoundary['invalid_decode_parms_fields'] ?? null);
+        $t->same($expectedEffective, $inlineBoundary['effective_decode_parms'] ?? null);
+        $t->same($expectedDefaults, $inlineBoundary['defaults_applied'] ?? null);
+        $t->same(true, $inlinePlan['inline_image_review_only']);
+        $t->same(false, $inlinePlan['inline_image']['native_raster_decode'] ?? null);
+        $t->same(true, $inlinePlan['inline_image_payload_excluded_from_text']);
+        $t->contains('duplicate_ccitt_decodeparms_declaration_fail_closed', implode(',', $inlinePlan['notes']));
+        $t->true(!str_contains(json_encode($inlinePlan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline duplicate declaration CCITT payload noise'));
+
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before duplicate declaration CCITT) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After duplicate declaration CCITT) Tj ET';
+        $faxPayload = 'BT /F1 12 Tf 72 700 Td (WordPress duplicate declaration CCITT leak) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /DuplicateDeclarationFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 16 /Rows 1 /BlackIs1 true >> /DecodeParms << /K /Bad /Columns 1 /Rows 1 /EndOfBlock false >> /Length " . strlen($faxPayload) . " >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $decodeParms = $entry['filter_details'][0]['decode_parms'] ?? null;
+        $boundary = $entry['ccitt_fax_decode_boundary'] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before duplicate declaration CCITT', 'After duplicate declaration CCITT'], $extractor->extractTextLines($pdf));
+        $t->same("Before duplicate declaration CCITT\nAfter duplicate declaration CCITT", $plainText);
+        $t->true(!str_contains($plainText, 'WordPress duplicate declaration CCITT leak'));
+        $t->same(['CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same($expectedDecodeParms, $decodeParms);
+        $t->same(true, $boundary['decode_parms_present'] ?? null);
+        $t->same(true, $boundary['invalid_decode_parms'] ?? null);
+        $t->same(['decode_parms_declaration'], $boundary['invalid_decode_parms_fields'] ?? null);
+        $t->same($expectedEffective, $boundary['effective_decode_parms'] ?? null);
+        $t->same($expectedDefaults, $boundary['defaults_applied'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, $faxPayload));
+    },
     'marks duplicate CCITT Fax DecodeParms parameters fail closed before image review' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $directPlan = $renderer->imageColorSpaceSoftMaskPlan(

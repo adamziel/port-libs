@@ -624,6 +624,9 @@ final class PdfImageRenderer
             if (is_string($decodeParmsReview) && str_contains($decodeParmsReview, '_dctdecode_decodeparms_')) {
                 $notes[] = $decodeParmsReview;
             }
+            if ($decodeParmsReview === 'duplicate_ccitt_decodeparms_declaration_fail_closed') {
+                $notes[] = $decodeParmsReview;
+            }
         }
         foreach ($operandBoundaryFilters as $filter) {
             $notes[] = $filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND
@@ -4403,6 +4406,7 @@ final class PdfImageRenderer
                 'filter' => $filter,
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
                 'decode_parms' => $this->dctDecodeDuplicateDecodeParmsDeclarationReview($filter, $dictionary, $decodeParmsValue, $objects)
+                    ?? $this->ccittFaxDuplicateDecodeParmsDeclarationReview($filter, $dictionary)
                     ?? $this->nativeImageDuplicateDecodeParmsDeclarationReview($filter, $dictionary)
                     ?? $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
@@ -4878,7 +4882,7 @@ final class PdfImageRenderer
                 continue;
             }
 
-            if (array_key_exists($decodeParmsIndex, $filters) && is_string($filters[$decodeParmsIndex])) {
+            if (array_key_exists($decodeParmsIndex, $filters)) {
                 continue;
             }
 
@@ -5026,6 +5030,38 @@ final class PdfImageRenderer
             'valid_decode_parms' => false,
             'invalid_decode_parms_fields' => ['decode_parms_declaration'],
             'decode_parms_review' => 'duplicate_native_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => $duplicateCount,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+    }
+
+    /**
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function ccittFaxDuplicateDecodeParmsDeclarationReview(string $filter, string $dictionary): ?array
+    {
+        if ($filter !== 'CCITTFaxDecode' && $filter !== 'CCF') {
+            return null;
+        }
+
+        $duplicateCount = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms');
+        if ($duplicateCount < 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_ccitt_decodeparms_declaration_fail_closed',
             'duplicate_decode_parms_declaration_count' => $duplicateCount,
             'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
         ];
