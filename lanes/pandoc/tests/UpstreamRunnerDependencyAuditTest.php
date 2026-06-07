@@ -539,6 +539,11 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::expectedPackageIdentities(), $audit['packageIdentityClosure']['present']);
         $t->same([], $audit['packageIdentityClosure']['missingHeaders']);
         $t->same([], $audit['packageIdentityClosure']['mismatchedHeaders']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageSetupDependencies(), $audit['packageSetupClosure']['expectedSetupDependencies']);
+        $t->same(false, $audit['packageSetupClosure']['present']['pandoc.cabal']['customSetup']);
+        $t->same(false, $audit['packageSetupClosure']['present']['pandoc-lua-engine/pandoc-lua-engine.cabal']['customSetup']);
+        $t->same([], $audit['packageSetupClosure']['unexpectedCustomSetupStanzas']);
+        $t->same([], $audit['packageSetupClosure']['unexpectedSetupDependencies']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -628,7 +633,7 @@ return [
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
         $t->contains('no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
@@ -875,6 +880,82 @@ return [
         $t->contains('missing Cabal package identity headers: pandoc-lua-engine/pandoc-lua-engine.cabal (cabalVersion)', $blocked);
         $t->contains('mismatched Cabal package identity headers: pandoc.cabal (name expected pandoc, found pandoc-core, version expected 3.9.0.2, found 3.9.0.1, buildType expected Simple, found Custom); pandoc-lua-engine/pandoc-lua-engine.cabal (version expected 0.5.2, found 0.5.1)', $blocked);
         $t->contains('Cabal package identity/version headers', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks package custom setup dependencies before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] .= implode("\n", [
+            '',
+            'custom-setup',
+            '  setup-depends:',
+            '    base >= 4.18 && < 5,',
+            '    Cabal >= 3.10 && < 3.13',
+        ]);
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] .= implode("\n", [
+            '',
+            'common setup-options',
+            '  setup-depends: base >= 4.12 && < 5',
+            '',
+            'custom-setup',
+            '  import: setup-options',
+            '  setup-depends: Cabal >= 3.8',
+        ]);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['packageIdentityClosure']['missingHeaders']);
+        $t->same([], $audit['packageIdentityClosure']['mismatchedHeaders']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same(true, $audit['packageSetupClosure']['present']['pandoc.cabal']['customSetup']);
+        $t->same(true, $audit['packageSetupClosure']['present']['pandoc-lua-engine/pandoc-lua-engine.cabal']['customSetup']);
+        $t->same([
+            'Cabal',
+            'base',
+        ], $audit['packageSetupClosure']['present']['pandoc.cabal']['setupDepends']);
+        $t->same([
+            'Cabal' => '>= 3.10 && < 3.13',
+            'base' => '>= 4.18 && < 5',
+        ], $audit['packageSetupClosure']['present']['pandoc.cabal']['dependencyConstraints']);
+        $t->same([
+            'Cabal',
+            'base',
+        ], $audit['packageSetupClosure']['present']['pandoc-lua-engine/pandoc-lua-engine.cabal']['setupDepends']);
+        $t->same([
+            'Cabal' => '>= 3.8',
+            'base' => '>= 4.12 && < 5',
+        ], $audit['packageSetupClosure']['present']['pandoc-lua-engine/pandoc-lua-engine.cabal']['dependencyConstraints']);
+        $t->same([
+            'custom-setup',
+        ], $audit['packageSetupClosure']['unexpectedCustomSetupStanzas']['pandoc.cabal']);
+        $t->same([
+            'custom-setup',
+        ], $audit['packageSetupClosure']['unexpectedCustomSetupStanzas']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([
+            'Cabal >= 3.10 && < 3.13',
+            'base >= 4.18 && < 5',
+        ], $audit['packageSetupClosure']['unexpectedSetupDependencies']['pandoc.cabal']);
+        $t->same([
+            'Cabal >= 3.8',
+            'base >= 4.12 && < 5',
+        ], $audit['packageSetupClosure']['unexpectedSetupDependencies']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal custom-setup stanzas: pandoc.cabal (custom-setup); pandoc-lua-engine/pandoc-lua-engine.cabal (custom-setup)', $blocked);
+        $t->contains('unexpected Cabal setup-depends: pandoc.cabal (Cabal >= 3.10 && < 3.13, base >= 4.18 && < 5); pandoc-lua-engine/pandoc-lua-engine.cabal (Cabal >= 3.8, base >= 4.12 && < 5)', $blocked);
+        $t->contains('no package custom-setup/setup-depends hooks', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'rejects hydrated checkout with incomplete runner package closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
