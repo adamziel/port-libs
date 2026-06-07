@@ -1829,6 +1829,55 @@ HTML,
         ], null, 'docx'));
     },
 
+    'renders bounded pandoc default docbook5 template resource and alias' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $article = $renderer->renderResource('templates/default', [], [
+            'article' => true,
+            'title' => 'Batch 42 Review',
+            'subtitle' => 'DocBook metadata packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-07',
+            'abstract' => '<para>Native DocBook default handoff.</para>',
+            'include-before' => ['<section><title>Before import</title></section>'],
+            'body' => '<section><title>Imported body</title></section>',
+            'include-after' => ['<section><title>After import</title></section>'],
+        ], null, 'docbook');
+
+        foreach ([
+            '<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">',
+            '<title>Batch 42 Review</title>',
+            '<subtitle>DocBook metadata packet</subtitle>',
+            '<author>',
+            'Migration bot',
+            'Content editor',
+            '<date>2026-06-07</date>',
+            '<abstract>',
+            '<para>Native DocBook default handoff.</para>',
+            '<section><title>Before import</title></section>',
+            '<section><title>Imported body</title></section>',
+            '<section><title>After import</title></section>',
+            '</article>',
+        ] as $needle) {
+            $t->contains($needle, $article);
+        }
+
+        $chapter = $renderer->renderResource('templates/default.docbook5', [], [
+            'title' => 'Chapter Review',
+            'body' => '<section><title>Chapter body</title></section>',
+        ]);
+        $t->contains('<chapter xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">', $chapter);
+        $t->contains('<section><title>Chapter body</title></section>', $chapter);
+        $t->contains('</chapter>', $chapter);
+        $t->same(false, str_contains($chapter, '<article '));
+
+        $t->same('custom docbook', $renderer->renderResource('templates/default', [
+            'templates/default.docbook5' => 'custom $body$',
+        ], [
+            'body' => 'docbook',
+        ], null, 'docbook'));
+    },
+
     'renders bounded pandoc default typst template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

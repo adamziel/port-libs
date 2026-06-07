@@ -352,6 +352,7 @@ final class DocTemplate
             'docx' => 'openxml',
             'odt' => 'opendocument',
             'epub' => 'epub3',
+            'docbook' => 'docbook5',
             'markdown_strict', 'multimarkdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra' => 'markdown',
             'gfm', 'commonmark_x' => 'commonmark',
             'asciidoctor', 'asciidoc_legacy' => 'asciidoc',
@@ -383,6 +384,7 @@ final class DocTemplate
             'default.openxml' => $this->defaultOpenXmlTemplate(),
             'default.opendocument' => $this->defaultOpenDocumentTemplate(),
             'default.epub3' => $this->defaultEpub3Template(),
+            'default.docbook5' => $this->defaultDocbook5Template(),
             'default.typst' => $this->defaultTypstTemplate(),
             'styles.html' => $this->defaultHtmlStylesTemplate(),
             'styles.citations.html' => $this->defaultHtmlCitationStylesTemplate(),
@@ -409,6 +411,7 @@ final class DocTemplate
             'default.openxml',
             'default.opendocument',
             'default.epub3',
+            'default.docbook5',
             'default.typst',
             'styles.html',
             'styles.citations.html',
@@ -1038,6 +1041,48 @@ $endfor$
 $endif$
 $endif$
 EPUB3;
+    }
+
+    private function defaultDocbook5Template(): string
+    {
+        return <<<'DOCBOOK5'
+$if(article)$
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">
+$else$
+<chapter xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">
+$endif$
+$if(title)$
+  <title>$title$</title>
+$endif$
+$if(subtitle)$
+  <subtitle>$subtitle$</subtitle>
+$endif$
+$for(author)$
+  <author>
+    $author$
+  </author>
+$endfor$
+$if(date)$
+  <date>$date$</date>
+$endif$
+$if(abstract)$
+  <abstract>
+    $abstract$
+  </abstract>
+$endif$
+$for(include-before)$
+$include-before$
+$endfor$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+$if(article)$
+</article>
+$else$
+</chapter>
+$endif$
+DOCBOOK5;
     }
 
     private function defaultTypstTemplate(): string

@@ -575,6 +575,36 @@ HTML,
         }
     }
 
+    $docbookFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'article' => true,
+        'title' => 'DocBook Default Review',
+        'subtitle' => 'Native metadata handoff',
+        'author' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-07',
+        'abstract' => '<para>DocBook metadata body.</para>',
+        'include-before' => ['<section><title>Before DocBook body</title></section>'],
+        'body' => '<section><title>DocBook body</title></section>',
+        'include-after' => ['<section><title>After DocBook body</title></section>'],
+    ], null, 'docbook');
+    foreach ([
+        '<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">',
+        '<title>DocBook Default Review</title>',
+        '<subtitle>Native metadata handoff</subtitle>',
+        'Migration bot',
+        'Content editor',
+        '<date>2026-06-07</date>',
+        '<para>DocBook metadata body.</para>',
+        '<section><title>Before DocBook body</title></section>',
+        '<section><title>DocBook body</title></section>',
+        '<section><title>After DocBook body</title></section>',
+        '</article>',
+    ] as $needle) {
+        if (!str_contains($docbookFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate docbook default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $beamerFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'documentclass' => 'beamer',
         'fontsize' => '10pt',
