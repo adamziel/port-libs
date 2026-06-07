@@ -3061,6 +3061,34 @@ final class PdfPagePropertyExtractor
                 $reference['generation'],
                 $sectionOffset
             );
+            $compressed = $this->compressedXrefPrevHelperBodyForReferenceBeforeOffset(
+                $definitions,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $sectionOffset
+            );
+            $directBody = $definition === null ? null : trim($definition['body']);
+            $compressedBody = $compressed === null ? null : trim($compressed['body']);
+
+            if (
+                $compressedBody !== null
+                && $this->xrefPrevHelperBodyIsSafe($compressedBody)
+                && ($definition === null || $compressed['carrierOffset'] > $definition['offset'])
+            ) {
+                $value = $compressedBody;
+                continue;
+            }
+
+            if ($directBody !== null && $this->xrefPrevHelperBodyIsSafe($directBody)) {
+                $value = $directBody;
+                continue;
+            }
+
+            if ($compressedBody !== null && $this->xrefPrevHelperBodyIsSafe($compressedBody)) {
+                $value = $compressedBody;
+                continue;
+            }
+
             if ($definition === null) {
                 return null;
             }
@@ -3069,6 +3097,61 @@ final class PdfPagePropertyExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{body: string, carrierOffset: int}|null
+     */
+    private function compressedXrefPrevHelperBodyForReferenceBeforeOffset(
+        array $definitions,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?array {
+        if ($objectNumber <= 0 || $generation !== 0) {
+            return null;
+        }
+
+        $selected = null;
+        foreach ($definitions as $carrierDefinitions) {
+            foreach ($carrierDefinitions as $definition) {
+                if ($definition['offset'] >= $beforeOffset || !$this->objectBodyHasTypeName($definition['body'], 'ObjStm')) {
+                    continue;
+                }
+
+                $memberTable = $this->decodedObjectStreamMemberTable($definition['body'], []);
+                if ($memberTable === null) {
+                    continue;
+                }
+
+                foreach ($memberTable['members'] as $member) {
+                    if ($member['objectNumber'] !== $objectNumber) {
+                        continue;
+                    }
+
+                    $body = $this->objectStreamMemberBody($memberTable, $member);
+                    if ($body === null || !$this->xrefPrevHelperBodyIsSafe($body)) {
+                        continue;
+                    }
+
+                    if ($selected === null || $definition['offset'] > $selected['carrierOffset']) {
+                        $selected = [
+                            'body' => $body,
+                            'carrierOffset' => $definition['offset'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $selected;
+    }
+
+    private function xrefPrevHelperBodyIsSafe(string $body): bool
+    {
+        return preg_match('/^\s*[+-]?\d+\s*\z/s', $body) === 1
+            && preg_match('/\b(?:obj|endobj|stream|endstream|xref|trailer|startxref)\b/s', $body) !== 1;
     }
 
     /**
