@@ -21,7 +21,11 @@ final class PdfEmbeddedFileExtractor
 
     private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF'];
 
+    private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
+
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+
+    private const RELATED_FILE_DICTIONARY_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
     private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
@@ -738,7 +742,11 @@ final class PdfEmbeddedFileExtractor
                 $file['output_intents_review'] = $outputIntentsReview;
             }
 
-            $relatedFiles = $this->relatedFileReviewRows($this->dictionaryRawValue($body, 'RF'), $objects, $encryptionPolicy);
+            $relatedFilesValue = $this->dictionaryRawValue($body, 'RF');
+            $relatedFiles = $relatedFilesValue !== null
+                && !$this->dictionaryHasDuplicateKeys($body, self::FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS)
+                ? $this->relatedFileReviewRows($relatedFilesValue, $objects, $encryptionPolicy)
+                : [];
             if ($relatedFiles !== []) {
                 $file['related_file_count'] = count($relatedFiles);
                 $file['related_files'] = $relatedFiles;
@@ -950,6 +958,9 @@ final class PdfEmbeddedFileExtractor
     {
         $relatedFiles = $this->resolveDictionaryFromValue($relatedFilesValue, $objects);
         if ($relatedFiles === null) {
+            return [];
+        }
+        if ($this->dictionaryHasDuplicateKeys($relatedFiles['body'], self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)) {
             return [];
         }
 

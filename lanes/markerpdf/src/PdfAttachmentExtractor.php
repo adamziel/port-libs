@@ -43,7 +43,11 @@ final class PdfAttachmentExtractor
 
     private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF'];
 
+    private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
+
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+
+    private const RELATED_FILE_DICTIONARY_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
     private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
@@ -1416,7 +1420,22 @@ final class PdfAttachmentExtractor
             $attachment['portfolio_field_values'] = $portfolioFieldValues;
         }
 
-        $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects, $encryptionPolicy);
+        $relatedFilesDictionaryBody = null;
+        $relatedFilesDuplicateEntry = false;
+        if ($fileSpecDictionaryBody !== null) {
+            $relatedFilesDuplicateEntry = $this->dictionaryHasDuplicateKeys(
+                $fileSpecDictionaryBody,
+                self::FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS
+            );
+            $rawRelatedFilesValue = $this->rawDictionaryEntryValue($fileSpecDictionaryBody, 'RF');
+            $relatedFilesDictionaryBody = is_string($rawRelatedFilesValue)
+                ? $this->rawDictionaryBodyFromValue($rawRelatedFilesValue, $objects)
+                : null;
+        }
+
+        $relatedFiles = $relatedFilesDuplicateEntry
+            ? []
+            : $this->relatedFileRows($fileSpec['RF'] ?? null, $objects, $encryptionPolicy, $relatedFilesDictionaryBody);
         if ($relatedFiles !== []) {
             $attachment['related_file_count'] = count($relatedFiles);
             $attachment['related_files'] = $relatedFiles;
@@ -2528,8 +2547,20 @@ final class PdfAttachmentExtractor
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @return list<array<string, mixed>>
      */
-    private function relatedFileRows(mixed $relatedFilesValue, array $objects, ?array $encryptionPolicy = null): array
+    private function relatedFileRows(
+        mixed $relatedFilesValue,
+        array $objects,
+        ?array $encryptionPolicy = null,
+        ?string $relatedFilesDictionaryBody = null
+    ): array
     {
+        if (
+            $relatedFilesDictionaryBody !== null
+            && $this->dictionaryHasDuplicateKeys($relatedFilesDictionaryBody, self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)
+        ) {
+            return [];
+        }
+
         $relatedFiles = $this->dict($this->resolveValue($relatedFilesValue, $objects));
         if ($relatedFiles === null) {
             return [];
