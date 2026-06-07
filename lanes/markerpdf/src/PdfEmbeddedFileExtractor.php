@@ -616,6 +616,9 @@ final class PdfEmbeddedFileExtractor
         if ($this->dictionaryHasDuplicateKeys($body, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)) {
             return null;
         }
+        if ($this->dictionaryHasTrailingOperandsAfterKeys($body, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)) {
+            return null;
+        }
         if (!$this->isFileSpecDictionaryBody($body, $objects)) {
             return null;
         }
@@ -624,7 +627,10 @@ final class PdfEmbeddedFileExtractor
         if ($ef === null) {
             return null;
         }
-        if ($this->dictionaryHasDuplicateKeys($ef['body'], self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)) {
+        if (
+            $this->dictionaryHasDuplicateKeys($ef['body'], self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($ef['body'], self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)
+        ) {
             return null;
         }
 
@@ -745,6 +751,7 @@ final class PdfEmbeddedFileExtractor
             $relatedFilesValue = $this->dictionaryRawValue($body, 'RF');
             $relatedFiles = $relatedFilesValue !== null
                 && !$this->dictionaryHasDuplicateKeys($body, self::FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS)
+                && !$this->dictionaryHasTrailingOperandsAfterKeys($body, self::FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS)
                 ? $this->relatedFileReviewRows($relatedFilesValue, $objects, $encryptionPolicy)
                 : [];
             if ($relatedFiles !== []) {
@@ -960,7 +967,10 @@ final class PdfEmbeddedFileExtractor
         if ($relatedFiles === null) {
             return [];
         }
-        if ($this->dictionaryHasDuplicateKeys($relatedFiles['body'], self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)) {
+        if (
+            $this->dictionaryHasDuplicateKeys($relatedFiles['body'], self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($relatedFiles['body'], self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)
+        ) {
             return [];
         }
 
@@ -7488,6 +7498,49 @@ final class PdfEmbeddedFileExtractor
         $counts = $this->dictionaryEntryCounts($dictionary);
         foreach ($keys as $key) {
             if (($counts[$key] ?? 0) > 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function dictionaryHasTrailingOperandsAfterKeys(string $dictionary, array $keys): bool
+    {
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $offset = $value['end'];
+            if (!in_array($name, $keys, true)) {
+                continue;
+            }
+
+            $probe = $this->skipWhitespace($dictionary, $offset);
+            if ($probe < $length && ($dictionary[$probe] ?? '') !== '/') {
                 return true;
             }
         }

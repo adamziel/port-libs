@@ -1267,6 +1267,12 @@ final class PdfAttachmentExtractor
         ) {
             return null;
         }
+        if (
+            $fileSpecDictionaryBody !== null
+            && $this->dictionaryHasTrailingOperandsAfterKeys($fileSpecDictionaryBody, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)
+        ) {
+            return null;
+        }
 
         $fileSpec = $this->dict($this->resolveValue($fileSpecValue, $objects));
         if ($fileSpec === null) {
@@ -1288,7 +1294,10 @@ final class PdfAttachmentExtractor
             $efDictionaryBody = is_string($efValue) ? $this->rawDictionaryBodyFromValue($efValue, $objects) : null;
             if (
                 $efDictionaryBody !== null
-                && $this->dictionaryHasDuplicateKeys($efDictionaryBody, self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)
+                && (
+                    $this->dictionaryHasDuplicateKeys($efDictionaryBody, self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)
+                    || $this->dictionaryHasTrailingOperandsAfterKeys($efDictionaryBody, self::EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS)
+                )
             ) {
                 return null;
             }
@@ -1424,6 +1433,9 @@ final class PdfAttachmentExtractor
         $relatedFilesDuplicateEntry = false;
         if ($fileSpecDictionaryBody !== null) {
             $relatedFilesDuplicateEntry = $this->dictionaryHasDuplicateKeys(
+                $fileSpecDictionaryBody,
+                self::FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS
+            ) || $this->dictionaryHasTrailingOperandsAfterKeys(
                 $fileSpecDictionaryBody,
                 self::FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS
             );
@@ -2556,7 +2568,10 @@ final class PdfAttachmentExtractor
     {
         if (
             $relatedFilesDictionaryBody !== null
-            && $this->dictionaryHasDuplicateKeys($relatedFilesDictionaryBody, self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)
+            && (
+                $this->dictionaryHasDuplicateKeys($relatedFilesDictionaryBody, self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($relatedFilesDictionaryBody, self::RELATED_FILE_DICTIONARY_BOUNDARY_KEYS)
+            )
         ) {
             return [];
         }
@@ -7233,6 +7248,41 @@ final class PdfAttachmentExtractor
 
         foreach ($keys as $key) {
             if (($counts[$key] ?? 0) > 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function dictionaryHasTrailingOperandsAfterKeys(string $dictionaryBody, array $keys): bool
+    {
+        for ($index = 0, $length = strlen($dictionaryBody); $index < $length;) {
+            $this->skipWhitespaceAndComments($dictionaryBody, $index);
+            if ($index >= $length) {
+                break;
+            }
+
+            if (($dictionaryBody[$index] ?? '') !== '/') {
+                $index++;
+                continue;
+            }
+
+            $name = $this->parseName($dictionaryBody, $index);
+            $raw = $this->rawValueAt($dictionaryBody, $index);
+            if ($raw === null) {
+                continue;
+            }
+            if (!in_array($name, $keys, true)) {
+                continue;
+            }
+
+            $probe = $index;
+            $this->skipWhitespaceAndComments($dictionaryBody, $probe);
+            if ($probe < $length && ($dictionaryBody[$probe] ?? '') !== '/') {
                 return true;
             }
         }
