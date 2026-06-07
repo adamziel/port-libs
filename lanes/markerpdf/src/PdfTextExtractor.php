@@ -32140,14 +32140,7 @@ final class PdfTextExtractor
                 $block = $this->cMapOperatorBlockData($mappingBlock['body']);
                 $entries = $this->cMapTopLevelHexPairs($block);
                 $rowEntries = $this->cMapTopLevelHexPairRows($block);
-                if (
-                    $rowEntries['hasMalformedRows']
-                    && $rowEntries['pairs'] !== []
-                    && (
-                        $mappingBlock['declaredCount'] === null
-                        || count($rowEntries['pairs']) >= min(max(0, $mappingBlock['declaredCount']), count($entries))
-                    )
-                ) {
+                if ($rowEntries['hasMalformedRows']) {
                     $entries = $rowEntries['pairs'];
                 }
                 if ($mappingBlock['declaredCount'] !== null) {
@@ -32715,14 +32708,7 @@ final class PdfTextExtractor
     {
         $ranges = $this->cMapTopLevelBfRangeRows($block);
         $rowRanges = $this->cMapTopLevelBfRangeRowRanges($block);
-        if (
-            $rowRanges['hasMalformedRows']
-            && $rowRanges['ranges'] !== []
-            && (
-                $declaredCount === null
-                || count($rowRanges['ranges']) >= min(max(0, $declaredCount), count($ranges))
-            )
-        ) {
+        if ($rowRanges['hasMalformedRows']) {
             $ranges = $rowRanges['ranges'];
         }
         if ($ranges === []) {
@@ -32896,6 +32882,7 @@ final class PdfTextExtractor
 
             if (!$this->cMapBfRangeTokensAreWellFormedRows($tokens)) {
                 $hasMalformedRows = true;
+                continue;
             }
 
             foreach ($this->cMapBfRangeRowsFromTokens($tokens) as $row) {
@@ -33369,14 +33356,7 @@ final class PdfTextExtractor
             $block = $this->cMapOperatorBlockData($blockMatch['body']);
             $entries = $this->cMapTopLevelHexPairs($block);
             $rowEntries = $this->cMapTopLevelHexPairRows($block);
-            if (
-                $rowEntries['hasMalformedRows']
-                && $rowEntries['pairs'] !== []
-                && (
-                    $blockMatch['declaredCount'] === null
-                    || count($rowEntries['pairs']) >= min(max(0, (int) $blockMatch['declaredCount']), count($entries))
-                )
-            ) {
+            if ($rowEntries['hasMalformedRows']) {
                 $entries = $rowEntries['pairs'];
             }
             if ($entries === []) {
@@ -33581,16 +33561,32 @@ final class PdfTextExtractor
         }
 
         foreach ($lines as $line) {
-            $tokens = $this->cMapTopLevelHexTokens($line);
+            $tokens = $this->cMapTopLevelBfRangeTokens($line);
             if ($tokens === []) {
                 continue;
             }
-            if (count($tokens) % 2 !== 0) {
-                $hasMalformedRows = true;
+
+            $hexTokens = [];
+            $lineMalformed = false;
+            foreach ($tokens as $token) {
+                if (($token['type'] ?? null) === 'hex') {
+                    $hexTokens[] = $token['value'];
+                    continue;
+                }
+
+                $lineMalformed = true;
             }
 
-            for ($index = 0, $count = count($tokens); $index + 1 < $count; $index += 2) {
-                $pairs[] = [$tokens[$index], $tokens[$index + 1]];
+            if (count($hexTokens) % 2 !== 0) {
+                $lineMalformed = true;
+            }
+            if ($lineMalformed) {
+                $hasMalformedRows = true;
+                continue;
+            }
+
+            for ($index = 0, $count = count($hexTokens); $index + 1 < $count; $index += 2) {
+                $pairs[] = [$hexTokens[$index], $hexTokens[$index + 1]];
             }
         }
 
