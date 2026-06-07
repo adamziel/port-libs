@@ -171,7 +171,8 @@ $contentXml = <<<'XML'
         <text:illustration-index-source text:caption-sequence-name="Illustration" text:use-caption="true">
           <text:index-title-template text:style-name="FigureTitle">Figures</text:index-title-template>
           <text:illustration-index-entry-template text:style-name="FigureEntry">
-            <text:index-entry-link-start/>
+            <text:index-entry-link-start xlink:href="#source-hero-seq" xlink:type="simple" xlink:show="replace" xlink:actuate="onRequest"/>
+            <text:index-entry-chapter text:style-name="FigureChapter" text:outline-level="1" text:display="number" text:chapter-format="number"/>
             <text:index-entry-text/>
             <text:index-entry-tab-stop style:type="right" style:position="16cm" style:leader-char="."/>
             <text:index-entry-page-number/>
@@ -378,6 +379,23 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<a href="#source-hero-seq">Figure 1</a>')) {
         throw new RuntimeException('Expected ODT generated index body links to render in WordPress blocks');
+    }
+    $figureIndex = null;
+    foreach ($result['document']->children as $block) {
+        if ($block instanceof \PortLibs\Pandoc\AstNode && $block->attr('generatedIndexType') === 'illustration') {
+            $figureIndex = $block;
+            break;
+        }
+    }
+    $figureIndexComponents = $figureIndex instanceof \PortLibs\Pandoc\AstNode
+        ? ($figureIndex->attr('generatedIndexSource')['templates'][1]['components'] ?? [])
+        : [];
+    if (($figureIndexComponents[0]['href'] ?? '') !== '#source-hero-seq'
+        || ($figureIndexComponents[0]['xlinkShow'] ?? '') !== 'replace'
+        || ($figureIndexComponents[1]['chapterFormat'] ?? '') !== 'number'
+        || ($figureIndexComponents[1]['styleName'] ?? '') !== 'FigureChapter'
+        || ($figureIndexComponents[1]['outlineLevel'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT generated index entry-template component metadata to survive import review');
     }
     if (($result['importReport']['content']['tableCaptionCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT standalone and following table caption style paragraphs to be counted in the import report');

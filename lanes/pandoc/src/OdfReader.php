@@ -1205,7 +1205,7 @@ final class OdfReader
     }
 
     /**
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     private function tableOfContentsTemplateComponents(\DOMElement $template): array
     {
@@ -1218,9 +1218,19 @@ final class OdfReader
             $componentMetadata = self::withoutEmpty([
                 'type' => $component->localName,
                 'styleName' => self::attr($component, self::TEXT_NS, 'style-name'),
+                'name' => self::attr($component, self::TEXT_NS, 'name'),
+                'display' => self::attr($component, self::TEXT_NS, 'display'),
+                'outlineLevel' => self::nullableInt(self::attr($component, self::TEXT_NS, 'outline-level')),
+                'chapterFormat' => self::attr($component, self::TEXT_NS, 'chapter-format'),
+                'bibliographyDataField' => self::attr($component, self::TEXT_NS, 'bibliography-data-field'),
                 'leaderChar' => self::attr($component, self::STYLE_NS, 'leader-char'),
+                'leaderText' => self::attr($component, self::STYLE_NS, 'leader-text'),
                 'tabStopType' => self::attr($component, self::STYLE_NS, 'type'),
                 'tabStopPosition' => self::attr($component, self::STYLE_NS, 'position'),
+                'href' => self::attr($component, self::XLINK_NS, 'href'),
+                'xlinkType' => self::attr($component, self::XLINK_NS, 'type'),
+                'xlinkShow' => self::attr($component, self::XLINK_NS, 'show'),
+                'xlinkActuate' => self::attr($component, self::XLINK_NS, 'actuate'),
             ]);
             if ($componentMetadata !== []) {
                 $components[] = $componentMetadata;

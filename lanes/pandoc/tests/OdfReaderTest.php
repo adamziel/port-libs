@@ -2768,6 +2768,96 @@ XML;
         $t->contains('<a href="#source-hero-seq">Figure 1</a>', $blocksHtml);
         $t->contains('<div id="glossary-terms" class="odf-generated-index odf-alphabetical-index" data-odf-index-type="alphabetical"', $blocksHtml);
     },
+    'preserves ODT index entry template component metadata for review packets' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithIndexTemplateComponents = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:table-of-content text:name="Detailed Navigation">
+        <text:table-of-content-source text:outline-level="2">
+          <text:table-of-content-entry-template text:outline-level="1" text:style-name="DetailedContentsEntry">
+            <text:index-entry-link-start xlink:href="#review-heading" xlink:type="simple" xlink:show="replace" xlink:actuate="onRequest"/>
+            <text:index-entry-chapter text:style-name="ChapterRef" text:outline-level="2" text:display="number-and-name" text:chapter-format="number"/>
+            <text:index-entry-text text:style-name="EntryText"/>
+            <text:index-entry-tab-stop style:type="right" style:position="15cm" style:leader-char="." style:leader-text="·"/>
+            <text:index-entry-page-number text:style-name="PageRef"/>
+            <text:index-entry-link-end/>
+          </text:table-of-content-entry-template>
+        </text:table-of-content-source>
+        <text:index-title><text:p>Navigation</text:p></text:index-title>
+        <text:index-body><text:p><text:a xlink:href="#review-heading">Review heading</text:a> 3</text:p></text:index-body>
+      </text:table-of-content>
+      <text:bibliography text:name="Bibliography Review">
+        <text:bibliography-source>
+          <text:bibliography-entry-template text:style-name="BibliographyEntry">
+            <text:index-entry-bibliography text:bibliography-data-field="author" text:style-name="BibAuthor"/>
+            <text:index-entry-text text:style-name="BibText"/>
+            <text:index-entry-tab-stop style:type="right" style:position="13cm" style:leader-char="_" style:leader-text=""/>
+            <text:index-entry-page-number text:style-name="BibPage"/>
+          </text:bibliography-entry-template>
+        </text:bibliography-source>
+        <text:index-title><text:p>Bibliography</text:p></text:index-title>
+        <text:index-body><text:p>Migration Desk 5</text:p></text:index-body>
+      </text:bibliography>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithIndexTemplateComponents));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $toc = $blocks[0];
+        $tocSource = $toc->attr('tableOfContentsSource');
+        $tocComponents = $tocSource['templates'][0]['components'];
+        $t->same('Detailed Navigation', $toc->attr('tableOfContentsName'));
+        $t->same('entry', $tocSource['templates'][0]['type']);
+        $t->same('DetailedContentsEntry', $tocSource['templates'][0]['styleName']);
+        $t->same(['index-entry-link-start', 'index-entry-chapter', 'index-entry-text', 'index-entry-tab-stop', 'index-entry-page-number', 'index-entry-link-end'], array_column($tocComponents, 'type'));
+        $t->same('#review-heading', $tocComponents[0]['href']);
+        $t->same('simple', $tocComponents[0]['xlinkType']);
+        $t->same('replace', $tocComponents[0]['xlinkShow']);
+        $t->same('onRequest', $tocComponents[0]['xlinkActuate']);
+        $t->same('ChapterRef', $tocComponents[1]['styleName']);
+        $t->same(2, $tocComponents[1]['outlineLevel']);
+        $t->same('number-and-name', $tocComponents[1]['display']);
+        $t->same('number', $tocComponents[1]['chapterFormat']);
+        $t->same('EntryText', $tocComponents[2]['styleName']);
+        $t->same('right', $tocComponents[3]['tabStopType']);
+        $t->same('15cm', $tocComponents[3]['tabStopPosition']);
+        $t->same('.', $tocComponents[3]['leaderChar']);
+        $t->same('·', $tocComponents[3]['leaderText']);
+        $t->same('PageRef', $tocComponents[4]['styleName']);
+
+        $bibliography = $blocks[1];
+        $bibliographySource = $bibliography->attr('generatedIndexSource');
+        $bibliographyComponents = $bibliographySource['templates'][0]['components'];
+        $t->same('bibliography', $bibliography->attr('generatedIndexType'));
+        $t->same('bibliography-source', $bibliographySource['element']);
+        $t->same('BibliographyEntry', $bibliographySource['templates'][0]['styleName']);
+        $t->same(['index-entry-bibliography', 'index-entry-text', 'index-entry-tab-stop', 'index-entry-page-number'], array_column($bibliographyComponents, 'type'));
+        $t->same('author', $bibliographyComponents[0]['bibliographyDataField']);
+        $t->same('BibAuthor', $bibliographyComponents[0]['styleName']);
+        $t->same('BibText', $bibliographyComponents[1]['styleName']);
+        $t->same('13cm', $bibliographyComponents[2]['tabStopPosition']);
+        $t->same('_', $bibliographyComponents[2]['leaderChar']);
+        $t->true(!isset($bibliographyComponents[2]['leaderText']), 'Empty leader text should not produce a metadata key');
+        $t->same('BibPage', $bibliographyComponents[3]['styleName']);
+        $t->same(1, $result['importReport']['content']['tableOfContentsCount']);
+        $t->same(1, $result['importReport']['content']['generatedIndexCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {#detailed-navigation .odf-table-of-contents data-odf-toc-name="Detailed Navigation"', $markdown);
+        $t->contains('::: {#bibliography-review .odf-generated-index .odf-bibliography data-odf-index-type="bibliography"', $markdown);
+        $t->contains('<div id="detailed-navigation" class="odf-table-of-contents" data-odf-toc-name="Detailed Navigation"', $blocksHtml);
+        $t->contains('<div id="bibliography-review" class="odf-generated-index odf-bibliography" data-odf-index-type="bibliography"', $blocksHtml);
+    },
     'maps ODT inline index marks into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithInlineIndexMarks = <<<'XML'
 <office:document-content
