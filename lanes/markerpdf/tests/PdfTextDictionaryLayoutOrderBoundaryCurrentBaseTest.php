@@ -1632,6 +1632,168 @@ return [
         $t->true(!str_contains($encoded, 'cover page_num order payload'));
         $t->true(!str_contains($encoded, 'selected page_num order payload'));
     },
+    'uses plural page-number markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5400, [
+                    ['text' => 'Plural page-number cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5401, [
+                    ['text' => 'Second plural page-number column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First plural page-number column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(5402, [
+                    ['text' => 'Plural page-number appendix should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['page_numbers' => [5401]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                    'raw_payload' => 'plural page-number cover order payload must stay hidden',
+                ],
+                [
+                    'metadata' => ['page_numbers' => [5402]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                    'raw_payload' => 'plural page-number selected order payload must stay hidden',
+                ],
+                [
+                    'metadata' => ['page_numbers' => [5401, 5402]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                    'raw_payload' => 'ambiguous plural page-number order payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['metadata' => ['page_numbers' => [5401]], 'image' => 'plural-page-number-cover-order-render'],
+                ['metadata' => ['page_numbers' => [5402]], 'image' => 'plural-page-number-selected-order-render'],
+                ['metadata' => ['page_numbers' => [5401, 5402]], 'image' => 'plural-page-number-ambiguous-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5401, $result['pages'][0]['pnum']);
+        $t->same(['First plural page-number column', 'Second plural page-number column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First plural page-number column Second plural page-number column', $blocks[0]['text']);
+        $t->same(5402, $order['page_numbers'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!array_key_exists('metadata', $order));
+        $t->true(!str_contains($encoded, 'Plural page-number cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'Plural page-number appendix should stay skipped'));
+        $t->true(!str_contains($encoded, 'plural page-number cover order payload'));
+        $t->true(!str_contains($encoded, 'plural page-number selected order payload'));
+        $t->true(!str_contains($encoded, 'ambiguous plural page-number order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses plural selected-page-number markers for sparse WordPress layout order artifacts' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-plural-page-number-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% plural page-number pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5500, [
+                        ['text' => 'Plural selected-number converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5501, [
+                        ['text' => 'Second plural selected-number first page stays source ordered.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First plural selected-number first page has no supplied order.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(5502, [
+                        ['text' => 'Second plural selected-number second page body.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First plural selected-number second page title.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(5503, [
+                        ['text' => 'Plural selected-number converter appendix should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 2,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['metadata' => ['selected_page_numbers' => [2]], 'image' => 'plural-selected-number-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'metadata' => ['selected_page_numbers' => [2]],
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0], 'raw_payload' => 'plural selected-number title layout payload must stay hidden'],
+                            ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ],
+                        'raw_payload' => 'plural selected-number layout payload must stay hidden',
+                    ]],
+                    'order_images' => [
+                        ['metadata' => ['selected_page_numbers' => [2]], 'image' => 'plural-selected-number-order-render'],
+                    ],
+                    'order_results' => [[
+                        'metadata' => ['selected_page_numbers' => [2]],
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'plural selected-number order row payload must stay hidden'],
+                        ],
+                        'raw_payload' => 'plural selected-number order payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1, 2], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->same(2, $result['metadata']['layout_plan']['page_count'] ?? null);
+        $t->same(2, $result['metadata']['order_plan']['page_count'] ?? null);
+        $t->contains('Second plural selected-number first page stays source ordered.', $text);
+        $t->contains('First plural selected-number first page has no supplied order.', $text);
+        $t->contains('# First Plural Selected-Number Second Page Title.', $text);
+        $t->contains('Second plural selected-number second page body.', $text);
+        $t->true(strpos($text, 'Second plural selected-number first page stays source ordered.') < strpos($text, 'First plural selected-number first page has no supplied order.'));
+        $t->true(strpos($text, '# First Plural Selected-Number Second Page Title.') < strpos($text, 'Second plural selected-number second page body.'));
+        $t->true(!str_contains($text, 'Plural selected-number converter cover should stay skipped.'));
+        $t->true(!str_contains($text, 'Plural selected-number converter appendix should stay skipped.'));
+        $t->true(!str_contains($encoded, 'plural selected-number title layout payload'));
+        $t->true(!str_contains($encoded, 'plural selected-number layout payload'));
+        $t->true(!str_contains($encoded, 'plural selected-number order row payload'));
+        $t->true(!str_contains($encoded, 'plural selected-number order payload'));
+    },
     'uses pdftext source page metadata before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

@@ -27,16 +27,27 @@ final class LayoutAnnotator
         'pnum',
         'page',
         'pdftext_page',
+        'pdftext_pages',
         'source_page',
+        'source_pages',
         'document_page',
+        'document_pages',
         'page_number',
+        'page_numbers',
         'page_num',
+        'page_nums',
         'selected_page_number',
+        'selected_page_numbers',
         'trimmed_page_number',
+        'trimmed_page_numbers',
         'relative_page_number',
+        'relative_page_numbers',
         'selected_page_num',
+        'selected_page_nums',
         'trimmed_page_num',
+        'trimmed_page_nums',
         'relative_page_num',
+        'relative_page_nums',
     ];
     private const LAYOUT_RESULT_PAGE_MARKER_METADATA_WRAPPERS = [
         'metadata',
@@ -87,9 +98,9 @@ final class LayoutAnnotator
     private const LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS = [
         ['page_index', 'page_idx', 'doc_page_index', 'doc_page_idx', 'document_page_index', 'document_page_idx', 'source_page_index', 'source_page_idx', 'page_range', 'source_page_range', 'document_page_range', 'page_indices', 'source_page_indices', 'document_page_indices'],
         ['selected_page_index', 'selected_page_idx', 'trimmed_page_index', 'trimmed_page_idx', 'relative_page_index', 'relative_page_idx', 'selected_page_range', 'trimmed_page_range', 'relative_page_range', 'selected_page_indices', 'trimmed_page_indices', 'relative_page_indices'],
-        ['pnum', 'page', 'pdftext_page', 'source_page', 'document_page'],
-        ['page_number', 'page_num'],
-        ['selected_page_number', 'trimmed_page_number', 'relative_page_number', 'selected_page_num', 'trimmed_page_num', 'relative_page_num'],
+        ['pnum', 'pnums', 'page', 'pdftext_page', 'pdftext_pages', 'source_page', 'source_pages', 'document_page', 'document_pages'],
+        ['page_number', 'page_numbers', 'page_num', 'page_nums'],
+        ['selected_page_number', 'selected_page_numbers', 'trimmed_page_number', 'trimmed_page_numbers', 'relative_page_number', 'relative_page_numbers', 'selected_page_num', 'selected_page_nums', 'trimmed_page_num', 'trimmed_page_nums', 'relative_page_num', 'relative_page_nums'],
     ];
 
     private LayoutOrderer $layout;
