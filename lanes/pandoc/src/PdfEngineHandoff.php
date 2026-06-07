@@ -304,6 +304,7 @@ final class PdfEngineHandoff
      *     pdfPageMode: string|null,
      *     pdfOpenAction: array<string, mixed>|null,
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     pdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     pdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     pdfUriBase: string|null,
      *     pdfViewerPreferences: array<string, bool|int|string>,
@@ -736,6 +737,7 @@ final class PdfEngineHandoff
         $pdfPageMode = null;
         $pdfOpenAction = null;
         $pdfNamedDestinations = [];
+        $pdfDestinationOptions = [];
         $pdfNameTrees = [];
         $pdfUriBase = null;
         $pdfViewerPreferences = [];
@@ -826,6 +828,7 @@ final class PdfEngineHandoff
                 $pdfPageMode = $pdfInspection['pageMode'];
                 $pdfOpenAction = $pdfInspection['openAction'];
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
+                $pdfDestinationOptions = $pdfInspection['destinationOptions'];
                 $pdfNameTrees = $pdfInspection['nameTrees'];
                 $pdfUriBase = $pdfInspection['uriBase'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
@@ -1444,6 +1447,28 @@ final class PdfEngineHandoff
                 }
                 if ($pdfNamedDestinations !== []) {
                     $diagnostics[] = 'pdf-byte-named-destinations:' . count($pdfNamedDestinations);
+                }
+                if ($pdfDestinationOptions !== []) {
+                    $diagnostics[] = 'pdf-byte-destination-options:' . count($pdfDestinationOptions);
+                    $destinationOptionFitArguments = 0;
+                    $destinationOptionNamedTargets = 0;
+                    foreach ($pdfDestinationOptions as $destinationOption) {
+                        if (isset($destinationOption['arguments']) && is_array($destinationOption['arguments']) && $destinationOption['arguments'] !== []) {
+                            $destinationOptionFitArguments++;
+                        }
+                        if (is_string($destinationOption['target'] ?? null) && $destinationOption['target'] !== '') {
+                            $destinationOptionNamedTargets++;
+                        }
+                    }
+                    if ($destinationOptionFitArguments > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-fit-arguments:' . $destinationOptionFitArguments;
+                    }
+                    if ($destinationOptionNamedTargets > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-named-targets:' . $destinationOptionNamedTargets;
+                    }
+                    foreach ($this->summarizePdfDestinationFits($pdfDestinationOptions) as $fit => $count) {
+                        $diagnostics[] = 'pdf-byte-destination-fit:' . $fit . ':' . $count;
+                    }
                 }
                 if ($pdfNameTrees !== []) {
                     $diagnostics[] = 'pdf-byte-name-trees:' . count($pdfNameTrees);
@@ -2134,6 +2159,7 @@ final class PdfEngineHandoff
             'pdfPageMode' => $pdfPageMode,
             'pdfOpenAction' => $pdfOpenAction,
             'pdfNamedDestinations' => $pdfNamedDestinations,
+            'pdfDestinationOptions' => $pdfDestinationOptions,
             'pdfNameTrees' => $pdfNameTrees,
             'pdfUriBase' => $pdfUriBase,
             'pdfViewerPreferences' => $pdfViewerPreferences,
@@ -2245,6 +2271,7 @@ final class PdfEngineHandoff
      *     finalPdfPageMode: string|null,
      *     finalPdfOpenAction: array<string, mixed>|null,
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     finalPdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     finalPdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     finalPdfUriBase: string|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
@@ -2470,6 +2497,7 @@ final class PdfEngineHandoff
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
             'finalPdfOpenAction' => is_array($finalRun) && is_array($finalRun['pdfOpenAction'] ?? null) ? $finalRun['pdfOpenAction'] : null,
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
+            'finalPdfDestinationOptions' => is_array($finalRun) && is_array($finalRun['pdfDestinationOptions'] ?? null) ? $finalRun['pdfDestinationOptions'] : [],
             'finalPdfNameTrees' => is_array($finalRun) && is_array($finalRun['pdfNameTrees'] ?? null) ? $finalRun['pdfNameTrees'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
@@ -3580,6 +3608,7 @@ final class PdfEngineHandoff
      *     pageMode:string|null,
      *     openAction:array<string, mixed>|null,
      *     namedDestinations:list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     destinationOptions:list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
@@ -3697,6 +3726,7 @@ final class PdfEngineHandoff
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
+            'destinationOptions' => $this->extractPdfDestinationOptions($pdfBytes, $catalog),
             'nameTrees' => $this->extractPdfNameTrees($pdfBytes, $catalog),
             'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
@@ -5992,6 +6022,402 @@ final class PdfEngineHandoff
             $entry['fit'] ?? '',
         ]);
         $destinations[$key] = $entry;
+    }
+
+    /**
+     * @return list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>
+     */
+    private function extractPdfDestinationOptions(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $options = [];
+
+        $openAction = $this->extractPdfValueForName($catalog, 'OpenAction');
+        if ($openAction !== null) {
+            $this->addPdfDestinationOptionFromValue($options, 'catalog.OpenAction', null, $openAction, $objects);
+        }
+
+        $names = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Names', $objects);
+        if ($names !== null) {
+            $dests = $this->extractPdfDictionaryOrReferenceValue($names, 'Dests', $objects);
+            if ($dests !== null) {
+                $visited = [];
+                $this->collectPdfNameTreeDestinationOptions(
+                    $options,
+                    'catalog.Names.Dests',
+                    $dests,
+                    $objects,
+                    $visited,
+                    0
+                );
+            }
+        }
+
+        $legacyDests = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Dests', $objects);
+        if ($legacyDests !== null) {
+            $visited = [];
+            $this->collectPdfDestinationDictionaryOptions(
+                $options,
+                'catalog.Dests',
+                $legacyDests,
+                $objects,
+                $visited
+            );
+        }
+
+        foreach ($objects as $reference => $body) {
+            if (str_contains($body, '/Title') && preg_match('/\/(?:Parent|Dest|A|Next|Prev|First|Last)\b/s', $body) === 1) {
+                $destination = $this->extractPdfValueForName($body, 'Dest');
+                if ($destination !== null) {
+                    $this->addPdfDestinationOptionFromValue($options, 'outline:' . $reference . ' R.Dest', null, $destination, $objects);
+                }
+
+                $action = $this->extractPdfDictionaryOrReferenceValue($body, 'A', $objects);
+                if ($action !== null && $this->extractPdfNameToken($action, 'S') === 'GoTo') {
+                    $actionDestination = $this->extractPdfValueForName($action, 'D');
+                    if ($actionDestination !== null) {
+                        $this->addPdfDestinationOptionFromValue($options, 'outline:' . $reference . ' R.A.D', null, $actionDestination, $objects);
+                    }
+                }
+            }
+
+            $subtype = $this->extractPdfNameToken($body, 'Subtype');
+            if ($subtype === null || !$this->isPdfAnnotationSubtype($subtype)) {
+                continue;
+            }
+
+            $destination = $this->extractPdfValueForName($body, 'Dest');
+            if ($destination !== null) {
+                $this->addPdfDestinationOptionFromValue($options, 'annotation:' . $reference . ' R.Dest', null, $destination, $objects);
+            }
+
+            $action = $this->extractPdfDictionaryOrReferenceValue($body, 'A', $objects);
+            if ($action !== null && $this->extractPdfNameToken($action, 'S') === 'GoTo') {
+                $actionDestination = $this->extractPdfValueForName($action, 'D');
+                if ($actionDestination !== null) {
+                    $this->addPdfDestinationOptionFromValue($options, 'annotation:' . $reference . ' R.A.D', null, $actionDestination, $objects);
+                }
+            }
+        }
+
+        $options = array_values($options);
+        usort(
+            $options,
+            static fn (array $a, array $b): int => [
+                $a['source'],
+                $a['name'] ?? '',
+                $a['target'] ?? '',
+                $a['pageObject'] ?? '',
+                $a['fit'] ?? '',
+                json_encode($a['arguments']),
+            ] <=> [
+                $b['source'],
+                $b['name'] ?? '',
+                $b['target'] ?? '',
+                $b['pageObject'] ?? '',
+                $b['fit'] ?? '',
+                json_encode($b['arguments']),
+            ]
+        );
+
+        return $options;
+    }
+
+    /**
+     * @param array<string, array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}> $options
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfNameTreeDestinationOptions(
+        array &$options,
+        string $source,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $values = $this->pdfTopLevelArrayValues($array);
+            for ($index = 0; $index + 1 < count($values); $index += 2) {
+                $name = $values[$index];
+                $value = $values[$index + 1];
+                if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $nameValue = trim($name['value']);
+                if ($nameValue === '') {
+                    continue;
+                }
+
+                $this->addPdfDestinationOptionFromValue($options, $source, $nameValue, $value, $objects);
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $this->collectPdfNameTreeDestinationOptions(
+                $options,
+                $source . '.Kids.' . $kidReference . ' R',
+                $objects[$kidReference],
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}> $options
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfDestinationDictionaryOptions(
+        array &$options,
+        string $source,
+        string $dictionary,
+        array $objects,
+        array &$visited
+    ): void {
+        if (str_contains($dictionary, '/Names') || str_contains($dictionary, '/Kids')) {
+            $this->collectPdfNameTreeDestinationOptions($options, $source, $dictionary, $objects, $visited, 0);
+        }
+
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            $name = $entry['key'];
+            if (in_array($name, ['Kids', 'Limits', 'Names', 'Type'], true)) {
+                continue;
+            }
+
+            $this->addPdfDestinationOptionFromValue($options, $source, $name, $entry['value'], $objects);
+        }
+    }
+
+    /**
+     * @param array<string, array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}> $options
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     */
+    private function addPdfDestinationOptionFromValue(
+        array &$options,
+        string $source,
+        ?string $name,
+        array $value,
+        array $objects
+    ): void {
+        $summary = $this->summarizePdfDestinationOptionValue($value, $objects, 0);
+        if ($summary === null) {
+            return;
+        }
+
+        $entry = array_merge([
+            'source' => $source,
+            'name' => $name,
+        ], $summary);
+        $key = implode("\0", [
+            $entry['source'],
+            $entry['name'] ?? '',
+            $entry['target'] ?? '',
+            $entry['pageObject'] ?? '',
+            $entry['fit'] ?? '',
+            json_encode($entry['arguments']),
+        ]);
+        $options[$key] = $entry;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}|null
+     */
+    private function summarizePdfDestinationOptionValue(array $value, array $objects, int $depth): ?array
+    {
+        if ($depth > 8) {
+            return null;
+        }
+
+        if ($value['kind'] === 'array') {
+            return $this->summarizePdfDestinationOptionArray($value['value']);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $actionType = $this->extractPdfNameToken($value['value'], 'S');
+            if ($actionType !== null && $actionType !== 'GoTo') {
+                return null;
+            }
+
+            $destination = $this->extractPdfValueForName($value['value'], 'D')
+                ?? $this->extractPdfValueForName($value['value'], 'Dest');
+
+            return $destination === null
+                ? null
+                : $this->summarizePdfDestinationOptionValue($destination, $objects, $depth + 1);
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+            if ($body === '') {
+                return null;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+
+            return $resolved === null
+                ? null
+                : $this->summarizePdfDestinationOptionValue($resolved, $objects, $depth + 1);
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name'], true)) {
+            $target = trim($value['value']);
+
+            return $target === ''
+                ? null
+                : $this->pdfDestinationOptionSummary(null, $target, null, []);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}|null
+     */
+    private function summarizePdfDestinationOptionArray(string $array): ?array
+    {
+        $values = $this->pdfTopLevelArrayValues($array);
+        if ($values === []) {
+            return null;
+        }
+
+        $fitNames = ['XYZ' => true, 'Fit' => true, 'FitH' => true, 'FitV' => true, 'FitR' => true, 'FitB' => true, 'FitBH' => true, 'FitBV' => true];
+        $pageObject = null;
+        $target = null;
+        $fit = null;
+        $fitIndex = null;
+
+        foreach ($values as $index => $value) {
+            if ($pageObject === null && $value['kind'] === 'reference') {
+                $pageObject = $value['value'];
+                continue;
+            }
+
+            if ($value['kind'] === 'name' && isset($fitNames[$value['value']])) {
+                $fit = $value['value'];
+                $fitIndex = $index;
+                break;
+            }
+
+            if ($pageObject === null && $target === null && in_array($value['kind'], ['literal', 'hex', 'name'], true)) {
+                $targetValue = trim($value['value']);
+                if ($targetValue !== '') {
+                    $target = $targetValue;
+                }
+            }
+        }
+
+        if ($pageObject === null && $target === null && $fit === null) {
+            return null;
+        }
+
+        $arguments = [];
+        if ($fitIndex !== null) {
+            for ($index = $fitIndex + 1; $index < count($values) && count($arguments) < 8; $index++) {
+                $argument = $this->pdfDestinationArgumentValue($values[$index]);
+                if ($argument['accepted']) {
+                    $arguments[] = $argument['value'];
+                }
+            }
+        }
+
+        return $this->pdfDestinationOptionSummary($pageObject, $target, $fit, $arguments);
+    }
+
+    /**
+     * @param list<float|null> $arguments
+     * @return array{pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}
+     */
+    private function pdfDestinationOptionSummary(?string $pageObject, ?string $target, ?string $fit, array $arguments): array
+    {
+        $left = null;
+        $top = null;
+        $right = null;
+        $bottom = null;
+        $zoom = null;
+
+        if ($fit === 'XYZ') {
+            $left = $arguments[0] ?? null;
+            $top = $arguments[1] ?? null;
+            $zoom = $arguments[2] ?? null;
+        } elseif ($fit === 'FitH' || $fit === 'FitBH') {
+            $top = $arguments[0] ?? null;
+        } elseif ($fit === 'FitV' || $fit === 'FitBV') {
+            $left = $arguments[0] ?? null;
+        } elseif ($fit === 'FitR') {
+            $left = $arguments[0] ?? null;
+            $bottom = $arguments[1] ?? null;
+            $right = $arguments[2] ?? null;
+            $top = $arguments[3] ?? null;
+        }
+
+        return [
+            'pageObject' => $pageObject,
+            'target' => $target,
+            'fit' => $fit,
+            'arguments' => $arguments,
+            'left' => $left,
+            'top' => $top,
+            'right' => $right,
+            'bottom' => $bottom,
+            'zoom' => $zoom,
+        ];
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @return array{accepted:bool, value:float|null}
+     */
+    private function pdfDestinationArgumentValue(array $value): array
+    {
+        if ($value['kind'] === 'number') {
+            return ['accepted' => true, 'value' => (float) $value['value']];
+        }
+
+        if ($value['kind'] === 'keyword' && $value['value'] === 'null') {
+            return ['accepted' => true, 'value' => null];
+        }
+
+        return ['accepted' => false, 'value' => null];
+    }
+
+    /**
+     * @param list<array{fit:string|null}> $destinationOptions
+     * @return array<string, int>
+     */
+    private function summarizePdfDestinationFits(array $destinationOptions): array
+    {
+        $fits = [];
+        foreach ($destinationOptions as $destinationOption) {
+            $fit = is_string($destinationOption['fit'] ?? null) && $destinationOption['fit'] !== ''
+                ? $destinationOption['fit']
+                : 'named';
+            $fits[$fit] = ($fits[$fit] ?? 0) + 1;
+        }
+
+        ksort($fits);
+
+        return $fits;
     }
 
     /**

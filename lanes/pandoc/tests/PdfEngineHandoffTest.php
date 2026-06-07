@@ -3124,6 +3124,162 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfNameTrees']);
     },
 
+    'fake runner extracts bounded pdf destination fit option metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/dest-options.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction [3 0 R /XYZ 72 720 1.25] /Outlines 9 0 R /Names << /Dests 8 0 R >> /Dests << /legacy [4 0 R /FitR 10 20 300 500] >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [6 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Link /Rect [72 640 360 672] /Dest [4 0 R /FitBH 640] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Names [(intro) [3 0 R /FitH 700] (named) (chapter-two) (zoomed) 11 0 R] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Outlines /First 10 0 R /Last 10 0 R /Count 1 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Title (Appendix) /Parent 9 0 R /Dest [4 0 R /FitV 144] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /D [4 0 R /XYZ null 512 2] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/dest-options.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/dest-options.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'annotation:6 0 R.Dest',
+                'name' => null,
+                'pageObject' => '4 0 R',
+                'target' => null,
+                'fit' => 'FitBH',
+                'arguments' => [640.0],
+                'left' => null,
+                'top' => 640.0,
+                'right' => null,
+                'bottom' => null,
+                'zoom' => null,
+            ],
+            [
+                'source' => 'catalog.Dests',
+                'name' => 'legacy',
+                'pageObject' => '4 0 R',
+                'target' => null,
+                'fit' => 'FitR',
+                'arguments' => [10.0, 20.0, 300.0, 500.0],
+                'left' => 10.0,
+                'top' => 500.0,
+                'right' => 300.0,
+                'bottom' => 20.0,
+                'zoom' => null,
+            ],
+            [
+                'source' => 'catalog.Names.Dests',
+                'name' => 'intro',
+                'pageObject' => '3 0 R',
+                'target' => null,
+                'fit' => 'FitH',
+                'arguments' => [700.0],
+                'left' => null,
+                'top' => 700.0,
+                'right' => null,
+                'bottom' => null,
+                'zoom' => null,
+            ],
+            [
+                'source' => 'catalog.Names.Dests',
+                'name' => 'named',
+                'pageObject' => null,
+                'target' => 'chapter-two',
+                'fit' => null,
+                'arguments' => [],
+                'left' => null,
+                'top' => null,
+                'right' => null,
+                'bottom' => null,
+                'zoom' => null,
+            ],
+            [
+                'source' => 'catalog.Names.Dests',
+                'name' => 'zoomed',
+                'pageObject' => '4 0 R',
+                'target' => null,
+                'fit' => 'XYZ',
+                'arguments' => [null, 512.0, 2.0],
+                'left' => null,
+                'top' => 512.0,
+                'right' => null,
+                'bottom' => null,
+                'zoom' => 2.0,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'name' => null,
+                'pageObject' => '3 0 R',
+                'target' => null,
+                'fit' => 'XYZ',
+                'arguments' => [72.0, 720.0, 1.25],
+                'left' => 72.0,
+                'top' => 720.0,
+                'right' => null,
+                'bottom' => null,
+                'zoom' => 1.25,
+            ],
+            [
+                'source' => 'outline:10 0 R.Dest',
+                'name' => null,
+                'pageObject' => '4 0 R',
+                'target' => null,
+                'fit' => 'FitV',
+                'arguments' => [144.0],
+                'left' => 144.0,
+                'top' => null,
+                'right' => null,
+                'bottom' => null,
+                'zoom' => null,
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfDestinationOptions']);
+        $t->contains('pdf-byte-destination-options:7', $diagnostics);
+        $t->contains('pdf-byte-destination-fit-arguments:6', $diagnostics);
+        $t->contains('pdf-byte-destination-named-targets:1', $diagnostics);
+        $t->contains('pdf-byte-destination-fit:XYZ:2', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfDestinationOptions']);
+    },
+
     'fake runner extracts bounded pdf tagging and structure-root metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/tagged.pdf']);
