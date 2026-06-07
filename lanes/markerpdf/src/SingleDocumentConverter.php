@@ -56,6 +56,13 @@ final class SingleDocumentConverter
             'langs' => true,
             'batch_multiplier' => true,
         ];
+        $optionOccurrences = [
+            'max_pages' => 0,
+            'start_page' => 0,
+            'langs' => 0,
+            'batch_multiplier' => 0,
+        ];
+        $optionValueHistory = [];
         $definitions = $this->runtimeArgumentOptionDefinitions();
         $positionals = [];
 
@@ -97,6 +104,7 @@ final class SingleDocumentConverter
 
                 $definition = $definitions[$optionName];
                 $key = $definition['key'];
+                $previousValue = $options[$key];
                 if ($definition['type'] === 'int') {
                     $integer = $this->runtimeArgumentIntegerValue((string) $value);
                     if ($integer === null) {
@@ -107,10 +115,23 @@ final class SingleDocumentConverter
                         );
                     }
 
-                    $options[$key] = $integer;
+                    $parsedValue = $integer;
                 } else {
-                    $options[$key] = (string) $value;
+                    $parsedValue = (string) $value;
                 }
+
+                $optionOccurrences[$key]++;
+                $optionValueHistory[] = [
+                    'option' => $optionName,
+                    'key' => $key,
+                    'value' => $parsedValue,
+                    'value_type' => $definition['type'],
+                    'occurrence' => $optionOccurrences[$key],
+                    'previous_value' => $optionOccurrences[$key] > 1 ? $previousValue : null,
+                    'overrides_previous' => $optionOccurrences[$key] > 1,
+                ];
+
+                $options[$key] = $parsedValue;
                 $defaultsApplied[$key] = false;
                 continue;
             }
@@ -151,6 +172,11 @@ final class SingleDocumentConverter
 
         $parsedLangs = $this->parseLanguages($options['langs']);
         $langsArgument = $options['langs'];
+        $repeatedOptionCounts = array_filter(
+            $optionOccurrences,
+            static fn (int $count): bool => $count > 1
+        );
+        $repeatedOptions = array_keys($repeatedOptionCounts);
 
         return [
             'schema' => 'markerpdf.convert_single_argparse_preflight.v1',
@@ -181,6 +207,11 @@ final class SingleDocumentConverter
                 ],
                 'options' => $options,
                 'defaults_applied' => $defaultsApplied,
+                'option_occurrences' => $optionOccurrences,
+                'option_value_history' => $optionValueHistory,
+                'repeated_options' => $repeatedOptions,
+                'repeated_option_counts' => $repeatedOptionCounts,
+                'last_occurrence_wins' => $repeatedOptions !== [],
                 'argfile_boundary' => $this->runtimeArgumentAtFileBoundary($tokens),
             ],
             'language_parse' => [
@@ -202,6 +233,7 @@ final class SingleDocumentConverter
                 'negative_start_page_allowed_by_argparse' => $options['start_page'] !== null && $options['start_page'] < 0,
                 'batch_multiplier_less_than_one_deferred_to_convert_single_pdf' => $options['batch_multiplier'] < 1,
                 'empty_langs_string_deferred_to_none' => $langsArgument === '',
+                'repeated_options_last_occurrence_wins' => $repeatedOptions !== [],
                 'fromfile_prefix_chars_configured' => false,
                 'at_file_tokens_expand_before_parse' => false,
                 'at_prefixed_tokens_seen' => $this->runtimeArgumentAtFileTokens($tokens) !== [],
