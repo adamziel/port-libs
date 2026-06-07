@@ -464,6 +464,16 @@ $fontWidthTextObjectResetBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F] >>\nendobj\n%%EOF";
 };
 
+$fontWidthGraphicsStateRestoreTjAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fq 12 Tf q 0.5 0 0 1 72 720 Tm [(A) -1500 (B)] TJ Q [(C) -1500 (D)] TJ ET';
+    $widths = implode(' ', array_fill(0, 37, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fq 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+GraphicsStateRestoreAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 68 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1791,6 +1801,27 @@ return [
         $t->true(!str_contains($plainText, 'CDEF'));
         $t->true(!str_contains($plainText, 'TextObjectResetAdvance'));
         $t->true(!str_contains($plainText, 'Freset'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'restores q/Q text matrix advance scale before TJ gaps on current base' => static function (TestRunner $t) use ($fontWidthGraphicsStateRestoreTjAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthGraphicsStateRestoreTjAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABC D'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'C D'], $extractor->extractTextRuns($pdf));
+        $t->same('ABC D', $plainText);
+        $t->same("ABC D\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'C D'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 21.0, 12.0], [21.0, 0.0, 63.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 63.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'ABCD'));
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 21.0, 12.0], [21.0, 0.0, 42.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'GraphicsStateRestoreAdvance'));
+        $t->true(!str_contains($plainText, 'Fq'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses vertical CIDFont W2 advances for native styled span bboxes on current base' => static function (TestRunner $t) use ($fontVerticalWidthAdvanceBoundaryCurrentBasePdf): void {

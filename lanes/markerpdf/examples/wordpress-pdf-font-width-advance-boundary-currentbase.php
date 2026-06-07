@@ -344,6 +344,13 @@ $textObjectResetPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($textObjectResetContent) . " >>\nstream\n{$textObjectResetContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F] >>\nendobj\n%%EOF";
 
+$graphicsStateRestoreContent = 'BT /Fq 12 Tf q 0.5 0 0 1 72 720 Tm [(A) -1500 (B)] TJ Q [(C) -1500 (D)] TJ ET';
+$graphicsStateRestoreWidths = implode(' ', array_fill(0, 37, '1000'));
+$graphicsStateRestorePdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fq 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+GraphicsStateRestoreAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 68 /Widths [{$graphicsStateRestoreWidths}] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($graphicsStateRestoreContent) . " >>\nstream\n{$graphicsStateRestoreContent}\nendstream\nendobj\n%%EOF";
+
 $verticalEncodingCMap = "/CIDInit /ProcSet findresource begin\n"
     . "12 dict begin\n"
     . "begincmap\n"
@@ -886,6 +893,17 @@ $textObjectResetSpanTexts = array_map(
     static fn (array $span): string => (string) ($span['text'] ?? ''),
     $textObjectResetSecondLine['spans'] ?? []
 );
+$graphicsStateRestoreLines = $extractor->extractTextLines($graphicsStateRestorePdf);
+$graphicsStateRestorePages = $extractor->extractStyledTextPages($graphicsStateRestorePdf);
+$graphicsStateRestoreLine = $graphicsStateRestorePages[0]['blocks'][0]['lines'][0] ?? [];
+$graphicsStateRestoreSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $graphicsStateRestoreLine['spans'] ?? []
+);
+$graphicsStateRestoreSpanTexts = array_map(
+    static fn (array $span): string => (string) ($span['text'] ?? ''),
+    $graphicsStateRestoreLine['spans'] ?? []
+);
 $verticalLines = $extractor->extractTextLines($verticalPdf);
 $verticalPages = $extractor->extractStyledTextPages($verticalPdf);
 $verticalLine = $verticalPages[0]['blocks'][0]['lines'][0] ?? [];
@@ -955,7 +973,7 @@ $type3CharProcMatrixVectorSecondBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-descendant-cidfont-and-malformed-cid-array-quote-terminal-tc-terminal-tw-overlarge-tw-relative-td-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nested-encoding-width-decoy-nonfinite-width-huge-finite-width-negative-width-metric-exact-generation-widths-fontdescriptor-descendant-cidfont-and-malformed-cid-array-quote-terminal-tc-terminal-tw-overlarge-tw-relative-td-relative-td-styled-gap-rotated-td-vector-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-graphics-state-restore-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-and-type3-charproc-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -1103,6 +1121,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'text_object_reset_styled_span_gap_preserved' => $textObjectResetSpanTexts === ['CD EF'],
     'text_object_reset_styled_bbox_preserved' => $textObjectResetSpanBboxes === [[0.0, 0.0, 60.0, 12.0]],
     'text_object_reset_stale_half_scale_excluded' => $textObjectResetSpanBboxes !== [[0.0, 0.0, 30.0, 12.0]],
+    'graphics_state_restore_tj_gap_preserved' => $graphicsStateRestoreLines === ['ABC D'],
+    'graphics_state_restore_run_gap_preserved' => $graphicsStateRestoreSpanTexts === ['AB', 'C D'],
+    'graphics_state_restore_styled_bboxes_preserved' => $graphicsStateRestoreSpanBboxes === [[0.0, 0.0, 21.0, 12.0], [21.0, 0.0, 63.0, 12.0]],
+    'graphics_state_restore_stale_inner_scale_excluded' => $graphicsStateRestoreSpanBboxes !== [[0.0, 0.0, 21.0, 12.0], [21.0, 0.0, 42.0, 12.0]],
     'vertical_w2_text_line_preserved' => $verticalLines === ['VertImport'],
     'vertical_w2_styled_bboxes_preserved' => $verticalSpanBboxes === [[0.0, 0.0, 12.0, 24.0], [12.0, 0.0, 24.0, 18.0]],
     'vertical_horizontal_fallback_excluded' => $verticalSpanBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 60.0, 12.0]],
@@ -1221,6 +1243,9 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'text_object_reset_lines' => $textObjectResetLines,
     'text_object_reset_span_texts' => $textObjectResetSpanTexts,
     'text_object_reset_span_bboxes' => $textObjectResetSpanBboxes,
+    'graphics_state_restore_lines' => $graphicsStateRestoreLines,
+    'graphics_state_restore_span_texts' => $graphicsStateRestoreSpanTexts,
+    'graphics_state_restore_span_bboxes' => $graphicsStateRestoreSpanBboxes,
     'vertical_span_bboxes' => $verticalSpanBboxes,
     'vertical_tj_lines' => $verticalTjLines,
     'vertical_tj_span_bboxes' => $verticalTjSpanBboxes,
@@ -1239,7 +1264,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $overlargeTwRelativeTdLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $malformedCidArrayLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $overlargeTwRelativeTdLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $tjInterElementSpacingLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $exactGenerationDescendantLines, $malformedCidArrayLines, $lastCharLines, $malformedRangeLines, $nestedEncodingWidthLines, $nonFiniteWidthLines, $hugeFiniteWidthLines, $negativeWidthMetricLines, $rotatedTextMatrixLines, $rotatedTdLines, $textObjectResetLines, $graphicsStateRestoreLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines, $type3CharProcMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

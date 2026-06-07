@@ -33460,6 +33460,10 @@ final class PdfTextExtractor
                     'characterSpacing' => $characterSpacing,
                     'wordSpacing' => $wordSpacing,
                     'horizontalScale' => $horizontalScale,
+                    'textMatrixHorizontalScale' => $currentTextMatrixHorizontalScale,
+                    'textMatrixHorizontalExtentScale' => $currentTextMatrixHorizontalExtentScale,
+                    'textMatrixHorizontalAdvanceScale' => $currentTextMatrixHorizontalAdvanceScale,
+                    'textMatrixVerticalScale' => $currentTextMatrixVerticalScale,
                     'textRise' => $textRise,
                     'textRenderingMode' => $textRenderingMode,
                 ];
@@ -33483,6 +33487,10 @@ final class PdfTextExtractor
                     $characterSpacing = $state['characterSpacing'];
                     $wordSpacing = $state['wordSpacing'];
                     $horizontalScale = $state['horizontalScale'];
+                    $currentTextMatrixHorizontalScale = $state['textMatrixHorizontalScale'];
+                    $currentTextMatrixHorizontalExtentScale = $state['textMatrixHorizontalExtentScale'];
+                    $currentTextMatrixHorizontalAdvanceScale = $state['textMatrixHorizontalAdvanceScale'];
+                    $currentTextMatrixVerticalScale = $state['textMatrixVerticalScale'];
                     $textRise = $state['textRise'];
                     $textRenderingMode = $state['textRenderingMode'];
                 }
@@ -34638,6 +34646,9 @@ final class PdfTextExtractor
                     'characterSpacing' => $characterSpacing,
                     'wordSpacing' => $wordSpacing,
                     'horizontalScale' => $horizontalScale,
+                    'textMatrixHorizontalScale' => $currentTextMatrixHorizontalScale,
+                    'textMatrixHorizontalExtentScale' => $currentTextMatrixHorizontalExtentScale,
+                    'textMatrixHorizontalAdvanceScale' => $currentTextMatrixHorizontalAdvanceScale,
                     'textRenderingMode' => $textRenderingMode,
                 ];
                 $clipStateStack[] = [
@@ -34660,6 +34671,9 @@ final class PdfTextExtractor
                     $characterSpacing = $state['characterSpacing'];
                     $wordSpacing = $state['wordSpacing'];
                     $horizontalScale = $state['horizontalScale'];
+                    $currentTextMatrixHorizontalScale = $state['textMatrixHorizontalScale'];
+                    $currentTextMatrixHorizontalExtentScale = $state['textMatrixHorizontalExtentScale'];
+                    $currentTextMatrixHorizontalAdvanceScale = $state['textMatrixHorizontalAdvanceScale'];
                     $textRenderingMode = $state['textRenderingMode'];
                 }
                 $clipState = array_pop($clipStateStack);
