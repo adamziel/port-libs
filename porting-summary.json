@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 00:38:49 UTC",
-    "sourceCommit": "76ee5def13063ab56b22592d5ca79c691b0a6ea1",
-    "sourceCommitShort": "76ee5def1306",
+    "generated": "2026-06-07 00:38:59 UTC",
+    "sourceCommit": "312a44e6b67d1eb5c45481e3b1f08312b388095e",
+    "sourceCommitShort": "312a44e6b67d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "76ee5def13063ab56b22592d5ca79c691b0a6ea1",
-    "dashboardCommitShort": "76ee5def1306",
+    "dashboardCommit": "312a44e6b67d1eb5c45481e3b1f08312b388095e",
+    "dashboardCommitShort": "312a44e6b67d",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1836",
-            "coverage": "1,836 / 2,276 (80.7%)",
+            "mapped": "1837",
+            "coverage": "1,837 / 2,276 (80.7%)",
             "mapPercent": "80.7%",
-            "unmapped": "440",
+            "unmapped": "439",
             "php": "1,422 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-07 UTC DOCX/OpenXML current-base package properties slice on...",
+            "audit": "2026-06-07 UTC BibTeX/CSL current-base open-ended date interval slice...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For DOCX/OpenXML follow-up, keep package parsing bounded to n...",
-            "remainingGate": "No new support component is needed for this slice: it reuses the nati...",
+            "nextTarget": "For BibTeX/CSL follow-up, keep date parity bounded to non-ove...",
+            "remainingGate": "No new support component is needed for this slice: it reuses native P...",
             "commit": "pending fast ac..."
         },
         {

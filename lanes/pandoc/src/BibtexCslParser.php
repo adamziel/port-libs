@@ -1915,7 +1915,7 @@ final class BibtexCslParser
     {
         $rangeParts = self::dateRangePartsFromText($date, $field);
         if ($rangeParts === null) {
-            return null;
+            return self::openEndedDateRangeFromText($date, $field);
         }
 
         return self::dateObjectWithMarkers($rangeParts, self::dateRangeMarker($date), $date);
@@ -1943,6 +1943,32 @@ final class BibtexCslParser
             self::dateRangeSideParts($start, $field),
             self::dateRangeSideParts($end, $field),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function openEndedDateRangeFromText(string $date, string $field): ?array
+    {
+        if (substr_count($date, '/') !== 1) {
+            return null;
+        }
+
+        [$start, $end] = array_map('trim', explode('/', $date, 2));
+        if (($start === '' && $end === '') || ($start !== '' && $end !== '')) {
+            return null;
+        }
+
+        $endpoint = $start === '' ? $end : $start;
+        if (!self::looksLikeDateRangeSide($endpoint)) {
+            return null;
+        }
+
+        $range = self::dateObjectWithMarkers([self::dateRangeSideParts($endpoint, $field)], self::dateRangeMarker($date), $date);
+        $range['open-ended'] = $start === '' ? 'start' : 'end';
+        $range['raw'] = $date;
+
+        return $range;
     }
 
     private static function looksLikeDateRangeSide(string $value): bool

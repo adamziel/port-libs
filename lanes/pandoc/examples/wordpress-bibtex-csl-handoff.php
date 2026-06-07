@@ -37,6 +37,8 @@ Patent and legal sources @import-patent and @review-act preserve legal review me
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
 
+Open-ended date source @open-ended-window preserves ongoing and predecessor interval metadata for review.
+
 Timestamped source @timestamped-source preserves imported date-part time metadata for review.
 
 Approximate date source @circa-manual preserves review date markers.
@@ -309,6 +311,16 @@ $bibtex = <<<'BIB'
   organization = {Migration Board},
   date         = {2024/2025},
   eventdate    = {2025-01-01/2025-01-31}
+}
+
+@book{open-ended-window,
+  author    = {Smith, Ada},
+  title     = {Open Source Review Window},
+  date      = {2020/},
+  origdate  = {/2018},
+  publisher = {Review Press},
+  url       = {https://example.test/open-ended-window},
+  urldate   = {2026-06-01/}
 }
 
 @online{timestamped-source,
@@ -857,6 +869,16 @@ if (($argv[1] ?? '') === '--self-test') {
     $rangeRule = $processor->item('range-rule');
     if (($rangeRule['eventDate']['display'] ?? null) !== '2025-01-01/2025-01-31') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legal event date range metadata');
+    }
+    $openEndedWindow = $processor->item('open-ended-window');
+    if (($openEndedWindow['issuedDate']['display'] ?? null) !== '2020/' || ($openEndedWindow['issuedDate']['openEnded'] ?? null) !== 'end') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve open-ended issued date metadata');
+    }
+    if (($openEndedWindow['originalDate']['display'] ?? null) !== '/2018' || ($openEndedWindow['originalDate']['openEnded'] ?? null) !== 'start') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve open-ended original date metadata');
+    }
+    if (($openEndedWindow['accessedDate']['display'] ?? null) !== '2026-06-01/') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve open-ended access date metadata');
     }
     $timestampedSource = $processor->item('timestamped-source');
     if (($timestampedSource['issuedDate']['time'] ?? null) !== '09:15:30+02:00') {
@@ -1520,6 +1542,8 @@ XML);
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',
         '<dt>Import Review Rule 2024/2025</dt><dd>Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.</dd>',
+        '<p>Open-ended date source Smith (2020/) preserves ongoing and predecessor interval metadata for review.</p>',
+        '<dt>Smith 2020/</dt><dd>Smith, Ada. Open Source Review Window. Review Press, 2020/. Original work published /2018. https://example.test/open-ended-window. Accessed 2026-06-01/.</dd>',
         '<p>Timestamped source Timeline Desk (2026) preserves imported date-part time metadata for review.</p>',
         '<dt>Timeline Desk 2026</dt><dd>Timeline Desk. Timestamped Source Capture. 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.</dd>',
         '<p>Approximate date source Smith (2026) preserves review date markers.</p>',

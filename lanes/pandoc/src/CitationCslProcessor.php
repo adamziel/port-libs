@@ -1416,7 +1416,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, circa?:bool, uncertain?:bool, rangeParts?:list<list<int>>}
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, openEnded?:string, rangeParts?:list<list<int>>}
      */
     private static function dateVariable(mixed $date, string $id, string $field): array
     {
@@ -1439,8 +1439,13 @@ final class CitationCslProcessor
         $endTime = self::firstDateTimeField($date, ['end-time', 'endTime'], $id, $field);
         $circa = self::boolField($date, 'circa', false);
         $uncertain = self::boolField($date, 'uncertain', false);
+        $openEnded = self::openEndedDateBoundary($date, $id, $field);
         $dateParts = $date['date-parts'] ?? null;
         if ($dateParts === null || $dateParts === []) {
+            if ($openEnded !== '') {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' open-ended date must include date-parts');
+            }
+
             $normalized = [
                 'year' => null,
                 'parts' => [],
@@ -1491,7 +1496,16 @@ final class CitationCslProcessor
             'literal' => '',
         ];
         if (count($rangeParts) > 1) {
+            if ($openEnded !== '') {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' open-ended date-parts must contain one endpoint');
+            }
+
             $normalized['rangeParts'] = $rangeParts;
+        }
+
+        if ($openEnded !== '') {
+            $normalized['openEnded'] = $openEnded;
+            $normalized['display'] = self::formatOpenEndedDatePartsRange($rangeParts, $openEnded);
         }
 
         if ($raw !== '') {
@@ -1515,6 +1529,31 @@ final class CitationCslProcessor
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function openEndedDateBoundary(array $date, string $id, string $field): string
+    {
+        foreach (['open-ended', 'openEnded'] as $key) {
+            if (!array_key_exists($key, $date) || $date[$key] === null || $date[$key] === '') {
+                continue;
+            }
+
+            if (!is_scalar($date[$key])) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' open-ended field must be scalar');
+            }
+
+            $boundary = strtolower(trim(str_replace('_', '-', (string) $date[$key])));
+            if ($boundary === 'start' || $boundary === 'end') {
+                return $boundary;
+            }
+
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' open-ended field must be start or end');
+        }
+
+        return '';
     }
 
     /**
@@ -1685,6 +1724,16 @@ final class CitationCslProcessor
         );
 
         return implode('/', $formatted);
+    }
+
+    /**
+     * @param list<list<int>> $rangeParts
+     */
+    private static function formatOpenEndedDatePartsRange(array $rangeParts, string $boundary): string
+    {
+        $display = self::formatDatePartsRange($rangeParts);
+
+        return $boundary === 'start' ? '/' . $display : $display . '/';
     }
 
     /**
@@ -3768,6 +3817,14 @@ final class CitationCslProcessor
     private function citationYear(array $item): string
     {
         $date = $item['issuedDate'] ?? null;
+        if (is_array($date) && isset($date['year']) && $date['year'] !== null && isset($date['openEnded'])) {
+            $year = (string) $date['year'];
+            $boundary = (string) $date['openEnded'];
+            if ($boundary === 'start' || $boundary === 'end') {
+                return $this->appendYearSuffix($boundary === 'start' ? '/' . $year : $year . '/', $item);
+            }
+        }
+
         if (is_array($date) && isset($date['rangeParts']) && is_array($date['rangeParts'])) {
             $yearRange = $this->citationYearRange($date['rangeParts']);
             if ($yearRange !== '') {
@@ -5964,7 +6021,7 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, rangeParts?:list<list<int>>}|null
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, openEnded?:string, rangeParts?:list<list<int>>}|null
      */
     private function dateVariableForRendering(array $item, string $variable): ?array
     {
@@ -5980,7 +6037,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}|mixed $date
+     * @param array{year:?int, parts:list<int>, display:string, literal:string, openEnded?:string, rangeParts?:list<list<int>>}|mixed $date
      */
     private function renderDateVariable(mixed $date, string $scope, string $variable): string
     {
@@ -6006,7 +6063,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>} $date
+     * @param array{year:?int, parts:list<int>, display:string, literal:string, openEnded?:string, rangeParts?:list<list<int>>} $date
      * @param list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}|string> $dateParts
      * @param array<string, mixed> $item
      */
@@ -6042,11 +6099,11 @@ final class CitationCslProcessor
 
         $values = array_values(array_unique($values));
 
-        return implode($this->dateRangeDelimiter($parts, $specs), $values);
+        return $this->applyOpenEndedDateBoundary(implode($this->dateRangeDelimiter($parts, $specs), $values), $date);
     }
 
     /**
-     * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>} $date
+     * @param array{year:?int, parts:list<int>, display:string, literal:string, openEnded?:string, rangeParts?:list<list<int>>} $date
      */
     private function renderDateForm(array $date, string $form, string $scope, string $variable): string
     {
@@ -6075,7 +6132,24 @@ final class CitationCslProcessor
             return '';
         }
 
-        return implode('/', array_values(array_unique($values)));
+        return $this->applyOpenEndedDateBoundary(implode('/', array_values(array_unique($values))), $date);
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private function applyOpenEndedDateBoundary(string $value, array $date): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $boundary = (string) ($date['openEnded'] ?? '');
+        if ($boundary === 'start') {
+            return '/' . $value;
+        }
+
+        return $boundary === 'end' ? $value . '/' : $value;
     }
 
     /**

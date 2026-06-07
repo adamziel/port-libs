@@ -1209,6 +1209,101 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'maps open ended biblatex date ranges into csl date metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{open-ended-manual,
+  author    = {Smith, Ada},
+  title     = {Open Source Review Window},
+  date      = {2020/},
+  origdate  = {/2018},
+  publisher = {Review Press},
+  url       = {https://example.test/open-ended-manual},
+  urldate   = {2026-06-01/}
+}
+
+@legislation{open-start-rule,
+  title        = {Legacy Import Rule},
+  number       = {Rule 12},
+  type         = {regulation},
+  organization = {Migration Board},
+  date         = {/2024},
+  eventdate    = {2025-01-01/}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(['date-parts' => [[2020]], 'open-ended' => 'end', 'raw' => '2020/'], $items[0]['issued']);
+        $t->same(['date-parts' => [[2018]], 'open-ended' => 'start', 'raw' => '/2018'], $items[0]['original-date']);
+        $t->same(['date-parts' => [[2026, 6, 1]], 'open-ended' => 'end', 'raw' => '2026-06-01/'], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2024]], 'open-ended' => 'start', 'raw' => '/2024'], $items[1]['issued']);
+        $t->same(['date-parts' => [[2025, 1, 1]], 'open-ended' => 'end', 'raw' => '2025-01-01/'], $items[1]['event-date']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('open-ended-manual');
+        $rule = $processor->item('open-start-rule');
+        $t->same([2020], $manual['issuedDate']['parts'] ?? null);
+        $t->same('end', $manual['issuedDate']['openEnded'] ?? null);
+        $t->same('2020/', $manual['issuedDate']['display'] ?? null);
+        $t->same('start', $manual['originalDate']['openEnded'] ?? null);
+        $t->same('/2018', $manual['originalDate']['display'] ?? null);
+        $t->same('2026-06-01/', $manual['accessedDate']['display'] ?? null);
+        $t->same('/2024', $rule['issuedDate']['display'] ?? null);
+        $t->same('2025-01-01/', $rule['eventDate']['display'] ?? null);
+        $t->same('(Smith 2020/; Legacy Import Rule /2024)', $processor->renderCitationCluster([
+            $citation('open-ended-manual', '[@open-ended-manual]'),
+            $citation('open-start-rule', '[@open-start-rule]'),
+        ]));
+        $t->same('Smith, Ada. Open Source Review Window. Review Press, 2020/. Original work published /2018. https://example.test/open-ended-manual. Accessed 2026-06-01/.', $processor->renderBibliographyEntry('open-ended-manual'));
+        $t->same('Legacy Import Rule. Migration Board, /2024. Regulation Rule 12. Authority: Migration Board. Event date 2025-01-01/.', $processor->renderBibliographyEntry('open-start-rule'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <text variable="title"/>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <date variable="issued"/>
+      <date variable="original-date"/>
+      <date variable="event-date"/>
+      <date variable="accessed"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(Open Source Review Window 2020/; Legacy Import Rule /2024)', $styled->renderCitationCluster([
+            $citation('open-ended-manual', '[@open-ended-manual]'),
+            $citation('open-start-rule', '[@open-start-rule]'),
+        ]));
+        $t->same('Open Source Review Window | 2020/ | /2018 | 2026-06-01/', $styled->renderBibliographyEntry('open-ended-manual'));
+        $t->same('Legacy Import Rule | /2024 | 2025-01-01/', $styled->renderBibliographyEntry('open-start-rule'));
+
+        $manualProcessor = CitationCslProcessor::fromItems([[
+            'id' => 'manual-open-date',
+            'title' => 'Manual Open Date',
+            'issued' => ['date-parts' => [[2027]], 'open-ended' => 'end'],
+        ]]);
+        $manualItem = $manualProcessor->item('manual-open-date');
+        $t->same('2027/', $manualItem['issuedDate']['display'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-open-date',
+            'issued' => ['date-parts' => [[2027]], 'open-ended' => 'middle'],
+        ]]));
+
+        $document = (new MarkdownReader())->read('Review cites @open-ended-manual and [@open-start-rule] for open interval source audit.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites Smith (2020/) and (Legacy Import Rule /2024) for open interval source audit.</p>', $blocks);
+        $t->contains('<dt>Smith 2020/</dt><dd>Smith, Ada. Open Source Review Window. Review Press, 2020/. Original work published /2018. https://example.test/open-ended-manual. Accessed 2026-06-01/.</dd>', $blocks);
+    },
     'maps bounded biblatex date time parts into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{timestamped-source,
