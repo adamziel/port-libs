@@ -1798,12 +1798,17 @@ final class MarkerAppPreview
                     $pageIndex = $section['page_index'];
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
+                            // Keep accepted singleton endpoint kids, but block ranges that cross a claimed endpoint.
                             if (
                                 (
                                     $claimableLimits[0] === $claimedLimits[0]
                                     || (
                                         $claimableLimits[0] > $claimedLimits[0]
                                         && $claimableLimits[0] < $claimedLimits[1]
+                                    )
+                                    || (
+                                        $claimableLimits[0] === $claimedLimits[1]
+                                        && $claimableLimits[1] > $claimedLimits[1]
                                     )
                                 )
                                 && $pageIndex >= $claimedLimits[0]
