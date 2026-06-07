@@ -31506,7 +31506,12 @@ final class PdfTextExtractor
             return null;
         }
 
-        $widths = array_slice($this->integersFromPdfArray($widthArray), 0, 3);
+        $widthValues = $this->xrefStreamIntegerArrayValues($widthArray, $objects);
+        if ($widthValues['malformed_indexes'] !== []) {
+            return null;
+        }
+
+        $widths = array_slice($widthValues['values'], 0, 3);
         if (count($widths) < 3) {
             return null;
         }
@@ -31536,7 +31541,17 @@ final class PdfTextExtractor
             ];
         }
 
-        $widths = array_slice($this->integersFromPdfArray($widthArray), 0, 3);
+        $widthValues = $this->xrefStreamIntegerArrayValues($widthArray, $objects);
+        $widths = array_slice($widthValues['values'], 0, 3);
+        if ($widthValues['malformed_indexes'] !== []) {
+            return [
+                'width_array' => $widthArray,
+                'widths' => $widths,
+                'malformed_indexes' => $widthValues['malformed_indexes'],
+                'owner_policy' => 'incomplete_xref_stream_w_array',
+            ];
+        }
+
         if (count($widths) < 3) {
             return [
                 'width_array' => $widthArray,
@@ -31594,18 +31609,9 @@ final class PdfTextExtractor
             ];
         }
 
-        $items = $this->pdfArrayItems($indexArray);
-        $indexes = [];
-        $nonIntegerIndexes = [];
-        foreach ($items as $itemIndex => $item) {
-            $item = trim($item);
-            if (preg_match('/^[+-]?\d+$/', $item) !== 1) {
-                $nonIntegerIndexes[] = $itemIndex;
-                continue;
-            }
-
-            $indexes[] = (int) $item;
-        }
+        $indexValues = $this->xrefStreamIntegerArrayValues($indexArray, $objects);
+        $indexes = $indexValues['values'];
+        $nonIntegerIndexes = $indexValues['malformed_indexes'];
 
         if ($nonIntegerIndexes !== []) {
             return [
@@ -31641,6 +31647,76 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{values: list<int>, malformed_indexes: list<int>}
+     */
+    private function xrefStreamIntegerArrayValues(string $arrayBody, array $objects): array
+    {
+        $values = [];
+        $malformedIndexes = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $itemIndex => $item) {
+            $value = $this->pdfStrictIntegerValueAt(trim($item), 0, $objects);
+            if ($value === null) {
+                $malformedIndexes[] = $itemIndex;
+                continue;
+            }
+
+            $values[] = $value;
+        }
+
+        return [
+            'values' => $values,
+            'malformed_indexes' => $malformedIndexes,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfStrictIntegerValueAt(string $value, int $offset, array $objects, array $seen = []): ?int
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        $referenceOffset = $offset;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference !== null) {
+            if ($this->skipPdfWhitespace($value, $referenceOffset) !== strlen($value)) {
+                return null;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || $generation < 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pdfStrictIntegerValueAt(trim($body), 0, $objects, $seen);
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $end = $offset + strlen($match[0]);
+        if ($this->skipPdfWhitespace($value, $end) !== strlen($value)) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     /**
@@ -32041,7 +32117,12 @@ final class PdfTextExtractor
 
         $indexArray = $this->pdfArrayValueAfterNameResolvingObjects($xrefBody, 'Index', $objects);
         if ($indexArray !== null) {
-            $values = $this->integersFromPdfArray($indexArray);
+            $indexValues = $this->xrefStreamIntegerArrayValues($indexArray, $objects);
+            if ($indexValues['malformed_indexes'] !== []) {
+                return [];
+            }
+
+            $values = $indexValues['values'];
             $ranges = [];
             for ($index = 0, $count = count($values); $index + 1 < $count; $index += 2) {
                 $ranges[] = [$values[$index], $values[$index + 1]];
