@@ -2714,6 +2714,13 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
+        $referenceEndOffset = null;
+        $reference = $this->objectReferenceStartingAtOffset($body, $offset, $referenceEndOffset);
+        if ($reference !== null && $referenceEndOffset !== null) {
+            $endOffset = $referenceEndOffset;
+            return $reference;
+        }
+
         if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
             $endOffset = $offset + strlen($ref[0]);
             return $ref[0];
@@ -2758,6 +2765,44 @@ final class PdfLinkAnnotationExtractor
 
         $endOffset = $end;
         return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    private function objectReferenceStartingAtOffset(string $body, int $offset, ?int &$endOffset = null): ?string
+    {
+        if (preg_match('/\G\d+/', $body, $objectMatch, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $cursor = $offset + strlen($objectMatch[0]);
+        $beforeGap = $cursor;
+        $this->skipWhitespaceAndComments($body, $cursor);
+        if ($cursor === $beforeGap) {
+            return null;
+        }
+
+        if (preg_match('/\G\d+/', $body, $generationMatch, 0, $cursor) !== 1) {
+            return null;
+        }
+
+        $cursor += strlen($generationMatch[0]);
+        $beforeGap = $cursor;
+        $this->skipWhitespaceAndComments($body, $cursor);
+        if ($cursor === $beforeGap) {
+            return null;
+        }
+
+        if (($body[$cursor] ?? '') !== 'R') {
+            return null;
+        }
+
+        $afterReference = $cursor + 1;
+        $next = $body[$afterReference] ?? '';
+        if ($next !== '' && !ctype_space($next) && !str_contains('[]()<>{}/%', $next)) {
+            return null;
+        }
+
+        $endOffset = $afterReference;
+        return $objectMatch[0] . ' ' . $generationMatch[0] . ' R';
     }
 
     private function stringAfterName(string $body, string $name): ?string
