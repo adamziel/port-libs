@@ -7393,6 +7393,10 @@ final class PdfMetadataExtractor
         if ($subfilter !== null) {
             $metadata['subfilter'] = $subfilter;
         }
+        $securityHandlerSubfilterDeclarationReview = $this->securityHandlerSubfilterDeclarationReview($dictionary, $objects);
+        if ($securityHandlerSubfilterDeclarationReview !== []) {
+            $metadata['security_handler_subfilter_declaration_review'] = $securityHandlerSubfilterDeclarationReview;
+        }
 
         if ($version !== null) {
             $metadata['version'] = $version;
@@ -8591,6 +8595,114 @@ final class PdfMetadataExtractor
         }
 
         return 'security_handler_filter_non_name_operand_review';
+    }
+
+    /**
+     * Public-key security handlers use /SubFilter to decide whether recipient
+     * envelopes come from the encryption dictionary or crypt filters. Ambiguous
+     * or non-name declarations are therefore a permission-selection boundary.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function securityHandlerSubfilterDeclarationReview(string $dictionary, array $objects): array
+    {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'SubFilter');
+        if ($values === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($values as $index => $value) {
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+            $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
+            $subfilterName = null;
+            if ($valueForReview !== '' && $valueForReview[0] === '/' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $valueForReview, $match) === 1) {
+                $subfilterName = $this->decodePdfName($match[1]);
+            }
+
+            $entries[] = [
+                'source' => 'security_handler_subfilter_entry_review',
+                'index' => $index,
+                'pdf_name' => 'SubFilter',
+                'resolved' => $resolved !== null,
+                'operand_shape' => $operandShape,
+                'subfilter_name' => $subfilterName,
+                'status' => $subfilterName !== null
+                    ? 'security_handler_subfilter_name'
+                    : $this->securityHandlerSubfilterEntryStatus($value, $operandShape, $resolved !== null),
+                'review_only' => true,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+            ];
+        }
+
+        $duplicate = count($values) > 1;
+        $malformedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['status'] ?? null) !== 'security_handler_subfilter_name'
+        ));
+        if (!$duplicate && $malformedEntries === []) {
+            return [];
+        }
+
+        $selectedIndex = count($entries) - 1;
+        $selectedEntry = $entries[$selectedIndex] ?? [];
+        $ambiguous = $duplicate || $malformedEntries !== [];
+
+        return [
+            'source' => 'security_handler_subfilter_declaration_review',
+            'pdf_name' => 'SubFilter',
+            'declared_entry_count' => count($values),
+            'duplicate_entries' => $duplicate,
+            'malformed_entries' => $malformedEntries !== [],
+            'malformed_entry_count' => count($malformedEntries),
+            'ambiguous' => $ambiguous,
+            'fail_closed' => $ambiguous,
+            'selected_entry_index' => $selectedIndex,
+            'selected_subfilter_name' => is_string($selectedEntry['subfilter_name'] ?? null) ? $selectedEntry['subfilter_name'] : null,
+            'subfilter_names' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['subfilter_name'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $name): bool => is_string($name) && $name !== ''
+            ))),
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $shape): bool => is_string($shape)
+            ))),
+            'status' => $duplicate
+                ? 'duplicate_security_handler_subfilter_entries_review'
+                : 'malformed_security_handler_subfilter_entries_review',
+            'entries' => $entries,
+            'review_only' => true,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    private function securityHandlerSubfilterEntryStatus(string $rawValue, string $operandShape, bool $resolved): string
+    {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'security_handler_subfilter_unresolved_reference';
+        }
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'security_handler_subfilter_composite_operand_review';
+        }
+
+        return 'security_handler_subfilter_non_name_operand_review';
     }
 
     private function standardRevisionLabel(int $revision): string
@@ -10235,10 +10347,18 @@ final class PdfMetadataExtractor
      */
     private function publicKeyRecipientReview(string $dictionary, array $objects, array $cryptFilters, array $metadata): array
     {
-        $handler = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
-            ?? $this->dictionaryStringValue($dictionary, 'Filter');
-        $subfilter = $this->dictionaryNameValue($dictionary, 'SubFilter', $objects)
-            ?? $this->dictionaryStringValue($dictionary, 'SubFilter');
+        $handler = is_string($metadata['filter'] ?? null)
+            ? $metadata['filter']
+            : ($this->dictionaryNameValue($dictionary, 'Filter', $objects)
+                ?? $this->dictionaryStringValue($dictionary, 'Filter'));
+        $subfilter = is_string($metadata['subfilter'] ?? null)
+            ? $metadata['subfilter']
+            : ($this->dictionaryNameValue($dictionary, 'SubFilter', $objects)
+                ?? $this->dictionaryStringValue($dictionary, 'SubFilter'));
+        $subfilterDeclarationReview = is_array($metadata['security_handler_subfilter_declaration_review'] ?? null)
+            ? $metadata['security_handler_subfilter_declaration_review']
+            : [];
+        $subfilterDeclarationFailClosed = ($subfilterDeclarationReview['fail_closed'] ?? false) === true;
         $topLevelRecipients = $this->recipientListMetadata(
             $this->dictionaryTopLevelRawValue($dictionary, 'Recipients'),
             $objects,
@@ -10285,6 +10405,65 @@ final class PdfMetadataExtractor
         }
 
         $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $objects, $cryptFilters, $metadata);
+        if ($subfilterDeclarationFailClosed) {
+            $cryptFilterSelection['selected_crypt_filters'] = [];
+            $cryptFilterSelection['selected_filter_names'] = [];
+            $cryptFilterSelection['selected_recipient_filter_names'] = [];
+            $cryptFilterSelection['unselected_recipient_filter_names'] = $this->uniqueStrings($cryptFilterRecipientNames);
+            $cryptFilterSelection['selected_recipient_count'] = 0;
+            $cryptFilterSelection['selected_recipient_bytes'] = 0;
+            $cryptFilterSelection['selected_unresolved_recipient_count'] = 0;
+            $cryptFilterSelection['selected_recipient_sha256'] = [];
+            $cryptFilterSelection['selection_suppressed_by_subfilter_declaration'] = true;
+
+            return [
+                'source' => 'public_key_security_handler',
+                'handler' => $handler,
+                'subfilter' => $subfilter,
+                'subfilter_declaration_review' => $subfilterDeclarationReview,
+                'subfilter_declaration_status' => $subfilterDeclarationReview['status'] ?? null,
+                'subfilter_declaration_fail_closed' => true,
+                'subfilter_duplicate_entries' => (bool) ($subfilterDeclarationReview['duplicate_entries'] ?? false),
+                'subfilter_malformed_entries' => (bool) ($subfilterDeclarationReview['malformed_entries'] ?? false),
+                'subfilter_names' => is_array($subfilterDeclarationReview['subfilter_names'] ?? null)
+                    ? $subfilterDeclarationReview['subfilter_names']
+                    : [],
+                'recipient_source_policy' => 'subfilter_declaration_ambiguous_recipients_fail_closed',
+                'recipient_count' => $recipientCount,
+                'recipient_bytes' => $recipientBytes,
+                'unresolved_recipient_count' => $unresolvedCount,
+                'recipient_sha256' => $recipientHashes,
+                'top_level_recipient_count' => (int) ($topLevelRecipients['recipient_count'] ?? 0),
+                'top_level_recipient_bytes' => (int) ($topLevelRecipients['recipient_bytes'] ?? 0),
+                'top_level_unresolved_recipient_count' => (int) ($topLevelRecipients['unresolved_recipient_count'] ?? 0),
+                'top_level_recipient_sha256' => array_values(array_filter(
+                    $topLevelRecipients['recipient_sha256'] ?? [],
+                    static fn (mixed $hash): bool => is_string($hash)
+                )),
+                'top_level_recipients_selected' => false,
+                'crypt_filter_recipient_filter_names' => $this->uniqueStrings($cryptFilterRecipientNames),
+                'selected_crypt_filter_recipient_filter_names' => [],
+                'unselected_crypt_filter_recipient_filter_names' => $this->uniqueStrings($cryptFilterRecipientNames),
+                'selected_recipient_count' => 0,
+                'selected_recipient_bytes' => 0,
+                'selected_unresolved_recipient_count' => 0,
+                'selected_recipient_sha256' => [],
+                'selected_recipient_sources' => [],
+                'selected_recipient_source_policy' => 'no_selected_recipient_permission_envelopes',
+                'crypt_filter_selection' => $cryptFilterSelection,
+                'recipient_lists' => $recipientLists,
+                'permissions_available_in_recipient_envelopes' => $recipientCount > 0,
+                'selected_permissions_available_in_recipient_envelopes' => false,
+                'permissions_decoded' => false,
+                'permission_decode_status' => 'public_key_subfilter_declaration_malformed_review',
+                'requires_private_key_for_permission_review' => true,
+                'recipient_bytes_exposed' => false,
+                'recipient_certificates_exposed' => false,
+                'executes_cms_parse' => false,
+                'executes_decryption' => false,
+                'review_only' => true,
+            ];
+        }
         $topLevelRecipientsSelected = $this->publicKeyTopLevelRecipientsSelected($handler, $subfilter, $topLevelRecipients !== null);
         $selectedRecipientCount = (int) ($cryptFilterSelection['selected_recipient_count'] ?? 0);
         $selectedRecipientBytes = (int) ($cryptFilterSelection['selected_recipient_bytes'] ?? 0);
