@@ -562,6 +562,35 @@ $duplicateStreamKeysPdf = "%PDF-1.4\n"
     . "8 0 obj\n<< /Length " . strlen($duplicateStreamKeysVisibleAfter) . " >>\nstream\n{$duplicateStreamKeysVisibleAfter}\nendstream\nendobj\n"
     . "%%EOF";
 
+$malformedColumnsRowOne = 'BT /F1 12 Tf 72 720 Td (Malformed Columns Numeric Prefix Leak) Tj T* ';
+$malformedColumnsRowTwo = str_pad('(Malformed Columns Still Leaks) Tj ET', strlen($malformedColumnsRowOne));
+$malformedColumnsRows = $pngSubPredictorEncode(
+    $malformedColumnsRowOne . $malformedColumnsRowTwo,
+    strlen($malformedColumnsRowOne)
+);
+$malformedColumnsCompressed = $zlibStored($malformedColumnsRows);
+$malformedPredictorLeak = 'BT /F1 12 Tf 72 684 Td (Malformed Predictor Numeric Prefix Leak) Tj ET';
+$malformedPredictorCompressed = $zlibStored($malformedPredictorLeak);
+$malformedIndirectColorsRowOne = 'BT /F1 12 Tf 72 668 Td (Malformed Indirect Colors Leak) Tj T* ';
+$malformedIndirectColorsRowTwo = str_pad('(Malformed Indirect Colors Still Leaks) Tj ET', strlen($malformedIndirectColorsRowOne));
+$malformedIndirectColorsRows = $pngSubPredictorEncode(
+    $malformedIndirectColorsRowOne . $malformedIndirectColorsRowTwo,
+    strlen($malformedIndirectColorsRowOne)
+);
+$malformedIndirectColorsCompressed = $zlibStored($malformedIndirectColorsRows);
+$malformedNumericDecodeParmsVisibleAfter = 'BT /F1 12 Tf 72 632 Td (Visible After Malformed Numeric DecodeParms) Tj ET';
+$malformedNumericDecodeParmsPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R 12 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($malformedColumnsRowOne) . "abc >> /Length " . strlen($malformedColumnsCompressed) . " >>\nstream\n{$malformedColumnsCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 1x /Columns 1 >> /Length " . strlen($malformedPredictorCompressed) . " >>\nstream\n{$malformedPredictorCompressed}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($malformedIndirectColorsRowOne) . " /Colors 10 0 R >> /Length " . strlen($malformedIndirectColorsCompressed) . " >>\nstream\n{$malformedIndirectColorsCompressed}\nendstream\nendobj\n"
+    . "10 0 obj\n1oops\nendobj\n"
+    . "12 0 obj\n<< /Length " . strlen($malformedNumericDecodeParmsVisibleAfter) . " >>\nstream\n{$malformedNumericDecodeParmsVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -588,6 +617,7 @@ $negativeLengthLines = $extractor->extractTextLines($negativeLengthPdf);
 $malformedIndirectFilterLines = $extractor->extractTextLines($malformedIndirectFilterPdf);
 $verticalTabFilterWhitespaceLines = $extractor->extractTextLines($verticalTabFilterWhitespacePdf);
 $duplicateStreamKeysLines = $extractor->extractTextLines($duplicateStreamKeysPdf);
+$malformedNumericDecodeParmsLines = $extractor->extractTextLines($malformedNumericDecodeParmsPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -614,6 +644,7 @@ $allLines = [
     ...$malformedIndirectFilterLines,
     ...$verticalTabFilterWhitespaceLines,
     ...$duplicateStreamKeysLines,
+    ...$malformedNumericDecodeParmsLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -656,6 +687,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'vertical_tab_ascii85_filter_data_rejected',
         'duplicate_top_level_filter_key_rejected',
         'duplicate_top_level_decodeparms_key_rejected',
+        'malformed_decodeparms_numeric_token_rejected',
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'unresolved_decodeparms_on_null_filter_slot_ignored' => $nullSlotDecodeParmsLines === [
@@ -763,6 +795,15 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     ],
     'duplicate_filter_key_payload_excluded' => !str_contains($joined, 'Duplicate Filter Key Leak'),
     'duplicate_decodeparms_key_payload_excluded' => !str_contains($joined, 'Duplicate DecodeParms Key Leak'),
+    'malformed_decodeparms_numeric_token_rejected' => $malformedNumericDecodeParmsLines === [
+        'Visible After Malformed Numeric DecodeParms',
+    ],
+    'malformed_decodeparms_numeric_prefix_payload_excluded' => !str_contains($joined, 'Malformed Columns Numeric Prefix Leak')
+        && !str_contains($joined, 'Malformed Columns Still Leaks')
+        && !str_contains($joined, 'Malformed Predictor Numeric Prefix Leak')
+        && !str_contains($joined, 'Malformed Indirect Colors Leak')
+        && !str_contains($joined, 'Malformed Indirect Colors Still Leaks')
+        && !str_contains($joined, '1oops'),
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,

@@ -18772,6 +18772,11 @@ final class PdfTextExtractor
         }
 
         if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[1]);
+            if ($endOffset < strlen($value) && !$this->isBareTokenDelimiter($value[$endOffset])) {
+                return null;
+            }
+
             return (int) $match[1];
         }
 

@@ -1015,6 +1015,44 @@ $parserStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf = st
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseMalformedDecodeParmsNumericTokenPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $columnsRowOne = 'BT /F1 12 Tf 72 720 Td (Malformed Columns Numeric Prefix Leak) Tj T* ';
+    $columnsRowTwo = str_pad('(Malformed Columns Still Leaks) Tj ET', strlen($columnsRowOne));
+    $columnsEncodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor(
+        $columnsRowOne . $columnsRowTwo,
+        strlen($columnsRowOne)
+    );
+    $columnsCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($columnsEncodedRows);
+
+    $predictorLeak = 'BT /F1 12 Tf 72 684 Td (Malformed Predictor Numeric Prefix Leak) Tj ET';
+    $predictorCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($predictorLeak);
+
+    $colorsRowOne = 'BT /F1 12 Tf 72 668 Td (Malformed Indirect Colors Leak) Tj T* ';
+    $colorsRowTwo = str_pad('(Malformed Indirect Colors Still Leaks) Tj ET', strlen($colorsRowOne));
+    $colorsEncodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor(
+        $colorsRowOne . $colorsRowTwo,
+        strlen($colorsRowOne)
+    );
+    $colorsCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($colorsEncodedRows);
+
+    $visibleAfter = 'BT /F1 12 Tf 72 632 Td (Visible After Malformed Numeric DecodeParms) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R 12 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($columnsRowOne) . "abc >> /Length " . strlen($columnsCompressed) . " >>\nstream\n{$columnsCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 1x /Columns 1 >> /Length " . strlen($predictorCompressed) . " >>\nstream\n{$predictorCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($colorsRowOne) . " /Colors 10 0 R >> /Length " . strlen($colorsCompressed) . " >>\nstream\n{$colorsCompressed}\nendstream\nendobj\n"
+        . "10 0 obj\n1oops\nendobj\n"
+        . "12 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1707,6 +1745,29 @@ return [
         $t->true(!str_contains($text, 'PrivateCF'));
         $t->true(!str_contains($text, 'Predictor'));
         $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects malformed DecodeParms integer tokens with valid numeric prefixes before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseMalformedDecodeParmsNumericTokenPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseMalformedDecodeParmsNumericTokenPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Visible After Malformed Numeric DecodeParms'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same('Visible After Malformed Numeric DecodeParms', $text);
+        $t->same("Visible After Malformed Numeric DecodeParms\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Malformed Columns Numeric Prefix Leak'));
+        $t->true(!str_contains($text, 'Malformed Columns Still Leaks'));
+        $t->true(!str_contains($text, 'Malformed Predictor Numeric Prefix Leak'));
+        $t->true(!str_contains($text, 'Malformed Indirect Colors Leak'));
+        $t->true(!str_contains($text, 'Malformed Indirect Colors Still Leaks'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, 'Columns'));
+        $t->true(!str_contains($text, 'Colors'));
+        $t->true(!str_contains($text, '1oops'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
