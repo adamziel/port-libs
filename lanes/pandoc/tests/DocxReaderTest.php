@@ -267,6 +267,81 @@ $corePropertiesXml = <<<'XML'
 </cp:coreProperties>
 XML;
 
+$packagePropertiesContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
+</Types>
+XML;
+
+$packagePropertiesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rIdCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
+</Relationships>
+XML;
+
+$packagePropertiesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Properties packet body.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
+$extendedPropertiesXml = <<<'XML'
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Template>Normal.dotm</Template>
+  <Manager>Migration Lead</Manager>
+  <Company>WordPress Migration Desk</Company>
+  <Pages>12</Pages>
+  <Words>3456</Words>
+  <Characters>12000</Characters>
+  <CharactersWithSpaces>13025</CharactersWithSpaces>
+  <Lines>123</Lines>
+  <Paragraphs>48</Paragraphs>
+  <Application>Microsoft Word</Application>
+  <AppVersion>16.0000</AppVersion>
+  <HyperlinkBase>https://example.test/review/</HyperlinkBase>
+  <LinksUpToDate>false</LinksUpToDate>
+  <SharedDoc>0</SharedDoc>
+  <HyperlinksChanged>true</HyperlinksChanged>
+  <HeadingPairs>
+    <vt:vector size="4" baseType="variant">
+      <vt:variant><vt:lpstr>Title</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>2</vt:i4></vt:variant>
+      <vt:variant><vt:lpstr>Heading 1</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>4</vt:i4></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size="2" baseType="lpstr">
+      <vt:lpstr>DOCX source packet</vt:lpstr>
+      <vt:lpstr>Reviewer checklist</vt:lpstr>
+    </vt:vector>
+  </TitlesOfParts>
+</Properties>
+XML;
+
+$customPropertiesXml = <<<'XML'
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="ImportStatus"><vt:lpwstr>needs-media-review</vt:lpwstr></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="ReviewBatch"><vt:i4>42</vt:i4></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Approved"><vt:bool>false</vt:bool></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="ReviewTimestamp"><vt:filetime>2026-06-07T00:00:00Z</vt:filetime></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="6" name="ImportStatus"><vt:lpwstr>approved-for-staging</vt:lpwstr></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="7" name=""><vt:lpwstr>ignored-empty-name</vt:lpwstr></property>
+</Properties>
+XML;
+
 $stylesNumberingContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1978,6 +2053,24 @@ $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationsh
     ]);
 };
 
+$buildPackagePropertiesPackage = static function () use (
+    $packagePropertiesContentTypesXml,
+    $packagePropertiesRelationshipsXml,
+    $packagePropertiesDocumentXml,
+    $corePropertiesXml,
+    $extendedPropertiesXml,
+    $customPropertiesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $packagePropertiesContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packagePropertiesRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $packagePropertiesDocumentXml],
+        ['name' => 'docProps/core.xml', 'data' => $corePropertiesXml],
+        ['name' => 'docProps/app.xml', 'data' => $extendedPropertiesXml],
+        ['name' => 'docProps/custom.xml', 'data' => $customPropertiesXml],
+    ]);
+};
+
 $buildLinkedMediaPackage = static function () use ($linkedMediaContentTypesXml, $packageRelationshipsXml, $linkedMediaDocumentRelationshipsXml, $linkedMediaDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $linkedMediaContentTypesXml],
@@ -2575,6 +2668,75 @@ return [
         $t->same("break\ttab.", $paragraph->children[6]->attr('text'));
         $t->same('note', $paragraph->children[7]->type);
         $t->same('Footnote source audit.', $paragraph->children[7]->children[0]->children[0]->attr('text'));
+    },
+    'reports DOCX extended and custom package properties for review metadata' => static function (TestRunner $t) use ($buildPackagePropertiesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildPackagePropertiesPackage());
+
+        $t->same('DOCX Import Packet', $result['metadata']['title']);
+        $t->same('Properties packet body.', $result['document']->children[0]->children[0]->attr('text'));
+
+        $extended = $result['metadata']['docxExtendedProperties'];
+        $t->same('/docProps/app.xml', $extended['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $extended['contentType']);
+        $t->same('rIdApp', $extended['relationship']['id']);
+        $t->same(DocxReader::REL_TYPE_EXTENDED_PROPERTIES, $extended['relationship']['type']);
+        $t->same('/docProps/app.xml', $extended['relationship']['targetPart']);
+        $t->same(false, $extended['relationship']['external']);
+        $t->same(true, $extended['relationship']['exists']);
+        $t->same('Normal.dotm', $extended['template']);
+        $t->same('Migration Lead', $extended['manager']);
+        $t->same('WordPress Migration Desk', $extended['company']);
+        $t->same(12, $extended['pages']);
+        $t->same(3456, $extended['words']);
+        $t->same(12000, $extended['characters']);
+        $t->same(13025, $extended['charactersWithSpaces']);
+        $t->same(123, $extended['lines']);
+        $t->same(48, $extended['paragraphs']);
+        $t->same('Microsoft Word', $extended['application']);
+        $t->same('16.0000', $extended['appVersion']);
+        $t->same('https://example.test/review/', $extended['hyperlinkBase']);
+        $t->same(false, $extended['linksUpToDate']);
+        $t->same(false, $extended['sharedDoc']);
+        $t->same(true, $extended['hyperlinksChanged']);
+        $t->same('Title', $extended['headingPairs'][0]['name']);
+        $t->same(2, $extended['headingPairs'][0]['count']);
+        $t->same('Heading 1', $extended['headingPairs'][1]['name']);
+        $t->same(4, $extended['headingPairs'][1]['count']);
+        $t->same(['DOCX source packet', 'Reviewer checklist'], $extended['titlesOfParts']);
+
+        $custom = $result['metadata']['docxCustomProperties'];
+        $t->same('/docProps/custom.xml', $custom['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.custom-properties+xml', $custom['contentType']);
+        $t->same('rIdCustom', $custom['relationship']['id']);
+        $t->same(DocxReader::REL_TYPE_CUSTOM_PROPERTIES, $custom['relationship']['type']);
+        $t->same('/docProps/custom.xml', $custom['relationship']['targetPart']);
+        $t->same(5, $custom['count']);
+        $t->same(1, $custom['duplicateNameCount']);
+        $t->same(['ImportStatus'], $custom['duplicateNames']);
+        $t->same('needs-media-review', $custom['byName']['ImportStatus']);
+        $t->same(42, $custom['byName']['ReviewBatch']);
+        $t->same(false, $custom['byName']['Approved']);
+        $t->same('2026-06-07T00:00:00Z', $custom['byName']['ReviewTimestamp']);
+        $t->same($custom['byName'], $result['metadata']['customProperties']);
+        $t->same('ImportStatus', $custom['items'][0]['name']);
+        $t->same(2, $custom['items'][0]['pid']);
+        $t->same('lpwstr', $custom['items'][0]['valueType']);
+        $t->same(false, $custom['items'][0]['duplicate']);
+        $t->same('ReviewBatch', $custom['items'][1]['name']);
+        $t->same('i4', $custom['items'][1]['valueType']);
+        $t->same(42, $custom['items'][1]['value']);
+        $t->same('Approved', $custom['items'][2]['name']);
+        $t->same('bool', $custom['items'][2]['valueType']);
+        $t->same(false, $custom['items'][2]['value']);
+        $t->same('ReviewTimestamp', $custom['items'][3]['name']);
+        $t->same('filetime', $custom['items'][3]['valueType']);
+        $t->same('ImportStatus', $custom['items'][4]['name']);
+        $t->same(true, $custom['items'][4]['duplicate']);
+        $t->same('approved-for-staging', $custom['items'][4]['value']);
+
+        $t->same($extended, $result['importReport']['properties']['extended']);
+        $t->same($custom, $result['importReport']['properties']['custom']);
     },
     'maps DOCX drawings and tables into existing Pandoc-like AST nodes' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $document = (new DocxReader())->readDocument($buildDocxPackage());

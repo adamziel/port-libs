@@ -33,6 +33,8 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/diagrams/review-style.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"/>
   <Override PartName="/word/diagrams/review-colors.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
 </Types>
 XML;
 
@@ -42,6 +44,8 @@ $package = ZipPackage::fromParts([
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
   <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rIdCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/_rels/document.xml.rels', 'data' => <<<'XML'
@@ -748,6 +752,31 @@ XML],
   <dc:creator>Migration Desk</dc:creator>
 </cp:coreProperties>
 XML],
+    ['name' => 'docProps/app.xml', 'data' => <<<'XML'
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Company>WordPress Migration Desk</Company>
+  <Pages>12</Pages>
+  <Words>3456</Words>
+  <Application>Microsoft Word</Application>
+  <AppVersion>16.0000</AppVersion>
+  <HyperlinkBase>https://example.test/docx/</HyperlinkBase>
+  <HeadingPairs>
+    <vt:vector size="2" baseType="variant">
+      <vt:variant><vt:lpstr>Title</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>1</vt:i4></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+</Properties>
+XML],
+    ['name' => 'docProps/custom.xml', 'data' => <<<'XML'
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="ImportStatus"><vt:lpwstr>needs-media-review</vt:lpwstr></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="ReviewBatch"><vt:i4>42</vt:i4></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Approved"><vt:bool>false</vt:bool></property>
+</Properties>
+XML],
 ]);
 
 $reader = new DocxReader();
@@ -766,6 +795,21 @@ $summary = [
 if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['title'] ?? '') !== 'WordPress DOCX handoff') {
         throw new RuntimeException('DOCX body handoff self-test missing metadata title');
+    }
+    if (($summary['metadata']['docxExtendedProperties']['company'] ?? '') !== 'WordPress Migration Desk') {
+        throw new RuntimeException('DOCX body handoff self-test missing extended package company metadata');
+    }
+    if (($summary['metadata']['docxExtendedProperties']['pages'] ?? 0) !== 12) {
+        throw new RuntimeException('DOCX body handoff self-test missing extended package page count');
+    }
+    if (($summary['metadata']['docxCustomProperties']['byName']['ImportStatus'] ?? '') !== 'needs-media-review') {
+        throw new RuntimeException('DOCX body handoff self-test missing custom package import status');
+    }
+    if (($summary['metadata']['customProperties']['ReviewBatch'] ?? 0) !== 42) {
+        throw new RuntimeException('DOCX body handoff self-test missing flattened custom package review batch');
+    }
+    if (($summary['importReport']['properties']['custom']['count'] ?? 0) !== 3) {
+        throw new RuntimeException('DOCX body handoff self-test missing custom package properties import report');
     }
     if (($summary['metadata']['docxTheme']['fonts']['schemeName'] ?? '') !== 'WordPress Review Fonts') {
         throw new RuntimeException('DOCX body handoff self-test missing theme font scheme metadata');
