@@ -5671,7 +5671,7 @@ final class DocxReader
                 }
 
                 $this->clearTableVerticalMergeColumns($verticalMerges, $gridColumn, $colspan);
-                $attrs = $this->tableCellVerticalAlignmentAttrs($cellElement);
+                $attrs = $this->tableCellAttrs($cellElement);
                 if ($colspan > 1) {
                     $attrs['colspan'] = $colspan;
                 }
@@ -5752,6 +5752,60 @@ final class DocxReader
     /**
      * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
      */
+    private function tableCellAttrs(\DOMElement $cell): array
+    {
+        $attrs = null;
+        foreach ([
+            $this->tableCellVerticalAlignmentAttrs($cell),
+            $this->tableCellShadingAttrs($cell),
+        ] as $source) {
+            if ($source === []) {
+                continue;
+            }
+
+            $attrs = $this->mergeTableCellAttrs($attrs, $source);
+        }
+
+        return $attrs ?? [];
+    }
+
+    /**
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null $base
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>} $override
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function mergeTableCellAttrs(?array $base, array $override): array
+    {
+        if ($base === null) {
+            return $override;
+        }
+
+        foreach (['classes', 'attributes', 'htmlAttributes'] as $key) {
+            $values = $override[$key] ?? null;
+            if (!is_array($values) || $values === []) {
+                continue;
+            }
+
+            if ($key === 'classes') {
+                $base[$key] = array_values(array_unique([
+                    ...(is_array($base[$key] ?? null) ? $base[$key] : []),
+                    ...$values,
+                ]));
+                continue;
+            }
+
+            $base[$key] = array_replace(
+                is_array($base[$key] ?? null) ? $base[$key] : [],
+                $values,
+            );
+        }
+
+        return $base;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
     private function tableCellVerticalAlignmentAttrs(\DOMElement $cell): array
     {
         $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
@@ -5784,6 +5838,76 @@ final class DocxReader
                 'valign' => $htmlValue,
             ],
         ];
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function tableCellShadingAttrs(\DOMElement $cell): array
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $shading = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'shd');
+        if (!$shading instanceof \DOMElement) {
+            return [];
+        }
+
+        $sourceValues = [];
+        foreach ([
+            'val' => 'val',
+            'fill' => 'fill',
+            'color' => 'color',
+            'themeFill' => 'theme-fill',
+            'themeFillTint' => 'theme-fill-tint',
+            'themeFillShade' => 'theme-fill-shade',
+            'themeColor' => 'theme-color',
+            'themeTint' => 'theme-tint',
+            'themeShade' => 'theme-shade',
+        ] as $source => $target) {
+            $value = trim((string) ($this->wordAttr($shading, $source) ?? ''));
+            if ($value !== '') {
+                $sourceValues[$target] = $value;
+            }
+        }
+
+        $shadingValue = strtolower($sourceValues['val'] ?? '');
+        if ($shadingValue === 'nil' || $sourceValues === []) {
+            return [];
+        }
+
+        $classes = ['docx-cell-shading'];
+        $suffix = $shadingValue !== '' ? $this->metadataClassSuffix($shadingValue) : null;
+        if ($suffix !== null) {
+            $classes[] = 'docx-cell-shading-' . $suffix;
+        }
+
+        $fill = $sourceValues['fill'] ?? '';
+        if (preg_match('/^[0-9A-Fa-f]{6}$/D', $fill) === 1) {
+            $classes[] = 'docx-cell-fill-' . strtolower($fill);
+        }
+
+        $attributes = [];
+        foreach ($sourceValues as $name => $value) {
+            $attributes['data-docx-cell-shading-' . $name] = $value;
+        }
+
+        $htmlAttributes = [];
+        if (preg_match('/^[0-9A-Fa-f]{6}$/D', $fill) === 1) {
+            $htmlAttributes['style'] = 'background-color:#' . strtoupper($fill);
+        }
+
+        $attrs = [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**

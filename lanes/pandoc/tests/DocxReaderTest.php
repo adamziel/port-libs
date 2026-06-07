@@ -741,6 +741,32 @@ $tableCellVerticalAlignmentDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableCellShadingDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:shd w:val="clear" w:fill="D9EAF7" w:color="auto"/></w:tcPr>
+          <w:p><w:r><w:t>Highlighted source cell</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:shd w:val="pct15" w:themeFill="accent2" w:themeFillTint="66" w:themeColor="text1"/></w:tcPr>
+          <w:p><w:r><w:t>Theme shaded review cell</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:shd w:val="nil" w:fill="FF0000"/></w:tcPr>
+          <w:p><w:r><w:t>No shading fallback</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Plain cell</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $notesContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2388,6 +2414,14 @@ $buildTableCellVerticalAlignmentPackage = static function () use ($contentTypesX
     ]);
 };
 
+$buildTableCellShadingPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellShadingDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableCellShadingDocumentXml],
+    ]);
+};
+
 $buildNotesPackage = static function () use (
     $notesContentTypesXml,
     $packageRelationshipsXml,
@@ -3612,6 +3646,52 @@ return [
         $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-top" valign="top" data-docx-cell-vertical-align="top"><p>Top aligned source note</p></td>', $blocks);
         $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-center" valign="middle" data-docx-cell-vertical-align="center"><p>Centered reviewer status</p></td>', $blocks);
         $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-bottom" valign="bottom" data-docx-cell-vertical-align="bottom"><p>Bottom aligned media audit</p></td><td><p>Plain fallback cell</p></td>', $blocks);
+    },
+    'preserves DOCX table cell shading metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellShadingPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableCellShadingPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $highlighted = $body->children[0]->children[0];
+        $theme = $body->children[0]->children[1];
+        $disabled = $body->children[1]->children[0];
+        $plain = $body->children[1]->children[1];
+
+        $t->same(['docx-cell-shading', 'docx-cell-shading-clear', 'docx-cell-fill-d9eaf7'], $highlighted->attr('classes'));
+        $t->same('clear', $highlighted->attr('attributes')['data-docx-cell-shading-val']);
+        $t->same('D9EAF7', $highlighted->attr('attributes')['data-docx-cell-shading-fill']);
+        $t->same('auto', $highlighted->attr('attributes')['data-docx-cell-shading-color']);
+        $t->same('background-color:#D9EAF7', $highlighted->attr('htmlAttributes')['style']);
+        $t->same('Highlighted source cell', $highlighted->attr('text'));
+
+        $t->same(['docx-cell-shading', 'docx-cell-shading-pct15'], $theme->attr('classes'));
+        $t->same('pct15', $theme->attr('attributes')['data-docx-cell-shading-val']);
+        $t->same('accent2', $theme->attr('attributes')['data-docx-cell-shading-theme-fill']);
+        $t->same('66', $theme->attr('attributes')['data-docx-cell-shading-theme-fill-tint']);
+        $t->same('text1', $theme->attr('attributes')['data-docx-cell-shading-theme-color']);
+        $t->true(!isset($theme->attr('htmlAttributes', [])['style']), 'Theme-only DOCX cell shading should not invent RGB background style');
+
+        $t->true(!isset($disabled->attr('attributes', [])['data-docx-cell-shading-fill']), 'DOCX nil cell shading should not create reviewer metadata');
+        $t->same('No shading fallback', $disabled->attr('text'));
+        $t->true(!isset($plain->attr('attributes', [])['data-docx-cell-shading-val']), 'Plain DOCX table cell should not create shading metadata');
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('D9EAF7', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-shading-fill'] ?? null);
+        $t->same('background-color:#D9EAF7', $geometry['coverage'][0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same('accent2', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-shading-theme-fill'] ?? null);
+        $t->same(['docx-cell-shading', 'docx-cell-shading-clear', 'docx-cell-fill-d9eaf7'], $geometry['coverage'][0]['sourceAttributes']['classes'] ?? null);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Highlighted source cell | Theme shaded review cell |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-cell-shading'), 'Pipe-table Markdown handoff should not leak DOCX cell shading metadata');
+        $t->contains('<td class="docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" style="background-color:#D9EAF7"><p>Highlighted source cell</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-shading docx-cell-shading-pct15" data-docx-cell-shading-val="pct15" data-docx-cell-shading-theme-fill="accent2" data-docx-cell-shading-theme-fill-tint="66" data-docx-cell-shading-theme-color="text1"><p>Theme shaded review cell</p></td>', $blocks);
+        $t->contains('<td><p>No shading fallback</p></td><td><p>Plain cell</p></td>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());
