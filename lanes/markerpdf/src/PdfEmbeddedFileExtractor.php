@@ -160,8 +160,8 @@ final class PdfEmbeddedFileExtractor
                 ? $limits
                 : $inheritedLimits;
             $childLimits = $entryLimits;
-            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->stringDetailsFromRaw($names[$index], $objects);
+            foreach ($this->nameTreeNamePairsSortedByKey($names, $objects, $portfolioMetadata === [] && $limits !== null) as $pair) {
+                $name = $this->stringDetailsFromRaw($pair['name'], $objects);
                 if (
                     $name === null
                     || $name['text'] === ''
@@ -171,7 +171,7 @@ final class PdfEmbeddedFileExtractor
                 }
 
                 $file = $this->embeddedFileFromFileSpecValue(
-                    $names[$index + 1],
+                    $pair['fileSpec'],
                     $name['text'],
                     $objects,
                     'catalog_names_embedded_files',
@@ -290,6 +290,43 @@ final class PdfEmbeddedFileExtractor
         return strcmp($lower, $upper) <= 0
             && strcmp($candidate, $lower) >= 0
             && strcmp($candidate, $upper) <= 0;
+    }
+
+    /**
+     * @param list<string> $items
+     * @param array<int, string> $objects
+     * @return list<array{name: string, fileSpec: string, order: int, sortKey: string|null}>
+     */
+    private function nameTreeNamePairsSortedByKey(array $items, array $objects, bool $sortByKey): array
+    {
+        $pairs = [];
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+            $details = $this->stringDetailsFromRaw($items[$index], $objects);
+            $pairs[] = [
+                'name' => $items[$index],
+                'fileSpec' => $items[$index + 1],
+                'order' => intdiv($index, 2),
+                'sortKey' => $details['bytes'] ?? null,
+            ];
+        }
+
+        if (!$sortByKey || count($pairs) < 2) {
+            return $pairs;
+        }
+
+        usort(
+            $pairs,
+            static function (array $left, array $right): int {
+                if ($left['sortKey'] === null || $right['sortKey'] === null) {
+                    return $left['order'] <=> $right['order'];
+                }
+
+                return strcmp($left['sortKey'], $right['sortKey'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        return $pairs;
     }
 
     /**

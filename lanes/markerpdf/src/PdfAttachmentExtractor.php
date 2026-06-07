@@ -518,7 +518,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects, [], null, 0, $rawEmbeddedFilesValue) as $entry) {
+            foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects, [], null, 0, $rawEmbeddedFilesValue, $portfolio === []) as $entry) {
                 if ($portfolio !== []) {
                     $entry['portfolio'] = $portfolio;
                 }
@@ -592,7 +592,8 @@ final class PdfAttachmentExtractor
         array $seen = [],
         ?array $inheritedLimits = null,
         int $depth = 0,
-        ?string $rawValue = null
+        ?string $rawValue = null,
+        bool $sortLeafPairs = true
     ): array
     {
         if ($depth > 20) {
@@ -645,8 +646,8 @@ final class PdfAttachmentExtractor
                 ? $limits
                 : $inheritedLimits;
             $childLimits = $entryLimits;
-            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->pdfStringDetails($this->resolveValue($names[$index], $objects));
+            foreach ($this->nameTreeNamePairsSortedByKey($names, $rawNameItems, $objects, $sortLeafPairs && $limits !== null) as $pair) {
+                $name = $this->pdfStringDetails($this->resolveValue($pair['name'], $objects));
                 if (
                     $name === null
                     || $name['text'] === ''
@@ -657,10 +658,10 @@ final class PdfAttachmentExtractor
 
                 $entry = [
                     'name' => $name['text'],
-                    'fileSpec' => $names[$index + 1],
+                    'fileSpec' => $pair['fileSpec'],
                 ];
-                if (isset($rawNameItems[$index + 1]) && is_string($rawNameItems[$index + 1])) {
-                    $entry['fileSpecRaw'] = $rawNameItems[$index + 1];
+                if (isset($pair['fileSpecRaw']) && is_string($pair['fileSpecRaw'])) {
+                    $entry['fileSpecRaw'] = $pair['fileSpecRaw'];
                 }
 
                 $entries[] = $entry;
@@ -691,7 +692,7 @@ final class PdfAttachmentExtractor
                     $rawKidValue = array_shift($rawKidValuesByKey[$kidKey]);
                 }
 
-                foreach ($this->nameTreeEntries($kid, $objects, $seen, $childLimits, $depth + 1, $rawKidValue) as $entry) {
+                foreach ($this->nameTreeEntries($kid, $objects, $seen, $childLimits, $depth + 1, $rawKidValue, $sortLeafPairs) as $entry) {
                     $entries[] = $entry;
                 }
             }
@@ -780,6 +781,48 @@ final class PdfAttachmentExtractor
         return strcmp($lower, $upper) <= 0
             && strcmp($candidate, $lower) >= 0
             && strcmp($candidate, $upper) <= 0;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param list<string> $rawItems
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<array{name: mixed, fileSpec: mixed, fileSpecRaw?: string, order: int, sortKey: string|null}>
+     */
+    private function nameTreeNamePairsSortedByKey(array $items, array $rawItems, array $objects, bool $sortByKey): array
+    {
+        $pairs = [];
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+            $details = $this->pdfStringDetails($this->resolveValue($items[$index], $objects));
+            $pair = [
+                'name' => $items[$index],
+                'fileSpec' => $items[$index + 1],
+                'order' => intdiv($index, 2),
+                'sortKey' => $details['bytes'] ?? null,
+            ];
+            if (isset($rawItems[$index + 1]) && is_string($rawItems[$index + 1])) {
+                $pair['fileSpecRaw'] = $rawItems[$index + 1];
+            }
+            $pairs[] = $pair;
+        }
+
+        if (!$sortByKey || count($pairs) < 2) {
+            return $pairs;
+        }
+
+        usort(
+            $pairs,
+            static function (array $left, array $right): int {
+                if ($left['sortKey'] === null || $right['sortKey'] === null) {
+                    return $left['order'] <=> $right['order'];
+                }
+
+                return strcmp($left['sortKey'], $right['sortKey'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        return $pairs;
     }
 
     /**
