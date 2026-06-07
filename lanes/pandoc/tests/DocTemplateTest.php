@@ -2352,6 +2352,44 @@ TPL;
         );
     },
 
+    'validates inactive pandoc doctemplate branches and empty loops before rendering' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$if(title)$ok$else$$title/no-such-pipe$$endif$', [
+                'title' => 'Review',
+            ]),
+            'Unsupported doctemplate pipe no-such-pipe at <template>:1:20',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$if(title)$ok$else$${ missing() }$endif$', [
+                'title' => 'Review',
+            ]),
+            'Missing doctemplate partial missing at <template>:1:20',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$for(items)$${ missing() }$endfor$', [
+                'items' => [],
+            ]),
+            'Missing doctemplate partial missing at <template>:1:13',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$if(title)$ok$else$${ broken() }$endif$', [
+                'title' => 'Review',
+            ], [
+                'broken' => '$if(show)$broken',
+            ]),
+            'Unclosed doctemplate if block at broken:1:1',
+        );
+    },
+
     'throws on unclosed pandoc doctemplate control blocks' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

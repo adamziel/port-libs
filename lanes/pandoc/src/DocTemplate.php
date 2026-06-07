@@ -137,6 +137,7 @@ final class DocTemplate
     private function renderTemplate(string $template, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces, string $sourceName): string
     {
         $tokens = $this->tokenize($template, $sourceName);
+        $this->validateTokenRange($tokens, 0, count($tokens), $partials, $partialSources, $partialStack);
 
         return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialSources, $partialStack, $preserveBreakableSpaces);
     }
@@ -2213,6 +2214,118 @@ CSS;
 
     /**
      * @param list<array<string, mixed>> $tokens
+     * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
+     * @param list<string> $partialStack
+     */
+    private function validateTokenRange(array $tokens, int $start, int $end, array $partials, array $partialSources, array $partialStack): void
+    {
+        for ($index = $start; $index < $end; $index++) {
+            $token = $tokens[$index];
+            if ($token['type'] !== 'directive') {
+                continue;
+            }
+
+            $directive = $token['value'];
+            if ($directive === '~' || $directive === '^') {
+                continue;
+            }
+
+            $ifVariable = $this->controlVariable($directive, 'if');
+            if ($ifVariable !== null) {
+                try {
+                    [$branches, $nextIndex] = $this->collectIfBranches($tokens, $index + 1, $end, $ifVariable);
+                    foreach ($branches as $branch) {
+                        if ($branch['variable'] !== null) {
+                            $this->parseVariableExpression($branch['variable']);
+                        }
+
+                        $this->validateTokenRange($tokens, $branch['start'], $branch['end'], $partials, $partialSources, $partialStack);
+                    }
+                } catch (\UnexpectedValueException $exception) {
+                    throw $this->withTokenLocation($exception, $token);
+                }
+
+                $index = $nextIndex - 1;
+                continue;
+            }
+
+            $forVariable = $this->controlVariable($directive, 'for');
+            if ($forVariable !== null) {
+                try {
+                    $this->parseVariableExpression($forVariable);
+                    [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex] = $this->collectForSlices($tokens, $index + 1, $end);
+                    $this->validateTokenRange($tokens, $bodyStart, $bodyEnd, $partials, $partialSources, $partialStack);
+                    if ($separatorStart !== null) {
+                        $this->validateTokenRange($tokens, $separatorStart, (int) $separatorEnd, $partials, $partialSources, $partialStack);
+                    }
+                } catch (\UnexpectedValueException $exception) {
+                    throw $this->withTokenLocation($exception, $token);
+                }
+
+                $index = $nextIndex - 1;
+                continue;
+            }
+
+            if (in_array($directive, ['elseif', 'else', 'endif', 'sep', 'endfor'], true) || $this->controlVariable($directive, 'elseif') !== null) {
+                throw $this->withTokenLocation(
+                    new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}"),
+                    $token,
+                );
+            }
+
+            try {
+                $partial = $this->parsePartialDirective($directive);
+                if ($partial !== null) {
+                    $this->validatePartial($partial['name'], $partials, $partialSources, $partialStack);
+                    continue;
+                }
+
+                $appliedPartial = $this->parseAppliedPartialDirective($directive);
+                if ($appliedPartial !== null) {
+                    $this->validatePartial($appliedPartial['partial']['name'], $partials, $partialSources, $partialStack);
+                    continue;
+                }
+
+                $expression = $this->parseVariableExpression($directive);
+                if (in_array($expression['name'], ['if', 'else', 'elseif', 'endif', 'for', 'sep', 'endfor'], true)) {
+                    throw new \UnexpectedValueException("Reserved doctemplate keyword {$expression['name']} cannot be rendered as a variable");
+                }
+            } catch (\UnexpectedValueException $exception) {
+                throw $this->withTokenLocation($exception, $token);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, string> $partials
+     * @param array<string, string> $partialSources
+     * @param list<string> $partialStack
+     */
+    private function validatePartial(string $name, array $partials, array $partialSources, array $partialStack): void
+    {
+        if (count($partialStack) >= self::MAX_PARTIAL_DEPTH) {
+            return;
+        }
+
+        if (array_key_exists($name, $partials) && is_string($partials[$name])) {
+            $source = $partials[$name];
+            $sourceName = $partialSources[$name] ?? $name;
+        } else {
+            $fallback = $this->defaultPartialFallbackFor($name, $partialSources);
+            if ($fallback === null) {
+                throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
+            }
+
+            [$source, $sourceName] = $fallback;
+        }
+
+        $tokens = $this->tokenize($source, $sourceName);
+        $this->validateTokenRange($tokens, 0, count($tokens), $partials, $partialSources, [...$partialStack, $name]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tokens
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param array<string, string> $partialSources
@@ -2985,6 +3098,10 @@ CSS;
             }
 
             $pipeName = $pipeMatches[1];
+            if (!$this->isSupportedPipeName($pipeName)) {
+                throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipeName}");
+            }
+
             $argumentSource = isset($pipeMatches[2]) ? trim($pipeMatches[2]) : '';
             if (in_array($pipeName, ['left', 'right', 'center'], true)) {
                 $pipes[] = [
@@ -3005,6 +3122,28 @@ CSS;
         }
 
         return $pipes;
+    }
+
+    private function isSupportedPipeName(string $pipeName): bool
+    {
+        return in_array($pipeName, [
+            'pairs',
+            'uppercase',
+            'lowercase',
+            'length',
+            'reverse',
+            'first',
+            'last',
+            'rest',
+            'allbutlast',
+            'chomp',
+            'nowrap',
+            'alpha',
+            'roman',
+            'left',
+            'right',
+            'center',
+        ], true);
     }
 
     /**

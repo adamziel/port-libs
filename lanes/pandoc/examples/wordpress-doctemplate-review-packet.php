@@ -808,6 +808,21 @@ HTML);
         }
     }
 
+    try {
+        (new DocTemplate())->renderResource('review-packets/invalid.html', [
+            'review-packets/invalid.html' => '$if(title)$ok$else$$title/no-such-pipe$$endif$',
+        ], [
+            'title' => 'Invalid review packet',
+        ]);
+        fwrite(STDERR, "Expected inactive doctemplate branch parser validation\n");
+        exit(1);
+    } catch (\UnexpectedValueException $exception) {
+        if (!str_contains($exception->getMessage(), 'Unsupported doctemplate pipe no-such-pipe at review-packets/invalid.html:1:20')) {
+            fwrite(STDERR, "Unexpected inactive branch parser validation diagnostic: {$exception->getMessage()}\n");
+            exit(1);
+        }
+    }
+
     fwrite(STDOUT, "OK wordpress doctemplate review packet\n");
     exit(0);
 }
