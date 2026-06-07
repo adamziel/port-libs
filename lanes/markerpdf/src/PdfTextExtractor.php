@@ -32649,6 +32649,15 @@ final class PdfTextExtractor
             return null;
         }
 
+        if ($start > 0 && $cmap[$start - 1] === '+') {
+            $signStart = $start - 1;
+            if ($signStart > 0 && !$this->isDelimiter($cmap[$signStart - 1])) {
+                return null;
+            }
+
+            return max(0, (int) substr($cmap, $signStart, $end - $signStart));
+        }
+
         if ($start > 0 && !$this->isDelimiter($cmap[$start - 1])) {
             return null;
         }
