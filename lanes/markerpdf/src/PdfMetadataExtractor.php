@@ -4342,12 +4342,15 @@ final class PdfMetadataExtractor
         ];
 
         $rootMetadataStreamValues = $this->dictionaryTopLevelRawValues($outlineRoot['body'], 'Metadata');
-        $rootMetadataStreamReview = $this->documentOutlineRootMetadataStreamReview(
-            $rootMetadataStreamValues === [] ? null : $rootMetadataStreamValues[array_key_last($rootMetadataStreamValues)],
-            $objects,
-            count($rootMetadataStreamValues),
-            $rootMetadataStreamValues === [] ? null : array_key_last($rootMetadataStreamValues)
-        );
+        $rootMetadataStreamReview = $this->documentOutlineMetadataMalformedOperandReview($outlineRoot['body'], true);
+        if ($rootMetadataStreamReview === []) {
+            $rootMetadataStreamReview = $this->documentOutlineRootMetadataStreamReview(
+                $rootMetadataStreamValues === [] ? null : $rootMetadataStreamValues[array_key_last($rootMetadataStreamValues)],
+                $objects,
+                count($rootMetadataStreamValues),
+                $rootMetadataStreamValues === [] ? null : array_key_last($rootMetadataStreamValues)
+            );
+        }
         if ($rootMetadataStreamReview !== []) {
             $metadata['metadata_stream_review'] = $rootMetadataStreamReview;
         }
@@ -5261,12 +5264,15 @@ final class PdfMetadataExtractor
         }
 
         $metadataStreamValues = $this->dictionaryTopLevelRawValues($dictionary, 'Metadata');
-        $metadataStreamReview = $this->documentOutlineItemMetadataStreamReview(
-            $metadataStreamValues === [] ? null : $metadataStreamValues[array_key_last($metadataStreamValues)],
-            $objects,
-            count($metadataStreamValues),
-            $metadataStreamValues === [] ? null : array_key_last($metadataStreamValues)
-        );
+        $metadataStreamReview = $this->documentOutlineMetadataMalformedOperandReview($dictionary, false);
+        if ($metadataStreamReview === []) {
+            $metadataStreamReview = $this->documentOutlineItemMetadataStreamReview(
+                $metadataStreamValues === [] ? null : $metadataStreamValues[array_key_last($metadataStreamValues)],
+                $objects,
+                count($metadataStreamValues),
+                $metadataStreamValues === [] ? null : array_key_last($metadataStreamValues)
+            );
+        }
         if ($metadataStreamReview !== []) {
             $row['metadata_stream_review'] = $metadataStreamReview;
         }
@@ -5396,6 +5402,100 @@ final class PdfMetadataExtractor
             'declared_entry_counts' => $declaredEntryCounts,
             'selected_entry_indexes' => $selectedEntryIndexes,
         ];
+    }
+
+    /**
+     * Outline /Metadata values are single indirect-stream references. Extra
+     * top-level operands before the next dictionary key make the metadata
+     * boundary ambiguous, so keep them review-only instead of hashing a partial
+     * stream reference.
+     *
+     * @return array<string, mixed>
+     */
+    private function documentOutlineMetadataMalformedOperandReview(string $dictionary, bool $root): array
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $metadataEntryIndex = 0;
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName($match[1]);
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $afterValue = $valueOffset + strlen($value);
+            if ($key !== 'Metadata') {
+                $offset = $afterValue;
+                continue;
+            }
+
+            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            if ($trailingOperands === []) {
+                $metadataEntryIndex++;
+                $offset = $afterValue;
+                continue;
+            }
+
+            $review = [
+                'source' => $root ? 'outline_root_metadata_stream' : 'outline_item_metadata_stream',
+                'review_only' => true,
+                'payload_included' => false,
+                'visible_text_source' => false,
+                'accepted_as_document_xmp' => false,
+                'status' => $root
+                    ? 'rejected_malformed_outline_root_metadata_operand'
+                    : 'rejected_malformed_outline_item_metadata_operand',
+                'metadata_entry_count' => count($this->dictionaryTopLevelRawValues($dictionary, 'Metadata')),
+                'selected_entry_index' => $metadataEntryIndex,
+                'metadata_operand_count' => 1 + count($trailingOperands),
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+                'indirect_reference_required' => true,
+            ];
+
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null) {
+                $review['object_number'] = $reference['objectNumber'];
+                $review['object_generation'] = $reference['generation'];
+            }
+
+            $trailingObjectNumbers = [];
+            $trailingOperandShapes = [];
+            foreach ($trailingOperands as $operand) {
+                $trailingOperandShapes[] = $this->outlineMetadataReferenceOperandShape($operand);
+                $reference = $this->objectReferenceFromValue($operand);
+                if ($reference !== null) {
+                    $trailingObjectNumbers[] = $reference['objectNumber'];
+                }
+            }
+            if ($trailingObjectNumbers !== []) {
+                $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
+            }
+            if ($trailingOperandShapes !== []) {
+                $review['trailing_operand_shapes'] = $this->uniqueStrings($trailingOperandShapes);
+            }
+
+            return $review;
+        }
+
+        return [];
     }
 
     /**
