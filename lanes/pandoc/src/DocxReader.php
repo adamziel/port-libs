@@ -5792,6 +5792,7 @@ final class DocxReader
     {
         $attrs = null;
         foreach ([
+            $this->tableCellWidthAttrs($cell),
             $this->tableCellVerticalAlignmentAttrs($cell),
             $this->tableCellShadingAttrs($cell),
         ] as $source) {
@@ -5830,6 +5831,20 @@ final class DocxReader
                 continue;
             }
 
+            if ($key === 'htmlAttributes') {
+                $baseValues = is_array($base[$key] ?? null) ? $base[$key] : [];
+                $existingStyle = trim((string) ($baseValues['style'] ?? ''));
+                $incomingStyle = trim((string) ($values['style'] ?? ''));
+                if ($existingStyle !== '' && $incomingStyle !== '') {
+                    $values['style'] = rtrim($existingStyle, ';') . '; ' . ltrim($incomingStyle);
+                } elseif ($existingStyle !== '' && $incomingStyle === '') {
+                    $values['style'] = $existingStyle;
+                }
+
+                $base[$key] = array_replace($baseValues, $values);
+                continue;
+            }
+
             $base[$key] = array_replace(
                 is_array($base[$key] ?? null) ? $base[$key] : [],
                 $values,
@@ -5837,6 +5852,61 @@ final class DocxReader
         }
 
         return $base;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function tableCellWidthAttrs(\DOMElement $cell): array
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $width = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tcW');
+        if (!$width instanceof \DOMElement) {
+            return [];
+        }
+
+        $type = strtolower(trim((string) ($this->wordAttr($width, 'type') ?? '')));
+        if (!in_array($type, ['dxa', 'pct', 'auto'], true)) {
+            return [];
+        }
+
+        $classes = ['docx-cell-width', 'docx-cell-width-' . $type];
+        $attributes = [
+            'data-docx-cell-width-type' => $type,
+        ];
+
+        $value = trim((string) ($this->wordAttr($width, 'w') ?? ''));
+        if ($value !== '') {
+            $attributes['data-docx-cell-width-value'] = $value;
+        }
+
+        $htmlAttributes = [];
+        if ($value !== '' && preg_match('/^\d+(?:\.\d+)?$/D', $value) === 1) {
+            $numericValue = (float) $value;
+            if ($numericValue > 0.0 && $type === 'dxa') {
+                $points = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+                $attributes['data-docx-cell-width-points'] = $points;
+                $htmlAttributes['style'] = 'width:' . $points . 'pt';
+            } elseif ($numericValue > 0.0 && $type === 'pct') {
+                $percent = $this->formatOpenXmlCssNumber($numericValue / 50.0);
+                $attributes['data-docx-cell-width-percent'] = $percent;
+                $htmlAttributes['style'] = 'width:' . $percent . '%';
+            }
+        }
+
+        $attrs = [
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**
@@ -5944,6 +6014,13 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    private function formatOpenXmlCssNumber(float $value): string
+    {
+        $formatted = rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+
+        return $formatted === '-0' ? '0' : $formatted;
     }
 
     /**

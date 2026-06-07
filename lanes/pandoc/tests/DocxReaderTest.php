@@ -767,6 +767,41 @@ $tableCellShadingDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableCellWidthDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2400" w:type="dxa"/><w:shd w:val="clear" w:fill="D9EAF7" w:color="auto"/></w:tcPr>
+          <w:p><w:r><w:t>Fixed shaded source cell</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2500" w:type="pct"/></w:tcPr>
+          <w:p><w:r><w:t>Half width review cell</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="0" w:type="auto"/></w:tcPr>
+          <w:p><w:r><w:t>Auto width cell</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="1200" w:type="nil"/></w:tcPr>
+          <w:p><w:r><w:t>Nil width fallback</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="4200" w:type="unsupported"/></w:tcPr>
+          <w:p><w:r><w:t>Unknown width fallback</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableRowPropertiesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2446,6 +2481,14 @@ $buildTableCellShadingPackage = static function () use ($contentTypesXml, $packa
     ]);
 };
 
+$buildTableCellWidthPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellWidthDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableCellWidthDocumentXml],
+    ]);
+};
+
 $buildTableRowPropertiesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableRowPropertiesDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -3724,6 +3767,63 @@ return [
         $t->contains('<td class="docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" style="background-color:#D9EAF7"><p>Highlighted source cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-shading docx-cell-shading-pct15" data-docx-cell-shading-val="pct15" data-docx-cell-shading-theme-fill="accent2" data-docx-cell-shading-theme-fill-tint="66" data-docx-cell-shading-theme-color="text1"><p>Theme shaded review cell</p></td>', $blocks);
         $t->contains('<td><p>No shading fallback</p></td><td><p>Plain cell</p></td>', $blocks);
+    },
+    'preserves DOCX table cell preferred width metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellWidthPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableCellWidthPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $fixed = $body->children[0]->children[0];
+        $percent = $body->children[0]->children[1];
+        $auto = $body->children[1]->children[0];
+        $nil = $body->children[1]->children[1];
+        $unknown = $body->children[2]->children[0];
+
+        $t->same(['docx-cell-width', 'docx-cell-width-dxa', 'docx-cell-shading', 'docx-cell-shading-clear', 'docx-cell-fill-d9eaf7'], $fixed->attr('classes'));
+        $t->same('dxa', $fixed->attr('attributes')['data-docx-cell-width-type']);
+        $t->same('2400', $fixed->attr('attributes')['data-docx-cell-width-value']);
+        $t->same('120', $fixed->attr('attributes')['data-docx-cell-width-points']);
+        $t->same('D9EAF7', $fixed->attr('attributes')['data-docx-cell-shading-fill']);
+        $t->same('width:120pt; background-color:#D9EAF7', $fixed->attr('htmlAttributes')['style']);
+        $t->same('Fixed shaded source cell', $fixed->attr('text'));
+
+        $t->same(['docx-cell-width', 'docx-cell-width-pct'], $percent->attr('classes'));
+        $t->same('pct', $percent->attr('attributes')['data-docx-cell-width-type']);
+        $t->same('2500', $percent->attr('attributes')['data-docx-cell-width-value']);
+        $t->same('50', $percent->attr('attributes')['data-docx-cell-width-percent']);
+        $t->same('width:50%', $percent->attr('htmlAttributes')['style']);
+
+        $t->same(['docx-cell-width', 'docx-cell-width-auto'], $auto->attr('classes'));
+        $t->same('auto', $auto->attr('attributes')['data-docx-cell-width-type']);
+        $t->same('0', $auto->attr('attributes')['data-docx-cell-width-value']);
+        $t->true(!isset($auto->attr('htmlAttributes', [])['style']), 'DOCX auto cell width should not invent CSS width');
+
+        $t->true(!isset($nil->attr('attributes', [])['data-docx-cell-width-type']), 'DOCX nil cell width should not create reviewer metadata');
+        $t->same('Nil width fallback', $nil->attr('text'));
+        $t->true(!isset($unknown->attr('attributes', [])['data-docx-cell-width-type']), 'Unsupported DOCX cell width type should not create reviewer metadata');
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('dxa', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-width-type'] ?? null);
+        $t->same('120', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-width-points'] ?? null);
+        $t->same('width:120pt; background-color:#D9EAF7', $geometry['coverage'][0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same('50', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-width-percent'] ?? null);
+        $t->same('auto', $geometry['coverage'][2]['sourceAttributes']['attributes']['data-docx-cell-width-type'] ?? null);
+        $t->true(!isset($geometry['coverage'][3]['sourceAttributes']), 'DOCX nil cell width should not appear in the geometry source-attribute packet');
+        $t->true(!isset($geometry['coverage'][4]['sourceAttributes']), 'Unsupported DOCX cell width should not appear in the geometry source-attribute packet');
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Fixed shaded source cell | Half width review cell |', $normalizedMarkdown);
+        $t->contains('| Auto width cell | Nil width fallback |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-cell-width'), 'Pipe-table Markdown handoff should not leak DOCX cell width metadata');
+        $t->contains('<td class="docx-cell-width docx-cell-width-dxa docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" data-docx-cell-width-type="dxa" data-docx-cell-width-value="2400" data-docx-cell-width-points="120" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" style="width:120pt; background-color:#D9EAF7"><p>Fixed shaded source cell</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-width docx-cell-width-pct" data-docx-cell-width-type="pct" data-docx-cell-width-value="2500" data-docx-cell-width-percent="50" style="width:50%"><p>Half width review cell</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-width docx-cell-width-auto" data-docx-cell-width-type="auto" data-docx-cell-width-value="0"><p>Auto width cell</p></td><td><p>Nil width fallback</p></td>', $blocks);
+        $t->contains('<td><p>Unknown width fallback</p></td>', $blocks);
     },
     'preserves DOCX table row repeat-header and cant-split metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableRowPropertiesPackage): void {
         $document = (new DocxReader())->readDocument($buildTableRowPropertiesPackage());
