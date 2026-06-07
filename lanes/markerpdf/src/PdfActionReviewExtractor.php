@@ -337,9 +337,13 @@ final class PdfActionReviewExtractor
         $seen[$identity] = true;
 
         $type = $this->nameValue($this->resolveValue($dict['S'] ?? null));
-        $action = $this->reviewActionFromDictionary($dict, $value, $type);
-        if ($action === null && $type !== null) {
-            $action = $this->reviewAction($type, 'unsupported-action-review', null, null, null, [], [], null, null, null, null);
+        if ($this->resolvedDictionaryHasDuplicateKeys($resolved, ['S'])) {
+            $action = $this->reviewAction($type ?? 'unknown', 'malformed-action-dictionary', null, null, null, [], [], null, null, null, null);
+        } else {
+            $action = $this->reviewActionFromDictionary($dict, $value, $type);
+            if ($action === null && $type !== null) {
+                $action = $this->reviewAction($type, 'unsupported-action-review', null, null, null, [], [], null, null, null, null);
+            }
         }
 
         $actions = [];
