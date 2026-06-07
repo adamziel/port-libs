@@ -33556,9 +33556,7 @@ final class PdfTextExtractor
 
             if (!$this->cMapBfRangeTokensAreWellFormedRows($tokens)) {
                 $hasMalformedRows = true;
-                if (count($tokens) >= 3) {
-                    $rowsSeen += max(1, intdiv(count($tokens), 3));
-                }
+                $rowsSeen += $this->cMapMalformedRowSlotCount($tokens, 3);
                 continue;
             }
 
@@ -33645,6 +33643,30 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'array'|'other', value: string}> $tokens
+     */
+    private function cMapMalformedRowSlotCount(array $tokens, int $rowArity): int
+    {
+        if ($tokens === [] || $rowArity < 1) {
+            return 0;
+        }
+
+        $allTokensAreHex = true;
+        foreach ($tokens as $token) {
+            if (($token['type'] ?? null) !== 'hex') {
+                $allTokensAreHex = false;
+                break;
+            }
+        }
+
+        if ($allTokensAreHex && count($tokens) < $rowArity) {
+            return 0;
+        }
+
+        return max(1, intdiv(count($tokens), $rowArity));
     }
 
     /**
@@ -34270,9 +34292,7 @@ final class PdfTextExtractor
             }
             if ($lineMalformed) {
                 $hasMalformedRows = true;
-                if (count($tokens) >= 2) {
-                    $rowsSeen += max(1, intdiv(count($tokens), 2));
-                }
+                $rowsSeen += $this->cMapMalformedRowSlotCount($tokens, 2);
                 continue;
             }
 
