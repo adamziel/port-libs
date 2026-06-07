@@ -1098,6 +1098,13 @@ final class TableRecognizer
                 $assignedCropBoundaryReviews[] = null;
                 $assignedBandBoundaryReviews[] = null;
             }
+            if ($this->hasSuppliedCellOrder($tableCells)) {
+                $tableCells = $this->sortCells(
+                    $tableCells,
+                    $this->storedBandOrderMap($tableCells, 'row'),
+                    $this->storedBandOrderMap($tableCells, 'col')
+                );
+            }
             $assigned[] = $tableCells;
             $markdown[] = $this->markdownFormat($tableCells);
         }
@@ -6201,9 +6208,11 @@ final class TableRecognizer
      */
     private function sortCells(array $cells, array $rowOrder = [], array $colOrder = []): array
     {
-        $order = $this->sortWithinCell($cells);
+        $geometryOrder = $this->sortWithinCell($cells);
         foreach ($cells as $idx => &$cell) {
-            $cell['order'] = $order[$idx];
+            if (!isset($cell['order'])) {
+                $cell['order'] = $geometryOrder[$idx];
+            }
         }
         unset($cell);
 
@@ -6223,6 +6232,20 @@ final class TableRecognizer
         });
 
         return $cells;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     */
+    private function hasSuppliedCellOrder(array $cells): bool
+    {
+        foreach ($cells as $cell) {
+            if (isset($cell['order'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
