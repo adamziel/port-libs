@@ -883,7 +883,12 @@ final class MarkdownReader
 
     private function yamlMetadataDocumentMarker(string $line): ?string
     {
-        $marker = trim($this->stripYamlTrailingComment($line));
+        $marker = $this->stripYamlTrailingComment($line);
+        if ($marker !== ltrim($marker, " \t")) {
+            return null;
+        }
+
+        $marker = trim($marker);
 
         return match ($marker) {
             '---', '...' => $marker,

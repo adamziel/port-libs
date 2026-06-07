@@ -2860,6 +2860,48 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('sequence-block-body', $document->children[0]->attr('id'));
     },
+    'keeps pandoc yaml indented document markers inside block scalar metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Marker scalar **Packet**',
+            'abstract: |',
+            '  Keep review marker lines:',
+            '  ...',
+            '  --- # source separator text',
+            '  Final source note.',
+            'review:',
+            '  note: >-',
+            '    First folded line',
+            '    ...',
+            '    Second folded line',
+            '  literal-list:',
+            '    - |-',
+            '      Item one',
+            '      ---',
+            '      still item',
+            '    - >-',
+            '      Item two',
+            '      ...',
+            '      still folded',
+            '...',
+            '',
+            '# Marker scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Marker scalar **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same("Keep review marker lines:\n...\n--- # source separator text\nFinal source note.\n", $meta['abstract']);
+        $t->same('First folded line ... Second folded line', $meta['review']['note']);
+        $t->same("Item one\n---\nstill item", $meta['review']['literal-list'][0]);
+        $t->same('Item two ... still folded', $meta['review']['literal-list'][1]);
+        $t->same(1, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('marker-scalar-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="marker-scalar-yaml-body">Marker scalar YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit mapping keys in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

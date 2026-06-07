@@ -156,6 +156,24 @@ review-notes:
   - >-
     Fold reviewer note before
     block rendering.
+marker-literal-review: |
+  Keep source marker-looking lines:
+  ...
+  --- # not the closing fence
+  Preserve reviewer text.
+marker-folded-review: >-
+  First reviewer line
+  ...
+  second reviewer line
+marker-sequence-review:
+  - |-
+    Preserve item marker
+    ---
+    without ending metadata.
+  - >-
+    Preserve folded item
+    ...
+    without ending metadata.
 handoff-gaps:
   -
   - status: queued
@@ -753,6 +771,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['review-notes'][1] ?? '') !== 'Fold reviewer note before block rendering.') {
         throw new RuntimeException('YAML metadata self-test missing folded sequence block scalar note');
+    }
+    if (($meta['marker-literal-review'] ?? '') !== "Keep source marker-looking lines:\n...\n--- # not the closing fence\nPreserve reviewer text.\n") {
+        throw new RuntimeException('YAML metadata self-test ended metadata at an indented literal block marker');
+    }
+    if (($meta['marker-folded-review'] ?? '') !== 'First reviewer line ... second reviewer line') {
+        throw new RuntimeException('YAML metadata self-test ended metadata at an indented folded block marker');
+    }
+    if (($meta['marker-sequence-review'][0] ?? '') !== "Preserve item marker\n---\nwithout ending metadata.") {
+        throw new RuntimeException('YAML metadata self-test ended metadata at an indented sequence literal marker');
+    }
+    if (($meta['marker-sequence-review'][1] ?? '') !== 'Preserve folded item ... without ending metadata.') {
+        throw new RuntimeException('YAML metadata self-test ended metadata at an indented sequence folded marker');
     }
     if (!array_key_exists(0, $meta['handoff-gaps'] ?? []) || $meta['handoff-gaps'][0] !== null) {
         throw new RuntimeException('YAML metadata self-test missing bare sequence item null');
