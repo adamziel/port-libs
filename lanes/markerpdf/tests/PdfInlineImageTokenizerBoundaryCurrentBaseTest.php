@@ -274,6 +274,23 @@ $inlineImageTokenizerPreviewVisibleEiTextArrayPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerPreviewQuoteOperatorEiTextPdf = static function (): string {
+    $payload = "\x80 EI BT /F1 12 Tf 72 660 Td (Visible Quote Operator Before Stray) Tj T* "
+        . "(Visible Quote Operator Second Line) ' 1 2 (Visible Double Quote Operator Line) \" ET\nEI";
+    $content = "BT /F1 12 Tf 72 720 Td (Before Quote Operator EI Text) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . $payload . "\n"
+        . "BT /F1 12 Tf 72 688 Td (After Quote Operator EI Text) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerMarkedActualTextEiPdf = static function (): string {
     $payload = "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Marked ActualText Payload Noise) Tj ET rawtail\nEI";
     $content = "BT /F1 12 Tf 72 720 Td (Before Marked ActualText EI) Tj ET\n"
@@ -1454,6 +1471,29 @@ return [
         $t->true(str_contains($plainText, 'Visible EI Array Text'));
         $t->true(!str_contains($plainText, 'TJ Array Payload EI Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'closes preview-only inline image fallback before quote-operator text followed by stray EI bytes' => static function (TestRunner $t) use ($inlineImageTokenizerPreviewQuoteOperatorEiTextPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerPreviewQuoteOperatorEiTextPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Quote Operator EI Text',
+            'Visible Quote Operator Before Stray',
+            'Visible Quote Operator Second Line',
+            'Visible Double Quote Operator Line',
+            'After Quote Operator EI Text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Quote Operator Second Line'));
+        $t->true(str_contains($plainText, 'Visible Double Quote Operator Line'));
+        $t->true(!str_contains($plainText, "\x80 EI"));
+        $t->true(!str_contains($plainText, 'JBIG2Decode'));
     },
     'closes preview-only inline image fallback before marked ActualText containing EI bytes' => static function (TestRunner $t) use ($inlineImageTokenizerMarkedActualTextEiPdf): void {
         $extractor = new PdfTextExtractor();

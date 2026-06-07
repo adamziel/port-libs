@@ -606,6 +606,189 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     totalEntryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     mismatchedEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     mismatchedEntries:list<array{
+     *         centralDirectoryIndex:int,
+     *         centralDirectoryOffset:int,
+     *         localHeaderOffset:int,
+     *         centralName:string,
+     *         centralRawName:string,
+     *         centralNameEncoding:string,
+     *         centralNameLength:int,
+     *         centralExtraFieldLength:int,
+     *         centralGeneralPurposeFlags:int,
+     *         localName:string,
+     *         localRawName:string,
+     *         localNameEncoding:string,
+     *         localNameLength:int,
+     *         localExtraFieldLength:int,
+     *         localHeaderLength:int,
+     *         localGeneralPurposeFlags:int,
+     *         rawNameMatchesCentral:bool,
+     *         decodedNameMatchesCentral:bool,
+     *         generalPurposeFlagsMatchCentral:bool,
+     *         issues:list<string>
+     *     }>,
+     *     entries:list<array{
+     *         centralDirectoryIndex:int,
+     *         centralDirectoryOffset:int,
+     *         localHeaderOffset:int,
+     *         centralName:string,
+     *         centralRawName:string,
+     *         centralNameEncoding:string,
+     *         centralNameLength:int,
+     *         centralExtraFieldLength:int,
+     *         centralGeneralPurposeFlags:int,
+     *         localName:string,
+     *         localRawName:string,
+     *         localNameEncoding:string,
+     *         localNameLength:int,
+     *         localExtraFieldLength:int,
+     *         localHeaderLength:int,
+     *         localGeneralPurposeFlags:int,
+     *         rawNameMatchesCentral:bool,
+     *         decodedNameMatchesCentral:bool,
+     *         generalPurposeFlagsMatchCentral:bool,
+     *         issues:list<string>
+     *     }>
+     * }
+     */
+    public static function localHeaderNamePreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before local header names can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $mismatchedEntries = [];
+        $packageIssues = [];
+        if (!$archive['isSingleDisk']) {
+            $packageIssues[] = 'split-archive-eocd';
+        }
+
+        $cursor = $archive['centralDirectoryOffset'];
+        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+
+            $localHeader = self::readLocalHeaderNameMetadata(
+                $bytes,
+                $localHeaderOffset,
+                $index
+            );
+
+            $rawNameMatchesCentral = $localHeader['rawName'] === $rawName;
+            $decodedNameMatchesCentral = $localHeader['name'] === $decodedName['text'];
+            $flagsMatchCentral = $localHeader['generalPurposeFlags'] === $flags;
+            $issues = [];
+            if (!$rawNameMatchesCentral) {
+                $issues[] = 'local-header-name-mismatch';
+            }
+            if (!$decodedNameMatchesCentral) {
+                $issues[] = 'local-header-decoded-name-mismatch';
+            }
+            if (!$flagsMatchCentral) {
+                $issues[] = 'local-header-flags-mismatch';
+            }
+            foreach ($issues as $issue) {
+                if (!in_array($issue, $packageIssues, true)) {
+                    $packageIssues[] = $issue;
+                }
+            }
+
+            $entry = [
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'centralName' => $decodedName['text'],
+                'centralRawName' => $rawName,
+                'centralNameEncoding' => $decodedName['encoding'],
+                'centralNameLength' => $nameLength,
+                'centralExtraFieldLength' => $extraLength,
+                'centralGeneralPurposeFlags' => $flags,
+                'localName' => $localHeader['name'],
+                'localRawName' => $localHeader['rawName'],
+                'localNameEncoding' => $localHeader['nameEncoding'],
+                'localNameLength' => $localHeader['nameLength'],
+                'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'localHeaderLength' => $localHeader['localHeaderLength'],
+                'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
+                'rawNameMatchesCentral' => $rawNameMatchesCentral,
+                'decodedNameMatchesCentral' => $decodedNameMatchesCentral,
+                'generalPurposeFlagsMatchCentral' => $flagsMatchCentral,
+                'issues' => $issues,
+            ];
+            $entries[] = $entry;
+            if ($issues !== []) {
+                $mismatchedEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature === null || $signature['endOffset'] !== $archive['centralDirectoryEnd']) {
+                self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+            }
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'mismatchedEntryCount' => count($mismatchedEntries),
+            'isSupportedByBoundedReader' => $packageIssues === [],
+            'issues' => $packageIssues,
+            'mismatchedEntries' => $mismatchedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     entryName:string,
      *     exists:bool,
      *     firstLocalEntryName:?string,
@@ -3623,6 +3806,50 @@ final class ZipPackage
         }
 
         return substr($this->bytes, $dataStart, $entry->compressedSize);
+    }
+
+    /**
+     * @return array{name:string, rawName:string, nameEncoding:string, nameLength:int, extraFieldLength:int, localHeaderLength:int, generalPurposeFlags:int}
+     */
+    private static function readLocalHeaderNameMetadata(string $bytes, int $localHeaderOffset, int $centralDirectoryIndex): array
+    {
+        self::assertRange($bytes, $localHeaderOffset, 30, 'local file header');
+        if (substr($bytes, $localHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
+            throw new \RuntimeException("Invalid ZIP local file header for central directory entry {$centralDirectoryIndex}");
+        }
+
+        $flags = self::readUInt16($bytes, $localHeaderOffset + 6);
+        $nameLength = self::readUInt16($bytes, $localHeaderOffset + 26);
+        $extraLength = self::readUInt16($bytes, $localHeaderOffset + 28);
+        $nameStart = $localHeaderOffset + 30;
+        self::assertRange($bytes, $nameStart, $nameLength + $extraLength, 'local file header variable fields');
+
+        $rawName = substr($bytes, $nameStart, $nameLength);
+        $extraFieldData = substr($bytes, $nameStart + $nameLength, $extraLength);
+        self::assertSafePartName($rawName);
+        ZipPackageEntry::validateExtraFieldData(
+            $extraFieldData,
+            "local extra fields for central directory entry {$centralDirectoryIndex}"
+        );
+        $decodedName = self::decodeZipText(
+            $rawName,
+            $flags,
+            $extraFieldData,
+            self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+            'info-zip-unicode-path',
+            "local file header entry {$centralDirectoryIndex} name"
+        );
+        self::assertSafePartName($decodedName['text']);
+
+        return [
+            'name' => $decodedName['text'],
+            'rawName' => $rawName,
+            'nameEncoding' => $decodedName['encoding'],
+            'nameLength' => $nameLength,
+            'extraFieldLength' => $extraLength,
+            'localHeaderLength' => 30 + $nameLength + $extraLength,
+            'generalPurposeFlags' => $flags,
+        ];
     }
 
     /**

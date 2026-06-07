@@ -324,6 +324,13 @@ final class DocTemplate
                 'templates/styles.html' => $this->defaultHtmlStylesTemplate(),
                 'templates/styles.citations.html' => $this->defaultHtmlCitationStylesTemplate(),
             ],
+            'templates/default.jats_archiving', 'templates/default.jats_publishing' => [
+                'templates/article.jats_publishing' => $this->defaultJatsPublishingArticleTemplate(),
+                'templates/affiliations.jats' => $this->defaultJatsAffiliationsTemplate(),
+            ],
+            'templates/default.jats_articleauthoring' => [
+                'templates/affiliations.jats' => $this->defaultJatsAffiliationsTemplate(),
+            ],
             'templates/default.typst' => [
                 'templates/template.typst' => $this->defaultTypstConfTemplate(),
             ],
@@ -353,6 +360,7 @@ final class DocTemplate
             'odt' => 'opendocument',
             'epub' => 'epub3',
             'docbook' => 'docbook5',
+            'jats' => 'jats_archiving',
             'markdown_strict', 'multimarkdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra' => 'markdown',
             'gfm', 'commonmark_x' => 'commonmark',
             'asciidoctor', 'asciidoc_legacy' => 'asciidoc',
@@ -385,7 +393,12 @@ final class DocTemplate
             'default.opendocument' => $this->defaultOpenDocumentTemplate(),
             'default.epub3' => $this->defaultEpub3Template(),
             'default.docbook5' => $this->defaultDocbook5Template(),
+            'default.jats_archiving' => $this->defaultJatsArchivingTemplate(),
+            'default.jats_publishing' => $this->defaultJatsPublishingTemplate(),
+            'default.jats_articleauthoring' => $this->defaultJatsArticleAuthoringTemplate(),
             'default.typst' => $this->defaultTypstTemplate(),
+            'article.jats_publishing' => $this->defaultJatsPublishingArticleTemplate(),
+            'affiliations.jats' => $this->defaultJatsAffiliationsTemplate(),
             'styles.html' => $this->defaultHtmlStylesTemplate(),
             'styles.citations.html' => $this->defaultHtmlCitationStylesTemplate(),
             'template.typst' => $this->defaultTypstConfTemplate(),
@@ -412,7 +425,12 @@ final class DocTemplate
             'default.opendocument',
             'default.epub3',
             'default.docbook5',
+            'default.jats_archiving',
+            'default.jats_publishing',
+            'default.jats_articleauthoring',
             'default.typst',
+            'article.jats_publishing',
+            'affiliations.jats',
             'styles.html',
             'styles.citations.html',
             'template.typst',
@@ -1083,6 +1101,428 @@ $else$
 </chapter>
 $endif$
 DOCBOOK5;
+    }
+
+    private function defaultJatsArchivingTemplate(): string
+    {
+        return <<<'JATS_ARCHIVING'
+<?xml version="1.0" encoding="utf-8" ?>
+$if(xml-stylesheet)$
+<?xml-stylesheet type="text/xsl" href="$xml-stylesheet$"?>
+$endif$
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.2 20190208//EN"
+                  "JATS-archivearticle1.dtd">
+${ article.jats_publishing() }
+JATS_ARCHIVING;
+    }
+
+    private function defaultJatsPublishingTemplate(): string
+    {
+        return <<<'JATS_PUBLISHING'
+<?xml version="1.0" encoding="utf-8" ?>
+$if(xml-stylesheet)$
+<?xml-stylesheet type="text/xsl" href="$xml-stylesheet$"?>
+$endif$
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Publishing DTD v1.2 20190208//EN"
+                  "JATS-publishing1.dtd">
+${ article.jats_publishing() }
+JATS_PUBLISHING;
+    }
+
+    private function defaultJatsPublishingArticleTemplate(): string
+    {
+        return <<<'JATS_ARTICLE'
+$if(article.type)$
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.2" article-type="$article.type$">
+$else$
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.2" article-type="other">
+$endif$
+<front>
+<journal-meta>
+$if(journal.publisher-id)$
+<journal-id journal-id-type="publisher-id">$journal.publisher-id$</journal-id>
+$endif$
+$if(journal.nlm-ta)$
+<journal-id journal-id-type="nlm-ta">$journal.nlm-ta$</journal-id>
+$endif$
+$if(journal.pmc)$
+<journal-id journal-id-type="pmc">$journal.pmc$</journal-id>
+$endif$
+$if(journal.publisher-id)$
+$elseif(journal.nlm-ta)$
+$elseif(journal.pmc)$
+$else$
+<journal-id></journal-id>
+$endif$
+<journal-title-group>
+$if(journal.title)$
+<journal-title>$journal.title$</journal-title>
+$endif$
+$if(journal.abbrev-title)$
+<abbrev-journal-title>$journal.abbrev-title$</abbrev-journal-title>
+$endif$
+</journal-title-group>
+$if(journal.pissn)$
+<issn publication-format="print">$journal.pissn$</issn>
+$endif$
+$if(journal.eissn)$
+<issn publication-format="electronic">$journal.eissn$</issn>
+$endif$
+$if(journal.pissn)$
+$elseif(journal.eissn)$
+$else$
+<issn></issn>
+$endif$
+<publisher>
+<publisher-name>$journal.publisher-name$</publisher-name>
+$if(journal.publisher-loc)$
+<publisher-loc>$journal.publisher-loc$</publisher-loc>
+$endif$
+</publisher>
+</journal-meta>
+<article-meta>
+$if(article.publisher-id)$
+<article-id pub-id-type="publisher-id">$article.publisher-id$</article-id>
+$endif$
+$if(article.doi)$
+<article-id pub-id-type="doi">$article.doi$</article-id>
+$endif$
+$if(article.pmid)$
+<article-id pub-id-type="pmid">$article.pmid$</article-id>
+$endif$
+$if(article.pmcid)$
+<article-id pub-id-type="pmcid">$article.pmcid$</article-id>
+$endif$
+$if(article.art-access-id)$
+<article-id pub-id-type="art-access-id">$article.art-access-id$</article-id>
+$endif$
+$if(article.heading)$
+<article-categories>
+<subj-group subj-group-type="heading">
+<subject>$article.heading$</subject>
+</subj-group>
+$if(article.categories)$
+<subj-group subj-group-type="categories">
+$for(article.categories)$
+<subject>$article.categories$</subject>
+$endfor$
+</subj-group>
+$endif$
+</article-categories>
+$endif$
+$if(title)$
+<title-group>
+<article-title>$title$</article-title>
+$if(subtitle)$
+<subtitle>${subtitle}</subtitle>
+$endif$
+</title-group>
+$endif$
+$if(author)$
+<contrib-group>
+$for(author)$
+<contrib contrib-type="author"$if(author.equal-contrib)$ equal-contrib="yes"$endif$$if(author.cor-id)$ corresp="yes"$endif$>
+$if(author.orcid)$
+<contrib-id contrib-id-type="orcid">$author.orcid$</contrib-id>
+$endif$
+$if(author.surname)$
+<name>
+<surname>$if(author.non-dropping-particle)$${author.non-dropping-particle} $endif$$author.surname$</surname>
+<given-names>$author.given-names$$if(author.dropping-particle)$ ${author.dropping-particle}$endif$</given-names>
+$if(author.prefix)$
+<prefix>${author.prefix}</prefix>
+$endif$
+$if(author.suffix)$
+<suffix>${author.suffix}</suffix>
+$endif$
+</name>
+$elseif(author.name)$
+<string-name>$author.name$</string-name>
+$else$
+<string-name>$author$</string-name>
+$endif$
+$for(author.roles)$
+$if(it.credit)$
+<role vocab="credit"$if(it.degree)$ degree-contribution="$it.degree$"$endif$ vocab-identifier="https://credit.niso.org/" vocab-term-identifier="https://credit.niso.org/contributor-roles/$it.credit$/" vocab-term="$it.credit-name$">$if(it.name)$$it.name$$else$$it.credit-name$$endif$</role>
+$elseif(it.name)$
+<role>$it.name$</role>
+$endif$
+$endfor$
+$if(author.email)$
+<email>$author.email$</email>
+$endif$
+$if(affiliation)$
+$for(author.affiliation)$
+<xref ref-type="aff" rid="aff-$author.affiliation$"/>
+$endfor$
+$else$
+$for(author.affiliation)$
+${ it:affiliations.jats() }
+$endfor$
+$endif$
+$if(author.cor-id)$
+<xref ref-type="corresp" rid="cor-$author.cor-id$"><sup>*</sup></xref>
+$endif$
+</contrib>
+$endfor$
+$for(affiliation)$
+${ it:affiliations.jats() }
+$endfor$
+</contrib-group>
+$endif$
+$if(article.author-notes)$
+<author-notes>
+$for(article.author-notes.corresp)$
+<corresp id="cor-$article.author-notes.corresp.id$">* E-mail: <email>$article.author-notes.corresp.email$</email></corresp>
+$endfor$
+$if(article.author-notes.conflict)$
+<fn fn-type="conflict"><p>$article.author-notes.conflict$</p></fn>
+$endif$
+$if(article.author-notes.con)$
+<fn fn-type="con"><p>$article.author-notes.con$</p></fn>
+$endif$
+</author-notes>
+$endif$
+$if(date)$
+<pub-date date-type="$if(date.type)$$date.type$$else$pub$endif$" publication-format="electronic"$if(date.iso-8601)$ iso-8601-date="$date.iso-8601$"$endif$>
+$if(date.day)$
+<day>$date.day$</day>
+$endif$
+$if(date.month)$
+<month>$date.month$</month>
+$endif$
+<year>$date.year$</year>
+</pub-date>
+$endif$
+$if(article.volume)$
+<volume>$article.volume$</volume>
+$endif$
+$if(article.issue)$
+<issue>$article.issue$</issue>
+$endif$
+$if(article.fpage)$
+<fpage>$article.fpage$</fpage>
+$endif$
+$if(article.lpage)$
+<lpage>$article.lpage$</lpage>
+$endif$
+$if(article.elocation-id)$
+<elocation-id>$article.elocation-id$</elocation-id>
+$endif$
+$if(history)$
+<history>
+</history>
+$endif$
+<permissions>
+$for(copyright.statement)$
+<copyright-statement>$copyright.statement$</copyright-statement>
+$endfor$
+$for(copyright.year)$
+<copyright-year>$copyright.year$</copyright-year>
+$endfor$
+$for(copyright.holder)$
+<copyright-holder>$copyright.holder$</copyright-holder>
+$endfor$
+$if(copyright.text)$
+<license license-type="$copyright.type$" xlink:href="$copyright.link$">
+<license-p>$copyright.text$</license-p>
+</license>
+$endif$
+$for(license)$
+<license$if(it.type)$ license-type="${it.type}"$endif$>
+$if(it.link)$
+<ali:license_ref xmlns:ali="http://www.niso.org/schemas/ali/1.0/">${it.link}</ali:license_ref>
+$endif$
+<license-p>$if(it.text)$${it.text}$else$${it}$endif$</license-p>
+</license>
+$endfor$
+</permissions>
+$if(abstract)$
+<abstract>
+$abstract$
+</abstract>
+$endif$
+$if(tags)$
+<kwd-group kwd-group-type="author">
+$for(tags)$
+<kwd>$tags$</kwd>
+$endfor$
+</kwd-group>
+$endif$
+$if(article.funding-statement)$
+<funding-group>
+<funding-statement>$article.funding-statement$</funding-statement>
+</funding-group>
+$endif$
+</article-meta>
+$if(notes)$
+<notes>$notes$</notes>
+$endif$
+</front>
+<body>
+$body$
+</body>
+<back>
+$if(back)$
+$back$
+$endif$
+</back>
+$if(floats-group)$
+<floats-group>
+$floats-group$
+</floats-group>
+$endif$
+</article>
+JATS_ARTICLE;
+    }
+
+    private function defaultJatsArticleAuthoringTemplate(): string
+    {
+        return <<<'JATS_AUTHORING'
+<?xml version="1.0" encoding="utf-8" ?>
+$if(xml-stylesheet)$
+<?xml-stylesheet type="text/xsl" href="$xml-stylesheet$"?>
+$endif$
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Article Authoring DTD v1.2 20190208//EN"
+                  "JATS-articleauthoring1.dtd">
+$if(article.type)$
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.2" article-type="$article.type$">
+$else$
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.2" article-type="other">
+$endif$
+<front>
+<article-meta>
+$if(title)$
+<title-group>
+<article-title>$title$</article-title>
+$if(subtitle)$
+<subtitle>${subtitle}</subtitle>
+$endif$
+</title-group>
+$endif$
+$if(author)$
+<contrib-group>
+$for(author)$
+<contrib contrib-type="author"$if(author.equal-contrib)$ equal-contrib="yes"$endif$$if(author.cor-id)$ corresp="yes"$endif$>
+$if(author.orcid)$
+<contrib-id contrib-id-type="orcid">$author.orcid$</contrib-id>
+$endif$
+$if(author.surname)$
+<name>
+<surname>$if(author.non-dropping-particle)$${author.non-dropping-particle} $endif$${author.surname}</surname>
+<given-names>${author.given-names}$if(author.dropping-particle)$ ${author.dropping-particle}$endif$</given-names>
+</name>
+$elseif(author.name)$
+<string-name>$author.name$</string-name>
+$else$
+<string-name>$author$</string-name>
+$endif$
+$for(author.affiliation)$
+${ it:affiliations.jats() }
+$endfor$
+$if(author.email)$
+<email>$author.email$</email>
+$endif$
+$if(author.cor-id)$
+<xref ref-type="corresp" rid="cor-$author.cor-id$"><sup>*</sup></xref>
+$endif$
+</contrib>
+$endfor$
+</contrib-group>
+$endif$
+<permissions>
+$for(copyright.statement)$
+<copyright-statement>$copyright.statement$</copyright-statement>
+$endfor$
+$for(copyright.year)$
+<copyright-year>$copyright.year$</copyright-year>
+$endfor$
+$for(copyright.holder)$
+<copyright-holder>$copyright.holder$</copyright-holder>
+$endfor$
+$if(copyright.text)$
+<license license-type="$copyright.type$" xlink:href="$copyright.link$">
+<license-p>$copyright.text$</license-p>
+</license>
+$endif$
+$for(license)$
+<license$if(it.type)$ license-type="${it.type}"$endif$$if(it.link)$ xlink:href="${it.link}"$endif$>
+<license-p>$if(it.text)$${it.text}$else$${it}$endif$</license-p>
+</license>
+$endfor$
+</permissions>
+$if(abstract)$
+<abstract>
+$abstract$
+</abstract>
+$endif$
+$if(tags)$
+<kwd-group kwd-group-type="author">
+$for(tags)$
+<kwd>$tags$</kwd>
+$endfor$
+</kwd-group>
+$endif$
+$if(article.funding-statement)$
+<funding-group>
+<funding-statement>$article.funding-statement$</funding-statement>
+</funding-group>
+$endif$
+$if(supplementary-material)$
+<supplementary-material>
+$supplementary-material$
+</supplementary-material>
+$endif$
+</article-meta>
+</front>
+<body>
+$body$
+</body>
+<back>
+$if(back)$
+$back$
+$endif$
+</back>
+</article>
+JATS_AUTHORING;
+    }
+
+    private function defaultJatsAffiliationsTemplate(): string
+    {
+        return <<<'JATS_AFFILIATIONS'
+<aff id="aff-$it.id$">
+$if(it.group)$
+<institution content-type="group">${it.group}</institution>
+$endif$
+$if(it.department)$
+<institution content-type="dept">${it.department}</institution>
+$endif$
+<institution-wrap>
+$if(it.organization)$
+<institution>${it.organization}</institution>
+$else$
+<institution>${it.name}</institution>
+$endif$
+$if(it.isni)$
+<institution-id institution-id-type="ISNI">${it.isni}</institution-id>
+$endif$
+$if(it.ringgold)$
+<institution-id institution-id-type="Ringgold">${it.ringgold}</institution-id>
+$endif$
+$if(it.ror)$
+<institution-id institution-id-type="ROR">${it.ror}</institution-id>
+$endif$
+$for(it.pid)$
+<institution-id institution-id-type="${it.type}">${it.id}</institution-id>
+$endfor$
+</institution-wrap>$if(it.street-address)$,
+$for(it.street-address)$
+<addr-line>${it}</addr-line>$sep$,
+$endfor$
+$else$$if(it.city)$, <city>$it.city$</city>$endif$$endif$$if(it.country)$,
+<country$if(it.country-code)$ country="$it.country-code$"$endif$>$it.country$</country>$endif$
+</aff>
+JATS_AFFILIATIONS;
     }
 
     private function defaultTypstTemplate(): string

@@ -12726,7 +12726,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        foreach ($this->xmpPacketContentCandidates($xml) as $packetXml) {
+        foreach ($this->xmpPrimaryPacketContentCandidates($xml) as $packetXml) {
             $packetDeclaredEncoding = $this->declaredXmlEncoding($packetXml);
             if ($packetDeclaredEncoding === null || $this->isUtf8EncodingName($packetDeclaredEncoding)) {
                 $this->addXmpPacketXmlCandidate(
@@ -12962,6 +12962,27 @@ final class PdfMetadataExtractor
      * complete begin/end pairs before scanning for XML roots so stale preamble
      * XMP-looking roots cannot replace the current metadata packet.
      *
+     * @return list<string>
+     */
+    private function xmpPrimaryPacketContentCandidates(string $xml): array
+    {
+        $candidates = [];
+        foreach ($this->xmpPacketContentCandidates($xml) as $packetXml) {
+            $candidates[] = $packetXml;
+
+            $rootCandidates = $this->boundedXmpXmlRootCandidatesFromXml($packetXml);
+            if (
+                $rootCandidates === []
+                || !$this->xmpXmlRootCandidatesAreOnlyEmptyXmpmetaWrappers($rootCandidates)
+            ) {
+                break;
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
      * @return list<string>
      */
     private function xmpPacketContentCandidates(string $xml): array

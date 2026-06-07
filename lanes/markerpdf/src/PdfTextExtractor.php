@@ -12725,7 +12725,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $reference = $this->type3CharProcsDictionaryReference($body);
+            $reference = $this->type3CharProcsDictionaryReference($body, false);
             if ($reference === null) {
                 continue;
             }
@@ -20769,7 +20769,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $bodyDefaultWidth = $this->finiteHorizontalFontAdvanceMetric($this->pdfNumberValueAfterNameResolvingObjects($body, 'DW', $objects));
+            $bodyDefaultWidth = $this->finiteHorizontalFontAdvanceMetric($this->pdfSingleNumberValueAfterNameResolvingObjects($body, 'DW', $objects));
             if ($bodyDefaultWidth !== null) {
                 $defaultWidth = $bodyDefaultWidth;
             }
@@ -20784,9 +20784,12 @@ final class PdfTextExtractor
 
             $verticalDefaultMetrics = $this->topLevelPdfLastSingleArrayValueAfterNameResolvingObjects($body, 'DW2', $objects);
             if ($verticalDefaultMetrics !== null) {
-                $metrics = $this->numbersFromPdfArrayResolvingObjects($verticalDefaultMetrics, $objects);
+                $metrics = $this->nullableSingleNumbersFromPdfArrayResolvingObjects($verticalDefaultMetrics, $objects);
                 if (count($metrics) >= 2) {
-                    $metric = $this->finiteFontAdvanceMetric((float) $metrics[1]);
+                    $metricValue = $metrics[1];
+                    $metric = (is_int($metricValue) || is_float($metricValue))
+                        ? $this->finiteFontAdvanceMetric((float) $metricValue)
+                        : null;
                     if ($metric !== null) {
                         $defaultVerticalDisplacement = $metric;
                     }
@@ -21148,7 +21151,7 @@ final class PdfTextExtractor
     private function charProcObjectReferencesForFallbackExclusion(string $fontBody, array $objects): array
     {
         $references = $this->charProcObjectReferences($fontBody, $objects);
-        $dictionaryReference = $this->type3CharProcsDictionaryReference($fontBody);
+        $dictionaryReference = $this->type3CharProcsDictionaryReference($fontBody, false);
         if ($dictionaryReference === null) {
             return $references !== []
                 ? $references
@@ -21306,6 +21309,10 @@ final class PdfTextExtractor
             return null;
         }
 
+        if ($this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, 'CharProcs')) {
+            return null;
+        }
+
         $reference = $this->pdfIndirectReferenceValue($value);
         if ($reference !== null) {
             $objectBody = $this->objectBodyForExactReference(
@@ -21339,10 +21346,20 @@ final class PdfTextExtractor
     /**
      * @return array{objectNumber: int, generation: int}|null
      */
-    private function type3CharProcsDictionaryReference(string $fontBody): ?array
+    private function type3CharProcsDictionaryReference(
+        string $fontBody,
+        bool $rejectMalformedReferenceTail = true
+    ): ?array
     {
         $value = $this->topLevelPdfLastValueAfterName($fontBody, 'CharProcs');
         if ($value === null) {
+            return null;
+        }
+
+        if (
+            $rejectMalformedReferenceTail
+            && $this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, 'CharProcs')
+        ) {
             return null;
         }
 
@@ -21809,7 +21826,7 @@ final class PdfTextExtractor
         }
 
         $widths = [];
-        foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
+        foreach ($this->nullableSingleNumbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
             $metric = $this->finiteHorizontalFontAdvanceMetric($width);
             if ($metric === null) {
                 continue;
@@ -21940,6 +21957,66 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return list<float|null>
+     * @param array<int, string> $objects
+     */
+    private function nullableSingleNumbersFromPdfArrayResolvingObjects(string $arrayBody, array $objects): array
+    {
+        $numbers = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $numbers[] = $this->pdfSingleNumberFromValue($item, $objects);
+        }
+
+        return $numbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfSingleNumberFromValue(string $value, array $objects, array $seen = []): ?float
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+
+        $referenceOffset = $offset;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference !== null) {
+            $afterReference = $referenceOffset;
+            $this->skipContentWhitespaceAndComments($value, $afterReference);
+            if ($afterReference < strlen($value)) {
+                return null;
+            }
+
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if ($reference['objectNumber'] <= 0 || $reference['generation'] < 0 || isset($seen[$key])) {
+                return null;
+            }
+
+            $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$key] = true;
+            return $this->pdfSingleNumberFromValue($body, $objects, $seen);
+        }
+
+        if (preg_match('/\G([+-]?(?:\d+(?:\.\d*)?|\.\d+))/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $afterNumber = $offset + strlen($match[1]);
+        $this->skipContentWhitespaceAndComments($value, $afterNumber);
+        if ($afterNumber < strlen($value)) {
+            return null;
+        }
+
+        $number = (float) $match[1];
+
+        return is_finite($number) ? $number : null;
+    }
+
+    /**
      * @return array<int, float>
      */
     private function base14FontWidthMetrics(string $fontBody): array
@@ -22025,7 +22102,7 @@ final class PdfTextExtractor
             }
 
             $lastCid = $this->cidWidthArrayInteger($next, $objects);
-            $width = $this->finiteHorizontalFontAdvanceMetric($this->pdfNumberValueAt($tokens[$index + 1] ?? '', 0, $objects));
+            $width = $this->finiteHorizontalFontAdvanceMetric($this->pdfSingleNumberFromValue($tokens[$index + 1] ?? '', $objects));
             if ($lastCid === null || $width === null) {
                 $index++;
                 continue;
@@ -22051,7 +22128,7 @@ final class PdfTextExtractor
     private function finiteHorizontalFontAdvanceMetricsFromArray(string $arrayBody, array $objects): ?array
     {
         $metrics = [];
-        foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($arrayBody, $objects) as $width) {
+        foreach ($this->nullableSingleNumbersFromPdfArrayResolvingObjects($arrayBody, $objects) as $width) {
             $metric = $this->finiteHorizontalFontAdvanceMetric($width);
             if ($metric === null) {
                 return null;
@@ -22068,7 +22145,7 @@ final class PdfTextExtractor
      */
     private function cidWidthArrayInteger(string $item, array $objects): ?int
     {
-        $value = $this->pdfNumberValueAt($item, 0, $objects);
+        $value = $this->pdfSingleNumberFromValue($item, $objects);
         if ($value === null || !is_finite($value)) {
             return null;
         }
@@ -22106,7 +22183,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $metrics = $this->nullableNumbersFromPdfArrayResolvingObjects($metricsList, $objects);
+                $metrics = $this->nullableSingleNumbersFromPdfArrayResolvingObjects($metricsList, $objects);
                 for ($offset = 0, $metricCount = count($metrics); $offset + 2 < $metricCount; $offset += 3) {
                     $verticalDisplacement = $this->finiteFontAdvanceMetric($metrics[$offset]);
                     $positionX = $this->finiteFontAdvanceMetric($metrics[$offset + 1]);
@@ -22124,9 +22201,9 @@ final class PdfTextExtractor
             }
 
             $lastCid = $this->cidWidthArrayInteger($next, $objects);
-            $verticalDisplacement = $this->finiteFontAdvanceMetric($this->pdfNumberValueAt($tokens[$index + 1] ?? '', 0, $objects));
-            $positionX = $this->finiteFontAdvanceMetric($this->pdfNumberValueAt($tokens[$index + 2] ?? '', 0, $objects));
-            $positionY = $this->finiteFontAdvanceMetric($this->pdfNumberValueAt($tokens[$index + 3] ?? '', 0, $objects));
+            $verticalDisplacement = $this->finiteFontAdvanceMetric($this->pdfSingleNumberFromValue($tokens[$index + 1] ?? '', $objects));
+            $positionX = $this->finiteFontAdvanceMetric($this->pdfSingleNumberFromValue($tokens[$index + 2] ?? '', $objects));
+            $positionY = $this->finiteFontAdvanceMetric($this->pdfSingleNumberFromValue($tokens[$index + 3] ?? '', $objects));
             if ($lastCid === null || $verticalDisplacement === null || $positionX === null || $positionY === null) {
                 $index++;
                 continue;
@@ -22225,7 +22302,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->pdfNumberValueAfterNameResolvingObjects($descriptor, 'MissingWidth', $objects);
+        return $this->pdfSingleNumberValueAfterNameResolvingObjects($descriptor, 'MissingWidth', $objects);
     }
 
     /**
@@ -23302,6 +23379,19 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     */
+    private function pdfSingleNumberValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?float
+    {
+        $value = $this->pdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfSingleNumberFromValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @param array<int, true> $seen
      */
     private function pdfNumberValueAt(string $value, int $offset, array $objects, array $seen = []): ?float
@@ -23621,6 +23711,67 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    private function topLevelLastValueAfterNameHasTrailingTopLevelOperand(string $body, string $name): bool
+    {
+        $dictionary = ltrim($body);
+        if (str_starts_with($dictionary, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($dictionary, 0) ?? $dictionary;
+        } elseif (preg_match('/^\s*\d+\s+\d+\s+obj\b/', $body) === 1) {
+            $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        } else {
+            $dictionary = $body;
+        }
+
+        $offset = 0;
+        $length = strlen($dictionary);
+        $hasTrailingOperand = false;
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName(substr($dictionary, $keyStart, $keyEnd - $keyStart));
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                if ($key === $name) {
+                    $hasTrailingOperand = false;
+                }
+                break;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            if ($key === $name) {
+                $afterValue = $nextOffset;
+                $this->skipContentWhitespaceAndComments($dictionary, $afterValue);
+                $hasTrailingOperand = $afterValue < $length && $dictionary[$afterValue] !== '/';
+            }
+
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return $hasTrailingOperand;
     }
 
     /**
@@ -37745,7 +37896,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (in_array($token, ['Tj', 'TJ', "'", '"'], true)) {
+            if ($this->isTextShowingOperator($token)) {
                 $textObjectHasText = true;
             }
         }
@@ -38650,6 +38801,7 @@ final class PdfTextExtractor
                 return implode(' ', $entries);
             }
 
+            $keyStart = $index;
             $keyToken = $this->readInlineImageToken($stream, $index);
             if ($keyToken === null) {
                 return null;
@@ -38665,6 +38817,14 @@ final class PdfTextExtractor
             }
 
             if (!str_starts_with($keyToken, '/')) {
+                $dictionary = implode(' ', $entries);
+                $malformedTailBoundary = $this->inlineImageMalformedDictionaryTailBoundaryOffset($stream, $keyStart, $dictionary);
+                if ($malformedTailBoundary !== null) {
+                    $consumeDataPrefixWhitespace = $malformedTailBoundary['consumeDataPrefixWhitespace'];
+                    $index = $malformedTailBoundary['offset'];
+                    return $dictionary;
+                }
+
                 return null;
             }
 
@@ -38688,6 +38848,67 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return array{offset: int, consumeDataPrefixWhitespace: bool}|null
+     */
+    private function inlineImageMalformedDictionaryTailBoundaryOffset(
+        string $stream,
+        int $index,
+        string $dictionary
+    ): ?array {
+        if ($dictionary === '' || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
+            return null;
+        }
+
+        $length = strlen($stream);
+        $sawMalformedOperand = false;
+        while ($index < $length) {
+            $this->skipContentWhitespaceAndComments($stream, $index);
+            if ($index >= $length) {
+                return null;
+            }
+
+            $consumeDataPrefixWhitespace = true;
+            $dataBoundary = $this->inlineImageDataBoundaryOffset(
+                $stream,
+                $index,
+                [],
+                $consumeDataPrefixWhitespace
+            );
+            if ($dataBoundary !== null && $sawMalformedOperand) {
+                return [
+                    'offset' => $dataBoundary,
+                    'consumeDataPrefixWhitespace' => $consumeDataPrefixWhitespace,
+                ];
+            }
+
+            $token = $this->readInlineImageToken($stream, $index);
+            if ($token === null || !$this->inlineImageMalformedDictionaryTailOperandToken($token)) {
+                return null;
+            }
+
+            $sawMalformedOperand = true;
+        }
+
+        return null;
+    }
+
+    private function inlineImageMalformedDictionaryTailOperandToken(string $token): bool
+    {
+        if (preg_match('/^[+-]?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?$/', $token) === 1) {
+            return true;
+        }
+
+        return $token === 'R'
+            || $token === 'null'
+            || $token === 'true'
+            || $token === 'false'
+            || str_starts_with($token, '[')
+            || str_starts_with($token, '<<')
+            || str_starts_with($token, '(')
+            || (str_starts_with($token, '<') && !str_starts_with($token, '<<'));
     }
 
     /**

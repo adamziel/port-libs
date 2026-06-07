@@ -615,6 +615,64 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'preflights zip central and local header name provenance before entry exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $legacyRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $legacyZip = $buildZipPackage([
+            [
+                'name' => $legacyRawName,
+                'data' => "legacy named image bytes\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $buildUnicodeExtra(0x7075, $legacyRawName, $unicodeName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $legacyRawName, $unicodeName),
+            ],
+        ]);
+
+        $legacySummary = ZipPackage::localHeaderNamePreflight($legacyZip);
+        $legacyEntry = $legacySummary['entries'][0];
+        $t->same(1, $legacySummary['entryCount']);
+        $t->same(0, $legacySummary['mismatchedEntryCount']);
+        $t->same(true, $legacySummary['isSupportedByBoundedReader']);
+        $t->same([], $legacySummary['issues']);
+        $t->same($legacyRawName, $legacyEntry['centralRawName']);
+        $t->same($legacyRawName, $legacyEntry['localRawName']);
+        $t->same($unicodeName, $legacyEntry['centralName']);
+        $t->same($unicodeName, $legacyEntry['localName']);
+        $t->same('info-zip-unicode-path', $legacyEntry['centralNameEncoding']);
+        $t->same('info-zip-unicode-path', $legacyEntry['localNameEncoding']);
+        $t->same(true, $legacyEntry['rawNameMatchesCentral']);
+        $t->same(true, $legacyEntry['decodedNameMatchesCentral']);
+        $t->same(true, $legacyEntry['generalPurposeFlagsMatchCentral']);
+        $t->same([], $legacyEntry['issues']);
+        $t->same([$unicodeName], ZipPackage::fromString($legacyZip)->names());
+
+        $mismatchedZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/other.xml',
+                'data' => '<w:document/>',
+                'method' => 0,
+            ],
+        ]);
+
+        $mismatchSummary = ZipPackage::localHeaderNamePreflight($mismatchedZip);
+        $mismatchEntry = $mismatchSummary['mismatchedEntries'][0];
+        $t->same(1, $mismatchSummary['entryCount']);
+        $t->same(1, $mismatchSummary['mismatchedEntryCount']);
+        $t->same(false, $mismatchSummary['isSupportedByBoundedReader']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $mismatchSummary['issues']);
+        $t->same('word/document.xml', $mismatchEntry['centralName']);
+        $t->same('word/other.xml', $mismatchEntry['localName']);
+        $t->same('word/document.xml', $mismatchEntry['centralRawName']);
+        $t->same('word/other.xml', $mismatchEntry['localRawName']);
+        $t->same(false, $mismatchEntry['rawNameMatchesCentral']);
+        $t->same(false, $mismatchEntry['decodedNameMatchesCentral']);
+        $t->same(true, $mismatchEntry['generalPurposeFlagsMatchCentral']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $mismatchEntry['issues']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
+    },
+
     'preflights stored first mimetype entries for ODT and EPUB containers' => static function (TestRunner $t) use ($buildZipPackage): void {
         $odtMimetype = 'application/vnd.oasis.opendocument.text';
         $package = ZipPackage::fromString($buildZipPackage([

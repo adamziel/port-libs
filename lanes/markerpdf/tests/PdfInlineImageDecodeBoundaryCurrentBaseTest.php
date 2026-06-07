@@ -2375,6 +2375,41 @@ return [
         $t->same([0.0, 0.5], array_column($maskPreview['pixels'], 'opacity'));
         $t->contains('image_mask_decode_inverts_stencil', implode(',', $maskPreview['notes']));
     },
+    'fails closed on trailing inline image Decode operands before text extraction and preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $dictionary = '/W 12 /H 1 /CS /G /BPC 8 /D [1 0] 99 0 R';
+        $payload = 'raw EI BT /F1 12 Tf 72 690 Td (Trailing Decode Operand Inline Noise) Tj ET tail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Trailing Decode Operand Inline) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Trailing Decode Operand Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan($dictionary, "\x80");
+
+        $t->true(str_contains($payload, ' EI '));
+        $t->same([
+            'Before Trailing Decode Operand Inline',
+            'After Trailing Decode Operand Inline',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Trailing Decode Operand Inline\nAfter Trailing Decode Operand Inline", $plainText);
+        foreach (['Trailing Decode Operand Inline Noise', 'raw EI', 'tail'] as $excludedText) {
+            $t->true(!str_contains($plainText, $excludedText));
+        }
+        $t->same(true, $review['image_decode_component_mismatch']);
+        $t->same('invalid', $review['image_decode']['source']);
+        $t->same(0, $review['image_decode']['component_count']);
+        $t->same(1, $review['image_decode']['expected_components']);
+        $t->same(false, $review['image_decode']['valid_for_components']);
+        $t->same(true, $review['inline_image_review_only']);
+        $t->same(false, $review['inline_image']['native_raster_decode']);
+        $t->contains('inline_image_decode_operand_review_only', implode(',', $review['notes']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, "\x80", [], 1)
+        );
+    },
     'fails closed on malformed inline image Decode operands before RGB preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $renderer = new PdfImageRenderer();
         $extractor = new PdfTextExtractor();

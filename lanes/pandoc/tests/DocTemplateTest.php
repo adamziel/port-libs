@@ -1878,6 +1878,162 @@ HTML,
         ], null, 'docbook'));
     },
 
+    'renders bounded pandoc default jats template resources and aliases' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $jats = $renderer->renderResource('templates/default', [], [
+            'xml-stylesheet' => 'review.xsl',
+            'journal' => [
+                'publisher-id' => 'wp-port',
+                'title' => 'WordPress Migration Review',
+                'publisher-name' => 'Port Libs',
+            ],
+            'article' => [
+                'type' => 'review-article',
+                'doi' => '10.5555/review',
+                'heading' => 'Review Queue',
+                'categories' => ['migration', 'wordpress'],
+                'funding-statement' => 'No external funding.',
+            ],
+            'title' => 'Batch 42 Review',
+            'subtitle' => 'Native JATS handoff',
+            'author' => [
+                [
+                    'orcid' => '0000-0002-1825-0097',
+                    'surname' => 'Editor',
+                    'given-names' => 'Ada',
+                    'affiliation' => ['1'],
+                    'email' => 'ada@example.test',
+                    'cor-id' => '1',
+                ],
+            ],
+            'affiliation' => [
+                [
+                    'id' => '1',
+                    'department' => 'Migration',
+                    'organization' => 'Port Libs',
+                    'ror' => 'https://ror.org/03yrm5c26',
+                    'city' => 'Remote',
+                    'country' => 'United States',
+                    'country-code' => 'US',
+                ],
+            ],
+            'date' => [
+                'type' => 'reviewed',
+                'day' => '07',
+                'month' => '06',
+                'year' => '2026',
+                'iso-8601' => '2026-06-07',
+            ],
+            'copyright' => [
+                'statement' => ['Copyright 2026 Port Libs'],
+                'year' => ['2026'],
+                'holder' => ['Port Libs'],
+            ],
+            'license' => [
+                [
+                    'type' => 'internal-review',
+                    'link' => 'https://example.test/license',
+                    'text' => 'Internal review license.',
+                ],
+            ],
+            'abstract' => '<p>Native JATS template review.</p>',
+            'tags' => ['migration', 'jats'],
+            'notes' => '<fn><p>Reviewer note.</p></fn>',
+            'body' => '<sec><title>Imported Body</title><p>Converted content.</p></sec>',
+            'back' => '<ref-list><title>References</title></ref-list>',
+            'floats-group' => '<fig id="fig-review"/>',
+        ], null, 'jats');
+
+        foreach ([
+            '<?xml version="1.0" encoding="utf-8" ?>',
+            '<?xml-stylesheet type="text/xsl" href="review.xsl"?>',
+            '<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.2 20190208//EN"',
+            '<article xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="1.2" article-type="review-article">',
+            '<journal-id journal-id-type="publisher-id">wp-port</journal-id>',
+            '<journal-title>WordPress Migration Review</journal-title>',
+            '<issn></issn>',
+            '<publisher-name>Port Libs</publisher-name>',
+            '<article-id pub-id-type="doi">10.5555/review</article-id>',
+            '<subject>migration</subject>',
+            '<article-title>Batch 42 Review</article-title>',
+            '<subtitle>Native JATS handoff</subtitle>',
+            '<contrib-id contrib-id-type="orcid">0000-0002-1825-0097</contrib-id>',
+            '<surname>Editor</surname>',
+            '<given-names>Ada</given-names>',
+            '<xref ref-type="aff" rid="aff-1"/>',
+            '<email>ada@example.test</email>',
+            '<aff id="aff-1">',
+            '<institution content-type="dept">Migration</institution>',
+            '<institution>Port Libs</institution>',
+            '<institution-id institution-id-type="ROR">https://ror.org/03yrm5c26</institution-id>',
+            '<country country="US">United States</country>',
+            '<pub-date date-type="reviewed" publication-format="electronic" iso-8601-date="2026-06-07">',
+            '<license license-type="internal-review">',
+            '<ali:license_ref xmlns:ali="http://www.niso.org/schemas/ali/1.0/">https://example.test/license</ali:license_ref>',
+            '<license-p>Internal review license.</license-p>',
+            '<abstract>',
+            '<p>Native JATS template review.</p>',
+            '<kwd>migration</kwd>',
+            '<funding-statement>No external funding.</funding-statement>',
+            '<notes><fn><p>Reviewer note.</p></fn></notes>',
+            '<sec><title>Imported Body</title><p>Converted content.</p></sec>',
+            '<ref-list><title>References</title></ref-list>',
+            '<floats-group>',
+            '<fig id="fig-review"/>',
+        ] as $needle) {
+            $t->contains($needle, $jats);
+        }
+
+        $publishing = $renderer->renderResource('templates/default.jats_publishing', [], [
+            'journal' => ['publisher-name' => 'Port Libs'],
+            'title' => 'Publishing Review',
+            'body' => '<p>Publishing body.</p>',
+        ]);
+        $t->contains('<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Publishing DTD v1.2 20190208//EN"', $publishing);
+        $t->contains('<article-title>Publishing Review</article-title>', $publishing);
+        $t->contains('<p>Publishing body.</p>', $publishing);
+
+        $articleAuthoring = $renderer->renderResource('templates/default.jats_articleauthoring', [], [
+            'article' => ['type' => 'brief-report'],
+            'title' => 'Article Authoring Review',
+            'author' => [
+                [
+                    'surname' => 'Reviewer',
+                    'given-names' => 'Nia',
+                    'affiliation' => [
+                        [
+                            'id' => 'desk',
+                            'organization' => 'Editorial Desk',
+                            'country' => 'United States',
+                        ],
+                    ],
+                ],
+            ],
+            'abstract' => '<p>Authoring abstract.</p>',
+            'body' => '<p>Authoring body.</p>',
+        ]);
+        $t->contains('<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Article Authoring DTD v1.2 20190208//EN"', $articleAuthoring);
+        $t->contains('<article-title>Article Authoring Review</article-title>', $articleAuthoring);
+        $t->contains('<aff id="aff-desk">', $articleAuthoring);
+        $t->contains('<institution>Editorial Desk</institution>', $articleAuthoring);
+        $t->contains('<p>Authoring body.</p>', $articleAuthoring);
+
+        $t->same('custom jats', $renderer->renderResource('templates/default', [
+            'templates/default.jats_archiving' => 'custom $body$',
+        ], [
+            'body' => 'jats',
+        ], null, 'jats'));
+        $partialOverride = $renderer->renderResource('templates/default.jats_archiving', [
+            'templates/article.jats_publishing' => 'partial override $body$',
+        ], [
+            'body' => 'jats',
+        ]);
+        $t->contains('<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.2 20190208//EN"', $partialOverride);
+        $t->contains('partial override jats', $partialOverride);
+        $t->same(false, str_contains($partialOverride, '<article-title>'));
+    },
+
     'renders bounded pandoc default typst template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

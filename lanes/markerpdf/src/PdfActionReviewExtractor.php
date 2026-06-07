@@ -142,11 +142,12 @@ final class PdfActionReviewExtractor
             ];
         }
 
+        $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($dictValue);
         $seen = [];
         $actions = [];
-        if (array_key_exists('A', $dict)) {
+        if (array_key_exists('A', $dict) && !isset($malformedValueKeys['A'])) {
             $actions = $this->reviewPrimaryAnnotationActionsFromValue($dict['A'], $seen);
-        } elseif (array_key_exists('Dest', $dict)) {
+        } elseif (array_key_exists('Dest', $dict) && !isset($malformedValueKeys['Dest'])) {
             $action = $this->localDestinationReview($dict['Dest']);
             if ($action !== null) {
                 $actions[] = $action;
@@ -167,7 +168,8 @@ final class PdfActionReviewExtractor
             'additional_actions' => $this->additionalActionMetadata($dict['AA'] ?? null),
             'previous_uri_actions' => $previousUriActions,
             'executes_actions_on_import' => false,
-        ] + $this->duplicateKeyReviewFields($dictValue, 'annotation_action_duplicate_keys');
+        ] + $this->duplicateKeyReviewFields($dictValue, 'annotation_action_duplicate_keys')
+            + $this->malformedValueOperandReviewFields($dictValue, 'annotation_action_malformed_value_operands');
     }
 
     /**
@@ -336,8 +338,9 @@ final class PdfActionReviewExtractor
         }
         $seen[$identity] = true;
 
+        $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($resolved);
         $type = $this->nameValue($this->resolveValue($dict['S'] ?? null));
-        if ($this->resolvedDictionaryHasDuplicateKeys($resolved, ['S'])) {
+        if ($this->resolvedDictionaryHasDuplicateKeys($resolved, ['S']) || isset($malformedValueKeys['S'])) {
             $action = $this->reviewAction($type ?? 'unknown', 'malformed-action-dictionary', null, null, null, [], [], null, null, null, null);
         } else {
             $action = $this->reviewActionFromDictionary($dict, $value, $type);
@@ -353,6 +356,7 @@ final class PdfActionReviewExtractor
                 $action['action_generation'] = $actionReference['generation'] ?? 0;
             }
             $action += $this->duplicateKeyReviewFields($resolved, 'action_dictionary_duplicate_keys');
+            $action += $this->malformedValueOperandReviewFields($resolved, 'action_dictionary_malformed_value_operands');
             if ($depth > 0) {
                 $action['chained'] = true;
                 $action['chain_index'] = $depth;
@@ -360,7 +364,7 @@ final class PdfActionReviewExtractor
             $actions[] = $action;
         }
 
-        if (array_key_exists('Next', $dict)) {
+        if (array_key_exists('Next', $dict) && !isset($malformedValueKeys['Next'])) {
             foreach ($this->reviewActionsFromValue($dict['Next'], $seen, $depth + 1) as $nextAction) {
                 $nextAction['chained'] = true;
                 $nextAction['chain_index'] = $nextAction['chain_index'] ?? ($depth + 1);
@@ -2440,6 +2444,32 @@ final class PdfActionReviewExtractor
     }
 
     /**
+     * @return array{malformed_action_operand_review?: array<string, mixed>, malformed_action_operand_keys?: list<string>}
+     */
+    private function malformedValueOperandReviewFields(mixed $value, string $source): array
+    {
+        if (
+            !is_array($value)
+            || ($value['pdfType'] ?? null) !== 'dict'
+            || !is_array($value['malformedValueOperandReview'] ?? null)
+        ) {
+            return [];
+        }
+
+        $review = $value['malformedValueOperandReview'];
+        if (($review['keys'] ?? []) === []) {
+            return [];
+        }
+
+        $review['source'] = $source;
+
+        return [
+            'malformed_action_operand_review' => $review,
+            'malformed_action_operand_keys' => $review['keys'],
+        ];
+    }
+
+    /**
      * @param list<string> $keys
      */
     private function resolvedDictionaryHasDuplicateKeys(mixed $value, array $keys): bool
@@ -2470,6 +2500,30 @@ final class PdfActionReviewExtractor
 
         $keys = [];
         foreach ($resolved['duplicateKeyReview']['keys'] as $key) {
+            if (is_string($key)) {
+                $keys[$key] = true;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function dictionaryMalformedValueOperandKeySet(mixed $resolved): array
+    {
+        if (
+            !is_array($resolved)
+            || ($resolved['pdfType'] ?? null) !== 'dict'
+            || !is_array($resolved['malformedValueOperandReview'] ?? null)
+            || !is_array($resolved['malformedValueOperandReview']['keys'] ?? null)
+        ) {
+            return [];
+        }
+
+        $keys = [];
+        foreach ($resolved['malformedValueOperandReview']['keys'] as $key) {
             if (is_string($key)) {
                 $keys[$key] = true;
             }
@@ -3029,10 +3083,15 @@ final class PdfActionReviewExtractor
             $items = [];
             $entryCounts = [];
             $selectedEntryIndexes = [];
+            $malformedOperandCounts = [];
+            $lastKey = null;
             while (($tokens[$index] ?? null) !== null && $tokens[$index] !== '>>') {
                 $key = $tokens[$index] ?? '';
                 $index++;
                 if (!is_string($key) || !str_starts_with($key, '/')) {
+                    if ($lastKey !== null) {
+                        $malformedOperandCounts[$lastKey] = ($malformedOperandCounts[$lastKey] ?? 0) + 1;
+                    }
                     continue;
                 }
 
@@ -3041,6 +3100,7 @@ final class PdfActionReviewExtractor
                 $entryCounts[$decodedKey] = $entryIndex + 1;
                 $selectedEntryIndexes[$decodedKey] = $entryIndex;
                 $items[$decodedKey] = $this->parseValue($tokens, $index);
+                $lastKey = $decodedKey;
             }
             if (($tokens[$index] ?? null) === '>>') {
                 $index++;
@@ -3070,6 +3130,17 @@ final class PdfActionReviewExtractor
                     'keys' => $duplicateKeys,
                     'declared_entry_counts' => $duplicateEntryCounts,
                     'selected_entry_indexes' => $duplicateSelectedEntryIndexes,
+                ];
+            }
+            if ($malformedOperandCounts !== []) {
+                $dictionary['malformedValueOperandReview'] = [
+                    'source' => 'dictionary_malformed_value_operands',
+                    'review_only' => true,
+                    'payload_included' => false,
+                    'visible_text_source' => false,
+                    'selected_entry_policy' => 'fail_closed_for_malformed_value',
+                    'keys' => array_keys($malformedOperandCounts),
+                    'unexpected_operand_counts' => $malformedOperandCounts,
                 ];
             }
 

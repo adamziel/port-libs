@@ -114,7 +114,7 @@ final class BatchConverter
     }
 
     /**
-     * @param array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null} $task
+     * @param array{filepath: string, out_folder: string, metadata?: mixed, min_length?: int|null} $task
      * @return array<string, mixed>
      */
     public function processTask(array $task, callable $converter, ?callable $textLength = null): array
@@ -1279,7 +1279,11 @@ final class BatchConverter
             $poolErrorBoundary = 'empty-task-queue';
         }
         $taskArgIdentityReview = $this->runtimeTaskArgIdentityReview($taskArgs, $poolErrorBoundary);
-        $processSinglePdfPreflight = $this->runtimeProcessSinglePdfPreflightReview($taskArgs, $poolErrorBoundary);
+        $processSinglePdfPreflight = $this->runtimeProcessSinglePdfPreflightReview(
+            $taskArgs,
+            $runtimeMetadataPlan['metadata_value_types'],
+            $poolErrorBoundary
+        );
         $poolResultDrain = $this->runtimePoolResultDrainReview(
             $taskArgs,
             $processSinglePdfPreflight,
@@ -1750,10 +1754,14 @@ final class BatchConverter
      * inspectable without invoking convert_single_pdf or model workers.
      *
      * @param list<array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}> $taskArgs
+     * @param array<string, string> $metadataValueTypes
      * @return array<string, mixed>
      */
-    private function runtimeProcessSinglePdfPreflightReview(array $taskArgs, ?string $poolErrorBoundary = null): array
-    {
+    private function runtimeProcessSinglePdfPreflightReview(
+        array $taskArgs,
+        array $metadataValueTypes,
+        ?string $poolErrorBoundary = null
+    ): array {
         $blockedBy = $poolErrorBoundary === null ? null : 'pool-process-count-failed';
         $reached = $blockedBy === null;
         $taskArgFilenames = array_map(static fn (array $task): string => basename((string) $task['filepath']), $taskArgs);
@@ -1784,20 +1792,32 @@ final class BatchConverter
         $readyFilenames = [];
         $filetypeCheckedFilenames = [];
         $textLengthCheckedFilenames = [];
+        $metadataValueTypeByFilename = [];
+        $metadataIsMappingByFilename = [];
+        $metadataIsListByFilename = [];
+        $metadataPythonTruthyByFilename = [];
+        $metadataNonMappingBoundaryByFilename = [];
+        $truthyNonMappingMetadataFilenames = [];
+        $falsyNonMappingMetadataFilenames = [];
 
         if ($reached) {
             foreach ($taskArgs as $taskArg) {
-                $metadata = is_array($taskArg['metadata']) ? $taskArg['metadata'] : null;
                 $preflight = $this->processFilePreflightPlan(
                     (string) $taskArg['filepath'],
                     (string) $taskArg['out_folder'],
-                    $metadata,
-                    $taskArg['min_length'] ?? null
+                    $taskArg['metadata'] ?? null,
+                    $taskArg['min_length'] ?? null,
+                    metadataValueType: $metadataValueTypes[basename((string) $taskArg['filepath'])] ?? null
                 );
                 $filename = (string) $preflight['filename'];
                 $status = (string) $preflight['status'];
 
                 $statusByFilename[$filename] = $status;
+                $metadataValueTypeByFilename[$filename] = $preflight['metadata_value_type'];
+                $metadataIsMappingByFilename[$filename] = $preflight['metadata_is_mapping'];
+                $metadataIsListByFilename[$filename] = $preflight['metadata_is_list'];
+                $metadataPythonTruthyByFilename[$filename] = $preflight['metadata_python_truthy'];
+                $metadataNonMappingBoundaryByFilename[$filename] = $preflight['metadata_non_mapping_boundary'];
                 $filetypeByFilename[$filename] = $preflight['filetype'];
                 $filetypeReviewByFilename[$filename] = $preflight['filetype_review'];
                 $filetypeStdoutMessageByFilename[$filename] = is_array($preflight['filetype_review'])
@@ -1839,6 +1859,16 @@ final class BatchConverter
                 if ((bool) $preflight['text_length_checked']) {
                     $textLengthCheckedFilenames[] = $filename;
                 }
+                if (
+                    $preflight['metadata_non_mapping_boundary'] === 'convert-single-pdf-metadata-get-failed'
+                    && (bool) $preflight['metadata_python_truthy']
+                ) {
+                    $truthyNonMappingMetadataFilenames[] = $filename;
+                } elseif (
+                    $preflight['metadata_non_mapping_boundary'] === 'falsy-non-dict-metadata-skips-language-lookup'
+                ) {
+                    $falsyNonMappingMetadataFilenames[] = $filename;
+                }
 
                 if ($status === 'skipped-unsupported-filetype') {
                     $unsupportedFiletypeFilenames[] = $filename;
@@ -1852,6 +1882,12 @@ final class BatchConverter
                     'filename' => $filename,
                     'status' => $status,
                     'skip_reason' => $preflight['skip_reason'],
+                    'metadata_value_type' => $preflight['metadata_value_type'],
+                    'metadata_is_mapping' => $preflight['metadata_is_mapping'],
+                    'metadata_is_list' => $preflight['metadata_is_list'],
+                    'metadata_python_truthy' => $preflight['metadata_python_truthy'],
+                    'metadata_non_mapping_boundary' => $preflight['metadata_non_mapping_boundary'],
+                    'conversion_call' => $preflight['conversion_call'],
                     'existing_markdown' => $preflight['existing_markdown'],
                     'markdown_exists_path' => $preflight['markdown_exists_path'],
                     'markdown_exists_function' => $preflight['markdown_exists_function'],
@@ -1905,6 +1941,13 @@ final class BatchConverter
             'sidecar_rejection_boundary' => $sidecarRejected === [] ? null : 'unsupported-filetype-return-zero',
             'preflight_reviews' => $reviews,
             'status_by_filename' => $statusByFilename,
+            'metadata_value_type_by_filename' => $metadataValueTypeByFilename,
+            'metadata_is_mapping_by_filename' => $metadataIsMappingByFilename,
+            'metadata_is_list_by_filename' => $metadataIsListByFilename,
+            'metadata_python_truthy_by_filename' => $metadataPythonTruthyByFilename,
+            'metadata_non_mapping_boundary_by_filename' => $metadataNonMappingBoundaryByFilename,
+            'truthy_non_mapping_metadata_filenames' => $truthyNonMappingMetadataFilenames,
+            'falsy_non_mapping_metadata_filenames' => $falsyNonMappingMetadataFilenames,
             'filetype_by_filename' => $filetypeByFilename,
             'filetype_review_by_filename' => $filetypeReviewByFilename,
             'filetype_stdout_message_by_filename' => $filetypeStdoutMessageByFilename,
@@ -2504,23 +2547,33 @@ final class BatchConverter
     }
 
     /**
-     * @param array<string, mixed>|null $metadata
      * @return array<string, mixed>
      */
     public function processFilePreflightPlan(
         string $filepath,
         string $outputFolder,
-        ?array $metadata,
+        mixed $metadata,
         ?int $minLength,
-        ?callable $textLength = null
+        ?callable $textLength = null,
+        ?string $metadataValueType = null
     ): array {
         $filename = basename($filepath);
         $markdownPath = $this->writer->getMarkdownFilepath($outputFolder, $filename);
         $markdownPathExists = $this->writer->markdownExists($outputFolder, $filename);
         $markdownPathType = $this->filesystemPathType($markdownPath);
-        $metadataKeys = $metadata === null ? [] : array_values(array_filter(array_keys($metadata), 'is_string'));
+        $metadataKeys = is_array($metadata) ? array_values(array_filter(array_keys($metadata), 'is_string')) : [];
         sort($metadataKeys, SORT_STRING);
         $workerFileAvailability = $this->workerFileAvailabilityReview($filepath);
+        $metadataValueType = $metadataValueType ?? $this->phpMetadataValueType($metadata);
+        $metadataIsMapping = $metadataValueType === 'dict';
+        $metadataIsList = $metadataValueType === 'list';
+        $metadataPythonTruthy = $this->pythonTruthyMetadataValue($metadata);
+        $metadataNonMappingBoundary = null;
+        if ($metadata !== null && !$metadataIsMapping) {
+            $metadataNonMappingBoundary = $metadataPythonTruthy
+                ? 'convert-single-pdf-metadata-get-failed'
+                : 'falsy-non-dict-metadata-skips-language-lookup';
+        }
 
         $base = [
             'schema' => 'markerpdf.convert_process_single_pdf_preflight.v1',
@@ -2529,6 +2582,11 @@ final class BatchConverter
             'filepath' => $filepath,
             'out_folder' => $outputFolder,
             'metadata_keys' => $metadataKeys,
+            'metadata_value_type' => $metadataValueType,
+            'metadata_is_mapping' => $metadataIsMapping,
+            'metadata_is_list' => $metadataIsList,
+            'metadata_python_truthy' => $metadataPythonTruthy,
+            'metadata_non_mapping_boundary' => $metadataNonMappingBoundary,
             'min_length' => $minLength,
             'preflight_order' => ['markdown_exists', 'find_filetype', 'get_length_of_text', 'convert_single_pdf', 'save_markdown'],
             'existing_markdown' => $markdownPathExists,
@@ -2556,6 +2614,11 @@ final class BatchConverter
                 'function' => 'convert_single_pdf',
                 'metadata_argument_source' => 'metadata_file basename lookup',
                 'receives_metadata' => $metadata !== null,
+                'metadata_argument_value_type' => $metadataValueType,
+                'metadata_argument_is_mapping' => $metadataIsMapping,
+                'metadata_argument_is_list' => $metadataIsList,
+                'metadata_argument_python_truthy' => $metadataPythonTruthy,
+                'metadata_argument_non_mapping_boundary' => $metadataNonMappingBoundary,
             ],
             'upstream_return_value' => null,
             'upstream_return_type' => 'python-none',

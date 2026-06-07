@@ -904,8 +904,21 @@ final class PdfImageRenderer
      */
     public function inlineImageReviewPlan(string $inlineImageDictionary, string $payload, array $objects = []): array
     {
+        $decodeTrailingOperandInvalid = $this->inlineImageDecodeHasMalformedTrailingOperand($inlineImageDictionary);
         $canonical = $this->canonicalInlineImageDictionary($inlineImageDictionary);
         $plan = $this->imageColorSpaceSoftMaskPlan($canonical, $objects);
+        if ($decodeTrailingOperandInvalid) {
+            $expectedComponents = is_array($plan['image_decode'] ?? null)
+                ? ($plan['image_decode']['expected_components'] ?? null)
+                : null;
+            $plan['image_decode'] = $this->buildImageDecodeDetails(
+                [],
+                is_int($expectedComponents) ? $expectedComponents : null,
+                'invalid'
+            );
+            $plan['image_decode_applied_before_rgb'] = false;
+            $plan['image_decode_component_mismatch'] = true;
+        }
         $filters = $plan['image_filters'];
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
@@ -4246,6 +4259,50 @@ final class PdfImageRenderer
         }
 
         return '<< ' . implode(' ', $entries) . ' >>';
+    }
+
+    private function inlineImageDecodeHasMalformedTrailingOperand(string $dictionary): bool
+    {
+        $body = trim($dictionary);
+        if (str_starts_with($body, '<<')) {
+            $read = $this->readBalancedDictionary($body, 0);
+            if ($read !== null) {
+                $body = trim(substr($read['value'], 2, -2));
+            }
+        }
+
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $key = $this->readPdfValueWithOffset($body, $offset);
+            if ($key === null || !str_starts_with(trim($key['value']), '/')) {
+                break;
+            }
+
+            $value = $this->readPdfValueWithOffset($body, $key['next']);
+            if ($value === null) {
+                break;
+            }
+
+            $keyName = $this->pdfNameValue($key['value']);
+            $canonicalKey = $keyName === null
+                ? null
+                : (self::INLINE_IMAGE_KEY_ABBREVIATIONS[$keyName] ?? $keyName);
+            if ($canonicalKey === 'Decode') {
+                $tailOffset = $this->skipPdfWhitespace($body, $value['next']);
+                if (
+                    $tailOffset < $length
+                    && substr($body, $tailOffset, 2) !== '>>'
+                    && ($body[$tailOffset] ?? '') !== '/'
+                ) {
+                    return true;
+                }
+            }
+
+            $offset = $value['next'];
+        }
+
+        return false;
     }
 
     private function canonicalInlineImageKey(string $token): string

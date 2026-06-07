@@ -260,6 +260,12 @@ final class PdfAnnotationExtractor
             $row['duplicate_action_key_review'] = $actionReview['duplicate_key_review'];
             $row['duplicate_action_keys'] = $actionReview['duplicate_keys'] ?? $actionReview['duplicate_key_review']['keys'] ?? [];
         }
+        if (is_array($actionReview['malformed_action_operand_review'] ?? null)) {
+            $row['malformed_action_operand_review'] = $actionReview['malformed_action_operand_review'];
+            $row['malformed_action_operand_keys'] = $actionReview['malformed_action_operand_keys']
+                ?? $actionReview['malformed_action_operand_review']['keys']
+                ?? [];
+        }
 
         if ($structParent !== null) {
             $row['struct_parent'] = $structParent;

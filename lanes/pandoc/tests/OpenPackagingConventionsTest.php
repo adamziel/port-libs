@@ -4364,6 +4364,187 @@ XML;
         $t->same(false, $badCustomById['rIdCustomExternal']['valid']);
         $t->same(['external-custom-properties-target'], $badCustomById['rIdCustomExternal']['issues']);
     },
+    'preflights WordprocessingML document relationship role content types' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/endnotes.xml" ContentType="application/xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdNumberingWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  <Relationship Id="rIdFootnotesExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="https://example.test/footnotes.xml" TargetMode="External"/>
+  <Relationship Id="rIdEndnotesWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+  <Relationship Id="rIdCommentsMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments-missing.xml"/>
+  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdImageWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/not-image.xml"/>
+  <Relationship Id="rIdLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/uploads/hero.png" TargetMode="External"/>
+  <Relationship Id="rIdHyperlinkExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source" TargetMode="External"/>
+  <Relationship Id="rIdHyperlinkInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#review-bookmark"/>
+  <Relationship Id="rIdCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles/>'],
+            ['name' => 'word/numbering.xml', 'data' => '<w:numbering/>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes/>'],
+            ['name' => 'word/endnotes.xml', 'data' => '<w:endnotes/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments/>'],
+            ['name' => 'word/settings.xml', 'data' => '<w:settings/>'],
+            ['name' => 'word/theme/theme1.xml', 'data' => '<a:theme/>'],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/media/not-image.xml', 'data' => '<not-image/>'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+        ]));
+
+        $roles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/word/document.xml') as $role) {
+            $roles[$role['id']] = $role;
+        }
+
+        $t->same([
+            'rIdStyles',
+            'rIdNumberingWrongType',
+            'rIdFootnotesExternal',
+            'rIdEndnotesWrongType',
+            'rIdCommentsMissing',
+            'rIdSettings',
+            'rIdTheme',
+            'rIdImage',
+            'rIdImageWrongType',
+            'rIdLinkedImage',
+            'rIdHyperlinkExternal',
+            'rIdHyperlinkInternal',
+        ], array_keys($roles));
+
+        $t->same('styles', $roles['rIdStyles']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE, $roles['rIdStyles']['type']);
+        $t->same('/word/document.xml', $roles['rIdStyles']['source']);
+        $t->same('/word/styles.xml', $roles['rIdStyles']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $roles['rIdStyles']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $roles['rIdStyles']['expectedContentType']);
+        $t->same(null, $roles['rIdStyles']['expectedContentTypePrefix']);
+        $t->same(false, $roles['rIdStyles']['expectedExternal']);
+        $t->same(false, $roles['rIdStyles']['external']);
+        $t->same(true, $roles['rIdStyles']['exists']);
+        $t->same(true, $roles['rIdStyles']['valid']);
+        $t->same([], $roles['rIdStyles']['issues']);
+
+        $t->same('numbering', $roles['rIdNumberingWrongType']['role']);
+        $t->same('application/xml', $roles['rIdNumberingWrongType']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $roles['rIdNumberingWrongType']['expectedContentType']);
+        $t->same(false, $roles['rIdNumberingWrongType']['valid']);
+        $t->same(['invalid-numbering-content-type'], $roles['rIdNumberingWrongType']['issues']);
+
+        $t->same('footnotes', $roles['rIdFootnotesExternal']['role']);
+        $t->same(true, $roles['rIdFootnotesExternal']['external']);
+        $t->same(null, $roles['rIdFootnotesExternal']['targetPart']);
+        $t->same(null, $roles['rIdFootnotesExternal']['contentType']);
+        $t->same(false, $roles['rIdFootnotesExternal']['expectedExternal']);
+        $t->same('https', $roles['rIdFootnotesExternal']['externalTargetScheme']);
+        $t->same(true, $roles['rIdFootnotesExternal']['externalTargetAllowed']);
+        $t->same(false, $roles['rIdFootnotesExternal']['valid']);
+        $t->same(['external-footnotes-target'], $roles['rIdFootnotesExternal']['issues']);
+
+        $t->same('endnotes', $roles['rIdEndnotesWrongType']['role']);
+        $t->same('/word/endnotes.xml', $roles['rIdEndnotesWrongType']['targetPart']);
+        $t->same('application/xml', $roles['rIdEndnotesWrongType']['contentType']);
+        $t->same(false, $roles['rIdEndnotesWrongType']['valid']);
+        $t->same(['invalid-endnotes-content-type'], $roles['rIdEndnotesWrongType']['issues']);
+
+        $t->same('comments', $roles['rIdCommentsMissing']['role']);
+        $t->same('/word/comments-missing.xml', $roles['rIdCommentsMissing']['targetPart']);
+        $t->same(false, $roles['rIdCommentsMissing']['exists']);
+        $t->same('application/xml', $roles['rIdCommentsMissing']['contentType']);
+        $t->same(false, $roles['rIdCommentsMissing']['valid']);
+        $t->same(['missing-in-package', 'invalid-comments-content-type'], $roles['rIdCommentsMissing']['issues']);
+
+        $t->same('settings', $roles['rIdSettings']['role']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $roles['rIdSettings']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $roles['rIdSettings']['expectedContentType']);
+        $t->same(true, $roles['rIdSettings']['valid']);
+        $t->same([], $roles['rIdSettings']['issues']);
+
+        $t->same('theme', $roles['rIdTheme']['role']);
+        $t->same('/word/theme/theme1.xml', $roles['rIdTheme']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $roles['rIdTheme']['expectedContentType']);
+        $t->same(true, $roles['rIdTheme']['valid']);
+        $t->same([], $roles['rIdTheme']['issues']);
+
+        $t->same('image', $roles['rIdImage']['role']);
+        $t->same('/word/media/hero.png', $roles['rIdImage']['targetPart']);
+        $t->same('image/png', $roles['rIdImage']['contentType']);
+        $t->same(null, $roles['rIdImage']['expectedContentType']);
+        $t->same('image/', $roles['rIdImage']['expectedContentTypePrefix']);
+        $t->same(null, $roles['rIdImage']['expectedExternal']);
+        $t->same(true, $roles['rIdImage']['valid']);
+        $t->same([], $roles['rIdImage']['issues']);
+
+        $t->same('image', $roles['rIdImageWrongType']['role']);
+        $t->same('/word/media/not-image.xml', $roles['rIdImageWrongType']['targetPart']);
+        $t->same('application/xml', $roles['rIdImageWrongType']['contentType']);
+        $t->same(false, $roles['rIdImageWrongType']['valid']);
+        $t->same(['invalid-image-content-type'], $roles['rIdImageWrongType']['issues']);
+
+        $t->same('image', $roles['rIdLinkedImage']['role']);
+        $t->same(true, $roles['rIdLinkedImage']['external']);
+        $t->same(null, $roles['rIdLinkedImage']['targetPart']);
+        $t->same(null, $roles['rIdLinkedImage']['contentType']);
+        $t->same('image/', $roles['rIdLinkedImage']['expectedContentTypePrefix']);
+        $t->same(true, $roles['rIdLinkedImage']['valid']);
+        $t->same([], $roles['rIdLinkedImage']['issues']);
+
+        $t->same('hyperlink', $roles['rIdHyperlinkExternal']['role']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE, $roles['rIdHyperlinkExternal']['type']);
+        $t->same(true, $roles['rIdHyperlinkExternal']['external']);
+        $t->same(true, $roles['rIdHyperlinkExternal']['expectedExternal']);
+        $t->same('https', $roles['rIdHyperlinkExternal']['externalTargetScheme']);
+        $t->same(true, $roles['rIdHyperlinkExternal']['valid']);
+        $t->same([], $roles['rIdHyperlinkExternal']['issues']);
+
+        $t->same('hyperlink', $roles['rIdHyperlinkInternal']['role']);
+        $t->same(false, $roles['rIdHyperlinkInternal']['external']);
+        $t->same('/word/document.xml', $roles['rIdHyperlinkInternal']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $roles['rIdHyperlinkInternal']['contentType']);
+        $t->same(true, $roles['rIdHyperlinkInternal']['expectedExternal']);
+        $t->same(false, $roles['rIdHyperlinkInternal']['valid']);
+        $t->same(['internal-hyperlink-target'], $roles['rIdHyperlinkInternal']['issues']);
+
+        $basePreflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $basePreflight[$target['id']] = $target;
+        }
+        $t->same(true, isset($basePreflight['rIdCustomXml']));
+        $t->same(false, isset($roles['rIdCustomXml']));
+        $t->same(true, $basePreflight['rIdHyperlinkInternal']['valid']);
+        $t->same([], $basePreflight['rIdHyperlinkInternal']['issues']);
+    },
     'preflights OPC package and part thumbnail relationships' => static function (TestRunner $t): void {
         $thumbnailType = OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE;
         $contentTypesXml = <<<'XML'

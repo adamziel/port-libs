@@ -13,6 +13,15 @@ final class OpcRelationshipGraph
     public const THUMBNAIL_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    public const WORDPROCESSING_STYLES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
+    public const WORDPROCESSING_NUMBERING_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+    public const WORDPROCESSING_FOOTNOTES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+    public const WORDPROCESSING_ENDNOTES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+    public const WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    public const WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    public const WORDPROCESSING_THEME_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    public const WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+    public const WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
     public const XML_SIGNATURE_NAMESPACE_URI = 'http://www.w3.org/2000/09/xmldsig#';
     public const DIGITAL_SIGNATURE_NAMESPACE_URI = 'http://schemas.openxmlformats.org/package/2006/digital-signature';
@@ -33,6 +42,13 @@ final class OpcRelationshipGraph
     private const DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
     private const EMBEDDED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.package';
     private const EMBEDDED_OBJECT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.oleObject';
+    private const WORDPROCESSING_STYLES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
+    private const WORDPROCESSING_NUMBERING_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+    private const WORDPROCESSING_FOOTNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
+    private const WORDPROCESSING_ENDNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
+    private const WORDPROCESSING_COMMENTS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+    private const WORDPROCESSING_SETTINGS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+    private const OFFICE_THEME_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.theme+xml';
 
     /**
      * @param array<string, OpcRelationships> $relationshipsBySource
@@ -1432,6 +1448,83 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{source:string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentType:?string, expectedContentTypePrefix:?string, expectedExternal:?bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
+     */
+    public function preflightWordprocessingDocumentRelationships(string $sourcePartName): array
+    {
+        $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
+        $definitions = self::wordprocessingDocumentRelationshipRoleDefinitions();
+        $preflight = [];
+
+        foreach ($this->preflightTargetsForSource($sourcePartName) as $target) {
+            if (!isset($definitions[$target['type']])) {
+                continue;
+            }
+
+            $definition = $definitions[$target['type']];
+            $role = $definition['role'];
+            $expectedContentType = $definition['expectedContentType'] ?? null;
+            $expectedContentTypePrefix = $definition['expectedContentTypePrefix'] ?? null;
+            $expectedExternal = $definition['expectedExternal'] ?? null;
+            $targetPart = self::targetPartFromPreflightTarget($target);
+            $issues = $target['issues'];
+
+            if ($expectedExternal !== null && $target['external'] !== $expectedExternal) {
+                $issues[] = ($target['external'] ? 'external-' : 'internal-') . $role . '-target';
+            }
+
+            if (
+                !$target['external']
+                && $expectedContentType !== null
+                && $target['contentType'] !== null
+                && !self::contentTypeMatches($target['contentType'], $expectedContentType)
+            ) {
+                $issues[] = 'invalid-' . $role . '-content-type';
+            }
+
+            if (
+                !$target['external']
+                && $expectedContentTypePrefix !== null
+                && $target['contentType'] !== null
+                && !self::contentTypeHasPrefix($target['contentType'], $expectedContentTypePrefix)
+            ) {
+                $issues[] = 'invalid-' . $role . '-content-type';
+            }
+
+            $issues = array_values(array_unique($issues));
+            $preflight[] = [
+                'source' => $sourcePartName,
+                'id' => $target['id'],
+                'role' => $role,
+                'type' => $target['type'],
+                'target' => $target['target'],
+                'targetPart' => $targetPart,
+                'contentType' => $target['contentType'],
+                'expectedContentType' => $expectedContentType,
+                'expectedContentTypePrefix' => $expectedContentTypePrefix,
+                'expectedExternal' => $expectedExternal,
+                'external' => $target['external'],
+                'exists' => $target['exists'],
+                'relationshipPartTarget' => $target['relationshipPartTarget'],
+                'relationshipTypeKind' => $target['relationshipTypeKind'],
+                'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                'externalTargetKind' => $target['externalTargetKind'],
+                'externalTargetScheme' => $target['externalTargetScheme'],
+                'externalTargetAllowed' => $target['externalTargetAllowed'],
+                'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+        }
+
+        return $preflight;
+    }
+
+    /**
      * @return list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentTypePrefix:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightThumbnails(?string $sourcePartName = null): array
@@ -2761,9 +2854,66 @@ final class OpcRelationshipGraph
         return $mediaType . ';' . implode(';', $parameters);
     }
 
+    private static function contentTypeHasPrefix(string $contentType, string $prefix): bool
+    {
+        return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), strtolower($prefix));
+    }
+
     private static function isImageContentType(string $contentType): bool
     {
-        return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), 'image/');
+        return self::contentTypeHasPrefix($contentType, 'image/');
+    }
+
+    /**
+     * @return array<string, array{role:string, expectedContentType?:string, expectedContentTypePrefix?:string, expectedExternal?:bool}>
+     */
+    private static function wordprocessingDocumentRelationshipRoleDefinitions(): array
+    {
+        return [
+            self::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE => [
+                'role' => 'styles',
+                'expectedContentType' => self::WORDPROCESSING_STYLES_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_NUMBERING_RELATIONSHIP_TYPE => [
+                'role' => 'numbering',
+                'expectedContentType' => self::WORDPROCESSING_NUMBERING_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_FOOTNOTES_RELATIONSHIP_TYPE => [
+                'role' => 'footnotes',
+                'expectedContentType' => self::WORDPROCESSING_FOOTNOTES_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_ENDNOTES_RELATIONSHIP_TYPE => [
+                'role' => 'endnotes',
+                'expectedContentType' => self::WORDPROCESSING_ENDNOTES_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE => [
+                'role' => 'comments',
+                'expectedContentType' => self::WORDPROCESSING_COMMENTS_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE => [
+                'role' => 'settings',
+                'expectedContentType' => self::WORDPROCESSING_SETTINGS_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_THEME_RELATIONSHIP_TYPE => [
+                'role' => 'theme',
+                'expectedContentType' => self::OFFICE_THEME_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE => [
+                'role' => 'image',
+                'expectedContentTypePrefix' => 'image/',
+            ],
+            self::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE => [
+                'role' => 'hyperlink',
+                'expectedExternal' => true,
+            ],
+        ];
     }
 
     /**

@@ -5355,18 +5355,7 @@ final class CitationCslProcessor
 
     private function ordinalSuffix(int $number): string
     {
-        $lastTwo = abs($number) % 100;
-        if ($lastTwo >= 11 && $lastTwo <= 13) {
-            return $this->style->termOrNull('ordinal-' . sprintf('%02d', $lastTwo))
-                ?? $this->style->termOrNull('ordinal')
-                ?? 'th';
-        }
-
-        $lastDigit = abs($number) % 10;
-
-        return $this->style->termOrNull('ordinal-' . sprintf('%02d', $lastDigit))
-            ?? $this->style->termOrNull('ordinal')
-            ?? 'th';
+        return $this->style->ordinalSuffixTerm($number) ?? 'th';
     }
 
     private function longOrdinalNumber(int $number): string

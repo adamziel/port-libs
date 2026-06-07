@@ -1179,6 +1179,19 @@ final class BibtexCslParser
     private static function editorialRolesFromFields(array $fields): array
     {
         $roles = [];
+        $primaryEditorType = self::normalizedEditorialRoleType(self::cleanBibtexText($fields['editortype'] ?? ''));
+        if ($primaryEditorType !== '' && $primaryEditorType !== 'editor') {
+            $editorNames = self::namesFromBibtexField($fields, 'editor');
+            if ($editorNames !== []) {
+                $roles[] = [
+                    'field' => 'editor',
+                    'type' => $primaryEditorType,
+                    'label' => self::editorialRoleLabel($primaryEditorType),
+                    'names' => $editorNames,
+                ];
+            }
+        }
+
         foreach ([
             ['editora', 'editoratype'],
             ['editorb', 'editorbtype'],

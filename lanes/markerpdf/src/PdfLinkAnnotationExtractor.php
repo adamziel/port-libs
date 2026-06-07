@@ -762,6 +762,12 @@ final class PdfLinkAnnotationExtractor
             $link['duplicate_action_key_review'] = $review['duplicate_key_review'];
             $link['duplicate_action_keys'] = $review['duplicate_keys'] ?? $review['duplicate_key_review']['keys'] ?? [];
         }
+        if (is_array($review['malformed_action_operand_review'] ?? null)) {
+            $link['malformed_action_operand_review'] = $review['malformed_action_operand_review'];
+            $link['malformed_action_operand_keys'] = $review['malformed_action_operand_keys']
+                ?? $review['malformed_action_operand_review']['keys']
+                ?? [];
+        }
         if ($quadPoints !== []) {
             $link['quad_points'] = $quadPoints;
             $link['quad_rects'] = $quadRects;

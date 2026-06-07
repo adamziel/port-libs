@@ -3678,6 +3678,92 @@ XML);
             'recipient' => 'Editorial Desk',
         ]]));
     },
+    'maps bounded biblatex primary editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{primary-compiler-review,
+  author     = {Smith, Ada},
+  editor     = {Roe, Pat and {{Migration Desk}}},
+  editortype = {compiler},
+  title      = {Primary Compiler Source},
+  date       = {2026},
+  publisher  = {Review Press}
+}
+
+@book{primary-redactor-review,
+  author     = {Ng, Nia},
+  editor     = {de la Cruz, Ana Maria},
+  editortype = {redactor},
+  title      = {Primary Redactor Source},
+  date       = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('primary-compiler-review', $items[0]['id']);
+        $t->same([['family' => 'Roe', 'given' => 'Pat'], ['literal' => 'Migration Desk']], $items[0]['editor']);
+        $t->same([['family' => 'Roe', 'given' => 'Pat'], ['literal' => 'Migration Desk']], $items[0]['compiler']);
+        $t->same('editor', $items[0]['editorial-roles'][0]['field'] ?? null);
+        $t->same('compiler', $items[0]['editorial-roles'][0]['type'] ?? null);
+        $t->same('Compiler', $items[0]['editorial-roles'][0]['label'] ?? null);
+        $t->same([['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la']], $items[1]['redactor']);
+        $t->same('redactor', $items[1]['editorial-roles'][0]['type'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compiler = $processor->item('primary-compiler-review');
+        $redactor = $processor->item('primary-redactor-review');
+        $t->same('Roe', $compiler['editors'][0]['family'] ?? null);
+        $t->same('Roe', $compiler['compilers'][0]['family'] ?? null);
+        $t->same('Migration Desk', $compiler['compilers'][1]['literal'] ?? null);
+        $t->same('compiler', $compiler['editorialRoles'][0]['type'] ?? null);
+        $t->same('de la', $redactor['redactors'][0]['nonDroppingParticle'] ?? null);
+        $t->same('redactor', $redactor['editorialRoles'][0]['type'] ?? null);
+        $t->same('(Smith 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('primary-compiler-review', '[@primary-compiler-review]'),
+            $citation('primary-redactor-review', '[@primary-redactor-review]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Primary Compiler Source. Review Press, 2026. Compiled by Roe, Pat; Migration Desk.',
+            $processor->renderBibliographyEntry('primary-compiler-review')
+        );
+        $t->same(
+            'Ng, Nia. Primary Redactor Source. 2025. Redacted by de la Cruz, Ana Maria.',
+            $processor->renderBibliographyEntry('primary-redactor-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="editor"/>
+        <names variable="compiler"/>
+        <names variable="redactor"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Roe and Migration Desk | Roe and Migration Desk; de la Cruz | de la Cruz]', $styled->renderCitationCluster([
+            $citation('primary-compiler-review', '[@primary-compiler-review]'),
+            $citation('primary-redactor-review', '[@primary-redactor-review]'),
+        ]));
+        $t->same('Primary Compiler Source :: Compiled by Roe, Pat; Migration Desk.', $styled->renderBibliographyEntry('primary-compiler-review'));
+        $t->same('Primary Redactor Source :: Redacted by de la Cruz, Ana Maria.', $styled->renderBibliographyEntry('primary-redactor-review'));
+
+        $document = (new MarkdownReader())->read('Primary editor type source @primary-compiler-review and redactor [@primary-redactor-review] preserve qualified editor roles.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Primary editor type source Smith (2026) and redactor (Ng 2025) preserve qualified editor roles.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Primary Compiler Source. Review Press, 2026. Compiled by Roe, Pat; Migration Desk.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Primary Redactor Source. 2025. Redacted by de la Cruz, Ana Maria.</dd>', $blocks);
+    },
     'maps bounded biblatex secondary editor roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{secondary-editor-review,
@@ -8991,6 +9077,135 @@ XML
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
   <citation><layout><number variable="number" form="alphabetic"/></layout></citation>
+</style>
+XML
+        ));
+    },
+    'applies bounded csl ordinal term match attributes for numbers and dates' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'edition-one',
+                'type' => 'book',
+                'title' => 'First Edition Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026, 1, 1]]],
+                'edition' => '1',
+            ],
+            [
+                'id' => 'edition-twenty-one',
+                'type' => 'book',
+                'title' => 'Twenty First Edition Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 1, 21]]],
+                'edition' => '21',
+            ],
+            [
+                'id' => 'edition-one-oh-two',
+                'type' => 'book',
+                'title' => 'One Hundred Second Edition Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026, 1, 2]]],
+                'edition' => '102',
+            ],
+            [
+                'id' => 'edition-one-eleven',
+                'type' => 'book',
+                'title' => 'One Hundred Eleventh Edition Packet',
+                'author' => [
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                ],
+                'issued' => ['date-parts' => [[2026, 1, 11]]],
+                'edition' => '111',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="fr-FR">
+  <info>
+    <title>Bounded Ordinal Match Review Style</title>
+    <id>https://example.test/styles/bounded-ordinal-match-review</id>
+    <updated>2026-06-07T21:09:29+00:00</updated>
+  </info>
+  <locale xml:lang="fr-FR">
+    <terms>
+      <term name="ordinal">e</term>
+      <term name="ordinal-01" match="whole-number">er</term>
+      <term name="ordinal-02" match="last-two-digits">d</term>
+      <term name="ordinal-11" match="last-two-digits">eme</term>
+      <term name="month-01" form="long">janvier</term>
+      <term name="month-01" form="short">janv.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <number variable="edition" form="ordinal"/>
+        <date variable="issued" delimiter=" ">
+          <date-part name="day" form="ordinal"/>
+          <date-part name="month" form="long"/>
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <number variable="edition" form="ordinal"/>
+      <date variable="issued" delimiter=" ">
+        <date-part name="day" form="ordinal"/>
+        <date-part name="month" form="short" strip-periods="true"/>
+        <date-part name="year"/>
+      </date>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Ordinal Match Review Style', $summary['title'] ?? null);
+        $t->same('number', $summary['citationRendering'][0]['children'][1]['type'] ?? null);
+        $t->same('ordinal', $summary['citationRendering'][0]['children'][1]['form'] ?? null);
+        $t->same('ordinal', $summary['citationRendering'][0]['children'][2]['dateParts'][0]['form'] ?? null);
+
+        $t->same(
+            '(Smith | 1er | 1er janvier 2026; Ng | 21e | 21e janvier 2026; Roe | 102d | 2d janvier 2026; Doe | 111eme | 11eme janvier 2026)',
+            $processor->renderCitationCluster([
+                new AstNode('citation', ['id' => 'edition-one', 'text' => '[@edition-one]']),
+                new AstNode('citation', ['id' => 'edition-twenty-one', 'text' => '[@edition-twenty-one]']),
+                new AstNode('citation', ['id' => 'edition-one-oh-two', 'text' => '[@edition-one-oh-two]']),
+                new AstNode('citation', ['id' => 'edition-one-eleven', 'text' => '[@edition-one-eleven]']),
+            ])
+        );
+        $t->same('First Edition Packet :: 1er :: 1er janv 2026', $processor->renderBibliographyEntry('edition-one'));
+        $t->same('Twenty First Edition Packet :: 21e :: 21e janv 2026', $processor->renderBibliographyEntry('edition-twenty-one'));
+        $t->same('One Hundred Second Edition Packet :: 102d :: 2d janv 2026', $processor->renderBibliographyEntry('edition-one-oh-two'));
+        $t->same('One Hundred Eleventh Edition Packet :: 111eme :: 11eme janv 2026', $processor->renderBibliographyEntry('edition-one-eleven'));
+
+        $document = (new MarkdownReader())->read('Ordinal term review [@edition-one; @edition-twenty-one; @edition-one-oh-two; @edition-one-eleven] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Ordinal term review (Smith | 1er | 1er janvier 2026; Ng | 21e | 21e janvier 2026; Roe | 102d | 2d janvier 2026; Doe | 111eme | 11eme janvier 2026) stays visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>One Hundred Second Edition Packet :: 102d :: 2d janv 2026</dd>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>One Hundred Eleventh Edition Packet :: 111eme :: 11eme janv 2026</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <locale>
+    <terms>
+      <term name="ordinal-01" match="suffix">st</term>
+    </terms>
+  </locale>
+  <citation><layout><number variable="edition" form="ordinal"/></layout></citation>
 </style>
 XML
         ));

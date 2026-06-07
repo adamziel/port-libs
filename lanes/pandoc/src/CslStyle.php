@@ -15,7 +15,7 @@ final class CslStyle
         'limitDayOrdinalsToDay1' => false,
     ];
 
-    /** @var array<string, array{single:string, multiple:string}> */
+    /** @var array<string, array{single:string, multiple:string, match?:string}> */
     private const DEFAULT_TERMS = [
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
@@ -80,6 +80,9 @@ final class CslStyle
         'ordinal-01|long' => ['single' => 'st', 'multiple' => 'st'],
         'ordinal-02|long' => ['single' => 'nd', 'multiple' => 'nd'],
         'ordinal-03|long' => ['single' => 'rd', 'multiple' => 'rd'],
+        'ordinal-11|long' => ['single' => 'th', 'multiple' => 'th'],
+        'ordinal-12|long' => ['single' => 'th', 'multiple' => 'th'],
+        'ordinal-13|long' => ['single' => 'th', 'multiple' => 'th'],
         'long-ordinal-01|long' => ['single' => 'first', 'multiple' => 'first'],
         'long-ordinal-02|long' => ['single' => 'second', 'multiple' => 'second'],
         'long-ordinal-03|long' => ['single' => 'third', 'multiple' => 'third'],
@@ -189,7 +192,7 @@ final class CslStyle
      * @param list<array<string, mixed>> $bibliographyRenderingElements
      * @param array<string, list<array<string, mixed>>> $macros
      * @param array{citation:array<string, mixed>, bibliography:array<string, mixed>} $nameRendering
-     * @param array<string, array{single:string, multiple:string}> $terms
+     * @param array<string, array{single:string, multiple:string, match?:string}> $terms
      * @param array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool} $localeOptions
      * @param array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string} $metadata
      */
@@ -398,6 +401,21 @@ final class CslStyle
         }
 
         return null;
+    }
+
+    public function ordinalSuffixTerm(int $number): ?string
+    {
+        $absolute = abs($number);
+        $lastTwo = $absolute % 100;
+        if ($lastTwo >= 10) {
+            $term = $this->ordinalSuffixCandidate($absolute, $lastTwo);
+            if ($term !== null) {
+                return $term;
+            }
+        }
+
+        return $this->ordinalSuffixCandidate($absolute, $absolute % 10)
+            ?? $this->termOrNull('ordinal');
     }
 
     /**
@@ -1868,8 +1886,8 @@ final class CslStyle
     }
 
     /**
-     * @param array<string, array{single:string, multiple:string}> $terms
-     * @return array<string, array{single:string, multiple:string}>
+     * @param array<string, array{single:string, multiple:string, match?:string}> $terms
+     * @return array<string, array{single:string, multiple:string, match?:string}>
      */
     private static function applyLocaleElementTerms(\DOMElement $locale, array $terms): array
     {
@@ -1902,18 +1920,42 @@ final class CslStyle
             if ($single instanceof \DOMElement || $multiple instanceof \DOMElement) {
                 $singleText = $single instanceof \DOMElement ? self::elementText($single) : '';
                 $multipleText = $multiple instanceof \DOMElement ? self::elementText($multiple) : '';
-                $terms[self::termKey($name, $form)] = [
+                $terms[self::termKey($name, $form)] = self::withOrdinalTermMatch($termElement, $name, [
                     'single' => $singleText !== '' ? $singleText : $multipleText,
                     'multiple' => $multipleText !== '' ? $multipleText : $singleText,
-                ];
+                ]);
                 continue;
             }
 
             $text = self::elementText($termElement);
-            $terms[self::termKey($name, $form)] = ['single' => $text, 'multiple' => $text];
+            $terms[self::termKey($name, $form)] = self::withOrdinalTermMatch($termElement, $name, ['single' => $text, 'multiple' => $text]);
         }
 
         return $terms;
+    }
+
+    /**
+     * @param array{single:string, multiple:string} $term
+     * @return array{single:string, multiple:string, match?:string}
+     */
+    private static function withOrdinalTermMatch(\DOMElement $termElement, string $name, array $term): array
+    {
+        if (!self::isOrdinalSuffixTerm($name) || !$termElement->hasAttribute('match')) {
+            return $term;
+        }
+
+        $match = trim($termElement->getAttribute('match'));
+        if ($match === '') {
+            return $term;
+        }
+
+        if (!in_array($match, ['last-digit', 'last-two-digits', 'whole-number'], true)) {
+            throw new \InvalidArgumentException('CSL locale ordinal term match must be last-digit, last-two-digits, or whole-number');
+        }
+
+        $term['match'] = $match;
+
+        return $term;
     }
 
     /**
@@ -1957,8 +1999,8 @@ final class CslStyle
     }
 
     /**
-     * @param array<string, array{single:string, multiple:string}> $terms
-     * @return array<string, array{single:string, multiple:string}>
+     * @param array<string, array{single:string, multiple:string, match?:string}> $terms
+     * @return array<string, array{single:string, multiple:string, match?:string}>
      */
     private static function withoutDefaultOrdinalSuffixTerms(array $terms): array
     {
@@ -1969,6 +2011,37 @@ final class CslStyle
         }
 
         return $terms;
+    }
+
+    private function ordinalSuffixCandidate(int $absoluteNumber, int $candidate): ?string
+    {
+        foreach (self::termFallbackKeys('ordinal-' . sprintf('%02d', $candidate), 'long') as $key) {
+            $term = $this->terms[$key] ?? null;
+            if ($term === null) {
+                continue;
+            }
+
+            $match = $term['match'] ?? self::defaultOrdinalTermMatch($candidate);
+            if (self::ordinalTermMatches($absoluteNumber, $candidate, $match)) {
+                return $term['single'];
+            }
+        }
+
+        return null;
+    }
+
+    private static function defaultOrdinalTermMatch(int $candidate): string
+    {
+        return $candidate >= 10 ? 'last-two-digits' : 'last-digit';
+    }
+
+    private static function ordinalTermMatches(int $absoluteNumber, int $candidate, string $match): bool
+    {
+        return match ($match) {
+            'whole-number' => $absoluteNumber === $candidate,
+            'last-two-digits' => $absoluteNumber % 100 === $candidate,
+            default => $absoluteNumber % 10 === $candidate % 10,
+        };
     }
 
     /**
