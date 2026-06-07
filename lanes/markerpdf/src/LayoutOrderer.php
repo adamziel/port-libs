@@ -1008,11 +1008,12 @@ final class LayoutOrderer
         if (array_key_exists('bbox', $value)) {
             return $this->bboxValue($value['bbox'])
                 ?? $this->bboxFromNamedFields($value)
-                ?? $this->polygonBbox($value['polygon'] ?? null);
+                ?? $this->polygonAliasBbox($value);
         }
 
         return $this->bboxFromNamedFields($value)
-            ?? $this->polygonBbox($value['polygon'] ?? null)
+            ?? $this->polygonAliasBbox($value)
+            ?? $this->polygonBbox($value)
             ?? $this->bboxFromCoordinateList($value);
     }
 
@@ -1123,6 +1124,48 @@ final class LayoutOrderer
     }
 
     /**
+     * Supplied layout/order sidecars can serialize Surya-style four-corner
+     * geometry under the same aliases accepted by the table handoff.
+     *
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function polygonAliasBbox(array $record): ?array
+    {
+        foreach ($this->polygonGeometryKeys() as $key) {
+            if (!array_key_exists($key, $record)) {
+                continue;
+            }
+
+            $bbox = $this->polygonBbox($record[$key]);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function polygonGeometryKeys(): array
+    {
+        return [
+            'polygon',
+            'points',
+            'vertices',
+            'quad',
+            'quadrilateral',
+            'quadrilateral_points',
+            'polygon_points',
+            'polygon_vertices',
+            'polygon_quad',
+            'polygon_quadrilateral',
+        ];
+    }
+
+    /**
      * @param list<mixed> $values
      * @return list<float>|null
      */
@@ -1165,19 +1208,52 @@ final class LayoutOrderer
      */
     private function polygonBbox(mixed $polygon): ?array
     {
-        if (!is_array($polygon) || count($polygon) !== 4) {
+        if (!is_array($polygon)) {
             return null;
         }
 
-        $xs = [];
-        $ys = [];
-        foreach (array_values($polygon) as $point) {
+        $values = array_values($polygon);
+        if (count($values) === 8) {
+            $points = [];
+            for ($index = 0; $index < 8; $index += 2) {
+                $x = $this->numericValue($values[$index]);
+                $y = $this->numericValue($values[$index + 1]);
+                if ($x === null || $y === null) {
+                    return null;
+                }
+                $points[] = [$x, $y];
+            }
+
+            return $this->bboxFromPoints($points);
+        }
+
+        if (count($values) !== 4) {
+            return null;
+        }
+
+        $points = [];
+        foreach ($values as $point) {
             $coordinates = $this->pointCoordinates($point);
             if ($coordinates === null) {
                 return null;
             }
-            $xs[] = $coordinates[0];
-            $ys[] = $coordinates[1];
+            $points[] = $coordinates;
+        }
+
+        return $this->bboxFromPoints($points);
+    }
+
+    /**
+     * @param list<array{0: float, 1: float}> $points
+     * @return list<float>
+     */
+    private function bboxFromPoints(array $points): array
+    {
+        $xs = [];
+        $ys = [];
+        foreach ($points as $point) {
+            $xs[] = $point[0];
+            $ys[] = $point[1];
         }
 
         return [
