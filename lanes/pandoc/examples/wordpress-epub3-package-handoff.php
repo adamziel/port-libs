@@ -25,13 +25,17 @@ XML;
 $opfXml = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" id="source-package" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/ ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xml:lang="ar" dir="rtl">
-    <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
+    <dc:identifier id="source-id" scheme="UUID">urn:uuid:wordpress-epub-source</dc:identifier>
+    <dc:identifier id="isbn-id" scheme="ISBN">9781234567890</dc:identifier>
+    <dc:identifier id="duplicate-source-id" scheme="UUID">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title id="main-title" dir="ltr">WordPress EPUB source packet</dc:title>
     <dc:title id="subtitle-title" xml:lang="ar-Latn" dir="rtl">Murajaat al-hijra</dc:title>
     <dc:title id="short-title">WP EPUB packet</dc:title>
     <dc:creator id="creator">Migration Desk</dc:creator>
     <dc:contributor id="editor">Review Editor</dc:contributor>
     <dc:contributor id="translator" xml:lang="fr">Translation Desk</dc:contributor>
+    <dc:date id="publication-date" event="publication">2026-06-01</dc:date>
+    <dc:date id="review-date">2026-06-05</dc:date>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
     <meta property="ibooks:specified-fonts">true</meta>
@@ -59,6 +63,10 @@ $opfXml = <<<'XML'
     <meta property="a11y:certifiedBy">Migration Desk</meta>
     <meta property="dcterms:conformsTo">EPUB Accessibility 1.1 - WCAG 2.1 AA</meta>
     <meta refines="#source-id" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#isbn-id" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#duplicate-source-id" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#review-date" property="event">review</meta>
+    <meta refines="#review-date" property="display-seq">2</meta>
     <meta refines="#creator" property="file-as">Desk, Migration</meta>
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta refines="#creator" property="display-seq">1</meta>
@@ -765,6 +773,21 @@ XML;
     if (($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['scheme'] ?? null) !== 'onix:codelist5') {
         throw new RuntimeException('Expected EPUB OPF identifier refinement scheme to remain reviewable');
     }
+    if (($result['metadata']['identifierDetails'][0]['scheme'] ?? null) !== 'UUID' || ($result['metadata']['identifierDetails'][1]['identifierType'] ?? null) !== '15') {
+        throw new RuntimeException('Expected EPUB OPF identifier scheme/type summary to stay reviewable');
+    }
+    if (($result['metadata']['identifierSummary']['duplicateValueCount'] ?? null) !== 1 || ($result['metadata']['identifierSummary']['duplicatesByValue']['urn:uuid:wordpress-epub-source']['ids'] ?? []) !== ['source-id', 'duplicate-source-id']) {
+        throw new RuntimeException('Expected EPUB OPF duplicate identifier values to be reported for review');
+    }
+    if (($result['document']->attr('metadata')['identifiersByScheme']['ISBN'][0]['text'] ?? null) !== '9781234567890') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose identifier schemes');
+    }
+    if (($result['metadata']['dateDetails'][0]['event'] ?? null) !== 'publication' || ($result['metadata']['dateDetails'][1]['eventSource'] ?? null) !== 'refinement') {
+        throw new RuntimeException('Expected EPUB OPF date event metadata to be summarized');
+    }
+    if (($result['document']->attr('metadata')['datesByEvent']['review'][0]['text'] ?? null) !== '2026-06-05') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose date event metadata');
+    }
     if (($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? null) !== 'Desk, Migration') {
         throw new RuntimeException('Expected EPUB OPF creator file-as refinement to stay attached to creator metadata');
     }
@@ -1240,6 +1263,9 @@ echo 'metadataCreatorLinkedResources=' . count($result['metadata']['dc']['creato
 echo 'metadataCreatorDirection=' . ($result['metadata']['creatorDetails'][0]['direction'] ?? '') . "\n";
 echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
+echo 'identifierSchemes=' . implode(',', $result['metadata']['identifierSummary']['schemes'] ?? []) . "\n";
+echo 'identifierDuplicateValues=' . implode(',', $result['metadata']['identifierSummary']['duplicateValues'] ?? []) . "\n";
+echo 'dateEvents=' . implode(',', $result['metadata']['dateSummary']['events'] ?? []) . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";
 echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
 echo 'contributors=' . implode(',', $result['metadata']['contributors'] ?? []) . "\n";

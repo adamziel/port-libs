@@ -937,6 +937,7 @@ final class EpubReader
                     'text' => $text,
                     'id' => self::nullableAttribute($child, 'id'),
                     'scheme' => self::nullableAttribute($child, 'opf:scheme') ?? self::nullableAttribute($child, 'scheme'),
+                    'event' => self::nullableAttribute($child, 'opf:event') ?? self::nullableAttribute($child, 'event'),
                     'language' => self::xmlLang($child) ?? $metadataLanguage,
                     'direction' => self::direction($child) ?? $metadataDirection,
                 ];
@@ -1002,6 +1003,9 @@ final class EpubReader
             $dc['identifier'] ?? []
         );
         $uniqueIdentifierReport = self::uniqueIdentifierReport($uniqueIdentifier, $dc, $requireUniqueIdentifier);
+        $identifierDetails = self::metadataIdentifierDetails($dc['identifier'] ?? [], $uniqueIdentifierReport);
+        $uniqueIdentifierReport = self::uniqueIdentifierReportWithIdentifierDetails($uniqueIdentifierReport, $identifierDetails);
+        $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $titleDetails = self::metadataTitleDetails($dc['title'] ?? []);
         $titlesByType = self::metadataTitlesByType($titleDetails);
         $mainTitle = self::firstMetadataTitleByType($titleDetails, 'main') ?? ($titleDetails[0] ?? null);
@@ -1028,10 +1032,17 @@ final class EpubReader
             'identifier' => $uniqueIdentifierReport['value'],
             'uniqueIdentifier' => $uniqueIdentifierReport,
             'identifiers' => $identifiers,
+            'identifierDetails' => $identifierDetails,
+            'identifiersByType' => self::metadataIdentifierDetailsByField($identifierDetails, 'identifierType'),
+            'identifiersByScheme' => self::metadataIdentifierDetailsByField($identifierDetails, 'scheme'),
+            'identifierSummary' => self::metadataIdentifierSummary($identifierDetails, $uniqueIdentifierReport),
             'subjects' => array_map(static fn (array $entry): string => $entry['text'], $dc['subject'] ?? []),
             'description' => $dc['description'][0]['text'] ?? null,
             'publisher' => $dc['publisher'][0]['text'] ?? null,
             'date' => $dc['date'][0]['text'] ?? null,
+            'dateDetails' => $dateDetails,
+            'datesByEvent' => self::metadataDateDetailsByEvent($dateDetails),
+            'dateSummary' => self::metadataDateSummary($dateDetails),
             'modified' => $metaProperties['dcterms:modified'][0]['text'] ?? null,
             'coverItemId' => $metaNames['cover'][0]['content'] ?? null,
             'dc' => $dc,
@@ -1299,6 +1310,335 @@ final class EpubReader
             'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
             'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
             'refinements' => is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param array<string, mixed> $uniqueIdentifier
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataIdentifierDetails(array $entries, array $uniqueIdentifier): array
+    {
+        $values = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $text = (string) ($entry['text'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            $values[$text][] = [
+                'index' => (int) $index,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+            ];
+        }
+
+        $uniqueIdentifierId = is_string($uniqueIdentifier['id'] ?? null) ? $uniqueIdentifier['id'] : null;
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $identifierTypes = self::metadataRefinementEntries($refinements, 'identifier-type');
+            $identifierType = $identifierTypes[0] ?? null;
+            $text = (string) ($entry['text'] ?? '');
+            $duplicateEntries = $text !== '' && count($values[$text] ?? []) > 1 ? $values[$text] : [];
+
+            $details[] = [
+                'kind' => 'identifier',
+                'index' => (int) $index,
+                'text' => $text,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'identifierTypes' => $identifierTypes,
+                'identifierType' => is_array($identifierType) ? (string) $identifierType['value'] : null,
+                'identifierTypeScheme' => is_array($identifierType) && is_string($identifierType['scheme'] ?? null)
+                    ? $identifierType['scheme']
+                    : null,
+                'selectedByUniqueIdentifier' => $uniqueIdentifierId !== null
+                    && $uniqueIdentifierId !== ''
+                    && is_string($entry['id'] ?? null)
+                    && $entry['id'] === $uniqueIdentifierId,
+                'duplicateValue' => $duplicateEntries !== [],
+                'duplicateIds' => array_values(array_filter(
+                    array_map(static fn (array $duplicate): ?string => $duplicate['id'], $duplicateEntries),
+                    static fn (?string $id): bool => $id !== null && $id !== '',
+                )),
+                'duplicateIndexes' => array_map(
+                    static fn (array $duplicate): int => (int) $duplicate['index'],
+                    $duplicateEntries,
+                ),
+                'linkedResources' => [],
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<string, mixed> $identifier
+     * @param list<array<string, mixed>> $identifierDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function uniqueIdentifierReportWithIdentifierDetails(array $identifier, array $identifierDetails): array
+    {
+        $detailsById = [];
+        $detailsByIndex = [];
+        foreach ($identifierDetails as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $detailsByIndex[(int) ($detail['index'] ?? 0)] = $detail;
+            if (is_string($detail['id'] ?? null) && $detail['id'] !== '') {
+                $detailsById[$detail['id']] = $detail;
+            }
+        }
+
+        foreach (['entries', 'matchedEntries'] as $key) {
+            $entries = is_array($identifier[$key] ?? null) ? $identifier[$key] : [];
+            foreach ($entries as $index => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+                $detail = $id !== null && isset($detailsById[$id])
+                    ? $detailsById[$id]
+                    : ($detailsByIndex[(int) ($entry['index'] ?? $index)] ?? null);
+                if (!is_array($detail)) {
+                    continue;
+                }
+
+                $entries[$index]['identifierTypes'] = is_array($detail['identifierTypes'] ?? null) ? $detail['identifierTypes'] : [];
+                $entries[$index]['identifierType'] = is_string($detail['identifierType'] ?? null) ? $detail['identifierType'] : null;
+                $entries[$index]['identifierTypeScheme'] = is_string($detail['identifierTypeScheme'] ?? null) ? $detail['identifierTypeScheme'] : null;
+                $entries[$index]['duplicateValue'] = (bool) ($detail['duplicateValue'] ?? false);
+                $entries[$index]['duplicateIds'] = is_array($detail['duplicateIds'] ?? null) ? $detail['duplicateIds'] : [];
+                $entries[$index]['duplicateIndexes'] = is_array($detail['duplicateIndexes'] ?? null) ? $detail['duplicateIndexes'] : [];
+            }
+            $identifier[$key] = $entries;
+        }
+
+        return $identifier;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataIdentifierDetailsByField(array $details, string $field): array
+    {
+        $byField = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $value = is_string($detail[$field] ?? null) ? trim($detail[$field]) : '';
+            if ($value === '') {
+                continue;
+            }
+
+            $byField[$value][] = $detail;
+        }
+
+        return $byField;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     * @param array<string, mixed> $uniqueIdentifier
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataIdentifierSummary(array $details, array $uniqueIdentifier): array
+    {
+        $schemes = [];
+        $identifierTypes = [];
+        $duplicatesByValue = [];
+        $selectedIndex = null;
+        $selectedId = null;
+        $selectedValue = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : null;
+        $diagnostics = [];
+
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $scheme = is_string($detail['scheme'] ?? null) ? trim($detail['scheme']) : '';
+            if ($scheme !== '') {
+                $schemes[$scheme] = $scheme;
+            }
+
+            $identifierType = is_string($detail['identifierType'] ?? null) ? trim($detail['identifierType']) : '';
+            if ($identifierType !== '') {
+                $identifierTypes[$identifierType] = $identifierType;
+            }
+
+            if (($detail['selectedByUniqueIdentifier'] ?? false) === true && $selectedIndex === null) {
+                $selectedIndex = (int) ($detail['index'] ?? 0);
+                $selectedId = is_string($detail['id'] ?? null) ? $detail['id'] : null;
+            }
+
+            if (($detail['duplicateValue'] ?? false) !== true) {
+                continue;
+            }
+
+            $text = (string) ($detail['text'] ?? '');
+            if ($text === '' || isset($duplicatesByValue[$text])) {
+                continue;
+            }
+
+            $duplicateIds = is_array($detail['duplicateIds'] ?? null) ? array_values($detail['duplicateIds']) : [];
+            $duplicateIndexes = is_array($detail['duplicateIndexes'] ?? null) ? array_values($detail['duplicateIndexes']) : [];
+            $duplicatesByValue[$text] = [
+                'value' => $text,
+                'count' => count($duplicateIndexes),
+                'ids' => $duplicateIds,
+                'indexes' => $duplicateIndexes,
+            ];
+            $diagnostics[] = [
+                'type' => 'duplicate-metadata-identifier-value',
+                'value' => $text,
+                'ids' => $duplicateIds,
+                'indexes' => $duplicateIndexes,
+                'message' => 'EPUB OPF metadata contains multiple dc:identifier entries with the same value',
+            ];
+        }
+
+        if ($selectedIndex === null && $selectedValue !== null) {
+            foreach ($details as $detail) {
+                if ((string) ($detail['text'] ?? '') !== $selectedValue) {
+                    continue;
+                }
+
+                $selectedIndex = (int) ($detail['index'] ?? 0);
+                $selectedId = is_string($detail['id'] ?? null) ? $detail['id'] : null;
+                break;
+            }
+        }
+
+        return [
+            'present' => $details !== [],
+            'count' => count($details),
+            'typedCount' => count(array_filter(
+                $details,
+                static fn (array $detail): bool => is_string($detail['identifierType'] ?? null)
+                    && $detail['identifierType'] !== '',
+            )),
+            'schemeCount' => count($schemes),
+            'schemes' => array_values($schemes),
+            'identifierTypes' => array_values($identifierTypes),
+            'selectedValue' => $selectedValue,
+            'selectedId' => $selectedId,
+            'selectedIndex' => $selectedIndex,
+            'duplicateValueCount' => count($duplicatesByValue),
+            'duplicateValues' => array_keys($duplicatesByValue),
+            'duplicatesByValue' => $duplicatesByValue,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataDateDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $eventEntries = self::metadataRefinementEntries($refinements, 'event');
+            $eventAttribute = is_string($entry['event'] ?? null) && trim($entry['event']) !== ''
+                ? trim($entry['event'])
+                : null;
+            $event = $eventAttribute ?? (is_array($eventEntries[0] ?? null) ? (string) $eventEntries[0]['value'] : null);
+
+            $details[] = [
+                'kind' => 'date',
+                'index' => (int) $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'event' => $event,
+                'eventSource' => $eventAttribute !== null ? 'attribute' : ($event !== null ? 'refinement' : null),
+                'eventAttribute' => $eventAttribute,
+                'eventRefinements' => $eventEntries,
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'linkedResources' => [],
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataDateDetailsByEvent(array $details): array
+    {
+        $byEvent = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $event = is_string($detail['event'] ?? null) ? trim($detail['event']) : '';
+            if ($event === '') {
+                continue;
+            }
+
+            $byEvent[$event][] = $detail;
+        }
+
+        return $byEvent;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array{present:bool, count:int, eventCount:int, events:list<string>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function metadataDateSummary(array $details): array
+    {
+        $events = [];
+        foreach ($details as $detail) {
+            $event = is_string($detail['event'] ?? null) ? trim($detail['event']) : '';
+            if ($event !== '') {
+                $events[$event] = $event;
+            }
+        }
+
+        return [
+            'present' => $details !== [],
+            'count' => count($details),
+            'eventCount' => count($events),
+            'events' => array_values($events),
+            'diagnostics' => [],
         ];
     }
 
@@ -1990,6 +2330,22 @@ final class EpubReader
                 $linksByRefinedId
             );
         }
+        $metadata['identifierDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['identifierDetails'] ?? null) ? $metadata['identifierDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['identifiersByType'] = self::metadataIdentifierDetailsByField($metadata['identifierDetails'], 'identifierType');
+        $metadata['identifiersByScheme'] = self::metadataIdentifierDetailsByField($metadata['identifierDetails'], 'scheme');
+        $metadata['identifierSummary'] = self::metadataIdentifierSummary(
+            $metadata['identifierDetails'],
+            is_array($metadata['uniqueIdentifier'] ?? null) ? $metadata['uniqueIdentifier'] : []
+        );
+        $metadata['dateDetails'] = self::metadataDetailsWithLinkedResources(
+            is_array($metadata['dateDetails'] ?? null) ? $metadata['dateDetails'] : [],
+            $linksByRefinedId
+        );
+        $metadata['datesByEvent'] = self::metadataDateDetailsByEvent($metadata['dateDetails']);
+        $metadata['dateSummary'] = self::metadataDateSummary($metadata['dateDetails']);
 
         return $metadata;
     }

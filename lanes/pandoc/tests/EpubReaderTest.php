@@ -666,6 +666,92 @@ XML;
         $t->same('unique-identifier-not-found', $withoutIdentifier['diagnostics'][0]['type']);
         $t->same('missing-dc-identifier', $withoutIdentifier['diagnostics'][1]['type']);
     },
+    'summarizes OPF identifier schemes and date events for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithIdentifierAndDateMetadata = str_replace(
+            '<dc:identifier id="pub-id">urn:uuid:wp-epub-source-42</dc:identifier>',
+            '<dc:identifier id="pub-id" scheme="UUID">urn:uuid:wp-epub-source-42</dc:identifier>'
+            . '<dc:identifier id="isbn-id" scheme="ISBN">9781234567890</dc:identifier>'
+            . '<dc:identifier id="duplicate-id" scheme="UUID">urn:uuid:wp-epub-source-42</dc:identifier>',
+            $opfXml
+        );
+        $opfWithIdentifierAndDateMetadata = str_replace(
+            '<dc:language>en</dc:language>',
+            '<dc:date id="publication-date" event="publication">2026-06-01</dc:date>'
+            . '<dc:date id="review-date">2026-06-05</dc:date>'
+            . '<dc:language>en</dc:language>',
+            $opfWithIdentifierAndDateMetadata
+        );
+        $opfWithIdentifierAndDateMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#pub-id" property="identifier-type" scheme="onix:codelist5">22</meta>'
+            . '<meta refines="#isbn-id" property="identifier-type" scheme="onix:codelist5">15</meta>'
+            . '<meta refines="#duplicate-id" property="identifier-type" scheme="onix:codelist5">22</meta>'
+            . '<meta refines="#review-date" property="event">review</meta>'
+            . '<meta refines="#review-date" property="display-seq">2</meta>',
+            $opfWithIdentifierAndDateMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithIdentifierAndDateMetadata));
+        $metadata = $result['metadata'];
+        $identifierDetails = $metadata['identifierDetails'];
+        $dateDetails = $metadata['dateDetails'];
+
+        $t->same(3, count($identifierDetails));
+        $t->same('pub-id', $identifierDetails[0]['id']);
+        $t->same('UUID', $identifierDetails[0]['scheme']);
+        $t->same('22', $identifierDetails[0]['identifierType']);
+        $t->same('onix:codelist5', $identifierDetails[0]['identifierTypeScheme']);
+        $t->same(true, $identifierDetails[0]['selectedByUniqueIdentifier']);
+        $t->same(true, $identifierDetails[0]['duplicateValue']);
+        $t->same(['pub-id', 'duplicate-id'], $identifierDetails[0]['duplicateIds']);
+        $t->same('isbn-id', $identifierDetails[1]['id']);
+        $t->same('ISBN', $identifierDetails[1]['scheme']);
+        $t->same('15', $identifierDetails[1]['identifierType']);
+        $t->same(false, $identifierDetails[1]['selectedByUniqueIdentifier']);
+        $t->same(false, $identifierDetails[1]['duplicateValue']);
+        $t->same('duplicate-id', $identifierDetails[2]['id']);
+        $t->same('22', $metadata['uniqueIdentifier']['matchedEntries'][0]['identifierType']);
+        $t->same(true, $metadata['uniqueIdentifier']['matchedEntries'][0]['duplicateValue']);
+
+        $summary = $metadata['identifierSummary'];
+        $t->same(true, $summary['present']);
+        $t->same(3, $summary['count']);
+        $t->same(3, $summary['typedCount']);
+        $t->same(2, $summary['schemeCount']);
+        $t->same(1, $summary['duplicateValueCount']);
+        $t->same(['urn:uuid:wp-epub-source-42'], $summary['duplicateValues']);
+        $t->same('urn:uuid:wp-epub-source-42', $summary['selectedValue']);
+        $t->same(0, $summary['selectedIndex']);
+        $t->same(['UUID', 'ISBN'], $summary['schemes']);
+        $t->same(['22', '15'], $summary['identifierTypes']);
+        $t->same(['pub-id', 'duplicate-id'], $summary['duplicatesByValue']['urn:uuid:wp-epub-source-42']['ids']);
+        $t->same('duplicate-metadata-identifier-value', $summary['diagnostics'][0]['type']);
+
+        $t->same('9781234567890', $metadata['identifiersByType']['15'][0]['text']);
+        $t->same('isbn-id', $metadata['identifiersByScheme']['ISBN'][0]['id']);
+
+        $t->same(2, count($dateDetails));
+        $t->same('publication-date', $dateDetails[0]['id']);
+        $t->same('2026-06-01', $dateDetails[0]['text']);
+        $t->same('publication', $dateDetails[0]['event']);
+        $t->same('attribute', $dateDetails[0]['eventSource']);
+        $t->same('review-date', $dateDetails[1]['id']);
+        $t->same('review', $dateDetails[1]['event']);
+        $t->same('refinement', $dateDetails[1]['eventSource']);
+        $t->same('2', $dateDetails[1]['displaySeq']);
+        $t->same('2026-06-01', $metadata['datesByEvent']['publication'][0]['text']);
+        $t->same('2026-06-05', $metadata['datesByEvent']['review'][0]['text']);
+        $t->same(true, $metadata['dateSummary']['present']);
+        $t->same(2, $metadata['dateSummary']['count']);
+        $t->same(2, $metadata['dateSummary']['eventCount']);
+        $t->same(['publication', 'review'], $metadata['dateSummary']['events']);
+        $t->same('2026-06-01', $metadata['date']);
+
+        $t->same($identifierDetails, $result['importReport']['metadata']['identifierDetails']);
+        $t->same($summary, $result['document']->attr('metadata')['identifierSummary']);
+        $t->same($dateDetails, $result['document']->attr('metadata')['dateDetails']);
+    },
     'reports OPF spine page progression direction and itemref spread properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithReadingOrder = str_replace(
             '<spine toc="toc">',
