@@ -14919,11 +14919,6 @@ final class PdfMetadataExtractor
                         $generation = $offsetOwner['generation'];
                     }
                 }
-                if (isset($entries[$objectNumber])) {
-                    $offset += $entryWidth;
-                    continue;
-                }
-
                 if ($type === 0) {
                     $entries[$objectNumber] = [
                         'type' => 0,
