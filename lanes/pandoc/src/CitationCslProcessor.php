@@ -485,6 +485,11 @@ final class CitationCslProcessor
 
         $url = (string) $item['url'];
         if ($url !== '') {
+            $urlLabel = trim((string) ($item['urlLabel'] ?? ''));
+            if ($urlLabel !== '') {
+                $parts[] = 'URL label: ' . $this->withTerminalPunctuation($urlLabel);
+            }
+
             $parts[] = $url . '.';
         }
 
@@ -769,6 +774,7 @@ final class CitationCslProcessor
             'version' => self::stringField($item, 'version'),
             'doi' => self::firstStringField($item, ['DOI', 'doi']),
             'url' => self::firstStringField($item, ['URL', 'url']),
+            'urlLabel' => self::firstStringField($item, ['URL-label', 'url-label', 'URLLabel', 'urlLabel', 'urldescription', 'urltitle', 'urllabel', 'url-description']),
             'isbn' => self::firstStringField($item, ['ISBN', 'isbn']),
             'issn' => self::firstStringField($item, ['ISSN', 'issn']),
             'isan' => self::firstStringField($item, ['ISAN', 'isan']),
@@ -5778,6 +5784,7 @@ final class CitationCslProcessor
             'version' => (string) $item['version'],
             'doi' => (string) $item['doi'],
             'url' => (string) $item['url'],
+            'url-label', 'url-description', 'urldescription', 'urltitle', 'urllabel' => (string) ($item['urlLabel'] ?? ''),
             'isbn' => (string) $item['isbn'],
             'issn' => (string) $item['issn'],
             'isan' => (string) ($item['isan'] ?? ''),

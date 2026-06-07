@@ -81,6 +81,8 @@ Subtype source @review-subtype preserves source-kind metadata for review.
 
 Split URL date source @split-url-date preserves component access-date metadata.
 
+URL description source @url-description-source keeps reviewer link labels visible for review.
+
 Truncated author source @truncated-name-list keeps source-authored et-al markers visible.
 
 Sort override sources [@sort-visible-adams; @sort-visible-zed] keep BibLaTeX sorting hints available for review.
@@ -651,6 +653,15 @@ $bibtex = <<<'BIB'
   urlday   = {5}
 }
 
+@online{url-description-source,
+  author         = {Ng, Nia},
+  title          = {URL Description Source},
+  date           = {2026},
+  url            = {https://example.test/url-description-source},
+  urldescription = {Reviewer mirror copy},
+  urldate        = {2026-06-05}
+}
+
 @article{truncated-name-list,
   author       = {Smith, Ada and Ng, Nia and others},
   editor       = {Curator, Eli and others},
@@ -1218,6 +1229,13 @@ XML);
     if (($splitUrlDate['raw']['accessed']['date-parts'][0] ?? null) !== [2026, 6, 5]) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not map split URL access date into raw CSL metadata');
     }
+    $urlDescriptionSource = $processor->item('url-description-source');
+    if (($urlDescriptionSource['urlLabel'] ?? null) !== 'Reviewer mirror copy') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve URL description label metadata');
+    }
+    if (($urlDescriptionSource['raw']['URL-label'] ?? null) !== 'Reviewer mirror copy') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw URL description label metadata');
+    }
     $truncatedNameList = $processor->item('truncated-name-list');
     if (($truncatedNameList['authors'][2]['etAl'] ?? null) !== true) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not map author others sentinel into CSL et-al metadata');
@@ -1679,6 +1697,8 @@ XML);
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>',
         '<p>Split URL date source Ng (2026) preserves component access-date metadata.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>',
+        '<p>URL description source Ng (2026) keeps reviewer link labels visible for review.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. URL Description Source. 2026. URL label: Reviewer mirror copy. https://example.test/url-description-source. Accessed 2026-06-05.</dd>',
         '<p>Truncated author source Smith, Ng, et al. (2026) keeps source-authored et-al markers visible.</p>',
         '<dt>Smith, Ng, et al. 2026</dt><dd>Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-name-list.</dd>',
         '<p>Sort override sources (Adams 2020; Zed 2026) keep BibLaTeX sorting hints available for review.</p>',

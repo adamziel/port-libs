@@ -1668,6 +1668,86 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>', $blocks);
         $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Numeric URL Date Source. 2025. https://example.test/numeric-url-date. Accessed 2026-07-09.</dd>', $blocks);
     },
+    'maps bounded biblatex url description labels into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{url-description-source,
+  author         = {Ng, Nia},
+  title          = {URL Description Source},
+  date           = {2026},
+  url            = {https://example.test/url-description-source},
+  urldescription = {Reviewer mirror copy},
+  urldate        = {2026-06-05}
+}
+
+@online{url-title-source,
+  author   = {{Review Desk}},
+  title    = {URL Title Source},
+  date     = {2025},
+  url      = {https://example.test/url-title-source},
+  urltitle = {Archive landing page}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Reviewer mirror copy', $items[0]['URL-label'] ?? null);
+        $t->same('Archive landing page', $items[1]['URL-label'] ?? null);
+        $t->same('Reviewer mirror copy', $items[0]['rawBibtex']['fields']['urldescription'] ?? null);
+        $t->same('Archive landing page', $items[1]['rawBibtex']['fields']['urltitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $description = $processor->item('url-description-source');
+        $title = $processor->item('url-title-source');
+        $t->same('Reviewer mirror copy', $description['urlLabel'] ?? null);
+        $t->same('Archive landing page', $title['urlLabel'] ?? null);
+        $t->same('(Ng 2026; Review Desk 2025)', $processor->renderCitationCluster([
+            $citation('url-description-source', '[@url-description-source]'),
+            $citation('url-title-source', '[@url-title-source]'),
+        ]));
+        $t->same('Ng, Nia. URL Description Source. 2026. URL label: Reviewer mirror copy. https://example.test/url-description-source. Accessed 2026-06-05.', $processor->renderBibliographyEntry('url-description-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="url-label"/>
+        <text variable="URL"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="url-description"/>
+      <text variable="url"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | Reviewer mirror copy | https://example.test/url-description-source; Review Desk | Archive landing page | https://example.test/url-title-source]', $styled->renderCitationCluster([
+            $citation('url-description-source', '[@url-description-source]'),
+            $citation('url-title-source', '[@url-title-source]'),
+        ]));
+        $t->same('URL Description Source :: Reviewer mirror copy :: https://example.test/url-description-source', $styled->renderBibliographyEntry('url-description-source'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-url-label',
+            'title' => 'Manual URL Label',
+            'URL' => 'https://example.test/manual-url-label',
+            'URLLabel' => 'Direct review link',
+        ]]);
+        $manualItem = $manual->item('manual-url-label');
+        $t->same('Direct review link', $manualItem['urlLabel'] ?? null);
+        $t->same('Manual URL Label. URL label: Direct review link. https://example.test/manual-url-label.', $manual->renderBibliographyEntry('manual-url-label'));
+
+        $document = (new MarkdownReader())->read('URL description source @url-description-source keeps reviewer link labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>URL description source Ng (2026) keeps reviewer link labels visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. URL Description Source. 2026. URL label: Reviewer mirror copy. https://example.test/url-description-source. Accessed 2026-06-05.</dd>', $blocks);
+    },
     'applies bounded csl date-part forms affixes and range delimiters' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
