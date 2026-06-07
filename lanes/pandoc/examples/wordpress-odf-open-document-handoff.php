@@ -268,10 +268,16 @@ XML;
 $chartObjectXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0">
+  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
   <office:body>
     <office:chart>
-      <chart:chart chart:class="chart:bar"/>
+      <chart:chart chart:class="chart:bar">
+        <chart:plot-area table:cell-range-address="Review.A1:Review.B4" chart:data-source-has-labels="both">
+          <chart:categories table:cell-range-address="Review.A2:Review.A4"/>
+          <chart:series chart:values-cell-range-address="Review.B2:Review.B4" chart:label-cell-address="Review.B1" chart:attached-axis="primary-y"/>
+        </chart:plot-area>
+      </chart:chart>
     </office:chart>
   </office:body>
 </office:document-content>
@@ -636,13 +642,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['content']['embeddedObjectCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT embedded object to be counted in the import report');
     }
+    if (($result['importReport']['content']['chartObjectCount'] ?? 0) !== 1 || ($result['importReport']['content']['chartMetadataCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT chart object metadata to be counted in the import report');
+    }
     if (($result['importReport']['content']['missingEmbeddedObjectCount'] ?? 0) !== 0) {
         throw new RuntimeException('Expected ODT embedded object package parts to be present');
     }
     if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="./Object%202" data-odf-object-path="Object 2" data-odf-object-source-part="Object 2/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="10" data-odf-object-can-expose-bytes="false">Source spreadsheet</span>')) {
         throw new RuntimeException('Expected ODT object-ole frame to render as a WordPress review placeholder');
     }
-    if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%203" data-odf-object-path="Object 3" data-odf-object-source-part="Object 3/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false">Source chart placeholder</span>')) {
+    if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%203" data-odf-object-path="Object 3" data-odf-object-source-part="Object 3/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object 3/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Review.A1:Review.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-categories-range="Review.A2:Review.A4">Source chart placeholder</span>')) {
         throw new RuntimeException('Expected ODT chart object frame to render as a WordPress review placeholder');
     }
     if (str_contains($blocks, 'OLEPAYLOAD')) {

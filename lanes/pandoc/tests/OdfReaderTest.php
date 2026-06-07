@@ -3149,10 +3149,16 @@ XML;
         $chartObjectXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0">
+  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
   <office:body>
     <office:chart>
-      <chart:chart chart:class="chart:bar"/>
+      <chart:chart chart:class="chart:bar">
+        <chart:plot-area table:cell-range-address="Sheet1.A1:Sheet1.B4" chart:data-source-has-labels="both">
+          <chart:categories table:cell-range-address="Sheet1.A2:Sheet1.A4"/>
+          <chart:series chart:values-cell-range-address="Sheet1.B2:Sheet1.B4" chart:label-cell-address="Sheet1.B1" chart:attached-axis="primary-y"/>
+        </chart:plot-area>
+      </chart:chart>
     </office:chart>
   </office:body>
 </office:document-content>
@@ -3187,6 +3193,18 @@ XML;
         $t->same(['Object Chart/content.xml'], $inlineChart->attr('containedParts'));
         $t->same(1, $inlineChart->attr('containedPartCount'));
         $t->same(strlen($chartObjectXml), $inlineChart->attr('containedByteLength'));
+        $t->same('Object Chart/content.xml', $inlineChart->attr('chartMetadata')['sourcePart']);
+        $t->same('chart:bar', $inlineChart->attr('chartMetadata')['chartClass']);
+        $t->same('bar', $inlineChart->attr('chartMetadata')['chartClassName']);
+        $t->same('Sheet1.A1:Sheet1.B4', $inlineChart->attr('chartMetadata')['cellRangeAddress']);
+        $t->same('both', $inlineChart->attr('chartMetadata')['dataSourceHasLabels']);
+        $t->same('Sheet1.A2:Sheet1.A4', $inlineChart->attr('chartMetadata')['categories'][0]['cellRangeAddress']);
+        $t->same(1, $inlineChart->attr('chartMetadata')['seriesCount']);
+        $t->same('Sheet1.B2:Sheet1.B4', $inlineChart->attr('chartMetadata')['series'][0]['valuesCellRangeAddress']);
+        $t->same('Sheet1.B1', $inlineChart->attr('chartMetadata')['series'][0]['labelCellAddress']);
+        $t->same('bar', $inlineChart->attr('attributes')['data-odf-chart-class']);
+        $t->same('Sheet1.A1:Sheet1.B4', $inlineChart->attr('attributes')['data-odf-chart-cell-range']);
+        $t->same('1', $inlineChart->attr('attributes')['data-odf-chart-series-count']);
         $t->same('Revenue chart placeholder', $inlineChart->children[0]->attr('text'));
 
         $t->same('div', $missingChart->type);
@@ -3199,16 +3217,93 @@ XML;
         $t->same('Missing chart placeholder', $missingChart->children[0]->children[0]->attr('text'));
 
         $t->same(2, $result['importReport']['content']['embeddedObjectCount']);
+        $t->same(2, $result['importReport']['content']['chartObjectCount']);
+        $t->same(1, $result['importReport']['content']['chartMetadataCount']);
         $t->same(1, $result['importReport']['content']['missingEmbeddedObjectCount']);
         $t->same(0, count($result['media']));
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Revenue chart placeholder]{.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false"}', $markdown);
+        $t->contains('[Revenue chart placeholder]{.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object Chart/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Sheet1.A1:Sheet1.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-categories-range="Sheet1.A2:Sheet1.A4"}', $markdown);
         $t->contains('::: {.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"}', $markdown);
-        $t->contains('<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false">Revenue chart placeholder</span>', $blocksHtml);
+        $t->contains('<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object Chart/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Sheet1.A1:Sheet1.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-categories-range="Sheet1.A2:Sheet1.A4">Revenue chart placeholder</span>', $blocksHtml);
         $t->contains('<div class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Missing chart placeholder</p></div>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'chart:bar'), 'Opaque chart object XML must not render in WordPress output');
+    },
+    'maps ODT chart content XML into sanitized review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithChartObject = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20Line/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+  <manifest:file-entry manifest:full-path="Object%20Line/content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $contentWithChartObject = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Traffic chart"><svg:title>Traffic chart placeholder</svg:title><draw:object xlink:href="./Object%20Line"/></draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $chartObjectXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:chart>
+      <chart:chart chart:class="chart:line">
+        <chart:plot-area table:cell-range-address="Visits.A1:Visits.C5" chart:data-source-has-labels="row">
+          <chart:categories table:cell-range-address="Visits.A2:Visits.A5"/>
+          <chart:series chart:values-cell-range-address="Visits.B2:Visits.B5" chart:label-cell-address="Visits.B1"/>
+          <chart:series chart:values-cell-range-address="Visits.C2:Visits.C5" chart:label-cell-address="Visits.C1"/>
+        </chart:plot-area>
+      </chart:chart>
+    </office:chart>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithChartObject,
+            $manifestWithChartObject,
+            null,
+            null,
+            [
+                ['name' => 'Object Line/content.xml', 'data' => $chartObjectXml],
+            ]
+        ));
+
+        $chart = $result['document']->children[0];
+        $metadata = $chart->attr('chartMetadata');
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same('div', $chart->type);
+        $t->same('chart', $chart->attr('objectType'));
+        $t->same('Object Line/content.xml', $metadata['sourcePart']);
+        $t->same('chart:line', $metadata['chartClass']);
+        $t->same('line', $metadata['chartClassName']);
+        $t->same('Visits.A1:Visits.C5', $metadata['cellRangeAddress']);
+        $t->same('row', $metadata['dataSourceHasLabels']);
+        $t->same('Visits.A2:Visits.A5', $metadata['categories'][0]['cellRangeAddress']);
+        $t->same(2, $metadata['seriesCount']);
+        $t->same('Visits.C2:Visits.C5', $metadata['series'][1]['valuesCellRangeAddress']);
+        $t->same('Visits.C1', $metadata['series'][1]['labelCellAddress']);
+        $t->same(1, $result['importReport']['content']['chartObjectCount']);
+        $t->same(1, $result['importReport']['content']['chartMetadataCount']);
+        $t->contains('data-odf-chart-class="line"', $blocksHtml);
+        $t->contains('data-odf-chart-cell-range="Visits.A1:Visits.C5"', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'chart:line'), 'ODT chart class prefix should stay metadata-only, not rendered as raw chart XML');
     },
     'maps ODT object-ole frames into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithOleObjects = <<<'XML'

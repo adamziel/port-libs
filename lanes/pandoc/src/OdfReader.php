@@ -20,6 +20,7 @@ final class OdfReader
     private const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const MATH_NS = 'http://www.w3.org/1998/Math/MathML';
+    private const CHART_NS = 'urn:oasis:names:tc:opendocument:xmlns:chart:1.0';
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 
     /** @var array<string, array<string, mixed>> */
@@ -196,6 +197,8 @@ final class OdfReader
                     'mathCount' => $contentStats['mathCount'],
                     'embeddedObjectCount' => $contentStats['embeddedObjectCount'],
                     'missingEmbeddedObjectCount' => $contentStats['missingEmbeddedObjectCount'],
+                    'chartObjectCount' => $contentStats['chartObjectCount'],
+                    'chartMetadataCount' => $contentStats['chartMetadataCount'],
                     'formControlCount' => $contentStats['formControlCount'],
                     'missingFormControlCount' => $contentStats['missingFormControlCount'],
                     'sectionCount' => $contentStats['sectionCount'],
@@ -3881,6 +3884,10 @@ final class OdfReader
         if ($encrypted) {
             $attributes['data-odf-object-encrypted'] = 'true';
         }
+        $chartMetadata = $this->chartObjectMetadata($package, $objectPath, $objectType, $encrypted);
+        foreach ($this->chartObjectHtmlAttributes($chartMetadata) as $name => $value) {
+            $attributes[$name] = $value;
+        }
 
         $attrs = [
             'sourceFormat' => $objectType === 'object' ? 'odt-object' : 'odt-object-' . $objectType,
@@ -3904,6 +3911,9 @@ final class OdfReader
             $attrs['manifestExists'] = $manifestItem['exists'] ?? null;
             $attrs['encryption'] = $manifestItem['encryption'] ?? null;
         }
+        if ($chartMetadata !== []) {
+            $attrs['chartMetadata'] = $chartMetadata;
+        }
 
         $text = new AstNode('text', ['text' => $label]);
         if ($inline) {
@@ -3916,6 +3926,164 @@ final class OdfReader
                 'text' => $label,
             ], [$text]),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartObjectMetadata(?ZipPackage $package, string $objectPath, string $objectType, bool $encrypted): array
+    {
+        if ($objectType !== 'chart' || $encrypted || !$package instanceof ZipPackage) {
+            return [];
+        }
+
+        $contentPart = rtrim($objectPath, '/') . '/content.xml';
+        if (!$package->has($contentPart)) {
+            return [];
+        }
+
+        try {
+            $dom = self::loadXml($package->read($contentPart), 'ODT chart object ' . $contentPart);
+        } catch (\InvalidArgumentException) {
+            return [
+                'sourcePart' => $contentPart,
+                'parseError' => true,
+            ];
+        }
+
+        $chart = $dom->getElementsByTagNameNS(self::CHART_NS, 'chart')->item(0);
+        if (!$chart instanceof \DOMElement) {
+            return [
+                'sourcePart' => $contentPart,
+                'chartMissing' => true,
+            ];
+        }
+
+        $plotArea = self::firstChildElement($chart, 'plot-area', self::CHART_NS);
+        $chartClass = self::attr($chart, self::CHART_NS, 'class');
+        $categories = $this->chartCategoriesMetadata($chart);
+        $series = $this->chartSeriesMetadata($chart);
+
+        $metadata = self::withoutEmpty([
+            'sourcePart' => $contentPart,
+            'chartClass' => self::nullable($chartClass),
+            'chartClassName' => self::nullable(self::chartClassName($chartClass)),
+            'styleName' => self::nullable(self::attr($chart, self::CHART_NS, 'style-name')),
+            'cellRangeAddress' => $plotArea instanceof \DOMElement ? self::nullable(self::attr($plotArea, self::TABLE_NS, 'cell-range-address')) : null,
+            'dataSourceHasLabels' => $plotArea instanceof \DOMElement ? self::nullable(self::attr($plotArea, self::CHART_NS, 'data-source-has-labels')) : null,
+            'categories' => $categories,
+            'seriesCount' => $series === [] ? null : count($series),
+            'series' => $series,
+        ]);
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function chartCategoriesMetadata(\DOMElement $chart): array
+    {
+        $categories = [];
+        foreach ($chart->getElementsByTagNameNS(self::CHART_NS, 'categories') as $category) {
+            if (!$category instanceof \DOMElement) {
+                continue;
+            }
+
+            $entry = self::withoutEmpty([
+                'cellRangeAddress' => self::nullable(self::attr($category, self::TABLE_NS, 'cell-range-address')),
+            ]);
+            if ($entry !== []) {
+                $categories[] = array_map(static fn (mixed $value): string => (string) $value, $entry);
+            }
+        }
+
+        return $categories;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function chartSeriesMetadata(\DOMElement $chart): array
+    {
+        $series = [];
+        foreach ($chart->getElementsByTagNameNS(self::CHART_NS, 'series') as $seriesElement) {
+            if (!$seriesElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $entry = self::withoutEmpty([
+                'valuesCellRangeAddress' => self::nullable(self::attr($seriesElement, self::CHART_NS, 'values-cell-range-address')),
+                'labelCellAddress' => self::nullable(self::attr($seriesElement, self::CHART_NS, 'label-cell-address')),
+                'attachedAxis' => self::nullable(self::attr($seriesElement, self::CHART_NS, 'attached-axis')),
+                'chartClass' => self::nullable(self::attr($seriesElement, self::CHART_NS, 'class')),
+                'styleName' => self::nullable(self::attr($seriesElement, self::CHART_NS, 'style-name')),
+            ]);
+            if ($entry !== []) {
+                $series[] = array_map(static fn (mixed $value): string => (string) $value, $entry);
+            }
+        }
+
+        return $series;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, string>
+     */
+    private function chartObjectHtmlAttributes(array $metadata): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $attributes = [];
+        foreach ([
+            'sourcePart' => 'data-odf-chart-source-part',
+            'chartClassName' => 'data-odf-chart-class',
+            'cellRangeAddress' => 'data-odf-chart-cell-range',
+            'dataSourceHasLabels' => 'data-odf-chart-data-source-has-labels',
+            'seriesCount' => 'data-odf-chart-series-count',
+        ] as $name => $attributeName) {
+            $value = $metadata[$name] ?? null;
+            if (is_scalar($value) && (string) $value !== '') {
+                $attributes[$attributeName] = (string) $value;
+            }
+        }
+
+        $categories = $metadata['categories'] ?? [];
+        if (is_array($categories) && is_array($categories[0] ?? null)) {
+            $range = $categories[0]['cellRangeAddress'] ?? null;
+            if (is_scalar($range) && (string) $range !== '') {
+                $attributes['data-odf-chart-categories-range'] = (string) $range;
+            }
+        }
+        if (($metadata['parseError'] ?? false) === true) {
+            $attributes['data-odf-chart-parse-error'] = 'true';
+        }
+        if (($metadata['chartMissing'] ?? false) === true) {
+            $attributes['data-odf-chart-missing'] = 'true';
+        }
+
+        return $attributes;
+    }
+
+    private static function chartClassName(string $chartClass): string
+    {
+        $chartClass = trim($chartClass);
+        if ($chartClass === '') {
+            return '';
+        }
+
+        $parts = explode(':', $chartClass);
+        $name = (string) end($parts);
+        if ($name === '') {
+            $name = $chartClass;
+        }
+        $name = preg_replace('/[^A-Za-z0-9._-]+/', '-', $name) ?? '';
+        $name = trim($name, '-');
+
+        return $name;
     }
 
     private function objectTypeForMediaType(string $mediaType): string
@@ -4766,7 +4934,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -4789,6 +4957,8 @@ final class OdfReader
             'mathCount' => 0,
             'embeddedObjectCount' => 0,
             'missingEmbeddedObjectCount' => 0,
+            'chartObjectCount' => 0,
+            'chartMetadataCount' => 0,
             'formControlCount' => 0,
             'missingFormControlCount' => 0,
             'sectionCount' => 0,
@@ -4882,6 +5052,12 @@ final class OdfReader
                 $stats['embeddedObjectCount']++;
                 if ($node->attr('exists') !== true) {
                     $stats['missingEmbeddedObjectCount']++;
+                }
+                if ($node->attr('objectType') === 'chart') {
+                    $stats['chartObjectCount']++;
+                    if (is_array($node->attr('chartMetadata'))) {
+                        $stats['chartMetadataCount']++;
+                    }
                 }
             }
             if (($node->type === 'span' || $node->type === 'div') && $this->nodeHasClass($node, 'odf-form-control')) {
