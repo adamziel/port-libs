@@ -208,6 +208,7 @@ final class OdfReader
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
+                    'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                 ],
             ],
         ];
@@ -1961,6 +1962,19 @@ final class OdfReader
      */
     private function contentDeclarationsFromText(\DOMElement $text): array
     {
+        $noteConfigurations = [];
+        $noteConfigurationsByClass = [];
+        foreach (self::childElements($text, 'notes-configuration', self::TEXT_NS) as $configuration) {
+            $entry = $this->noteConfigurationDefinition($configuration);
+            $noteClass = (string) ($entry['noteClass'] ?? '');
+            if ($noteClass === '') {
+                continue;
+            }
+
+            $noteConfigurations[] = $entry;
+            $noteConfigurationsByClass[$noteClass] = $entry;
+        }
+
         $sequenceDeclarations = [];
         $sequenceDecls = self::firstChildElement($text, 'sequence-decls', self::TEXT_NS);
         if ($sequenceDecls instanceof \DOMElement) {
@@ -2027,6 +2041,9 @@ final class OdfReader
         }
 
         return [
+            'noteConfigurationCount' => count($noteConfigurations),
+            'noteConfigurations' => $noteConfigurations,
+            'noteConfigurationsByClass' => $noteConfigurationsByClass,
             'sequenceDeclarationCount' => count($sequenceDeclarations),
             'sequenceDeclarations' => $sequenceDeclarations,
             'variableDeclarationCount' => count($variableDeclarations),
@@ -2034,6 +2051,34 @@ final class OdfReader
             'userFieldDeclarationCount' => count($userFieldDeclarations),
             'userFieldDeclarations' => $userFieldDeclarations,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function noteConfigurationDefinition(\DOMElement $configuration): array
+    {
+        $noteClass = self::attr($configuration, self::TEXT_NS, 'note-class');
+        if ($noteClass === '') {
+            $noteClass = 'footnote';
+        }
+
+        return self::withoutEmpty([
+            'noteClass' => $noteClass,
+            'citationStyleName' => self::nullable(self::attr($configuration, self::TEXT_NS, 'citation-style-name')),
+            'citationBodyStyleName' => self::nullable(self::attr($configuration, self::TEXT_NS, 'citation-body-style-name')),
+            'defaultStyleName' => self::nullable(self::attr($configuration, self::TEXT_NS, 'default-style-name')),
+            'masterPageName' => self::nullable(self::attr($configuration, self::TEXT_NS, 'master-page-name')),
+            'startValue' => self::nullableInt(self::attr($configuration, self::TEXT_NS, 'start-value')),
+            'numFormat' => self::nullable(self::attr($configuration, self::STYLE_NS, 'num-format')),
+            'numPrefix' => self::nullable(self::attr($configuration, self::STYLE_NS, 'num-prefix')),
+            'numSuffix' => self::nullable(self::attr($configuration, self::STYLE_NS, 'num-suffix')),
+            'numLetterSync' => self::nullableBool(self::attr($configuration, self::STYLE_NS, 'num-letter-sync')),
+            'footnotesPosition' => self::nullable(self::attr($configuration, self::TEXT_NS, 'footnotes-position')),
+            'startNumberingAt' => self::nullable(self::attr($configuration, self::TEXT_NS, 'start-numbering-at')),
+            'noteContinuationNoticeForward' => self::nullable(self::attr($configuration, self::TEXT_NS, 'note-continuation-notice-forward')),
+            'noteContinuationNoticeBackward' => self::nullable(self::attr($configuration, self::TEXT_NS, 'note-continuation-notice-backward')),
+        ]);
     }
 
     private function formControlNode(\DOMElement $controlReference, ?\DOMElement $frame, bool $inline): ?AstNode
@@ -3256,8 +3301,27 @@ final class OdfReader
         if ($citation instanceof \DOMElement) {
             $attrs['citation'] = self::normalizedText($citation);
         }
+        $configuration = $this->noteConfigurationForClass($noteClass);
+        if ($configuration !== []) {
+            $attrs['noteConfiguration'] = $configuration;
+        }
 
         return new AstNode('note', $attrs, $blocks);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function noteConfigurationForClass(string $noteClass): array
+    {
+        $configurations = $this->contentDeclarations['noteConfigurationsByClass'] ?? [];
+        if (!is_array($configurations)) {
+            return [];
+        }
+
+        $configuration = $configurations[$noteClass] ?? null;
+
+        return is_array($configuration) ? $configuration : [];
     }
 
     /**

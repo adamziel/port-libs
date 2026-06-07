@@ -1483,6 +1483,101 @@ XML;
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
     },
+    'preserves ODT notes configuration metadata for footnote and endnote review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithNoteConfigurations = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:notes-configuration
+        text:note-class="footnote"
+        text:citation-style-name="Footnote_20_Symbol"
+        text:citation-body-style-name="Footnote_20_anchor"
+        text:default-style-name="Footnote"
+        text:start-value="4"
+        style:num-format="a"
+        style:num-prefix="["
+        style:num-suffix="]"
+        style:num-letter-sync="true"
+        text:footnotes-position="page"
+        text:start-numbering-at="chapter"
+        text:note-continuation-notice-forward="continued on next page"
+        text:note-continuation-notice-backward="continued from previous page"/>
+      <text:notes-configuration
+        text:note-class="endnote"
+        text:citation-style-name="Endnote_20_Symbol"
+        text:citation-body-style-name="Endnote_20_anchor"
+        text:default-style-name="Endnote"
+        text:master-page-name="Endnotes"
+        text:start-value="2"
+        style:num-format="i"
+        style:num-suffix="."/>
+      <text:p>Footnote<text:note text:id="ftn-config" text:note-class="footnote"><text:note-citation>d</text:note-citation><text:note-body><text:p>Configured footnote body.</text:p></text:note-body></text:note> Endnote<text:note text:id="edn-config" text:note-class="endnote"><text:note-citation>ii</text:note-citation><text:note-body><text:p>Configured endnote body.</text:p></text:note-body></text:note></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithNoteConfigurations));
+        $document = $result['document'];
+        $declarations = $result['contentDeclarations'];
+        $documentDeclarations = $document->attr('contentDeclarations');
+        $paragraph = $document->children[0];
+        $footnote = $paragraph->children[1];
+        $endnote = $paragraph->children[3];
+        $footnoteConfiguration = $footnote->attr('noteConfiguration');
+        $endnoteConfiguration = $endnote->attr('noteConfiguration');
+
+        $t->same(2, $declarations['noteConfigurationCount']);
+        $t->same(2, count($declarations['noteConfigurations']));
+        $t->same('footnote', $declarations['noteConfigurations'][0]['noteClass']);
+        $t->same('endnote', $declarations['noteConfigurations'][1]['noteClass']);
+        $t->same('Footnote_20_Symbol', $declarations['noteConfigurationsByClass']['footnote']['citationStyleName']);
+        $t->same('Footnote_20_anchor', $declarations['noteConfigurationsByClass']['footnote']['citationBodyStyleName']);
+        $t->same('Footnote', $declarations['noteConfigurationsByClass']['footnote']['defaultStyleName']);
+        $t->same(4, $declarations['noteConfigurationsByClass']['footnote']['startValue']);
+        $t->same('a', $declarations['noteConfigurationsByClass']['footnote']['numFormat']);
+        $t->same('[', $declarations['noteConfigurationsByClass']['footnote']['numPrefix']);
+        $t->same(']', $declarations['noteConfigurationsByClass']['footnote']['numSuffix']);
+        $t->same(true, $declarations['noteConfigurationsByClass']['footnote']['numLetterSync']);
+        $t->same('page', $declarations['noteConfigurationsByClass']['footnote']['footnotesPosition']);
+        $t->same('chapter', $declarations['noteConfigurationsByClass']['footnote']['startNumberingAt']);
+        $t->same('continued on next page', $declarations['noteConfigurationsByClass']['footnote']['noteContinuationNoticeForward']);
+        $t->same('continued from previous page', $declarations['noteConfigurationsByClass']['footnote']['noteContinuationNoticeBackward']);
+        $t->same('Endnote_20_Symbol', $declarations['noteConfigurationsByClass']['endnote']['citationStyleName']);
+        $t->same('Endnotes', $declarations['noteConfigurationsByClass']['endnote']['masterPageName']);
+        $t->same(2, $declarations['noteConfigurationsByClass']['endnote']['startValue']);
+        $t->same('i', $declarations['noteConfigurationsByClass']['endnote']['numFormat']);
+        $t->same('.', $declarations['noteConfigurationsByClass']['endnote']['numSuffix']);
+
+        $t->same(2, $documentDeclarations['noteConfigurationCount']);
+        $t->same(2, $result['importReport']['content']['noteConfigurationCount']);
+        $t->same('chapter', $result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['startNumberingAt']);
+        $t->same('Endnotes', $result['importReport']['contentDeclarations']['noteConfigurationsByClass']['endnote']['masterPageName']);
+
+        $t->same('note', $footnote->type);
+        $t->same('footnote', $footnote->attr('noteClass'));
+        $t->same('ftn-config', $footnote->attr('id'));
+        $t->same('d', $footnote->attr('citation'));
+        $t->same('Footnote_20_Symbol', $footnoteConfiguration['citationStyleName']);
+        $t->same('page', $footnoteConfiguration['footnotesPosition']);
+        $t->same('chapter', $footnoteConfiguration['startNumberingAt']);
+        $t->same('note', $endnote->type);
+        $t->same('endnote', $endnote->attr('noteClass'));
+        $t->same('edn-config', $endnote->attr('id'));
+        $t->same('ii', $endnote->attr('citation'));
+        $t->same('Endnotes', $endnoteConfiguration['masterPageName']);
+        $t->same('i', $endnoteConfiguration['numFormat']);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocksHtml = (new WordPressBlockWriter())->write($document);
+        $t->contains('[^1]: Configured footnote body.', $markdown);
+        $t->contains('[^2]: Configured endnote body.', $markdown);
+        $t->contains('<li id="fn-1"><p>Configured footnote body.</p>', $blocksHtml);
+        $t->contains('<li id="fn-2"><p>Configured endnote body.</p>', $blocksHtml);
+    },
     'preserves ODT link metadata for Markdown and WordPress review output' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkMetadata = <<<'XML'
 <office:document-content

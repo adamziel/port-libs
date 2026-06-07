@@ -90,6 +90,7 @@ $contentXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
   xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
   xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0"
@@ -98,6 +99,23 @@ $contentXml = <<<'XML'
   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <office:body>
     <office:text>
+      <text:notes-configuration
+        text:note-class="footnote"
+        text:citation-style-name="Footnote_20_Symbol"
+        text:citation-body-style-name="Footnote_20_anchor"
+        text:default-style-name="Footnote"
+        text:start-value="1"
+        style:num-format="1"
+        text:footnotes-position="page"
+        text:start-numbering-at="document"/>
+      <text:notes-configuration
+        text:note-class="endnote"
+        text:citation-style-name="Endnote_20_Symbol"
+        text:citation-body-style-name="Endnote_20_anchor"
+        text:default-style-name="Endnote"
+        text:master-page-name="Endnotes"
+        text:start-value="1"
+        style:num-format="i"/>
       <text:tracked-changes>
         <text:changed-region text:id="chg-add-source-note">
           <text:insertion>
@@ -600,6 +618,11 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
+    }
+    if (($result['importReport']['content']['noteConfigurationCount'] ?? 0) !== 2
+        || ($result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['footnotesPosition'] ?? '') !== 'page'
+        || ($result['importReport']['contentDeclarations']['noteConfigurationsByClass']['endnote']['masterPageName'] ?? '') !== 'Endnotes') {
+        throw new RuntimeException('Expected ODT notes-configuration metadata to be preserved for WordPress review');
     }
     if (($result['importReport']['trackedChanges']['count'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT tracked changes to be reported');
