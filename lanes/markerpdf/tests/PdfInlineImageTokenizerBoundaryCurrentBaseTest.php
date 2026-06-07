@@ -754,6 +754,26 @@ $inlineImageTokenizerPatternTintSampleFloorStrayEiPdf = static function (): stri
         . "%%EOF";
 };
 
+$inlineImageTokenizerDeviceNTintStrayEiPdf = static function (): string {
+    $tints = '0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0';
+    $content = "BT /F1 12 Tf 72 720 Td (Before DeviceN Tint Stray) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI\n"
+        . "/CS10 cs\n"
+        . "{$tints} scn\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible DeviceN Tint Before Stray) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After DeviceN Tint Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /ColorSpace << /CS10 [/DeviceN [/C1 /C2 /C3 /C4 /C5 /C6 /C7 /C8 /C9 /C10] /DeviceCMYK << /FunctionType 4 /Domain [0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 0 >>] >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerShadingStrayEiPdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before Shading Stray) Tj ET\n"
         . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
@@ -1943,6 +1963,29 @@ return [
         $t->true(!str_contains($plainText, 'CSPattern'));
         $t->true(!str_contains($plainText, '0.5 0.25 0.75 /P1 scn'));
         $t->true(!str_contains($plainText, "\x80 EI"));
+    },
+    'closes preview-only fallback before high-component DeviceN tint operands followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerDeviceNTintStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerDeviceNTintStrayEiPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before DeviceN Tint Stray',
+            'Visible DeviceN Tint Before Stray',
+            'Visible After DeviceN Tint Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible DeviceN Tint Before Stray'));
+        $t->true(str_contains($plainText, 'Visible After DeviceN Tint Stray'));
+        $t->true(!str_contains($plainText, 'CS10'));
+        $t->true(!str_contains($plainText, '0.1 0.2 0.3'));
+        $t->true(!str_contains($plainText, "\x80 EI"));
+        $t->true(!str_contains($plainText, 'JBIG2Decode'));
     },
     'closes preview-only fallback before shading paint text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerShadingStrayEiPdf): void {
         $extractor = new PdfTextExtractor();

@@ -10,6 +10,7 @@ final class PdfTextExtractor
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
     private const MAX_FONT_ADVANCE_METRIC = 100000.0;
     private const MAX_CMAP_RANGE_ENTRIES = 4096;
+    private const MAX_GRAPHICS_COLOR_OPERANDS = 16;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
         'CS' => 'ColorSpace',
@@ -35264,7 +35265,7 @@ final class PdfTextExtractor
                 }
 
                 if ($this->numericOperand($token) !== null) {
-                    if (count($outsideTextOperands) >= 6) {
+                    if (count($outsideTextOperands) >= self::MAX_GRAPHICS_COLOR_OPERANDS) {
                         return false;
                     }
 
@@ -35658,7 +35659,11 @@ final class PdfTextExtractor
      */
     private function queueGraphicsColorNameOperand(array &$operands, string $token): bool
     {
-        if (!$this->markedContentTagOperand($token) || $operands === [] || count($operands) >= 9) {
+        if (
+            !$this->markedContentTagOperand($token)
+            || $operands === []
+            || count($operands) > self::MAX_GRAPHICS_COLOR_OPERANDS
+        ) {
             return false;
         }
 
@@ -35835,7 +35840,11 @@ final class PdfTextExtractor
             return true;
         }
 
-        if (!in_array($operator, ['SC', 'sc', 'SCN', 'scn'], true) || $operands === [] || count($operands) > 9) {
+        if (
+            !in_array($operator, ['SC', 'sc', 'SCN', 'scn'], true)
+            || $operands === []
+            || count($operands) > self::MAX_GRAPHICS_COLOR_OPERANDS
+        ) {
             return false;
         }
 
