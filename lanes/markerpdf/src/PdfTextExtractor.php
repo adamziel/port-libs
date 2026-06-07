@@ -12738,8 +12738,14 @@ final class PdfTextExtractor
     private function isImageStreamDictionary(string $dict, array $objects): bool
     {
         $subtype = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Subtype');
-        if ($subtype !== null && $this->pdfNameValueAt($subtype, 0, $objects) === 'Image') {
-            return true;
+        if ($subtype !== null) {
+            $subtypeName = $this->pdfNameValueAt($subtype, 0, $objects);
+            if ($subtypeName === 'Image') {
+                return true;
+            }
+            if ($subtypeName !== null) {
+                return false;
+            }
         }
 
         if (!$this->hasPdfNumberishName($dict, 'Width') || !$this->hasPdfNumberishName($dict, 'Height')) {
