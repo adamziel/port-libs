@@ -33106,7 +33106,7 @@ final class PdfTextExtractor
         foreach ($this->cMapCidMappingBlocks($cmap) as $mappingBlock) {
             if ($mappingBlock['kind'] === 'char') {
                 $this->parseCidChars(
-                    $this->cMapOperatorBlockData($mappingBlock['body']),
+                    $mappingBlock['body'],
                     $cidMap,
                     $mappingBlock['declaredCount'],
                     $mappingBlock['overwrite'],
@@ -33116,7 +33116,7 @@ final class PdfTextExtractor
             }
 
             $this->parseCidRanges(
-                $this->cMapOperatorBlockData($mappingBlock['body']),
+                $mappingBlock['body'],
                 $cidMap,
                 $mappingBlock['declaredCount'],
                 $mappingBlock['overwrite'],
@@ -34031,6 +34031,29 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<array{type: string, value: string}> $tokens
+     */
+    private function cMapMalformedCidRowSlotCount(array $tokens, int $rowArity): int
+    {
+        if ($tokens === [] || $rowArity < 1) {
+            return 0;
+        }
+
+        $onlyIgnoredArrays = true;
+        foreach ($tokens as $token) {
+            if (($token['type'] ?? null) !== 'array') {
+                $onlyIgnoredArrays = false;
+                break;
+            }
+        }
+        if ($onlyIgnoredArrays) {
+            return 0;
+        }
+
+        return $this->cMapMalformedRowSlotCount($tokens, $rowArity);
+    }
+
+    /**
      * @return list<array{type: 'hex'|'literal'|'array'|'other', value: string}>
      */
     private function cMapTopLevelBfRangeTokens(string $source): array
@@ -34090,6 +34113,70 @@ final class PdfTextExtractor
                 $tokens[] = $this->normalizeHexKey($hex) === ''
                     ? ['type' => 'other', 'value' => '']
                     : ['type' => 'hex', 'value' => $hex];
+                continue;
+            }
+
+            $next = $this->skipPdfValueAt($source, $index);
+            $tokens[] = ['type' => 'other', 'value' => ''];
+            $index = $next > $index ? $next : $index + 1;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<array{type: 'hex'|'integer'|'array'|'other', value: string}>
+     */
+    private function cMapTopLevelCidTokens(string $source): array
+    {
+        $tokens = [];
+        $index = 0;
+        $length = strlen($source);
+
+        while ($index < $length) {
+            $char = $source[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($source, $index);
+                continue;
+            }
+
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '[') {
+                $body = $this->readPdfArrayAt($source, $index);
+                if ($body === null) {
+                    break;
+                }
+                $tokens[] = ['type' => 'array', 'value' => $body];
+                $index += strlen($body) + 2;
+                continue;
+            }
+
+            if ($char === '<' && ($source[$index + 1] ?? '') === '<') {
+                $end = $this->pdfDictionaryEndOffset($source, $index);
+                if ($end === null) {
+                    break;
+                }
+                $tokens[] = ['type' => 'other', 'value' => ''];
+                $index = $end + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                $token = $this->readHexToken($source, $index);
+                $hex = substr($token, 1, -1);
+                $tokens[] = $this->normalizeHexKey($hex) === ''
+                    ? ['type' => 'other', 'value' => '']
+                    : ['type' => 'hex', 'value' => $hex];
+                continue;
+            }
+
+            if (preg_match('/\G[+-]?\d+(?=$|[\x00\t\n\f\r \[\]\(\)<>\{\}%\/])/s', $source, $match, 0, $index) === 1) {
+                $tokens[] = ['type' => 'integer', 'value' => $match[0]];
+                $index += strlen($match[0]);
                 continue;
             }
 
@@ -34175,6 +34262,228 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{rows: list<array{source: string, cid: int}>, hasMalformedRows: bool, rowSlots: int}
+     */
+    private function cMapTopLevelCidCharRows(string $source, ?int $declaredCount = null): array
+    {
+        $rows = [];
+        $hasMalformedRows = false;
+        $rowLimit = $declaredCount === null ? null : max(0, $declaredCount);
+        $rowsSeen = 0;
+        $lines = preg_split('/\R/', $source);
+        if ($lines === false) {
+            return [
+                'rows' => [],
+                'hasMalformedRows' => false,
+                'rowSlots' => 0,
+            ];
+        }
+
+        foreach ($lines as $line) {
+            $tokens = $this->cMapTopLevelCidTokens($line);
+            if ($tokens === []) {
+                continue;
+            }
+
+            if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                break;
+            }
+
+            if (!$this->cMapCidCharTokensAreWellFormedRows($tokens)) {
+                $slotCount = $this->cMapMalformedCidRowSlotCount($tokens, 2);
+                if ($slotCount > 0) {
+                    $hasMalformedRows = true;
+                    $rowsSeen += $slotCount;
+                }
+                continue;
+            }
+
+            foreach ($this->cMapCidCharRowsFromTokens($tokens) as $row) {
+                if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                    break 2;
+                }
+                $rows[] = $row;
+                $rowsSeen++;
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'hasMalformedRows' => $hasMalformedRows,
+            'rowSlots' => $rowsSeen,
+        ];
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'integer'|'array'|'other', value: string}> $tokens
+     */
+    private function cMapCidCharTokensAreWellFormedRows(array $tokens): bool
+    {
+        if ($tokens === [] || count($tokens) % 2 !== 0) {
+            return false;
+        }
+
+        for ($index = 0, $count = count($tokens); $index < $count; $index += 2) {
+            if (
+                ($tokens[$index]['type'] ?? null) !== 'hex'
+                || ($tokens[$index + 1]['type'] ?? null) !== 'integer'
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'integer'|'array'|'other', value: string}> $tokens
+     * @return list<array{source: string, cid: int}>
+     */
+    private function cMapCidCharRowsFromTokens(array $tokens): array
+    {
+        $rows = [];
+        for ($index = 0, $count = count($tokens); $index + 1 < $count; $index += 2) {
+            if (($tokens[$index]['type'] ?? null) !== 'hex' || ($tokens[$index + 1]['type'] ?? null) !== 'integer') {
+                continue;
+            }
+
+            $rows[] = [
+                'source' => $tokens[$index]['value'],
+                'cid' => (int) $tokens[$index + 1]['value'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source: string, cid: int}>|null
+     */
+    private function cMapTopLevelCidCharTokenRows(string $source): ?array
+    {
+        $tokens = $this->cMapTopLevelCidTokens($source);
+        if (!$this->cMapCidCharTokensAreWellFormedRows($tokens)) {
+            return null;
+        }
+
+        return $this->cMapCidCharRowsFromTokens($tokens);
+    }
+
+    /**
+     * @return array{ranges: list<array{start: string, end: string, cid: int}>, hasMalformedRows: bool, rowSlots: int}
+     */
+    private function cMapTopLevelCidRangeRows(string $source, ?int $declaredCount = null): array
+    {
+        $ranges = [];
+        $hasMalformedRows = false;
+        $rowLimit = $declaredCount === null ? null : max(0, $declaredCount);
+        $rowsSeen = 0;
+        $lines = preg_split('/\R/', $source);
+        if ($lines === false) {
+            return [
+                'ranges' => [],
+                'hasMalformedRows' => false,
+                'rowSlots' => 0,
+            ];
+        }
+
+        foreach ($lines as $line) {
+            $tokens = $this->cMapTopLevelCidTokens($line);
+            if ($tokens === []) {
+                continue;
+            }
+
+            if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                break;
+            }
+
+            if (!$this->cMapCidRangeTokensAreWellFormedRows($tokens)) {
+                $slotCount = $this->cMapMalformedCidRowSlotCount($tokens, 3);
+                if ($slotCount > 0) {
+                    $hasMalformedRows = true;
+                    $rowsSeen += $slotCount;
+                }
+                continue;
+            }
+
+            foreach ($this->cMapCidRangeRowsFromTokens($tokens) as $range) {
+                if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                    break 2;
+                }
+                $ranges[] = $range;
+                $rowsSeen++;
+            }
+        }
+
+        return [
+            'ranges' => $ranges,
+            'hasMalformedRows' => $hasMalformedRows,
+            'rowSlots' => $rowsSeen,
+        ];
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'integer'|'array'|'other', value: string}> $tokens
+     */
+    private function cMapCidRangeTokensAreWellFormedRows(array $tokens): bool
+    {
+        if ($tokens === [] || count($tokens) % 3 !== 0) {
+            return false;
+        }
+
+        for ($index = 0, $count = count($tokens); $index < $count; $index += 3) {
+            if (
+                ($tokens[$index]['type'] ?? null) !== 'hex'
+                || ($tokens[$index + 1]['type'] ?? null) !== 'hex'
+                || ($tokens[$index + 2]['type'] ?? null) !== 'integer'
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'integer'|'array'|'other', value: string}> $tokens
+     * @return list<array{start: string, end: string, cid: int}>
+     */
+    private function cMapCidRangeRowsFromTokens(array $tokens): array
+    {
+        $ranges = [];
+        for ($index = 0, $count = count($tokens); $index + 2 < $count; $index += 3) {
+            if (
+                ($tokens[$index]['type'] ?? null) !== 'hex'
+                || ($tokens[$index + 1]['type'] ?? null) !== 'hex'
+                || ($tokens[$index + 2]['type'] ?? null) !== 'integer'
+            ) {
+                continue;
+            }
+
+            $ranges[] = [
+                'start' => $tokens[$index]['value'],
+                'end' => $tokens[$index + 1]['value'],
+                'cid' => (int) $tokens[$index + 2]['value'],
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @return list<array{start: string, end: string, cid: int}>|null
+     */
+    private function cMapTopLevelCidRangeTokenRows(string $source): ?array
+    {
+        $tokens = $this->cMapTopLevelCidTokens($source);
+        if (!$this->cMapCidRangeTokensAreWellFormedRows($tokens)) {
+            return null;
+        }
+
+        return $this->cMapCidRangeRowsFromTokens($tokens);
+    }
+
+    /**
      * @param array<string, int> $cidMap
      */
     private function parseCidChars(
@@ -34185,18 +34494,21 @@ final class PdfTextExtractor
         array $cidRanges = []
     ): void
     {
-        $block = $this->cMapCidOperatorBlockData($block);
-        if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)(?=$|[\x00\t\n\f\r \[\]\(\)<>\{\}%\/])/s', $block, $entries, PREG_SET_ORDER)) {
+        $rowEntries = $this->cMapTopLevelCidCharRows($block, $declaredCount);
+        $tokenRows = $rowEntries['hasMalformedRows']
+            ? $this->cMapTopLevelCidCharTokenRows($block)
+            : null;
+        $entries = $tokenRows ?? $rowEntries['rows'];
+        if ($tokenRows !== null && $declaredCount !== null) {
+            $entries = array_slice($entries, 0, max(0, $declaredCount));
+        }
+        if ($declaredCount !== null && ($rowEntries['rowSlots'] ?? count($entries)) < max(0, $declaredCount)) {
             return;
         }
 
-        if ($declaredCount !== null) {
-            $entries = array_slice($entries, 0, max(0, $declaredCount));
-        }
-
         foreach ($entries as $entry) {
-            $source = $this->normalizeHexKey($entry[1]);
-            $cid = (int) $entry[2];
+            $source = $this->normalizeHexKey($entry['source']);
+            $cid = $entry['cid'];
             if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
                 if (
                     !$overwrite
@@ -34226,25 +34538,28 @@ final class PdfTextExtractor
         ?array &$cidRanges = null
     ): void
     {
-        $block = $this->cMapCidOperatorBlockData($block);
-        if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)(?=$|[\x00\t\n\f\r \[\]\(\)<>\{\}%\/])/s', $block, $ranges, PREG_SET_ORDER)) {
+        $rowRanges = $this->cMapTopLevelCidRangeRows($block, $declaredCount);
+        $tokenRanges = $rowRanges['hasMalformedRows']
+            ? $this->cMapTopLevelCidRangeTokenRows($block)
+            : null;
+        $ranges = $tokenRanges ?? $rowRanges['ranges'];
+        if ($tokenRanges !== null && $declaredCount !== null) {
+            $ranges = array_slice($ranges, 0, max(0, $declaredCount));
+        }
+        if ($declaredCount !== null && ($rowRanges['rowSlots'] ?? count($ranges)) < max(0, $declaredCount)) {
             return;
         }
 
-        if ($declaredCount !== null) {
-            $ranges = array_slice($ranges, 0, max(0, $declaredCount));
-        }
-
         foreach ($ranges as $range) {
-            $start = $this->normalizeHexKey($range[1]);
-            $end = $this->normalizeHexKey($range[2]);
+            $start = $this->normalizeHexKey($range['start']);
+            $end = $this->normalizeHexKey($range['end']);
             if ($start === '' || $end === '' || strlen($start) !== strlen($end)) {
                 continue;
             }
 
             $source = hexdec($start);
             $last = hexdec($end);
-            $cid = (int) $range[3];
+            $cid = $range['cid'];
             $sourceWidth = strlen($start);
             if ($cid < 0 || $cid > 0xffff || $source < 0 || $last < $source) {
                 continue;
