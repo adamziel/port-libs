@@ -430,6 +430,15 @@ final class PdfXrefFreeObjectMap
         }
 
         $sectionBodyOffset = $offset + strlen('xref');
+        if ($sectionBodyOffset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        $afterKeyword = $pdfBytes[$sectionBodyOffset];
+        if ($afterKeyword !== '%' && !self::isPdfWhitespace($afterKeyword)) {
+            return null;
+        }
+
         $trailerOffset = self::keywordOffset($pdfBytes, 'trailer', $sectionBodyOffset);
         if ($trailerOffset === null) {
             return null;
