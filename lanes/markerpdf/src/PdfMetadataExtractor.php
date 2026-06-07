@@ -9181,15 +9181,16 @@ final class PdfMetadataExtractor
             'R' => 'revision',
             'Length' => 'key_length_bits',
         ] as $pdfName => $metadataKey) {
-            $values = $this->dictionaryTopLevelRawValues($dictionary, $pdfName);
-            $entryCount = count($values);
+            $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, $pdfName);
+            $entryCount = count($valueReviews);
             if ($entryCount === 0) {
                 continue;
             }
 
             $entryCounts[$pdfName] = $entryCount;
             $entries = [];
-            foreach ($values as $index => $value) {
+            foreach ($valueReviews as $index => $valueReview) {
+                $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
                 $resolved = $this->resolvePdfValue($value, $objects);
                 $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
                 $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
@@ -9201,7 +9202,17 @@ final class PdfMetadataExtractor
                 if ($pdfName === 'Filter' && $operandShape === 'name' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $valueForReview, $match) === 1) {
                     $nameValue = $this->decodePdfName($match[1]);
                 }
-                $entries[] = [
+                $trailingOperand = ($valueReview['trailing_operand'] ?? false) === true;
+                $status = $trailingOperand
+                    ? 'standard_security_handler_parameter_trailing_operand_review'
+                    : $this->standardSecurityHandlerParameterEntryStatus(
+                        $pdfName,
+                        $value,
+                        $valueForReview,
+                        $operandShape,
+                        $resolved !== null
+                    );
+                $entry = [
                     'source' => 'standard_security_handler_parameter_entry_review',
                     'index' => $index,
                     'pdf_name' => $pdfName,
@@ -9211,15 +9222,14 @@ final class PdfMetadataExtractor
                     'integer' => $integerValue !== null,
                     'integer_value' => $integerValue,
                     'name_value' => $nameValue,
-                    'status' => $this->standardSecurityHandlerParameterEntryStatus(
-                        $pdfName,
-                        $value,
-                        $valueForReview,
-                        $operandShape,
-                        $resolved !== null
-                    ),
+                    'single_value' => ($valueReview['single_value'] ?? true) === true,
+                    'status' => $status,
                     'review_only' => true,
                 ];
+                if ($trailingOperand) {
+                    $entry += $this->topLevelTrailingOperandReviewFromValueReview($valueReview);
+                }
+                $entries[] = $entry;
             }
 
             $duplicate = $entryCount > 1;
