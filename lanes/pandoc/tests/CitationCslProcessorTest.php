@@ -7729,13 +7729,13 @@ XML
 
         $numeric = new AstNode('citation', ['id' => 'numeric-source', 'text' => '[@numeric-source]', 'locator' => 'p. 12-14']);
         $alpha = new AstNode('citation', ['id' => 'alpha-source', 'text' => '[@alpha-source]', 'locator' => 'appendix A']);
-        $t->same('(de la Cruz, pp. 12–14; Archive Team, loc appendix A)', $processor->renderCitationCluster([$numeric, $alpha]));
+        $t->same('(de la Cruz, pp. 12–14; Archive Team, loc A)', $processor->renderCitationCluster([$numeric, $alpha]));
         $t->same('Numeric Packet. nos. 2nd-4th.', $processor->renderBibliographyEntry('numeric-source'));
         $t->same('Alpha Packet. review number Appendix A.', $processor->renderBibliographyEntry('alpha-source'));
 
         $document = (new MarkdownReader())->read('Review cites [@numeric-source, p. 12-14; @alpha-source, appendix A] while preserving numeric source checks.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Review cites (de la Cruz, pp. 12–14; Archive Team, loc appendix A) while preserving numeric source checks.</p>', $blocks);
+        $t->contains('<p>Review cites (de la Cruz, pp. 12–14; Archive Team, loc A) while preserving numeric source checks.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>', $blocks);
         $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. review number Appendix A.</dd>', $blocks);
     },
@@ -8259,6 +8259,91 @@ XML
             </style>
 XML
         ));
+    },
+    'applies bounded csl extended locator labels and markdown inference' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'extended-locator-source',
+                'type' => 'report',
+                'title' => 'Extended Locator Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Extended Locator Label Review Style</title>
+    <id>https://example.test/styles/extended-locator-label-review</id>
+    <updated>2026-06-07T13:50:17+00:00</updated>
+  </info>
+  <macro name="locator-route">
+    <choose>
+      <if locator="appendix equation figure line note table" match="any">
+        <group delimiter=" ">
+          <text value="extended"/>
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+      <else>
+        <text variable="locator" prefix="fallback "/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <text macro="locator-route"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(['appendix', 'equation', 'figure', 'line', 'note', 'table'], $summary['macros']['locator-route'][0]['branches'][0]['locators'] ?? null);
+
+        $document = (new MarkdownReader())->read('Extended locators [@extended-locator-source, fig. 2; @extended-locator-source, table 4-5; @extended-locator-source, appendix A; @extended-locator-source, note 7; @extended-locator-source, line 10-12].');
+        $cluster = $document->children[0]->children[1];
+        $t->same('figure', $cluster->children[0]->attr('locatorLabel'));
+        $t->same('2', $cluster->children[0]->attr('locatorValue'));
+        $t->same('table', $cluster->children[1]->attr('locatorLabel'));
+        $t->same('4-5', $cluster->children[1]->attr('locatorValue'));
+        $t->same('appendix', $cluster->children[2]->attr('locatorLabel'));
+        $t->same('A', $cluster->children[2]->attr('locatorValue'));
+        $t->same('note', $cluster->children[3]->attr('locatorLabel'));
+        $t->same('7', $cluster->children[3]->attr('locatorValue'));
+        $t->same('line', $cluster->children[4]->attr('locatorLabel'));
+        $t->same('10-12', $cluster->children[4]->attr('locatorValue'));
+
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $processedCluster = $processed->children[0]->children[1];
+        $t->same('(Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12)', $processedCluster->attr('rendered'));
+
+        $direct = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'extended-locator-source', 'text' => '[@extended-locator-source]', 'locatorLabel' => 'fig.', 'locatorValue' => '8']),
+            new AstNode('citation', ['id' => 'extended-locator-source', 'text' => '[@extended-locator-source]', 'locatorLabel' => 'eq.', 'locatorValue' => '3-4']),
+        ]);
+        $t->same('(Smith, extended fig. 8; Smith, extended eqs. 3–4)', $direct);
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Extended locators (Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12).', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Extended locators (Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12).</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Extended Locator Packet.</dd>', $blocks);
     },
     'applies bounded csl locator range delimiter rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

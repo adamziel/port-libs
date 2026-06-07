@@ -7405,10 +7405,19 @@ final class CitationCslProcessor
         $locator = trim(preg_replace('/\s+/u', ' ', $locator) ?? $locator);
         $patterns = [
             'page' => '/^(?:p(?:p)?\.?|pages?)\s+(.+)$/iu',
+            'appendix' => '/^(?:app(?:endices|endixes|s)?\.?|appendix|appendices|appendixes)\s+(.+)$/iu',
             'chapter' => '/^(?:chap(?:ters?|s)?\.?|chapter(?:s)?)\s+(.+)$/iu',
+            'column' => '/^(?:col(?:umns?|s)?\.?|column(?:s)?)\s+(.+)$/iu',
+            'equation' => '/^(?:eq(?:uations?|s)?\.?|equation(?:s)?)\s+(.+)$/iu',
+            'figure' => '/^(?:fig(?:ures?|s)?\.?|figure(?:s)?)\s+(.+)$/iu',
+            'line' => '/^(?:l(?:ines?|s)?\.?|line(?:s)?)\s+(.+)$/iu',
+            'note' => '/^(?:n(?:otes?|s)?\.?|note(?:s)?)\s+(.+)$/iu',
             'section' => '/^(?:sec(?:tions?|s)?\.?|section(?:s)?|\x{00A7}\x{00A7}?)\s+(.+)$/iu',
             'paragraph' => '/^(?:para(?:graphs?|s)?\.?|paragraph(?:s)?|\x{00B6}\x{00B6}?)\s+(.+)$/iu',
+            'table' => '/^(?:tbl(?:s)?\.?|table(?:s)?)\s+(.+)$/iu',
+            'verse' => '/^(?:v(?:erses?|s)?\.?|verse(?:s)?)\s+(.+)$/iu',
             'volume' => '/^(?:vol(?:umes?|s)?\.?|volume(?:s)?)\s+(.+)$/iu',
+            'issue' => '/^(?:iss(?:ues?|s)?\.?|issue(?:s)?)\s+(.+)$/iu',
             'number' => '/^(?:no(?:s)?\.?|number(?:s)?)\s+(.+)$/iu',
         ];
 
@@ -7425,14 +7434,25 @@ final class CitationCslProcessor
     {
         $label = strtolower(trim($label));
         $label = str_replace(['_', ' '], '-', $label);
+        $label = rtrim($label, '.');
 
         return match ($label) {
             'p', 'pp', 'page', 'pages' => 'page',
+            'app', 'apps', 'appendix', 'appendices', 'appendixes' => 'appendix',
             'chap', 'chaps', 'chapter', 'chapters' => 'chapter',
+            'col', 'cols', 'column', 'columns' => 'column',
+            'eq', 'eqs', 'equation', 'equations' => 'equation',
+            'fig', 'figs', 'figure', 'figures' => 'figure',
+            'l', 'll', 'line', 'lines' => 'line',
+            'n', 'nn', 'note', 'notes' => 'note',
             'sec', 'secs', 'section', 'sections', "\u{00A7}", "\u{00A7}\u{00A7}" => 'section',
             'para', 'paras', 'paragraph', 'paragraphs', "\u{00B6}", "\u{00B6}\u{00B6}" => 'paragraph',
+            'tbl', 'tbls', 'table', 'tables' => 'table',
+            'v', 'vv', 'verse', 'verses' => 'verse',
             'vol', 'vols', 'volume', 'volumes' => 'volume',
+            'iss', 'isses', 'issue', 'issues' => 'issue',
             'no', 'nos', 'number', 'numbers' => 'number',
+            'sv', 's.v', 'sub-verbo', 'sub-verbum' => 'sub-verbo',
             default => $label === '' ? 'page' : $label,
         };
     }
