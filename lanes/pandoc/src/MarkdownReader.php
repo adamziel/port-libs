@@ -8,6 +8,7 @@ final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
     private const SUPPORTED_YAML_METADATA_VERSIONS = ['1.1', '1.2'];
+    private const YAML_TAG_SUFFIX_PATTERN = '[A-Za-z0-9_.:\/\?#@!$&()*+;=%~-]+';
 
     /** @var array<string, array{url:string, title:string}> */
     private array $referenceLinks = [];
@@ -3088,7 +3089,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if (preg_match('/^(![A-Za-z0-9_.-]*!)([A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1) {
+            if (preg_match('/^(![A-Za-z0-9_.-]*!)(' . self::YAML_TAG_SUFFIX_PATTERN . ')(?=$|[ \t])/', $value, $m) === 1) {
                 $tags[] = $this->expandYamlTagHandle($m[1], $m[2], $m[0]);
                 $value = ltrim(substr($value, strlen($m[0])));
                 continue;
@@ -3096,14 +3097,14 @@ final class MarkdownReader
 
             if (
                 array_key_exists('!', $this->yamlMetadataTagHandles)
-                && preg_match('/^!([A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1
+                && preg_match('/^!(' . self::YAML_TAG_SUFFIX_PATTERN . ')(?=$|[ \t])/', $value, $m) === 1
             ) {
                 $tags[] = $this->expandYamlTagHandle('!', $m[1], $m[0]);
                 $value = ltrim(substr($value, strlen($m[0])));
                 continue;
             }
 
-            if (preg_match('/^(!{1,2}[A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1) {
+            if (preg_match('/^(!{1,2}' . self::YAML_TAG_SUFFIX_PATTERN . ')(?=$|[ \t])/', $value, $m) === 1) {
                 $tags[] = $m[1];
                 $value = ltrim(substr($value, strlen($m[0])));
                 continue;

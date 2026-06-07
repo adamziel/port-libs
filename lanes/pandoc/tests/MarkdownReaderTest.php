@@ -2656,6 +2656,54 @@ return [
         $t->same('tag-directive-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-directive-yaml-body">Tag directive YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml tag directive URI suffixes in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '%TAG ! tag:primary.example,2026:review/',
+            '%TAG !wp! tag:example.test,2026:review/',
+            'title: Tag URI suffix **Packet**',
+            'review:',
+            '  owner: !wp!source%2Fowner Import Desk',
+            '  source-uri: !wp!source?kind=uri https://example.test/export#front-matter',
+            '  fragment-owner: !wp!source#fragment Fragment Desk',
+            '  primary-owner: !source%2Fprimary Primary Desk',
+            '  scoped: !wp!source;kind=review&draft=false Scoped Desk',
+            'flow-review: {owner: !wp!flow%2Fowner Flow Desk, ? !wp!key%2Fsource "source:key": !wp!value?kind=flow metadata value}',
+            '...',
+            '',
+            '# Tag URI suffix body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $tags = array_column($provenance, 'tag');
+        $paths = array_column($provenance, 'path');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Tag URI suffix **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('https://example.test/export#front-matter', $meta['review']['source-uri']);
+        $t->same('Fragment Desk', $meta['review']['fragment-owner']);
+        $t->same('Primary Desk', $meta['review']['primary-owner']);
+        $t->same('Scoped Desk', $meta['review']['scoped']);
+        $t->same('Flow Desk', $meta['flow-review']['owner']);
+        $t->same('metadata value', $meta['flow-review']['source:key']);
+        $t->same(false, str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wp!source'));
+        $t->true(in_array('!<tag:example.test,2026:review/source%2Fowner>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:review/source?kind=uri>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:review/source#fragment>', $tags, true));
+        $t->true(in_array('!<tag:primary.example,2026:review/source%2Fprimary>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:review/source;kind=review&draft=false>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:review/flow%2Fowner>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:review/key%2Fsource>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:review/value?kind=flow>', $tags, true));
+        foreach (['/review/owner', '/review/source-uri', '/review/fragment-owner', '/review/primary-owner', '/review/scoped', '/flow-review/owner', '/flow-review/source:key'] as $expectedPath) {
+            $t->true(in_array($expectedPath, $paths, true), 'missing URI suffix tag provenance path ' . $expectedPath);
+        }
+        $t->same('heading', $document->children[0]->type);
+        $t->same('tag-uri-suffix-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="tag-uri-suffix-body">Tag URI suffix body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
