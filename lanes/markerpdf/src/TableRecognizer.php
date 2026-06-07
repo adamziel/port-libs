@@ -2086,12 +2086,14 @@ final class TableRecognizer
             ['row_bboxes', 'row_boxes', 'row_bounds']
         );
 
-        return $this->canonicalizedRecognizedTableGeometryAlias(
+        $table = $this->canonicalizedRecognizedTableGeometryAlias(
             $table,
             'cols',
             'cols_source_alias',
             ['columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes']
         );
+
+        return $this->canonicalizedRecognizedTableRowsColsContainer($table);
     }
 
     /**
@@ -2119,6 +2121,217 @@ final class TableRecognizer
         }
 
         return $table;
+    }
+
+    /**
+     * Upstream tabled ExtractPageResult keeps recognizer bands in rows_cols
+     * TableResult objects. A supplied sidecar may pass one table record with
+     * that TableResult still nested, so expose its rows/cols before assignment.
+     *
+     * @param array<string, mixed> $table
+     * @return array<string, mixed>
+     */
+    private function canonicalizedRecognizedTableRowsColsContainer(array $table): array
+    {
+        $rowsCols = $table['rows_cols'] ?? null;
+        if (!is_array($rowsCols)) {
+            return $table;
+        }
+
+        $source = $this->singleRowsColsGeometryContainer($rowsCols);
+        if ($source === null) {
+            return $table;
+        }
+
+        /** @var array<string, mixed> $container */
+        $container = $source['container'];
+        $prefix = $source['prefix'];
+
+        foreach (['rows', 'cols'] as $field) {
+            if (isset($table[$field]) && is_array($table[$field])) {
+                continue;
+            }
+
+            $records = $this->rowsColsGeometryRecords($container, $field);
+            if ($records === null) {
+                continue;
+            }
+
+            $table[$field] = $records['records'];
+            $sourceAliasKey = $field . '_source_alias';
+            if (!isset($table[$sourceAliasKey])) {
+                $table[$sourceAliasKey] = $prefix . '.' . $records['alias'];
+            }
+            $table = $this->withRowsColsGeometryMetadata($table, $container, $field);
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string|int, mixed> $rowsCols
+     * @return array{container: array<string, mixed>, prefix: string}|null
+     */
+    private function singleRowsColsGeometryContainer(array $rowsCols): ?array
+    {
+        if ($this->rowsColsGeometryContainerHasRecords($rowsCols)) {
+            /** @var array<string, mixed> $rowsCols */
+            return [
+                'container' => $rowsCols,
+                'prefix' => 'rows_cols',
+            ];
+        }
+
+        $first = $rowsCols[0] ?? null;
+        if (!array_is_list($rowsCols) || count($rowsCols) !== 1 || !is_array($first)) {
+            return null;
+        }
+
+        if (!$this->rowsColsGeometryContainerHasRecords($first)) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $first */
+        return [
+            'container' => $first,
+            'prefix' => 'rows_cols.0',
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $container
+     */
+    private function rowsColsGeometryContainerHasRecords(array $container): bool
+    {
+        return $this->rowsColsGeometryRecords($container, 'rows') !== null
+            || $this->rowsColsGeometryRecords($container, 'cols') !== null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $container
+     * @return array{alias: string, records: array<int|string, mixed>}|null
+     */
+    private function rowsColsGeometryRecords(array $container, string $field): ?array
+    {
+        foreach ($this->rowsColsGeometryAliases($field) as $alias) {
+            if (!isset($container[$alias]) || !is_array($container[$alias])) {
+                continue;
+            }
+
+            return [
+                'alias' => $alias,
+                'records' => $container[$alias],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function rowsColsGeometryAliases(string $field): array
+    {
+        if ($field === 'rows') {
+            return ['rows', 'row_bboxes', 'row_boxes', 'row_bounds'];
+        }
+
+        return ['cols', 'columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes'];
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param array<string, mixed> $container
+     * @return array<string, mixed>
+     */
+    private function withRowsColsGeometryMetadata(array $table, array $container, string $field): array
+    {
+        if (!$this->tableHasAnyScalarKey($table, $this->tableGeometryCoordinateSpaceKeys($field))) {
+            $space = $this->rowsColsGeometryCoordinateSpace($container, $field);
+            if ($space !== null) {
+                $table[$field . '_coordinate_space'] = $space;
+            }
+        }
+
+        if (!$this->tableHasAnyScalarKey($table, $this->tableGeometryCoordinateOrderKeys($field))) {
+            $order = $this->rowsColsGeometryCoordinateOrder($container, $field);
+            if ($order !== null) {
+                $table[$field . '_bbox_order'] = $order;
+            }
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param list<string> $keys
+     */
+    private function tableHasAnyScalarKey(array $table, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if (isset($table[$key]) && is_scalar($table[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $container
+     */
+    private function rowsColsGeometryCoordinateSpace(array $container, string $field): ?string
+    {
+        foreach ($this->tableGeometryCoordinateSpaceKeys($field) as $key) {
+            if (isset($container[$key]) && is_scalar($container[$key])) {
+                return $this->normalizeCoordinateSpace((string) $container[$key]);
+            }
+        }
+
+        foreach (['geometry_coordinate_space', 'bbox_coordinate_space', 'coordinate_space', 'geometry_space'] as $key) {
+            if (isset($container[$key]) && is_scalar($container[$key])) {
+                return $this->normalizeCoordinateSpace((string) $container[$key]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $container
+     */
+    private function rowsColsGeometryCoordinateOrder(array $container, string $field): ?string
+    {
+        foreach ($this->tableGeometryCoordinateOrderKeys($field) as $key) {
+            if (!isset($container[$key]) || !is_scalar($container[$key])) {
+                continue;
+            }
+
+            $source = $this->normalizeBboxCoordinateOrderLabel((string) $container[$key]);
+            if ($this->canonicalBboxCoordinateOrder($source) !== null) {
+                return $source;
+            }
+        }
+
+        foreach ([
+            'bbox_order',
+            'bbox_coordinate_order',
+            'bbox_coordinate_format',
+            'bbox_format',
+            'coordinate_order',
+        ] as $key) {
+            if (!isset($container[$key]) || !is_scalar($container[$key])) {
+                continue;
+            }
+
+            $source = $this->normalizeBboxCoordinateOrderLabel((string) $container[$key]);
+            if ($this->canonicalBboxCoordinateOrder($source) !== null) {
+                return $source;
+            }
+        }
+
+        return null;
     }
 
     /**
