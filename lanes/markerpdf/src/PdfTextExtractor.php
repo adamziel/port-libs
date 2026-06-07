@@ -22249,12 +22249,22 @@ final class PdfTextExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
-        if (count($numbers) < 6) {
+        $items = $this->pdfArrayItems($arrayBody);
+        if (count($items) < 6) {
             return null;
         }
 
-        return array_slice($numbers, 0, 6);
+        $numbers = [];
+        for ($index = 0; $index < 6; $index++) {
+            $number = $this->pdfNumberValueAt($items[$index], 0, $objects);
+            if ($number === null || !is_finite($number)) {
+                return null;
+            }
+
+            $numbers[] = $number;
+        }
+
+        return $numbers;
     }
 
     /**
