@@ -20869,7 +20869,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            return $this->dictionaryObjectBody($objectBody);
+            return $this->singleDictionaryObjectBody($objectBody);
         }
 
         $dictionaryOffset = 0;
