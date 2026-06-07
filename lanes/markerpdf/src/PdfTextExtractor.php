@@ -27967,10 +27967,11 @@ final class PdfTextExtractor
     }
 
     /**
-     * Some incremental writers append same-generation direct replacements and
-     * omit their rows from the latest xref section. If the latest trailer names
-     * those replacements through /Root, /Info, or /Encrypt, recover only omitted
-     * rows in the current update window before inheriting stale /Prev rows.
+     * Some incremental writers append same-generation replacements and omit
+     * their rows from the latest xref section. If the latest trailer names
+     * those replacements through /Root, /Info, or /Encrypt, recover only
+     * reachable direct rows or generation-zero object-stream members in the
+     * current update window before inheriting stale /Prev rows.
      *
      * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
@@ -27998,13 +27999,26 @@ final class PdfTextExtractor
         foreach (['Root', 'Info', 'Encrypt'] as $name) {
             $reference = $this->objectReferenceAfterName($sectionBody, $name);
             if ($reference !== null) {
-                $pending[] = $reference;
+                $pending[] = [
+                    'reference' => $reference,
+                    'source' => 'trailer',
+                ];
             }
         }
 
         $seen = [];
         while ($pending !== [] && count($seen) < 128) {
-            $reference = array_shift($pending);
+            $pendingItem = array_shift($pending);
+            if (!is_array($pendingItem)) {
+                continue;
+            }
+
+            $reference = $pendingItem['reference'] ?? $pendingItem;
+            if (!is_array($reference)) {
+                continue;
+            }
+
+            $source = is_string($pendingItem['source'] ?? null) ? $pendingItem['source'] : 'direct';
             $objectNumber = $reference['objectNumber'];
             $generation = $reference['generation'];
             if ($objectNumber <= 0 || $generation < 0) {
@@ -28029,7 +28043,10 @@ final class PdfTextExtractor
                 if ($definition !== null) {
                     $body = $this->dictionaryObjectBody($definition['body']) ?? $definition['body'];
                     foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
-                        $pending[] = $nestedReference;
+                        $pending[] = [
+                            'reference' => $nestedReference,
+                            'source' => 'direct',
+                        ];
                     }
                 } else {
                     $memberBody = $this->currentUpdateObjectStreamMemberBodyForExistingGraphEntry(
@@ -28044,7 +28061,10 @@ final class PdfTextExtractor
                     if ($memberBody !== null) {
                         $body = $this->dictionaryObjectBody($memberBody) ?? $memberBody;
                         foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
-                            $pending[] = $nestedReference;
+                            $pending[] = [
+                                'reference' => $nestedReference,
+                                'source' => 'compressed',
+                            ];
                         }
                     }
                 }
@@ -28059,20 +28079,48 @@ final class PdfTextExtractor
                 $currentXrefOffset,
                 $definitions
             );
-            if ($definition === null) {
+            if ($definition !== null) {
+                $entries[$objectNumber] = [
+                    'type' => 1,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'offsetIsExplicit' => true,
+                ];
+
+                $body = $this->dictionaryObjectBody($definition['body']) ?? $definition['body'];
+                foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
+                    $pending[] = [
+                        'reference' => $nestedReference,
+                        'source' => 'direct',
+                    ];
+                }
+
                 continue;
             }
 
-            $entries[$objectNumber] = [
-                'type' => 1,
-                'generation' => $definition['generation'],
-                'offset' => $definition['offset'],
-                'offsetIsExplicit' => true,
-            ];
+            if ($source !== 'compressed') {
+                continue;
+            }
 
-            $body = $this->dictionaryObjectBody($definition['body']) ?? $definition['body'];
+            $compressedMember = $this->currentUpdateObjectStreamMemberEntryForGraphReference(
+                $objectNumber,
+                $generation,
+                $entries,
+                $previousOffset,
+                $currentXrefOffset,
+                $definitions
+            );
+            if ($compressedMember === null) {
+                continue;
+            }
+
+            $entries[$objectNumber] = $compressedMember['entry'];
+            $body = $this->dictionaryObjectBody($compressedMember['body']) ?? $compressedMember['body'];
             foreach ($this->pdfObjectReferencePairs($body) as $nestedReference) {
-                $pending[] = $nestedReference;
+                $pending[] = [
+                    'reference' => $nestedReference,
+                    'source' => 'compressed',
+                ];
             }
         }
 
@@ -28167,6 +28215,87 @@ final class PdfTextExtractor
         }
 
         return $body;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{entry: array{type: int, objectStream: int, objectStreamIsExplicit: bool, index: int, indexIsExplicit: bool}, body: string}|null
+     */
+    private function currentUpdateObjectStreamMemberEntryForGraphReference(
+        int $objectNumber,
+        int $generation,
+        array $entries,
+        int $previousOffset,
+        int $currentXrefOffset,
+        array $definitions
+    ): ?array {
+        if ($objectNumber <= 0 || $generation !== 0) {
+            return null;
+        }
+
+        $candidates = [];
+        foreach ($entries as $carrierObjectNumber => $carrierEntry) {
+            if (($carrierEntry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            $carrierDefinition = $this->xrefEntrySelectedDirectDefinition((int) $carrierObjectNumber, $carrierEntry, $definitions);
+            if (
+                $carrierDefinition === null
+                || $carrierDefinition['offset'] <= $previousOffset
+                || $carrierDefinition['offset'] >= $currentXrefOffset
+                || !$this->objectBodyHasTypeName($carrierDefinition['body'], 'ObjStm')
+            ) {
+                continue;
+            }
+
+            $memberTable = $this->decodedObjectStreamMemberTable($carrierDefinition['body'], []);
+            if ($memberTable === null) {
+                continue;
+            }
+
+            if (($this->objectStreamMemberObjectNumberCounts($memberTable['members'])[$objectNumber] ?? 0) !== 1) {
+                continue;
+            }
+
+            $member = null;
+            foreach ($memberTable['members'] as $candidate) {
+                if ($candidate['objectNumber'] === $objectNumber) {
+                    $member = $candidate;
+                    break;
+                }
+            }
+            if ($member === null) {
+                continue;
+            }
+
+            if (($this->objectStreamMemberOffsetCounts($memberTable['members'])[$member['offset']] ?? 0) > 1) {
+                continue;
+            }
+
+            $body = $this->objectStreamMemberBody($memberTable, $member);
+            if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+                continue;
+            }
+
+            $candidates[] = [
+                'entry' => [
+                    'type' => 2,
+                    'objectStream' => (int) $carrierObjectNumber,
+                    'objectStreamIsExplicit' => true,
+                    'index' => $member['index'],
+                    'indexIsExplicit' => true,
+                ],
+                'body' => $body,
+            ];
+        }
+
+        if (count($candidates) !== 1) {
+            return null;
+        }
+
+        return $candidates[0];
     }
 
     /**
