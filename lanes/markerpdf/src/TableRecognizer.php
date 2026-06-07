@@ -2942,11 +2942,13 @@ final class TableRecognizer
             if ($this->isNormalizedPageImageCoordinateSpace($recordSpace)) {
                 $bbox = $this->nullableBboxFromRecord($conflict);
                 if ($bbox !== null) {
+                    $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
                     $pageImageBbox = $this->unnormalizedTableBbox($bbox, $pageImageSize);
                     $conflict['source_bbox'] = $bbox;
                     $conflict['source_page_image_bbox'] = $pageImageBbox;
-                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
-                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                    $conflict['source_coordinate_source'] = $sourceCoordinateSource;
+                    $conflict['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
                     $conflict['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
                 }
                 $conflict['source_coordinate_space'] = $recordSpace;
@@ -2956,9 +2958,11 @@ final class TableRecognizer
             } elseif ($this->isNormalizedTableCoordinateSpace($recordSpace)) {
                 $bbox = $this->nullableBboxFromRecord($conflict);
                 if ($bbox !== null) {
+                    $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
                     $conflict['source_bbox'] = $bbox;
-                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
-                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                    $conflict['source_coordinate_source'] = $sourceCoordinateSource;
+                    $conflict['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
                     $conflict['bbox'] = $this->unnormalizedTableBbox($bbox, $imageSize);
                 }
                 $conflict['source_coordinate_space'] = $recordSpace;
@@ -2967,9 +2971,11 @@ final class TableRecognizer
             } elseif ($this->isPageImageCoordinateSpace($recordSpace)) {
                 $bbox = $this->nullableBboxFromRecord($conflict);
                 if ($bbox !== null) {
+                    $sourceCoordinateSource = $this->bboxCoordinateSourceFromRecord($conflict);
+                    $sourceEndpointOrderNormalized = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
                     $conflict['source_bbox'] = $bbox;
-                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
-                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                    $conflict['source_coordinate_source'] = $sourceCoordinateSource;
+                    $conflict['source_endpoint_order_normalized'] = $sourceEndpointOrderNormalized;
                     $conflict['bbox'] = $this->translatedBbox($bbox, $dx, $dy);
                 }
                 $conflict['source_coordinate_space'] = $recordSpace;
@@ -6761,7 +6767,7 @@ final class TableRecognizer
      */
     private function sourceBboxFromRecord(array $record): ?array
     {
-        foreach (['source_bbox', 'source_page_image_bbox'] as $key) {
+        foreach ($this->sourceGeometryFallbackKeys() as $key) {
             $bbox = $this->bboxFromValue($record[$key] ?? null);
             if ($bbox !== null) {
                 return $bbox;
@@ -6769,6 +6775,31 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * Saved table-review adapters use source/original rectangle names when
+     * replaying reviewed table geometry without rewriting primary bbox fields.
+     *
+     * @return list<string>
+     */
+    private function sourceGeometryFallbackKeys(): array
+    {
+        return [
+            'source_bbox',
+            'source_page_image_bbox',
+            'source_rect',
+            'source_rectangle',
+            'source_box',
+            'source_bounds',
+            'source_bounding_box',
+            'original_bbox',
+            'original_rect',
+            'original_rectangle',
+            'original_box',
+            'original_bounds',
+            'original_bounding_box',
+        ];
     }
 
     /**
@@ -7020,7 +7051,7 @@ final class TableRecognizer
      */
     private function sourceBboxCoordinateSourceFromRecord(array $record): ?string
     {
-        foreach (['source_bbox', 'source_page_image_bbox'] as $key) {
+        foreach ($this->sourceGeometryFallbackKeys() as $key) {
             if ($this->bboxFromValue($record[$key] ?? null) !== null) {
                 return $key;
             }
@@ -7036,10 +7067,16 @@ final class TableRecognizer
      */
     private function withSourceGeometryReviewFields(array $target, array $source): array
     {
-        foreach (['source_bbox', 'source_page_image_bbox'] as $field) {
+        $sourceBboxCopied = array_key_exists('source_bbox', $target);
+        foreach ($this->sourceGeometryFallbackKeys() as $field) {
             $bbox = $this->bboxFromValue($source[$field] ?? null);
             if ($bbox !== null) {
-                $target[$field] = $bbox;
+                if ($field === 'source_page_image_bbox') {
+                    $target[$field] = $bbox;
+                } elseif (!$sourceBboxCopied) {
+                    $target['source_bbox'] = $bbox;
+                    $sourceBboxCopied = true;
+                }
             }
         }
 
@@ -7079,7 +7116,7 @@ final class TableRecognizer
      */
     private function rawSourceBboxCoordinatesFromRecord(array $record): ?array
     {
-        foreach (['source_bbox', 'source_page_image_bbox'] as $key) {
+        foreach ($this->sourceGeometryFallbackKeys() as $key) {
             $raw = $this->rawBboxCoordinatesFromValue($record[$key] ?? null);
             if ($raw !== null) {
                 return $raw;
