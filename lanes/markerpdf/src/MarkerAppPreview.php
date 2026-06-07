@@ -2149,32 +2149,10 @@ final class MarkerAppPreview
             return null;
         }
 
-        $styleValue = $this->resolvedPageLabelValueAfterName($dict, 'S', $objects, $seen);
-        $style = null;
-        $styleValue = $styleValue === null ? null : $this->pageLabelSinglePdfToken($styleValue);
-        if ($styleValue !== null && str_starts_with($styleValue, '/')) {
-            $styleName = $this->decodePdfName(substr($styleValue, 1));
-            $style = in_array($styleName, ['D', 'R', 'r', 'A', 'a'], true) ? $styleName : null;
-        }
-
-        $start = 1;
-        $startValue = $this->resolvedPageLabelValueAfterName($dict, 'St', $objects, $seen);
-        $startValue = $startValue === null ? null : $this->pageLabelSinglePdfToken($startValue);
-        $startInteger = $startValue === null ? null : $this->pageLabelIntegerTokenValue($startValue);
-        if ($startInteger !== null) {
-            $start = max(1, $startInteger);
-        }
-
-        $prefix = '';
-        $prefixValue = $this->resolvedPageLabelValueAfterName($dict, 'P', $objects, $seen);
-        if ($prefixValue !== null) {
-            $prefix = $this->decodePdfStringValue(trim($prefixValue));
-        }
-
         return [
-            'prefix' => $prefix,
-            'style' => $style,
-            'start' => $start,
+            'prefix' => $this->pageLabelPrefixValueAfterName($dict, 'P', $objects, $seen),
+            'style' => $this->pageLabelStyleValueAfterName($dict, 'S', $objects, $seen),
+            'start' => $this->pageLabelStartValueAfterName($dict, 'St', $objects, $seen),
         ];
     }
 
@@ -2260,10 +2238,54 @@ final class MarkerAppPreview
      * @param array<int, array{generation: int, body: string}> $objects
      * @param list<int|string> $seen
      */
-    private function resolvedPageLabelValueAfterName(string $dict, string $name, array $objects, array $seen): ?string
+    private function pageLabelStyleValueAfterName(string $dict, string $name, array $objects, array $seen): ?string
     {
-        $value = $this->valueAfterName($dict, $name);
-        return $value === null ? null : $this->resolvePageLabelPdfValue($value, $objects, $seen);
+        foreach ($this->valuesAfterName($dict, $name) as $value) {
+            $styleValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
+            if ($styleValue === null || !str_starts_with($styleValue, '/')) {
+                continue;
+            }
+
+            $styleName = $this->decodePdfName(substr($styleValue, 1));
+            if (in_array($styleName, ['D', 'R', 'r', 'A', 'a'], true)) {
+                return $styleName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelStartValueAfterName(string $dict, string $name, array $objects, array $seen): int
+    {
+        foreach ($this->valuesAfterName($dict, $name) as $value) {
+            $startValue = $this->pageLabelSinglePdfToken($this->resolvePageLabelPdfValue($value, $objects, $seen));
+            $startInteger = $startValue === null ? null : $this->pageLabelIntegerTokenValue($startValue);
+            if ($startInteger !== null) {
+                return max(1, $startInteger);
+            }
+        }
+
+        return 1;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelPrefixValueAfterName(string $dict, string $name, array $objects, array $seen): string
+    {
+        foreach ($this->valuesAfterName($dict, $name) as $value) {
+            $prefix = $this->decodePdfStringValue($this->resolvePageLabelPdfValue($value, $objects, $seen));
+            if ($prefix !== null) {
+                return $prefix;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -2400,9 +2422,13 @@ final class MarkerAppPreview
         return $lowercase ? strtolower($label) : $label;
     }
 
-    private function decodePdfStringValue(string $value): string
+    private function decodePdfStringValue(string $value): ?string
     {
-        $value = $this->pageLabelSinglePdfToken($value) ?? '';
+        $value = $this->pageLabelSinglePdfToken($value);
+        if ($value === null) {
+            return null;
+        }
+
         if (str_starts_with($value, '(') && str_ends_with($value, ')')) {
             return $this->decodePdfByteString($this->decodeLiteralString(substr($value, 1, -1)));
         }
@@ -2420,7 +2446,7 @@ final class MarkerAppPreview
             return $bytes === false ? '' : $this->decodePdfByteString($bytes);
         }
 
-        return '';
+        return null;
     }
 
     private function decodePdfByteString(string $bytes): string

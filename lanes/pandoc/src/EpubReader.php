@@ -1055,6 +1055,7 @@ final class EpubReader
             'raw' => $raw,
         ];
         $metadata['vendorMetadata'] = self::vendorMetadataReport($metadata);
+        $metadata['collectionMembership'] = self::metadataCollectionMembershipReport($metadata);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
@@ -2223,6 +2224,7 @@ final class EpubReader
         $metadata['linkedResourcesById'] = $metadata['linksByRefinedId'];
         $metadata['linkedResourceSummary'] = self::metadataLinkedResourceSummary($metadata['linksByRefinedId']);
         $metadata = self::attachMetadataLinkedResources($metadata, $metadata['linksByRefinedId']);
+        $metadata['collectionMembership'] = self::metadataCollectionMembershipReport($metadata);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
@@ -2556,6 +2558,128 @@ final class EpubReader
         }
 
         return trim((string) ($entry['content'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataCollectionMembershipReport(array $metadata): array
+    {
+        $metaProperties = is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : [];
+        $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
+        $linksByRefinedId = is_array($metadata['linksByRefinedId'] ?? null) ? $metadata['linksByRefinedId'] : [];
+        $entries = is_array($metaProperties['belongs-to-collection'] ?? null)
+            ? $metaProperties['belongs-to-collection']
+            : [];
+
+        $items = [];
+        $byType = [];
+        $types = [];
+        $diagnostics = [];
+        $typedCount = 0;
+        $positionedCount = 0;
+        $invalidGroupPositionCount = 0;
+
+        foreach ($entries as $entryIndex => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+            $refinements = $id !== null && is_array($refinementsById[$id] ?? null) ? $refinementsById[$id] : [];
+            $collectionTypes = self::metadataRefinementEntries($refinements, 'collection-type');
+            $groupPositions = self::metadataRefinementEntries($refinements, 'group-position');
+            $collectionType = is_array($collectionTypes[0] ?? null) ? (string) $collectionTypes[0]['value'] : null;
+            $groupPosition = is_array($groupPositions[0] ?? null) ? (string) $groupPositions[0]['value'] : null;
+            $groupPositionNumber = self::metadataNumericValue($groupPosition);
+            $itemDiagnostics = [];
+
+            if (self::metadataEntryValue($entry) === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'empty-belongs-to-collection',
+                    'id' => $id,
+                    'index' => (int) $entryIndex,
+                    'message' => 'EPUB OPF belongs-to-collection metadata is empty',
+                ];
+            }
+            if ($groupPosition !== null && $groupPosition !== '' && $groupPositionNumber === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'invalid-collection-group-position',
+                    'id' => $id,
+                    'index' => (int) $entryIndex,
+                    'value' => $groupPosition,
+                    'message' => 'EPUB OPF collection group-position metadata should be numeric',
+                ];
+            }
+
+            $item = [
+                'index' => (int) $entryIndex,
+                'id' => $id,
+                'title' => self::metadataEntryValue($entry),
+                'value' => self::metadataEntryValue($entry),
+                'text' => is_string($entry['text'] ?? null) ? $entry['text'] : '',
+                'content' => is_string($entry['content'] ?? null) ? $entry['content'] : null,
+                'collectionType' => $collectionType,
+                'collectionTypes' => $collectionTypes,
+                'groupPosition' => $groupPosition,
+                'groupPositionNumber' => $groupPositionNumber,
+                'groupPositions' => $groupPositions,
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'propertyVocabulary' => is_array($entry['propertyVocabulary'] ?? null) ? $entry['propertyVocabulary'] : null,
+                'linkedResources' => self::metadataLinkedResourcesForId($linksByRefinedId, $id),
+                'refinements' => $refinements,
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            if ($collectionType !== null && $collectionType !== '') {
+                ++$typedCount;
+                $types[$collectionType] = $collectionType;
+                $byType[$collectionType][] = $item;
+            }
+            if ($groupPositionNumber !== null) {
+                ++$positionedCount;
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+                if (($diagnostic['type'] ?? null) === 'invalid-collection-group-position') {
+                    ++$invalidGroupPositionCount;
+                }
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'typedCount' => $typedCount,
+            'positionedCount' => $positionedCount,
+            'invalidGroupPositionCount' => $invalidGroupPositionCount,
+            'types' => array_values($types),
+            'items' => $items,
+            'byType' => $byType,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function metadataNumericValue(?string $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || preg_match('/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        return (float) $trimmed;
     }
 
     /**

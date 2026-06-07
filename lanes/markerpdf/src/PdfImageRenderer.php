@@ -7350,7 +7350,13 @@ final class PdfImageRenderer
                 $unsupportedFilters[] = $filter;
                 $previewBoundaryFailed = $isPreviewOnlyFilter
                     && $requireExplicitFilterEndMarkers
-                    && !$this->previewOnlyImageFilterInputHasCleanBoundary($filter, $stream);
+                    && !$this->previewOnlyImageFilterInputHasCleanBoundary(
+                        $filter,
+                        $stream,
+                        $resolvedDecodeParms,
+                        $objects,
+                        $this->integerNameValue($dictionary, 'Height', $objects)
+                    );
                 $result = [
                     'decoded' => null,
                     'unsupported_filters' => $unsupportedFilters,
@@ -7465,13 +7471,197 @@ final class PdfImageRenderer
         };
     }
 
-    private function previewOnlyImageFilterInputHasCleanBoundary(string $filter, string $stream): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function previewOnlyImageFilterInputHasCleanBoundary(
+        string $filter,
+        string $stream,
+        ?string $decodeParms = null,
+        array $objects = [],
+        ?int $imageHeight = null
+    ): bool
     {
-        if ($filter !== 'JPXDecode') {
+        return match ($filter) {
+            'JPXDecode' => $this->jpxPreviewInputHasCleanEocBoundary($stream),
+            'CCITTFaxDecode', 'CCF' => $this->ccittFaxPreviewInputHasCleanBoundary(
+                $stream,
+                $decodeParms,
+                $objects,
+                $imageHeight
+            ),
+            default => true,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPreviewInputHasCleanBoundary(
+        string $stream,
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight
+    ): bool {
+        $bytes = rtrim($stream, "\x00\t\n\f\r ");
+        if ($bytes === '') {
+            return false;
+        }
+
+        $rowCount = $this->ccittFaxPreviewDecodeParmsUsesRowEndOwnership($decodeParms, $objects)
+            ? $this->ccittFaxPreviewEndOfLineRowCountForOwnership($decodeParms, $objects, $imageHeight)
+            : null;
+        if ($rowCount !== null) {
+            $rowEndMarker = "\x00\x10\x01";
+
+            return str_ends_with($bytes, $rowEndMarker)
+                && substr_count($bytes, $rowEndMarker) >= $rowCount;
+        }
+
+        $markers = $this->ccittFaxPreviewEndOfBlockMarkersForOwnership($decodeParms, $objects, $imageHeight);
+        foreach ($markers as $marker) {
+            if (str_ends_with($bytes, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPreviewDecodeParmsUsesEndOfBlock(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
             return true;
         }
 
-        return $this->jpxPreviewInputHasCleanEocBoundary($stream);
+        if ($this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
+            if ($endOfBlock !== true) {
+                return false;
+            }
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'K') && $this->decodeParmsInt($decodeParms, 'K', $objects) === null) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPreviewDecodeParmsUsesRowEndOwnership(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return false;
+        }
+
+        if (!$this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            return false;
+        }
+
+        return $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects) === false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function ccittFaxPreviewEndOfBlockMarkers(?string $decodeParms, array $objects): array
+    {
+        $k = $this->decodeParmsInt($decodeParms, 'K', $objects) ?? 0;
+        $eolPair = "\x00\x10\x01";
+
+        if ($k < 0) {
+            return [$eolPair];
+        }
+
+        return [$eolPair . $eolPair . $eolPair];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function ccittFaxPreviewEndOfBlockMarkersForOwnership(
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight = null
+    ): array {
+        if ($decodeParms !== null && $this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
+            if ($endOfBlock === false) {
+                return $this->ccittFaxPreviewEndOfLineMarkersForOwnership($decodeParms, $objects, $imageHeight);
+            }
+        }
+
+        if ($this->ccittFaxPreviewDecodeParmsUsesEndOfBlock($decodeParms, $objects)) {
+            return $this->ccittFaxPreviewEndOfBlockMarkers($decodeParms, $objects);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function ccittFaxPreviewEndOfLineMarkersForOwnership(
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight = null
+    ): array {
+        return $this->ccittFaxPreviewEndOfLineRowCountForOwnership($decodeParms, $objects, $imageHeight) === null
+            ? []
+            : ["\x00\x10\x01"];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPreviewEndOfLineRowCountForOwnership(
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight = null
+    ): ?int {
+        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'EndOfLine')) {
+            return null;
+        }
+
+        if ($this->decodeParmsBool($decodeParms, 'EndOfLine', $objects) !== true) {
+            return null;
+        }
+
+        $k = $this->decodeParmsInt($decodeParms, 'K', $objects) ?? 0;
+        if ($k < 0 || $this->ccittFaxPreviewExplicitColumnsAreInvalidForOwnership($decodeParms, $objects)) {
+            return null;
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
+            $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
+
+            return $rows !== null && $rows > 0 ? $rows : null;
+        }
+
+        return $imageHeight !== null && $imageHeight > 0 ? $imageHeight : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPreviewExplicitColumnsAreInvalidForOwnership(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'Columns')) {
+            return false;
+        }
+
+        $columns = $this->decodeParmsInt($decodeParms, 'Columns', $objects);
+
+        return $columns === null || $columns < 1;
     }
 
     private function jpxPreviewInputHasCleanEocBoundary(string $stream): bool

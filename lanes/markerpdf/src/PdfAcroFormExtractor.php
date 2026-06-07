@@ -10461,7 +10461,17 @@ final class PdfAcroFormExtractor
      */
     private function objectReferenceFromValue(?string $value): ?array
     {
-        return $value === null ? null : $this->readIndirectReferenceAt($value, 0);
+        if ($value === null) {
+            return null;
+        }
+
+        $endOffset = null;
+        $reference = $this->readIndirectReferenceAt($value, 0, $endOffset);
+        if ($reference === null || $endOffset === null || !$this->hasOnlyPdfWhitespaceOrCommentsAfter($value, $endOffset)) {
+            return null;
+        }
+
+        return $reference;
     }
 
     /**

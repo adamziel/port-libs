@@ -19,6 +19,8 @@ final class PdfActionReviewExtractor
         'XYZ' => true,
     ];
 
+    private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -2657,9 +2659,11 @@ final class PdfActionReviewExtractor
 
         $namesValue = $catalog['Names'] ?? null;
         $names = $this->resolveDictionary($namesValue);
-        $nameTreeRoot = $names === null || $this->resolvedDictionaryHasDuplicateKeys($namesValue, ['Dests'])
-            ? null
-            : $this->resolveDictionary($names['Dests'] ?? null);
+        $nameTreeRootValue = $names['Dests'] ?? null;
+        $nameTreeRootRejected = $names === null
+            || $this->resolvedDictionaryHasDuplicateKeys($namesValue, ['Dests'])
+            || $this->resolvedDictionaryHasDuplicateKeys($nameTreeRootValue, self::NAME_TREE_NODE_BOUNDARY_KEYS);
+        $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue);
         if ($nameTreeRoot !== null) {
             $this->collectNameTreeDestinations($nameTreeRoot, $destinations);
         }
@@ -2705,6 +2709,10 @@ final class PdfActionReviewExtractor
         int $depth = 0
     ): void {
         if ($depth > 20) {
+            return;
+        }
+
+        if ($this->resolvedDictionaryHasDuplicateKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
             return;
         }
 
@@ -2763,6 +2771,10 @@ final class PdfActionReviewExtractor
                 continue;
             }
             $seen[$seenKey] = true;
+
+            if ($this->resolvedDictionaryHasDuplicateKeys($kid, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+                continue;
+            }
 
             $child = $this->resolveDictionary($kid);
             if ($child !== null) {

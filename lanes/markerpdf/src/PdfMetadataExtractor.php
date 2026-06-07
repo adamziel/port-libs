@@ -77,6 +77,7 @@ final class PdfMetadataExtractor
         'Dests' => true,
         'EmbeddedFiles' => true,
     ];
+    private const DESTINATION_NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
     private const VALID_DESTINATION_VIEW_NAMES = [
         'Fit' => true,
         'FitB' => true,
@@ -6576,6 +6577,10 @@ final class PdfMetadataExtractor
             $seenObjects[$seenKey] = true;
         }
 
+        if ($this->dictionaryTopLevelHasDuplicateKeys($node['body'], self::DESTINATION_NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return;
+        }
+
         $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($node, $objects, $inheritedLimits)) {
             return;
@@ -9995,8 +10000,8 @@ final class PdfMetadataExtractor
                 $metadata['key_length_bytes'] = $lengthBytes;
             }
 
-            $recipients = $this->recipientListMetadata(
-                $this->dictionaryTopLevelRawValue($filterBody, 'Recipients'),
+            $recipients = $this->recipientListMetadataFromDictionary(
+                $filterBody,
                 $objects,
                 'crypt_filter_recipients',
                 $name
@@ -10720,8 +10725,8 @@ final class PdfMetadataExtractor
             ? $metadata['security_handler_subfilter_declaration_review']
             : [];
         $subfilterDeclarationFailClosed = ($subfilterDeclarationReview['fail_closed'] ?? false) === true;
-        $topLevelRecipients = $this->recipientListMetadata(
-            $this->dictionaryTopLevelRawValue($dictionary, 'Recipients'),
+        $topLevelRecipients = $this->recipientListMetadataFromDictionary(
+            $dictionary,
             $objects,
             'encryption_dictionary_recipients'
         );
@@ -10764,6 +10769,7 @@ final class PdfMetadataExtractor
                 }
             }
         }
+        $recipientDeclarationSummary = $this->publicKeyRecipientDeclarationSummary($recipientLists);
 
         $cryptFilterSelection = $this->publicKeyRecipientCryptFilterSelection($dictionary, $objects, $cryptFilters, $metadata);
         if ($subfilterDeclarationFailClosed) {
@@ -10813,6 +10819,16 @@ final class PdfMetadataExtractor
                 'selected_recipient_source_policy' => 'no_selected_recipient_permission_envelopes',
                 'crypt_filter_selection' => $cryptFilterSelection,
                 'recipient_lists' => $recipientLists,
+                'recipient_declaration_fail_closed' => $recipientDeclarationSummary['recipient_declaration_fail_closed'],
+                'recipient_duplicate_entries' => $recipientDeclarationSummary['recipient_duplicate_entries'],
+                'recipient_malformed_entries' => $recipientDeclarationSummary['recipient_malformed_entries'],
+                'recipient_declared_entry_count' => $recipientDeclarationSummary['recipient_declared_entry_count'],
+                'recipient_trailing_operand_count' => $recipientDeclarationSummary['recipient_trailing_operand_count'],
+                'recipient_entry_statuses' => $recipientDeclarationSummary['recipient_entry_statuses'],
+                'recipient_declaration_statuses' => $recipientDeclarationSummary['recipient_declaration_statuses'],
+                'recipient_trailing_operand_shapes' => $recipientDeclarationSummary['recipient_trailing_operand_shapes'],
+                'recipient_trailing_operand_previews' => $recipientDeclarationSummary['recipient_trailing_operand_previews'],
+                'recipient_declaration_reviews' => $recipientDeclarationSummary['recipient_declaration_reviews'],
                 'permissions_available_in_recipient_envelopes' => $recipientCount > 0,
                 'selected_permissions_available_in_recipient_envelopes' => false,
                 'permissions_decoded' => false,
@@ -10878,12 +10894,26 @@ final class PdfMetadataExtractor
             'selected_recipient_source_policy' => $this->publicKeySelectedRecipientSourcePolicy($selectedRecipientSources),
             'crypt_filter_selection' => $cryptFilterSelection,
             'recipient_lists' => $recipientLists,
-            'permissions_available_in_recipient_envelopes' => $recipientCount > 0,
-            'selected_permissions_available_in_recipient_envelopes' => $selectedRecipientCount > 0,
+            'recipient_declaration_fail_closed' => $recipientDeclarationSummary['recipient_declaration_fail_closed'],
+            'recipient_duplicate_entries' => $recipientDeclarationSummary['recipient_duplicate_entries'],
+            'recipient_malformed_entries' => $recipientDeclarationSummary['recipient_malformed_entries'],
+            'recipient_declared_entry_count' => $recipientDeclarationSummary['recipient_declared_entry_count'],
+            'recipient_trailing_operand_count' => $recipientDeclarationSummary['recipient_trailing_operand_count'],
+            'recipient_entry_statuses' => $recipientDeclarationSummary['recipient_entry_statuses'],
+            'recipient_declaration_statuses' => $recipientDeclarationSummary['recipient_declaration_statuses'],
+            'recipient_trailing_operand_shapes' => $recipientDeclarationSummary['recipient_trailing_operand_shapes'],
+            'recipient_trailing_operand_previews' => $recipientDeclarationSummary['recipient_trailing_operand_previews'],
+            'recipient_declaration_reviews' => $recipientDeclarationSummary['recipient_declaration_reviews'],
+            'permissions_available_in_recipient_envelopes' => $recipientCount > 0
+                && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true,
+            'selected_permissions_available_in_recipient_envelopes' => $selectedRecipientCount > 0
+                && $recipientDeclarationSummary['recipient_declaration_fail_closed'] !== true,
             'permissions_decoded' => false,
-            'permission_decode_status' => $recipientCount > 0
-                ? 'cms_pkcs7_permission_decode_unavailable'
-                : 'public_key_recipient_envelopes_missing',
+            'permission_decode_status' => $recipientDeclarationSummary['recipient_declaration_fail_closed'] === true
+                ? 'public_key_recipient_declaration_malformed_review'
+                : ($recipientCount > 0
+                    ? 'cms_pkcs7_permission_decode_unavailable'
+                    : 'public_key_recipient_envelopes_missing'),
             'requires_private_key_for_permission_review' => true,
             'recipient_bytes_exposed' => false,
             'recipient_certificates_exposed' => false,
@@ -10966,6 +10996,9 @@ final class PdfMetadataExtractor
         $selectedRecipientCount = 0;
         $selectedRecipientBytes = 0;
         $selectedUnresolvedRecipientCount = 0;
+        $selectedRecipientDeclarationFailClosed = false;
+        $selectedRecipientEntryStatuses = [];
+        $selectedRecipientTrailingOperandCount = 0;
         $countedRecipientFilters = [];
 
         foreach ([
@@ -11031,6 +11064,13 @@ final class PdfMetadataExtractor
                 'recipient_bytes' => $hasRecipients ? (int) ($recipients['recipient_bytes'] ?? 0) : 0,
                 'unresolved_recipient_count' => $hasRecipients ? (int) ($recipients['unresolved_recipient_count'] ?? 0) : 0,
                 'permission_decode_status' => $hasRecipients ? ($recipients['permission_decode_status'] ?? null) : null,
+                'recipient_declaration_status' => $hasRecipients ? ($recipients['recipient_declaration_status'] ?? null) : null,
+                'recipient_declaration_fail_closed' => $hasRecipients
+                    ? (bool) ($recipients['recipient_declaration_fail_closed'] ?? false)
+                    : false,
+                'recipient_entry_statuses' => $hasRecipients && is_array($recipients['recipient_entry_statuses'] ?? null)
+                    ? $recipients['recipient_entry_statuses']
+                    : [],
                 'recipient_bytes_exposed' => false,
             ];
 
@@ -11042,6 +11082,14 @@ final class PdfMetadataExtractor
             $selectedRecipientCount += (int) ($recipients['recipient_count'] ?? 0);
             $selectedRecipientBytes += (int) ($recipients['recipient_bytes'] ?? 0);
             $selectedUnresolvedRecipientCount += (int) ($recipients['unresolved_recipient_count'] ?? 0);
+            $selectedRecipientDeclarationFailClosed = $selectedRecipientDeclarationFailClosed
+                || (bool) ($recipients['recipient_declaration_fail_closed'] ?? false);
+            $selectedRecipientTrailingOperandCount += (int) ($recipients['recipient_trailing_operand_count'] ?? 0);
+            foreach ($recipients['recipient_entry_statuses'] ?? [] as $status) {
+                if (is_string($status) && !in_array($status, $selectedRecipientEntryStatuses, true)) {
+                    $selectedRecipientEntryStatuses[] = $status;
+                }
+            }
             foreach ($recipients['recipient_sha256'] ?? [] as $hash) {
                 if (is_string($hash) && !in_array($hash, $selectedRecipientHashes, true)) {
                     $selectedRecipientHashes[] = $hash;
@@ -11076,8 +11124,249 @@ final class PdfMetadataExtractor
             'selected_recipient_bytes' => $selectedRecipientBytes,
             'selected_unresolved_recipient_count' => $selectedUnresolvedRecipientCount,
             'selected_recipient_sha256' => $selectedRecipientHashes,
+            'selected_recipient_declaration_fail_closed' => $selectedRecipientDeclarationFailClosed,
+            'selected_recipient_entry_statuses' => $selectedRecipientEntryStatuses,
+            'selected_recipient_trailing_operand_count' => $selectedRecipientTrailingOperandCount,
             'recipient_bytes_exposed' => false,
             'permissions_decoded' => false,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function recipientListMetadataFromDictionary(
+        string $dictionary,
+        array $objects,
+        string $source,
+        ?string $cryptFilter = null
+    ): ?array {
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, 'Recipients');
+        if ($valueReviews === []) {
+            return null;
+        }
+
+        $selectedIndex = count($valueReviews) - 1;
+        $selectedReview = $valueReviews[$selectedIndex];
+        $metadata = $this->recipientListMetadata((string) $selectedReview['value'], $objects, $source, $cryptFilter);
+        if ($metadata === null) {
+            return null;
+        }
+
+        $declarationReview = $this->publicKeyRecipientDeclarationReview($valueReviews, $objects);
+        $metadata['recipient_declaration_review'] = $declarationReview;
+        $metadata['recipient_declaration_status'] = $declarationReview['status'];
+        $metadata['recipient_declaration_fail_closed'] = (bool) $declarationReview['fail_closed'];
+        $metadata['recipient_duplicate_entries'] = (bool) $declarationReview['duplicate_entries'];
+        $metadata['recipient_malformed_entries'] = (bool) $declarationReview['malformed_entries'];
+        $metadata['recipient_declared_entry_count'] = (int) $declarationReview['declared_entry_count'];
+        $metadata['recipient_trailing_operand_count'] = (int) $declarationReview['trailing_operand_count'];
+        $metadata['recipient_entry_statuses'] = $declarationReview['entry_statuses'];
+        $metadata['recipient_entry_operand_shapes'] = $declarationReview['entry_operand_shapes'];
+        $metadata['recipient_trailing_operand_shapes'] = $declarationReview['trailing_operand_shapes'];
+        $metadata['recipient_trailing_operand_previews'] = $declarationReview['trailing_operand_previews'];
+        if (($declarationReview['fail_closed'] ?? false) === true) {
+            $metadata['permission_decode_status'] = 'public_key_recipient_declaration_malformed_review';
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $valueReviews
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function publicKeyRecipientDeclarationReview(array $valueReviews, array $objects): array
+    {
+        $entries = [];
+        foreach ($valueReviews as $index => $valueReview) {
+            $value = (string) $valueReview['value'];
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $resolvedValue = $resolved ?? $value;
+            $valueForReview = $this->firstPdfValueToken($resolvedValue);
+            $operandShape = $this->metadataStreamFilterOperandTokenType($valueForReview);
+            $singleValue = ($valueReview['single_value'] ?? true) === true
+                && $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
+
+            $entry = [
+                'source' => 'public_key_recipient_declaration_entry_review',
+                'index' => $index,
+                'pdf_name' => 'Recipients',
+                'resolved' => $resolved !== null,
+                'operand_shape' => $operandShape,
+                'single_value' => $singleValue,
+                'status' => $this->publicKeyRecipientDeclarationEntryStatus($value, $operandShape, $singleValue, $resolved !== null),
+                'review_only' => true,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+                'executes_cms_parse' => false,
+            ];
+
+            if (!$singleValue) {
+                $entry = array_merge(
+                    $entry,
+                    ($valueReview['single_value'] ?? true) !== true
+                        ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                        : $this->topLevelTrailingOperandReview($resolvedValue, $valueForReview),
+                    ['status' => 'public_key_recipient_trailing_operand_review']
+                );
+            }
+
+            $entries[] = $entry;
+        }
+
+        $duplicate = count($valueReviews) > 1;
+        $malformedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['status'] ?? null) !== 'public_key_recipient_entry'
+        ));
+        $trailingEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['status'] ?? null) === 'public_key_recipient_trailing_operand_review'
+        ));
+        $selectedIndex = count($entries) - 1;
+        $selectedEntry = $entries[$selectedIndex] ?? [];
+        $failClosed = $duplicate || $malformedEntries !== [];
+
+        return [
+            'source' => 'public_key_recipient_declaration_review',
+            'pdf_name' => 'Recipients',
+            'declared_entry_count' => count($valueReviews),
+            'duplicate_entries' => $duplicate,
+            'malformed_entries' => $malformedEntries !== [],
+            'malformed_entry_count' => count($malformedEntries),
+            'ambiguous' => $failClosed,
+            'fail_closed' => $failClosed,
+            'selected_entry_index' => $selectedIndex,
+            'selected_entry_status' => $selectedEntry['status'] ?? null,
+            'selected_entry_operand_shape' => $selectedEntry['operand_shape'] ?? null,
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $shape): bool => is_string($shape)
+            ))),
+            'trailing_operand_count' => count($trailingEntries),
+            'trailing_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['trailing_operand_shape'] ?? null,
+                    $trailingEntries
+                ),
+                static fn (mixed $shape): bool => is_string($shape)
+            ))),
+            'trailing_operand_previews' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['trailing_operand_preview'] ?? null,
+                    $trailingEntries
+                ),
+                static fn (mixed $preview): bool => is_string($preview)
+            ))),
+            'status' => $duplicate
+                ? 'duplicate_public_key_recipient_entries_review'
+                : ($malformedEntries !== []
+                    ? 'malformed_public_key_recipient_entries_review'
+                    : 'public_key_recipient_entries_review'),
+            'entries' => $entries,
+            'review_only' => true,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+            'executes_cms_parse' => false,
+        ];
+    }
+
+    private function publicKeyRecipientDeclarationEntryStatus(
+        string $rawValue,
+        string $operandShape,
+        bool $singleValue,
+        bool $resolved
+    ): string {
+        if (!$singleValue) {
+            return 'public_key_recipient_trailing_operand_review';
+        }
+
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'public_key_recipient_entry';
+        }
+
+        if (in_array($operandShape, ['array', 'literal_string', 'hex_string', 'indirect_reference'], true)) {
+            return 'public_key_recipient_entry';
+        }
+
+        return 'public_key_recipient_non_string_or_array_operand_review';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $recipientLists
+     * @return array<string, mixed>
+     */
+    private function publicKeyRecipientDeclarationSummary(array $recipientLists): array
+    {
+        $reviews = [];
+        $entryStatuses = [];
+        $declarationStatuses = [];
+        $trailingShapes = [];
+        $trailingPreviews = [];
+        $declaredEntryCount = 0;
+        $trailingCount = 0;
+        $duplicate = false;
+        $malformed = false;
+        $failClosed = false;
+
+        foreach ($recipientLists as $list) {
+            $review = is_array($list['recipient_declaration_review'] ?? null)
+                ? $list['recipient_declaration_review']
+                : [];
+            if ($review === []) {
+                continue;
+            }
+
+            $reviews[] = $review;
+            $declaredEntryCount += (int) ($review['declared_entry_count'] ?? 0);
+            $trailingCount += (int) ($review['trailing_operand_count'] ?? 0);
+            $duplicate = $duplicate || (bool) ($review['duplicate_entries'] ?? false);
+            $malformed = $malformed || (bool) ($review['malformed_entries'] ?? false);
+            $failClosed = $failClosed || (bool) ($review['fail_closed'] ?? false);
+            if (is_string($review['status'] ?? null) && !in_array($review['status'], $declarationStatuses, true)) {
+                $declarationStatuses[] = $review['status'];
+            }
+            foreach ($review['entry_statuses'] ?? [] as $status) {
+                if (is_string($status) && !in_array($status, $entryStatuses, true)) {
+                    $entryStatuses[] = $status;
+                }
+            }
+            foreach ($review['trailing_operand_shapes'] ?? [] as $shape) {
+                if (is_string($shape) && !in_array($shape, $trailingShapes, true)) {
+                    $trailingShapes[] = $shape;
+                }
+            }
+            foreach ($review['trailing_operand_previews'] ?? [] as $preview) {
+                if (is_string($preview) && !in_array($preview, $trailingPreviews, true)) {
+                    $trailingPreviews[] = $preview;
+                }
+            }
+        }
+
+        return [
+            'recipient_declaration_fail_closed' => $failClosed,
+            'recipient_duplicate_entries' => $duplicate,
+            'recipient_malformed_entries' => $malformed,
+            'recipient_declared_entry_count' => $declaredEntryCount,
+            'recipient_trailing_operand_count' => $trailingCount,
+            'recipient_entry_statuses' => $entryStatuses,
+            'recipient_declaration_statuses' => $declarationStatuses,
+            'recipient_trailing_operand_shapes' => $trailingShapes,
+            'recipient_trailing_operand_previews' => $trailingPreviews,
+            'recipient_declaration_reviews' => $reviews,
         ];
     }
 
@@ -16879,6 +17168,12 @@ final class PdfMetadataExtractor
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
         $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
+        if ($entry !== null && !$this->startxrefEntryHasNumericOperand($pdfBytes, $entry)) {
+            $entryEofBoundary = $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $entry['tokenOffset']);
+            if ($entryEofBoundary !== null) {
+                $eofBoundary = $entryEofBoundary;
+            }
+        }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -17019,6 +17314,48 @@ final class PdfMetadataExtractor
             ) {
                 return $tokenOffset;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int} $entry
+     */
+    private function startxrefEntryHasNumericOperand(string $pdfBytes, array $entry): bool
+    {
+        $offset = $entry['tokenOffset'] + strlen('startxref');
+        $length = strlen($pdfBytes);
+        while ($offset < $length && $this->isPdfWhitespace($pdfBytes[$offset])) {
+            $offset++;
+        }
+
+        return preg_match('/\G[+-]?\d+/s', $pdfBytes, $match, 0, $offset) === 1;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function firstTopLevelEofOffsetAfter(string $pdfBytes, array $definitions, int $afterOffset): ?int
+    {
+        if (preg_match_all('/%%EOF/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (!is_int($tokenOffset) || $tokenOffset <= $afterOffset) {
+                continue;
+            }
+
+            if (
+                $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return $tokenOffset;
         }
 
         return null;

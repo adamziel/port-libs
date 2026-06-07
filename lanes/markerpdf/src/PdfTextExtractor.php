@@ -14568,8 +14568,14 @@ final class PdfTextExtractor
      */
     private function pageLabelPrefix(string $dictionary, array $objects): string
     {
-        $value = $this->pageLabelTopLevelValueAfterName($dictionary, 'P');
-        return $value === null ? '' : $this->pageLabelTextStringValue($value, $objects) ?? '';
+        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, 'P') as $value) {
+            $prefix = $this->pageLabelTextStringValue($value, $objects);
+            if ($prefix !== null) {
+                return $prefix;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -14577,8 +14583,14 @@ final class PdfTextExtractor
      */
     private function pageLabelNameValueAfterName(string $dictionary, string $name, array $objects): ?string
     {
-        $value = $this->pageLabelTopLevelValueAfterName($dictionary, $name);
-        return $value === null ? null : $this->pageLabelNameValue($value, $objects);
+        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, $name) as $value) {
+            $nameValue = $this->pageLabelNameValue($value, $objects);
+            if ($nameValue !== null) {
+                return $nameValue;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -14633,8 +14645,14 @@ final class PdfTextExtractor
      */
     private function pageLabelIntegerValueAfterName(string $dictionary, string $name, array $objects): ?int
     {
-        $value = $this->pageLabelTopLevelValueAfterName($dictionary, $name);
-        return $value === null ? null : $this->pageLabelIntegerValue($value, $objects);
+        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, $name) as $value) {
+            $integer = $this->pageLabelIntegerValue($value, $objects);
+            if ($integer !== null) {
+                return $integer;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -28237,6 +28255,12 @@ final class PdfTextExtractor
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
         $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
+        if ($entry !== null && !$this->startxrefEntryHasNumericOperand($pdfBytes, $entry)) {
+            $entryEofBoundary = $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $entry['tokenOffset']);
+            if ($entryEofBoundary !== null) {
+                $eofBoundary = $entryEofBoundary;
+            }
+        }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -28309,6 +28333,48 @@ final class PdfTextExtractor
             if (
                 !is_int($tokenOffset)
                 || $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return $tokenOffset;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int} $entry
+     */
+    private function startxrefEntryHasNumericOperand(string $pdfBytes, array $entry): bool
+    {
+        $offset = $entry['tokenOffset'] + strlen('startxref');
+        $length = strlen($pdfBytes);
+        while ($offset < $length && $this->isPdfWhitespace($pdfBytes[$offset])) {
+            $offset++;
+        }
+
+        return preg_match('/\G[+-]?\d+/s', $pdfBytes, $match, 0, $offset) === 1;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function firstTopLevelEofOffsetAfter(string $pdfBytes, array $definitions, int $afterOffset): ?int
+    {
+        if (preg_match_all('/%%EOF/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (!is_int($tokenOffset) || $tokenOffset <= $afterOffset) {
+                continue;
+            }
+
+            if (
+                $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
                 || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
             ) {
                 continue;
@@ -33247,7 +33313,8 @@ final class PdfTextExtractor
             }
         }
 
-        $localCodeSpaceRanges = $this->parseCMapCodeSpaceRanges($cmap);
+        $localCodeSpaceRangesUnderdeclared = $this->cMapHasUnderdeclaredCodeSpaceRangeBlock($cmap);
+        $localCodeSpaceRanges = $localCodeSpaceRangesUnderdeclared ? [] : $this->parseCMapCodeSpaceRanges($cmap);
         $cidRangeCodeSpaceRanges = array_values($codeSpaceRanges);
         foreach ($localCodeSpaceRanges as $range) {
             $cidRangeCodeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
@@ -33259,6 +33326,10 @@ final class PdfTextExtractor
         }
 
         foreach ($this->cMapToUnicodeMappingBlocks($cmap) as $mappingBlock) {
+            if ($localCodeSpaceRangesUnderdeclared) {
+                continue;
+            }
+
             if ($mappingBlock['kind'] === 'char') {
                 $rawBlock = $mappingBlock['body'];
                 $block = $this->cMapOperatorBlockData($rawBlock);
@@ -33315,7 +33386,7 @@ final class PdfTextExtractor
             );
         }
 
-        foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
+        foreach ($localCodeSpaceRanges as $range) {
             $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
         }
         $codeSpaceRanges = array_values($codeSpaceRanges);
@@ -35088,6 +35159,14 @@ final class PdfTextExtractor
             } elseif ($rowEntries['hasMalformedRows']) {
                 $entries = $rowEntries['pairs'];
             }
+            $entrySlots = $tokenRows !== null ? count($tokenRows) : ($rowEntries['rowSlots'] ?? count($entries));
+            if (
+                $blockMatch['declaredCount'] !== null
+                && $entrySlots < max(0, $blockMatch['declaredCount'])
+            ) {
+                continue;
+            }
+
             if ($entries === []) {
                 continue;
             }
@@ -35123,6 +35202,32 @@ final class PdfTextExtractor
         });
 
         return $ranges;
+    }
+
+    private function cMapHasUnderdeclaredCodeSpaceRangeBlock(string $cmap): bool
+    {
+        $cmap = $this->boundedCMapProgram($cmap);
+        foreach ($this->cMapOperatorBlocks($cmap, 'begincodespacerange', 'endcodespacerange') as $blockMatch) {
+            if ($blockMatch['declaredCount'] === null) {
+                continue;
+            }
+
+            $declaredCount = max(0, $blockMatch['declaredCount']);
+            if ($declaredCount === 0) {
+                continue;
+            }
+
+            $rowEntries = $this->cMapTopLevelHexPairRows($blockMatch['body'], $declaredCount);
+            $tokenRows = $rowEntries['hasMalformedRows']
+                ? $this->cMapTopLevelHexPairTokenRows($blockMatch['body'])
+                : null;
+            $entrySlots = $tokenRows !== null ? count($tokenRows) : ($rowEntries['rowSlots'] ?? 0);
+            if ($entrySlots < $declaredCount) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function cMapOperatorBlockData(string $block): string

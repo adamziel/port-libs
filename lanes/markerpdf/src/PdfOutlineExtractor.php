@@ -38,6 +38,7 @@ final class PdfOutlineExtractor
         'FitV' => true,
         'XYZ' => true,
     ];
+    private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
     private const NON_OUTLINE_ITEM_TYPES = [
         'Action' => true,
         'Annot' => true,
@@ -3555,9 +3556,11 @@ final class PdfOutlineExtractor
 
         $namesValue = $this->resolveValue($catalog['Names'] ?? null, $objects);
         $names = $this->dictionaryItems($namesValue);
-        $nameTreeRoot = $names === null || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
-            ? null
-            : $this->resolveDictionary($names['Dests'] ?? null, $objects);
+        $nameTreeRootValue = $names['Dests'] ?? null;
+        $nameTreeRootRejected = $names === null
+            || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
+            || $this->resolvedDictionaryHasDuplicateBoundaryKeys($nameTreeRootValue, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS);
+        $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue, $objects);
         if ($nameTreeRoot !== null) {
             $this->collectNameTreeDestinations($nameTreeRoot, $objects, $rawDestinations, [], [], $pageIndexes);
         }
@@ -3602,9 +3605,11 @@ final class PdfOutlineExtractor
 
         $namesValue = $this->resolveValue($catalog['Names'] ?? null, $objects);
         $names = $this->dictionaryItems($namesValue);
-        $nameTreeRoot = $names === null || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
-            ? null
-            : $this->resolveDictionary($names['Dests'] ?? null, $objects);
+        $nameTreeRootValue = $names['Dests'] ?? null;
+        $nameTreeRootRejected = $names === null
+            || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
+            || $this->resolvedDictionaryHasDuplicateBoundaryKeys($nameTreeRootValue, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS);
+        $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue, $objects);
         if ($nameTreeRoot !== null) {
             $this->collectNameTreeActionDestinations($nameTreeRoot, $objects, $destinations);
         }
@@ -3621,6 +3626,10 @@ final class PdfOutlineExtractor
      */
     private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = [], array $pageIndexes = []): void
     {
+        if ($this->dictionaryHasDuplicateBoundaryKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return;
+        }
+
         $inheritedLimits = $activeLimits;
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $nodeLimits = $this->nameTreeLimits($node, $objects);
@@ -3671,6 +3680,10 @@ final class PdfOutlineExtractor
             }
             $seen[$seenKey] = true;
 
+            if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($kid, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+                continue;
+            }
+
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
                 $this->collectNameTreeDestinations($child, $objects, $destinations, $seen, $activeLimits, $pageIndexes);
@@ -3686,6 +3699,10 @@ final class PdfOutlineExtractor
      */
     private function collectNameTreeActionDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
     {
+        if ($this->dictionaryHasDuplicateBoundaryKeys($node, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+            return;
+        }
+
         $inheritedLimits = $activeLimits;
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $nodeLimits = $this->nameTreeLimits($node, $objects);
@@ -3735,6 +3752,10 @@ final class PdfOutlineExtractor
                 continue;
             }
             $seen[$seenKey] = true;
+
+            if ($this->resolvedDictionaryHasDuplicateBoundaryKeys($kid, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
+                continue;
+            }
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
@@ -6626,6 +6647,30 @@ final class PdfOutlineExtractor
         }
 
         return $keys;
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function dictionaryHasDuplicateBoundaryKeys(mixed $value, array $keys): bool
+    {
+        $duplicateKeys = $this->dictionaryDuplicateKeySet($value);
+        foreach ($keys as $key) {
+            if (isset($duplicateKeys[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param list<string> $keys
+     */
+    private function resolvedDictionaryHasDuplicateBoundaryKeys(mixed $value, array $objects, array $keys): bool
+    {
+        return $this->dictionaryHasDuplicateBoundaryKeys($this->resolveValue($value, $objects), $keys);
     }
 
     /**

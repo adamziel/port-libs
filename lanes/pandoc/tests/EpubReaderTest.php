@@ -590,6 +590,78 @@ XML;
         $t->same($vendorMetadata, $result['importReport']['metadata']['vendorMetadata']);
         $t->same($vendorMetadata, $result['document']->attr('metadata')['vendorMetadata']);
     },
+    'reports OPF belongs-to-collection metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $seriesRecord = '{"name":"Migration Series","source":"wordpress-epub"}';
+        $opfWithCollectionMembership = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta property="belongs-to-collection" id="series-membership" xml:lang="en" dir="ltr">Migration Series</meta>'
+            . '<meta refines="#series-membership" property="collection-type">series</meta>'
+            . '<meta refines="#series-membership" property="group-position">3</meta>'
+            . '<meta refines="#series-membership" property="display-seq">1</meta>'
+            . '<meta refines="#series-membership" property="file-as">Migration Series</meta>'
+            . '<meta property="belongs-to-collection" id="set-membership" content="Reviewer Set"/>'
+            . '<meta refines="#set-membership" property="collection-type">set</meta>'
+            . '<meta refines="#set-membership" property="group-position">appendix</meta>',
+            $opfXml
+        );
+        $opfWithCollectionMembership = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="cover-image"/>'
+            . '<link id="series-record" rel="record" refines="#series-membership" href="meta/series.json" media-type="application/ld+json"/>',
+            $opfWithCollectionMembership
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithCollectionMembership,
+            null,
+            [
+                ['name' => 'OEBPS/meta/series.json', 'data' => $seriesRecord],
+            ]
+        ));
+
+        $membership = $result['metadata']['collectionMembership'];
+        $t->same(true, $membership['present']);
+        $t->same(2, $membership['count']);
+        $t->same(['series', 'set'], $membership['types']);
+        $t->same(2, $membership['typedCount']);
+        $t->same(1, $membership['positionedCount']);
+        $t->same(1, $membership['invalidGroupPositionCount']);
+        $t->same(1, count($membership['diagnostics']));
+        $t->same('invalid-collection-group-position', $membership['diagnostics'][0]['type']);
+        $t->same('set-membership', $membership['diagnostics'][0]['id']);
+
+        $series = $membership['items'][0];
+        $t->same(0, $series['index']);
+        $t->same('series-membership', $series['id']);
+        $t->same('Migration Series', $series['title']);
+        $t->same('Migration Series', $series['value']);
+        $t->same('series', $series['collectionType']);
+        $t->same('3', $series['groupPosition']);
+        $t->same(3.0, $series['groupPositionNumber']);
+        $t->same('1', $series['displaySeq']);
+        $t->same('Migration Series', $series['fileAs']);
+        $t->same('en', $series['language']);
+        $t->same('ltr', $series['direction']);
+        $t->same([], $series['diagnostics']);
+        $t->same('series-record', $series['linkedResources'][0]['id']);
+        $t->same('/OEBPS/meta/series.json', $series['linkedResources'][0]['target']);
+        $t->same(hash('sha256', $seriesRecord), $series['linkedResources'][0]['byteSha256']);
+
+        $set = $membership['items'][1];
+        $t->same('set-membership', $set['id']);
+        $t->same('Reviewer Set', $set['title']);
+        $t->same('Reviewer Set', $set['content']);
+        $t->same('set', $set['collectionType']);
+        $t->same('appendix', $set['groupPosition']);
+        $t->same(null, $set['groupPositionNumber']);
+        $t->same('invalid-collection-group-position', $set['diagnostics'][0]['type']);
+
+        $t->same($series, $membership['byType']['series'][0]);
+        $t->same($set, $membership['byType']['set'][0]);
+        $t->same($membership, $result['importReport']['metadata']['collectionMembership']);
+        $t->same($membership, $result['document']->attr('metadata')['collectionMembership']);
+    },
     'reports OPF unique identifier binding and diagnostics for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reader = new EpubReader();
         $result = $reader->readPackage($buildEpubPackage());

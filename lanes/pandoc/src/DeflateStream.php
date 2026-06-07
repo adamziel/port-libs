@@ -69,6 +69,78 @@ final class DeflateStream
     /**
      * @return array{
      *     format:string,
+     *     compressionMethod:int,
+     *     windowSize:int,
+     *     compressionLevelHint:string,
+     *     hasPresetDictionary:bool,
+     *     presetDictionaryId:?int,
+     *     presetDictionaryIdHex:?string,
+     *     dictionaryStreamCount:int,
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     adler32:int,
+     *     adler32Hex:string,
+     *     extractionPolicy:string,
+     *     policy:string,
+     *     diagnostics:list<string>
+     * }
+     */
+    public static function presetDictionaryPolicyPreflight(string $bytes): array
+    {
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('ZLIB stream is too short to contain a DEFLATE header and trailer');
+        }
+
+        $cmf = ord($bytes[0]);
+        $flg = ord($bytes[1]);
+        if ((($cmf << 8) + $flg) % 31 !== 0) {
+            throw new \RuntimeException('ZLIB stream header check bits do not match');
+        }
+
+        $compressionMethod = $cmf & 0x0f;
+        if ($compressionMethod !== self::ZLIB_COMPRESSION_METHOD_DEFLATE) {
+            throw new \RuntimeException("Unsupported ZLIB compression method {$compressionMethod}");
+        }
+
+        $windowCode = ($cmf >> 4) & 0x0f;
+        if ($windowCode > 7) {
+            throw new \RuntimeException('ZLIB DEFLATE window size is outside the supported range');
+        }
+
+        $hasPresetDictionary = ($flg & self::ZLIB_PRESET_DICTIONARY_FLAG) !== 0;
+        if ($hasPresetDictionary && strlen($bytes) < 10) {
+            throw new \RuntimeException('ZLIB preset-dictionary stream is too short to contain a dictionary id and trailer');
+        }
+
+        $dictionaryId = $hasPresetDictionary ? self::readUInt32BE($bytes, 2) : null;
+        $adler32 = self::readUInt32BE($bytes, strlen($bytes) - 4);
+
+        return [
+            'format' => self::FORMAT_ZLIB,
+            'compressionMethod' => $compressionMethod,
+            'windowSize' => 1 << ($windowCode + 8),
+            'compressionLevelHint' => self::compressionLevelHint(($flg >> 6) & 0x03),
+            'hasPresetDictionary' => $hasPresetDictionary,
+            'presetDictionaryId' => $dictionaryId,
+            'presetDictionaryIdHex' => $dictionaryId === null ? null : sprintf('%08x', $dictionaryId),
+            'dictionaryStreamCount' => $hasPresetDictionary ? 1 : 0,
+            'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => strlen($bytes) - ($hasPresetDictionary ? 10 : 6),
+            'adler32' => $adler32,
+            'adler32Hex' => sprintf('%08x', $adler32),
+            'extractionPolicy' => $hasPresetDictionary
+                ? 'preset-dictionary-streams-blocked'
+                : 'no-preset-dictionary-streams',
+            'policy' => $hasPresetDictionary ? 'blocked' : 'decodable-without-preset-dictionary',
+            'diagnostics' => $hasPresetDictionary
+                ? ['zlib-preset-dictionary-stream-not-decoded', 'zlib-external-preset-dictionary-required']
+                : [],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
      *     data:string,
      *     compressionMethod:int,
      *     windowSize:int,

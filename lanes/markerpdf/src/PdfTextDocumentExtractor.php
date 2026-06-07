@@ -160,14 +160,21 @@ final class PdfTextDocumentExtractor
     private function orderedSuppliedDictionaryPageList(array $pages): array
     {
         if (array_is_list($pages)) {
-            return array_values($pages);
+            return array_map(
+                fn (mixed $page): mixed => $this->unwrapSuppliedDictionaryPageEntry($page),
+                array_values($pages)
+            );
         }
 
         $keyedPages = [];
         foreach ($pages as $key => $page) {
+            $page = $this->unwrapSuppliedDictionaryPageEntry($page);
             $pageKey = $this->integerArrayKey($key);
             if ($pageKey === null || !is_array($page) || !array_key_exists('blocks', $page)) {
-                return array_values($pages);
+                return array_map(
+                    fn (mixed $page): mixed => $this->unwrapSuppliedDictionaryPageEntry($page),
+                    array_values($pages)
+                );
             }
 
             $keyedPages[] = [
@@ -184,6 +191,51 @@ final class PdfTextDocumentExtractor
         );
 
         return array_map(static fn (array $entry): mixed => $entry['page'], $keyedPages);
+    }
+
+    /**
+     * Adapter caches sometimes preserve each selected pdftext page as a
+     * one-page dictionary_output/pdftext/pages envelope. Upstream Marker sees
+     * only the page dictionaries returned by pdftext, so unwrap exactly one
+     * page-shaped entry and leave ambiguous wrappers to normal validation.
+     */
+    private function unwrapSuppliedDictionaryPageEntry(mixed $entry): mixed
+    {
+        $entry = $this->normalizeSuppliedDictionaryValue($entry);
+        if (!is_array($entry) || array_key_exists('blocks', $entry)) {
+            return $entry;
+        }
+
+        foreach (['dictionary_output', 'pdftext', 'pages'] as $pageListKey) {
+            if (!array_key_exists($pageListKey, $entry)) {
+                continue;
+            }
+
+            $candidate = $this->normalizeSuppliedDictionaryValue($entry[$pageListKey]);
+            if (!is_array($candidate)) {
+                continue;
+            }
+            if (array_key_exists('blocks', $candidate)) {
+                return $candidate;
+            }
+
+            if (array_key_exists('pages', $candidate)) {
+                $candidatePages = $this->normalizeSuppliedDictionaryValue($candidate['pages']);
+                if (is_array($candidatePages)) {
+                    $pageList = $this->orderedSuppliedDictionaryPageList($candidatePages);
+                    if (count($pageList) === 1 && is_array($pageList[0]) && array_key_exists('blocks', $pageList[0])) {
+                        return $pageList[0];
+                    }
+                }
+            }
+
+            $pageList = $this->orderedSuppliedDictionaryPageList($candidate);
+            if (count($pageList) === 1 && is_array($pageList[0]) && array_key_exists('blocks', $pageList[0])) {
+                return $pageList[0];
+            }
+        }
+
+        return $entry;
     }
 
     private function integerArrayKey(int|string $key): ?int

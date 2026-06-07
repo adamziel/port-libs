@@ -841,6 +841,72 @@ return [
         $t->true(!str_contains($pagesEncoded, 'singleton 993 payload must not cross'));
         $t->true(!str_contains($pagesEncoded, 'direct pages singleton metadata must not cross'));
     },
+    'unwraps list entry pdftext page envelopes at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = static function (int $pageNumber, string $lead, string $linkUrl, string $tail) use ($pdftextLinkedPage): array {
+            $page = $pdftextLinkedPage();
+            $page['page'] = $pageNumber;
+            $page['raw_list_entry_payload'] = "list entry page {$pageNumber} payload must not cross dictionary_output";
+            $page['blocks'][0]['lines'][0]['spans'][0]['text'] = $lead;
+            $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'list-entry link';
+            $page['blocks'][0]['lines'][0]['spans'][1]['url'] = $linkUrl;
+            $page['blocks'][0]['lines'][0]['spans'][2]['text'] = $tail;
+            unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+            return $page;
+        };
+
+        $cover = $page(1000, 'Skipped list-entry cover ', 'https://example.com/list-entry-cover', ' should not import');
+        $selected = $page(1001, 'Selected list-entry ', 'https://example.com/list-entry-selected', ' stays visible');
+        $appendix = $page(1002, 'Skipped list-entry appendix ', 'https://example.com/list-entry-appendix', ' should not import');
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks(
+            [
+                [
+                    'dictionary_output' => [
+                        'metadata' => [
+                            'source' => 'cached first page dictionary_output',
+                            'raw_private_payload' => 'list entry dictionary_output metadata must not cross',
+                        ],
+                        'pages' => [$cover],
+                        'raw_pdftext_payload' => 'list entry dictionary_output payload must not cross',
+                    ],
+                    'raw_adapter_payload' => 'cover list entry adapter payload must not cross',
+                ],
+                [
+                    'pdftext' => $selected,
+                    'raw_adapter_payload' => 'selected list entry adapter payload must not cross',
+                ],
+                [
+                    'pages' => [
+                        '1002' => $appendix,
+                    ],
+                    'raw_adapter_payload' => 'appendix list entry adapter payload must not cross',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1,
+            toc: [['title' => 'List entry envelope selected page', 'level' => 1, 'page_index' => 1001]]
+        );
+
+        $page = $document['pages'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $document['page_range']);
+        $t->same(3, $document['metadata']['source_pages']);
+        $t->same(1001, $page['pnum']);
+        $t->same('Selected list-entry [list-entry link](https://example.com/list-entry-selected) stays visible', $blocks[0]['text']);
+        $t->same('https://example.com/list-entry-selected', $page['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same('#page-3-xy', $page['pdftext_source']['refs'][0]['url'] ?? null);
+        $t->true(!str_contains($encoded, 'Skipped list-entry cover'));
+        $t->true(!str_contains($encoded, 'Skipped list-entry appendix'));
+        $t->true(!str_contains($encoded, 'list entry page 1001 payload'));
+        $t->true(!str_contains($encoded, 'list entry dictionary_output metadata'));
+        $t->true(!str_contains($encoded, 'list entry dictionary_output payload'));
+        $t->true(!str_contains($encoded, 'cover list entry adapter payload'));
+        $t->true(!str_contains($encoded, 'selected list entry adapter payload'));
+        $t->true(!str_contains($encoded, 'appendix list entry adapter payload'));
+    },
     'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';

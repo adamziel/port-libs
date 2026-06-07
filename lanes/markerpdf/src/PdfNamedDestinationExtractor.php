@@ -19,6 +19,8 @@ final class PdfNamedDestinationExtractor
         'XYZ' => true,
     ];
 
+    private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -1174,6 +1176,10 @@ final class PdfNamedDestinationExtractor
             $seenObjects[] = $seenKey;
         }
 
+        if ($this->nameTreeNodeHasDuplicateBoundaryKeys($node, $objects)) {
+            return [];
+        }
+
         $dictionary = $this->resolve($node, $objects, $cache);
         if (!$this->isDictionary($dictionary)) {
             return [];
@@ -2215,6 +2221,21 @@ final class PdfNamedDestinationExtractor
         $body = $this->objectBody($objectId, $objects, $this->refGeneration($value));
 
         return $body !== null && $this->dictionaryBodyHasDuplicateKeys($body, $keys);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function nameTreeNodeHasDuplicateBoundaryKeys(mixed $node, array $objects): bool
+    {
+        $objectId = $this->validRefObjectId($node, $objects);
+        if ($objectId === null) {
+            return false;
+        }
+
+        $body = $this->objectBody($objectId, $objects, $this->refGeneration($node));
+
+        return $body !== null && $this->dictionaryBodyHasDuplicateKeys($body, self::NAME_TREE_NODE_BOUNDARY_KEYS);
     }
 
     /**

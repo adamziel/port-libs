@@ -1022,6 +1022,7 @@ return [
                 'directive' => 'YAML',
                 'version' => '1.1',
                 'supported' => 'true',
+                'sourceLine' => '2',
             ],
         ], $supportedDirectives);
         $t->same([], $supportedDiagnostics);
@@ -1038,6 +1039,7 @@ return [
                 'directive' => 'YAML',
                 'version' => '1.3',
                 'supported' => 'false',
+                'sourceLine' => '1',
             ],
         ], $unsupportedDirectives);
         $t->same('yaml-directive', $unsupportedDiagnostics[0]['type'] ?? '');
@@ -1045,6 +1047,7 @@ return [
         $t->same('YAML', $unsupportedDiagnostics[0]['directive'] ?? '');
         $t->same('1.3', $unsupportedDiagnostics[0]['version'] ?? '');
         $t->same('1.1,1.2', $unsupportedDiagnostics[0]['supportedVersions'] ?? '');
+        $t->same('1', $unsupportedDiagnostics[0]['sourceLine'] ?? '');
         $t->same(false, array_key_exists('__yamlMetadataDirectiveProvenance', $unsupportedMeta));
     },
     'records pandoc yaml invalid tag directive diagnostics before metadata document' => static function (TestRunner $t): void {
@@ -1079,6 +1082,61 @@ return [
         $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
         $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($tagProvenance, 'tag'), true));
         $t->true(in_array('/review/owner', array_column($tagProvenance, 'path'), true));
+    },
+    'records pandoc yaml source line provenance for diagnostics and review records' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.3',
+            '%TAG !bad tag:invalid.example,2026:',
+            '%TAG !wp! tag:example.test,2026:',
+            '---',
+            '# opening source comment',
+            'title: Source line **Packet** # title comment',
+            'review:',
+            '  owner: *missing_owner',
+            '  owner: !wp!reviewer Import Desk',
+            '  status: &review_status queued',
+            '  labels:',
+            '    - !wp!label migration',
+            '    - *missing_label',
+            '...',
+            '',
+            '# Source line YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $directives = $document->attr('yamlMetadataDirectiveProvenance', []);
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $tagProvenance = $document->attr('yamlMetadataTagProvenance', []);
+        $anchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Source line **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['migration', '*missing_label'], $meta['review']['labels']);
+        $t->same(['2'], array_column($directives, 'sourceLine'));
+        $t->same([
+            'unsupported-yaml-version',
+            'invalid-tag-directive',
+            'unresolved-alias',
+            'duplicate-key',
+            'unresolved-alias',
+        ], array_column($diagnostics, 'reason'));
+        $t->same(['2', '3', '9', '10', '14'], array_column($diagnostics, 'sourceLine'));
+        $t->same(['', '/title'], array_column($comments, 'path'));
+        $t->same(['6', '7'], array_column($comments, 'sourceLine'));
+        $t->same(['!<tag:example.test,2026:reviewer>', '!<tag:example.test,2026:label>'], array_column($tagProvenance, 'tag'));
+        $t->same(['/review/owner', '/review/labels/0'], array_column($tagProvenance, 'path'));
+        $t->same(['10', '13'], array_column($tagProvenance, 'sourceLine'));
+        $t->same(['&review_status'], array_column($anchorProvenance, 'anchor'));
+        $t->same(['/review/status'], array_column($anchorProvenance, 'path'));
+        $t->same(['11'], array_column($anchorProvenance, 'sourceLine'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(false, array_key_exists('__yamlMetadataTagProvenance', $meta));
+        $t->same(false, array_key_exists('__yamlMetadataAnchorProvenance', $meta));
+        $t->same('source-line-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="source-line-yaml-body">Source line YAML body</h1>', $blocks);
     },
     'maps pandoc yaml document markers with trailing comments in metadata blocks' => static function (TestRunner $t): void {
         $explicit = (new MarkdownReader())->read(implode("\n", [

@@ -3010,12 +3010,15 @@ final class LegacyDocReader
             }
 
             $byteLength = $characters * 2;
-            if ($cursor + $byteLength > $length) {
+            if ($cursor + $byteLength + 2 > $length) {
                 throw new \RuntimeException('Legacy DOC comment author name table points outside its string data');
+            }
+            if (substr($bytes, $cursor + $byteLength, 2) !== "\0\0") {
+                throw new \RuntimeException('Legacy DOC comment author name table entry is missing its Xstz terminator');
             }
 
             $name = $characters === 0 ? '' : $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
-            $cursor += $byteLength;
+            $cursor += $byteLength + 2;
             $normalizedName = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
             if (isset($seenNames[$normalizedName])) {
                 throw new \RuntimeException('Legacy DOC comment author name table contains duplicate names');
@@ -3026,6 +3029,8 @@ final class LegacyDocReader
                 'index' => count($records),
                 'name' => $name,
                 'characterCount' => $characters,
+                'sourceEncoding' => 'UTF-16LE-Xstz',
+                'recordBytes' => 2 + $byteLength + 2,
             ];
             if (count($records) > 0x7fff) {
                 throw new \RuntimeException('Legacy DOC comment author name table exceeds the supported entry limit');

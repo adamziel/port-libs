@@ -258,6 +258,26 @@ return [
         $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">[</mo><mi>x</mi><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">]</mo>', $sizedMathml);
         $t->contains('alttext="left ceiling x right ceiling plus left floor y right floor"', $accessibleMathml);
     },
+    'converts bounded tex double bracket and corner delimiters to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $plainMathml = $converter->texToMathMl('\\llbracket p_i \\rrbracket + \\ulcorner x \\urcorner', true);
+        $fencedMathml = $converter->texToMathMl('\\left\\llbracket p_i + m_i \\right\\rrbracket + \\left\\ulcorner x/y \\right\\urcorner');
+        $sizedMathml = $converter->texToMathMl('\\Bigl\\llbracket n \\Bigr\\rrbracket + \\bigl\\ulcorner q \\bigr\\urcorner');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\llbracket x \\rrbracket + \\ulcorner y \\urcorner');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $plainMathml);
+        $t->contains('<mo>⟦</mo><msub><mi>p</mi><mi>i</mi></msub><mo>⟧</mo><mo>+</mo><mo>⌜</mo><mi>x</mi><mo>⌝</mo>', $plainMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\llbracket p_i \\rrbracket + \\ulcorner x \\urcorner</annotation>', $plainMathml);
+        $t->true(!str_contains($plainMathml, '<mi>\\llbracket</mi>'));
+        $t->true(!str_contains($plainMathml, '<mi>\\ulcorner</mi>'));
+        $t->contains('<mo fence="true" stretchy="true">⟦</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">⟧</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true">⌜</mo><mi>x</mi><mo>/</mo><mi>y</mi><mo fence="true" stretchy="true">⌝</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⟦</mo><mi>n</mi><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⟧</mo>', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">⌜</mo><mi>q</mi><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">⌝</mo>', $sizedMathml);
+        $t->contains('alttext="left double bracket x right double bracket plus upper left corner y upper right corner"', $accessibleMathml);
+        $t->contains('intent="row(left_double_bracket,x,right_double_bracket,plus,upper_left_corner,y,upper_right_corner)"', $accessibleMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\llbracket x \\right\\unknowncorner'));
+    },
     'converts bounded tex arrow group and moustache delimiters to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $arrowFenceMathml = $converter->texToMathMl('\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow', true);

@@ -757,6 +757,35 @@ return [
         $t->contains('inline_ccitt_fax_imagemask_polarity_review_before_rgb_conversion', implode(',', $plan['notes']));
         $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline CCITT fax payload noise'));
     },
+    'requires inline CCITT Fax EOFB before WordPress output preview metadata' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $dictionary = '/W 16 /H 1 /CS /G /BPC 8 /F /CCF '
+            . '/DP << /K -1 /Columns 16 /Rows 1 /BlackIs1 true /EndOfBlock true >> /D [0 1]';
+        $incompletePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline incomplete CCITT output noise) Tj ET final";
+        $completePayload = "\x11\x22\x00\x10\x01";
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $incompletePayload, [], 1)
+        );
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $completePayload, [], 1);
+
+        $t->same(true, $preview['review_only_image_stream']);
+        $t->same(false, $preview['native_raster_decode']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(['CCITTFaxDecode'], $preview['image_stream']['filters']);
+        $t->same(['CCITTFaxDecode'], $preview['image_stream']['preview_only_filters']);
+        $t->same(['CCITTFaxDecode'], $preview['image_stream']['unsupported_filters']);
+        $t->same(null, $preview['image_stream']['decoded_length']);
+        $t->same('inline_image_stream_review_only_before_output_preview', $preview['stream_notes'][0] ?? null);
+        $t->same('CCITTFaxDecode', $preview['image_stream']['filter_details'][0]['filter'] ?? null);
+        $t->same(-1, $preview['image_stream']['filter_details'][0]['decode_parms']['k'] ?? null);
+        $t->same(true, $preview['inline_image_payload_excluded_from_text']);
+        $encodedPreview = json_encode($preview, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->same(false, str_contains($encodedPreview, 'Inline incomplete CCITT output noise'));
+        $t->same(false, str_contains($encodedPreview, $completePayload));
+    },
     'marks malformed inline CCITT Fax DecodeParms fail closed before RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $payload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline invalid CCITT fax payload noise) Tj ET final";

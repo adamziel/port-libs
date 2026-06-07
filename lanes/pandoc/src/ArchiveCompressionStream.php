@@ -346,6 +346,30 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     format:string,
+     *     type:string,
+     *     compressedSize:int,
+     *     dictionaryStreamCount:int,
+     *     extractionPolicy:string,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectZlibPresetDictionaryPolicy(string $bytes): array
+    {
+        $policy = DeflateStream::presetDictionaryPolicyPreflight($bytes);
+
+        return [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'type' => 'zlib-preset-dictionary-policy',
+            'compressedSize' => strlen($bytes),
+            'dictionaryStreamCount' => $policy['dictionaryStreamCount'],
+            'extractionPolicy' => $policy['extractionPolicy'],
+            'stream' => $policy,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
      *     tarBytes:string,
      *     archive:TarArchive,
      *     entryNames:list<string>,

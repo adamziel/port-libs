@@ -388,6 +388,29 @@ return [
         $t->contains('<h1 id="العربية">العربية</h1>', $blocks);
         $t->contains('<p>محرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.</p>', $blocks);
     },
+    'decodes windows 1258 vietnamese combining tone bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Ti\xEA\xECng Vi\xEA\xF2t\n\nGia \xFE 20; \xD0\xF4\xECng \xFDu ti\xEAn: \xD5\xD2, \xFD\xDE, a\xCC, e\xF2.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp1258');
+        $document = (new MarkdownReader())->readBytes($bytes, 'microsoft-cp1258');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xC3\xCC\xD0\xD2\xD5\xDD\xDE\xEC\xF0\xF2\xF5\xFD\xFE", 'windows-1258');
+        $controls = UnicodeText::decodeBytes("\x8A\x8E\x9A\x9E", 'windows-1258');
+        $wrapped = UnicodeText::wrapByDisplayWidth("Audit Ti\u{00EA}\u{0301}ng Vi\u{00EA}\u{0323}t tail", 12, '  ');
+
+        $t->same('windows-1258', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Ti\u{00EA}\u{0301}ng Vi\u{00EA}\u{0323}t\n\nGia \u{20AB} 20; \u{0110}\u{00F4}\u{0301}ng \u{01B0}u ti\u{00EA}n: \u{01A0}\u{0309}, \u{01B0}\u{0303}, a\u{0300}, e\u{0323}.", $decoded['text']);
+        $t->same("\u{0102}\u{0300}\u{0110}\u{0309}\u{01A0}\u{01AF}\u{0303}\u{0301}\u{0111}\u{0323}\u{01A1}\u{01B0}\u{20AB}", $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same("\u{008A}\u{008E}\u{009A}\u{009E}", $controls['text']);
+        $t->same(0, UnicodeText::displayWidth($controls['text']));
+        $t->same(['encoding' => 'windows-1258', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same("Ti\u{00EA}\u{0301}ng Vi\u{00EA}\u{0323}t", $document->children[0]->attr('text'));
+        $t->same("Gia \u{20AB} 20; \u{0110}\u{00F4}\u{0301}ng \u{01B0}u ti\u{00EA}n: \u{01A0}\u{0309}, \u{01B0}\u{0303}, a\u{0300}, e\u{0323}.", $document->children[1]->attr('text'));
+        $t->same(35, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(["Audit Ti\u{00EA}\u{0301}ng", "  Vi\u{00EA}\u{0323}t tail"], $wrapped);
+        $t->contains("<p>Gia \u{20AB} 20; \u{0110}\u{00F4}\u{0301}ng \u{01B0}u ti\u{00EA}n: \u{01A0}\u{0309}, \u{01B0}\u{0303}, a\u{0300}, e\u{0323}.</p>", $blocks);
+    },
     'decodes iso 8859 7 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-126');

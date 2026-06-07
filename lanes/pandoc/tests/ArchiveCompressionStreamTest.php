@@ -3021,6 +3021,65 @@ return [
         ));
     },
 
+    'preflights zlib preset dictionary policy without exposing package bytes' => static function (TestRunner $t) use ($zlibDictionaryStream): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"zlib-dictionary-policy","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# ZLIB preset dictionary policy\n\nReady for blocked-dictionary review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $dictionary = 'packet/content.md:blocked-review-dictionary';
+        $dictionaryId = intval(hash('adler32', $dictionary), 16);
+        $zlib = $zlibDictionaryStream($dictionary, $tarBytes);
+        $clean = DeflateStream::presetDictionaryPolicyPreflight(DeflateStream::build('plain review packet', [
+            'format' => DeflateStream::FORMAT_ZLIB,
+        ]));
+
+        $policy = DeflateStream::presetDictionaryPolicyPreflight($zlib);
+        $inspection = ArchiveCompressionStream::inspectZlibPresetDictionaryPolicy($zlib);
+
+        $t->same('no-preset-dictionary-streams', $clean['extractionPolicy']);
+        $t->same(0, $clean['dictionaryStreamCount']);
+        $t->same(false, $clean['hasPresetDictionary']);
+        $t->same(null, $clean['presetDictionaryId']);
+        $t->same('decodable-without-preset-dictionary', $clean['policy']);
+        $t->same([], $clean['diagnostics']);
+        $t->same('preset-dictionary-streams-blocked', $policy['extractionPolicy']);
+        $t->same(1, $policy['dictionaryStreamCount']);
+        $t->same(true, $policy['hasPresetDictionary']);
+        $t->same($dictionaryId, $policy['presetDictionaryId']);
+        $t->same(sprintf('%08x', $dictionaryId), $policy['presetDictionaryIdHex']);
+        $t->same(8, $policy['compressionMethod']);
+        $t->same(32768, $policy['windowSize']);
+        $t->true($policy['compressionLevelHint'] !== '');
+        $t->same(strlen($zlib), $policy['compressedSize']);
+        $t->same(strlen($zlib) - 10, $policy['compressedPayloadSize']);
+        $t->same(intval(hash('adler32', $tarBytes), 16), $policy['adler32']);
+        $t->same(sprintf('%08x', intval(hash('adler32', $tarBytes), 16)), $policy['adler32Hex']);
+        $t->same('blocked', $policy['policy']);
+        $t->same([
+            'zlib-preset-dictionary-stream-not-decoded',
+            'zlib-external-preset-dictionary-required',
+        ], $policy['diagnostics']);
+        $t->same('zlib', $inspection['format']);
+        $t->same('zlib-preset-dictionary-policy', $inspection['type']);
+        $t->same(strlen($zlib), $inspection['compressedSize']);
+        $t->same(1, $inspection['dictionaryStreamCount']);
+        $t->same('preset-dictionary-streams-blocked', $inspection['extractionPolicy']);
+        $t->same($policy, $inspection['stream']);
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($zlib));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeTarBytes(
+            $zlib,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::presetDictionaryPolicyPreflight(substr($zlib, 0, 5)));
+    },
+
     'rejects unsupported archive stream formats and bounded tar dispatch overflows' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

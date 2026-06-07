@@ -304,14 +304,34 @@ final class PdfEmbeddedFileExtractor
     private function nameTreeNamePairsSortedByKey(array $items, array $objects, bool $sortByKey): array
     {
         $pairs = [];
-        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+        for ($index = 0, $count = count($items); $index < $count;) {
             $details = $this->stringDetailsFromRaw($items[$index], $objects);
+            if ($details === null) {
+                $index++;
+                continue;
+            }
+
+            $valueIndex = $index + 1;
+            if ($valueIndex >= $count) {
+                break;
+            }
+
+            $nextIndex = $valueIndex + 1;
+            if (
+                $nextIndex < $count
+                && $this->stringDetailsFromRaw($items[$nextIndex], $objects) === null
+            ) {
+                $index = $nextIndex;
+                continue;
+            }
+
             $pairs[] = [
                 'name' => $items[$index],
-                'fileSpec' => $items[$index + 1],
-                'order' => intdiv($index, 2),
+                'fileSpec' => $items[$valueIndex],
+                'order' => $index,
                 'sortKey' => $details['bytes'] ?? null,
             ];
+            $index = $valueIndex + 1;
         }
 
         if (!$sortByKey || count($pairs) < 2) {
@@ -5798,6 +5818,12 @@ final class PdfEmbeddedFileExtractor
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
         $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
+        if ($entry !== null && !$this->startxrefEntryHasNumericOperand($pdfBytes, $entry)) {
+            $entryEofBoundary = $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $entry['tokenOffset']);
+            if ($entryEofBoundary !== null) {
+                $eofBoundary = $entryEofBoundary;
+            }
+        }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -5938,6 +5964,48 @@ final class PdfEmbeddedFileExtractor
             ) {
                 return $tokenOffset;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int} $entry
+     */
+    private function startxrefEntryHasNumericOperand(string $pdfBytes, array $entry): bool
+    {
+        $offset = $entry['tokenOffset'] + strlen('startxref');
+        $length = strlen($pdfBytes);
+        while ($offset < $length && $this->isPdfWhitespace($pdfBytes[$offset])) {
+            $offset++;
+        }
+
+        return preg_match('/\G[+-]?\d+/s', $pdfBytes, $match, 0, $offset) === 1;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function firstTopLevelEofOffsetAfter(string $pdfBytes, array $definitions, int $afterOffset): ?int
+    {
+        if (preg_match_all('/%%EOF/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (!is_int($tokenOffset) || $tokenOffset <= $afterOffset) {
+                continue;
+            }
+
+            if (
+                $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return $tokenOffset;
         }
 
         return null;

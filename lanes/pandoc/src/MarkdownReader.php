@@ -34,6 +34,8 @@ final class MarkdownReader
     /** @var list<string> */
     private array $yamlMetadataDiagnosticPath = [];
 
+    private ?int $yamlMetadataCurrentSourceLine = null;
+
     /** @var list<array<string, string>> */
     private array $yamlMetadataTagProvenance = [];
 
@@ -499,7 +501,7 @@ final class MarkdownReader
                     continue;
                 }
 
-                $metadata = $this->parseIsolatedYamlMetadataBlock($yamlLines);
+                $metadata = $this->parseIsolatedYamlMetadataBlock($yamlLines, $start + 2);
                 if ($metadata === []) {
                     return null;
                 }
@@ -517,11 +519,12 @@ final class MarkdownReader
      * @param list<string> $yamlLines
      * @return array<string, mixed>
      */
-    private function parseIsolatedYamlMetadataBlock(array $yamlLines): array
+    private function parseIsolatedYamlMetadataBlock(array $yamlLines, int $startLine = 1): array
     {
         $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
         $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
         $previousYamlMetadataDiagnosticPath = $this->yamlMetadataDiagnosticPath;
+        $previousYamlMetadataCurrentSourceLine = $this->yamlMetadataCurrentSourceLine;
         $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
         $previousYamlMetadataDirectiveProvenance = $this->yamlMetadataDirectiveProvenance;
         $previousYamlMetadataCommentProvenance = $this->yamlMetadataCommentProvenance;
@@ -531,6 +534,7 @@ final class MarkdownReader
         $this->yamlMetadataAnchors = [];
         $this->yamlMetadataDiagnostics = [];
         $this->yamlMetadataDiagnosticPath = [];
+        $this->yamlMetadataCurrentSourceLine = null;
         $this->yamlMetadataTagProvenance = [];
         $this->yamlMetadataDirectiveProvenance = [];
         $this->yamlMetadataCommentProvenance = [];
@@ -538,7 +542,11 @@ final class MarkdownReader
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
         try {
-            $metadata = $this->parseYamlMetadataLines($yamlLines);
+            $metadata = $this->parseYamlMetadataLines(
+                $yamlLines,
+                true,
+                $this->yamlMetadataLineNumbers(count($yamlLines), $startLine)
+            );
             if ($this->yamlMetadataInvalid) {
                 return [];
             }
@@ -563,6 +571,7 @@ final class MarkdownReader
             $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
             $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
             $this->yamlMetadataDiagnosticPath = $previousYamlMetadataDiagnosticPath;
+            $this->yamlMetadataCurrentSourceLine = $previousYamlMetadataCurrentSourceLine;
             $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
             $this->yamlMetadataDirectiveProvenance = $previousYamlMetadataDirectiveProvenance;
             $this->yamlMetadataCommentProvenance = $previousYamlMetadataCommentProvenance;
@@ -648,6 +657,7 @@ final class MarkdownReader
             $diagnostic['path'] = $path;
         }
 
+        $diagnostic += $this->yamlMetadataSourceLineAttrs();
         $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
 
@@ -790,6 +800,41 @@ final class MarkdownReader
         }
     }
 
+    private function withYamlMetadataSourceLine(?int $sourceLine, callable $callback): mixed
+    {
+        $previous = $this->yamlMetadataCurrentSourceLine;
+        $this->yamlMetadataCurrentSourceLine = $sourceLine;
+        try {
+            return $callback();
+        } finally {
+            $this->yamlMetadataCurrentSourceLine = $previous;
+        }
+    }
+
+    /**
+     * @return list<int|null>
+     */
+    private function yamlMetadataLineNumbers(int $count, int $startLine = 1): array
+    {
+        if ($count <= 0) {
+            return [];
+        }
+
+        return range($startLine, $startLine + $count - 1);
+    }
+
+    /**
+     * @return array{sourceLine?:string}
+     */
+    private function yamlMetadataSourceLineAttrs(): array
+    {
+        if ($this->yamlMetadataCurrentSourceLine === null) {
+            return [];
+        }
+
+        return ['sourceLine' => (string) $this->yamlMetadataCurrentSourceLine];
+    }
+
     private function currentYamlMetadataDiagnosticPath(): ?string
     {
         if ($this->yamlMetadataDiagnosticPath === []) {
@@ -841,7 +886,7 @@ final class MarkdownReader
             'context' => 'standalone',
             'comment' => $comment,
             'path' => $this->currentYamlMetadataDiagnosticPath() ?? '',
-        ];
+        ] + $this->yamlMetadataSourceLineAttrs();
     }
 
     private function recordYamlTrailingCommentProvenance(string $source, int|string $segment): void
@@ -856,16 +901,18 @@ final class MarkdownReader
             'context' => 'trailing',
             'comment' => $comment,
             'path' => $this->yamlMetadataPathWithSegment($segment),
-        ];
+        ] + $this->yamlMetadataSourceLineAttrs();
     }
 
     /**
      * @param list<string> $lines
+     * @param list<int|null>|null $sourceLines
      * @return array<string, mixed>
      */
-    private function parseYamlMetadataLines(array $lines, bool $topLevel = true): array
+    private function parseYamlMetadataLines(array $lines, bool $topLevel = true, ?array $sourceLines = null): array
     {
-        $lines = $this->consumeYamlMetadataDocumentPreamble($lines);
+        $sourceLines ??= array_fill(0, count($lines), null);
+        [$lines, $sourceLines] = $this->consumeYamlMetadataDocumentPreamble($lines, $sourceLines);
         $jsonMetadata = $this->parseYamlJsonMetadataDocument($lines);
         if ($jsonMetadata !== null) {
             if ($topLevel) {
@@ -894,6 +941,7 @@ final class MarkdownReader
         $count = count($lines);
         for ($index = 0; $index < $count;) {
             $line = $lines[$index];
+            $this->yamlMetadataCurrentSourceLine = $sourceLines[$index] ?? null;
             $trimmed = trim($line);
             if ($trimmed === '') {
                 $index++;
@@ -910,16 +958,17 @@ final class MarkdownReader
                 continue;
             }
 
-            $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index);
+            $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index, $sourceLines);
             if ($explicitMapping !== null) {
-                [$key, $sourceValue, $children, $nextIndex, $quotedKey] = $explicitMapping;
+                [$key, $sourceValue, $children, $childrenSourceLines, $nextIndex, $quotedKey] = $explicitMapping;
                 if (!$this->isYamlMetadataMergeKey($key)) {
                     $this->recordYamlTrailingCommentProvenance($sourceValue, $key);
                 }
                 [$value] = $this->withYamlMetadataPathSegment(
                     (string) $key,
-                    fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
+                    fn (): array => $this->parseYamlMetadataValue($sourceValue, $children, $childrenSourceLines)
                 );
+                $this->yamlMetadataCurrentSourceLine = $sourceLines[$index] ?? null;
                 if ($this->isYamlMetadataMergeKey($key)) {
                     $metadata = $this->mergeYamlMapValue($metadata, $value);
                 } else {
@@ -937,7 +986,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $explicitNullMapping = $this->parseYamlExplicitNullMappingPair($lines, $index);
+            $explicitNullMapping = $this->parseYamlExplicitNullMappingPair($lines, $index, $sourceLines);
             if ($explicitNullMapping !== null) {
                 [$key, $nextIndex, $quotedKey] = $explicitNullMapping;
                 if (array_key_exists($key, $seenKeys)) {
@@ -963,11 +1012,12 @@ final class MarkdownReader
             if (!$this->isYamlMetadataMergeKey($key)) {
                 $this->recordYamlTrailingCommentProvenance($sourceValue, $key);
             }
-            [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
+            [$children, $nextIndex, $childrenSourceLines] = $this->collectYamlChildLines($lines, $index + 1, $sourceLines);
             [$value] = $this->withYamlMetadataPathSegment(
                 (string) $key,
-                fn (): array => $this->parseYamlMetadataValue($sourceValue, $children)
+                fn (): array => $this->parseYamlMetadataValue($sourceValue, $children, $childrenSourceLines)
             );
+            $this->yamlMetadataCurrentSourceLine = $sourceLines[$index] ?? null;
             if ($this->isYamlMetadataMergeKey($key)) {
                 $metadata = $this->mergeYamlMapValue($metadata, $value);
             } else {
@@ -1016,9 +1066,10 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return list<string>
+     * @param list<int|null> $sourceLines
+     * @return array{0:list<string>, 1:list<int|null>}
      */
-    private function consumeYamlMetadataDocumentPreamble(array $lines): array
+    private function consumeYamlMetadataDocumentPreamble(array $lines, array $sourceLines): array
     {
         $count = count($lines);
         $index = 0;
@@ -1031,7 +1082,10 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($this->parseYamlDirectiveLine($trimmed)) {
+            if ($this->withYamlMetadataSourceLine(
+                $sourceLines[$index] ?? null,
+                fn (): bool => $this->parseYamlDirectiveLine($trimmed)
+            )) {
                 $sawDirective = true;
                 $index++;
                 continue;
@@ -1041,7 +1095,7 @@ final class MarkdownReader
         }
 
         if (!$sawDirective) {
-            return $lines;
+            return [$lines, $sourceLines];
         }
 
         while ($index < $count) {
@@ -1058,7 +1112,7 @@ final class MarkdownReader
             $index++;
         }
 
-        return array_slice($lines, $index);
+        return [array_slice($lines, $index), array_slice($sourceLines, $index)];
     }
 
     private function yamlMetadataDocumentMarker(string $line): ?string
@@ -1120,7 +1174,7 @@ final class MarkdownReader
             'directive' => 'YAML',
             'version' => $version,
             'supported' => $supported ? 'true' : 'false',
-        ];
+        ] + $this->yamlMetadataSourceLineAttrs();
         if ($supported) {
             return;
         }
@@ -1131,7 +1185,7 @@ final class MarkdownReader
             'directive' => 'YAML',
             'version' => $version,
             'supportedVersions' => implode(',', self::SUPPORTED_YAML_METADATA_VERSIONS),
-        ];
+        ] + $this->yamlMetadataSourceLineAttrs();
     }
 
     private function recordYamlInvalidTagDirective(string $directive): void
@@ -1142,14 +1196,15 @@ final class MarkdownReader
             'directive' => 'TAG',
             'source' => $directive,
             'expected' => '%TAG <handle> <prefix>',
-        ];
+        ] + $this->yamlMetadataSourceLineAttrs();
     }
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:string, 2:list<string>, 3:int, 4:bool}|null
+     * @param list<int|null>|null $sourceLines
+     * @return array{0:string, 1:string, 2:list<string>, 3:list<int|null>, 4:int, 5:bool}|null
      */
-    private function parseYamlExplicitMappingPair(array $lines, int $start): ?array
+    private function parseYamlExplicitMappingPair(array $lines, int $start, ?array $sourceLines = null): ?array
     {
         $line = $lines[$start] ?? '';
         if ($this->countIndentColumns($line) > 0) {
@@ -1169,12 +1224,14 @@ final class MarkdownReader
         $startIndent = $this->countIndentColumns($line);
         if ($keySource === '') {
             $keyLines = [];
+            $keySourceLines = [];
             $count = count($lines);
             while (
                 $cursor < $count
                 && !$this->isYamlExplicitMappingValueLineAtIndent($lines[$cursor], $startIndent)
             ) {
                 $keyLines[] = $lines[$cursor];
+                $keySourceLines[] = $sourceLines[$cursor] ?? null;
                 $cursor++;
             }
 
@@ -1183,7 +1240,7 @@ final class MarkdownReader
             }
 
             $quotedKey = $this->yamlExplicitKeyLinesStartQuoted($keyLines);
-            $keyValue = $this->parseYamlIndentedValue($keyLines);
+            $keyValue = $this->parseYamlIndentedValue($keyLines, $keySourceLines);
         } else {
             $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
             $keyValue = $this->parseYamlScalarValue($keySource);
@@ -1213,16 +1270,17 @@ final class MarkdownReader
         }
 
         $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
-        [$children, $nextIndex] = $this->collectYamlChildLines($lines, $cursor + 1);
+        [$children, $nextIndex, $childrenSourceLines] = $this->collectYamlChildLines($lines, $cursor + 1, $sourceLines);
 
-        return [$key, $sourceValue, $children, $nextIndex, $quotedKey];
+        return [$key, $sourceValue, $children, $childrenSourceLines, $nextIndex, $quotedKey];
     }
 
     /**
      * @param list<string> $lines
+     * @param list<int|null>|null $sourceLines
      * @return array{0:string, 1:int, 2:bool}|null
      */
-    private function parseYamlExplicitNullMappingPair(array $lines, int $start): ?array
+    private function parseYamlExplicitNullMappingPair(array $lines, int $start, ?array $sourceLines = null): ?array
     {
         $line = $lines[$start] ?? '';
         if ($this->countIndentColumns($line) > 0) {
@@ -1243,6 +1301,7 @@ final class MarkdownReader
         $startIndent = $this->countIndentColumns($line);
         if ($keySource === '') {
             $keyLines = [];
+            $keySourceLines = [];
             $count = count($lines);
             while ($cursor < $count) {
                 $candidate = trim($lines[$cursor]);
@@ -1262,6 +1321,7 @@ final class MarkdownReader
                 }
 
                 $keyLines[] = $lines[$cursor];
+                $keySourceLines[] = $sourceLines[$cursor] ?? null;
                 $cursor++;
             }
 
@@ -1270,7 +1330,7 @@ final class MarkdownReader
             }
 
             $quotedKey = $this->yamlExplicitKeyLinesStartQuoted($keyLines);
-            $keyValue = $this->parseYamlIndentedValue($keyLines);
+            $keyValue = $this->parseYamlIndentedValue($keyLines, $keySourceLines);
         } else {
             $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
             $keyValue = $this->parseYamlScalarValue($keySource);
@@ -1445,9 +1505,10 @@ final class MarkdownReader
 
     /**
      * @param list<string> $children
+     * @param list<int|null>|null $childrenSourceLines
      * @return array{0:mixed, 1:string|null}
      */
-    private function parseYamlMetadataValue(string $sourceValue, array $children): array
+    private function parseYamlMetadataValue(string $sourceValue, array $children, ?array $childrenSourceLines = null): array
     {
         [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
         $sourceValue = $this->stripYamlTrailingComment($sourceValue);
@@ -1459,7 +1520,7 @@ final class MarkdownReader
         }
 
         if ($this->yamlHasExplicitTag($tags, 'set')) {
-            $value = $this->parseYamlExplicitSetValue($sourceValue, $children);
+            $value = $this->parseYamlExplicitSetValue($sourceValue, $children, $childrenSourceLines);
             $this->rememberYamlAnchor($anchorName, $value);
 
             return [$value, $anchorName];
@@ -1484,7 +1545,7 @@ final class MarkdownReader
                 );
             }
         } elseif ($sourceValue === '') {
-            $value = $this->parseYamlIndentedValue($children);
+            $value = $this->parseYamlIndentedValue($children, $childrenSourceLines);
         } else {
             $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
                 ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
@@ -1510,11 +1571,13 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:list<string>, 1:int}
+     * @param list<int|null>|null $sourceLines
+     * @return array{0:list<string>, 1:int, 2:list<int|null>}
      */
-    private function collectYamlChildLines(array $lines, int $start): array
+    private function collectYamlChildLines(array $lines, int $start, ?array $sourceLines = null): array
     {
         $children = [];
+        $childSourceLines = [];
         $count = count($lines);
         for ($index = $start; $index < $count; $index++) {
             $line = $lines[$index];
@@ -1530,9 +1593,10 @@ final class MarkdownReader
             }
 
             $children[] = $line;
+            $childSourceLines[] = $sourceLines[$index] ?? null;
         }
 
-        return [$children, $index];
+        return [$children, $index, $childSourceLines];
     }
 
     /**
@@ -1653,16 +1717,20 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     * @param list<int|null>|null $sourceLines
      * @return mixed
      */
-    private function parseYamlIndentedValue(array $lines): mixed
+    private function parseYamlIndentedValue(array $lines, ?array $sourceLines = null): mixed
     {
+        $sourceLines ??= array_fill(0, count($lines), null);
         $normalized = $this->stripYamlCommonIndent($lines);
         while ($normalized !== [] && trim($normalized[0]) === '') {
             array_shift($normalized);
+            array_shift($sourceLines);
         }
         while ($normalized !== [] && trim((string) end($normalized)) === '') {
             array_pop($normalized);
+            array_pop($sourceLines);
         }
 
         if ($normalized === []) {
@@ -1670,11 +1738,11 @@ final class MarkdownReader
         }
 
         if (preg_match('/^-[ \t]?(.*)$/', $normalized[0]) === 1) {
-            return $this->parseYamlSequence($normalized);
+            return $this->parseYamlSequence($normalized, $sourceLines);
         }
 
         if ($this->startsWithYamlMapping($normalized)) {
-            return $this->parseYamlMetadataLines($normalized, false);
+            return $this->parseYamlMetadataLines($normalized, false, $sourceLines);
         }
 
         if (count($normalized) === 1) {
@@ -1754,10 +1822,12 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     * @param list<int|null>|null $sourceLines
      * @return list<mixed>
      */
-    private function parseYamlSequence(array $lines): array
+    private function parseYamlSequence(array $lines, ?array $sourceLines = null): array
     {
+        $sourceLines ??= array_fill(0, count($lines), null);
         $items = [];
         $count = count($lines);
         for ($index = 0; $index < $count;) {
@@ -1773,26 +1843,40 @@ final class MarkdownReader
             }
 
             $sourceValue = rtrim($m[1]);
+            $sourceLine = $sourceLines[$index] ?? null;
             $itemPath = (string) count($items);
             [$sourceValue, $anchorName, $tags] = $this->withYamlMetadataPathSegment(
                 $itemPath,
-                fn (): array => $this->parseYamlValueDirectives($sourceValue)
+                fn (): array => $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    fn (): array => $this->parseYamlValueDirectives($sourceValue)
+                )
             );
             $sourceValueWithComment = $sourceValue;
             $sourceValue = $this->stripYamlTrailingComment($sourceValue);
             $children = [];
+            $childrenSourceLines = [];
             $index++;
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
                 $children[] = $lines[$index];
+                $childrenSourceLines[] = $sourceLines[$index] ?? null;
                 $index++;
             }
 
             if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): array => $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children)
+                    fn (): array => $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        fn (): array => $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children)
+                    )
                 );
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1800,9 +1884,17 @@ final class MarkdownReader
             if ($this->yamlHasExplicitTag($tags, 'set')) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): array => $this->parseYamlExplicitSetValue($sourceValue, $children)
+                    fn (): array => $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        fn (): array => $this->parseYamlExplicitSetValue($sourceValue, $children, $childrenSourceLines)
+                    )
                 );
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1810,11 +1902,19 @@ final class MarkdownReader
             $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
             $multilineFlow = $this->withYamlMetadataPathSegment(
                 $itemPath,
-                fn (): mixed => $this->parseYamlMultilineFlowCollection($sourceValue, $children)
+                fn (): mixed => $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    fn (): mixed => $this->parseYamlMultilineFlowCollection($sourceValue, $children)
+                )
             );
             if ($multilineFlow !== null) {
                 $multilineFlow = $this->applyYamlExplicitScalarTagToParsedValue($multilineFlow, $tags);
-                $this->rememberYamlAnchor($anchorName, $multilineFlow);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $multilineFlow): void {
+                        $this->rememberYamlAnchor($anchorName, $multilineFlow);
+                    }
+                );
                 $items[] = $multilineFlow;
                 continue;
             }
@@ -1832,7 +1932,12 @@ final class MarkdownReader
                     );
                 }
                 $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1841,7 +1946,12 @@ final class MarkdownReader
                 ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
             if ($multiline !== null) {
                 $multiline = $this->applyYamlExplicitScalarTagToParsedValue($multiline, $tags);
-                $this->rememberYamlAnchor($anchorName, $multiline);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $multiline): void {
+                        $this->rememberYamlAnchor($anchorName, $multiline);
+                    }
+                );
                 $items[] = $multiline;
                 continue;
             }
@@ -1849,10 +1959,15 @@ final class MarkdownReader
             if ($sourceValue === '') {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): mixed => $this->parseYamlIndentedValue($children)
+                    fn (): mixed => $this->parseYamlIndentedValue($children, $childrenSourceLines)
                 );
                 $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1861,9 +1976,17 @@ final class MarkdownReader
             if (preg_match('/^-[ \t]+/', $sourceValue) === 1) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): array => $this->parseYamlSequence(array_merge([$sourceValue], $childLines))
+                    fn (): array => $this->parseYamlSequence(
+                        array_merge([$sourceValue], $childLines),
+                        array_merge([$sourceLine], $childrenSourceLines)
+                    )
                 );
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1871,9 +1994,18 @@ final class MarkdownReader
             if ($this->isYamlCompactSequenceMappingSource($sourceValueWithComment)) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): array => $this->parseYamlMetadataLines(array_merge([$sourceValueWithComment], $childLines), false)
+                    fn (): array => $this->parseYamlMetadataLines(
+                        array_merge([$sourceValueWithComment], $childLines),
+                        false,
+                        array_merge([$sourceLine], $childrenSourceLines)
+                    )
                 );
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1881,9 +2013,18 @@ final class MarkdownReader
             if ($childLines !== [] && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
-                    fn (): array => $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false)
+                    fn (): array => $this->parseYamlMetadataLines(
+                        array_merge([$sourceValue], $childLines),
+                        false,
+                        array_merge([$sourceLine], $childrenSourceLines)
+                    )
                 );
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
@@ -1891,16 +2032,29 @@ final class MarkdownReader
             if ($this->isYamlPlainMultilineScalar($childLines)) {
                 $value = $this->parseYamlPlainMultilineScalar(array_merge([$sourceValue], $childLines));
                 $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
-                $this->rememberYamlAnchor($anchorName, $value);
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    function () use ($anchorName, $value): void {
+                        $this->rememberYamlAnchor($anchorName, $value);
+                    }
+                );
                 $items[] = $value;
                 continue;
             }
 
             $value = $this->withYamlMetadataPathSegment(
                 $itemPath,
-                fn (): mixed => $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags)
+                fn (): mixed => $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    fn (): mixed => $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags)
+                )
             );
-            $this->rememberYamlAnchor($anchorName, $value);
+            $this->withYamlMetadataSourceLine(
+                $sourceLine,
+                function () use ($anchorName, $value): void {
+                    $this->rememberYamlAnchor($anchorName, $value);
+                }
+            );
             $items[] = $value;
         }
 
@@ -2529,9 +2683,10 @@ final class MarkdownReader
 
     /**
      * @param list<string> $children
+     * @param list<int|null>|null $childrenSourceLines
      * @return array<string, null>
      */
-    private function parseYamlExplicitSetValue(string $sourceValue, array $children): array
+    private function parseYamlExplicitSetValue(string $sourceValue, array $children, ?array $childrenSourceLines = null): array
     {
         $sourceValue = ltrim($sourceValue);
         if ($sourceValue !== '') {
@@ -2548,12 +2703,15 @@ final class MarkdownReader
             return [];
         }
 
+        $childrenSourceLines ??= array_fill(0, count($children), null);
         $normalized = $this->stripYamlCommonIndent($children);
         while ($normalized !== [] && trim($normalized[0]) === '') {
             array_shift($normalized);
+            array_shift($childrenSourceLines);
         }
         while ($normalized !== [] && trim((string) end($normalized)) === '') {
             array_pop($normalized);
+            array_pop($childrenSourceLines);
         }
 
         if ($normalized !== []) {
@@ -2566,7 +2724,7 @@ final class MarkdownReader
             }
         }
 
-        return $this->parseYamlBlockSet($normalized);
+        return $this->parseYamlBlockSet($normalized, $childrenSourceLines);
     }
 
     /**
@@ -2604,13 +2762,16 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     * @param list<int|null>|null $sourceLines
      * @return array<string, null>
      */
-    private function parseYamlBlockSet(array $lines): array
+    private function parseYamlBlockSet(array $lines, ?array $sourceLines = null): array
     {
+        $sourceLines ??= array_fill(0, count($lines), null);
         $set = [];
         $count = count($lines);
         for ($index = 0; $index < $count; $index++) {
+            $sourceLine = $sourceLines[$index] ?? null;
             $trimmed = trim($this->stripYamlTrailingComment($lines[$index]));
             if ($trimmed === '' || str_starts_with($trimmed, '#')) {
                 continue;
@@ -2625,6 +2786,7 @@ final class MarkdownReader
                 $keySource = trim(substr($trimmed, 1));
                 if ($keySource === '') {
                     $keyLines = [];
+                    $keySourceLines = [];
                     $startIndent = $this->countIndentColumns($lines[$index]);
                     for ($cursor = $index + 1; $cursor < $count; $cursor++) {
                         $candidate = trim($lines[$cursor]);
@@ -2638,14 +2800,21 @@ final class MarkdownReader
                             break;
                         }
                         $keyLines[] = $lines[$cursor];
+                        $keySourceLines[] = $sourceLines[$cursor] ?? null;
                     }
                     $index = max($index, $cursor - 1);
-                    $keyValue = $keyLines === [] ? null : $this->parseYamlIndentedValue($keyLines);
+                    $keyValue = $keyLines === [] ? null : $this->parseYamlIndentedValue($keyLines, $keySourceLines);
                 } else {
-                    $keyValue = $this->parseYamlScalarValue($keySource);
+                    $keyValue = $this->withYamlMetadataSourceLine(
+                        $sourceLine,
+                        fn (): mixed => $this->parseYamlScalarValue($keySource)
+                    );
                 }
             } else {
-                $keyValue = $this->parseYamlScalarValue($trimmed);
+                $keyValue = $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    fn (): mixed => $this->parseYamlScalarValue($trimmed)
+                );
             }
 
             $key = $this->normalizeYamlExplicitMappingKey($keyValue ?? null);
@@ -3386,6 +3555,7 @@ final class MarkdownReader
         if ($path !== null) {
             $provenance['path'] = $path;
         }
+        $provenance += $this->yamlMetadataSourceLineAttrs();
 
         $this->yamlMetadataTagProvenance[] = $provenance;
     }
@@ -3675,6 +3845,7 @@ final class MarkdownReader
         if ($resolvedAliasName !== null && $resolvedAliasName !== '') {
             $diagnostic['resolvedAlias'] = '*' . $resolvedAliasName;
         }
+        $diagnostic += $this->yamlMetadataSourceLineAttrs();
 
         $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
@@ -3696,6 +3867,7 @@ final class MarkdownReader
         foreach ($this->yamlMetadataAnchorProvenance as $index => $entry) {
             if (($entry['name'] ?? '') === $anchorName && ($entry['path'] ?? '') === $path) {
                 $this->yamlMetadataAnchorProvenance[$index]['kind'] = $kind;
+                $this->yamlMetadataAnchorProvenance[$index] += $this->yamlMetadataSourceLineAttrs();
 
                 return;
             }
@@ -3704,6 +3876,7 @@ final class MarkdownReader
             foreach ($this->yamlMetadataAnchorProvenance as $index => $entry) {
                 if (($entry['name'] ?? '') === $anchorName && ($entry['kind'] ?? '') === 'node') {
                     $this->yamlMetadataAnchorProvenance[$index]['kind'] = $kind;
+                    $this->yamlMetadataAnchorProvenance[$index] += $this->yamlMetadataSourceLineAttrs();
 
                     return;
                 }
@@ -3719,6 +3892,7 @@ final class MarkdownReader
         if ($path !== '') {
             $provenance['path'] = $path;
         }
+        $provenance += $this->yamlMetadataSourceLineAttrs();
 
         $this->yamlMetadataAnchorProvenance[] = $provenance;
     }

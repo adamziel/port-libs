@@ -252,16 +252,520 @@ final class PdfDocumentSecurityStoreExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
-        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
             return [];
         }
 
-        $objects = [];
+        $xrefObjects = $this->objectsFromXrefEntries(
+            $this->xrefEntriesFromStartxrefChain($pdfBytes, $definitions),
+            $definitions
+        );
+        if ($xrefObjects !== []) {
+            return $xrefObjects;
+        }
+
+        return $this->latestDirectObjects($definitions);
+    }
+
+    /**
+     * @return array<int, list<array{generation: int, offset: int, body: string}>>
+     */
+    private function directObjectDefinitions(string $pdfBytes): array
+    {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return [];
+        }
+
+        $definitions = [];
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = $match[2];
+            $objectNumber = (int) $match[1][0];
+            $definitions[$objectNumber][] = [
+                'generation' => (int) $match[2][0],
+                'offset' => (int) $match[1][1],
+                'body' => $match[3][0],
+            ];
+        }
+        ksort($definitions, SORT_NUMERIC);
+
+        return $definitions;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function latestDirectObjects(array $definitions): array
+    {
+        $objects = [];
+        foreach ($definitions as $objectNumber => $entries) {
+            $latest = $this->latestDirectObjectDefinition($entries);
+            if ($latest !== null) {
+                $objects[$objectNumber] = $latest['body'];
+            }
         }
 
         return $objects;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function objectsFromXrefEntries(array $entries, array $definitions): array
+    {
+        $objects = [];
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1 || !isset($entry['offset'])) {
+                continue;
+            }
+
+            $definition = $this->directObjectDefinitionAtOffset($definitions, (int) $entry['offset']);
+            if (
+                $definition === null
+                || $definition['objectNumber'] !== $objectNumber
+                || $definition['generation'] !== (int) ($entry['generation'] ?? 0)
+            ) {
+                continue;
+            }
+
+            $objects[$objectNumber] = $definition['body'];
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     */
+    private function xrefEntriesFromStartxrefChain(string $pdfBytes, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+
+        return $offset === null ? [] : $this->xrefEntriesFromOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    private function latestStartxrefOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\b\s*([+-]?\d+)/s', $pdfBytes, $matches) < 1) {
+            return null;
+        }
+
+        $raw = end($matches[1]);
+        return is_string($raw) ? max(0, (int) $raw) : null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, true> $seenOffsets
+     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     */
+    private function xrefEntriesFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+        if ($table !== null) {
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($table['trailer']);
+            $entries = $this->repairCurrentXrefRows($table['entries'], $definitions, $previousOffset, $offset);
+
+            return $this->mergePreviousXrefEntries($pdfBytes, $entries, $previousOffset, $definitions, $seenOffsets);
+        }
+
+        $stream = $this->xrefStreamSectionAtOffset($pdfBytes, $offset, $definitions);
+        if ($stream === null) {
+            return [];
+        }
+
+        $entries = $this->xrefStreamEntriesFromDefinition($stream['definition']);
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($stream['dictionary']);
+        $entries = $this->repairCurrentXrefRows($entries, $definitions, $previousOffset, $stream['definition']['offset']);
+
+        return $this->mergePreviousXrefEntries($pdfBytes, $entries, $previousOffset, $definitions, $seenOffsets);
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, true> $seenOffsets
+     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     */
+    private function mergePreviousXrefEntries(
+        string $pdfBytes,
+        array $entries,
+        ?int $previousOffset,
+        array $definitions,
+        array $seenOffsets
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $entries;
+        }
+
+        foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
+            if (!isset($entries[$objectNumber])) {
+                $entries[$objectNumber] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array{entries: array<int, array{type: int, generation?: int, offset?: int}>, trailer: string}|null
+     */
+    private function xrefTableSectionAt(string $pdfBytes, int $offset): ?array
+    {
+        $offset = $this->skipWhitespaceOffset($pdfBytes, $offset);
+        if (substr($pdfBytes, $offset, 4) !== 'xref') {
+            return null;
+        }
+
+        $cursor = $offset + 4;
+        $entries = [];
+        while ($cursor < strlen($pdfBytes)) {
+            $cursor = $this->skipWhitespaceOffset($pdfBytes, $cursor);
+            if (substr($pdfBytes, $cursor, 7) === 'trailer') {
+                $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $cursor + 7);
+                $trailer = $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+
+                return $trailer === null ? null : ['entries' => $entries, 'trailer' => $trailer];
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)/s', $pdfBytes, $section, 0, $cursor) !== 1) {
+                return null;
+            }
+
+            $startObject = (int) $section[1];
+            $count = (int) $section[2];
+            $cursor += strlen($section[0]);
+            for ($index = 0; $index < $count; $index++) {
+                $cursor = $this->skipWhitespaceOffset($pdfBytes, $cursor);
+                if (preg_match('/\G(\d{10})\s+(\d{5})\s+([nf])\b/s', $pdfBytes, $row, 0, $cursor) !== 1) {
+                    return null;
+                }
+
+                $objectNumber = $startObject + $index;
+                $entries[$objectNumber] = $row[3] === 'n'
+                    ? ['type' => 1, 'offset' => (int) $row[1], 'generation' => (int) $row[2]]
+                    : ['type' => 0, 'offset' => (int) $row[1], 'generation' => (int) $row[2]];
+                $cursor += strlen($row[0]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{definition: array{generation: int, offset: int, body: string}, dictionary: string}|null
+     */
+    private function xrefStreamSectionAtOffset(string $pdfBytes, int $offset, array $definitions): ?array
+    {
+        $offset = $this->skipWhitespaceOffset($pdfBytes, $offset);
+        foreach ($definitions as $objectDefinitions) {
+            foreach ($objectDefinitions as $definition) {
+                if ($definition['offset'] !== $offset || !$this->objectBodyHasTypeName($definition['body'], 'XRef')) {
+                    continue;
+                }
+
+                $dictionary = $this->dictionaryObjectBody($definition['body']);
+                return $dictionary === null ? null : ['definition' => $definition, 'dictionary' => $dictionary];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{generation: int, offset: int, body: string} $definition
+     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     */
+    private function xrefStreamEntriesFromDefinition(array $definition): array
+    {
+        $dictionary = $this->dictionaryObjectBody($definition['body']);
+        $widths = $dictionary === null ? null : $this->xrefStreamFieldWidths($dictionary);
+        if ($dictionary === null || $widths === null) {
+            return [];
+        }
+
+        $entryWidth = array_sum($widths);
+        $decoded = $entryWidth <= 0 ? null : $this->decodeStreamObject($definition['body'], []);
+        if ($decoded === null || strlen($decoded) % $entryWidth !== 0) {
+            return [];
+        }
+
+        $entries = [];
+        $offset = 0;
+        $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
+        foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount) as $range) {
+            [$startObject, $count] = $range;
+            for ($index = 0; $index < $count; $index++) {
+                if ($offset + $entryWidth > strlen($decoded)) {
+                    break 2;
+                }
+
+                $fieldOffset = $offset;
+                $type = $widths[0] === 0 ? 1 : $this->xrefFieldValue($decoded, $fieldOffset, $widths[0]);
+                $fieldTwo = $this->xrefFieldValue($decoded, $fieldOffset, $widths[1]);
+                $fieldThree = $this->xrefFieldValue($decoded, $fieldOffset, $widths[2]);
+                $objectNumber = $startObject + $index;
+                $entries[$objectNumber] = match ($type) {
+                    0 => ['type' => 0, 'offset' => $fieldTwo, 'generation' => $fieldThree],
+                    1 => ['type' => 1, 'offset' => $fieldTwo, 'generation' => $fieldThree],
+                    default => ['type' => 0, 'offset' => $fieldTwo, 'generation' => $fieldThree],
+                };
+                $offset += $entryWidth;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function xrefStreamFieldWidths(string $dictionary): ?array
+    {
+        $widths = $this->integerArrayValuesFromValue($this->valueAfterName($dictionary, 'W'));
+        if (count($widths) < 3) {
+            return null;
+        }
+
+        $widths = array_slice($widths, 0, 3);
+        foreach ($widths as $width) {
+            if ($width < 0) {
+                return null;
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return list<array{0: int, 1: int}>
+     */
+    private function xrefIndexRanges(string $dictionary, int $decodedEntryCount): array
+    {
+        $indexValue = $this->valueAfterName($dictionary, 'Index');
+        if ($indexValue !== null) {
+            $indexValues = $this->integerArrayValuesFromValue($indexValue);
+            if ($indexValues === [] || count($indexValues) % 2 !== 0) {
+                return [];
+            }
+
+            $ranges = [];
+            for ($index = 0, $count = count($indexValues); $index + 1 < $count; $index += 2) {
+                if ($indexValues[$index] < 0 || $indexValues[$index + 1] < 0) {
+                    return [];
+                }
+                $ranges[] = [$indexValues[$index], $indexValues[$index + 1]];
+            }
+
+            return $ranges;
+        }
+
+        $size = $this->integerValueFromValue($this->valueAfterName($dictionary, 'Size'));
+
+        return [[0, max($decodedEntryCount, $size ?? 0)]];
+    }
+
+    private function xrefFieldValue(string $bytes, int &$offset, int $width): int
+    {
+        $value = 0;
+        for ($index = 0; $index < $width; $index++) {
+            $value = ($value << 8) + ord($bytes[$offset + $index] ?? "\0");
+        }
+        $offset += $width;
+
+        return $value;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int}>
+     */
+    private function repairCurrentXrefRows(array $entries, array $definitions, ?int $previousOffset, int $currentXrefOffset): array
+    {
+        if ($previousOffset === null || $previousOffset < 0 || $currentXrefOffset <= $previousOffset) {
+            return $entries;
+        }
+
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1 || !isset($entry['offset'])) {
+                continue;
+            }
+
+            $generation = (int) ($entry['generation'] ?? 0);
+            $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, (int) $entry['offset']);
+            $updateOwner = $this->currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+                $objectNumber,
+                $generation,
+                $offsetOwner,
+                $previousOffset,
+                $currentXrefOffset,
+                $definitions
+            );
+            if ($updateOwner === null) {
+                continue;
+            }
+
+            $entries[$objectNumber]['offset'] = $updateOwner['offset'];
+            $entries[$objectNumber]['generation'] = $updateOwner['generation'];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int, offset: int, body: string}|null $offsetOwner
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+        int $objectNumber,
+        int $generation,
+        ?array $offsetOwner,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if (
+            $offsetOwner !== null
+            && $offsetOwner['offset'] > $previousOffset
+            && $offsetOwner['offset'] < $xrefOffset
+        ) {
+            if ($offsetOwner['objectNumber'] === $objectNumber && $offsetOwner['generation'] === $generation) {
+                return null;
+            }
+        }
+
+        return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+            $objectNumber,
+            $generation,
+            $previousOffset,
+            $xrefOffset,
+            $definitions
+        );
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForXrefRow(
+        int $objectNumber,
+        int $generation,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        $candidates = [];
+        foreach ($definitions[$objectNumber] ?? [] as $definition) {
+            if (
+                $definition['generation'] !== $generation
+                || $definition['offset'] <= $previousOffset
+                || $definition['offset'] >= $xrefOffset
+            ) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectDefinition(array $definitions): ?array
+    {
+        $latest = null;
+        foreach ($definitions as $definition) {
+            if ($latest === null || $definition['offset'] > $latest['offset']) {
+                $latest = $definition;
+            }
+        }
+
+        return $latest;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionAtOffset(array $definitions, int $offset): ?array
+    {
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if ($definition['offset'] === $offset) {
+                    return [
+                        'objectNumber' => $objectNumber,
+                        'generation' => $definition['generation'],
+                        'offset' => $definition['offset'],
+                        'body' => $definition['body'],
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function previousXrefOffsetFromSectionBody(string $body): ?int
+    {
+        $value = $this->valueAfterName($body, 'Prev');
+
+        return $this->integerValueFromValue($value);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerArrayValuesFromValue(?string $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $integers = [];
+        foreach ($this->arrayItemsFromValue($value, []) as $item) {
+            $integer = $this->integerValueFromValue($item);
+            if ($integer === null) {
+                return [];
+            }
+
+            $integers[] = $integer;
+        }
+
+        return $integers;
+    }
+
+    private function integerValueFromValue(?string $value): ?int
+    {
+        if ($value === null || preg_match('/^[+-]?\d+$/', trim($value)) !== 1) {
+            return null;
+        }
+
+        return (int) trim($value);
+    }
+
+    private function objectBodyHasTypeName(string $body, string $name): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+
+        return $this->pdfNameValueAfterName($dictionary, 'Type') === $name;
     }
 
     /**
@@ -804,6 +1308,13 @@ final class PdfDocumentSecurityStoreExtractor
 
             break;
         }
+    }
+
+    private function skipWhitespaceOffset(string $body, int $offset): int
+    {
+        $this->skipWhitespace($body, $offset);
+
+        return $offset;
     }
 
     private function skipPdfName(string $body, int $offset): int

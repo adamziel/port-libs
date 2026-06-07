@@ -216,6 +216,10 @@ final class OdfReader
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
                     'tableColumnDefinitionCount' => $contentStats['tableColumnDefinitionCount'],
                     'hiddenTableColumnCount' => $contentStats['hiddenTableColumnCount'],
+                    'tableRowDefinitionCount' => $contentStats['tableRowDefinitionCount'],
+                    'hiddenTableRowCount' => $contentStats['hiddenTableRowCount'],
+                    'repeatedTableRowCount' => $contentStats['repeatedTableRowCount'],
+                    'truncatedTableRowRepeatCount' => $contentStats['truncatedTableRowRepeatCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                 ],
             ],
@@ -1615,10 +1619,16 @@ final class OdfReader
      */
     private function repeatedRows(\DOMElement $row, ZipPackage $package, array $catalog): array
     {
-        $repeat = min(32, max(1, self::intAttr($row, self::TABLE_NS, 'number-rows-repeated', 1)));
+        $declaredRepeat = max(1, self::intAttr($row, self::TABLE_NS, 'number-rows-repeated', 1));
+        $repeat = min(32, $declaredRepeat);
         $rows = [];
         for ($index = 0; $index < $repeat; $index++) {
-            $rows[] = $this->tableRowNode($row, $package, $catalog);
+            $rows[] = $this->tableRowNode($row, $package, $catalog, [
+                'repeatIndex' => $repeat > 1 ? $index + 1 : null,
+                'sourceRepeat' => $repeat > 1 ? $repeat : null,
+                'declaredRepeat' => $declaredRepeat > 1 ? $declaredRepeat : null,
+                'repeatTruncated' => $declaredRepeat > $repeat ? true : null,
+            ]);
         }
 
         return $rows;
@@ -1626,8 +1636,9 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param array{repeatIndex?:int|null,sourceRepeat?:int|null,declaredRepeat?:int|null,repeatTruncated?:bool|null} $repeatMetadata
      */
-    private function tableRowNode(\DOMElement $row, ZipPackage $package, array $catalog): AstNode
+    private function tableRowNode(\DOMElement $row, ZipPackage $package, array $catalog, array $repeatMetadata = []): AstNode
     {
         $cells = [];
         foreach (self::childElements($row) as $cellElement) {
@@ -1644,7 +1655,63 @@ final class OdfReader
             }
         }
 
-        return new AstNode('table_row', [], $cells);
+        $attrs = $this->tableRowMetadata($row, $repeatMetadata);
+
+        return new AstNode('table_row', $attrs, $cells);
+    }
+
+    /**
+     * @param array{repeatIndex?:int|null,sourceRepeat?:int|null,declaredRepeat?:int|null,repeatTruncated?:bool|null} $repeatMetadata
+     * @return array<string, mixed>
+     */
+    private function tableRowMetadata(\DOMElement $row, array $repeatMetadata): array
+    {
+        $styleName = self::attr($row, self::TABLE_NS, 'style-name');
+        $defaultCellStyleName = self::attr($row, self::TABLE_NS, 'default-cell-style-name');
+        $visibility = self::attr($row, self::TABLE_NS, 'visibility');
+        $hidden = in_array(strtolower($visibility), ['collapse', 'filter'], true);
+
+        $metadata = self::withoutEmpty([
+            'styleName' => self::nullable($styleName),
+            'defaultCellStyleName' => self::nullable($defaultCellStyleName),
+            'visibility' => self::nullable($visibility),
+            'hidden' => $hidden ? true : null,
+            'repeatIndex' => $repeatMetadata['repeatIndex'] ?? null,
+            'sourceRepeat' => $repeatMetadata['sourceRepeat'] ?? null,
+            'declaredRepeat' => $repeatMetadata['declaredRepeat'] ?? null,
+            'repeatTruncated' => ($repeatMetadata['repeatTruncated'] ?? false) === true ? true : null,
+        ]);
+        if ($metadata === []) {
+            return [];
+        }
+
+        $htmlAttributes = self::withoutEmpty([
+            'data-odf-row-style-name' => self::nullable($styleName),
+            'data-odf-row-default-cell-style-name' => self::nullable($defaultCellStyleName),
+            'data-odf-row-visibility' => self::nullable($visibility),
+            'data-odf-row-hidden' => $hidden ? 'true' : null,
+            'data-odf-row-repeat-index' => isset($metadata['repeatIndex']) ? (string) $metadata['repeatIndex'] : null,
+            'data-odf-row-source-repeat' => isset($metadata['sourceRepeat']) ? (string) $metadata['sourceRepeat'] : null,
+            'data-odf-row-declared-repeat' => isset($metadata['declaredRepeat']) ? (string) $metadata['declaredRepeat'] : null,
+            'data-odf-row-repeat-truncated' => ($metadata['repeatTruncated'] ?? false) === true ? 'true' : null,
+        ]);
+
+        $classes = [];
+        if ($hidden) {
+            $classes[] = 'odf-hidden-table-row';
+        }
+        if (isset($metadata['sourceRepeat']) && (int) $metadata['sourceRepeat'] > 1) {
+            $classes[] = 'odf-repeated-table-row';
+        }
+
+        $attrs = $metadata;
+        $attrs['odfTableRowMetadata'] = $metadata;
+        $attrs['htmlAttributes'] = $htmlAttributes;
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+        }
+
+        return $attrs;
     }
 
     /**
@@ -5227,7 +5294,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -5269,6 +5336,10 @@ final class OdfReader
             'tableTemplateReferenceCount' => 0,
             'tableColumnDefinitionCount' => 0,
             'hiddenTableColumnCount' => 0,
+            'tableRowDefinitionCount' => 0,
+            'hiddenTableRowCount' => 0,
+            'repeatedTableRowCount' => 0,
+            'truncatedTableRowRepeatCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -5313,6 +5384,18 @@ final class OdfReader
                             $stats['hiddenTableColumnCount']++;
                         }
                     }
+                }
+            }
+            if ($node->type === 'table_row' && $node->attr('odfTableRowMetadata', []) !== []) {
+                $stats['tableRowDefinitionCount']++;
+                if ($node->attr('hidden') === true) {
+                    $stats['hiddenTableRowCount']++;
+                }
+                if (is_numeric($node->attr('sourceRepeat', 0)) && (int) $node->attr('sourceRepeat', 0) > 1) {
+                    $stats['repeatedTableRowCount']++;
+                }
+                if ($node->attr('repeatTruncated') === true) {
+                    $stats['truncatedTableRowRepeatCount']++;
                 }
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {

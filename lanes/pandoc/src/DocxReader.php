@@ -5793,6 +5793,7 @@ final class DocxReader
         $attrs = null;
         foreach ([
             $this->tableCellWidthAttrs($cell),
+            $this->tableCellBorderAttrs($cell),
             $this->tableCellVerticalAlignmentAttrs($cell),
             $this->tableCellShadingAttrs($cell),
         ] as $source) {
@@ -5907,6 +5908,157 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function tableCellBorderAttrs(\DOMElement $cell): array
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $borders = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tcBorders');
+        if (!$borders instanceof \DOMElement) {
+            return [];
+        }
+
+        $classes = ['docx-cell-border'];
+        $attributes = [];
+        $styles = [];
+        foreach ([
+            'top' => 'top',
+            'left' => 'left',
+            'bottom' => 'bottom',
+            'right' => 'right',
+            'insideH' => 'inside-h',
+            'insideV' => 'inside-v',
+            'tl2br' => 'tl2br',
+            'tr2bl' => 'tr2bl',
+        ] as $localName => $edge) {
+            $border = $this->firstChildElement($borders, self::WORDPROCESSINGML_NS, $localName);
+            if (!$border instanceof \DOMElement) {
+                continue;
+            }
+
+            $edgeAttributes = $this->tableCellBorderEdgeAttrs($border);
+            if ($edgeAttributes === []) {
+                continue;
+            }
+
+            $classes[] = 'docx-cell-border-' . $edge;
+            $suffix = isset($edgeAttributes['val']) ? $this->tableCellBorderClassSuffix($edgeAttributes['val']) : null;
+            if ($suffix !== null) {
+                $classes[] = 'docx-cell-border-' . $edge . '-' . $suffix;
+            }
+
+            foreach ($edgeAttributes as $name => $metadata) {
+                $attributes['data-docx-cell-border-' . $edge . '-' . $name] = $metadata;
+            }
+
+            $style = $this->tableCellBorderCssStyle($edge, $edgeAttributes);
+            if ($style !== null) {
+                $styles[] = $style;
+            }
+        }
+
+        if ($attributes === []) {
+            return [];
+        }
+
+        $attrs = [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+        if ($styles !== []) {
+            $attrs['htmlAttributes'] = [
+                'style' => implode('; ', $styles),
+            ];
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tableCellBorderEdgeAttrs(\DOMElement $border): array
+    {
+        $edgeAttributes = [];
+        $value = trim((string) ($this->wordAttr($border, 'val') ?? ''));
+        if (in_array(strtolower($value), ['none', 'nil', '0', 'false', 'off'], true)) {
+            return [];
+        }
+        if ($value !== '') {
+            $edgeAttributes['val'] = $value;
+        }
+
+        foreach ([
+            'space' => 'space-points',
+            'color' => 'color',
+            'themeColor' => 'theme-color',
+            'themeTint' => 'theme-tint',
+            'themeShade' => 'theme-shade',
+            'frame' => 'frame',
+            'shadow' => 'shadow',
+        ] as $source => $target) {
+            $metadata = trim((string) ($this->wordAttr($border, $source) ?? ''));
+            if ($metadata !== '') {
+                $edgeAttributes[$target] = $metadata;
+            }
+        }
+
+        $size = trim((string) ($this->wordAttr($border, 'sz') ?? ''));
+        if ($size !== '') {
+            $edgeAttributes['size-eighth-points'] = $size;
+            if (preg_match('/^\d+(?:\.\d+)?$/D', $size) === 1 && (float) $size > 0.0) {
+                $edgeAttributes['width-points'] = $this->formatOpenXmlCssNumber((float) $size / 8.0);
+            }
+        }
+
+        return $edgeAttributes;
+    }
+
+    /**
+     * @param array<string, string> $edgeAttributes
+     */
+    private function tableCellBorderCssStyle(string $edge, array $edgeAttributes): ?string
+    {
+        $property = match ($edge) {
+            'top', 'inside-h' => 'border-top',
+            'left', 'inside-v' => 'border-left',
+            'bottom' => 'border-bottom',
+            'right' => 'border-right',
+            default => null,
+        };
+        if ($property === null) {
+            return null;
+        }
+
+        $width = $edgeAttributes['width-points'] ?? '';
+        $color = $edgeAttributes['color'] ?? '';
+        $style = match (strtolower($edgeAttributes['val'] ?? '')) {
+            'single', 'thick' => 'solid',
+            'double' => 'double',
+            'dashed', 'dash' => 'dashed',
+            'dotted', 'dot' => 'dotted',
+            default => null,
+        };
+
+        if ($width === '' || $style === null || preg_match('/^[0-9A-Fa-f]{6}$/D', $color) !== 1) {
+            return null;
+        }
+
+        return $property . ':' . $width . 'pt ' . $style . ' #' . strtoupper($color);
+    }
+
+    private function tableCellBorderClassSuffix(string $value): ?string
+    {
+        $hyphenated = preg_replace('/(?<!^)[A-Z]/', '-$0', $value) ?? $value;
+
+        return $this->metadataClassSuffix($hyphenated);
     }
 
     /**

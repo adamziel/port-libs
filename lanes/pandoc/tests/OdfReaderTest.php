@@ -1050,6 +1050,70 @@ XML;
         $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocksHtml);
         $t->contains('<td><p>Hidden source column remains auditable.</p></td>', $blocksHtml);
     },
+    'maps ODT table row repeats visibility and styles into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithRowMetadata = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Row Review">
+        <table:table-row table:style-name="ReviewHeaderRow">
+          <table:table-cell><text:p>Item</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row table:style-name="HiddenReviewRow" table:default-cell-style-name="HiddenReviewCell" table:visibility="collapse" table:number-rows-repeated="2">
+          <table:table-cell><text:p>Archived source row</text:p></table:table-cell>
+          <table:table-cell><text:p>Keep for audit</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row table:style-name="ReviewSummaryRow">
+          <table:table-cell><text:p>Summary</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithRowMetadata));
+        $table = $result['document']->children[0];
+        $body = $table->children[0];
+        $rows = $body->children;
+
+        $t->same('table', $table->type);
+        $t->same(4, count($rows));
+        $t->same('ReviewHeaderRow', $rows[0]->attr('styleName'));
+        $t->same('HiddenReviewRow', $rows[1]->attr('styleName'));
+        $t->same('HiddenReviewCell', $rows[1]->attr('defaultCellStyleName'));
+        $t->same('collapse', $rows[1]->attr('visibility'));
+        $t->same(true, $rows[1]->attr('hidden'));
+        $t->same(1, $rows[1]->attr('repeatIndex'));
+        $t->same(2, $rows[1]->attr('sourceRepeat'));
+        $t->same(2, $rows[1]->attr('declaredRepeat'));
+        $t->same(['odf-hidden-table-row', 'odf-repeated-table-row'], $rows[1]->attr('classes'));
+        $t->same('2', $rows[1]->attr('htmlAttributes')['data-odf-row-source-repeat']);
+        $t->same('1', $rows[1]->attr('htmlAttributes')['data-odf-row-repeat-index']);
+        $t->same('true', $rows[1]->attr('htmlAttributes')['data-odf-row-hidden']);
+        $t->same(2, $rows[2]->attr('repeatIndex'));
+        $t->same(2, $rows[2]->attr('sourceRepeat'));
+        $t->same('ReviewSummaryRow', $rows[3]->attr('styleName'));
+        $t->same(4, $result['importReport']['content']['tableRowDefinitionCount']);
+        $t->same(2, $result['importReport']['content']['hiddenTableRowCount']);
+        $t->same(2, $result['importReport']['content']['repeatedTableRowCount']);
+        $t->same(0, $result['importReport']['content']['truncatedTableRowRepeatCount']);
+
+        $geometryRows = $table->attr('tableGeometry')['sections'][0]['rows'];
+        $t->same('ReviewHeaderRow', $geometryRows[0]['sourceAttributes']['htmlAttributes']['data-odf-row-style-name']);
+        $t->same('HiddenReviewRow', $geometryRows[1]['sourceAttributes']['htmlAttributes']['data-odf-row-style-name']);
+        $t->same('true', $geometryRows[1]['sourceAttributes']['htmlAttributes']['data-odf-row-hidden']);
+        $t->same('2', $geometryRows[2]['sourceAttributes']['htmlAttributes']['data-odf-row-repeat-index']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<tr class="odf-hidden-table-row odf-repeated-table-row" data-odf-row-style-name="HiddenReviewRow" data-odf-row-default-cell-style-name="HiddenReviewCell" data-odf-row-visibility="collapse" data-odf-row-hidden="true" data-odf-row-repeat-index="1" data-odf-row-source-repeat="2" data-odf-row-declared-repeat="2">', $blocksHtml);
+        $t->contains('<tr class="odf-hidden-table-row odf-repeated-table-row" data-odf-row-style-name="HiddenReviewRow" data-odf-row-default-cell-style-name="HiddenReviewCell" data-odf-row-visibility="collapse" data-odf-row-hidden="true" data-odf-row-repeat-index="2" data-odf-row-source-repeat="2" data-odf-row-declared-repeat="2">', $blocksHtml);
+    },
     'maps ODT text-position styles into superscript and subscript spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithVerticalText = <<<'XML'
 <office:document-styles

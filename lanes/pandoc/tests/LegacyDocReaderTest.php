@@ -1257,14 +1257,14 @@ $buildCommentTableDocStreams = static function () use ($utf16le, $u16, $u32): ar
     $plcfandTxt = $u32(0)
         . $u32(31)
         . $u32(32);
-    $xst = static function (string $value) use ($utf16le, $u16): string {
+    $xstz = static function (string $value) use ($utf16le, $u16): string {
         $bytes = $utf16le($value);
 
-        return $u16(intdiv(strlen($bytes), 2)) . $bytes;
+        return $u16(intdiv(strlen($bytes), 2)) . $bytes . $u16(0);
     };
-    $commentAuthors = $xst('Migration Lead')
-        . $xst('Review Editor')
-        . $xst('Janet Doe');
+    $commentAuthors = $xstz('Migration Lead')
+        . $xstz('Review Editor')
+        . $xstz('Janet Doe');
 
     $fcPlcfandRef = 0;
     $fcPlcfandTxt = strlen($plcfandRef);
@@ -3475,6 +3475,8 @@ return [
         $t->same(3, $metadata['commentAuthorCount']);
         $t->same('Migration Lead', $commentAuthors[0]['name']);
         $t->same(14, $commentAuthors[0]['characterCount']);
+        $t->same('UTF-16LE-Xstz', $commentAuthors[0]['sourceEncoding']);
+        $t->same(32, $commentAuthors[0]['recordBytes']);
         $t->same('Review Editor', $commentAuthors[1]['name']);
         $t->same('Janet Doe', $commentAuthors[2]['name']);
         $t->same('comment', $comments[0]['type']);
@@ -3769,6 +3771,12 @@ return [
         $badCommentReserved = $buildCommentTableDocStreams();
         $badCommentReserved['0Table'] = substr_replace($badCommentReserved['0Table'], $u16(1), 8 + 22, 2);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badCommentReserved)));
+
+        $badCommentAuthorTerminator = $buildCommentTableDocStreams();
+        $commentAuthorsOffset = unpack('Vvalue', substr($badCommentAuthorTerminator['WordDocument'], 0x01ba, 4))['value'];
+        $firstAuthorTerminatorOffset = (int) $commentAuthorsOffset + 2 + (strlen('Migration Lead') * 2);
+        $badCommentAuthorTerminator['0Table'] = substr_replace($badCommentAuthorTerminator['0Table'], "X\0", $firstAuthorTerminatorOffset, 2);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badCommentAuthorTerminator)));
 
         $commentAuthorIndexOutOfRange = $buildCommentTableDocStreams();
         $commentAuthorIndexOutOfRange['WordDocument'] = substr_replace($commentAuthorIndexOutOfRange['WordDocument'], $u32(30), 0x01be, 4);

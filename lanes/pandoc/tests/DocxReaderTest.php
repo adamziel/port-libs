@@ -802,6 +802,47 @@ $tableCellWidthDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableCellBorderDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1800" w:type="dxa"/>
+            <w:tcBorders>
+              <w:top w:val="single" w:sz="8" w:color="4F81BD"/>
+              <w:left w:val="dashed" w:sz="12" w:themeColor="accent1" w:themeTint="33"/>
+              <w:bottom w:val="double" w:sz="16" w:color="C00000" w:space="2"/>
+              <w:right w:val="nil" w:sz="24" w:color="FF0000"/>
+            </w:tcBorders>
+            <w:shd w:val="clear" w:fill="F2F2F2"/>
+          </w:tcPr>
+          <w:p><w:r><w:t>Bordered source cell</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcBorders>
+              <w:insideH w:val="dotted" w:sz="6" w:color="999999"/>
+              <w:insideV w:val="single" w:sz="4" w:themeColor="accent2" w:themeShade="66"/>
+              <w:tl2br w:val="dashDot" w:sz="10" w:color="00AEEF"/>
+            </w:tcBorders>
+          </w:tcPr>
+          <w:p><w:r><w:t>Theme border review cell</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcBorders><w:top w:val="none" w:sz="8" w:color="00FF00"/></w:tcBorders></w:tcPr>
+          <w:p><w:r><w:t>No border fallback</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Plain borderless cell</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableRowPropertiesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2489,6 +2530,14 @@ $buildTableCellWidthPackage = static function () use ($contentTypesXml, $package
     ]);
 };
 
+$buildTableCellBorderPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellBorderDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableCellBorderDocumentXml],
+    ]);
+};
+
 $buildTableRowPropertiesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableRowPropertiesDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -3824,6 +3873,91 @@ return [
         $t->contains('<td class="docx-cell-width docx-cell-width-pct" data-docx-cell-width-type="pct" data-docx-cell-width-value="2500" data-docx-cell-width-percent="50" style="width:50%"><p>Half width review cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-width docx-cell-width-auto" data-docx-cell-width-type="auto" data-docx-cell-width-value="0"><p>Auto width cell</p></td><td><p>Nil width fallback</p></td>', $blocks);
         $t->contains('<td><p>Unknown width fallback</p></td>', $blocks);
+    },
+    'preserves DOCX table cell border metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellBorderPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableCellBorderPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $bordered = $body->children[0]->children[0];
+        $theme = $body->children[0]->children[1];
+        $disabled = $body->children[1]->children[0];
+        $plain = $body->children[1]->children[1];
+
+        $t->same([
+            'docx-cell-width',
+            'docx-cell-width-dxa',
+            'docx-cell-border',
+            'docx-cell-border-top',
+            'docx-cell-border-top-single',
+            'docx-cell-border-left',
+            'docx-cell-border-left-dashed',
+            'docx-cell-border-bottom',
+            'docx-cell-border-bottom-double',
+            'docx-cell-shading',
+            'docx-cell-shading-clear',
+            'docx-cell-fill-f2f2f2',
+        ], $bordered->attr('classes'));
+        $borderedAttrs = $bordered->attr('attributes');
+        $t->same('single', $borderedAttrs['data-docx-cell-border-top-val']);
+        $t->same('8', $borderedAttrs['data-docx-cell-border-top-size-eighth-points']);
+        $t->same('1', $borderedAttrs['data-docx-cell-border-top-width-points']);
+        $t->same('4F81BD', $borderedAttrs['data-docx-cell-border-top-color']);
+        $t->same('dashed', $borderedAttrs['data-docx-cell-border-left-val']);
+        $t->same('accent1', $borderedAttrs['data-docx-cell-border-left-theme-color']);
+        $t->same('33', $borderedAttrs['data-docx-cell-border-left-theme-tint']);
+        $t->same('double', $borderedAttrs['data-docx-cell-border-bottom-val']);
+        $t->same('2', $borderedAttrs['data-docx-cell-border-bottom-width-points']);
+        $t->same('C00000', $borderedAttrs['data-docx-cell-border-bottom-color']);
+        $t->same('2', $borderedAttrs['data-docx-cell-border-bottom-space-points']);
+        $t->true(!isset($borderedAttrs['data-docx-cell-border-right-val']), 'DOCX nil table-cell border should not create reviewer metadata');
+        $t->same('width:90pt; border-top:1pt solid #4F81BD; border-bottom:2pt double #C00000; background-color:#F2F2F2', $bordered->attr('htmlAttributes')['style']);
+        $t->same('Bordered source cell', $bordered->attr('text'));
+
+        $t->same([
+            'docx-cell-border',
+            'docx-cell-border-inside-h',
+            'docx-cell-border-inside-h-dotted',
+            'docx-cell-border-inside-v',
+            'docx-cell-border-inside-v-single',
+            'docx-cell-border-tl2br',
+            'docx-cell-border-tl2br-dash-dot',
+        ], $theme->attr('classes'));
+        $themeAttrs = $theme->attr('attributes');
+        $t->same('dotted', $themeAttrs['data-docx-cell-border-inside-h-val']);
+        $t->same('0.75', $themeAttrs['data-docx-cell-border-inside-h-width-points']);
+        $t->same('999999', $themeAttrs['data-docx-cell-border-inside-h-color']);
+        $t->same('accent2', $themeAttrs['data-docx-cell-border-inside-v-theme-color']);
+        $t->same('66', $themeAttrs['data-docx-cell-border-inside-v-theme-shade']);
+        $t->same('dashDot', $themeAttrs['data-docx-cell-border-tl2br-val']);
+        $t->same('1.25', $themeAttrs['data-docx-cell-border-tl2br-width-points']);
+        $t->same('border-top:0.75pt dotted #999999', $theme->attr('htmlAttributes')['style']);
+
+        $t->true(!isset($disabled->attr('attributes', [])['data-docx-cell-border-top-val']), 'DOCX none table-cell border should not create reviewer metadata');
+        $t->same('No border fallback', $disabled->attr('text'));
+        $t->true(!isset($plain->attr('attributes', [])['data-docx-cell-border-top-val']), 'Plain DOCX table cell should not create border metadata');
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('single', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-border-top-val'] ?? null);
+        $t->same('1', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-border-top-width-points'] ?? null);
+        $t->same('width:90pt; border-top:1pt solid #4F81BD; border-bottom:2pt double #C00000; background-color:#F2F2F2', $geometry['coverage'][0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same('accent2', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-border-inside-v-theme-color'] ?? null);
+        $t->same('border-top:0.75pt dotted #999999', $geometry['coverage'][1]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->true(!isset($geometry['coverage'][2]['sourceAttributes']), 'Disabled DOCX table-cell border should not appear in geometry source-attribute packet');
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Bordered source cell | Theme border review cell |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-cell-border'), 'Pipe-table Markdown handoff should not leak DOCX cell border metadata');
+        $t->contains('<td class="docx-cell-width docx-cell-width-dxa docx-cell-border docx-cell-border-top docx-cell-border-top-single docx-cell-border-left docx-cell-border-left-dashed docx-cell-border-bottom docx-cell-border-bottom-double docx-cell-shading docx-cell-shading-clear docx-cell-fill-f2f2f2" data-docx-cell-width-type="dxa" data-docx-cell-width-value="1800" data-docx-cell-width-points="90" data-docx-cell-border-top-val="single"', $blocks);
+        $t->contains('style="width:90pt; border-top:1pt solid #4F81BD; border-bottom:2pt double #C00000; background-color:#F2F2F2"><p>Bordered source cell</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-border docx-cell-border-inside-h docx-cell-border-inside-h-dotted docx-cell-border-inside-v docx-cell-border-inside-v-single docx-cell-border-tl2br docx-cell-border-tl2br-dash-dot" data-docx-cell-border-inside-h-val="dotted"', $blocks);
+        $t->contains('data-docx-cell-border-tl2br-color="00AEEF" data-docx-cell-border-tl2br-size-eighth-points="10" data-docx-cell-border-tl2br-width-points="1.25" style="border-top:0.75pt dotted #999999"><p>Theme border review cell</p></td>', $blocks);
+        $t->contains('<td><p>No border fallback</p></td><td><p>Plain borderless cell</p></td>', $blocks);
     },
     'preserves DOCX table row repeat-header and cant-split metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableRowPropertiesPackage): void {
         $document = (new DocxReader())->readDocument($buildTableRowPropertiesPackage());
