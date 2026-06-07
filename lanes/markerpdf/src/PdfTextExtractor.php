@@ -4833,7 +4833,7 @@ final class PdfTextExtractor
      * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
      * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, path_bbox?: list<float>, paint_kind?: string, stroke_width?: float|null, stroke_width_expanded?: bool, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, path_bbox?: list<float>, paint_kind?: string, stroke_width?: float|null, stroke_width_expanded?: bool, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, graphics_state_paint_suppression_reason?: string|null, geometry_paint_suppression_reason?: string|null, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
      */
     private function contentXObjectInvocationDetails(
         string $content,
@@ -4997,7 +4997,8 @@ final class PdfTextExtractor
                         $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox']);
                         $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
                         $paintSuppressionReason = $this->imageXObjectGraphicsStatePaintSuppressionReason($graphicsState);
-                        $visibleBbox = $paintSuppressionReason === null
+                        $geometryPaintSuppressionReason = $this->imageXObjectGeometryPaintSuppressionReason($bbox);
+                        $visibleBbox = $paintSuppressionReason === null && $geometryPaintSuppressionReason === null
                             ? $this->visibleImageInvocationBbox($bbox, $clipRectangle)
                             : null;
                         $invocations[$resourceName][] = [
@@ -5009,6 +5010,7 @@ final class PdfTextExtractor
                                 && ($visibleBbox === null || !$this->pdfRectanglesEqual($bbox, $visibleBbox)),
                             'graphics_state' => $graphicsState,
                             'graphics_state_paint_suppression_reason' => $paintSuppressionReason,
+                            'geometry_paint_suppression_reason' => $geometryPaintSuppressionReason,
                             'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                             'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
                         ];
@@ -6160,6 +6162,14 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<float> $bbox
+     */
+    private function imageXObjectGeometryPaintSuppressionReason(array $bbox): ?string
+    {
+        return $this->pdfRectangleHasArea($bbox) ? null : 'zero_area_ctm';
+    }
+
+    /**
      * @param array<int, string> $objects
      * @param list<string> $decodedContents
      * @param array<int|string, bool> $optionalContentStates
@@ -7021,6 +7031,8 @@ final class PdfTextExtractor
         $clipExcludedInvocationCount = 0;
         $graphicsStatePaintSuppressedInvocationCount = 0;
         $graphicsStatePaintSuppressionReasons = [];
+        $geometryPaintSuppressedInvocationCount = 0;
+        $geometryPaintSuppressionReasons = [];
         foreach ($invocationDetails as $detail) {
             $matrix = $detail['matrix'] ?? null;
             $bbox = $detail['bbox'] ?? null;
@@ -7029,6 +7041,9 @@ final class PdfTextExtractor
             $graphicsState = $this->nonDefaultInvocationGraphicsState($detail['graphics_state'] ?? null);
             $paintSuppressionReason = is_string($detail['graphics_state_paint_suppression_reason'] ?? null)
                 ? $detail['graphics_state_paint_suppression_reason']
+                : null;
+            $geometryPaintSuppressionReason = is_string($detail['geometry_paint_suppression_reason'] ?? null)
+                ? $detail['geometry_paint_suppression_reason']
                 : null;
             if (is_array($matrix) && count($matrix) >= 6) {
                 $invocationMatrices[] = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
@@ -7051,6 +7066,10 @@ final class PdfTextExtractor
             if ($paintSuppressionReason !== null) {
                 $graphicsStatePaintSuppressedInvocationCount++;
                 $graphicsStatePaintSuppressionReasons[$paintSuppressionReason] = true;
+            }
+            if ($geometryPaintSuppressionReason !== null) {
+                $geometryPaintSuppressedInvocationCount++;
+                $geometryPaintSuppressionReasons[$geometryPaintSuppressionReason] = true;
             }
             if ($graphicsState !== null) {
                 $invocationGraphicsStates[] = $graphicsState;
@@ -7241,6 +7260,9 @@ final class PdfTextExtractor
             'graphics_state_paint_suppressed' => $graphicsStatePaintSuppressedInvocationCount > 0,
             'graphics_state_paint_suppressed_invocation_count' => $graphicsStatePaintSuppressedInvocationCount,
             'graphics_state_paint_suppression_reasons' => array_keys($graphicsStatePaintSuppressionReasons),
+            'geometry_paint_suppressed' => $geometryPaintSuppressedInvocationCount > 0,
+            'geometry_paint_suppressed_invocation_count' => $geometryPaintSuppressedInvocationCount,
+            'geometry_paint_suppression_reasons' => array_keys($geometryPaintSuppressionReasons),
             'invocation_marked_content' => $invocationMarkedContent,
             'marked_content_review_only' => $invocationMarkedContent !== [],
             'invocation_form_transparency_groups' => $invocationFormTransparencyGroups,
