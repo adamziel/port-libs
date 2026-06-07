@@ -700,7 +700,7 @@ final class PdfMetadataExtractor
         }
 
         $value = $metadataValues[0];
-        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) !== 1) {
+        if ($value === null || $this->objectReferenceFromValue($value) === null) {
             return [];
         }
 
@@ -18694,11 +18694,12 @@ final class PdfMetadataExtractor
     private function resolvePdfValue(string $value, array $objects): ?string
     {
         $trimmed = $this->trimPdfWhitespaceAndComments($value);
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $trimmed) !== 1) {
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
             return $trimmed;
         }
 
-        return $this->objectBodyFromReferenceValue($trimmed, $objects);
+        return $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
     }
 
     private function dictionaryRawValue(string $dictionary, string $key): ?string
@@ -19000,7 +19001,9 @@ final class PdfMetadataExtractor
 
     private function objectNumberFromReference(string $value): ?int
     {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/s', $this->trimPdfWhitespaceAndComments($value), $match) === 1 ? (int) $match[1] : null;
+        $reference = $this->objectReferenceFromValue($value);
+
+        return $reference['objectNumber'] ?? null;
     }
 
     /**
@@ -19093,13 +19096,22 @@ final class PdfMetadataExtractor
      */
     private function objectReferenceFromValue(?string $value): ?array
     {
-        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $this->trimPdfWhitespaceAndComments($value), $match) !== 1) {
+        if ($value === null) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, 0);
+        if ($reference === null) {
+            return null;
+        }
+
+        if ($this->skipPdfWhitespace($value, $reference['endOffset']) < strlen($value)) {
             return null;
         }
 
         return [
-            'objectNumber' => (int) $match[1],
-            'generation' => (int) $match[2],
+            'objectNumber' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
         ];
     }
 
@@ -19311,6 +19323,11 @@ final class PdfMetadataExtractor
             return null;
         }
 
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            return substr($value, $reference['startOffset'], $reference['endOffset'] - $reference['startOffset']);
+        }
+
         if ($value[$offset] === '[') {
             return $this->readPdfArrayAt($value, $offset);
         }
@@ -19321,9 +19338,6 @@ final class PdfMetadataExtractor
         }
 
         $remaining = substr($value, $offset);
-        if (preg_match('/\d+\s+\d+\s+R\b/A', $remaining, $match) === 1) {
-            return $match[0];
-        }
 
         if ($value[$offset] === '(') {
             $end = $this->literalTokenEndOffset($value, $offset);
@@ -19340,6 +19354,54 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * PDF comments are whitespace, including between indirect-reference
+     * operands. Catalog /Metadata uses this path as a document-XMP trust
+     * boundary, so preserve the original token span for offset accounting while
+     * exposing normalized object/generation numbers to resolvers.
+     *
+     * @return array{startOffset: int, endOffset: int, objectNumber: int, generation: int}|null
+     */
+    private function pdfIndirectReferenceTokenAt(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        $start = $this->skipPdfWhitespace($value, $offset);
+        if ($start >= $length || preg_match('/\G\d+/s', $value, $objectMatch, 0, $start) !== 1) {
+            return null;
+        }
+
+        $afterObject = $start + strlen($objectMatch[0]);
+        $generationOffset = $this->skipPdfWhitespace($value, $afterObject);
+        if (
+            $generationOffset <= $afterObject
+            || $generationOffset >= $length
+            || preg_match('/\G\d+/s', $value, $generationMatch, 0, $generationOffset) !== 1
+        ) {
+            return null;
+        }
+
+        $afterGeneration = $generationOffset + strlen($generationMatch[0]);
+        $referenceOffset = $this->skipPdfWhitespace($value, $afterGeneration);
+        if (
+            $referenceOffset <= $afterGeneration
+            || ($value[$referenceOffset] ?? '') !== 'R'
+        ) {
+            return null;
+        }
+
+        $endOffset = $referenceOffset + 1;
+        if ($endOffset < $length && !$this->isPdfDelimiter($value[$endOffset])) {
+            return null;
+        }
+
+        return [
+            'startOffset' => $start,
+            'endOffset' => $endOffset,
+            'objectNumber' => (int) $objectMatch[0],
+            'generation' => (int) $generationMatch[0],
+        ];
     }
 
     private function readPdfArrayAt(string $value, int $offset): ?string
