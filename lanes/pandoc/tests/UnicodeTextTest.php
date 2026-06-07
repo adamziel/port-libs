@@ -229,6 +229,25 @@ return [
         $t->contains('<h1 id="latin7-import">Latin7 Import</h1>', $blocks);
         $t->contains('<p>Baltic Āā Ńń Ņņ Ųų Śś Żż ž; quotes „“text”’.</p>', $blocks);
     },
+    'decodes iso 8859 14 latin8 celtic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Latin8 Import\n\nCeltic \xC0\xE0 \xD0\xF0 \xDE\xFE; dotted \xA1\xA2 \xA4\xA5 \xAA\xBA \xBB\xBF; Welsh \xD7\xF7.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-199');
+        $document = (new MarkdownReader())->readBytes($bytes, 'latin8');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA1\xA2\xA4\xA5\xA6\xA8\xAA\xAB\xAC\xAF\xB0\xB1\xB2\xB3\xB4\xB5\xB7\xB8\xB9\xBA\xBB\xBC\xBD\xBE\xBF\xD0\xD7\xDE\xF0\xF7\xFE", 'iso-8859-14');
+
+        $t->same('iso-8859-14', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Latin8 Import\n\nCeltic Àà Ŵŵ Ŷŷ; dotted Ḃḃ Ċċ Ẃẃ Ṡṡ; Welsh Ṫṫ.", $decoded['text']);
+        $t->same('ḂḃĊċḊẀẂḋỲŸḞḟĠġṀṁṖẁṗẃṠỳẄẅṡŴṪŶŵṫŷ', $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same(['encoding' => 'iso-8859-14', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Latin8 Import', $document->children[0]->attr('text'));
+        $t->same('Celtic Àà Ŵŵ Ŷŷ; dotted Ḃḃ Ċċ Ẃẃ Ṡṡ; Welsh Ṫṫ.', $document->children[1]->attr('text'));
+        $t->same(46, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="latin8-import">Latin8 Import</h1>', $blocks);
+        $t->contains('<p>Celtic Àà Ŵŵ Ŷŷ; dotted Ḃḃ Ċċ Ẃẃ Ṡṡ; Welsh Ṫṫ.</p>', $blocks);
+    },
     'decodes windows 1251 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp1251');
