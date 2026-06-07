@@ -32603,6 +32603,17 @@ final class PdfTextExtractor
     ): void
     {
         $ranges = $this->cMapTopLevelBfRangeRows($block);
+        $rowRanges = $this->cMapTopLevelBfRangeRowRanges($block);
+        if (
+            $rowRanges['hasMalformedRows']
+            && $rowRanges['ranges'] !== []
+            && (
+                $declaredCount === null
+                || count($rowRanges['ranges']) >= min(max(0, $declaredCount), count($ranges))
+            )
+        ) {
+            $ranges = $rowRanges['ranges'];
+        }
         if ($ranges === []) {
             return;
         }
@@ -32748,6 +32759,51 @@ final class PdfTextExtractor
     private function cMapTopLevelBfRangeRows(string $source): array
     {
         $tokens = $this->cMapTopLevelBfRangeTokens($source);
+        return $this->cMapBfRangeRowsFromTokens($tokens);
+    }
+
+    /**
+     * @return array{ranges: list<array{start: string, end: string, target?: string, targets?: list<string>}>, hasMalformedRows: bool}
+     */
+    private function cMapTopLevelBfRangeRowRanges(string $source): array
+    {
+        $rows = [];
+        $hasMalformedRows = false;
+        $lines = preg_split('/\R/', $source);
+        if ($lines === false) {
+            return [
+                'ranges' => [],
+                'hasMalformedRows' => false,
+            ];
+        }
+
+        foreach ($lines as $line) {
+            $tokens = $this->cMapTopLevelBfRangeTokens($line);
+            if ($tokens === []) {
+                continue;
+            }
+
+            if (!$this->cMapBfRangeTokensAreWellFormedRows($tokens)) {
+                $hasMalformedRows = true;
+            }
+
+            foreach ($this->cMapBfRangeRowsFromTokens($tokens) as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        return [
+            'ranges' => $rows,
+            'hasMalformedRows' => $hasMalformedRows,
+        ];
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'array'|'other', value: string}> $tokens
+     * @return list<array{start: string, end: string, target?: string, targets?: list<string>}>
+     */
+    private function cMapBfRangeRowsFromTokens(array $tokens): array
+    {
         $rows = [];
 
         for ($index = 0, $count = count($tokens); $index + 2 < $count;) {
@@ -32788,6 +32844,28 @@ final class PdfTextExtractor
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'array'|'other', value: string}> $tokens
+     */
+    private function cMapBfRangeTokensAreWellFormedRows(array $tokens): bool
+    {
+        if ($tokens === [] || count($tokens) % 3 !== 0) {
+            return false;
+        }
+
+        for ($index = 0, $count = count($tokens); $index < $count; $index += 3) {
+            if (
+                ($tokens[$index]['type'] ?? null) !== 'hex'
+                || ($tokens[$index + 1]['type'] ?? null) !== 'hex'
+                || !in_array($tokens[$index + 2]['type'] ?? null, ['hex', 'array'], true)
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
