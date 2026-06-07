@@ -28314,7 +28314,7 @@ final class PdfTextExtractor
             $definitions,
             $streamSection['definition']['offset']
         );
-        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
+        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions, $pdfBytes);
         $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions, $streamObjects);
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
         $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $streamSection['body'], $previousOffset, $offset);
@@ -29003,7 +29003,7 @@ final class PdfTextExtractor
         return [
             'source' => 'xref_stream',
             'offset' => $offset,
-            'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions),
+            'entries' => $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions, $pdfBytes),
             'previousOffset' => $this->previousXrefOffsetForSectionBody(
                 $pdfBytes,
                 $streamSection['body'],
@@ -31325,7 +31325,7 @@ final class PdfTextExtractor
     private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions, ?string $pdfBytes = null): array
     {
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
-        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions);
+        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions, $pdfBytes);
     }
 
     /**
@@ -31380,7 +31380,12 @@ final class PdfTextExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>>|null $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesFromDefinition(array $definition, array $objects, ?array $definitions = null): array
+    private function xrefStreamEntriesFromDefinition(
+        array $definition,
+        array $objects,
+        ?array $definitions = null,
+        ?string $pdfBytes = null
+    ): array
     {
         $entries = [];
         $body = $definition['body'];
@@ -31406,11 +31411,15 @@ final class PdfTextExtractor
             return $entries;
         }
 
+        $xrefOffset = (int) $definition['offset'];
         $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
         $previousOffset = $definitions === null
             ? null
-            : $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'Prev', $streamObjects);
-        $xrefOffset = (int) $definition['offset'];
+            : (
+                $pdfBytes === null
+                    ? $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'Prev', $streamObjects)
+                    : $this->previousXrefOffsetForSectionBody($pdfBytes, $dictionary, $xrefOffset, $definitions, $streamObjects)
+            );
         $offset = 0;
         foreach ($this->xrefIndexRanges($dictionary, $decodedEntryCount, $streamObjects) as $range) {
             [$startObject, $count] = $range;

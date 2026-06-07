@@ -3701,7 +3701,7 @@ final class PdfEmbeddedFileExtractor
             $entries = $tableSection['entries'];
             $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm', $objects);
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
+                foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions, $pdfBytes) as $objectNumber => $entry) {
                     $entries[$objectNumber] ??= $entry;
                 }
             }
@@ -3744,7 +3744,7 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
-        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
+        $entries = $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions, $pdfBytes);
         $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions, $objects);
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
         $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $streamSection['body'], $previousOffset, $offset);
@@ -4568,10 +4568,10 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions): array
+    private function xrefStreamEntriesAtOffset(int $offset, array $objects, array $definitions, ?string $pdfBytes = null): array
     {
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
-        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions);
+        return $section === null ? [] : $this->xrefStreamEntriesFromDefinition($section['definition'], $objects, $definitions, $pdfBytes);
     }
 
     /**
@@ -4600,7 +4600,12 @@ final class PdfEmbeddedFileExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>>|null $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesFromDefinition(array $definition, array $objects, ?array $definitions = null): array
+    private function xrefStreamEntriesFromDefinition(
+        array $definition,
+        array $objects,
+        ?array $definitions = null,
+        ?string $pdfBytes = null
+    ): array
     {
         $entries = [];
         $body = $definition['body'];
@@ -4628,10 +4633,16 @@ final class PdfEmbeddedFileExtractor
             return $entries;
         }
 
+        $xrefOffset = (int) $definition['offset'];
         $decoded = $stream['content'];
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
-        $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev', $operandObjects);
-        $xrefOffset = (int) $definition['offset'];
+        $previousOffset = $definitions === null
+            ? null
+            : (
+                $pdfBytes === null
+                    ? $this->dictionaryIntegerValue($body, 'Prev', $operandObjects)
+                    : $this->previousXrefOffsetForSectionBody($pdfBytes, $body, $xrefOffset, $definitions, $operandObjects)
+            );
         $offset = 0;
         foreach ($this->xrefIndexRanges($body, $decodedEntryCount, $operandObjects) as $range) {
             [$startObject, $count] = $range;
@@ -5439,7 +5450,7 @@ final class PdfEmbeddedFileExtractor
             $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
             $entries = $streamSection === null
                 ? []
-                : $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
+                : $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions, $pdfBytes);
             if ($reference !== null && $this->xrefEntriesSuppressObjectReference($entries, $reference)) {
                 return [
                     'present' => true,

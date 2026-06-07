@@ -5458,7 +5458,7 @@ final class PdfAttachmentExtractor
             return [];
         }
 
-        $entries = $this->xrefStreamEntriesFromSection($stream, $definitions);
+        $entries = $this->xrefStreamEntriesFromSection($stream, $definitions, $pdfBytes);
         $previousOffset = $this->previousXrefOffsetForSection(
             $pdfBytes,
             $this->intValue($this->xrefStreamDictionaryValue($stream, 'Prev', $definitions)),
@@ -6593,7 +6593,7 @@ final class PdfAttachmentExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
-    private function xrefStreamEntriesFromSection(array $section, array $definitions = []): array
+    private function xrefStreamEntriesFromSection(array $section, array $definitions = [], ?string $pdfBytes = null): array
     {
         $decoded = $section['stream'];
         foreach ($this->filterNames($this->xrefStreamDictionaryValue($section, 'Filter', $definitions), []) as $filter) {
@@ -6618,11 +6618,20 @@ final class PdfAttachmentExtractor
             return [];
         }
 
+        $xrefOffset = (int) ($section['offset'] ?? -1);
         $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
         $previousOffset = $definitions !== [] && isset($section['offset'])
-            ? $this->intValue($this->xrefStreamDictionaryValue($section, 'Prev', $definitions))
+            ? (
+                $pdfBytes === null
+                    ? $this->intValue($this->xrefStreamDictionaryValue($section, 'Prev', $definitions))
+                    : $this->previousXrefOffsetForSection(
+                        $pdfBytes,
+                        $this->intValue($this->xrefStreamDictionaryValue($section, 'Prev', $definitions)),
+                        $xrefOffset,
+                        $definitions
+                    )
+            )
             : null;
-        $xrefOffset = (int) ($section['offset'] ?? -1);
         $entries = [];
         $fieldOffset = 0;
         foreach ($this->xrefStreamIndexRanges($section, $decodedEntryCount, $definitions) as $range) {
