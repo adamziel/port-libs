@@ -18799,7 +18799,12 @@ final class PdfTextExtractor
 
             $group[] = $ord - 33;
             if (count($group) === 5) {
-                $out .= $this->decodeAscii85Group($group, 4);
+                $decodedGroup = $this->decodeAscii85Group($group, 4);
+                if ($decodedGroup === null) {
+                    return null;
+                }
+
+                $out .= $decodedGroup;
                 $group = [];
             }
         }
@@ -18812,7 +18817,12 @@ final class PdfTextExtractor
             while (count($group) < 5) {
                 $group[] = 84;
             }
-            $out .= $this->decodeAscii85Group($group, $groupLength - 1);
+            $decodedGroup = $this->decodeAscii85Group($group, $groupLength - 1);
+            if ($decodedGroup === null) {
+                return null;
+            }
+
+            $out .= $decodedGroup;
         }
 
         return $out;
@@ -18835,11 +18845,14 @@ final class PdfTextExtractor
     /**
      * @param list<int> $group
      */
-    private function decodeAscii85Group(array $group, int $bytesToReturn): string
+    private function decodeAscii85Group(array $group, int $bytesToReturn): ?string
     {
         $value = 0;
         foreach ($group as $digit) {
             $value = ($value * 85) + $digit;
+        }
+        if ($value > 0xffffffff) {
+            return null;
         }
 
         $bytes = '';
