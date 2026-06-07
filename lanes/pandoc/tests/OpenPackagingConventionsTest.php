@@ -322,6 +322,28 @@ XML;
             $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
         }
     },
+    'rejects OPC Default extension whitespace and control bytes' => static function (TestRunner $t): void {
+        $types = new OpcContentTypes();
+        $types->addDefault('Jpeg', 'image/jpeg');
+
+        $t->same(['Jpeg' => 'image/jpeg'], $types->defaults());
+        $t->same('image/jpeg', $types->contentTypeForPart('/word/media/cover.JPEG'));
+
+        foreach (['', ' ', 'x y', "xml\n", "xml\t"] as $extension) {
+            $t->throws(\InvalidArgumentException::class, static function () use ($extension): void {
+                $types = new OpcContentTypes();
+                $types->addDefault($extension, 'application/xml');
+            });
+        }
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="x y" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml&#x0A;" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml&#x09;" ContentType="application/xml"/></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+    },
     'rejects OPC package URI part names with raw whitespace or trailing dot segments' => static function (TestRunner $t): void {
         $validXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

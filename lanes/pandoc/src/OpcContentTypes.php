@@ -196,7 +196,14 @@ final class OpcContentTypes
     private static function normalizeExtension(string $extension): string
     {
         $extension = ltrim($extension, '.');
-        if ($extension === '' || str_contains($extension, '/') || str_contains($extension, '\\') || str_contains($extension, '?') || str_contains($extension, '#')) {
+        if (
+            $extension === ''
+            || preg_match('/[\x00-\x20\x7F]/', $extension) === 1
+            || str_contains($extension, '/')
+            || str_contains($extension, '\\')
+            || str_contains($extension, '?')
+            || str_contains($extension, '#')
+        ) {
             throw new \InvalidArgumentException('OPC content-type extension must be a simple extension name');
         }
 

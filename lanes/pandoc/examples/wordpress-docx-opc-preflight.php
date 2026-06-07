@@ -1365,6 +1365,7 @@ foreach ($graph->preflightThumbnails() as $thumbnail) {
 $strictXmlShapeGuards = [
     'contentTypeUnexpectedAttributeRejected' => false,
     'contentTypeDefaultDotExtensionRejected' => false,
+    'contentTypeDefaultWhitespaceExtensionRejected' => false,
     'contentTypeOverrideRelativePartNameRejected' => false,
     'contentTypeOverrideDotSegmentRejected' => false,
     'contentTypeOverrideRawSpaceRejected' => false,
@@ -1393,6 +1394,11 @@ try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension=".xml" ContentType="application/xml"/></Types>');
 } catch (InvalidArgumentException) {
     $strictXmlShapeGuards['contentTypeDefaultDotExtensionRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="x y" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $strictXmlShapeGuards['contentTypeDefaultWhitespaceExtensionRejected'] = true;
 }
 try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="word/document.xml" ContentType="application/xml"/></Types>');
@@ -1992,6 +1998,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['partNameCaseCollisionGuards']['/word/media/hero.png']['issues'] ?? null) !== ['equivalent-part-name-case-collision']
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeDefaultDotExtensionRejected'] ?? null) !== true
+        || ($summary['integrity']['strictXmlShapeGuards']['contentTypeDefaultWhitespaceExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRelativePartNameRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideDotSegmentRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRawSpaceRejected'] ?? null) !== true
