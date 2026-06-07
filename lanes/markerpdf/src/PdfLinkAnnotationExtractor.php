@@ -3339,10 +3339,16 @@ final class PdfLinkAnnotationExtractor
         if ($start < 0 || $start >= strlen($data)) {
             return null;
         }
+        if (!$this->objectStreamMemberOffsetHasTokenBoundary($data, $start)) {
+            return null;
+        }
 
         $end = strlen($data);
         foreach ($members as $index => $member) {
             if ($index === $memberIndex || $member['offset'] <= $start) {
+                continue;
+            }
+            if (!$this->objectStreamMemberOffsetHasTokenBoundary($data, $member['offset'])) {
                 continue;
             }
             $end = min($end, $member['offset']);
@@ -3397,6 +3403,90 @@ final class PdfLinkAnnotationExtractor
         }
 
         return null;
+    }
+
+    private function objectStreamMemberOffsetHasTokenBoundary(string $data, int $offset): bool
+    {
+        $length = strlen($data);
+        if ($offset < 0 || $offset >= $length) {
+            return false;
+        }
+
+        if (ctype_space($data[$offset]) || $data[$offset] === '%') {
+            return false;
+        }
+
+        if ($offset === 0) {
+            return true;
+        }
+
+        $index = 0;
+        while ($index < $offset && $index < $length) {
+            $char = $data[$index];
+            if ($char === '(') {
+                $end = $this->skipLiteralString($data, $index);
+                if ($offset < $end || $end === $index) {
+                    return false;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '%') {
+                $end = $index;
+                while ($end < $length && $data[$end] !== "\n" && $data[$end] !== "\r") {
+                    $end++;
+                }
+                if ($offset < $end || $end === $index) {
+                    return false;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '<' && substr($data, $index, 2) === '<<') {
+                $end = null;
+                $this->readPdfDictionaryAt($data, $index, $end);
+                if ($end !== null) {
+                    if ($offset < $end || $end === $index) {
+                        return false;
+                    }
+                    $index = $end;
+                    continue;
+                }
+            }
+
+            if ($char === '<') {
+                $end = $this->skipHexString($data, $index);
+                if ($offset < $end || $end === $index) {
+                    return false;
+                }
+                $index = $end;
+                continue;
+            }
+
+            if ($char === '[') {
+                $end = null;
+                $this->readPdfArrayAt($data, $index, $end);
+                if ($end !== null) {
+                    if ($offset < $end || $end === $index) {
+                        return false;
+                    }
+                    $index = $end;
+                    continue;
+                }
+            }
+
+            $index++;
+        }
+
+        if ($index !== $offset) {
+            return false;
+        }
+
+        $previous = $data[$offset - 1] ?? '';
+        return $previous !== ''
+            && (ctype_space($previous) || str_contains('[]()<>{}/%', $previous));
     }
 
     private function decodedStreamBytes(string $body, string $dictionary): ?string
