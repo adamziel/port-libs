@@ -963,6 +963,8 @@ final class PdfTextExtractor
      *     invalid_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
+     *     duplicate_filter_declaration_count: int,
+     *     duplicate_decodeparms_declaration_count: int,
      *     escaped_filter_name_operand_count: int,
      *     escaped_filter_key_count: int,
      *     escaped_decodeparms_key_count: int,
@@ -998,6 +1000,7 @@ final class PdfTextExtractor
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
             'duplicate_filter_declaration_count' => 0,
+            'duplicate_decodeparms_declaration_count' => 0,
             'escaped_filter_name_operand_count' => 0,
             'escaped_filter_key_count' => 0,
             'escaped_decodeparms_key_count' => 0,
@@ -1068,6 +1071,7 @@ final class PdfTextExtractor
             $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
             $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter');
+            $duplicateDecodeParmsDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'DecodeParms');
             $filters = $this->streamFilters($dict, $objects, true);
             if ($this->cMapFilterOperandReviewsHaveUnselectedIndirect($operandGroups['Filter'])) {
                 $filters = null;
@@ -1136,6 +1140,7 @@ final class PdfTextExtractor
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
             $review['duplicate_filter_declaration_count'] += $duplicateFilterDeclarationCount;
+            $review['duplicate_decodeparms_declaration_count'] += $duplicateDecodeParmsDeclarationCount;
             $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
             $review['escaped_filter_key_count'] += $escapedFilterKeyCount;
             $review['escaped_decodeparms_key_count'] += $escapedDecodeParmsKeyCount;
@@ -1164,6 +1169,7 @@ final class PdfTextExtractor
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
+                'duplicate_decodeparms_declaration_count' => $duplicateDecodeParmsDeclarationCount,
                 'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
                 'escaped_filter_key_count' => $escapedFilterKeyCount,
                 'escaped_decodeparms_key_count' => $escapedDecodeParmsKeyCount,
@@ -1187,7 +1193,8 @@ final class PdfTextExtractor
                     $filters,
                     $decodeParms,
                     $filterEndMarkerProblems,
-                    $duplicateFilterDeclarationCount
+                    $duplicateFilterDeclarationCount,
+                    $duplicateDecodeParmsDeclarationCount
                 ),
                 'filter_decode_policy' => $this->cMapStreamFilterDecodePolicy(
                     $filters,
@@ -1196,13 +1203,15 @@ final class PdfTextExtractor
                     $unsupportedFilterCount,
                     $invalidDecodeParmsParameterCount,
                     $filterDecodeErrors,
-                    $duplicateFilterDeclarationCount
+                    $duplicateFilterDeclarationCount,
+                    $duplicateDecodeParmsDeclarationCount
                 ),
                 'decodeparms_operand_policy' => $this->streamDecodeParmsOperandPolicy(
                     $decodeParms,
                     $invalidDecodeParmsOperandCount,
                     $malformedDecodeParmsOperandCount,
-                    $invalidDecodeParmsParameterCount
+                    $invalidDecodeParmsParameterCount,
+                    $duplicateDecodeParmsDeclarationCount
                 ),
                 'decoded_cmap_length' => $decoded === null ? null : strlen($decoded),
                 'decoded_cmap_sha256' => $decoded === null ? null : hash('sha256', $decoded),
@@ -30451,8 +30460,13 @@ final class PdfTextExtractor
         ?array $decodeParms,
         int $invalidOperandCount,
         int $malformedOperandCount,
-        int $invalidParameterCount
+        int $invalidParameterCount,
+        int $duplicateDeclarationCount = 0
     ): string {
+        if ($duplicateDeclarationCount > 0) {
+            return 'reject_duplicate_decodeparms_declarations';
+        }
+
         if ($invalidParameterCount > 0) {
             return 'reject_malformed_decodeparms_parameters';
         }
@@ -31942,7 +31956,8 @@ final class PdfTextExtractor
         ?array $filters,
         ?array $decodeParms,
         array $filterEndMarkerProblems,
-        int $duplicateFilterDeclarationCount = 0
+        int $duplicateFilterDeclarationCount = 0,
+        int $duplicateDecodeParmsDeclarationCount = 0
     ): string {
         if ($duplicateFilterDeclarationCount > 0) {
             return 'reject_duplicate_filter_declarations';
@@ -31950,6 +31965,9 @@ final class PdfTextExtractor
 
         if ($filters === null) {
             return 'filter_resolution_failed';
+        }
+        if ($duplicateDecodeParmsDeclarationCount > 0) {
+            return 'reject_duplicate_decodeparms_declarations';
         }
         if ($decodeParms === null) {
             return 'decodeparms_resolution_failed';
@@ -31976,7 +31994,8 @@ final class PdfTextExtractor
         int $unsupportedFilterCount,
         int $invalidDecodeParmsParameterCount,
         array $filterDecodeErrors,
-        int $duplicateFilterDeclarationCount = 0
+        int $duplicateFilterDeclarationCount = 0,
+        int $duplicateDecodeParmsDeclarationCount = 0
     ): string {
         if ($duplicateFilterDeclarationCount > 0) {
             return 'reject_duplicate_filter_declarations';
@@ -31984,6 +32003,9 @@ final class PdfTextExtractor
 
         if ($filters === null) {
             return 'filter_resolution_failed';
+        }
+        if ($duplicateDecodeParmsDeclarationCount > 0) {
+            return 'reject_duplicate_decodeparms_declarations';
         }
         if ($decodeParms === null) {
             return 'decodeparms_resolution_failed';
