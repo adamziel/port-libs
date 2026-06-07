@@ -2034,6 +2034,90 @@ return [
         $t->same('head:0:0:0', $associations['headerCells'][2]['sourceHeaderReferences'][0]['targetKey'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports source header reference writer handoff diagnostics' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
+        $table = $buildSourceScopedHeaderDocument()->children[0];
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'idPrefix' => 'Source Scope Grid',
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex', 'wordpress'],
+        ]);
+
+        $t->same([
+            'markdown-row-headers-flattened',
+            'markdown-source-headers-require-raw-html',
+            'markdown-rowspan-flattened',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same([
+            'asciidoc-row-headers-review-required',
+            'asciidoc-source-headers-review-required',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same([
+            'latex-row-headers-review-required',
+            'latex-source-headers-review-required',
+            'latex-multirow-required',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same($asciidocDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'adoc'));
+        $t->same($latexDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+
+        $sourceDiagnostic = $markdownDiagnostics[1];
+        $t->same('markdown', $sourceDiagnostic['writer'] ?? null);
+        $t->same('source-headers', $sourceDiagnostic['reason'] ?? null);
+        $t->same('raw-html-table-headers', $sourceDiagnostic['requiredFeature'] ?? null);
+        $t->same('html-table-headers', $sourceDiagnostic['source'] ?? null);
+        $t->same('Source scoped accessibility grid', $sourceDiagnostic['caption'] ?? null);
+        $t->same(2, $sourceDiagnostic['referencingCellCount'] ?? null);
+        $t->same(3, $sourceDiagnostic['referenceCount'] ?? null);
+        $t->same(2, $sourceDiagnostic['resolvedReferenceCount'] ?? null);
+        $t->same(1, $sourceDiagnostic['unresolvedReferenceCount'] ?? null);
+        $t->same(true, $sourceDiagnostic['hasUnresolvedReferences'] ?? null);
+        $t->same(['legacy-count'], $sourceDiagnostic['unresolvedReferences'] ?? null);
+        $t->same(1, $sourceDiagnostic['sourceHeaderOverrideCount'] ?? null);
+        $t->same(true, $sourceDiagnostic['hasSourceHeaderOverrides'] ?? null);
+        $t->same(2, count($sourceDiagnostic['cells'] ?? []));
+
+        $headerCell = $sourceDiagnostic['cells'][0] ?? [];
+        $dataCell = $sourceDiagnostic['cells'][1] ?? [];
+        $t->same('header', $headerCell['role'] ?? null);
+        $t->same('head:0:2:2', $headerCell['key'] ?? null);
+        $t->same('source-state', $headerCell['id'] ?? null);
+        $t->same('State', $headerCell['text'] ?? null);
+        $t->same(['source-document'], $headerCell['sourceHeaders'] ?? null);
+        $t->same('source-document', $headerCell['sourceHeaderReferences'][0]['id'] ?? null);
+        $t->same('head:0:0:0', $headerCell['sourceHeaderReferences'][0]['targetKey'] ?? null);
+        $t->same('data', $dataCell['role'] ?? null);
+        $t->same('body:0:1:1', $dataCell['key'] ?? null);
+        $t->same('42', $dataCell['text'] ?? null);
+        $t->same(['legacy-count', 'source-posts'], $dataCell['sourceHeaders'] ?? null);
+        $t->same(false, $dataCell['sourceHeaderReferences'][0]['resolved'] ?? null);
+        $t->same('legacy-count', $dataCell['sourceHeaderReferences'][0]['id'] ?? null);
+        $t->same('source-posts', $dataCell['sourceHeaderReferences'][1]['id'] ?? null);
+        $t->same('body:0:0:0', $dataCell['sourceHeaderReferences'][1]['targetKey'] ?? null);
+
+        $t->same('source-header-reference-review', $asciidocDiagnostics[1]['requiredFeature'] ?? null);
+        $t->same($sourceDiagnostic['cells'], $asciidocDiagnostics[1]['cells'] ?? null);
+        $t->same('table-header-reference-comments', $latexDiagnostics[1]['requiredFeature'] ?? null);
+        $t->same($sourceDiagnostic['cells'], $latexDiagnostics[1]['cells'] ?? null);
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->same(8, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-row-headers-flattened',
+            'markdown-source-headers-require-raw-html',
+            'markdown-rowspan-flattened',
+            'asciidoc-row-headers-review-required',
+            'asciidoc-source-headers-review-required',
+            'latex-row-headers-review-required',
+            'latex-source-headers-review-required',
+            'latex-multirow-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'builds row header maps for importer table review packets' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
         $table = $buildAccessibleHeaderDocument()->children[0];
         $map = TableGeometry::rowHeaderMap($table, 'Migration Grid');

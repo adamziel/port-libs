@@ -3041,6 +3041,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
@@ -3109,6 +3110,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
@@ -3177,6 +3179,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
+            array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
         }
         foreach ($coverage as $record) {
@@ -3302,6 +3305,101 @@ final class TableGeometry
             'rowspannedRowHeaderReferenceCount' => (int) ($summary['rowspannedRowHeaderReferenceCount'] ?? 0),
             'rows' => $rows,
         ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function sourceHeaderWriterDiagnostics(AstNode $table, string $writer, ?string $idPrefix = null): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-source-headers-require-raw-html', 'raw-html-table-headers'],
+            'asciidoc' => ['asciidoc-source-headers-review-required', 'source-header-reference-review'],
+            'latex' => ['latex-source-headers-review-required', 'table-header-reference-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $associations = self::headerAssociations($table, $idPrefix ?? self::reviewPacketIdPrefix($table, []));
+        $summary = is_array($associations['summary'] ?? null) ? $associations['summary'] : [];
+        $referenceCount = (int) ($summary['sourceHeaderReferenceCount'] ?? 0);
+        if ($referenceCount <= 0) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'source-headers',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-headers',
+            'caption' => (string) $table->attr('caption', ''),
+            'referencingCellCount' => (int) ($summary['sourceHeaderReferencingCellCount'] ?? 0),
+            'referenceCount' => $referenceCount,
+            'resolvedReferenceCount' => (int) ($summary['sourceHeaderResolvedReferenceCount'] ?? 0),
+            'unresolvedReferenceCount' => (int) ($summary['sourceHeaderUnresolvedReferenceCount'] ?? 0),
+            'hasUnresolvedReferences' => (bool) ($summary['hasUnresolvedSourceHeaderReferences'] ?? false),
+            'unresolvedReferences' => self::stringList($summary['unresolvedSourceHeaderReferences'] ?? []),
+            'sourceHeaderOverrideCount' => (int) ($summary['sourceHeaderOverrideCount'] ?? 0),
+            'hasSourceHeaderOverrides' => (bool) ($summary['hasSourceHeaderOverrides'] ?? false),
+            'cells' => self::sourceHeaderReferenceCells($associations),
+        ]];
+    }
+
+    /**
+     * @param array<string, mixed> $associations
+     * @return list<array<string, mixed>>
+     */
+    private static function sourceHeaderReferenceCells(array $associations): array
+    {
+        $cells = [];
+        foreach (['headerCells' => 'header', 'dataCells' => 'data'] as $associationKey => $role) {
+            $records = is_array($associations[$associationKey] ?? null) ? $associations[$associationKey] : [];
+            foreach ($records as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+
+                $references = is_array($record['sourceHeaderReferences'] ?? null)
+                    ? array_values(array_filter(
+                        $record['sourceHeaderReferences'],
+                        static fn (mixed $reference): bool => is_array($reference)
+                    ))
+                    : [];
+                if ($references === []) {
+                    continue;
+                }
+
+                $cell = ['role' => $role];
+                foreach (['key', 'section', 'rowRole', 'id', 'scope', 'text'] as $key) {
+                    $value = trim((string) ($record[$key] ?? ''));
+                    if ($value !== '') {
+                        $cell[$key] = $value;
+                    }
+                }
+
+                foreach (['row', 'column', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan'] as $key) {
+                    if (isset($record[$key]) && is_numeric($record[$key])) {
+                        $cell[$key] = (int) $record[$key];
+                    }
+                }
+
+                foreach (['columns', 'headers', 'sourceHeaders'] as $key) {
+                    $values = $key === 'columns' ? self::intList($record[$key] ?? []) : self::stringList($record[$key] ?? []);
+                    if ($values !== []) {
+                        $cell[$key] = $values;
+                    }
+                }
+
+                $cell['sourceHeaderReferences'] = $references;
+                $cells[] = $cell;
+            }
+        }
+
+        return $cells;
     }
 
     /**

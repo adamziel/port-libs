@@ -1254,6 +1254,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($sourceScopePacket['headerAssociations']['headerCells'][2]['sourceHeaderReferences'][0]['targetKey'] ?? null) !== 'head:0:0:0') {
         throw new RuntimeException('Table geometry self-test missing resolved source column-header reference target');
     }
+    $sourceScopeWriterPacket = TableGeometry::reviewPacket($document->children[7], [
+        'idPrefix' => 'Source Scope Grid',
+        'writers' => ['markdown', 'asciidoctor', 'xelatex', 'wordpress'],
+    ]);
+    if (($sourceScopeWriterPacket['writerDowngrades']['markdown'][1]['code'] ?? null) !== 'markdown-source-headers-require-raw-html') {
+        throw new RuntimeException('Table geometry self-test missing source headers Markdown writer requirement');
+    }
+    if (($sourceScopeWriterPacket['writerDowngrades']['markdown'][1]['unresolvedReferences'] ?? null) !== ['legacy-count']) {
+        throw new RuntimeException('Table geometry self-test missing unresolved source headers writer audit');
+    }
+    if (($sourceScopeWriterPacket['writerDowngrades']['asciidoc'][1]['requiredFeature'] ?? null) !== 'source-header-reference-review') {
+        throw new RuntimeException('Table geometry self-test missing source headers AsciiDoc writer requirement');
+    }
+    if (($sourceScopeWriterPacket['writerDowngrades']['latex'][1]['requiredFeature'] ?? null) !== 'table-header-reference-comments') {
+        throw new RuntimeException('Table geometry self-test missing source headers LaTeX writer requirement');
+    }
+    if (($sourceScopeWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []) {
+        throw new RuntimeException('Table geometry self-test should preserve source headers for WordPress output without writer downgrade');
+    }
+    json_encode($sourceScopeWriterPacket, JSON_THROW_ON_ERROR);
     if (!str_contains($blocks, '<th id="source-posts" scope="row" rowspan="2" style="text-align:left">Posts</th><td headers="legacy-count source-posts" style="text-align:right">42</td><td headers="source-state source-posts" style="text-align:center">Ready</td>')) {
         throw new RuntimeException('Table geometry self-test missing source scope and headers WordPress output');
     }
