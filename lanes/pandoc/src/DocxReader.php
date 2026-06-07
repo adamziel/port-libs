@@ -1311,6 +1311,29 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isWordElement($child, 'ins')) {
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
+                array_push(
+                    $blocks,
+                    ...$this->trackedAcceptedChangeBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering, 'insertion')
+                );
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'moveTo')) {
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
+                array_push(
+                    $blocks,
+                    ...$this->trackedAcceptedChangeBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering, 'move-to')
+                );
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'del') || $this->isWordElement($child, 'moveFrom')) {
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
+                continue;
+            }
+
             if ($this->isWordElement($child, 'p')) {
                 $paragraphHasTextboxRuns = $this->paragraphHasTextboxRuns($child);
                 $paragraphBlocks = $this->paragraphBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering, $activeCommentRangeId);
@@ -1373,6 +1396,35 @@ final class DocxReader
         $this->appendListParagraphs($blocks, $pendingListParagraphs);
 
         return $blocks;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function trackedAcceptedChangeBlocks(
+        \DOMElement $change,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering,
+        string $type
+    ): array {
+        $attrs = $this->trackedChangeSpanAttrs($change, $type);
+        $blocks = $this->blockContainerChildren($change, $package, $relationships, $referencedNotes, $styles, $numbering);
+        if ($blocks !== []) {
+            return [new AstNode('div', $attrs, $blocks)];
+        }
+
+        $inlines = $this->coalesceTextNodes($this->inlineContainerNodes($change, $package, $relationships, $referencedNotes));
+        if ($inlines === []) {
+            return [];
+        }
+
+        return [new AstNode('paragraph', [], [new AstNode('span', $attrs, $inlines)])];
     }
 
     /**

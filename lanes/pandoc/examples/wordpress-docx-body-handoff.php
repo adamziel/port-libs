@@ -417,6 +417,24 @@ XML],
       <w:commentRangeEnd w:id="9"/>
       <w:r><w:commentReference w:id="9"/></w:r>
     </w:p>
+    <w:del w:id="50" w:author="Source Editor" w:date="2026-06-05T09:00:00Z">
+      <w:p><w:r><w:delText>Deleted block revision should stay report-only.</w:delText></w:r></w:p>
+    </w:del>
+    <w:ins w:id="51" w:author="Migration Editor" w:date="2026-06-05T09:05:00Z">
+      <w:p><w:r><w:t>Accepted block revision paragraph.</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tr>
+          <w:tc><w:p><w:r><w:t>Accepted block table label</w:t></w:r></w:p></w:tc>
+          <w:tc><w:p><w:r><w:t>Ready</w:t></w:r></w:p></w:tc>
+        </w:tr>
+      </w:tbl>
+    </w:ins>
+    <w:moveFrom w:id="52" w:author="Source Editor" w:date="2026-06-05T09:10:00Z">
+      <w:p><w:r><w:delText>Moved-from block revision should stay report-only.</w:delText></w:r></w:p>
+    </w:moveFrom>
+    <w:moveTo w:id="53" w:author="Migration Editor" w:date="2026-06-05T09:12:00Z">
+      <w:p><w:r><w:t>Accepted moved block revision paragraph.</w:t></w:r></w:p>
+    </w:moveTo>
     <w:tbl>
       <w:tr>
         <w:tc>
@@ -871,7 +889,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][2]['id'] ?? '') !== 'rIdVmlBadge' || ($summary['importReport']['media']['items'][2]['usedCount'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing VML image media handoff');
     }
-    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 3 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 5) {
+    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 5 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 7) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
     if (($summary['importReport']['revisions']['formattingCount'] ?? 0) !== 2) {
@@ -888,6 +906,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($revisionItemsById['29']['text'] ?? '') !== 'x + y = z') {
         throw new RuntimeException('DOCX body handoff self-test missing deleted math revision audit text');
+    }
+    if (!str_contains((string) ($revisionItemsById['51']['text'] ?? ''), 'Accepted block revision paragraph.') || !str_contains((string) ($revisionItemsById['51']['text'] ?? ''), 'Accepted block table label')) {
+        throw new RuntimeException('DOCX body handoff self-test missing accepted block revision audit text');
+    }
+    if (($revisionItemsById['53']['text'] ?? '') !== 'Accepted moved block revision paragraph.') {
+        throw new RuntimeException('DOCX body handoff self-test missing moved block revision audit text');
     }
     if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing section property report');
@@ -1023,6 +1047,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'ranged moved from discarded section')) {
         throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change range text');
     }
+    if (str_contains($blocks, 'Deleted block revision should stay report-only.')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered deleted block tracked-change text');
+    }
+    if (str_contains($blocks, 'Moved-from block revision should stay report-only.')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered moved-from block tracked-change text');
+    }
     if (str_contains($blocks, 'DOCX footnote continuation notice.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered special footnote continuation notice');
     }
@@ -1071,6 +1101,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
         '<span class="docx-move-to-range" data-docx-change="move-to-range" data-docx-change-id="27" data-docx-author="Migration Editor" data-docx-date="2026-06-05T08:12:00Z" data-docx-move-range-name="accepted_review_range"> Ranged move accepted for checklist.</span>',
+        '<div class="docx-insertion" data-docx-change="insertion" data-docx-change-id="51" data-docx-author="Migration Editor" data-docx-date="2026-06-05T09:05:00Z"><p>Accepted block revision paragraph.</p><table><tbody><tr><td><p>Accepted block table label</p></td><td><p>Ready</p></td></tr></tbody></table></div>',
+        '<div class="docx-move-to" data-docx-change="move-to" data-docx-change-id="53" data-docx-author="Migration Editor" data-docx-date="2026-06-05T09:12:00Z"><p>Accepted moved block revision paragraph.</p></div>',
         'and flag missing note references<sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup>/<sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>',
         'while automatic note labels remain auditable<sup id="fnref-6"><a href="#fn-6" role="doc-noteref">6</a></sup>/<sup id="fnref-7"><a href="#fn-7" role="doc-noteref">7</a></sup>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z" data-docx-comment-para-id="00DOCX09" data-docx-comment-resolved="true"> and reviewer comment</span>',

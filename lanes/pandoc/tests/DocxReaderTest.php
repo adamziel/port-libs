@@ -1075,6 +1075,39 @@ $moveRangeTrackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$blockTrackedChangesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Before block revisions.</w:t></w:r></w:p>
+    <w:del w:id="40" w:author="Source Editor" w:date="2026-06-05T09:00:00Z">
+      <w:p><w:r><w:delText>Deleted block paragraph.</w:delText></w:r></w:p>
+      <w:tbl>
+        <w:tr>
+          <w:tc><w:p><w:r><w:delText>Deleted table cell.</w:delText></w:r></w:p></w:tc>
+        </w:tr>
+      </w:tbl>
+    </w:del>
+    <w:ins w:id="41" w:author="Migration Editor" w:date="2026-06-05T09:05:00Z">
+      <w:p><w:r><w:t>Inserted block paragraph.</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tr>
+          <w:tc><w:p><w:r><w:t>Inserted table label</w:t></w:r></w:p></w:tc>
+          <w:tc><w:p><w:r><w:t>Ready</w:t></w:r></w:p></w:tc>
+        </w:tr>
+      </w:tbl>
+    </w:ins>
+    <w:moveFrom w:id="42" w:author="Source Editor" w:date="2026-06-05T09:10:00Z">
+      <w:p><w:r><w:delText>Moved-from block paragraph.</w:delText></w:r></w:p>
+    </w:moveFrom>
+    <w:moveTo w:id="43" w:author="Migration Editor" w:date="2026-06-05T09:12:00Z">
+      <w:p><w:r><w:t>Moved-to block paragraph.</w:t></w:r></w:p>
+      <w:p><w:r><w:t>Second moved-to block.</w:t></w:r></w:p>
+    </w:moveTo>
+    <w:p><w:r><w:t>After block revisions.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
 $formattingChangeDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2338,6 +2371,14 @@ $buildMoveRangeTrackedChangesPackage = static function () use ($contentTypesXml,
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $moveRangeTrackedChangesDocumentXml],
+    ]);
+};
+
+$buildBlockTrackedChangesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $blockTrackedChangesDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $blockTrackedChangesDocumentXml],
     ]);
 };
 
@@ -3903,6 +3944,85 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-05T08:12:00Z', $revisions['items'][1]['date']);
         $t->same('moved range wording', $revisions['items'][1]['text']);
+    },
+    'preserves accepted DOCX block revisions and reports suppressed block wrappers' => static function (TestRunner $t) use ($buildBlockTrackedChangesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildBlockTrackedChangesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('Before block revisions.', $document->children[0]->children[0]->attr('text'));
+        $t->same('After block revisions.', $document->children[3]->children[0]->attr('text'));
+
+        $insertion = $document->children[1];
+        $t->same('div', $insertion->type);
+        $t->same(['docx-insertion'], $insertion->attr('classes'));
+        $t->same('insertion', $insertion->attr('attributes')['data-docx-change']);
+        $t->same('41', $insertion->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $insertion->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-05T09:05:00Z', $insertion->attr('attributes')['data-docx-date']);
+        $t->same(2, count($insertion->children));
+        $t->same('Inserted block paragraph.', $insertion->children[0]->children[0]->attr('text'));
+        $t->same('table', $insertion->children[1]->type);
+        $t->same('Inserted table label', $insertion->children[1]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Ready', $insertion->children[1]->children[0]->children[0]->children[1]->attr('text'));
+
+        $moveTo = $document->children[2];
+        $t->same('div', $moveTo->type);
+        $t->same(['docx-move-to'], $moveTo->attr('classes'));
+        $t->same('move-to', $moveTo->attr('attributes')['data-docx-change']);
+        $t->same('43', $moveTo->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $moveTo->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-05T09:12:00Z', $moveTo->attr('attributes')['data-docx-date']);
+        $t->same(2, count($moveTo->children));
+        $t->same('Moved-to block paragraph.', $moveTo->children[0]->children[0]->attr('text'));
+        $t->same('Second moved-to block.', $moveTo->children[1]->children[0]->attr('text'));
+
+        $t->contains('::: {.docx-insertion data-docx-change="insertion" data-docx-change-id="41" data-docx-author="Migration Editor" data-docx-date="2026-06-05T09:05:00Z"}', $markdown);
+        $t->contains('Inserted block paragraph.', $markdown);
+        $t->contains('| Inserted table label | Ready |', $markdown);
+        $t->contains('::: {.docx-move-to data-docx-change="move-to" data-docx-change-id="43" data-docx-author="Migration Editor" data-docx-date="2026-06-05T09:12:00Z"}', $markdown);
+        $t->contains('Moved-to block paragraph.', $markdown);
+        $t->contains('Second moved-to block.', $markdown);
+        $t->true(!str_contains($markdown, 'Deleted block paragraph.'), 'Deleted DOCX block text should not render to Markdown');
+        $t->true(!str_contains($markdown, 'Deleted table cell.'), 'Deleted DOCX block table text should not render to Markdown');
+        $t->true(!str_contains($markdown, 'Moved-from block paragraph.'), 'Moved-from DOCX block text should not render to Markdown');
+
+        $t->contains('<div class="docx-insertion" data-docx-change="insertion" data-docx-change-id="41" data-docx-author="Migration Editor" data-docx-date="2026-06-05T09:05:00Z"><p>Inserted block paragraph.</p><table><tbody><tr><td><p>Inserted table label</p></td><td><p>Ready</p></td></tr></tbody></table></div>', $blocks);
+        $t->contains('<div class="docx-move-to" data-docx-change="move-to" data-docx-change-id="43" data-docx-author="Migration Editor" data-docx-date="2026-06-05T09:12:00Z"><p>Moved-to block paragraph.</p><p>Second moved-to block.</p></div>', $blocks);
+        $t->true(!str_contains($blocks, 'Deleted block paragraph.'), 'Deleted DOCX block text should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, 'Deleted table cell.'), 'Deleted DOCX block table text should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, 'Moved-from block paragraph.'), 'Moved-from DOCX block text should not render to WordPress blocks');
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(2, $revisions['insertionCount']);
+        $t->same(2, $revisions['deletionCount']);
+        $t->same(4, count($revisions['items']));
+        $t->same('deletion', $revisions['items'][0]['type']);
+        $t->same(false, $revisions['items'][0]['accepted']);
+        $t->same('40', $revisions['items'][0]['id']);
+        $t->same('Source Editor', $revisions['items'][0]['author']);
+        $t->same('2026-06-05T09:00:00Z', $revisions['items'][0]['date']);
+        $t->contains('Deleted block paragraph.', $revisions['items'][0]['text']);
+        $t->contains('Deleted table cell.', $revisions['items'][0]['text']);
+        $t->same('insertion', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('41', $revisions['items'][1]['id']);
+        $t->same('Migration Editor', $revisions['items'][1]['author']);
+        $t->same('2026-06-05T09:05:00Z', $revisions['items'][1]['date']);
+        $t->contains('Inserted block paragraph.', $revisions['items'][1]['text']);
+        $t->contains('Inserted table label', $revisions['items'][1]['text']);
+        $t->contains('Ready', $revisions['items'][1]['text']);
+        $t->same('move-from', $revisions['items'][2]['type']);
+        $t->same(false, $revisions['items'][2]['accepted']);
+        $t->same('42', $revisions['items'][2]['id']);
+        $t->same('Moved-from block paragraph.', $revisions['items'][2]['text']);
+        $t->same('move-to', $revisions['items'][3]['type']);
+        $t->same(true, $revisions['items'][3]['accepted']);
+        $t->same('43', $revisions['items'][3]['id']);
+        $t->same('Moved-to block paragraph.Second moved-to block.', $revisions['items'][3]['text']);
     },
     'preserves DOCX tracked paragraph and run formatting changes as reviewer metadata' => static function (TestRunner $t) use ($buildFormattingChangePackage): void {
         $reader = new DocxReader();
