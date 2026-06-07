@@ -37772,6 +37772,10 @@ final class PdfTextExtractor
         }
 
         $afterId = $index + 2;
+        if ($this->inlineImageDataPrefixLooksLikeOperatorToken($stream, $afterId)) {
+            return null;
+        }
+
         if ($this->inlineImageDataSeparatorFollowsId($stream, $afterId)) {
             $consumeDataPrefixWhitespace = true;
             return $afterId;
@@ -37790,6 +37794,21 @@ final class PdfTextExtractor
 
         $consumeDataPrefixWhitespace = false;
         return $afterId;
+    }
+
+    private function inlineImageDataPrefixLooksLikeOperatorToken(string $stream, int $offset): bool
+    {
+        if ($offset >= strlen($stream) || $this->isBareTokenDelimiter($stream[$offset])) {
+            return false;
+        }
+
+        $end = $offset;
+        while ($end < strlen($stream) && !$this->isBareTokenDelimiter($stream[$end])) {
+            $end++;
+        }
+
+        $suffix = substr($stream, $offset, $end - $offset);
+        return preg_match('/^[A-Z][A-Za-z0-9_]*$/', $suffix) === 1;
     }
 
     private function readInlineImageToken(string $stream, int &$index): ?string
