@@ -105,7 +105,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     foreach ([
-        '<p>Review cites (de la Cruz, pp. 12-14; Archive Team, loc appendix A) while preserving numeric CSL branches.</p>',
+        '<p>Review cites (de la Cruz, pp. 12–14; Archive Team, loc appendix A) while preserving numeric CSL branches.</p>',
         '<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>',
         '<dt>Archive Team 2025</dt><dd>Alpha Packet. review number Appendix A.</dd>',
     ] as $snippet) {

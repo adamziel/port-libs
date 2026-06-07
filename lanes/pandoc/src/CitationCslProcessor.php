@@ -5212,7 +5212,9 @@ final class CitationCslProcessor
             return '';
         }
 
-        return $this->formatCslNumber($value, (string) ($element['form'] ?? 'numeric'));
+        $value = $this->formatCslNumber($value, (string) ($element['form'] ?? 'numeric'));
+
+        return $variable === 'locator' ? $this->formatCslLocatorRanges($value) : $value;
     }
 
     private function formatCslNumber(string $value, string $form): string
@@ -5704,7 +5706,7 @@ final class CitationCslProcessor
         $normalized = strtolower(trim($variable));
 
         return match ($normalized) {
-            'locator' => $this->citationLocatorParts($citation)['value'],
+            'locator' => $this->formatCslLocatorRanges($this->citationLocatorParts($citation)['value']),
             'citation-number' => $this->citationNumberValue($item, $citation),
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
@@ -5957,6 +5959,15 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    private function formatCslLocatorRanges(string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        return preg_replace('/(?<=[\p{L}\p{N}])\s*[-\x{2010}-\x{2015}]\s*(?=[\p{L}\p{N}])/u', "\u{2013}", $value) ?? $value;
     }
 
     /**

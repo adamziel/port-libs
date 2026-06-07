@@ -108,7 +108,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     foreach ([
-        '<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3) while preserving CSL locator branches.</p>',
+        '<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3) while preserving CSL locator branches.</p>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Condition Packet.</dd>',
         '<dt>Archive Team 2025</dt><dd>Archive Team. Chapter Locator Packet.</dd>',
     ] as $snippet) {

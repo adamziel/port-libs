@@ -7206,19 +7206,19 @@ XML
         $document = (new MarkdownReader())->read('Review cites [@locator-condition-source, p. 7; @chapter-condition-source, chap. 2; @locator-condition-source, sec. 4-5; @locator-condition-source, vol. 3].');
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $cluster = $processed->children[0]->children[1];
-        $t->same('(de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3)', $cluster->attr('rendered'));
+        $t->same('(de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3)', $cluster->attr('rendered'));
 
         $direct = $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'locator-condition-source', 'text' => '[@locator-condition-source]', 'locatorLabel' => 'paragraph', 'locatorValue' => '10-11']),
             new AstNode('citation', ['id' => 'chapter-condition-source', 'text' => '[@chapter-condition-source]', 'locatorLabel' => 'sub verbo', 'locatorValue' => 'migration']),
         ]);
-        $t->same('(de la Cruz, section-route ¶¶ 10-11; Archive Team, other-locator migration)', $direct);
+        $t->same('(de la Cruz, section-route ¶¶ 10–11; Archive Team, other-locator migration)', $direct);
 
         $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3).', $markdown);
+        $t->contains('Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3).', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4-5; de la Cruz, other-locator 3).</p>', $blocks);
+        $t->contains('<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3).</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Condition Packet.</dd>', $blocks);
         $t->contains('<dt>Archive Team 2025</dt><dd>Archive Team. Chapter Locator Packet.</dd>', $blocks);
 
@@ -7326,13 +7326,13 @@ XML
 
         $numeric = new AstNode('citation', ['id' => 'numeric-source', 'text' => '[@numeric-source]', 'locator' => 'p. 12-14']);
         $alpha = new AstNode('citation', ['id' => 'alpha-source', 'text' => '[@alpha-source]', 'locator' => 'appendix A']);
-        $t->same('(de la Cruz, pp. 12-14; Archive Team, loc appendix A)', $processor->renderCitationCluster([$numeric, $alpha]));
+        $t->same('(de la Cruz, pp. 12–14; Archive Team, loc appendix A)', $processor->renderCitationCluster([$numeric, $alpha]));
         $t->same('Numeric Packet. nos. 2nd-4th.', $processor->renderBibliographyEntry('numeric-source'));
         $t->same('Alpha Packet. review number Appendix A.', $processor->renderBibliographyEntry('alpha-source'));
 
         $document = (new MarkdownReader())->read('Review cites [@numeric-source, p. 12-14; @alpha-source, appendix A] while preserving numeric source checks.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Review cites (de la Cruz, pp. 12-14; Archive Team, loc appendix A) while preserving numeric source checks.</p>', $blocks);
+        $t->contains('<p>Review cites (de la Cruz, pp. 12–14; Archive Team, loc appendix A) while preserving numeric source checks.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>', $blocks);
         $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. review number Appendix A.</dd>', $blocks);
     },
@@ -7798,7 +7798,7 @@ XML
 
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $processedCluster = $processed->children[0]->children[1];
-        $t->same('(see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4-5; de la Cruz 2026, p. ii, A-D)', $processedCluster->attr('rendered'));
+        $t->same('(see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4–5; de la Cruz 2026, p. ii, A–D)', $processedCluster->attr('rendered'));
         $t->same('de la Cruz 2026', $processed->children[2]->children[0]->children[0]->attr('text'));
         $t->same('Manual Chapter 2024', $processed->children[2]->children[1]->children[0]->attr('text'));
         $t->same('de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.', $processor->renderBibliographyEntry('locator-source'));
@@ -7820,16 +7820,16 @@ XML
 </style>
 XML
         );
-        $t->same("(\u{00A7}\u{00A7} 4-5)", $symbolStyle->renderCitationCluster([
+        $t->same("(\u{00A7}\u{00A7} 4–5)", $symbolStyle->renderCitationCluster([
             new AstNode('citation', ['id' => 'locator-source', 'text' => '[@locator-source]', 'locator' => 'sec. 4-5']),
         ]));
 
         $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4-5; de la Cruz 2026, p. ii, A-D).', $markdown);
+        $t->contains('Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4–5; de la Cruz 2026, p. ii, A–D).', $markdown);
         $t->contains('de la Cruz 2026' . "\n" . ':   de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<p>Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4-5; de la Cruz 2026, p. ii, A-D).</p>', $blocks);
+        $t->contains('<p>Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4–5; de la Cruz 2026, p. ii, A–D).</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.</dd>', $blocks);
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
@@ -7856,6 +7856,71 @@ XML
             </style>
 XML
         ));
+    },
+    'applies bounded csl locator range delimiter rendering' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'range-locator-source',
+                'type' => 'report',
+                'title' => 'Locator Range Source',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'page' => '12-18',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Locator Range Delimiter Review Style</title>
+    <id>https://example.test/styles/locator-range-delimiter-review</id>
+    <updated>2026-06-07T04:43:11+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+        <number variable="locator" form="ordinal" prefix="ordinal "/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="page" form="short"/>
+        <text variable="page"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Locator Range Delimiter Review Style', $summary['title'] ?? null);
+        $t->same('locator', $summary['citationRendering'][0]['children'][1]['children'][1]['variable'] ?? null);
+        $t->same('ordinal', $summary['citationRendering'][0]['children'][2]['form'] ?? null);
+
+        $cluster = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'range-locator-source', 'text' => '[@range-locator-source]', 'locator' => 'pp. 12-14']),
+            new AstNode('citation', ['id' => 'range-locator-source', 'text' => '[@range-locator-source]', 'locator' => 'sec. 4-5']),
+            new AstNode('citation', ['id' => 'range-locator-source', 'text' => '[@range-locator-source]', 'locatorValue' => 'ii-iv', 'locatorLabel' => 'page']),
+        ]);
+        $t->same('(Smith | pp. 12–14 | ordinal 12th–14th; Smith | secs. 4–5 | ordinal 4th–5th; Smith | p. ii–iv | ordinal ii–iv)', $cluster);
+        $t->same('Smith, Ada. Locator Range Source. pp. 12-18.', $processor->renderBibliographyEntry('range-locator-source'));
+
+        $document = (new MarkdownReader())->read('Locator ranges [@range-locator-source, pp. 12-14; @range-locator-source, {ii-iv}] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Locator ranges (Smith | pp. 12–14 | ordinal 12th–14th; Smith | p. ii–iv | ordinal ii–iv) stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Locator Range Source. pp. 12-18.</dd>', $blocks);
     },
     'applies bounded csl number rendering forms for page issue and edition variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
