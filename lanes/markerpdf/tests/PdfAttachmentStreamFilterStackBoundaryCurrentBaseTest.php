@@ -177,6 +177,39 @@ $attachmentStreamFilterStackBoundaryCurrentBaseDictionaryFilterPdf = static func
         . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseDuplicateStreamKeyPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Duplicate Stream Key Review) Tj ET';
+    $duplicateFilterPayload = "Title,Status\nDuplicate Filter Attachment Leak,Blocked\n";
+    $duplicateDecodeParmsPayload = "Title,Status\nDuplicate DecodeParms Attachment Leak,Blocked\n";
+    $validPayload = "Title,Status\nValid Attachment After Duplicate Keys,Ready\n";
+
+    $duplicateFilterEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($duplicateFilterPayload));
+    $duplicateDecodeParmsEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($duplicateDecodeParmsPayload));
+    $validEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($validPayload));
+
+    return [
+        'duplicate_filter_payload' => $duplicateFilterPayload,
+        'duplicate_decodeparms_payload' => $duplicateDecodeParmsPayload,
+        'valid_payload' => $validPayload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(duplicate-filter.csv) 10 0 R (duplicate-decodeparms.csv) 12 0 R (valid-after-duplicates.csv) 14 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (duplicate-filter.csv) /Desc (Duplicate Filter attachment stream) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /FlateDecode /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($duplicateFilterPayload) . " /CheckSum <" . md5($duplicateFilterPayload) . "> >> /Length " . strlen($duplicateFilterEncoded) . " >>\nstream\n{$duplicateFilterEncoded}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /F (duplicate-decodeparms.csv) /Desc (Duplicate DecodeParms attachment stream) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null << /Predictor 99 /Columns 1 >> ] /DecodeParms [ null null ] /Params << /Size " . strlen($duplicateDecodeParmsPayload) . " /CheckSum <" . md5($duplicateDecodeParmsPayload) . "> >> /Length " . strlen($duplicateDecodeParmsEncoded) . " >>\nstream\n{$duplicateDecodeParmsEncoded}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Type /Filespec /F (valid-after-duplicates.csv) /Desc (Valid attachment after duplicate stream keys) /AFRelationship /Source /EF << /F 15 0 R >> >>\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validPayload) . " /CheckSum <" . md5($validPayload) . "> >> /Length " . strlen($validEncoded) . " >>\nstream\n{$validEncoded}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 $attachmentStreamFilterStackBoundaryCurrentBaseAllNullPdf = static function (): array {
     $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment All Null Stack Review) Tj ET';
     $payload = "Title,Status\nAll Null Attachment,Ready\n";
@@ -476,6 +509,60 @@ return [
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Dictionary Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Dictionary Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Malformed dictionary filter attachment'));
+    },
+    'rejects duplicate attachment stream Filter and DecodeParms declarations before payload extraction' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseDuplicateStreamKeyPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseDuplicateStreamKeyPdf();
+        $pdf = $fixture['pdf'];
+        $validPayload = $fixture['valid_payload'];
+        $duplicateFilterPayload = $fixture['duplicate_filter_payload'];
+        $duplicateDecodeParmsPayload = $fixture['duplicate_decodeparms_payload'];
+        $checksum = md5($validPayload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['valid-after-duplicates.csv'], $summary['filenames']);
+        $t->same(strlen($validPayload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('valid-after-duplicates.csv', $attachment['filename'] ?? null);
+        $t->same('Valid attachment after duplicate stream keys', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same('original_source', $attachment['relationship_role'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($validPayload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('valid-after-duplicates.csv', $files[0]['filename'] ?? null);
+        $t->same($validPayload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Duplicate Stream Key Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'duplicate-filter.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'duplicate-decodeparms.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $validPayload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $duplicateFilterPayload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $duplicateDecodeParmsPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'duplicate-filter.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'duplicate-decodeparms.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $duplicateFilterPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $duplicateDecodeParmsPayload));
+        $t->true(!str_contains($plainText, 'Duplicate Filter Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Duplicate DecodeParms Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Valid Attachment After Duplicate Keys'));
     },
     'rejects non-PDF whitespace inside attachment filter stack data before payload extraction' => static function (
         TestRunner $t

@@ -45,7 +45,7 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
-    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Params'];
+    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
     private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
 

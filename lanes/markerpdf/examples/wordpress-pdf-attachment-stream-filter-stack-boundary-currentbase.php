@@ -140,6 +140,37 @@ if ($malformedSummaryJson === false) {
     throw new RuntimeException('Expected malformed attachment summary JSON.');
 }
 
+$duplicateFilterPayload = "Title,Status\nDuplicate Filter Attachment Smoke Leak,Blocked\n";
+$duplicateDecodeParmsPayload = "Title,Status\nDuplicate DecodeParms Attachment Smoke Leak,Blocked\n";
+$validAfterDuplicateKeysPayload = "Title,Status\nValid Attachment After Duplicate Keys,Ready\n";
+$duplicateFilterEncoded = $ascii85Encode(gzcompress($duplicateFilterPayload));
+$duplicateDecodeParmsEncoded = $ascii85Encode(gzcompress($duplicateDecodeParmsPayload));
+$validAfterDuplicateKeysEncoded = $ascii85Encode(gzcompress($validAfterDuplicateKeysPayload));
+$duplicateStreamKeyVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Duplicate Stream Key Review) Tj ET';
+$duplicateStreamKeyPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($duplicateStreamKeyVisible) . " >>\nstream\n{$duplicateStreamKeyVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(duplicate-filter.csv) 10 0 R (duplicate-decodeparms.csv) 12 0 R (valid-after-duplicates.csv) 14 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (duplicate-filter.csv) /Desc (Duplicate Filter attachment stream) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter /FlateDecode /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($duplicateFilterPayload) . " /CheckSum <" . md5($duplicateFilterPayload) . "> >> /Length " . strlen($duplicateFilterEncoded) . " >>\nstream\n{$duplicateFilterEncoded}\nendstream\nendobj\n"
+    . "12 0 obj\n<< /Type /Filespec /F (duplicate-decodeparms.csv) /Desc (Duplicate DecodeParms attachment stream) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null << /Predictor 99 /Columns 1 >> ] /DecodeParms [ null null ] /Params << /Size " . strlen($duplicateDecodeParmsPayload) . " /CheckSum <" . md5($duplicateDecodeParmsPayload) . "> >> /Length " . strlen($duplicateDecodeParmsEncoded) . " >>\nstream\n{$duplicateDecodeParmsEncoded}\nendstream\nendobj\n"
+    . "14 0 obj\n<< /Type /Filespec /F (valid-after-duplicates.csv) /Desc (Valid attachment after duplicate stream keys) /AFRelationship /Source /EF << /F 15 0 R >> >>\nendobj\n"
+    . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validAfterDuplicateKeysPayload) . " /CheckSum <" . md5($validAfterDuplicateKeysPayload) . "> >> /Length " . strlen($validAfterDuplicateKeysEncoded) . " >>\nstream\n{$validAfterDuplicateKeysEncoded}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$duplicateStreamKeySummary = (new PdfAttachmentExtractor())->attachmentSummary($duplicateStreamKeyPdf);
+$duplicateStreamKeyFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($duplicateStreamKeyPdf);
+$duplicateStreamKeyText = (new PdfTextExtractor())->extractPlainText($duplicateStreamKeyPdf);
+$duplicateStreamKeySummaryJson = json_encode($duplicateStreamKeySummary, JSON_UNESCAPED_SLASHES);
+$duplicateStreamKeyFilesJson = json_encode($duplicateStreamKeyFiles, JSON_UNESCAPED_SLASHES);
+if ($duplicateStreamKeySummaryJson === false || $duplicateStreamKeyFilesJson === false) {
+    throw new RuntimeException('Expected duplicate stream-key attachment summary JSON.');
+}
+
 $allNullPayload = "Title,Status\nAll Null Attachment Smoke,Ready\n";
 $allNullChecksum = md5($allNullPayload);
 $allNullVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment All Null Stack Review) Tj ET';
@@ -337,6 +368,21 @@ $metadata = [
     'dictionary_filter_payload_excluded' => !str_contains($malformedSummaryJson, 'Dictionary Filter Attachment Leak')
         && !str_contains(json_encode($malformedFiles, JSON_UNESCAPED_SLASHES) ?: '', 'Dictionary Filter Attachment Leak'),
     'dictionary_filter_visible_text_preserved' => $malformedText === 'Visible Attachment Malformed Filter Review',
+    'duplicate_stream_key_attachments_rejected' => ($duplicateStreamKeySummary['attachment_count'] ?? null) === 1
+        && ($duplicateStreamKeySummary['attachments'][0]['filename'] ?? null) === 'valid-after-duplicates.csv'
+        && count($duplicateStreamKeyFiles) === 1
+        && (($duplicateStreamKeyFiles[0]['content'] ?? null) === $validAfterDuplicateKeysPayload),
+    'duplicate_filter_stream_rejected' => !str_contains($duplicateStreamKeySummaryJson, 'duplicate-filter.csv')
+        && !str_contains($duplicateStreamKeyFilesJson, 'duplicate-filter.csv'),
+    'duplicate_decodeparms_stream_rejected' => !str_contains($duplicateStreamKeySummaryJson, 'duplicate-decodeparms.csv')
+        && !str_contains($duplicateStreamKeyFilesJson, 'duplicate-decodeparms.csv'),
+    'duplicate_stream_key_payload_excluded' => !str_contains($duplicateStreamKeySummaryJson, 'Duplicate Filter Attachment Smoke Leak')
+        && !str_contains($duplicateStreamKeySummaryJson, 'Duplicate DecodeParms Attachment Smoke Leak')
+        && !str_contains($duplicateStreamKeyFilesJson, 'Duplicate Filter Attachment Smoke Leak')
+        && !str_contains($duplicateStreamKeyFilesJson, 'Duplicate DecodeParms Attachment Smoke Leak')
+        && !str_contains($duplicateStreamKeyText, 'Duplicate Filter Attachment Smoke Leak')
+        && !str_contains($duplicateStreamKeyText, 'Duplicate DecodeParms Attachment Smoke Leak'),
+    'duplicate_stream_key_visible_text_preserved' => $duplicateStreamKeyText === 'Visible Attachment Duplicate Stream Key Review',
     'all_null_attachment_decoded' => ($allNullSummary['attachment_count'] ?? null) === 1
         && ($allNullSummary['attachments'][0]['filename'] ?? null) === 'all-null-attachment.csv'
         && (($allNullSummary['attachments'][0]['filters'] ?? []) === [])
