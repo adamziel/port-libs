@@ -1018,6 +1018,11 @@ foreach ($graph->relationshipTypeInventory() as $type) {
     $relationshipTypeInventory[$type['type']] = $type;
 }
 
+$relationshipSourceInventory = [];
+foreach ($graph->relationshipSourceInventory() as $source) {
+    $relationshipSourceInventory[$source['source']] = $source;
+}
+
 $contentTypeInventory = [];
 foreach ($graph->contentTypeInventory() as $contentType) {
     $contentTypeInventory[$contentType['contentType']] = $contentType;
@@ -1479,6 +1484,7 @@ $summary = [
     'relationshipPartLoads' => $relationshipPartLoads,
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
+    'relationshipSourceInventory' => $relationshipSourceInventory,
     'relationshipTypeInventory' => $relationshipTypeInventory,
     'packagePartReferences' => $packagePartReferences,
     'relationships' => $relationshipSummaries,
@@ -1558,6 +1564,19 @@ $summary = [
             array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
             static fn (?string $target): bool => $target !== null && str_starts_with($target, '/word/media/')
         ))),
+        'relationshipSourceReview' => array_values(array_map(
+            static fn (array $source): array => [
+                'source' => $source['source'],
+                'relationshipPartName' => $source['relationshipPartName'],
+                'relationshipCount' => $source['relationshipCount'],
+                'invalidTargetCount' => $source['invalidTargetCount'],
+                'externalTargets' => $source['externalTargets'],
+                'missingTargetParts' => $source['missingTargetParts'],
+                'valid' => $source['valid'],
+                'issues' => $source['issues'],
+            ],
+            $relationshipSourceInventory
+        )),
         'externalTargets' => array_values(array_map(
             static fn (array $target): array => [
                 'id' => $target['id'],
@@ -1643,6 +1662,11 @@ if (($argv[1] ?? '') === '--self-test') {
         'application/vnd.openxmlformats-officedocument.oleObject',
         '/word/document.xml#review-bookmark',
         '/word/document.xml?review=ready#packet',
+        '/word/_rels/document.xml.rels',
+        14,
+        2,
+        'external-target-unsafe-scheme',
+        'relationship-type-not-absolute-uri',
     ];
     $actual = [
         $summary['document']['part'],
@@ -1662,6 +1686,11 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['embeddedPackages'][1]['contentType'] ?? null,
         $summary['relationships']['rIdInternalBookmark']['target'] ?? null,
         $summary['relationships']['rIdInternalReviewState']['target'] ?? null,
+        $summary['relationshipSourceInventory']['/word/document.xml']['relationshipPartName'] ?? null,
+        $summary['relationshipSourceInventory']['/word/document.xml']['relationshipCount'] ?? null,
+        $summary['relationshipSourceInventory']['/word/document.xml']['invalidTargetCount'] ?? null,
+        $summary['relationshipSourceInventory']['/word/document.xml']['issues'][0] ?? null,
+        $summary['relationshipSourceInventory']['/word/document.xml']['issues'][1] ?? null,
     ];
     if (
         $actual !== $expected
@@ -1993,6 +2022,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceLoaded'] !== true
         || $summary['packageParts']['/word/media/hero image.PNG']['contentType'] !== 'image/png'
         || ($summary['wordpressImport']['mediaParts'][3] ?? null) !== '/word/media/review source.png'
+        || ($summary['wordpressImport']['relationshipSourceReview'][2]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['relationshipSourceReview'][2]['valid'] ?? null) !== false
+        || ($summary['wordpressImport']['relationshipSourceReview'][2]['invalidTargetCount'] ?? null) !== 2
         || ($summary['relationships']['rIdReviewSource']['target'] ?? null) !== '/word/review source.xml'
         || isset($summary['relationships']['rIdDraftImage'])
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['relationshipCount'] ?? null) !== 4

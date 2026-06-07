@@ -686,6 +686,112 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{source:string, sourceExists:bool, sourceContentType:?string, relationshipPartName:string, relationshipPartExists:bool, relationshipPartContentType:?string, relationshipPartLoaded:bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, relationshipPartIssues:list<string>, relationshipCount:int, internalCount:int, externalCount:int, validTargetCount:int, invalidTargetCount:int, relationshipTypes:list<string>, targetParts:list<string>, contentTypes:list<string>, externalTargets:list<string>, missingTargetParts:list<string>, issues:list<string>, valid:bool}>
+     */
+    public function relationshipSourceInventory(): array
+    {
+        $relationshipPartsBySource = [];
+        foreach ($this->preflightPackageParts() as $part) {
+            if (!$part['relationshipPart'] || $part['relationshipSource'] === null) {
+                continue;
+            }
+
+            $relationshipPartsBySource[$part['relationshipSource']] = $part;
+        }
+
+        $inventory = [];
+        foreach ($this->sourcePartNames() as $sourcePartName) {
+            $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
+            $relationshipPart = $relationshipPartsBySource[$sourcePartName] ?? null;
+            $targets = $this->preflightTargetsForSource($sourcePartName);
+
+            $sourceExists = $sourcePartName === '/' || $this->packagePartNameForEquivalent($sourcePartName) !== null;
+            $sourceContentType = $sourcePartName === '/' ? null : $this->contentTypes->contentTypeForPart($sourcePartName);
+            $relationshipPartIssues = $relationshipPart['issues'] ?? [];
+            $relationshipPartLoaded = ($relationshipPart['relationshipSourceLoaded'] ?? null) === true;
+
+            $entry = [
+                'source' => $sourcePartName,
+                'sourceExists' => $sourceExists,
+                'sourceContentType' => $sourceContentType,
+                'relationshipPartName' => $relationshipPart['partName'] ?? OpcRelationships::relationshipPartNameForSource($sourcePartName),
+                'relationshipPartExists' => $relationshipPart !== null,
+                'relationshipPartContentType' => $relationshipPart['contentType'] ?? null,
+                'relationshipPartLoaded' => $relationshipPartLoaded,
+                'relationshipPartLoadAction' => $relationshipPart['relationshipPartLoadAction'] ?? null,
+                'relationshipPartLoadReason' => $relationshipPart['relationshipPartLoadReason'] ?? null,
+                'relationshipPartIssues' => $relationshipPartIssues,
+                'relationshipCount' => count($targets),
+                'internalCount' => 0,
+                'externalCount' => 0,
+                'validTargetCount' => 0,
+                'invalidTargetCount' => 0,
+                'relationshipTypes' => [],
+                'targetParts' => [],
+                'contentTypes' => [],
+                'externalTargets' => [],
+                'missingTargetParts' => [],
+                'issues' => $relationshipPartIssues,
+                'valid' => $sourceExists && $relationshipPartLoaded && $relationshipPartIssues === [],
+            ];
+
+            foreach ($targets as $target) {
+                self::appendUniqueString($entry['relationshipTypes'], $target['type']);
+
+                if ($target['external']) {
+                    $entry['externalCount']++;
+                    self::appendUniqueString($entry['externalTargets'], $target['target']);
+                } else {
+                    $entry['internalCount']++;
+                    $targetPart = self::targetPartFromPreflightTarget($target);
+                    if ($targetPart !== null) {
+                        self::appendUniqueString($entry['targetParts'], $targetPart);
+                        if ($target['exists'] === false) {
+                            self::appendUniqueString($entry['missingTargetParts'], $targetPart);
+                        }
+                    }
+                }
+
+                if ($target['contentType'] !== null) {
+                    self::appendUniqueString($entry['contentTypes'], $target['contentType']);
+                }
+
+                if ($target['valid']) {
+                    $entry['validTargetCount']++;
+                } else {
+                    $entry['invalidTargetCount']++;
+                    $entry['valid'] = false;
+                }
+
+                foreach ($target['issues'] as $issue) {
+                    self::appendUniqueString($entry['issues'], $issue);
+                }
+            }
+
+            foreach ([
+                'relationshipPartIssues',
+                'relationshipTypes',
+                'targetParts',
+                'contentTypes',
+                'externalTargets',
+                'missingTargetParts',
+                'issues',
+            ] as $listKey) {
+                sort($entry[$listKey], SORT_STRING);
+            }
+
+            $inventory[] = $entry;
+        }
+
+        usort(
+            $inventory,
+            static fn (array $left, array $right): int => $left['source'] <=> $right['source'],
+        );
+
+        return $inventory;
+    }
+
+    /**
      * @return list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, issues:list<string>}>
      */
     public function relationshipTypeInventory(?string $sourcePartName = null): array

@@ -3431,6 +3431,116 @@ XML;
         $t->same(2, $documentInventory[$imageType]['relationshipCount']);
         $t->same([], $graph->relationshipTypeInventory('/word/missing.xml'));
     },
+    'summarizes package-wide OPC relationship source inventory for import review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdUnsafeLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///tmp/source.html" TargetMode="External"/>
+  <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="../customXml/item1.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'customXml/item1.xml', 'data' => '<review/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $inventory = [];
+        foreach ($graph->relationshipSourceInventory() as $source) {
+            $inventory[$source['source']] = $source;
+        }
+
+        $rootSource = $inventory['/'];
+        $documentSource = $inventory['/word/document.xml'];
+
+        $t->same(['/', '/word/document.xml'], array_keys($inventory));
+        $t->same(true, $rootSource['sourceExists']);
+        $t->same(null, $rootSource['sourceContentType']);
+        $t->same('/_rels/.rels', $rootSource['relationshipPartName']);
+        $t->same(true, $rootSource['relationshipPartExists']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $rootSource['relationshipPartContentType']);
+        $t->same(true, $rootSource['relationshipPartLoaded']);
+        $t->same('loaded', $rootSource['relationshipPartLoadAction']);
+        $t->same('loaded', $rootSource['relationshipPartLoadReason']);
+        $t->same([], $rootSource['relationshipPartIssues']);
+        $t->same(2, $rootSource['relationshipCount']);
+        $t->same(2, $rootSource['internalCount']);
+        $t->same(0, $rootSource['externalCount']);
+        $t->same(2, $rootSource['validTargetCount']);
+        $t->same(0, $rootSource['invalidTargetCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
+            'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties',
+        ], $rootSource['relationshipTypes']);
+        $t->same(['/docProps/core.xml', '/word/document.xml'], $rootSource['targetParts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/vnd.openxmlformats-package.core-properties+xml',
+        ], $rootSource['contentTypes']);
+        $t->same([], $rootSource['externalTargets']);
+        $t->same([], $rootSource['missingTargetParts']);
+        $t->same([], $rootSource['issues']);
+        $t->same(true, $rootSource['valid']);
+
+        $t->same(true, $documentSource['sourceExists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $documentSource['sourceContentType']);
+        $t->same('/word/_rels/document.xml.rels', $documentSource['relationshipPartName']);
+        $t->same(true, $documentSource['relationshipPartExists']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $documentSource['relationshipPartContentType']);
+        $t->same(true, $documentSource['relationshipPartLoaded']);
+        $t->same('loaded', $documentSource['relationshipPartLoadAction']);
+        $t->same('loaded', $documentSource['relationshipPartLoadReason']);
+        $t->same([], $documentSource['relationshipPartIssues']);
+        $t->same(4, $documentSource['relationshipCount']);
+        $t->same(3, $documentSource['internalCount']);
+        $t->same(1, $documentSource['externalCount']);
+        $t->same(1, $documentSource['validTargetCount']);
+        $t->same(3, $documentSource['invalidTargetCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
+            'officeDocument/relationships/hyperlink',
+        ], $documentSource['relationshipTypes']);
+        $t->same(['/customXml/item1.xml', '/word/media/missing.png', '/word/styles.xml'], $documentSource['targetParts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml',
+            'application/xml',
+            'image/png',
+        ], $documentSource['contentTypes']);
+        $t->same(['file:///tmp/source.html'], $documentSource['externalTargets']);
+        $t->same(['/word/media/missing.png'], $documentSource['missingTargetParts']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-in-package',
+            'relationship-type-not-absolute-uri',
+        ], $documentSource['issues']);
+        $t->same(false, $documentSource['valid']);
+    },
     'summarizes package-wide OPC content type inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
