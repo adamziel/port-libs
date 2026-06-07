@@ -1224,8 +1224,11 @@ final class PdfMetadataExtractor
      */
     private function isDocumentXmpMetadataStream(string $dictionary, array $objects): bool
     {
+        $typeValue = $this->dictionaryTopLevelRawValue($dictionary, 'Type');
+        $typeName = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+
         return $this->metadataStreamDictionaryTypeBoundaryReview($dictionary, $objects) === []
-            && $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'Metadata'
+            && ($typeValue === null || $typeName === 'Metadata')
             && $this->dictionaryNameValue($dictionary, 'Subtype', $objects) === 'XML';
     }
 

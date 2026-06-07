@@ -220,6 +220,53 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unreadable Metadata XMP Leak Title'));
         $t->true(!str_contains($plainText, 'Unreadable Metadata XMP Leak Title'));
     },
+    'accepts catalog XMP metadata streams with omitted optional Type entry' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
+        $xmp = $xmpMetadataBoundaryPacket(
+            'Omitted Type XMP Title',
+            'Catalog metadata streams may omit the optional Type entry when Subtype XML is present',
+            '2026-06-07T08:02:02Z'
+        );
+        $compressedXmp = gzcompress($xmp);
+        if (!is_string($compressedXmp)) {
+            throw new RuntimeException('Unable to compress omitted Type catalog Metadata fixture stream.');
+        }
+
+        $metadataObject = "5 0 obj\n"
+            . '<< /Subtype /XML /Filter /FlateDecode /Length ' . strlen($compressedXmp) . " >>\n"
+            . "stream\n{$compressedXmp}\nendstream\nendobj\n";
+        $pdf = $xmpMetadataBoundaryPdf(
+            '5 0 R',
+            'Omitted Type Metadata Boundary Body',
+            $metadataObject
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['xmp', 'info'], $metadata['source']);
+        $t->same('Omitted Type XMP Title', $metadata['title']);
+        $t->same(
+            'Catalog metadata streams may omit the optional Type entry when Subtype XML is present',
+            $metadata['description']
+        );
+        $t->same(['Duplicate Metadata Editor'], $metadata['authors']);
+        $t->same(['wordpress', 'xmp-duplicate-metadata'], $metadata['keywords']);
+        $t->same('Duplicate Metadata Tool', $metadata['creator_tool']);
+        $t->same('Duplicate Metadata Producer', $metadata['producer']);
+        $t->same('2026-06-07T08:02:02Z', $metadata['created_at']);
+        $t->same('2026-06-07T08:02:02Z', $metadata['created_at_utc']);
+        $t->same('2026-06-05T23:30:38Z', $metadata['metadata_date_utc']);
+        $t->same('UTF-8', $metadata['xmp']['packet_encoding'] ?? null);
+        $t->same(true, $metadata['xmp']['packet_boundary_applied'] ?? null);
+        $t->same('Metadata Boundary Info Title', $metadata['info']['Title'] ?? null);
+        $t->same('Omitted Type Metadata Boundary Body', $plainText);
+        $t->same(false, isset($metadata['catalog']['metadata_stream_review']));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'catalog_metadata_stream_boundary'));
+        $t->true(!str_contains($plainText, 'Omitted Type XMP Title'));
+    },
     'rejects duplicate catalog Metadata entries before XMP promotion' => static function (
         TestRunner $t
     ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
