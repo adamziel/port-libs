@@ -1496,6 +1496,51 @@ final class Html5DomFragment
                 ]];
             }
 
+            $urlMetadata = self::htmlMetaUrlMetadata($element);
+            if ($urlMetadata !== null) {
+                [$kind, $name, $target] = $urlMetadata;
+                $normalizedTarget = self::normalizeUrlAttributeValue($target);
+                if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+                    $diagnostics[] = [
+                        'code' => 'unsafe-url',
+                        'tag' => 'meta',
+                        'attribute' => 'content',
+                    ];
+
+                    return null;
+                }
+
+                if ($normalizedTarget !== $target) {
+                    $diagnostics[] = [
+                        'code' => 'normalized-url',
+                        'tag' => 'meta',
+                        'attribute' => 'content',
+                    ];
+                }
+
+                $href = $baseUrl !== null
+                    ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+                    : $normalizedTarget;
+                $metadataAttributeName = $kind === 'property'
+                    ? 'data-pandoc-meta-property'
+                    : 'data-pandoc-meta-name';
+
+                return [[
+                    'type' => 'element',
+                    'name' => 'a',
+                    'attrs' => [
+                        'href' => $href,
+                        $metadataAttributeName => $name,
+                        'data-pandoc-meta-content' => $href,
+                        'data-pandoc-meta-url' => 'true',
+                    ],
+                    'children' => [[
+                        'type' => 'text',
+                        'text' => self::htmlMetaReviewLabel($name),
+                    ]],
+                ]];
+            }
+
             $reviewMetadata = self::htmlMetaReviewMetadata($element);
             if ($reviewMetadata === null) {
                 return null;
@@ -1621,6 +1666,59 @@ final class Html5DomFragment
         return $charset === null ? null : ['content-type', $charset];
     }
 
+    /**
+     * @return array{0:string, 1:string, 2:string}|null
+     */
+    private static function htmlMetaUrlMetadata(\DOMElement $element): ?array
+    {
+        if (!$element->hasAttribute('content')) {
+            return null;
+        }
+
+        $kind = '';
+        $name = '';
+        if ($element->hasAttribute('property')) {
+            $property = self::normalizeHtmlMetaProperty($element->getAttribute('property'));
+            if (in_array($property, [
+                'og:image',
+                'og:image:secure_url',
+                'og:image:url',
+                'twitter:image',
+                'twitter:image:src',
+            ], true)) {
+                $kind = 'property';
+                $name = $property;
+            }
+        }
+
+        if ($name === '' && $element->hasAttribute('name')) {
+            $metaName = self::normalizeHtmlMetaName($element->getAttribute('name'));
+            if (in_array($metaName, ['twitter:image', 'twitter:image:src'], true)) {
+                $kind = 'name';
+                $name = $metaName;
+            }
+        }
+
+        if ($name === '') {
+            return null;
+        }
+
+        $content = str_replace("\0", '', $element->getAttribute('content'));
+        $trimmedContent = trim($content);
+        if ($trimmedContent === '') {
+            return null;
+        }
+
+        if (preg_match('/[\x00-\x20]/', $trimmedContent) === 1) {
+            $compact = preg_replace('/[\x00-\x20]+/', '', $trimmedContent) ?? $trimmedContent;
+            if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $compact) !== 1) {
+                return null;
+            }
+        }
+
+        return [$kind, $name, $content];
+    }
+
     private static function normalizeHtmlCharsetLabel(string $value): ?string
     {
         $label = strtolower(self::cleanHtmlMetadataAttribute($value));
@@ -1704,9 +1802,14 @@ final class Html5DomFragment
             'description' => 'Description',
             'generator' => 'Generator',
             'keywords' => 'Keywords',
+            'og:image' => 'Open Graph image',
+            'og:image:secure_url' => 'Open Graph secure image',
+            'og:image:url' => 'Open Graph image',
             'og:description' => 'Open Graph description',
             'og:title' => 'Open Graph title',
             'twitter:description' => 'Twitter description',
+            'twitter:image' => 'Twitter image',
+            'twitter:image:src' => 'Twitter image',
             'twitter:title' => 'Twitter title',
             default => 'Metadata',
         };

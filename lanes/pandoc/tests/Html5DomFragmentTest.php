@@ -1558,7 +1558,7 @@ return [
         $t->true(!str_contains($html, 'bad charset value'), 'Expected invalid charset labels to remain hidden');
         $t->true(!str_contains($html, 'nosniff'), 'Expected unrelated http-equiv metadata to remain hidden');
     },
-    'converts passive property metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+    'converts passive property metadata into reviewer spans and links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
             . '<meta property="og:title" content="Legacy &amp; share&#10; title">'
@@ -1583,6 +1583,8 @@ return [
             . '<span data-pandoc-meta-property="og:description" data-pandoc-meta-content="&lt;Legacy excerpt&gt;">Open Graph description: &lt;Legacy excerpt&gt;</span>'
             . '<span data-pandoc-meta-property="article:published_time" data-pandoc-meta-content="2026-06-06T10:00:00Z">Article published time: 2026-06-06T10:00:00Z</span>'
             . '<span data-pandoc-meta-property="twitter:title" data-pandoc-meta-content="Social card title">Twitter title: Social card title</span>'
+            . '<a href="https://cdn.example.test/cover.png" data-pandoc-meta-property="og:image" data-pandoc-meta-content="https://cdn.example.test/cover.png" data-pandoc-meta-url="true">Open Graph image</a>'
+            . '<a href="https://cdn.example.test/social.png" data-pandoc-meta-property="twitter:image" data-pandoc-meta-content="https://cdn.example.test/social.png" data-pandoc-meta-url="true">Twitter image</a>'
             . '<span data-pandoc-meta-name="description" data-pandoc-meta-content="Named metadata still survives">Description: Named metadata still survives</span>'
             . '<p>after</p>';
         $policyDiagnostics = array_values(array_filter(
@@ -1593,8 +1595,8 @@ return [
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
-        $t->same('Open Graph title: Legacy & share titleOpen Graph description: <Legacy excerpt>Article published time: 2026-06-06T10:00:00ZTwitter title: Social card titleDescription: Named metadata still survivesafter', $fragment->textContent());
-        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same('Open Graph title: Legacy & share titleOpen Graph description: <Legacy excerpt>Article published time: 2026-06-06T10:00:00ZTwitter title: Social card titleOpen Graph imageTwitter imageDescription: Named metadata still survivesafter', $fragment->textContent());
+        $t->same(['a', 'p', 'span'], $summary['elementNames']);
         $t->same(['base', 'meta'], $summary['blockedTags']);
         $t->same([], $summary['filteredAttributes']);
         $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
@@ -1607,14 +1609,85 @@ return [
         $t->same('<Legacy excerpt>', $nodes[1]['attrs']['data-pandoc-meta-content']);
         $t->same('article:published_time', $nodes[2]['attrs']['data-pandoc-meta-property']);
         $t->same('twitter:title', $nodes[3]['attrs']['data-pandoc-meta-property']);
-        $t->same('description', $nodes[4]['attrs']['data-pandoc-meta-name']);
-        $t->same('p', $nodes[5]['name']);
+        $t->same([
+            'href' => 'https://cdn.example.test/cover.png',
+            'data-pandoc-meta-property' => 'og:image',
+            'data-pandoc-meta-content' => 'https://cdn.example.test/cover.png',
+            'data-pandoc-meta-url' => 'true',
+        ], $nodes[4]['attrs']);
+        $t->same('Open Graph image', $nodes[4]['children'][0]['text']);
+        $t->same([
+            'href' => 'https://cdn.example.test/social.png',
+            'data-pandoc-meta-property' => 'twitter:image',
+            'data-pandoc-meta-content' => 'https://cdn.example.test/social.png',
+            'data-pandoc-meta-url' => 'true',
+        ], $nodes[5]['attrs']);
+        $t->same('Twitter image', $nodes[5]['children'][0]['text']);
+        $t->same('description', $nodes[6]['attrs']['data-pandoc-meta-name']);
+        $t->same('p', $nodes[7]['name']);
         $t->same('/migration/meta-property-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->true(!str_contains($html, '<meta'), 'Expected original meta property elements to be stripped from sanitized output');
-        $t->true(!str_contains($html, 'https://cdn.example.test/cover.png'), 'Expected Open Graph image metadata to stay hidden until a media policy slice');
-        $t->true(!str_contains($html, 'https://cdn.example.test/social.png'), 'Expected Twitter image metadata to stay hidden until a media policy slice');
         $t->true(!str_contains($html, '<Legacy excerpt>'), 'Expected tag-looking property metadata text to remain escaped');
+    },
+    'normalizes social image meta URLs into inert reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<meta property="og:image" content=" ./social-cover.png&#10;">'
+            . '<meta property="og:image:secure_url" content="https://cdn.example.test/secure-cover.jpg">'
+            . '<meta name="twitter:image" content="../media/twitter-card.png">'
+            . '<meta property="twitter:image:src" content="java&#10;script:alert(1)">'
+            . '<meta property="og:image" content="data:image/png;base64,iVBORw0KGgo=">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/social-image-meta-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/social-cover.png" data-pandoc-meta-property="og:image" data-pandoc-meta-content="https://source.example.test/import/posts/social-cover.png" data-pandoc-meta-url="true">Open Graph image</a>'
+            . '<a href="https://cdn.example.test/secure-cover.jpg" data-pandoc-meta-property="og:image:secure_url" data-pandoc-meta-content="https://cdn.example.test/secure-cover.jpg" data-pandoc-meta-url="true">Open Graph secure image</a>'
+            . '<a href="https://source.example.test/import/media/twitter-card.png" data-pandoc-meta-name="twitter:image" data-pandoc-meta-content="https://source.example.test/import/media/twitter-card.png" data-pandoc-meta-url="true">Twitter image</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Open Graph imageOpen Graph secure imageTwitter imageafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'meta'], $summary['blockedTags']);
+        $t->same(['content'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'normalized-url', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag', 'unsafe-url'], $policyDiagnostics);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/social-cover.png',
+            'data-pandoc-meta-property' => 'og:image',
+            'data-pandoc-meta-content' => 'https://source.example.test/import/posts/social-cover.png',
+            'data-pandoc-meta-url' => 'true',
+        ], $nodes[0]['attrs']);
+        $t->same('Open Graph image', $nodes[0]['children'][0]['text']);
+        $t->same('https://cdn.example.test/secure-cover.jpg', $nodes[1]['attrs']['href']);
+        $t->same('og:image:secure_url', $nodes[1]['attrs']['data-pandoc-meta-property']);
+        $t->same('Open Graph secure image', $nodes[1]['children'][0]['text']);
+        $t->same([
+            'href' => 'https://source.example.test/import/media/twitter-card.png',
+            'data-pandoc-meta-name' => 'twitter:image',
+            'data-pandoc-meta-content' => 'https://source.example.test/import/media/twitter-card.png',
+            'data-pandoc-meta-url' => 'true',
+        ], $nodes[2]['attrs']);
+        $t->same('p', $nodes[3]['name']);
+        $t->same('/migration/social-image-meta-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<meta'), 'Expected original social image meta elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe social image URL metadata to be stripped');
+        $t->true(!str_contains($html, 'data:image/png'), 'Expected data image metadata to stay hidden until explicit media import');
+        $t->true(!str_contains($blocks, '<img'), 'Expected social image metadata to remain reviewer links, not active image loads');
     },
     'converts passive link relations into reviewer links while dropping active resources' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(

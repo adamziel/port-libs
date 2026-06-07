@@ -68,7 +68,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -88,6 +88,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span data-pandoc-meta-property="og:description" data-pandoc-meta-content="Legacy social description">Open Graph description: Legacy social description</span>',
         '<span data-pandoc-meta-property="article:published_time" data-pandoc-meta-content="2026-06-06T10:00:00Z">Article published time: 2026-06-06T10:00:00Z</span>',
         '<span data-pandoc-meta-property="twitter:title" data-pandoc-meta-content="Reviewer social card">Twitter title: Reviewer social card</span>',
+        '<a href="https://source.example.test/import/posts/social-cover.png" data-pandoc-meta-property="og:image" data-pandoc-meta-content="https://source.example.test/import/posts/social-cover.png" data-pandoc-meta-url="true">Open Graph image</a>',
         '<a href="https://source.example.test/import/canonical/post-42.html" data-pandoc-link-rel="canonical" title="Canonical source">Canonical source</a>',
         '<a href="https://source.example.test/import/posts/es/post-42.html" data-pandoc-link-rel="alternate" hreflang="es" type="text/html" title="Spanish source">Spanish source</a>',
         '<a href="https://source.example.test/import/posts/post-42.html?p=42" data-pandoc-link-rel="shortlink">Shortlink</a>',
@@ -116,7 +117,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', 'http://www.w3.org/1999/xhtml'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', 'http://www.w3.org/1999/xhtml'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
