@@ -238,12 +238,40 @@ final class PdfTextExtractor
         }
 
         $objects = $this->pdfObjects($pdfBytes);
+        $pdfToc = $this->pdfTocFromOutlineExtractor($pdfBytes);
+        if ($pdfToc === []) {
+            $pdfToc = $this->pdfTocFromObjects($objects);
+        }
 
         return [
-            'pdf_toc' => $this->pdfTocFromObjects($objects),
+            'pdf_toc' => $pdfToc,
             'document_info' => $this->documentInfoFromPdf($pdfBytes, $objects),
             'pages' => count($this->orderedPageObjectNumbers($objects)),
         ];
+    }
+
+    /**
+     * @return list<array{title: string, level: int, page: int}>
+     */
+    private function pdfTocFromOutlineExtractor(string $pdfBytes): array
+    {
+        $rows = [];
+        foreach ((new PdfOutlineExtractor())->getPdfToc($pdfBytes) as $item) {
+            $title = $item['title'] ?? null;
+            $level = $item['level'] ?? null;
+            $page = $item['page'] ?? null;
+            if (!is_string($title) || $title === '' || !is_int($level) || !is_int($page)) {
+                continue;
+            }
+
+            $rows[] = [
+                'title' => $title,
+                'level' => $level,
+                'page' => $page,
+            ];
+        }
+
+        return $rows;
     }
 
     /**
