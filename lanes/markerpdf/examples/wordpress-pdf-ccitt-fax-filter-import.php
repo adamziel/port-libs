@@ -194,6 +194,30 @@ $postCcittFilterReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
     . '/DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null null null] >>'
 );
 $postCcittFilterBoundary = $postCcittFilterReview['ccitt_fax_filter_boundary'] ?? [];
+$postCcittOwnerBefore = 'BT /F1 12 Tf 72 720 Td (Before post-native CCITT import) Tj ET';
+$postCcittOwnerAfter = 'BT /F1 12 Tf 72 680 Td (After post-native CCITT import) Tj ET';
+$postCcittOwnerFake = 'BT /F1 12 Tf 72 700 Td (WordPress post-native CCITT owner leak) Tj ET';
+$postCcittOwnerRtc = "\x00\x10\x01\x00\x10\x01\x00\x10\x01";
+$postCcittOwnerPayload = $postCcittOwnerRtc . "\n"
+    . "endstream\nendobj\n"
+    . "9 0 obj\n<< /Length " . strlen($postCcittOwnerFake) . " >>\nstream\n{$postCcittOwnerFake}\nendstream\nendobj\n"
+    . "ZZ";
+$postCcittOwnerStaleLength = strpos($postCcittOwnerPayload, "\nendstream\n");
+if ($postCcittOwnerStaleLength === false) {
+    throw new RuntimeException('Unable to build post-CCITT owner-boundary fixture.');
+}
+$postCcittOwnerPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /PostNativeFax 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($postCcittOwnerBefore) . " >>\nstream\n{$postCcittOwnerBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter [/CCF /ASCIIHexDecode] /DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null] /Length {$postCcittOwnerStaleLength} >>\nstream\n{$postCcittOwnerPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($postCcittOwnerAfter) . " >>\nstream\n{$postCcittOwnerAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$postCcittOwnerLines = $boundaryExtractor->extractTextLines($postCcittOwnerPdf);
+$postCcittOwnerReview = $boundaryExtractor->extractImageXObjectBoundaryReview($postCcittOwnerPdf);
+$postCcittOwnerEntry = $postCcittOwnerReview['entries'][0] ?? [];
+$postCcittOwnerBoundary = $postCcittOwnerEntry['ccitt_fax_filter_boundary'] ?? [];
 $softMaskPrefixFaxBytes = "\x00\x10\x01";
 $softMaskPrefixPayload = strtoupper(bin2hex($softMaskPrefixFaxBytes)) . '>';
 $softMaskPrefixReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
@@ -501,6 +525,19 @@ if (
     throw new RuntimeException('Post-CCITT filter-stack boundary smoke failed.');
 }
 if (
+    $postCcittOwnerLines !== ['Before post-native CCITT import', 'After post-native CCITT import']
+    || str_contains($boundaryExtractor->extractPlainText($postCcittOwnerPdf), 'WordPress post-native CCITT owner leak')
+    || (($postCcittOwnerEntry['raw_length'] ?? null) !== strlen($postCcittOwnerPayload))
+    || (($postCcittOwnerBoundary['declared_filter'] ?? null) !== 'CCF')
+    || (($postCcittOwnerBoundary['filters_after_ccitt'] ?? null) !== ['ASCIIHexDecode'])
+    || (($postCcittOwnerBoundary['native_filters_after_ccitt'] ?? null) !== ['ASCIIHexDecode'])
+    || (($postCcittOwnerBoundary['ccitt_is_terminal_filter'] ?? null) !== false)
+    || (($postCcittOwnerBoundary['post_ccitt_filters_block_native_decode'] ?? null) !== true)
+    || str_contains(json_encode($postCcittOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', 'WordPress post-native CCITT owner leak')
+) {
+    throw new RuntimeException('Post-CCITT owner-boundary smoke failed.');
+}
+if (
     ($softMaskPrefixBoundary['filters'] ?? null) !== ['ASCIIHexDecode', 'CCF']
     || ($softMaskPrefixBoundary['preview_only_filters'] ?? null) !== ['CCF']
     || ($softMaskPrefixBoundary['native_prefix_decoded'] ?? null) !== true
@@ -680,6 +717,12 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'post_ccitt_filters_after_ccitt' => $postCcittFilterBoundary['filters_after_ccitt'] ?? [],
     'post_ccitt_native_filters_blocked' => $postCcittFilterBoundary['native_filters_after_ccitt'] ?? [],
     'post_ccitt_filters_block_native_decode' => $postCcittFilterBoundary['post_ccitt_filters_block_native_decode'] ?? null,
+    'post_ccitt_owner_boundary' => $postCcittOwnerBoundary,
+    'post_ccitt_owner_raw_length' => $postCcittOwnerEntry['raw_length'] ?? null,
+    'post_ccitt_owner_filters_after_ccitt' => $postCcittOwnerBoundary['filters_after_ccitt'] ?? [],
+    'post_ccitt_owner_filters_block_native_decode' => $postCcittOwnerBoundary['post_ccitt_filters_block_native_decode'] ?? null,
+    'post_ccitt_owner_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($postCcittOwnerPdf), 'WordPress post-native CCITT owner leak'),
+    'post_ccitt_owner_payload_excluded_from_review' => !str_contains(json_encode($postCcittOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', 'WordPress post-native CCITT owner leak'),
     'soft_mask_prefix_filters' => $softMaskPrefixBoundary['filters'] ?? [],
     'soft_mask_prefix_preview_only_filters' => $softMaskPrefixBoundary['preview_only_filters'] ?? [],
     'soft_mask_prefix_native_decoded' => $softMaskPrefixBoundary['native_prefix_decoded'] ?? null,

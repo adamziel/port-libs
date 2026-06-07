@@ -2649,6 +2649,49 @@ return [
         $t->same(false, $entry['payload_in_visible_text'] ?? null);
         $t->true(!str_contains(json_encode($review, JSON_UNESCAPED_SLASHES) ?: '', $payload));
     },
+    'keeps post-CCITT native filter stacks from owning stale marker stream boundaries' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before post-native CCITT) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After post-native CCITT) Tj ET';
+        $fakeStream = 'BT /F1 12 Tf 72 700 Td (Post-native CCITT leak) Tj ET';
+        $rtc = "\x00\x10\x01\x00\x10\x01\x00\x10\x01";
+        $payload = $rtc . "\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeStream) . " >>\nstream\n{$fakeStream}\nendstream\nendobj\n"
+            . "ZZ";
+        $staleLength = strpos($payload, "\nendstream\n");
+        if ($staleLength === false) {
+            throw new RuntimeException('Focused post-CCITT owner-boundary fixture must expose a stale marker.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /PostNativeFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter [/CCF /ASCIIHexDecode] /DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null] /Length {$staleLength} >>\nstream\n{$payload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before post-native CCITT', 'After post-native CCITT'], $extractor->extractTextLines($pdf));
+        $t->same("Before post-native CCITT\nAfter post-native CCITT", $plainText);
+        $t->true(!str_contains($plainText, 'Post-native CCITT leak'));
+        $t->same(1, $review['image_xobject_count'] ?? null);
+        $t->same(['CCF', 'ASCIIHexDecode'], $entry['filters'] ?? null);
+        $t->same(['CCF'], $entry['preview_only_filters'] ?? null);
+        $t->same(['ASCIIHexDecode'], $entry['ccitt_fax_filter_boundary']['filters_after_ccitt'] ?? null);
+        $t->same(['ASCIIHexDecode'], $entry['ccitt_fax_filter_boundary']['native_filters_after_ccitt'] ?? null);
+        $t->same(false, $entry['ccitt_fax_filter_boundary']['ccitt_is_terminal_filter'] ?? null);
+        $t->same(true, $entry['ccitt_fax_filter_boundary']['post_ccitt_filters_block_native_decode'] ?? null);
+        $t->same(strlen($payload), $entry['raw_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->true(!str_contains(json_encode($review, JSON_UNESCAPED_SLASHES) ?: '', 'Post-native CCITT leak'));
+    },
     'records native prefix decoded bytes before CCITT Fax soft-mask review handoff' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $faxBytes = "\x00\x10\x01";
