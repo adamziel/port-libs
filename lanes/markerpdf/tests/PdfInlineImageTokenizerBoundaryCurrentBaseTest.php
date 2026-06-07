@@ -54,6 +54,38 @@ $inlineImageTokenizerTightIdSeparatorPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerUppercaseTightIdSeparatorPdf = static function (): string {
+    $payload = 'AB EI BT /F1 12 Tf 72 660 Td (Uppercase Tight ID Inline Payload Noise) Tj ET rawtail';
+    $content = "BT /F1 12 Tf 72 720 Td (Before Uppercase Tight ID Boundary) Tj ET\n"
+        . "BI /W 16 /H 1 /CS /G /BPC 8 ID"
+        . $payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 704 Td (After Uppercase Tight ID Boundary) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$inlineImageTokenizerUppercaseOperatorTightIdSeparatorPdf = static function (): string {
+    $payload = 'BT /F1 12 Tf 72 660 Td (Uppercase Operator Tight ID Payload Noise) Tj ET rawtail';
+    $content = "BT /F1 12 Tf 72 720 Td (Before Uppercase Operator Tight ID Boundary) Tj ET\n"
+        . "BI /W 16 /H 1 /CS /G /BPC 8 ID"
+        . $payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 704 Td (After Uppercase Operator Tight ID Boundary) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerCommentAfterIdPdf = static function (): string {
     $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Comment ID Inline Payload Noise) Tj ET rawtail';
     $content = "BT /F1 12 Tf 72 720 Td (Before Comment ID Boundary) Tj ET\n"
@@ -1151,6 +1183,44 @@ return [
         $t->true(!str_contains($plainText, 'Tight ID Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'IDabc'));
+    },
+    'recovers tight ID inline image data boundaries before uppercase sample bytes' => static function (TestRunner $t) use ($inlineImageTokenizerUppercaseTightIdSeparatorPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerUppercaseTightIdSeparatorPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Uppercase Tight ID Boundary',
+            'After Uppercase Tight ID Boundary',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Uppercase Tight ID Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'IDAB'));
+    },
+    'keeps uppercase operator-looking tight ID data inside image payload when the sample floor is known' => static function (TestRunner $t) use ($inlineImageTokenizerUppercaseOperatorTightIdSeparatorPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerUppercaseOperatorTightIdSeparatorPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Uppercase Operator Tight ID Boundary',
+            'After Uppercase Operator Tight ID Boundary',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Uppercase Operator Tight ID Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'IDBT'));
     },
     'treats immediate PDF comments after inline image ID as token separators before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerCommentAfterIdPdf): void {
         $extractor = new PdfTextExtractor();

@@ -38150,8 +38150,12 @@ final class PdfTextExtractor
             return null;
         }
 
+        $dictionary = implode(' ', $entries);
         $afterId = $index + 2;
-        if ($this->inlineImageDataPrefixLooksLikeOperatorToken($stream, $afterId)) {
+        if (
+            $this->inlineImageDataPrefixLooksLikeOperatorToken($stream, $afterId)
+            && !$this->inlineImageDictionaryHasTokenizerSampleBoundary($dictionary)
+        ) {
             return null;
         }
 
@@ -38166,7 +38170,6 @@ final class PdfTextExtractor
             return $commentBoundary;
         }
 
-        $dictionary = implode(' ', $entries);
         if ($dictionary === '' || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
             return null;
         }
@@ -38188,6 +38191,12 @@ final class PdfTextExtractor
 
         $suffix = substr($stream, $offset, $end - $offset);
         return preg_match('/^[A-Z][A-Za-z0-9_]*$/', $suffix) === 1;
+    }
+
+    private function inlineImageDictionaryHasTokenizerSampleBoundary(string $dictionary): bool
+    {
+        return $this->inlineImageExpectedDecodedLength($dictionary) !== null
+            || $this->inlineImageMinimumUnfilteredLength($dictionary) !== null;
     }
 
     private function readInlineImageToken(string $stream, int &$index): ?string

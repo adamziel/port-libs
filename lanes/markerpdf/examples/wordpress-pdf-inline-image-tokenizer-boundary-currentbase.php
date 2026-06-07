@@ -34,6 +34,14 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Tight ID Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 654 Td (After Tight ID Boundary) Tj ET\n"
+    . "BI /W 16 /H 1 /CS /G /BPC 8 ID"
+    . "AB EI BT /F1 12 Tf 72 650 Td (Uppercase Tight ID Inline Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 654 Td (After Uppercase Tight ID Boundary) Tj ET\n"
+    . "BI /W 16 /H 1 /CS /G /BPC 8 ID"
+    . "BT /F1 12 Tf 72 650 Td (Uppercase Operator Tight ID Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 654 Td (After Uppercase Operator Tight ID Boundary) Tj ET\n"
     . "BI /W 16 /H 1 /CS /G /BPC 8 ID% comment after ID token\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Comment ID Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -471,7 +479,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, vertical-tab non-whitespace malformed BI boundaries, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, scientific numeric graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, path-painting S/s/f/f*/B*/b operators before stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, high-component DeviceN tint stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, line width/cap/join/miter/flatness/rendering-intent/ExtGState graphics operators before stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, outer BX compatibility sections with unknown post-image operators, open Q/BMC/BX scopes whose close operator follows a later stray EI, open Q/BMC/BX scopes that continue with text after a stray EI before closing, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators including uppercase sample/operator-looking bytes, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, vertical-tab non-whitespace malformed BI boundaries, tight EI sample terminators, tight DCT/JPX preview-filter terminators, tight JBIG2 sample-floor preview terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, scientific numeric graphics prefixes before stray EI operators, graphics-state wrapped stray EI, nonzero and even-odd clipping-path wrapped stray EI, path-painting S/s/f/f*/B*/b operators before stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, uncolored Pattern tint sample-floor stray EI, high-component DeviceN tint stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, line width/cap/join/miter/flatness/rendering-intent/ExtGState graphics operators before stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, externally closed Q/EMC/EX scope inline image boundaries, outer BX compatibility sections with unknown post-image operators, open Q/BMC/BX scopes whose close operator follows a later stray EI, open Q/BMC/BX scopes that continue with text after a stray EI before closing, and Type3 d0/d1 glyph metric operators before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -481,6 +489,12 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'tight_id_inline_payload_excluded_until_sample_boundary' => !str_contains($plainText, 'Tight ID Inline Payload Noise')
         && !str_contains($plainText, 'IDabc')
         && str_contains($plainText, 'After Tight ID Boundary'),
+    'uppercase_tight_id_inline_payload_excluded_until_sample_boundary' => !str_contains($plainText, 'Uppercase Tight ID Inline Payload Noise')
+        && !str_contains($plainText, 'IDAB')
+        && str_contains($plainText, 'After Uppercase Tight ID Boundary'),
+    'uppercase_operator_tight_id_payload_excluded_until_sample_boundary' => !str_contains($plainText, 'Uppercase Operator Tight ID Payload Noise')
+        && !str_contains($plainText, 'IDBT')
+        && str_contains($plainText, 'After Uppercase Operator Tight ID Boundary'),
     'comment_after_id_inline_payload_excluded_until_sample_boundary' => !str_contains($plainText, 'Comment ID Inline Payload Noise')
         && !str_contains($plainText, 'comment after ID token')
         && str_contains($plainText, 'After Comment ID Boundary'),
@@ -780,7 +794,7 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && !str_contains($plainText, "\x80EI")
         && !str_contains($plainText, 'JBIG2Decode'),
     'visible_text_imported' => str_contains($plainText, 'Before Tokenizer Boundary')
-        && str_contains($plainText, 'After Real Inline Image'),
+        && str_contains($plainText, 'After Tokenizer Boundary'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach (array_merge($lines, $ccittLines, $multipleCcittLines) as $line) {
