@@ -12098,27 +12098,29 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $metadataValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Metadata');
-            if ($metadataValue === null) {
+            $metadataValues = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Metadata');
+            if ($metadataValues === []) {
                 continue;
             }
 
-            $offset = 0;
-            $reference = $this->readPdfIndirectReferenceToken($metadataValue, $offset);
-            if ($reference === null) {
-                continue;
-            }
+            foreach ($metadataValues as $metadataValue) {
+                $offset = 0;
+                $reference = $this->readPdfIndirectReferenceToken($metadataValue, $offset);
+                if ($reference === null) {
+                    continue;
+                }
 
-            $metadataBody = $this->objectBodyForExactReference(
-                $objects,
-                $reference['objectNumber'],
-                $reference['generation']
-            );
-            if ($metadataBody === null || $this->streamDictionaryAndPayload($metadataBody, $objects) === null) {
-                continue;
-            }
+                $metadataBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($metadataBody === null || $this->streamDictionaryAndPayload($metadataBody, $objects) === null) {
+                    continue;
+                }
 
-            $references[$reference['objectNumber']][$reference['generation']] = true;
+                $references[$reference['objectNumber']][$reference['generation']] = true;
+            }
         }
 
         return $references;

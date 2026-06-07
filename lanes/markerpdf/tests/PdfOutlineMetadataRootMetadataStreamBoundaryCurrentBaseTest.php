@@ -50,6 +50,28 @@ $outlineRootMetadataFallbackBoundaryPdf = static function (): array {
     return [$pdf, $metadataPayload];
 };
 
+$outlineRootDuplicateMetadataFallbackBoundaryPdf = static function (): array {
+    $visibleContent = 'BT /F1 12 Tf 72 720 Td (Duplicate root metadata fallback visible body) Tj ET';
+    $firstMetadataPayload = 'BT /F1 12 Tf 72 720 Td (Unselected duplicate outline root metadata payload must stay hidden) Tj ET';
+    $selectedMetadataPayload = 'BT /F1 12 Tf 72 720 Td (Selected duplicate outline root metadata payload must stay hidden) Tj ET';
+    $firstMetadataStream = gzcompress($firstMetadataPayload);
+    $selectedMetadataStream = gzcompress($selectedMetadataPayload);
+    if (!is_string($firstMetadataStream) || !is_string($selectedMetadataStream)) {
+        throw new RuntimeException('Unable to compress duplicate outline root metadata stream payloads.');
+    }
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Outlines 5 0 R /PageMode /UseOutlines >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Last 6 0 R /Count 1 /Metadata 8 0 R /Metadata 9 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Duplicate Root Metadata Fallback) /Parent 5 0 R >>\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($visibleContent) . " >>\nstream\n{$visibleContent}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($firstMetadataStream) . " >>\nstream\n{$firstMetadataStream}\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($selectedMetadataStream) . " >>\nstream\n{$selectedMetadataStream}\nendstream\nendobj\n"
+        . "%%EOF";
+
+    return [$pdf, $firstMetadataPayload, $selectedMetadataPayload];
+};
+
 return [
     'records outline root Metadata streams as review-only document outline metadata' => static function (
         TestRunner $t
@@ -125,5 +147,42 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, $metadataPayload));
         $t->true(!str_contains($plainText, 'Lightweight Root Metadata Chapter'));
         $t->true(!str_contains($plainText, 'Outline root metadata fallback payload must stay hidden'));
+    },
+    'excludes every duplicate outline root Metadata stream from lightweight fallback WordPress text' => static function (
+        TestRunner $t
+    ) use ($outlineRootDuplicateMetadataFallbackBoundaryPdf): void {
+        [$pdf, $firstMetadataPayload, $selectedMetadataPayload] = $outlineRootDuplicateMetadataFallbackBoundaryPdf();
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $lightweight = (new PdfTextExtractor())->extractOutlineMetadata($pdf);
+        $outline = $metadata['document_outline'] ?? [];
+        $review = $outline['metadata_stream_review'] ?? [];
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedLightweight = json_encode($lightweight, JSON_UNESCAPED_SLASHES);
+
+        $t->same('Duplicate root metadata fallback visible body', $plainText);
+        $t->same('catalog_outlines', $outline['source'] ?? null);
+        $t->same(['Duplicate Root Metadata Fallback'], $outline['titles'] ?? []);
+        $t->same('outline_root_metadata_stream', $review['source'] ?? null);
+        $t->same('reviewed_outline_root_metadata_stream', $review['status'] ?? null);
+        $t->same(2, $review['declared_entry_count'] ?? null);
+        $t->same(true, $review['duplicate_entries'] ?? null);
+        $t->same(1, $review['selected_entry_index'] ?? null);
+        $t->same(9, $review['object_number'] ?? null);
+        $t->same(0, $review['object_generation'] ?? null);
+        $t->same('Metadata', $review['type'] ?? null);
+        $t->same('XML', $review['subtype'] ?? null);
+        $t->same(['FlateDecode'], $review['filters'] ?? null);
+        $t->same(strlen($selectedMetadataPayload), $review['bytes'] ?? null);
+        $t->same(hash('sha256', $selectedMetadataPayload), $review['sha256'] ?? null);
+        $t->same([], array_column($lightweight['pdf_toc'] ?? [], 'title'));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, $firstMetadataPayload));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, $selectedMetadataPayload));
+        $t->true(is_string($encodedLightweight) && !str_contains($encodedLightweight, $firstMetadataPayload));
+        $t->true(is_string($encodedLightweight) && !str_contains($encodedLightweight, $selectedMetadataPayload));
+        $t->true(!str_contains($plainText, 'Duplicate Root Metadata Fallback'));
+        $t->true(!str_contains($plainText, 'Unselected duplicate outline root metadata payload must stay hidden'));
+        $t->true(!str_contains($plainText, 'Selected duplicate outline root metadata payload must stay hidden'));
     },
 ];
