@@ -8007,7 +8007,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $arrayBody = $this->pdfArrayAtStart(trim($value));
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
         if ($arrayBody === null) {
             return [];
         }
