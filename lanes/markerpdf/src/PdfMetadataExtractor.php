@@ -2668,7 +2668,14 @@ final class PdfMetadataExtractor
             $metadata['document_destinations'] = $documentDestinations;
         }
 
-        $documentOutline = $this->documentOutlineMetadata($pdfBytes, $catalog, $objects);
+        $documentOutlineBoundaryReview = $this->catalogOutlinesMalformedOperandReview($catalog);
+        if ($documentOutlineBoundaryReview !== []) {
+            $metadata['document_outline_boundary_review'] = $documentOutlineBoundaryReview;
+        }
+
+        $documentOutline = $documentOutlineBoundaryReview === []
+            ? $this->documentOutlineMetadata($pdfBytes, $catalog, $objects)
+            : [];
         if ($documentOutline !== []) {
             $metadata['document_outline'] = $documentOutline;
         }
@@ -4390,6 +4397,10 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineRootFromCatalog(string $catalog, array $objects): ?array
     {
+        if ($this->catalogOutlinesMalformedOperandReview($catalog) !== []) {
+            return null;
+        }
+
         $value = $this->dictionaryTopLevelRawValue($catalog, 'Outlines');
         if ($value === null) {
             return null;
@@ -4408,6 +4419,83 @@ final class PdfMetadataExtractor
         }
 
         return $this->resolveDictionaryFromValue($value, $objects);
+    }
+
+    /**
+     * Catalog /Outlines is a single-value trust boundary. Extra top-level
+     * operands before the next dictionary key make the outline root ambiguous.
+     *
+     * @return array<string, mixed>
+     */
+    private function catalogOutlinesMalformedOperandReview(string $catalog): array
+    {
+        $body = $this->normalizedDictionaryBody($catalog);
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $afterValue = $valueOffset + strlen($value);
+            if ($this->decodePdfName($match[1]) !== 'Outlines') {
+                $offset = $afterValue;
+                continue;
+            }
+
+            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            if ($trailingOperands === []) {
+                $offset = $afterValue;
+                continue;
+            }
+
+            $review = [
+                'source' => 'catalog_outlines_operand_boundary',
+                'review_only' => true,
+                'payload_included' => false,
+                'visible_text_source' => false,
+                'status' => 'rejected_malformed_catalog_outlines_operand',
+                'outlines_entry_count' => count($this->dictionaryTopLevelRawValues($catalog, 'Outlines')),
+                'outlines_operand_count' => 1 + count($trailingOperands),
+            ];
+
+            $objectNumber = $this->objectNumberFromReference($value);
+            if ($objectNumber !== null) {
+                $review['selected_outline_root_object'] = $objectNumber;
+            }
+
+            $trailingObjectNumbers = [];
+            foreach ($trailingOperands as $operand) {
+                $reference = $this->objectReferenceFromValue($operand);
+                if ($reference !== null) {
+                    $trailingObjectNumbers[] = $reference['objectNumber'];
+                }
+            }
+            if ($trailingObjectNumbers !== []) {
+                $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
+            }
+
+            return $review;
+        }
+
+        return [];
     }
 
     /**
@@ -10434,7 +10522,7 @@ final class PdfMetadataExtractor
             $result['xmp_media_management'] = $xmpMediaManagement;
         }
 
-        foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_outline', 'document_security_store'] as $field) {
+        foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_outline', 'document_outline_boundary_review', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
             }

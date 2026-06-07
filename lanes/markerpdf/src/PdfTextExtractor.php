@@ -1866,6 +1866,10 @@ final class PdfTextExtractor
             return [];
         }
 
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($catalog, 'Outlines')) {
+            return [];
+        }
+
         $outlineRootValue = $this->topLevelPdfValueAfterName($catalog, 'Outlines');
         if ($outlineRootValue === null) {
             return [];
@@ -22955,6 +22959,57 @@ final class PdfTextExtractor
     private function topLevelPdfValueAfterNameInDictionaryBody(string $dictionary, string $name): ?string
     {
         return $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name)[0] ?? null;
+    }
+
+    private function topLevelPdfNameHasTrailingTopLevelOperand(string $body, string $name): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $offset = 0;
+        $length = strlen($dictionary);
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName(substr($dictionary, $keyStart, $keyEnd - $keyStart));
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                return false;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            if ($key === $name) {
+                $afterValue = $nextOffset;
+                $this->skipContentWhitespaceAndComments($dictionary, $afterValue);
+                if ($afterValue < $length && $dictionary[$afterValue] !== '/') {
+                    return true;
+                }
+            }
+
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return false;
     }
 
     /**

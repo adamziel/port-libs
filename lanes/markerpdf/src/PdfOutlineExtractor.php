@@ -16,6 +16,11 @@ final class PdfOutlineExtractor
      */
     private array $objectValuesByGeneration = [];
 
+    /**
+     * @var array<int, string>
+     */
+    private array $objectBodies = [];
+
     private bool $objectSelectionHasXref = false;
 
     /**
@@ -127,7 +132,7 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot === null) {
             return [];
         }
@@ -164,7 +169,7 @@ final class PdfOutlineExtractor
             return [];
         }
 
-        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot === null) {
             return [];
         }
@@ -283,7 +288,7 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot === null) {
             return [];
         }
@@ -331,7 +336,7 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot === null) {
             return [];
         }
@@ -559,7 +564,7 @@ final class PdfOutlineExtractor
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
         $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObject($pdfBytes);
 
-        $outlineRoot = $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+        $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot !== null) {
             if ($this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
@@ -2100,6 +2105,7 @@ final class PdfOutlineExtractor
         $selectedBodies = [];
         $this->objectGenerations = [];
         $this->objectValuesByGeneration = [];
+        $this->objectBodies = [];
         $this->objectSelectionHasXref = false;
         $this->objectSingleTopLevelValues = [];
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
@@ -2166,6 +2172,7 @@ final class PdfOutlineExtractor
             $this->objectValuesByGeneration[$objectNumber][$candidate['generation']] = $values[$objectNumber];
             $this->objectSingleTopLevelValues[$objectNumber] = $index >= count($tokens);
             $selectedBodies[$objectNumber] = trim($candidate['body']);
+            $this->objectBodies[$objectNumber] = trim($candidate['body']);
             $this->objectGenerations[$objectNumber] = $candidate['generation'];
         }
 
@@ -2236,6 +2243,7 @@ final class PdfOutlineExtractor
                 $index = 0;
                 $expanded[$objectNumber] = $this->parseValue($tokens, $index);
                 $this->objectSingleTopLevelValues[$objectNumber] = $index >= count($tokens);
+                $this->objectBodies[$objectNumber] = $memberBody;
                 $this->objectGenerations[$objectNumber] = 0;
             }
         }
@@ -3189,6 +3197,78 @@ final class PdfOutlineExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $catalog
+     * @param array<int, mixed> $objects
+     * @return array<string, mixed>|null
+     */
+    private function catalogOutlineRootDictionary(array $catalog, array $objects): ?array
+    {
+        if ($this->catalogHasMalformedOutlinesOperand($objects)) {
+            return null;
+        }
+
+        return $this->outlineRootDictionary($catalog['Outlines'] ?? null, $objects);
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function catalogHasMalformedOutlinesOperand(array $objects): bool
+    {
+        foreach ($objects as $objectNumber => $value) {
+            $dict = $this->dictionaryItems($value);
+            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
+                continue;
+            }
+
+            $body = $this->objectBodies[$objectNumber] ?? null;
+            if ($body === null) {
+                return false;
+            }
+
+            return $this->dictionaryNameHasTrailingTopLevelOperand($body, 'Outlines');
+        }
+
+        return false;
+    }
+
+    private function dictionaryNameHasTrailingTopLevelOperand(string $body, string $name): bool
+    {
+        $tokens = $this->tokens(trim($body));
+        if (($tokens[0] ?? null) !== '<<') {
+            return false;
+        }
+
+        $index = 1;
+        while (($tokens[$index] ?? null) !== null && $tokens[$index] !== '>>') {
+            $key = $tokens[$index] ?? '';
+            $index++;
+            if (!is_string($key) || !str_starts_with($key, '/')) {
+                continue;
+            }
+
+            $decodedKey = $this->decodePdfName(substr($key, 1));
+            $this->parseValue($tokens, $index);
+            if ($decodedKey !== $name) {
+                continue;
+            }
+
+            $next = $tokens[$index] ?? null;
+            if ($next === null || $next === '>>') {
+                continue;
+            }
+
+            if (is_string($next) && str_starts_with($next, '/')) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
