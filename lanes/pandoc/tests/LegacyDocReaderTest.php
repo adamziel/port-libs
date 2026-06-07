@@ -4081,6 +4081,56 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC data field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC prompt field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Prompt '
+                . $fieldBegin . ' ASK ReviewOwner "Who owns this packet?" \d "Mira" \o ' . $fieldSeparator . 'Mira Reviewer' . $fieldEnd
+                . '; fill '
+                . $fieldBegin . ' FILLIN "Migration note?" \d "Needs QA" ' . $fieldSeparator . 'Ready for WordPress' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $ask = $paragraph->children[1];
+        $t->same('span', $ask->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-prompt-field', 'legacy-doc-field-ask'], $ask->attr('classes'));
+        $t->same('ask', $ask->attr('attributes')['data-legacy-doc-field']);
+        $t->same('ASK ReviewOwner "Who owns this packet?" \d "Mira" \o', $ask->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('bookmark-prompt', $ask->attr('attributes')['data-legacy-doc-prompt-field-type']);
+        $t->same('ReviewOwner', $ask->attr('attributes')['data-legacy-doc-prompt-field-name']);
+        $t->same('Who owns this packet?', $ask->attr('attributes')['data-legacy-doc-prompt-text']);
+        $t->same('Mira', $ask->attr('attributes')['data-legacy-doc-prompt-default']);
+        $t->same('d o', $ask->attr('attributes')['data-legacy-doc-prompt-switches']);
+        $t->same('Mira Reviewer', $ask->children[0]->attr('text'));
+
+        $fillIn = $paragraph->children[3];
+        $t->same('span', $fillIn->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-prompt-field', 'legacy-doc-field-fillin'], $fillIn->attr('classes'));
+        $t->same('fillin', $fillIn->attr('attributes')['data-legacy-doc-field']);
+        $t->same('prompt', $fillIn->attr('attributes')['data-legacy-doc-prompt-field-type']);
+        $t->same('Migration note?', $fillIn->attr('attributes')['data-legacy-doc-prompt-text']);
+        $t->same('Needs QA', $fillIn->attr('attributes')['data-legacy-doc-prompt-default']);
+        $t->same('d', $fillIn->attr('attributes')['data-legacy-doc-prompt-switches']);
+        $t->same('Ready for WordPress', $fillIn->children[0]->attr('text'));
+
+        $t->contains('[Mira Reviewer]{.legacy-doc-field .legacy-doc-prompt-field .legacy-doc-field-ask data-legacy-doc-field="ask"', $markdown);
+        $t->contains('data-legacy-doc-prompt-field-name="ReviewOwner"', $markdown);
+        $t->contains('[Ready for WordPress]{.legacy-doc-field .legacy-doc-prompt-field .legacy-doc-field-fillin data-legacy-doc-field="fillin"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-prompt-field legacy-doc-field-ask" data-legacy-doc-field="ask" data-legacy-doc-field-instruction="ASK ReviewOwner &quot;Who owns this packet?&quot; \d &quot;Mira&quot; \o" data-legacy-doc-prompt-field-type="bookmark-prompt" data-legacy-doc-prompt-field-name="ReviewOwner" data-legacy-doc-prompt-text="Who owns this packet?" data-legacy-doc-prompt-default="Mira" data-legacy-doc-prompt-switches="d o">Mira Reviewer</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-prompt-field legacy-doc-field-fillin" data-legacy-doc-field="fillin" data-legacy-doc-field-instruction="FILLIN &quot;Migration note?&quot; \d &quot;Needs QA&quot;" data-legacy-doc-prompt-field-type="prompt" data-legacy-doc-prompt-text="Migration note?" data-legacy-doc-prompt-default="Needs QA" data-legacy-doc-prompt-switches="d">Ready for WordPress</span>', $blocks);
+        foreach (['ASK', 'FILLIN'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC prompt field instructions should not render as visible text');
+        }
+    },
     'preserves legacy DOC symbol field provenance around displayed glyphs' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

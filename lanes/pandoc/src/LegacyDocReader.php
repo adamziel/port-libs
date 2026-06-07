@@ -112,6 +112,8 @@ final class LegacyDocReader
         0x20 => 'time',
         0x21 => 'page',
         0x25 => 'pageref',
+        0x26 => 'ask',
+        0x27 => 'fillin',
         0x39 => 'symbol',
         0x3b => 'mergefield',
         0x40 => 'docvariable',
@@ -1354,6 +1356,11 @@ final class LegacyDocReader
             return $dataFieldAttrs;
         }
 
+        $promptFieldAttrs = $this->promptFieldAttrs($fieldName, $tokens, $instruction);
+        if ($promptFieldAttrs !== null) {
+            return $promptFieldAttrs;
+        }
+
         $fieldNames = [
             'PAGE' => 'page',
             'NUMPAGES' => 'numpages',
@@ -1590,6 +1597,94 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function promptFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        $fieldTypes = [
+            'ASK' => 'bookmark-prompt',
+            'FILLIN' => 'prompt',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $name = null;
+        $prompt = null;
+        $default = null;
+        $switches = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if ($switch === '') {
+                    continue;
+                }
+                if ($switch === 'd' && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                    $default = $tokens[$index];
+                    $switches[] = $switch;
+                    continue;
+                }
+                if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                    continue;
+                }
+
+                $switches[] = $switch;
+                continue;
+            }
+
+            if ($fieldName === 'ASK') {
+                if ($name === null) {
+                    $name = $token;
+                    continue;
+                }
+                $prompt ??= $token;
+                continue;
+            }
+
+            $prompt ??= $token;
+        }
+
+        if ($prompt === null || $prompt === '' || ($fieldName === 'ASK' && ($name === null || $name === ''))) {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-prompt-field-type' => $fieldTypes[$fieldName],
+        ];
+        if ($name !== null && $name !== '') {
+            $attributes['data-legacy-doc-prompt-field-name'] = $name;
+        }
+        $attributes['data-legacy-doc-prompt-text'] = $prompt;
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+        if ($default !== null && $default !== '') {
+            $attributes['data-legacy-doc-prompt-default'] = $default;
+        }
+        if ($switches !== []) {
+            $attributes['data-legacy-doc-prompt-switches'] = implode(' ', array_values(array_unique($switches)));
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-prompt-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }
