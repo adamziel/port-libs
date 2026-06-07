@@ -18640,7 +18640,8 @@ final class PdfTextExtractor
                 break;
             }
 
-            $parentValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent');
+            $parentValues = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Parent');
+            $parentValue = $parentValues === [] ? null : $parentValues[count($parentValues) - 1];
             if ($parentValue === null) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
