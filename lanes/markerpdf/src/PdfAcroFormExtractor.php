@@ -10055,7 +10055,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $annots = $this->valueAfterName($objects[$pageObjectNumber], 'Annots');
+            $annots = $this->lastTopLevelValueAfterName($objects[$pageObjectNumber], 'Annots');
             if ($annots === null) {
                 continue;
             }
