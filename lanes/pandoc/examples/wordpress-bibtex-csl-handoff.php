@@ -33,6 +33,8 @@ A translated source @translated-manual preserves original publication metadata f
 
 Original subtitle source @original-subtitle-manual keeps original-title addenda visible for source review.
 
+Original language list source @original-language-list-manual preserves source-language lists for review.
+
 Patent and legal sources @import-patent and @review-act preserve legal review metadata.
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
@@ -271,6 +273,20 @@ $bibtex = <<<'BIB'
   origlocation   = {Madrid},
   language       = {english},
   origlanguage   = {spanish}
+}
+
+@book{original-language-list-manual,
+  author        = {Smith, Ada},
+  translator    = {Curator, Eli},
+  title         = {Multilingual Source Manual},
+  origtitle     = {Manual fuente},
+  date          = {2026},
+  origdate      = {2020},
+  publisher     = {Review Press},
+  origpublisher = {Archivo Press},
+  origlocation  = {Madrid},
+  language      = {english},
+  origlanguage  = {spanish and basque and catalan}
 }
 
 @patent{import-patent,
@@ -850,6 +866,13 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($originalSubtitleManual['originalTitleAddon'] ?? null) !== 'Edición revisada') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original title addendum metadata');
+    }
+    $originalLanguageListManual = $processor->item('original-language-list-manual');
+    if (($originalLanguageListManual['originalLanguage'] ?? null) !== 'spanish; basque; catalan') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original language list display metadata');
+    }
+    if (($originalLanguageListManual['originalLanguageList'] ?? null) !== ['spanish', 'basque', 'catalan']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original language list metadata');
     }
     $importPatent = $processor->item('import-patent');
     if (($importPatent['number'] ?? null) !== 'US-123456') {
@@ -1601,6 +1624,8 @@ XML);
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<p>Original subtitle source García (2026) keeps original-title addenda visible for source review.</p>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
+        '<p>Original language list source Smith (2026) preserves source-language lists for review.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.</dd>',
         '<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>',
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',

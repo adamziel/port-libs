@@ -683,6 +683,11 @@ final class CitationCslProcessor
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList']);
+        $originalLanguageList = self::stringListFromFirstField($item, ['original-language-list', 'originalLanguageList']);
+        $originalLanguage = self::stringField($item, 'original-language');
+        if ($originalLanguage === '' && $originalLanguageList !== []) {
+            $originalLanguage = implode('; ', $originalLanguageList);
+        }
         $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace']);
         $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList']);
         if ($eventPlace === '' && $eventPlaceList !== []) {
@@ -801,7 +806,8 @@ final class CitationCslProcessor
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
             'originalPublisherPlaceList' => $originalPublisherPlaceList !== [] ? $originalPublisherPlaceList : ($originalPublisherPlace !== '' ? [$originalPublisherPlace] : []),
-            'originalLanguage' => self::stringField($item, 'original-language'),
+            'originalLanguage' => $originalLanguage,
+            'originalLanguageList' => $originalLanguageList !== [] ? $originalLanguageList : ($originalLanguage !== '' ? [$originalLanguage] : []),
             'originalDate' => $originalDate,
             'eventDate' => $eventDate,
             'dateMarkerSummary' => $dateMarkerSummary,
@@ -5819,6 +5825,8 @@ final class CitationCslProcessor
             'missing-xref-keys' => implode(', ', is_array($item['missingXrefKeys'] ?? null) ? $item['missingXrefKeys'] : []),
             'original-publisher-list' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
             'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
+            'original-language', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
+            'original-language-list' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
             'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),

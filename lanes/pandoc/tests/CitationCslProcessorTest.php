@@ -1023,6 +1023,77 @@ XML);
         $t->contains('<p>Original subtitle source García (2026) keeps original-title review metadata.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'maps bounded biblatex original language lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{original-language-list-manual,
+  author        = {Smith, Ada},
+  translator    = {Curator, Eli},
+  title         = {Multilingual Source Manual},
+  origtitle     = {Manual fuente},
+  date          = {2026},
+  origdate      = {2020},
+  publisher     = {Review Press},
+  origpublisher = {Archivo Press},
+  origlocation  = {Madrid},
+  language      = {english},
+  origlanguage  = {spanish and basque and catalan}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('spanish; basque; catalan', $items[0]['original-language'] ?? null);
+        $t->same(['spanish', 'basque', 'catalan'], $items[0]['original-language-list'] ?? null);
+        $t->same('spanish and basque and catalan', $items[0]['rawBibtex']['fields']['origlanguage'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('original-language-list-manual');
+        $t->same('spanish; basque; catalan', $item['originalLanguage'] ?? null);
+        $t->same(['spanish', 'basque', 'catalan'], $item['originalLanguageList'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('original-language-list-manual', '[@original-language-list-manual]')]));
+        $t->same(
+            'Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.',
+            $processor->renderBibliographyEntry('original-language-list-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-language"/>
+        <text variable="original-language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | spanish; basque; catalan | spanish; basque; catalan]', $styled->renderCitationCluster([$citation('original-language-list-manual', '[@original-language-list-manual]')]));
+        $t->same('Multilingual Source Manual :: spanish; basque; catalan', $styled->renderBibliographyEntry('original-language-list-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-language-list',
+            'title' => 'Manual Language Packet',
+            'original-language-list' => ['latin', 'greek'],
+        ]]);
+        $directItem = $direct->item('manual-language-list');
+        $t->same('latin; greek', $directItem['originalLanguage'] ?? null);
+        $t->same(['latin', 'greek'], $directItem['originalLanguageList'] ?? null);
+        $t->same('Manual Language Packet. Original language: latin; greek.', $direct->renderBibliographyEntry('manual-language-list'));
+
+        $document = (new MarkdownReader())->read('Original-language source @original-language-list-manual preserves source-language lists for review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original-language source Smith (2026) preserves source-language lists for review.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,
