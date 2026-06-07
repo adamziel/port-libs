@@ -3313,13 +3313,13 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        $declaredCount = $this->directIntegerAfterName($dictionary, 'N');
-        $firstOffset = $this->directIntegerAfterName($dictionary, 'First');
+        $declaredCount = $this->integerAfterName($dictionary, 'N', $objects);
+        $firstOffset = $this->integerAfterName($dictionary, 'First', $objects);
         if ($declaredCount === null || $declaredCount < 1 || $firstOffset === null || $firstOffset < 0) {
             return null;
         }
 
-        $decoded = $this->decodedStreamBytes($objectStreamBody, $dictionary);
+        $decoded = $this->decodedStreamBytes($objectStreamBody, $dictionary, $objects);
         if ($decoded === null || $firstOffset > strlen($decoded)) {
             return null;
         }
@@ -3520,14 +3520,17 @@ final class PdfLinkAnnotationExtractor
             && (ctype_space($previous) || str_contains('[]()<>{}/%', $previous));
     }
 
-    private function decodedStreamBytes(string $body, string $dictionary): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodedStreamBytes(string $body, string $dictionary, array $objects = []): ?string
     {
-        $decoded = $this->streamBytesFromBody($body, $dictionary);
+        $decoded = $this->streamBytesFromBody($body, $dictionary, $objects);
         if ($decoded === null) {
             return null;
         }
 
-        foreach ($this->filterNamesAfterName($dictionary, 'Filter') as $filter) {
+        foreach ($this->filterNamesAfterName($dictionary, 'Filter', $objects) as $filter) {
             $next = match ($filter) {
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($decoded),
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($decoded),
@@ -3542,7 +3545,10 @@ final class PdfLinkAnnotationExtractor
         return $decoded;
     }
 
-    private function streamBytesFromBody(string $body, string $dictionary): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamBytesFromBody(string $body, string $dictionary, array $objects = []): ?string
     {
         $dictOffset = strpos($body, '<<');
         if ($dictOffset === false) {
@@ -3573,7 +3579,7 @@ final class PdfLinkAnnotationExtractor
         }
 
         $stream = substr($body, $start, $end - $start);
-        $length = $this->directIntegerAfterName($dictionary, 'Length');
+        $length = $this->integerAfterName($dictionary, 'Length', $objects);
         if ($length !== null && $length >= 0 && $length <= strlen($stream)) {
             return substr($stream, 0, $length);
         }
@@ -3582,16 +3588,17 @@ final class PdfLinkAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @return list<string>
      */
-    private function filterNamesAfterName(string $dictionary, string $name): array
+    private function filterNamesAfterName(string $dictionary, string $name, array $objects = []): array
     {
         $value = $this->valueAfterName($dictionary, $name);
         if ($value === null) {
             return [];
         }
 
-        $trimmed = trim($value);
+        $trimmed = trim($this->resolveIndirectObjectValue($value, $objects));
         if ($trimmed === '') {
             return [];
         }
@@ -3622,6 +3629,13 @@ final class PdfLinkAnnotationExtractor
             if (($arrayBody[$offset] ?? '') !== '/') {
                 $endOffset = null;
                 $value = $this->valueStartingAtOffsetWithEnd($arrayBody, $offset, $endOffset);
+                if ($value !== null) {
+                    $resolved = trim($this->resolveIndirectObjectValue($value, $objects));
+                    if ($resolved !== '' && $resolved[0] === '/') {
+                        $filterEndOffset = $this->skipPdfName($resolved, 0);
+                        $filters[] = $this->decodePdfName(substr($resolved, 1, $filterEndOffset - 1));
+                    }
+                }
                 $offset = $value !== null && $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
                 continue;
             }

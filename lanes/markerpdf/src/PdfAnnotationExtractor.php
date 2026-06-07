@@ -3223,13 +3223,13 @@ final class PdfAnnotationExtractor
             return null;
         }
 
-        $declaredCount = $this->directIntegerAfterName($dictionary, 'N');
-        $firstOffset = $this->directIntegerAfterName($dictionary, 'First');
+        $declaredCount = $this->directIntegerAfterName($dictionary, 'N', $objects);
+        $firstOffset = $this->directIntegerAfterName($dictionary, 'First', $objects);
         if ($declaredCount === null || $declaredCount < 1 || $firstOffset === null || $firstOffset < 0) {
             return null;
         }
 
-        $decoded = $this->decodedStreamBytes($objectStreamBody, $dictionary);
+        $decoded = $this->decodedStreamBytes($objectStreamBody, $dictionary, $objects);
         if ($decoded === null || $firstOffset > strlen($decoded)) {
             return null;
         }
@@ -3430,14 +3430,17 @@ final class PdfAnnotationExtractor
             && (ctype_space($previous) || str_contains('[]()<>{}/%', $previous));
     }
 
-    private function decodedStreamBytes(string $body, string $dictionary): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodedStreamBytes(string $body, string $dictionary, array $objects = []): ?string
     {
-        $decoded = $this->streamBytesFromBody($body, $dictionary);
+        $decoded = $this->streamBytesFromBody($body, $dictionary, $objects);
         if ($decoded === null) {
             return null;
         }
 
-        foreach ($this->filterNamesAfterName($dictionary, 'Filter') as $filter) {
+        foreach ($this->filterNamesAfterName($dictionary, 'Filter', $objects) as $filter) {
             $next = match ($filter) {
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($decoded),
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($decoded),
@@ -3452,7 +3455,10 @@ final class PdfAnnotationExtractor
         return $decoded;
     }
 
-    private function streamBytesFromBody(string $body, string $dictionary): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamBytesFromBody(string $body, string $dictionary, array $objects = []): ?string
     {
         $dictOffset = strpos($body, '<<');
         if ($dictOffset === false) {
@@ -3483,7 +3489,7 @@ final class PdfAnnotationExtractor
         }
 
         $stream = substr($body, $start, $end - $start);
-        $length = $this->directIntegerAfterName($dictionary, 'Length');
+        $length = $this->directIntegerAfterName($dictionary, 'Length', $objects);
         if ($length !== null && $length >= 0 && $length <= strlen($stream)) {
             return substr($stream, 0, $length);
         }
@@ -3492,9 +3498,10 @@ final class PdfAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @return list<string>
      */
-    private function filterNamesAfterName(string $dictionary, string $name): array
+    private function filterNamesAfterName(string $dictionary, string $name, array $objects = []): array
     {
         $value = $this->valueAfterName($dictionary, $name);
         if ($value === null) {
@@ -3502,6 +3509,15 @@ final class PdfAnnotationExtractor
         }
 
         $trimmed = trim($value);
+        if ($objects !== []) {
+            $reference = $this->objectReferenceWithGenerationFromValue($trimmed);
+            if ($reference !== null) {
+                $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+                if ($objectBody !== null) {
+                    $trimmed = trim($objectBody);
+                }
+            }
+        }
         if ($trimmed === '') {
             return [];
         }
@@ -3532,6 +3548,15 @@ final class PdfAnnotationExtractor
             if (($arrayBody[$offset] ?? '') !== '/') {
                 $endOffset = null;
                 $value = $this->valueStartingAtOffsetWithEnd($arrayBody, $offset, $endOffset);
+                if ($objects !== [] && $value !== null) {
+                    $reference = $this->objectReferenceWithGenerationFromValue($value);
+                    $objectBody = $reference === null
+                        ? null
+                        : $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+                    if ($objectBody !== null && str_starts_with(trim($objectBody), '/')) {
+                        $filters[] = $this->decodePdfName(trim($objectBody));
+                    }
+                }
                 $offset = $value !== null && $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
                 continue;
             }
@@ -3555,7 +3580,10 @@ final class PdfAnnotationExtractor
         return str_starts_with($trimmed, '[') ? $this->arrayBodyFromValue($trimmed) : null;
     }
 
-    private function directIntegerAfterName(string $body, string $name): ?int
+    /**
+     * @param array<int, string> $objects
+     */
+    private function directIntegerAfterName(string $body, string $name, array $objects = []): ?int
     {
         $value = $this->valueAfterName($body, $name);
         if ($value === null) {
@@ -3563,6 +3591,15 @@ final class PdfAnnotationExtractor
         }
 
         $trimmed = trim($value);
+        if ($objects !== []) {
+            $reference = $this->objectReferenceWithGenerationFromValue($trimmed);
+            if ($reference !== null) {
+                $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+                if ($objectBody !== null) {
+                    $trimmed = trim($objectBody);
+                }
+            }
+        }
         if (preg_match('/^[+-]?\d+/', $trimmed, $match) !== 1) {
             return null;
         }

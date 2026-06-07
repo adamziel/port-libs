@@ -1909,6 +1909,7 @@ final class PdfActionReviewExtractor
         if ($dictionary === null || $this->nameValue($dictionary['Type'] ?? null) !== 'ObjStm') {
             return null;
         }
+        $dictionary = $this->objectStreamDictionaryWithResolvedOperands($dictionary, $objects);
 
         $declaredCount = $this->directIntegerValue($dictionary['N'] ?? null);
         $firstOffset = $this->directIntegerValue($dictionary['First'] ?? null);
@@ -1946,6 +1947,60 @@ final class PdfActionReviewExtractor
         }
 
         return $end <= $start ? null : trim(substr($data, $start, $end - $start));
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     * @param array<int, array{object: int, generation: int, body: string, offset: int}> $objects
+     * @return array<string, mixed>
+     */
+    private function objectStreamDictionaryWithResolvedOperands(array $dictionary, array $objects): array
+    {
+        foreach (['Length', 'Filter', 'DecodeParms', 'N', 'First'] as $key) {
+            if (array_key_exists($key, $dictionary)) {
+                $dictionary[$key] = $this->resolveSelectedObjectValue($dictionary[$key], $objects);
+            }
+        }
+
+        return $dictionary;
+    }
+
+    /**
+     * @param array<int, array{object: int, generation: int, body: string, offset: int}> $objects
+     */
+    private function resolveSelectedObjectValue(mixed $value, array $objects, int $depth = 0): mixed
+    {
+        if ($depth > 8) {
+            return $value;
+        }
+
+        $reference = $this->referenceObject($value);
+        if ($reference !== null) {
+            $definition = $objects[$reference['object']] ?? null;
+            if ($definition === null || $definition['generation'] !== $reference['generation']) {
+                return $value;
+            }
+
+            return $this->resolveSelectedObjectValue($this->parseFirstObjectValue($definition['body']), $objects, $depth + 1);
+        }
+
+        if (is_array($value) && ($value['pdfType'] ?? null) === 'array' && is_array($value['items'] ?? null)) {
+            $items = [];
+            foreach ($value['items'] as $item) {
+                $items[] = $this->resolveSelectedObjectValue($item, $objects, $depth + 1);
+            }
+            $value['items'] = $items;
+
+            return $value;
+        }
+
+        if (is_array($value) && ($value['pdfType'] ?? null) === 'dict' && is_array($value['items'] ?? null)) {
+            foreach ($value['items'] as $key => $item) {
+                $value['items'][$key] = $this->resolveSelectedObjectValue($item, $objects, $depth + 1);
+            }
+        }
+
+        return $value;
     }
 
     /**
