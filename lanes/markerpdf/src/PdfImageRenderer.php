@@ -7968,7 +7968,7 @@ final class PdfImageRenderer
     private function floatNameValue(string $dictionary, string $name): ?float
     {
         $value = $this->extractPdfNameValue($dictionary, $name);
-        if ($value === null || preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', trim($value), $match) !== 1) {
+        if ($value === null || preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/', trim($value), $match) !== 1) {
             return null;
         }
 
@@ -8006,7 +8006,7 @@ final class PdfImageRenderer
         }
 
         if (!str_starts_with($trimmed, '[')) {
-            if (preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $trimmed, $matches) === 0) {
+            if (preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/', $trimmed, $matches) === 0) {
                 return [];
             }
 
@@ -8016,7 +8016,7 @@ final class PdfImageRenderer
         $numbers = [];
         foreach ($this->pdfArrayValues($trimmed) as $entry) {
             $entry = trim($this->resolvePdfValue(trim($entry), $objects, $seenObjects));
-            if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $entry) !== 1) {
+            if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/', $entry) !== 1) {
                 return [];
             }
 
@@ -9226,8 +9226,13 @@ final class PdfImageRenderer
         if (preg_match('/\G(?:true|false|null)\b/s', $source, $match, 0, $offset) === 1) {
             return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
         }
-        if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)/s', $source, $match, 0, $offset) === 1) {
-            return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
+        if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/s', $source, $match, 0, $offset) === 1) {
+            $next = $offset + strlen($match[0]);
+            if ($next < $length && !$this->isPdfBareTokenDelimiter($source[$next])) {
+                return null;
+            }
+
+            return ['value' => $match[0], 'next' => $next];
         }
 
         return null;

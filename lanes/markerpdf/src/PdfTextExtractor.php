@@ -36621,7 +36621,64 @@ final class PdfTextExtractor
                 );
         }
 
+        if (!$this->inlineDecodedNativeCandidateCanCloseAtCurrentEi($filters, $dictionary, $rawCandidate)) {
+            return false;
+        }
+
         return $expectedLength === null || strlen($decoded) >= $expectedLength;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineDecodedNativeCandidateCanCloseAtCurrentEi(
+        array $filters,
+        string $dictionary,
+        ?string $rawCandidate
+    ): bool {
+        if ($rawCandidate === null) {
+            return true;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return true;
+        }
+
+        $stream = $rawCandidate;
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            $filterEnd = $this->streamFilterInputEndByteOffset($filter, $stream, $filterDecodeParms, []);
+            if ($filterEnd === null) {
+                return true;
+            }
+
+            if (!$this->inlinePostFilterSurplusCanCloseAtCurrentEi($stream, $filterEnd)) {
+                return false;
+            }
+
+            $bounded = substr($stream, 0, $filterEnd);
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($bounded),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($bounded),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($bounded),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($bounded, $filterDecodeParms, []),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($bounded, $filterDecodeParms, []),
+                'Crypt' => $this->decodeCryptIdentityStream($bounded, $filterDecodeParms, []),
+                default => null,
+            };
+            if ($decoded === null) {
+                return true;
+            }
+
+            $stream = $decoded;
+        }
+
+        return true;
     }
 
     /**
@@ -36844,8 +36901,13 @@ final class PdfTextExtractor
 
     private function inlineAsciiHexPostEodSurplusCanCloseAtCurrentEi(string $rawCandidate, int $postEodOffset): bool
     {
+        return $this->inlinePostFilterSurplusCanCloseAtCurrentEi($rawCandidate, $postEodOffset);
+    }
+
+    private function inlinePostFilterSurplusCanCloseAtCurrentEi(string $rawCandidate, int $postFilterOffset): bool
+    {
         $rawLength = strlen($rawCandidate);
-        $index = $postEodOffset;
+        $index = $postFilterOffset;
 
         while ($index < $rawLength) {
             if ($this->isPdfWhitespace($rawCandidate[$index])) {

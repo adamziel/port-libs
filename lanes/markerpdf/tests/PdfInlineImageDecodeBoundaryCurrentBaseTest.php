@@ -2234,6 +2234,70 @@ return [
         $t->same(true, $maskPreview['inline_image']['native_raster_decode']);
         $t->same([1.0], array_column($maskPreview['pixels'], 'opacity'));
     },
+    'resolves exponent-form inline image Decode numbers before preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $grayDictionary = '/W 1 /H 1 /CS /G /BPC 8 /D [0 5e-1]';
+        $maskDictionary = '/W 2 /H 1 /IM true /D [5e-1 0e0]';
+        $grayPayload = "\xffBT /F1 12 Tf 72 690 Td (Exponent Decode Inline Noise) Tj ET";
+        $content = "BT /F1 12 Tf 72 720 Td (Before Exponent Decode Inline) Tj ET\n"
+            . "BI {$grayDictionary} ID\n"
+            . $grayPayload . "\nEI\n"
+            . "BI {$maskDictionary} ID\n"
+            . "\x80\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Exponent Decode Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $grayReview = $renderer->inlineImageReviewPlan($grayDictionary, "\xff");
+        $grayPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            $grayDictionary,
+            "\xff",
+            [],
+            1
+        );
+        $maskPreview = $renderer->inlineImageMaskPreviewRows(
+            $maskDictionary,
+            "\x80",
+            [],
+            2
+        );
+
+        $t->same("Before Exponent Decode Inline\nAfter Exponent Decode Inline", $plainText);
+        $t->true(!str_contains($plainText, 'Exponent Decode Inline Noise'));
+        $t->same([
+            'ranges' => [
+                ['min' => 0.0, 'max' => 0.5],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [],
+            'source' => 'explicit',
+        ], $grayReview['image_decode']);
+        $t->same(true, $grayReview['image_decode_applied_before_rgb']);
+        $t->same(false, $grayReview['image_decode_component_mismatch']);
+        $t->same(false, $grayReview['inline_image_review_only']);
+        $t->same(true, $grayReview['inline_image']['native_raster_decode']);
+        $t->same(0.5, $grayPreview['pixels'][0]['decoded_gray']);
+        $t->same([[255.0]], array_column($grayPreview['pixels'], 'raw_sample'));
+        $t->contains('image_decode_applied_before_rgb_conversion', implode(',', $grayPreview['notes']));
+        $t->same([
+            'ranges' => [
+                ['min' => 0.5, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $maskPreview['image_mask']['decode']);
+        $t->same([1.0, 0.0], array_column($maskPreview['pixels'], 'raw_sample'));
+        $t->same([0.0, 0.5], array_column($maskPreview['pixels'], 'opacity'));
+        $t->contains('image_mask_decode_inverts_stencil', implode(',', $maskPreview['notes']));
+    },
     'fails closed on malformed inline image Decode operands before RGB preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $renderer = new PdfImageRenderer();
         $extractor = new PdfTextExtractor();
