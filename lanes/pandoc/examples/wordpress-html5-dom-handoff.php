@@ -34,6 +34,15 @@ $sourceHtml = <<<'HTML'
 HTML;
 
 $fragment = Html5DomFragment::fromHtml($sourceHtml);
+$controlBaseFragment = Html5DomFragment::fromHtml(
+    '<base href="h&#9;ttps://cdn.example.test/root/packet.html">'
+    . '<article><a href="./doc.html">doc</a><img src="cover.png" srcset="cover.png 1x, ./cover@2x.png 2x" alt="Cover"></article>',
+    'https://source.example.test/import/posts/post.html'
+);
+$unsafeBaseFragment = Html5DomFragment::fromHtml(
+    '<base href="java&#10;script:alert(1)"><a href="./doc.html">doc</a>',
+    'https://source.example.test/import/posts/post.html'
+);
 $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
     $fragment->toRawHtmlAst(['part' => '/migration/review-fragment.html']),
 ]);
@@ -48,7 +57,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
         '<img src="/uploads/legacy-preview.png" alt="Legacy preview">',
         '<img src="/uploads/mapped-preview.png" dynsrc="/uploads/clip.avi" lowsrc="https://example.test/preview-low.jpg" usemap="#review-map" alt="Mapped preview">',
-        '<map name="review-map"><area href="/review" alt="Review map"></map>',
+        '<a href="/review" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Review map">Review map</a>',
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
         '<p>Reviewer choice Keep visible label</p><p>Publication statusDraftFinalNeeds copyedit</p>Visible reviewer note',
         'Iframe fallback <b>caption</b>',
@@ -77,7 +86,32 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    if ($fragment->summary()['blockedTags'] !== ['applet', 'button', 'form', 'iframe', 'input', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
+    $controlBaseHtml = $controlBaseFragment->serialize();
+    if ($controlBaseFragment->baseUrl() !== 'https://cdn.example.test/root/packet.html') {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not normalize control-separated HTTPS base metadata');
+    }
+    if (!str_contains($controlBaseHtml, '<a href="https://cdn.example.test/root/doc.html">doc</a>')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not resolve links from normalized base metadata');
+    }
+    if (!str_contains($controlBaseHtml, 'srcset="https://cdn.example.test/root/cover.png 1x, https://cdn.example.test/root/cover@2x.png 2x"')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not resolve srcset candidates from normalized base metadata');
+    }
+    if (!in_array('normalized-url', $controlBaseFragment->diagnosticCodes(), true)) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not report normalized base href provenance');
+    }
+
+    $unsafeBaseHtml = $unsafeBaseFragment->serialize();
+    if ($unsafeBaseFragment->baseUrl() !== 'https://source.example.test/import/posts/post.html') {
+        throw new RuntimeException('HTML5 DOM handoff self-test trusted an unsafe control-separated base URL');
+    }
+    if ($unsafeBaseHtml !== '<a href="https://source.example.test/import/posts/doc.html">doc</a>') {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not fall back to caller base after unsafe base rejection');
+    }
+    if (!in_array('unsafe-url', $unsafeBaseFragment->diagnosticCodes(), true) || str_contains($unsafeBaseHtml, 'javascript:')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not reject unsafe control-separated base URL metadata');
+    }
+
+    if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
@@ -136,3 +170,5 @@ if (($argv[1] ?? '') === '--self-test') {
 }
 
 echo $blocks . "\n";
+echo "controlBaseReview:\n" . $controlBaseFragment->serialize() . "\n";
+echo "unsafeBaseReview:\n" . $unsafeBaseFragment->serialize() . "\n";

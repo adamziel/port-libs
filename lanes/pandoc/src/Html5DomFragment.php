@@ -2916,7 +2916,19 @@ final class Html5DomFragment
                 continue;
             }
 
-            $resolved = self::resolveBaseHref($href, $documentBaseUrl, $diagnostics);
+            $normalizedHref = self::normalizeUrlAttributeValue($href);
+            if ($normalizedHref === '') {
+                continue;
+            }
+            if ($normalizedHref !== $href) {
+                $diagnostics[] = [
+                    'code' => 'normalized-url',
+                    'tag' => 'base',
+                    'attribute' => 'href',
+                ];
+            }
+
+            $resolved = self::resolveBaseHref($normalizedHref, $documentBaseUrl, $diagnostics);
             if ($resolved !== null) {
                 return $resolved;
             }

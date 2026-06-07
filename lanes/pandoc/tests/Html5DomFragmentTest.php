@@ -1455,6 +1455,55 @@ return [
         $t->same('<img src="https://example.test/import/assets/cover.png" srcset="https://example.test/import/assets/cover.png 1x, https://example.test/import/assets/cover@2x.png 2x" alt="Cover">', $relativeHtml);
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<a href="/review">review</a>', 'file:///tmp/source.html'));
     },
+    'normalizes control-separated base href before resolving reviewer URLs' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="h&#9;ttps://cdn.example.test/root/packet.html">'
+            . '<article><a href="./doc.html">doc</a><img src="cover.png" srcset="cover.png 1x, ./cover@2x.png 2x" alt="Cover"></article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/control-base-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><a href="https://cdn.example.test/root/doc.html">doc</a>'
+            . '<img src="https://cdn.example.test/root/cover.png" srcset="https://cdn.example.test/root/cover.png 1x, https://cdn.example.test/root/cover@2x.png 2x" alt="Cover"></article>';
+
+        $t->same('https://cdn.example.test/root/packet.html', $fragment->baseUrl());
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('doc', $fragment->textContent());
+        $t->same(['a', 'article', 'img'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['normalized-url', 'blocked-tag'], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same('https://cdn.example.test/root/doc.html', $nodes[0]['children'][0]['attrs']['href']);
+        $t->same('https://cdn.example.test/root/cover.png', $nodes[0]['children'][1]['attrs']['src']);
+        $t->same('https://cdn.example.test/root/cover.png 1x, https://cdn.example.test/root/cover@2x.png 2x', $nodes[0]['children'][1]['attrs']['srcset']);
+        $t->same('/migration/control-base-review.html', $document->children[0]->attr('part'));
+        $t->same('https://cdn.example.test/root/packet.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, "h\t"), 'Expected control-separated base scheme to be canonicalized');
+        $t->true(!str_contains($html, '<base'), 'Expected base element to be stripped from sanitized output');
+
+        $unsafeBase = Html5DomFragment::fromHtml(
+            '<base href="java&#10;script:alert(1)"><a href="./doc.html">doc</a>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $unsafeHtml = $unsafeBase->serialize();
+
+        $t->same('https://source.example.test/import/posts/post.html', $unsafeBase->baseUrl());
+        $t->same('<a href="https://source.example.test/import/posts/doc.html">doc</a>', $unsafeHtml);
+        $t->same(['normalized-url', 'unsafe-url', 'blocked-tag'], $unsafeBase->diagnosticCodes());
+        $t->true(!str_contains($unsafeHtml, 'javascript:'), 'Expected control-separated unsafe base scheme to be rejected');
+    },
     'converts safe meta refresh targets into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
