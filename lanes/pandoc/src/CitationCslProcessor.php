@@ -4911,18 +4911,22 @@ final class CitationCslProcessor
         }
 
         $types = $branch['types'] ?? [];
-        if (is_array($types) && $types !== []) {
-            $normalizedTypes = array_map(static fn (mixed $type): string => strtolower(trim((string) $type)), $types);
-            $conditions[] = in_array(strtolower((string) ($item['type'] ?? '')), $normalizedTypes, true);
+        if (is_array($types)) {
+            $itemType = strtolower(trim((string) ($item['type'] ?? '')));
+            foreach ($types as $type) {
+                if (is_scalar($type)) {
+                    $conditions[] = $itemType !== '' && $itemType === strtolower(trim((string) $type));
+                }
+            }
         }
 
         $locators = $branch['locators'] ?? [];
-        if (is_array($locators) && $locators !== []) {
-            $normalizedLocators = array_map(
-                fn (mixed $locator): string => $this->normalizedLocatorLabel((string) $locator),
-                $locators
-            );
-            $conditions[] = $this->citationLocatorMatches($normalizedLocators, $scope, $citation);
+        if (is_array($locators)) {
+            foreach ($locators as $locator) {
+                if (is_scalar($locator)) {
+                    $conditions[] = $this->citationLocatorMatches([$this->normalizedLocatorLabel((string) $locator)], $scope, $citation);
+                }
+            }
         }
 
         $positions = $branch['positions'] ?? [];
