@@ -47,6 +47,9 @@ $latin7Text = (string) $latin7Source->children[1]->attr('text');
 $latin8Bytes = "# Latin8 Import\n\nCeltic \xC0\xE0 \xD0\xF0 \xDE\xFE; dotted \xA1\xA2 \xA4\xA5 \xAA\xBA \xBB\xBF; Welsh \xD7\xF7.";
 $latin8Source = (new MarkdownReader())->readBytes($latin8Bytes, 'latin8');
 $latin8Text = (string) $latin8Source->children[1]->attr('text');
+$latin10Bytes = "# Latin10 Import\n\nRomanian \xAA\xBA \xDE\xFE; Central \xD7\xF7 \xD8\xF8 \xDD\xFD; Euro \xA4; quotes \xA5text\xB5.";
+$latin10Source = (new MarkdownReader())->readBytes($latin10Bytes, 'iso-ir-226');
+$latin10Text = (string) $latin10Source->children[1]->attr('text');
 $windows1251Bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
 $windows1251Source = (new MarkdownReader())->readBytes($windows1251Bytes, 'cp1251');
 $windows1251Text = (string) $windows1251Source->children[1]->attr('text');
@@ -397,6 +400,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($latin8Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($latin8Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Latin-10 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $latin10Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($latin10Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($latin10Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-1251 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows1251Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1251Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1251Text)])]),
@@ -667,6 +675,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Latin-8 source</td><td>Celtic Àà Ŵŵ Ŷŷ; dotted Ḃḃ Ċċ Ẃẃ Ṡṡ; Welsh Ṫṫ.</td><td>iso-8859-14:46</td>')) {
         throw new RuntimeException('charset handoff self-test missing Latin-8 Celtic decode audit row');
+    }
+    if (($latin10Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-16') {
+        throw new RuntimeException('charset handoff self-test missing Latin-10 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Latin-10 source</td><td>Romanian Șș Țț; Central Śś Űű Ęę; Euro €; quotes „text”.</td><td>iso-8859-16:56</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Latin-10 decode audit row');
     }
     if (($windows1251Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-1251') {
         throw new RuntimeException('charset handoff self-test missing Windows-1251 source encoding');
