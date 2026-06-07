@@ -106,6 +106,10 @@ return [
         $t->same('hcl', SyntaxHighlighter::normalizeLanguage('terraform'));
         $t->same('hcl', SyntaxHighlighter::normalizeLanguage('tf'));
         $t->same('hcl', SyntaxHighlighter::normalizeLanguage('language-tfvars'));
+        $t->same('liquid', SyntaxHighlighter::normalizeLanguage('liquid'));
+        $t->same('liquid', SyntaxHighlighter::normalizeLanguage('shopify'));
+        $t->same('liquid', SyntaxHighlighter::normalizeLanguage('liquid-html'));
+        $t->same('liquid', SyntaxHighlighter::normalizeLanguage('language-html-liquid'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-expr'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-shell'));
@@ -1267,6 +1271,46 @@ return [
         $t->contains('<span class="ot">source_id</span> <span class="op">=</span> <span class="st">&quot;legacy-42&quot;</span>', $directTfvars['html']);
         $t->contains('<span class="ot">enabled</span> <span class="op">=</span> <span class="cn">true</span>', $directTfvars['html']);
         $t->contains('<span class="ot">sites</span> <span class="op">=</span> <span class="fu">toset</span><span class="op">(</span><span class="va">var.sites</span><span class="op">)</span>', $directTfvars['html']);
+    },
+    'highlights liquid shopify template snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[49] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Liquid code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directLiquid = $highlighter->highlight(
+            '{{ product.title | default: "Untitled" | escape }} {% render "badge", source_id: product.id %}',
+            'liquid-html'
+        );
+
+        $t->same('shopify', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('liquid', $highlighted['language']);
+        $t->same('shopify', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(620, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource shopify numberLines"><code class="sourceCode liquid" style="counter-reset: source-line 619;">', $highlighted['html']);
+        $t->contains('<span id="liquid-review-620"><a href="#liquid-review-620"></a><span class="co">{%- comment -%} WordPress migration review for Shopify product snippets {%- endcomment -%}</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;article</span> <span class="ot">class</span><span class="op">=</span><span class="st">&quot;wp-block-import-card&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">assign</span> <span class="ot">title</span> <span class="op">=</span> <span class="va">product.title</span> <span class="op">|</span> <span class="fu">default</span><span class="op">:</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">|</span> <span class="fu">escape</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">if</span> <span class="va">product.available</span> <span class="op">and</span> <span class="va">product.images.size</span> <span class="op">&gt;</span> <span class="dv">0</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<span class="va">product.description</span> <span class="op">|</span> <span class="fu">strip_html</span> <span class="op">|</span> <span class="fu">truncatewords</span><span class="op">:</span> <span class="dv">24</span> <span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">render</span> <span class="st">&quot;review-badge&quot;</span><span class="op">,</span> <span class="ot">source_id</span><span class="op">:</span> <span class="va">product.id</span><span class="op">,</span> <span class="ot">status</span><span class="op">:</span> <span class="st">&quot;needs-review&quot;</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="fu">truncatewords</span><span class="op">:</span> <span class="dv">24</span>', $wordpressBlock);
+        $t->same('liquid', $directLiquid['language']);
+        $t->same('liquid-html', $directLiquid['requestedLanguage']);
+        $t->contains('<span class="op">{{</span> <span class="va">product.title</span> <span class="op">|</span> <span class="fu">default</span><span class="op">:</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">|</span> <span class="fu">escape</span> <span class="op">}}</span>', $directLiquid['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">render</span> <span class="st">&quot;badge&quot;</span><span class="op">,</span> <span class="ot">source_id</span><span class="op">:</span> <span class="va">product.id</span> <span class="op">%}</span>', $directLiquid['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

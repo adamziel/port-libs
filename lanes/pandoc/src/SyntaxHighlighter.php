@@ -114,8 +114,11 @@ final class SyntaxHighlighter
         'kcfgc' => 'ini',
         'latex' => 'tex',
         'lhs' => 'haskell',
+        'html-liquid' => 'liquid',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
+        'liquid' => 'liquid',
+        'liquid-html' => 'liquid',
         'lua' => 'lua',
         'pandoc-lua' => 'lua',
         'commonmark' => 'markdown',
@@ -194,6 +197,8 @@ final class SyntaxHighlighter
         's' => 'r',
         'sh' => 'bash',
         'shell' => 'bash',
+        'shopify' => 'liquid',
+        'shopify-liquid' => 'liquid',
         'sql' => 'sql',
         'sqlite' => 'sql',
         'sqlite3' => 'sql',
@@ -650,6 +655,7 @@ final class SyntaxHighlighter
             'javascript' => $this->tokenizeJavaScript($code),
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
+            'liquid' => $this->tokenizeLiquid($code),
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
@@ -1841,6 +1847,30 @@ final class SyntaxHighlighter
             ['operator', '/^(?:=>|==|!=|<=|>=|\\|\\||&&|[{}()[\\].,=|~#^\\/><&$*!?:+-])/'],
         ], $tokens);
         $this->appendToken($tokens, 'operator', $close);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeLiquid(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\{%[-~]?\\s*comment\\s*[-~]?%\\}[\\s\\S]*?\\{%[-~]?\\s*endcomment\\s*[-~]?%\\}/i'],
+            ['comment', '/^<!--[\\s\\S]*?-->/'],
+            ['operator', '/^\\{\\{[-~]?|^\\{%[-~]?|^[-~]?\\}\\}|^[-~]?%\\}/'],
+            ['keyword', '/^<\\/?[A-Za-z][A-Za-z0-9:-]*/'],
+            ['attribute', '/^(?:aria-[A-Za-z0-9_.:-]+|data-[A-Za-z0-9_.:-]+|[A-Za-z_:][A-Za-z0-9_.:-]*)(?=\\s*=)/i'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:assign|break|capture|case|comment|continue|cycle|decrement|echo|else|elsif|endcase|endcapture|endcomment|endfor|endif|endpaginate|endraw|endschema|endstyle|endtablerow|for|if|include|increment|layout|liquid|paginate|raw|render|schema|section|style|tablerow|unless|when|with)\\b/i'],
+            ['function', '/^\\b(?:append|asset_url|at_least|at_most|capitalize|compact|concat|date|default|divided_by|downcase|escape|escape_once|first|handle|handleize|image_url|join|json|last|map|minus|modulo|newline_to_br|plus|prepend|remove|replace|reverse|size|slice|sort|split|strip|strip_html|strip_newlines|times|truncate|truncatewords|uniq|upcase|where)\\b(?=\\s*(?:[|:,)}\\]\\s]|$))/i'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
+            ['constant', '/^\\b(?:blank|empty|false|nil|null|true)\\b/i'],
+            ['operator', '/^\\b(?:and|contains|or)\\b/i'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*/'],
+            ['operator', '/^(?:==|!=|<=|>=|\\.\\.|[{}()[\\].,:|=+*\\/%!<>?~-])/'],
+        ]);
     }
 
     /**

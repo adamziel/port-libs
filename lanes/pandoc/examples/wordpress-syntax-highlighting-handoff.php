@@ -334,6 +334,12 @@ if (!$terraformCodeBlock instanceof PortLibs\Pandoc\AstNode || $terraformCodeBlo
 }
 $terraform = $highlighter->highlightCodeBlock($terraformCodeBlock, 'monochrome');
 $terraformWordpressBlock = $highlighter->wordpressHtmlBlock($terraformCodeBlock, 'monochrome');
+$liquidCodeBlock = $document->children[49] ?? null;
+if (!$liquidCodeBlock instanceof PortLibs\Pandoc\AstNode || $liquidCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Liquid code block');
+}
+$liquid = $highlighter->highlightCodeBlock($liquidCodeBlock, 'tango');
+$liquidWordpressBlock = $highlighter->wordpressHtmlBlock($liquidCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1415,6 +1421,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($terraformWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
         throw new RuntimeException('Expected Terraform WordPress style metadata');
     }
+    if (($liquid['language'] ?? '') !== 'liquid') {
+        throw new RuntimeException('Expected Shopify fixture to normalize to Liquid highlighting');
+    }
+    if (($liquid['lineNumbering']['start'] ?? null) !== 620) {
+        throw new RuntimeException('Expected Liquid source startFrom line-number handoff');
+    }
+    if (!str_contains($liquid['html'], '<span class="co">{%- comment -%} WordPress migration review for Shopify product snippets {%- endcomment -%}</span>')) {
+        throw new RuntimeException('Expected Liquid comment token handoff');
+    }
+    if (!str_contains($liquid['html'], '<span class="kw">assign</span> <span class="ot">title</span> <span class="op">=</span> <span class="va">product.title</span>')) {
+        throw new RuntimeException('Expected Liquid assign and variable token handoff');
+    }
+    if (!str_contains($liquid['html'], '<span class="fu">strip_html</span> <span class="op">|</span> <span class="fu">truncatewords</span><span class="op">:</span> <span class="dv">24</span>')) {
+        throw new RuntimeException('Expected Liquid filter token handoff');
+    }
+    if (!str_contains($liquid['html'], '<span class="kw">render</span> <span class="st">&quot;review-badge&quot;</span><span class="op">,</span> <span class="ot">source_id</span>')) {
+        throw new RuntimeException('Expected Liquid render named-argument token handoff');
+    }
+    if (!str_contains($liquidWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Liquid WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1488,6 +1515,7 @@ echo "phpAttributeHighlightedHtml:\n" . $phpAttribute['html'] . "\n";
 echo "asciidocHighlightedHtml:\n" . $asciidoc['html'] . "\n";
 echo "phpdocHighlightedHtml:\n" . $phpdoc['html'] . "\n";
 echo "terraformHighlightedHtml:\n" . $terraform['html'] . "\n";
+echo "liquidHighlightedHtml:\n" . $liquid['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1532,4 +1560,5 @@ echo "phpAttributeWordpressBlock:\n" . $phpAttributeWordpressBlock . "\n";
 echo "asciidocWordpressBlock:\n" . $asciidocWordpressBlock . "\n";
 echo "phpdocWordpressBlock:\n" . $phpdocWordpressBlock . "\n";
 echo "terraformWordpressBlock:\n" . $terraformWordpressBlock . "\n";
+echo "liquidWordpressBlock:\n" . $liquidWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

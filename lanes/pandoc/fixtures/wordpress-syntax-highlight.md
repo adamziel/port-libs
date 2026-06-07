@@ -793,3 +793,16 @@ output "review_packet" {
   })
 }
 ```
+
+``` {.shopify #liquid-review .numberLines startFrom=620}
+{%- comment -%} WordPress migration review for Shopify product snippets {%- endcomment -%}
+<article class="wp-block-import-card" data-source="{{ product.id }}">
+  {% assign title = product.title | default: "Untitled" | escape %}
+  {% if product.available and product.images.size > 0 %}
+    <img src="{{ product.featured_image | image_url: width: 800 }}" alt="{{ title }}">
+  {% else %}
+    <p>{{ product.description | strip_html | truncatewords: 24 }}</p>
+  {% endif %}
+  {% render "review-badge", source_id: product.id, status: "needs-review" %}
+</article>
+```
