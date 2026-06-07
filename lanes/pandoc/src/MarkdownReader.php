@@ -958,7 +958,7 @@ final class MarkdownReader
         $directive = trim($this->stripYamlTrailingComment($trimmed));
 
         return preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1
-            || preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+\S+$/', $directive) === 1;
+            || preg_match('/^%TAG(?:[ \t]|$)/i', $directive) === 1;
     }
 
     private function parseYamlDirectiveLine(string $trimmed): bool
@@ -978,6 +978,11 @@ final class MarkdownReader
             && $m[2] !== ''
         ) {
             $this->yamlMetadataTagHandles[$m[1]] = $m[2];
+            return true;
+        }
+
+        if (preg_match('/^%TAG(?:[ \t]|$)/i', $directive) === 1) {
+            $this->recordYamlInvalidTagDirective($directive);
             return true;
         }
 
@@ -1003,6 +1008,17 @@ final class MarkdownReader
             'directive' => 'YAML',
             'version' => $version,
             'supportedVersions' => implode(',', self::SUPPORTED_YAML_METADATA_VERSIONS),
+        ];
+    }
+
+    private function recordYamlInvalidTagDirective(string $directive): void
+    {
+        $this->yamlMetadataDiagnostics[] = [
+            'type' => 'yaml-directive',
+            'reason' => 'invalid-tag-directive',
+            'directive' => 'TAG',
+            'source' => $directive,
+            'expected' => '%TAG <handle> <prefix>',
         ];
     }
 

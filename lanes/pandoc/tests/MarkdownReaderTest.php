@@ -1047,6 +1047,39 @@ return [
         $t->same('1.1,1.2', $unsupportedDiagnostics[0]['supportedVersions'] ?? '');
         $t->same(false, array_key_exists('__yamlMetadataDirectiveProvenance', $unsupportedMeta));
     },
+    'records pandoc yaml invalid tag directive diagnostics before metadata document' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%TAG !bad tag:invalid.example,2026:',
+            '%TAG !wp! tag:example.test,2026:',
+            '---',
+            'title: Invalid TAG **Packet**',
+            'review: {owner: !wp!reviewer Import Desk, status: queued}',
+            '...',
+            '',
+            '# Invalid TAG body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $tagProvenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Invalid TAG **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('invalid-tag-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="invalid-tag-body">Invalid TAG body</h1>', $blocks);
+        $t->same(1, count($diagnostics));
+        $t->same('yaml-directive', $diagnostics[0]['type'] ?? '');
+        $t->same('invalid-tag-directive', $diagnostics[0]['reason'] ?? '');
+        $t->same('TAG', $diagnostics[0]['directive'] ?? '');
+        $t->same('%TAG !bad tag:invalid.example,2026:', $diagnostics[0]['source'] ?? '');
+        $t->same('%TAG <handle> <prefix>', $diagnostics[0]['expected'] ?? '');
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($tagProvenance, 'tag'), true));
+        $t->true(in_array('/review/owner', array_column($tagProvenance, 'path'), true));
+    },
     'maps pandoc yaml document markers with trailing comments in metadata blocks' => static function (TestRunner $t): void {
         $explicit = (new MarkdownReader())->read(implode("\n", [
             '--- # source export front matter',

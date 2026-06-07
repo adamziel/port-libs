@@ -15,6 +15,7 @@ The source export starts with a migration preface before metadata.
 --- # source export front matter
 %YAML 1.2
 %TAG !wpd! tag:directive.example,2026:
+%TAG !bad tag:invalid.example,2026: # malformed handle for reviewer diagnostics
 %TAG !yaml! tag:yaml.org,2002:
 --- # YAML document starts after directives
 title: "Migration **Packet**" # source export title
@@ -417,6 +418,18 @@ $meta = $document->attr('meta', []);
 $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
+$invalidTagDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-tag-directive'
+));
+$ambiguousYamlDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'ambiguous-field-name'
+));
+$aliasYamlDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['type'] ?? '') === 'yaml-alias'
+));
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
 $abstractWordPress = $abstractBlocks === []
@@ -532,6 +545,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!in_array('1.2', array_column($yamlDirectiveProvenance, 'version'), true)) {
         throw new RuntimeException('YAML metadata self-test missing YAML directive version provenance');
+    }
+    if (count($invalidTagDiagnostics) !== 1) {
+        throw new RuntimeException('YAML metadata self-test missing invalid TAG directive diagnostic');
+    }
+    if (($invalidTagDiagnostics[0]['source'] ?? '') !== '%TAG !bad tag:invalid.example,2026:') {
+        throw new RuntimeException('YAML metadata self-test missing invalid TAG directive source');
+    }
+    if (($invalidTagDiagnostics[0]['expected'] ?? '') !== '%TAG <handle> <prefix>') {
+        throw new RuntimeException('YAML metadata self-test missing invalid TAG directive expectation');
     }
     if (($meta['abstract'] ?? '') !== "Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).\n\n- Preserve front matter\n- Keep `source:key` audit\n") {
         throw new RuntimeException('YAML metadata self-test failed to preserve raw abstract metadata');
@@ -1164,25 +1186,25 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-alias-diagnostics']['owner'] ?? '') !== '*missing_flow_owner') {
         throw new RuntimeException('YAML metadata self-test missing flow unresolved alias audit value');
     }
-    if (count($yamlDiagnostics) !== 7) {
+    if (count($yamlDiagnostics) !== 8) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostics');
     }
-    if (array_slice(array_column($yamlDiagnostics, 'reason'), 0, 4) !== ['ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name']) {
+    if (array_column($ambiguousYamlDiagnostics, 'reason') !== ['ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name']) {
         throw new RuntimeException('YAML metadata self-test missing ambiguous field-name diagnostics');
     }
-    if (array_slice(array_column($yamlDiagnostics, 'field'), 0, 4) !== ['yes', 'True', '15', '0x2A']) {
+    if (array_column($ambiguousYamlDiagnostics, 'field') !== ['yes', 'True', '15', '0x2A']) {
         throw new RuntimeException('YAML metadata self-test missing ambiguous field-name provenance');
     }
-    if (array_slice(array_column($yamlDiagnostics, 'interpretedAs'), 0, 4) !== ['bool', 'bool', 'number', 'number']) {
+    if (array_column($ambiguousYamlDiagnostics, 'interpretedAs') !== ['bool', 'bool', 'number', 'number']) {
         throw new RuntimeException('YAML metadata self-test missing ambiguous field-name type provenance');
     }
-    if (array_slice(array_column($yamlDiagnostics, 'reason'), 4) !== ['self-reference', 'unresolved-alias', 'unresolved-alias']) {
+    if (array_column($aliasYamlDiagnostics, 'reason') !== ['self-reference', 'unresolved-alias', 'unresolved-alias']) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic reasons');
     }
-    if (array_column(array_slice($yamlDiagnostics, 4), 'path') !== ['/alias-diagnostics/self', '/alias-diagnostics/missing', '/flow-alias-diagnostics/owner']) {
+    if (array_column($aliasYamlDiagnostics, 'path') !== ['/alias-diagnostics/self', '/alias-diagnostics/missing', '/flow-alias-diagnostics/owner']) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic metadata paths');
     }
-    if (($yamlDiagnostics[4]['definedAnchor'] ?? '') !== 'alias_diag_self') {
+    if (($aliasYamlDiagnostics[0]['definedAnchor'] ?? '') !== 'alias_diag_self') {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic anchor provenance');
     }
     if (($meta['authors'][1] ?? '') !== 'WordPress #import editor') {
@@ -1392,10 +1414,11 @@ echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['ke
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
-echo 'Ambiguous field diagnostics: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 0, 4), 'field')) . "\n";
+echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYamlDiagnostics, 'field')) . "\n";
 echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?? '') . ' / ' . ($meta['3.14'] ?? '') . ' / ' . ($meta['0o52'] ?? '') . "\n";
-echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
-echo 'YAML alias diagnostic paths: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 4), 'path')) . "\n";
+echo 'YAML diagnostics: ' . count($yamlDiagnostics) . "\n";
+echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
+echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
