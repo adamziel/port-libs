@@ -4122,6 +4122,9 @@ final class BatchConverter
         $inputWasAbsolute = str_starts_with($inputFolder, DIRECTORY_SEPARATOR);
         $outputWasAbsolute = str_starts_with($outputFolder, DIRECTORY_SEPARATOR);
         $processCwd = $this->absolutePath('.');
+        $inputIsSymlink = is_link($absoluteInputFolder);
+        $inputSymlinkTargetExists = $inputIsSymlink && file_exists($absoluteInputFolder);
+        $inputRealpath = realpath($absoluteInputFolder);
 
         return [
             'source' => 'convert.py os.path.abspath input/output boundary',
@@ -4137,6 +4140,18 @@ final class BatchConverter
             'process_cwd' => $processCwd,
             'absolute_input_folder' => $absoluteInputFolder,
             'absolute_output_folder' => $absoluteOutputFolder,
+            'input_folder_is_symlink' => $inputIsSymlink,
+            'input_folder_symlink_target_exists' => $inputSymlinkTargetExists,
+            'input_folder_symlink_target_type' => $inputIsSymlink
+                ? ($inputSymlinkTargetExists ? $this->filesystemPathType($absoluteInputFolder) : 'missing')
+                : null,
+            'input_folder_broken_symlink' => $inputIsSymlink && !$inputSymlinkTargetExists,
+            'input_folder_listdir_follows_symlink' => $inputIsSymlink && is_dir($absoluteInputFolder),
+            'input_folder_realpath' => is_string($inputRealpath) ? $inputRealpath : null,
+            'input_folder_realpath_differs_from_absolute' => is_string($inputRealpath)
+                && $inputRealpath !== $absoluteInputFolder,
+            'input_folder_abspath_does_not_resolve_symlink' => $inputIsSymlink,
+            'task_filepaths_preserve_input_folder_prefix' => true,
             'input_folder_relative_to_process_cwd' => !$inputWasAbsolute,
             'output_folder_relative_to_process_cwd' => !$outputWasAbsolute,
             'input_folder_relative_to_output_folder' => false,

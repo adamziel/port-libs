@@ -333,6 +333,70 @@ return [
             $removeTree($root);
         }
     },
+    'records symlinked input folders as abspath-preserved listdir targets before task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $root = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $realInput = $root . DIRECTORY_SEPARATOR . 'real-uploads';
+            mkdir($realInput);
+            foreach (['linked-a.pdf', 'linked-b.pdf', 'linked-notes.txt'] as $filename) {
+                file_put_contents($realInput . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% {$filename}\n%%EOF");
+            }
+
+            $inputLink = $root . DIRECTORY_SEPARATOR . 'uploads-link';
+            if (!@symlink($realInput, $inputLink)) {
+                throw new RuntimeException('Unable to create symlinked input folder fixture.');
+            }
+
+            $fileOrder = $runtimeDirectoryOrder($inputLink, filesOnly: true);
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $inputLink,
+                $output,
+                workers: 4,
+                metadataByFilename: [
+                    'linked-a.pdf' => ['title' => 'Symlinked Upload A'],
+                    'linked-b.pdf' => ['title' => 'Symlinked Upload B'],
+                ],
+                minLength: null
+            );
+
+            $resolution = $plan['paths']['path_resolution'];
+            $t->same('convert.py os.path.abspath input/output boundary', $resolution['source']);
+            $t->same($inputLink, $resolution['input_folder_argument']);
+            $t->same($inputLink, $resolution['absolute_input_folder']);
+            $t->same(true, $resolution['input_folder_is_symlink']);
+            $t->same(true, $resolution['input_folder_symlink_target_exists']);
+            $t->same('directory', $resolution['input_folder_symlink_target_type']);
+            $t->same(false, $resolution['input_folder_broken_symlink']);
+            $t->same(true, $resolution['input_folder_listdir_follows_symlink']);
+            $t->same($realInput, $resolution['input_folder_realpath']);
+            $t->same(true, $resolution['input_folder_realpath_differs_from_absolute']);
+            $t->same(true, $resolution['input_folder_abspath_does_not_resolve_symlink']);
+            $t->same(true, $resolution['task_filepaths_preserve_input_folder_prefix']);
+            $t->same(false, $resolution['filesystem_touched_by_abspath']);
+
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same(['linked-notes.txt'], $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same($inputLink . DIRECTORY_SEPARATOR . $fileOrder[0], $plan['worker_pool']['task_args'][0]['filepath']);
+            $t->same($inputLink . DIRECTORY_SEPARATOR . $fileOrder[1], $plan['worker_pool']['task_args'][1]['filepath']);
+            $t->same($inputLink . DIRECTORY_SEPARATOR . $fileOrder[2], $plan['worker_pool']['task_args'][2]['filepath']);
+
+            $identity = $plan['worker_pool']['task_arg_identity_review'];
+            $t->same(true, $identity['review_reached']);
+            $t->same(false, $identity['target_basename_metadata_fallback']);
+            $t->same(true, str_starts_with($identity['task_arg_tuple_rows'][0][0], $inputLink . DIRECTORY_SEPARATOR));
+            $t->same($realInput . DIRECTORY_SEPARATOR . $fileOrder[0], $identity['task_arg_identity_rows'][0]['resolved_target']);
+            $t->same(true, $identity['task_arg_identity_rows'][0]['resolved_target_available']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($root);
+            $removeTree($output);
+        }
+    },
     'records convert.py model handoff branch before summary task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
