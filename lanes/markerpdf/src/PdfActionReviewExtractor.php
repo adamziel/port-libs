@@ -986,7 +986,7 @@ final class PdfActionReviewExtractor
             return $this->explicitDestinationDetails($array, $destinationName);
         }
 
-        if (is_int($resolved) && $resolved >= 0) {
+        if (is_int($resolved) && $resolved >= 0 && $resolved < count($this->pageIndexesByReference)) {
             return [
                 'page' => $resolved,
                 'destination' => $destinationName,
