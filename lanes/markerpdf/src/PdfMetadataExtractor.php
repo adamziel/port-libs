@@ -7371,7 +7371,9 @@ final class PdfMetadataExtractor
             $metadata['standard_permission_word_review'] = $permissionReview;
         }
 
-        $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P', $objects);
+        $permissionValue = ($permissionReview === [] || ($permissionReview['selected_entry_integer'] ?? false) === true)
+            ? $this->dictionaryIntegerValue($dictionary, 'P', $objects)
+            : null;
         if ($permissionValue !== null) {
             $metadata['standard_permissions'] = $this->standardPermissionMetadata($permissionValue, $revision);
         }
@@ -8952,18 +8954,24 @@ final class PdfMetadataExtractor
      */
     private function standardPermissionWordDeclarationReview(string $dictionary, array $objects, ?int $revision): array
     {
-        $values = $this->dictionaryTopLevelRawValues($dictionary, 'P');
-        if ($values === []) {
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, 'P');
+        if ($valueReviews === []) {
             return [];
         }
+        $values = array_values(array_map(
+            static fn (array $entry): string => (string) $entry['value'],
+            $valueReviews
+        ));
 
         $entries = [];
-        foreach ($values as $index => $value) {
+        foreach ($valueReviews as $index => $valueReview) {
+            $value = (string) $valueReview['value'];
             $resolved = $this->resolvePdfValue($value, $objects);
             $resolvedValue = $resolved ?? $value;
             $valueForReview = $this->firstPdfValueToken($resolvedValue);
             $operandShape = $this->standardPermissionWordOperandShape($valueForReview);
-            $singleValue = $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
+            $singleValue = ($valueReview['single_value'] ?? true) === true
+                && $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
             $entry = [
                 'source' => 'standard_permission_word_entry_review',
                 'index' => $index,
@@ -8975,6 +8983,13 @@ final class PdfMetadataExtractor
                 'single_value' => $singleValue,
                 'review_only' => true,
             ];
+
+            if (($valueReview['single_value'] ?? true) !== true) {
+                $entries[] = array_merge($entry, $this->standardPermissionWordTrailingOperandReviewFromValueReview($valueReview), [
+                    'status' => 'permission_word_trailing_operand_review',
+                ]);
+                continue;
+            }
 
             if ($valueForReview !== '' && !$singleValue) {
                 $trailingOperandReview = $this->standardPermissionWordTrailingOperandReview($resolvedValue, $valueForReview);
@@ -19286,6 +19301,30 @@ final class PdfMetadataExtractor
     /**
      * @return array<string, mixed>
      */
+    private function standardPermissionWordTrailingOperandReviewFromValueReview(array $valueReview): array
+    {
+        $review = [
+            'trailing_operand' => true,
+            'trailing_operand_shape' => $valueReview['trailing_operand_shape'] ?? 'malformed',
+            'trailing_operand_preview' => $valueReview['trailing_operand_preview'] ?? 'malformed_top_level_token',
+        ];
+
+        foreach ([
+            'trailing_operand_name',
+            'trailing_operand_object_number',
+            'trailing_operand_generation',
+        ] as $key) {
+            if (array_key_exists($key, $valueReview)) {
+                $review[$key] = $valueReview[$key];
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function standardPermissionWordTrailingOperandReview(string $value, string $firstToken): array
     {
         $offset = $this->skipPdfWhitespace($value, 0);
@@ -19311,6 +19350,12 @@ final class PdfMetadataExtractor
             if ($name !== null) {
                 $review['trailing_operand_name'] = $name;
             }
+        }
+
+        $reference = $this->objectReferenceFromValue($operand);
+        if ($reference !== null) {
+            $review['trailing_operand_object_number'] = $reference['objectNumber'];
+            $review['trailing_operand_generation'] = $reference['generation'];
         }
 
         return $review;
