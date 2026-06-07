@@ -17491,6 +17491,24 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return list<string|null>|null
+     * @param array<int, string> $objects
+     */
+    private function streamDecodeParmsForInlineImageBoundary(string $dict, array $objects): ?array
+    {
+        if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($dict, 'DecodeParms')) <= 1) {
+            return $this->streamDecodeParms($dict, $objects);
+        }
+
+        $offset = $this->topLevelNameValueOffset($dict, 'DecodeParms');
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->decodeParmsValueList($dict, $offset, $objects);
+    }
+
+    /**
      * @param array<int, string> $objects
      * @param list<string|null> $filters
      * @param array<int, true> $seen
@@ -37759,7 +37777,7 @@ final class PdfTextExtractor
         string $candidate,
         array $previewFilters
     ): ?string {
-        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        $decodeParms = $this->streamDecodeParmsForInlineImageBoundary($dictionary, []);
         if ($decodeParms === null) {
             return null;
         }

@@ -719,6 +719,70 @@ return [
         $t->same(false, $preview['image_sample_boundary']['truncated_to_declared_samples']);
         $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
     },
+    'fails closed on duplicate inline image DecodeParms declarations before text extraction and preview' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $decodedImageBytes = 'ABCDEFGH';
+        $compressedPayload = gzcompress($decodedImageBytes, 0);
+        if (!is_string($compressedPayload)) {
+            throw new RuntimeException('Unable to build duplicate inline DecodeParms fixture.');
+        }
+
+        $duplicateDictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 1 >> /DecodeParms << /Predictor 12 /Columns 0 >> /D [0 1]';
+        $cleanDictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Fl /DP << /Predictor 1 >> /D [0 1]';
+        $duplicateDecodeParms = [
+            'type' => 'FlateDecode',
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_native_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => 1,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+        $payload = 'abc EI BT /F1 12 Tf 72 690 Td (Duplicate Inline DecodeParms Payload Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Duplicate Inline DecodeParms) Tj ET\n"
+            . "BI {$duplicateDictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Duplicate Inline DecodeParms) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Duplicate Inline DecodeParms',
+            'After Duplicate Inline DecodeParms',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+        $duplicateReview = $renderer->inlineImageReviewPlan($duplicateDictionary, $compressedPayload);
+
+        $t->true(str_contains($payload, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        foreach (['Duplicate Inline DecodeParms Payload Noise', 'rawtail', 'abc EI'] as $excludedText) {
+            $t->true(!str_contains($plainText, $excludedText));
+        }
+
+        $t->same(['FlateDecode'], $duplicateReview['image_filters']);
+        $t->same(['FlateDecode'], $duplicateReview['inline_image']['unsupported_filters']);
+        $t->same(false, $duplicateReview['inline_image']['native_raster_decode']);
+        $t->same(false, $duplicateReview['image_filter_boundary']['native_raster_decode']);
+        $t->same(true, $duplicateReview['inline_image_review_only']);
+        $t->same($duplicateDecodeParms, $duplicateReview['image_filter_details'][0]['decode_parms'] ?? null);
+        $t->contains('inline_unsupported_image_filter_review_only', implode(',', $duplicateReview['notes']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($duplicateDictionary, $compressedPayload, [], 8)
+        );
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($cleanDictionary, $compressedPayload, [], 8);
+        $t->same(['FlateDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(8, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $decodedImageBytes), $preview['image_stream']['decoded_sha256']);
+        $t->same('4142434445464748', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same([[65.0], [66.0], [67.0], [68.0], [69.0], [70.0], [71.0], [72.0]], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([65 / 255, 66 / 255, 67 / 255, 68 / 255, 69 / 255, 70 / 255, 71 / 255, 72 / 255], array_column($preview['pixels'], 'decoded_gray'));
+    },
     'treats direct null inline Filter operands as absent before raw sample boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();

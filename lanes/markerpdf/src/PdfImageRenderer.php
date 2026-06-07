@@ -4386,6 +4386,7 @@ final class PdfImageRenderer
                 'filter' => $filter,
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
                 'decode_parms' => $this->dctDecodeDuplicateDecodeParmsDeclarationReview($filter, $dictionary, $decodeParmsValue, $objects)
+                    ?? $this->nativeImageDuplicateDecodeParmsDeclarationReview($filter, $dictionary)
                     ?? $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->dctDecodeParmsOperandFailureReview($filter, $decodeParmsValue, $objects)
@@ -4481,6 +4482,7 @@ final class PdfImageRenderer
     {
         $unsupported = [];
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        $duplicateDecodeParmsDeclarations = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms') > 0;
         foreach ($filters as $index => $filter) {
             $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
@@ -4494,7 +4496,9 @@ final class PdfImageRenderer
 
             if ($this->isNativeImageStreamFilter($filter)) {
                 if (
-                    $this->imageDecodeParmsValueIsMalformed($decodeParmsValue, $objects)
+                    $duplicateDecodeParmsDeclarations
+                    || $this->nativeImageDuplicateDecodeParmsDeclarationReview($filter, $dictionary) !== null
+                    || $this->imageDecodeParmsValueIsMalformed($decodeParmsValue, $objects)
                     || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)
                 ) {
                     $unsupported[] = $filter;
@@ -4949,6 +4953,30 @@ final class PdfImageRenderer
             'valid_color_transform' => false,
             'invalid_decode_parms_fields' => ['decode_parms_declaration'],
             'decode_parms_review' => 'duplicate_dctdecode_decodeparms_declaration_fail_closed',
+            'duplicate_decode_parms_declaration_count' => $duplicateCount,
+            'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+    }
+
+    /**
+     * @return array<string, int|bool|string|list<string>>|null
+     */
+    private function nativeImageDuplicateDecodeParmsDeclarationReview(string $filter, string $dictionary): ?array
+    {
+        if (!$this->isNativeImageStreamFilter($filter)) {
+            return null;
+        }
+
+        $duplicateCount = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms');
+        if ($duplicateCount < 1) {
+            return null;
+        }
+
+        return [
+            'type' => $filter,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_declaration'],
+            'decode_parms_review' => 'duplicate_native_decodeparms_declaration_fail_closed',
             'duplicate_decode_parms_declaration_count' => $duplicateCount,
             'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
         ];
@@ -7086,6 +7114,7 @@ final class PdfImageRenderer
         }
 
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        $duplicateDecodeParmsDeclarations = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms') > 0;
         $unsupportedFilters = [];
         $decodedNativeFilterCount = 0;
 
@@ -7097,6 +7126,16 @@ final class PdfImageRenderer
             $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
             $isPreviewOnlyFilter = $this->isPreviewOnlyStreamFilter($filter);
+            if (!$isPreviewOnlyFilter && $this->isNativeImageStreamFilter($filter) && $duplicateDecodeParmsDeclarations) {
+                $unsupportedFilters[] = $filter;
+
+                return [
+                    'decoded' => null,
+                    'unsupported_filters' => $unsupportedFilters,
+                    'decode_failed' => true,
+                ];
+            }
+
             if ($isPreviewOnlyFilter || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
                 $unsupportedFilters[] = $filter;
                 $previewBoundaryFailed = $isPreviewOnlyFilter
