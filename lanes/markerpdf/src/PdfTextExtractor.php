@@ -2145,6 +2145,13 @@ final class PdfTextExtractor
     private function lightweightOutlineItemAllowsChildTraversal(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        if (
+            $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'First')
+            || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Last')
+        ) {
+            return false;
+        }
+
         $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
         $count = $this->lightweightOutlineCountValue($countValue, $objects);
 
@@ -2160,6 +2167,13 @@ final class PdfTextExtractor
     private function lightweightOutlineRootAllowsItemTraversal(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        if (
+            $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'First')
+            || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Last')
+        ) {
+            return false;
+        }
+
         $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
         $count = $this->lightweightOutlineCountValue($countValue, $objects);
 
@@ -17546,7 +17560,7 @@ final class PdfTextExtractor
             ], true);
         }
 
-        return $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset);
+        return $this->streamHasOnlyWhitespaceAfterFilterEndOffset($filter, $stream, $offset);
     }
 
     /**
@@ -17584,7 +17598,18 @@ final class PdfTextExtractor
         return true;
     }
 
-    private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
+    private function streamHasOnlyWhitespaceAfterFilterEndOffset(string $filter, string $stream, int $offset): bool
+    {
+        $allowComments = !in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true);
+
+        return $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset, $allowComments);
+    }
+
+    private function streamHasOnlyWhitespaceAfterOffset(
+        string $stream,
+        int $offset,
+        bool $allowComments = true
+    ): bool
     {
         $length = strlen($stream);
         for ($index = $offset; $index < $length;) {
@@ -17593,7 +17618,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($stream[$index] === '%') {
+            if ($allowComments && $stream[$index] === '%') {
                 $lineLength = strcspn($stream, "\r\n", $index);
                 if ($index + $lineLength >= $length) {
                     return true;
@@ -22654,17 +22679,31 @@ final class PdfTextExtractor
      */
     private function pdfMatrixValueAfterName(string $body, string $name, array $objects): ?array
     {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, $name)) {
+            return null;
+        }
+
         $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($body, $name, $objects);
         if ($arrayBody === null) {
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
-        if (count($numbers) < 6) {
+        $items = $this->pdfArrayItems($arrayBody);
+        if (count($items) !== 6) {
             return null;
         }
 
-        return array_slice($numbers, 0, 6);
+        $numbers = [];
+        foreach ($items as $item) {
+            $number = $this->pdfNumberValueAt($item, 0, $objects);
+            if ($number === null || !is_finite($number)) {
+                return null;
+            }
+
+            $numbers[] = $number;
+        }
+
+        return $numbers;
     }
 
     /**
@@ -22673,6 +22712,10 @@ final class PdfTextExtractor
      */
     private function topLevelPdfMatrixValueAfterName(string $body, string $name, array $objects): ?array
     {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, $name)) {
+            return null;
+        }
+
         $value = $this->topLevelPdfValueAfterName($body, $name);
         if ($value === null) {
             return null;
@@ -22684,7 +22727,7 @@ final class PdfTextExtractor
         }
 
         $items = $this->pdfArrayItems($arrayBody);
-        if (count($items) < 6) {
+        if (count($items) !== 6) {
             return null;
         }
 

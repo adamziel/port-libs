@@ -1077,6 +1077,30 @@ $parserStreamFilterStackBoundaryCurrentBaseAscii85OverflowPdf = static function 
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseBinaryCommentTailPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $unsafeContent = 'BT /F1 12 Tf 72 720 Td (Binary Filter Comment Tail Leak) Tj ET';
+    $unsafeCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($unsafeContent);
+    $unsafePayload = $unsafeCompressed . "% binary-filter comment tail is still stream data\n";
+
+    $safeContent = 'BT /F1 12 Tf 72 700 Td (Binary Filter Whitespace Tail Imports) Tj ET';
+    $safeCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($safeContent);
+    $safePayload = $safeCompressed . " \n\t";
+
+    $visibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Binary Comment Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /FlateDecode /Length " . strlen($unsafePayload) . " >>\nstream\n{$unsafePayload}endstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter /FlateDecode /Length " . strlen($safePayload) . " >>\nstream\n{$safePayload}endstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1359,6 +1383,26 @@ return [
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, '~>'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects PDF comment-looking bytes after binary Flate stream members before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseBinaryCommentTailPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseBinaryCommentTailPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Binary Filter Whitespace Tail Imports',
+            'Visible After Binary Comment Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Binary Filter Comment Tail Leak'));
+        $t->true(!str_contains($text, 'binary-filter comment tail'));
+        $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, "\0"));
     },
     'requires RunLength EOD before accepting missing or stale filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf): void {

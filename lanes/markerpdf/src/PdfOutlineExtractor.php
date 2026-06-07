@@ -136,7 +136,8 @@ final class PdfOutlineExtractor
         if ($outlineRoot === null) {
             return [];
         }
-        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+        $outlineRootObject = $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects);
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects, $outlineRootObject)) {
             return [];
         }
 
@@ -144,12 +145,12 @@ final class PdfOutlineExtractor
         $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
 
         return $this->outlineItems(
-            $outlineRoot['First'] ?? null,
+            $this->outlineTraversalReferenceValue($outlineRoot, 'First', $outlineRootObject),
             $objects,
             $pageIndexes,
             $actionDestinations,
-            $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-            $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+            $outlineRootObject,
+            $this->outlineTraversalReferenceObjectNumber($outlineRoot, 'Last', $objects, $outlineRootObject),
             max(1, $maxDepth)
         );
     }
@@ -173,7 +174,8 @@ final class PdfOutlineExtractor
         if ($outlineRoot === null) {
             return [];
         }
-        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+        $outlineRootObject = $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects);
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects, $outlineRootObject)) {
             return [];
         }
 
@@ -182,11 +184,11 @@ final class PdfOutlineExtractor
         $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObject($pdfBytes);
 
         return $this->remoteGoToOutlineItems(
-            $outlineRoot['First'] ?? null,
+            $this->outlineTraversalReferenceValue($outlineRoot, 'First', $outlineRootObject),
             $objects,
             $destinations,
-            $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-            $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+            $outlineRootObject,
+            $this->outlineTraversalReferenceObjectNumber($outlineRoot, 'Last', $objects, $outlineRootObject),
             max(1, $maxDepth),
             1,
             [],
@@ -292,7 +294,8 @@ final class PdfOutlineExtractor
         if ($outlineRoot === null) {
             return [];
         }
-        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+        $outlineRootObject = $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects);
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects, $outlineRootObject)) {
             return [];
         }
 
@@ -300,12 +303,12 @@ final class PdfOutlineExtractor
         $actionDestinations = $this->destinationActionReviewMap($catalog, $objects) + $destinations;
 
         return $this->outlineItemsWithDestinationViews(
-            $outlineRoot['First'] ?? null,
+            $this->outlineTraversalReferenceValue($outlineRoot, 'First', $outlineRootObject),
             $objects,
             $pageIndexes,
             $actionDestinations,
-            $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-            $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+            $outlineRootObject,
+            $this->outlineTraversalReferenceObjectNumber($outlineRoot, 'Last', $objects, $outlineRootObject),
             max(1, $maxDepth)
         );
     }
@@ -340,7 +343,8 @@ final class PdfOutlineExtractor
         if ($outlineRoot === null) {
             return [];
         }
-        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+        $outlineRootObject = $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects);
+        if (!$this->outlineRootAllowsItemTraversal($outlineRoot, $objects, $outlineRootObject)) {
             return [];
         }
 
@@ -354,7 +358,7 @@ final class PdfOutlineExtractor
 
         return $this->withOutlineItemDocumentReviewMetadataRows(
             $this->outlineStructureDestinationPageContextItems(
-                $outlineRoot['First'] ?? null,
+                $this->outlineTraversalReferenceValue($outlineRoot, 'First', $outlineRootObject),
                 $objects,
                 $pageIndexes,
                 array_flip($pageIndexes),
@@ -365,8 +369,8 @@ final class PdfOutlineExtractor
                 $this->articleBeadsByPageIndex($articleThreads),
                 $this->pageReviewsByPageIndex($pageReviews),
                 $this->taggedContentByPageIndex($pdfBytes),
-                $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-                $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+                $outlineRootObject,
+                $this->outlineTraversalReferenceObjectNumber($outlineRoot, 'Last', $objects, $outlineRootObject),
                 max(1, $maxDepth)
             ),
             $outlineReviewMetadataByObject,
@@ -566,9 +570,10 @@ final class PdfOutlineExtractor
 
         $outlineRoot = $this->catalogOutlineRootDictionary($catalog, $objects);
         if ($outlineRoot !== null) {
-            if ($this->outlineRootAllowsItemTraversal($outlineRoot, $objects)) {
+            $outlineRootObject = $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects);
+            if ($this->outlineRootAllowsItemTraversal($outlineRoot, $objects, $outlineRootObject)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
-                    $outlineRoot['First'] ?? null,
+                    $this->outlineTraversalReferenceValue($outlineRoot, 'First', $outlineRootObject),
                     $objects,
                     $pageIndexes,
                     array_flip($pageIndexes),
@@ -579,8 +584,8 @@ final class PdfOutlineExtractor
                     $articleBeadsByPage,
                     $pageReviewsByPage,
                     $taggedContentByPage,
-                    $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-                    $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+                    $outlineRootObject,
+                    $this->outlineTraversalReferenceObjectNumber($outlineRoot, 'Last', $objects, $outlineRootObject),
                     15
                 ) as $item) {
                     $metadata['outline'][] = $this->withOutlineItemDocumentReviewMetadata($item, $outlineReviewMetadataByObject, false);
@@ -590,7 +595,7 @@ final class PdfOutlineExtractor
                 }
 
                 $outlineActionReviews = $this->outlineActionReviewRows(
-                    $outlineRoot['First'] ?? null,
+                    $this->outlineTraversalReferenceValue($outlineRoot, 'First', $outlineRootObject),
                     $objects,
                     $pageIndexes,
                     $actionDestinations,
@@ -599,8 +604,8 @@ final class PdfOutlineExtractor
                     $articleBeadsByPage,
                     $pageReviewsByPage,
                     $taggedContentByPage,
-                    $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-                    $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+                    $outlineRootObject,
+                    $this->outlineTraversalReferenceObjectNumber($outlineRoot, 'Last', $objects, $outlineRootObject),
                     15
                 );
                 if ($outlineActionReviews !== []) {
@@ -1420,7 +1425,7 @@ final class PdfOutlineExtractor
                 }
             }
 
-            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects, $current)) {
                 foreach ($this->outlineActionReviewRows(
                     $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
@@ -1643,8 +1648,18 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $outline
      * @param array<int, mixed> $objects
      */
-    private function outlineItemAllowsChildTraversal(array $outline, array $objects): bool
+    private function outlineItemAllowsChildTraversal(array $outline, array $objects, ?int $outlineObject = null): bool
     {
+        if (
+            $outlineObject !== null
+            && (
+                $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'First')
+                || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Last')
+            )
+        ) {
+            return false;
+        }
+
         $count = $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
 
         return $count !== 0;
@@ -1657,8 +1672,18 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $outlineRoot
      * @param array<int, mixed> $objects
      */
-    private function outlineRootAllowsItemTraversal(array $outlineRoot, array $objects): bool
+    private function outlineRootAllowsItemTraversal(array $outlineRoot, array $objects, ?int $outlineRootObject = null): bool
     {
+        if (
+            $outlineRootObject !== null
+            && (
+                $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'First')
+                || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'Last')
+            )
+        ) {
+            return false;
+        }
+
         $count = $this->integerOrNullValue($this->resolveValue($outlineRoot['Count'] ?? null, $objects));
 
         return $count !== 0;
@@ -4061,7 +4086,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects, $current)) {
                 foreach ($this->outlineItems(
                     $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
@@ -4171,7 +4196,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects, $current)) {
                 foreach ($this->outlineItemsWithDestinationViews(
                     $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
@@ -4319,7 +4344,7 @@ final class PdfOutlineExtractor
                 $items[] = $row;
             }
 
-            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects, $current)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
                     $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
@@ -4725,7 +4750,7 @@ final class PdfOutlineExtractor
                 $items[] = $row;
             }
 
-            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects, $current)) {
                 foreach ($this->remoteGoToOutlineItems(
                     $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,

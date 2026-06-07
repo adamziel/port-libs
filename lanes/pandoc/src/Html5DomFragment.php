@@ -242,7 +242,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -495,6 +495,10 @@ final class Html5DomFragment
         if ($mode === 'html' && $name === 'details') {
             self::markClosedHtmlDetailsReviewMetadata($node, $attrs, $children, $diagnostics);
         }
+        if ($mode === 'html' && $name === 'dialog') {
+            self::markHtmlDialogReviewMetadata($node, $attrs, $diagnostics);
+            $name = 'div';
+        }
         if ($mode === 'html') {
             self::markHtmlHiddenInertReviewMetadata($node, $name, $attrs, $diagnostics);
         }
@@ -565,6 +569,33 @@ final class Html5DomFragment
         $state = strtolower(self::cleanHtmlMetadataAttribute($value));
 
         return $state === 'until-found' ? 'until-found' : 'hidden';
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlDialogReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array &$diagnostics
+    ): void {
+        $state = $element->hasAttribute('open') ? 'open' : 'closed';
+        unset($attrs['open']);
+        $attrs['data-pandoc-dialog-state'] = $state;
+
+        $diagnostic = [
+            'code' => 'dialog-review',
+            'tag' => 'dialog',
+            'replacement' => 'div',
+            'state' => $state,
+            'reason' => 'dialog-content-preserved',
+        ];
+        if ($state === 'open') {
+            $diagnostic['attribute'] = 'open';
+        }
+
+        $diagnostics[] = $diagnostic;
     }
 
     /**

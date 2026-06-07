@@ -5256,6 +5256,13 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineItemAllowsChildTraversal(string $dictionary, array $objects): bool
     {
+        if (
+            $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'First')
+            || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Last')
+        ) {
+            return false;
+        }
+
         $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
 
         return $count !== 0;
@@ -5269,6 +5276,13 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineRootAllowsItemTraversal(string $dictionary, array $objects): bool
     {
+        if (
+            $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'First')
+            || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Last')
+        ) {
+            return false;
+        }
+
         $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
 
         return $count !== 0;

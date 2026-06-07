@@ -1693,6 +1693,7 @@ final class TableRecognizer
             'cells' => 0,
             'conflicts' => 0,
         ];
+        $normalizationDenominators = [];
 
         foreach (['rows', 'cols', 'cells'] as $field) {
             if (!isset($table[$field]) || !is_array($table[$field])) {
@@ -1713,6 +1714,7 @@ final class TableRecognizer
                 }
                 $recordSpace = $this->geometryRecordCoordinateSpace($record, $fieldSpace);
                 if ($this->isNormalizedPageImageCoordinateSpace($recordSpace)) {
+                    $this->rememberRecordNormalizationDenominator($normalizationDenominators, $record);
                     $localizedRecords[] = $this->localizedNormalizedPageImageGeometryRecord(
                         $record,
                         $pageImageNormalizationSize,
@@ -1726,6 +1728,7 @@ final class TableRecognizer
                     continue;
                 }
                 if ($this->isNormalizedTableCoordinateSpace($recordSpace)) {
+                    $this->rememberRecordNormalizationDenominator($normalizationDenominators, $record);
                     $localizedRecords[] = $this->unnormalizedGeometryRecord($record, $size, $recordSpace);
                     $normalizedCounts[$field]++;
                     $changed = true;
@@ -1807,9 +1810,14 @@ final class TableRecognizer
             $review['image_size_source'] = (string) $imageSize['image_size_source'];
         }
         if ($needsNormalization) {
+            $normalizationDenominator = $this->primaryNormalizationDenominator($normalizationDenominators);
+            $normalizationDenominatorsList = $this->normalizationDenominatorList($normalizationDenominators);
+            if ($normalizationDenominatorsList !== []) {
+                $review['normalization_denominators'] = $normalizationDenominatorsList;
+            }
             $review['normalization_scale'] = [
-                'x' => (float) $size['width'] / 1000.0,
-                'y' => (float) $size['height'] / 1000.0,
+                'x' => (float) $size['width'] / $normalizationDenominator,
+                'y' => (float) $size['height'] / $normalizationDenominator,
             ];
             if ($hasNormalizedPageImage) {
                 $review['page_image_normalization_size'] = $pageImageNormalizationSize;
@@ -3126,12 +3134,69 @@ final class TableRecognizer
      */
     private function unnormalizedTableBbox(array $bbox, array $imageSize): array
     {
+        $denominator = $this->normalizedBboxDenominator($bbox);
+
         return [
-            ((float) $imageSize['width']) * ($bbox[0] / 1000.0),
-            ((float) $imageSize['height']) * ($bbox[1] / 1000.0),
-            ((float) $imageSize['width']) * ($bbox[2] / 1000.0),
-            ((float) $imageSize['height']) * ($bbox[3] / 1000.0),
+            ((float) $imageSize['width']) * ($bbox[0] / $denominator),
+            ((float) $imageSize['height']) * ($bbox[1] / $denominator),
+            ((float) $imageSize['width']) * ($bbox[2] / $denominator),
+            ((float) $imageSize['height']) * ($bbox[3] / $denominator),
         ];
+    }
+
+    /**
+     * Sidecar table geometry may use either tabled's 1000-unit normalized crop
+     * space or model-exported unit fractions. Keep 1000-unit behavior for
+     * established fixtures while accepting small off-crop fractional stale
+     * bands/cells as the same coordinate family.
+     *
+     * @param list<float> $bbox
+     */
+    private function normalizedBboxDenominator(array $bbox): float
+    {
+        $maxAbs = 0.0;
+        foreach ($bbox as $coordinate) {
+            $maxAbs = max($maxAbs, abs((float) $coordinate));
+        }
+
+        return $maxAbs <= 2.0 ? 1.0 : 1000.0;
+    }
+
+    /**
+     * @param array<string, float> $denominators
+     * @param array<string, mixed> $record
+     */
+    private function rememberRecordNormalizationDenominator(array &$denominators, array $record): void
+    {
+        $bbox = $this->nullableBboxFromRecord($record);
+        if ($bbox === null) {
+            return;
+        }
+
+        $denominator = $this->normalizedBboxDenominator($bbox);
+        $denominators[(string) $denominator] = $denominator;
+    }
+
+    /**
+     * @param array<string, float> $denominators
+     * @return list<float>
+     */
+    private function normalizationDenominatorList(array $denominators): array
+    {
+        $list = array_values($denominators);
+        sort($list, SORT_NUMERIC);
+
+        return array_map(static fn (float $denominator): float => $denominator, $list);
+    }
+
+    /**
+     * @param array<string, float> $denominators
+     */
+    private function primaryNormalizationDenominator(array $denominators): float
+    {
+        $list = $this->normalizationDenominatorList($denominators);
+
+        return count($list) === 1 ? $list[0] : 1000.0;
     }
 
     /**

@@ -779,6 +779,23 @@ final class ArchiveCompressionStream
         return Lz4Frame::decodeWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes);
     }
 
+    /**
+     * @param array<int|string, string> $dictionaries
+     */
+    public static function decodeTarBytesWithZlibDictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_ZLIB_TAR) {
+            throw new \RuntimeException("ZLIB dictionary decoding requires ZLIB TAR stream format: {$format}");
+        }
+
+        return DeflateStream::decodeZlibWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes);
+    }
+
     public static function decodeZipBytes(
         string $bytes,
         string $format,
@@ -811,6 +828,23 @@ final class ArchiveCompressionStream
         }
 
         return Lz4Frame::decodeWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes);
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     */
+    public static function decodeZipBytesWithZlibDictionaries(
+        string $bytes,
+        string $format,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_ZLIB_ZIP) {
+            throw new \RuntimeException("ZLIB dictionary decoding requires ZLIB ZIP stream format: {$format}");
+        }
+
+        return DeflateStream::decodeZlibWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes);
     }
 
     private static function boundedPlainBytes(string $bytes, ?int $maxUncompressedBytes, string $label): string

@@ -4306,4 +4306,173 @@ return [
         $t->true(!str_contains($encoded, 'singleton stale order payload'));
         $t->true(!str_contains($encoded, 'singleton stale order wrapper payload'));
     },
+    'uses document and pdftext page-number aliases before selected pdftext order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5600, [
+                    ['text' => 'Page-number alias cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5601, [
+                    ['text' => 'Second page-number alias column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First page-number alias column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(5602, [
+                    ['text' => 'Page-number alias appendix should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['document_page_number' => 5601],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'stale document page-number row payload must stay hidden'],
+                    ],
+                    'raw_payload' => 'stale document page-number order payload must stay hidden',
+                ],
+                [
+                    'metadata' => ['pdftext_page_number' => 5602],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                    'raw_payload' => 'selected pdftext page-number order payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['metadata' => ['document_page_number' => 5601], 'image' => 'stale-page-number-order-render'],
+                ['metadata' => ['pdftext_page_number' => 5602], 'image' => 'selected-page-number-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5601, $result['pages'][0]['pnum']);
+        $t->same(['First page-number alias column', 'Second page-number alias column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First page-number alias column Second page-number alias column', $blocks[0]['text']);
+        $t->same(5602, $order['pdftext_page_number'] ?? null);
+        $t->true(!array_key_exists('document_page_number', $order), 'Stale document_page_number marker must not be preserved on the selected order result.');
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!str_contains($encoded, 'Page-number alias cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'Page-number alias appendix should stay skipped'));
+        $t->true(!str_contains($encoded, 'stale document page-number order payload'));
+        $t->true(!str_contains($encoded, 'stale document page-number row payload'));
+        $t->true(!str_contains($encoded, 'selected pdftext page-number order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses source document and pdftext page-number aliases for WordPress supplied imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-page-number-alias-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% page-number alias pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5610, [
+                        ['text' => 'Page-number alias converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5611, [
+                        ['text' => 'Second converter page-number alias body.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter page-number alias heading.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(5612, [
+                        ['text' => 'Page-number alias converter appendix should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['source_page_number' => 5611, 'image' => 'source-page-number-stale-layout-render'],
+                        ['metadata' => ['document_page_number' => 5612], 'image' => 'document-page-number-selected-layout-render'],
+                    ],
+                    'layout_results' => [
+                        [
+                            'source_page_number' => 5611,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0], 'raw_payload' => 'stale source page-number layout row payload must stay hidden'],
+                            ],
+                            'raw_payload' => 'stale source page-number layout payload must stay hidden',
+                        ],
+                        [
+                            'metadata' => ['document_page_number' => 5612],
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                            'raw_payload' => 'selected document page-number layout payload must stay hidden',
+                        ],
+                    ],
+                    'order_images' => [
+                        ['source_page_number' => 5611, 'image' => 'source-page-number-stale-order-render'],
+                        ['metadata' => ['pdftext_page_number' => 5612], 'image' => 'pdftext-page-number-selected-order-render'],
+                    ],
+                    'order_results' => [
+                        [
+                            'source_page_number' => 5611,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'stale source page-number order row payload must stay hidden'],
+                            ],
+                            'raw_payload' => 'stale source page-number order payload must stay hidden',
+                        ],
+                        [
+                            'metadata' => ['pdftext_page_number' => 5612],
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                            'raw_payload' => 'selected pdftext page-number order payload must stay hidden',
+                        ],
+                    ],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# First Converter Page-Number Alias Heading.', $text);
+        $t->contains('Second converter page-number alias body.', $text);
+        $t->true(strpos($text, '# First Converter Page-Number Alias Heading.') < strpos($text, 'Second converter page-number alias body.'));
+        $t->true(!str_contains($text, 'Page-number alias converter cover should stay skipped.'));
+        $t->true(!str_contains($text, 'Page-number alias converter appendix should stay skipped.'));
+        $t->true(!str_contains($encoded, 'stale source page-number layout row payload'));
+        $t->true(!str_contains($encoded, 'stale source page-number layout payload'));
+        $t->true(!str_contains($encoded, 'selected document page-number layout payload'));
+        $t->true(!str_contains($encoded, 'stale source page-number order row payload'));
+        $t->true(!str_contains($encoded, 'stale source page-number order payload'));
+        $t->true(!str_contains($encoded, 'selected pdftext page-number order payload'));
+    },
 ];

@@ -821,6 +821,58 @@ return [
         $t->true(!str_contains($html, 'onclick='), 'Expected active summary handlers to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside closed details to be stripped');
     },
+    'converts dialog states into inert reviewer containers before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<dialog data-pandoc-dialog-state="source-spoof" aria-label="Migration notice"><p>Closed <a href="./closed.html">packet</a><a href="java&#10;script:alert(1)">bad</a></p></dialog>'
+            . '<dialog open class="modal" onclick="alert(1)"><h2>Open review</h2><p>Visible overlay content</p></dialog>'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/dialog-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<div aria-label="Migration notice" data-pandoc-dialog-state="closed"><p>Closed <a href="https://source.example.test/import/posts/closed.html">packet</a><a>bad</a></p></div>'
+            . '<div class="modal" data-pandoc-dialog-state="open"><h2>Open review</h2><p>Visible overlay content</p></div><p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Closed packetbadOpen reviewVisible overlay contentafter', $fragment->textContent());
+        $t->same(['a', 'div', 'h2', 'p'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['data-pandoc-dialog-state', 'href', 'onclick', 'open'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-url', 'dialog-review', 'unsafe-attribute', 'dialog-review'], $policyDiagnostics);
+        $t->same('div', $nodes[0]['name']);
+        $t->same([
+            'aria-label' => 'Migration notice',
+            'data-pandoc-dialog-state' => 'closed',
+        ], $nodes[0]['attrs']);
+        $t->same('https://source.example.test/import/posts/closed.html', $nodes[0]['children'][0]['children'][1]['attrs']['href']);
+        $t->same([], $nodes[0]['children'][0]['children'][2]['attrs']);
+        $t->same('div', $nodes[1]['name']);
+        $t->same([
+            'class' => 'modal',
+            'data-pandoc-dialog-state' => 'open',
+        ], $nodes[1]['attrs']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/dialog-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<dialog'), 'Expected dialog wrappers to become inert reviewer divs');
+        $t->true(!str_contains($html, ' open'), 'Expected dialog open state to move into inert metadata');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned dialog metadata to be stripped');
+        $t->true(!str_contains($html, 'onclick='), 'Expected dialog event handlers to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside dialog content to be stripped');
+        $t->true(!str_contains($blocks, '<dialog'), 'Expected WordPress blocks to omit live dialog elements');
+    },
     'marks hidden and inert content as visible reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

@@ -56,6 +56,17 @@ final class DeflateStream
     }
 
     /**
+     * @param array<int|string, string> $dictionaries
+     */
+    public static function decodeZlibWithDictionaries(
+        string $bytes,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        return self::inspectZlibWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes)['data'];
+    }
+
+    /**
      * @return array{
      *     format:string,
      *     data:string,
@@ -120,6 +131,124 @@ final class DeflateStream
     }
 
     /**
+     * @param array<int|string, string> $dictionaries
+     * @return array{
+     *     format:string,
+     *     data:string,
+     *     compressionMethod:int,
+     *     windowSize:int,
+     *     compressionLevelHint:string,
+     *     hasPresetDictionary:bool,
+     *     presetDictionaryId:?int,
+     *     presetDictionaryIdHex:?string,
+     *     dictionarySupplied:bool,
+     *     dictionarySize:?int,
+     *     dictionaryAdler32:?int,
+     *     dictionaryAdler32Hex:?string,
+     *     adler32:int,
+     *     uncompressedSize:int,
+     *     compressedSize:int
+     * }
+     */
+    public static function inspectZlibWithDictionaries(
+        string $bytes,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'DEFLATE max uncompressed byte limit');
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('ZLIB stream is too short to contain a DEFLATE header and trailer');
+        }
+
+        $cmf = ord($bytes[0]);
+        $flg = ord($bytes[1]);
+        if ((($cmf << 8) + $flg) % 31 !== 0) {
+            throw new \RuntimeException('ZLIB stream header check bits do not match');
+        }
+
+        $compressionMethod = $cmf & 0x0f;
+        if ($compressionMethod !== self::ZLIB_COMPRESSION_METHOD_DEFLATE) {
+            throw new \RuntimeException("Unsupported ZLIB compression method {$compressionMethod}");
+        }
+
+        $windowCode = ($cmf >> 4) & 0x0f;
+        if ($windowCode > 7) {
+            throw new \RuntimeException('ZLIB DEFLATE window size is outside the supported range');
+        }
+
+        $hasPresetDictionary = ($flg & self::ZLIB_PRESET_DICTIONARY_FLAG) !== 0;
+        if (!$hasPresetDictionary) {
+            $metadata = self::inspectZlib($bytes, $maxUncompressedBytes);
+
+            return $metadata + [
+                'presetDictionaryId' => null,
+                'presetDictionaryIdHex' => null,
+                'dictionarySupplied' => false,
+                'dictionarySize' => null,
+                'dictionaryAdler32' => null,
+                'dictionaryAdler32Hex' => null,
+            ];
+        }
+
+        if (strlen($bytes) < 10) {
+            throw new \RuntimeException('ZLIB preset-dictionary stream is too short to contain a dictionary id and trailer');
+        }
+
+        $dictionaryId = self::readUInt32BE($bytes, 2);
+        $dictionaryMap = self::normalizeExternalDictionaries($dictionaries);
+        if (!array_key_exists($dictionaryId, $dictionaryMap)) {
+            throw new \RuntimeException(sprintf(
+                'Missing ZLIB preset dictionary for dictionary id 0x%08x',
+                $dictionaryId
+            ));
+        }
+
+        $dictionary = $dictionaryMap[$dictionaryId];
+        $dictionaryAdler32 = self::adler32($dictionary);
+        if ($dictionaryAdler32 !== $dictionaryId) {
+            throw new \RuntimeException(sprintf(
+                'Supplied ZLIB preset dictionary Adler-32 0x%08x does not match stream dictionary id 0x%08x',
+                $dictionaryAdler32,
+                $dictionaryId
+            ));
+        }
+
+        $inflated = self::inflateComplete(
+            $bytes,
+            ZLIB_ENCODING_DEFLATE,
+            'ZLIB stream',
+            ['dictionary' => $dictionary],
+            6
+        );
+        $data = $inflated['data'];
+
+        $adler32 = self::readUInt32BE($bytes, strlen($bytes) - 4);
+        if (self::adler32($data) !== $adler32) {
+            throw new \RuntimeException('ZLIB stream Adler-32 trailer does not match decoded payload');
+        }
+
+        self::assertDecodedSize($data, $maxUncompressedBytes, 'ZLIB stream');
+
+        return [
+            'format' => self::FORMAT_ZLIB,
+            'data' => $data,
+            'compressionMethod' => $compressionMethod,
+            'windowSize' => 1 << ($windowCode + 8),
+            'compressionLevelHint' => self::compressionLevelHint(($flg >> 6) & 0x03),
+            'hasPresetDictionary' => true,
+            'presetDictionaryId' => $dictionaryId,
+            'presetDictionaryIdHex' => sprintf('%08x', $dictionaryId),
+            'dictionarySupplied' => true,
+            'dictionarySize' => strlen($dictionary),
+            'dictionaryAdler32' => $dictionaryAdler32,
+            'dictionaryAdler32Hex' => sprintf('%08x', $dictionaryAdler32),
+            'adler32' => $adler32,
+            'uncompressedSize' => strlen($data),
+            'compressedSize' => strlen($bytes) - 10,
+        ];
+    }
+
+    /**
      * @return array{
      *     format:string,
      *     data:string,
@@ -168,9 +297,19 @@ final class DeflateStream
     /**
      * @return array{data:string, consumedBytes:int}
      */
-    private static function inflateComplete(string $bytes, int $encoding, string $label): array
+    private static function inflateComplete(
+        string $bytes,
+        int $encoding,
+        string $label,
+        array $options = [],
+        int $headerPrefixBytes = 0
+    ): array
     {
-        $context = inflate_init($encoding);
+        if ($headerPrefixBytes < 0) {
+            throw new \RuntimeException("{$label} header prefix byte count must not be negative");
+        }
+
+        $context = inflate_init($encoding, $options);
         if ($context === false) {
             throw new \RuntimeException("Unable to initialize decoder for {$label}");
         }
@@ -180,7 +319,7 @@ final class DeflateStream
             throw new \RuntimeException("Unable to decode {$label}");
         }
 
-        $consumedBytes = inflate_get_read_len($context);
+        $consumedBytes = inflate_get_read_len($context) + $headerPrefixBytes;
         if ($consumedBytes !== strlen($bytes)) {
             throw new \RuntimeException("{$label} contains trailing bytes after the complete DEFLATE payload");
         }
@@ -189,6 +328,40 @@ final class DeflateStream
             'data' => $data,
             'consumedBytes' => $consumedBytes,
         ];
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<int, string>
+     */
+    private static function normalizeExternalDictionaries(array $dictionaries): array
+    {
+        $normalized = [];
+        foreach ($dictionaries as $id => $dictionary) {
+            if (!is_string($dictionary)) {
+                throw new \RuntimeException('ZLIB preset dictionaries must be byte strings');
+            }
+
+            if ($dictionary === '') {
+                throw new \RuntimeException('ZLIB preset dictionaries must not be empty');
+            }
+
+            if (is_int($id)) {
+                $dictionaryId = $id;
+            } elseif (is_string($id) && preg_match('/^(?:0|[1-9][0-9]*)$/', $id) === 1) {
+                $dictionaryId = (int) $id;
+            } else {
+                throw new \RuntimeException('ZLIB preset dictionary ids must be unsigned 32-bit integers');
+            }
+
+            if ($dictionaryId < 0 || $dictionaryId > 0xffffffff) {
+                throw new \RuntimeException('ZLIB preset dictionary ids must be unsigned 32-bit integers');
+            }
+
+            $normalized[$dictionaryId] = $dictionary;
+        }
+
+        return $normalized;
     }
 
     private static function readUInt32BE(string $bytes, int $offset): int
