@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 12:20:38 UTC",
-    "sourceCommit": "2f466e81f490d71bffdfc1d8fdfc8dff3ad521e7",
-    "sourceCommitShort": "2f466e81f490",
+    "generated": "2026-06-07 12:20:49 UTC",
+    "sourceCommit": "48727dc0f1a23138e2a5627b1f935000a462a5b5",
+    "sourceCommitShort": "48727dc0f1a2",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2f466e81f490d71bffdfc1d8fdfc8dff3ad521e7",
-    "dashboardCommitShort": "2f466e81f490",
+    "dashboardCommit": "48727dc0f1a23138e2a5627b1f935000a462a5b5",
+    "dashboardCommitShort": "48727dc0f1a2",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1916",
-            "coverage": "1,916 / 2,276 (84.2%)",
+            "mapped": "1917",
+            "coverage": "1,917 / 2,276 (84.2%)",
             "mapPercent": "84.2%",
-            "unmapped": "360",
-            "php": "1,496 pass / 0 fail",
+            "unmapped": "359",
+            "php": "1,497 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-07 UTC ODF/OpenDocument current-base chart title-axis-legend...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For XML/HTML5 DOM follow-up, keep work bounded to non-overlap...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native H...",
-            "commit": "pending pandoc-..."
+            "nextTarget": "For doctemplates follow-up, keep work bounded to non-overlapp...",
+            "remainingGate": "No new support component is needed for this slice: it reuses the nati...",
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

@@ -2206,6 +2206,48 @@ HTML,
         ]), $output);
     },
 
+    'renders colon-qualified pandoc doctemplate metadata variables and applied partials' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('packets/review.html', [
+            'packets/review.html' => <<<'HTML'
+<article>
+Font: $style:font-name$
+Link: $link.xlink:href$
+Families: $for(style:family)$[$style:family.style:name$/$it.style:display-name$]$sep$, $endfor$
+Cards: ${ style:family:components/style-row()[ | ] }
+Next: ${ style:family/rest:components/style-row()/uppercase }
+</article>
+HTML,
+            'packets/components/style-row.html' => '$style:family.style:name$=$it.style:font-name$',
+        ], [
+            'style:font-name' => 'Atkinson Hyperlegible',
+            'link' => [
+                'xlink:href' => 'Pictures/cover.png',
+            ],
+            'style:family' => [
+                [
+                    'style:name' => 'Heading_20_1',
+                    'style:display-name' => 'Heading 1',
+                    'style:font-name' => 'Alegreya',
+                ],
+                [
+                    'style:name' => 'BodyText',
+                    'style:display-name' => 'Body Text',
+                    'style:font-name' => 'Atkinson Hyperlegible',
+                ],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            'Font: Atkinson Hyperlegible',
+            'Link: Pictures/cover.png',
+            'Families: [Heading_20_1/Heading 1], [BodyText/Body Text]',
+            'Cards: Heading_20_1=Alegreya | BodyText=Atkinson Hyperlegible',
+            'Next: BODYTEXT=ATKINSON HYPERLEGIBLE',
+            '</article>',
+        ]), $output);
+    },
+
     'rejects unsafe pandoc doctemplate resource paths' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

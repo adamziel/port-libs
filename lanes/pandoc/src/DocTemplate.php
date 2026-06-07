@@ -2764,26 +2764,31 @@ CSS;
      */
     private function parseAppliedPartialDirective(string $expression): ?array
     {
-        $colon = $this->findAppliedPartialColon($expression);
-        if ($colon === null) {
-            return null;
+        foreach ($this->findAppliedPartialColons($expression) as $colon) {
+            $variableSource = trim(substr($expression, 0, $colon), " \t");
+            $partialSource = trim(substr($expression, $colon + 1), " \t");
+            if ($variableSource === '' || $partialSource === '') {
+                continue;
+            }
+
+            $partial = $this->parsePartialCallExpression($partialSource);
+            if ($partial === null) {
+                continue;
+            }
+
+            try {
+                $variable = $this->parseVariableExpression($variableSource);
+            } catch (\UnexpectedValueException) {
+                continue;
+            }
+
+            return [
+                'variable' => $variable,
+                'partial' => $partial,
+            ];
         }
 
-        $variableSource = trim(substr($expression, 0, $colon), " \t");
-        $partialSource = trim(substr($expression, $colon + 1), " \t");
-        if ($variableSource === '' || $partialSource === '') {
-            return null;
-        }
-
-        $partial = $this->parsePartialCallExpression($partialSource);
-        if ($partial === null) {
-            return null;
-        }
-
-        return [
-            'variable' => $this->parseVariableExpression($variableSource),
-            'partial' => $partial,
-        ];
+        return null;
     }
 
     /**
@@ -2814,8 +2819,12 @@ CSS;
         return $this->parsePipeSpecs($this->splitPipeExpression($pipeSource), $expression);
     }
 
-    private function findAppliedPartialColon(string $expression): ?int
+    /**
+     * @return list<int>
+     */
+    private function findAppliedPartialColons(string $expression): array
     {
+        $colons = [];
         $bracketDepth = 0;
         $inQuote = false;
         $escape = false;
@@ -2849,11 +2858,11 @@ CSS;
             }
 
             if (!$inQuote && $char === ':' && $bracketDepth === 0) {
-                return $index;
+                $colons[] = $index;
             }
         }
 
-        return null;
+        return $colons;
     }
 
     /**
@@ -2955,7 +2964,7 @@ CSS;
             return false;
         }
 
-        return preg_match('/^\\p{L}[\\p{L}\\p{N}_-]*$/u', $part) === 1;
+        return preg_match('/^\\p{L}[\\p{L}\\p{N}_-]*(?::\\p{L}[\\p{L}\\p{N}_-]*)*$/u', $part) === 1;
     }
 
     /**

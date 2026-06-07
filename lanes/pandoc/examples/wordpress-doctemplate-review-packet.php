@@ -31,6 +31,7 @@ for $title$$~$</p>
 <p class="brace-separated-sources">${ reviewSources/uppercase[} ] }</p>
 <p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
+<p class="style-metadata">$style:font-name$ / ${ style:family:components/style-token()[, ] }</p>
 <p class="derived-missing-count">${ missingWarnings/length:components/missing-count() }</p>
 <pre class="plain-text-summary">$wrappedPlainSummary$</pre>
 <p class="labeled-note">$^$Note: $summaryNote$</p>
@@ -54,6 +55,7 @@ HTML,
 HTML,
     'review-packets/components/next-warning.html' => '$warnings.source$/$it.source$: $warnings.message$',
     'review-packets/components/missing-count.html' => 'missing=<$missingWarnings$>; it=$it$',
+    'review-packets/components/style-token.html' => '$style:family.style:name$=$it.style:font-name$',
     'review-packets/components/crlf-note.html' => '<p class="crlf-note">CRLF partial final line ending stripped</p>' . "\r\n",
     'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
     'review-packets/components/warning-list.html' => <<<'HTML'
@@ -86,6 +88,17 @@ $context = [
         'zeta' => 'queued-last',
         'alpha' => 'queued-first',
         'review-id' => 'PR-42',
+    ],
+    'style:font-name' => 'Atkinson Hyperlegible',
+    'style:family' => [
+        [
+            'style:name' => 'Heading_20_1',
+            'style:font-name' => 'Alegreya',
+        ],
+        [
+            'style:name' => 'BodyText',
+            'style:font-name' => 'Atkinson Hyperlegible',
+        ],
     ],
     'summaryNote' => "Review imported title blocks\nConfirm reviewer packet spacing",
     'dedentedNote' => 'Dedented review packet close',
@@ -140,6 +153,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="brace-separated-sources">MEDIA} LINKS} LAYOUT</p>',
         '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
+        '<p class="style-metadata">Atkinson Hyperlegible / Heading_20_1=Alegreya, BodyText=Atkinson Hyperlegible</p>',
         '<p class="derived-missing-count">missing=<>; it=0</p>',
         "<pre class=\"plain-text-summary\">Review queue includes media links layout and\nmultilingual source packet follow-ups.</pre>",
         $labeledNotePrefix . 'Note: Review imported title blocks' . "\n"
