@@ -8755,7 +8755,12 @@ final class PdfTextExtractor
             return null;
         }
 
+        $offset = $this->topLevelNameValueOffset($dictionary, 'Filter');
+        $extraOperand = $offset === null ? null : $this->directFilterExtraOperand($dictionary, $offset);
         $filters = $this->imageXObjectFilterOperandBoundaryValuesFromValue($values[0], $objects);
+        if ($extraOperand !== null && !in_array(self::MALFORMED_IMAGE_FILTER_OPERAND, $filters, true)) {
+            array_unshift($filters, self::MALFORMED_IMAGE_FILTER_OPERAND);
+        }
         if ($filters === []) {
             return null;
         }
@@ -8905,6 +8910,32 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function directFilterExtraOperand(string $dict, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if ($offset >= strlen($dict)) {
+            return null;
+        }
+
+        if (($dict[$offset] ?? '') === '[') {
+            return $this->directArrayFilterExtraOperand($dict, $offset);
+        }
+        if (($dict[$offset] ?? '') === '/') {
+            return $this->directScalarFilterExtraOperand($dict, $offset);
+        }
+        if (preg_match('/\Gnull\b/s', $dict, $match, 0, $offset) === 1) {
+            return $this->directNullFilterExtraOperand($dict, $offset);
+        }
+        if ($this->pdfIndirectReferenceTokenAt($dict, $offset) !== null) {
+            return $this->directReferenceFilterExtraOperand($dict, $offset);
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<string|null> $filters
      * @return list<string>
      */
@@ -8983,6 +9014,10 @@ final class PdfTextExtractor
         $firstFilter = null;
         foreach ($filters as $filter) {
             if (is_string($filter)) {
+                if ($firstFilter === null && $filter === self::MALFORMED_IMAGE_FILTER_OPERAND) {
+                    continue;
+                }
+
                 $firstFilter = $filter;
                 break;
             }

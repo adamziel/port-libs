@@ -714,6 +714,7 @@ final class PdfImageRenderer
                 'preview_only_filters' => $previewOnlyFilters,
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
                 'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
+                ...$this->imageFilterOperandBoundaryMetadata($operandBoundaryFilters),
                 ...($duplicateFilterDeclarationCount > 0 ? [
                     'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                     'filter_operand_policy' => 'reject_duplicate_filter_declarations',
@@ -4308,6 +4309,7 @@ final class PdfImageRenderer
             return [];
         }
 
+        $hasMalformedExtraOperand = $this->imageFilterHasMalformedExtraOperand($dictionary);
         if (count($values) > 1) {
             $filters = [self::MALFORMED_IMAGE_FILTER_OPERAND];
             foreach ($values as $value) {
@@ -4319,7 +4321,12 @@ final class PdfImageRenderer
             return $filters;
         }
 
-        return $this->imageFilterValuesFromValue($values[0], $objects);
+        $filters = $this->imageFilterValuesFromValue($values[0], $objects);
+        if ($hasMalformedExtraOperand && !in_array(self::MALFORMED_IMAGE_FILTER_OPERAND, $filters, true)) {
+            array_unshift($filters, self::MALFORMED_IMAGE_FILTER_OPERAND);
+        }
+
+        return $filters;
     }
 
     /**
@@ -4353,6 +4360,16 @@ final class PdfImageRenderer
         $name = $this->pdfNameValue($resolved);
         if ($name === null && $resolved === 'null') {
             return [];
+        }
+
+        if (str_starts_with($resolved, '/')) {
+            $end = $this->pdfNameTokenEndOffset($resolved, 0);
+            $name = $this->decodePdfName(substr($resolved, 1, $end - 1));
+            if ($this->skipPdfWhitespace($resolved, $end) !== strlen($resolved)) {
+                return [self::MALFORMED_IMAGE_FILTER_OPERAND, $name];
+            }
+
+            return [$name];
         }
 
         return $name === null ? [$this->imageFilterOperandFallbackName($resolved)] : [$name];
@@ -4389,9 +4406,9 @@ final class PdfImageRenderer
                     ?? $this->nativeImageDuplicateDecodeParmsDeclarationReview($filter, $dictionary)
                     ?? $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
-                    ?? $this->nativeImageUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->dctDecodeParmsOperandFailureReview($filter, $decodeParmsValue, $objects)
                     ?? $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                    ?? $this->nativeImageUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex)
                     ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex),
             ];
@@ -4534,6 +4551,35 @@ final class PdfImageRenderer
                 true
             )
         ));
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return array<string, int|string>
+     */
+    private function imageFilterOperandBoundaryMetadata(array $filters): array
+    {
+        if ($filters === []) {
+            return [];
+        }
+
+        $malformedCount = 0;
+        $unresolvedCount = 0;
+        foreach ($filters as $filter) {
+            if ($filter === self::MALFORMED_IMAGE_FILTER_OPERAND) {
+                $malformedCount++;
+            } elseif ($filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND) {
+                $unresolvedCount++;
+            }
+        }
+
+        return [
+            'filter_operand_policy' => $malformedCount > 0
+                ? 'reject_malformed_filter_operands'
+                : 'reject_unresolved_filter_operands',
+            'malformed_filter_operand_count' => $malformedCount,
+            'unresolved_filter_operand_count' => $unresolvedCount,
+        ];
     }
 
     /**
@@ -8265,6 +8311,13 @@ final class PdfImageRenderer
             return null;
         }
 
+        if (
+            $firstFilter === self::MALFORMED_IMAGE_FILTER_OPERAND
+            && (($filters[$firstFilterIndex + 1] ?? null) === 'DCTDecode' || ($filters[$firstFilterIndex + 1] ?? null) === 'DCT')
+        ) {
+            return $this->rawDctPreviewStreamTerminatorOffset($value, $streamStart);
+        }
+
         if ($firstFilter === 'DCTDecode' || $firstFilter === 'DCT') {
             return $this->rawDctPreviewStreamTerminatorOffset($value, $streamStart);
         }
@@ -8500,6 +8553,10 @@ final class PdfImageRenderer
         $firstFilter = null;
         foreach ($filters as $filter) {
             if (is_string($filter)) {
+                if ($firstFilter === null && $filter === self::MALFORMED_IMAGE_FILTER_OPERAND) {
+                    continue;
+                }
+
                 $firstFilter = $filter;
                 break;
             }
@@ -9177,6 +9234,118 @@ final class PdfImageRenderer
         return max(0, count($this->pdfDictionaryValuesForName($dictionary, $name)) - 1);
     }
 
+    private function imageFilterHasMalformedExtraOperand(string $dictionary): bool
+    {
+        $body = trim($dictionary);
+        if (str_starts_with($body, '<<')) {
+            $read = $this->readBalancedDictionary($body, 0);
+            if ($read !== null) {
+                $body = trim(substr($read['value'], 2, -2));
+            }
+        }
+
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $key = $this->readPdfValueWithOffset($body, $offset);
+            if ($key === null || !str_starts_with(trim($key['value']), '/')) {
+                break;
+            }
+
+            $value = $this->readPdfValueWithOffset($body, $key['next']);
+            if ($value === null) {
+                break;
+            }
+
+            if (
+                $this->pdfNameValue($key['value']) === 'Filter'
+                && $this->imageFilterExtraOperandAfterValue($body, $value['next'])
+            ) {
+                return true;
+            }
+
+            $offset = $value['next'];
+        }
+
+        return false;
+    }
+
+    private function imageFilterExtraOperandAfterValue(string $body, int $offset): bool
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        $length = strlen($body);
+        while ($offset < $length) {
+            if (substr($body, $offset, 2) === '>>' || ($body[$offset] ?? '') === ']') {
+                return false;
+            }
+
+            if (($body[$offset] ?? '') !== '/') {
+                return true;
+            }
+
+            $nameEnd = $this->pdfNameTokenEndOffset($body, $offset);
+            if ($nameEnd <= $offset + 1) {
+                return false;
+            }
+
+            $name = $this->decodePdfName(substr($body, $offset + 1, $nameEnd - $offset - 1));
+            if ($this->imageFilterNameLooksLikeDecoder($name) || $this->imageFilterUnknownNamePrecedesLength($body, $nameEnd)) {
+                return true;
+            }
+
+            $value = $this->readPdfValueWithOffset($body, $nameEnd);
+            if ($value === null || $value['next'] <= $nameEnd) {
+                return true;
+            }
+
+            $offset = $this->skipPdfWhitespace($body, $value['next']);
+        }
+
+        return false;
+    }
+
+    private function imageFilterUnknownNamePrecedesLength(string $body, int $offset): bool
+    {
+        $next = $this->skipPdfWhitespace($body, $offset);
+        if ($next >= strlen($body) || ($body[$next] ?? '') !== '/') {
+            return false;
+        }
+
+        $nextEnd = $this->pdfNameTokenEndOffset($body, $next);
+        if ($nextEnd <= $next + 1) {
+            return false;
+        }
+
+        if ($this->decodePdfName(substr($body, $next + 1, $nextEnd - $next - 1)) !== 'Length') {
+            return false;
+        }
+
+        return $this->readPdfValueWithOffset($body, $nextEnd) !== null;
+    }
+
+    private function imageFilterNameLooksLikeDecoder(string $name): bool
+    {
+        return in_array($name, [
+            'ASCIIHexDecode',
+            'AHx',
+            'ASCII85Decode',
+            'A85',
+            'RunLengthDecode',
+            'RL',
+            'LZWDecode',
+            'LZW',
+            'FlateDecode',
+            'Fl',
+            'Crypt',
+            'DCTDecode',
+            'DCT',
+            'CCITTFaxDecode',
+            'CCF',
+            'JPXDecode',
+            'JBIG2Decode',
+        ], true);
+    }
+
     /**
      * @return list<string>
      */
@@ -9308,6 +9477,16 @@ final class PdfImageRenderer
         }
 
         return $this->decodePdfName(substr($value, 1));
+    }
+
+    private function pdfNameTokenEndOffset(string $body, int $offset): int
+    {
+        $end = $offset + 1;
+        while ($end < strlen($body) && !str_contains(" \t\r\n\f[]()<>{}/%", $body[$end])) {
+            $end++;
+        }
+
+        return $end;
     }
 
     /**
