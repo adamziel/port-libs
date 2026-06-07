@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 06:24:09 UTC",
-    "sourceCommit": "a628bc0ed53d2164babe3e634620f5035ffb50f0",
-    "sourceCommitShort": "a628bc0ed53d",
+    "generated": "2026-06-07 06:24:19 UTC",
+    "sourceCommit": "42a569a15a7b3a925763ed939964e10b8c652a74",
+    "sourceCommitShort": "42a569a15a7b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a628bc0ed53d2164babe3e634620f5035ffb50f0",
-    "dashboardCommitShort": "a628bc0ed53d",
+    "dashboardCommit": "42a569a15a7b3a925763ed939964e10b8c652a74",
+    "dashboardCommitShort": "42a569a15a7b",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1877",
-            "coverage": "1,877 / 2,276 (82.5%)",
+            "mapped": "1878",
+            "coverage": "1,878 / 2,276 (82.5%)",
             "mapPercent": "82.5%",
-            "unmapped": "399",
-            "php": "1,459 pass / 0 fail",
+            "unmapped": "398",
+            "php": "1,460 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-07 UTC PDF engine current-base PDF/UA identification slice on...",
+            "audit": "2026-06-07 UTC archive compression current-base LZ4 dictionary-policy...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For PDF-engine follow-up, keep support-library work bounded t...",
+            "nextTarget": "For archive-compression follow-up, keep support-library work...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending pandoc-..."
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

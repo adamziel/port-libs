@@ -119,6 +119,178 @@ final class Lz4Frame
     }
 
     /**
+     * @return array{
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     dictionaryFrameCount:int,
+     *     extractionPolicy:string,
+     *     frames:list<array<string, mixed>>
+     * }
+     */
+    public static function dictionaryPolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('LZ4 frame stream is empty');
+        }
+
+        $frames = [];
+        $cursor = 0;
+        $length = strlen($bytes);
+        $dataFrameCount = 0;
+        $skippableFrameCount = 0;
+        $dictionaryFrameCount = 0;
+
+        while ($cursor < $length) {
+            $frameStart = $cursor;
+            self::assertRange($bytes, $cursor, 4, 'frame magic');
+            $magic = self::readUInt32($bytes, $cursor);
+            $cursor += 4;
+
+            if ($magic >= self::SKIPPABLE_MAGIC_MIN && $magic <= self::SKIPPABLE_MAGIC_MAX) {
+                self::assertRange($bytes, $cursor, 4, 'skippable frame size');
+                $skippableSize = self::readUInt32($bytes, $cursor);
+                $cursor += 4;
+                self::assertRange($bytes, $cursor, $skippableSize, 'skippable frame payload');
+                $frames[] = [
+                    'type' => 'skippable',
+                    'id' => $magic - self::SKIPPABLE_MAGIC_MIN,
+                    'data' => substr($bytes, $cursor, $skippableSize),
+                    'frameOffset' => $frameStart,
+                    'frameSize' => 8 + $skippableSize,
+                    'policy' => 'metadata',
+                    'diagnostics' => [],
+                ];
+                $skippableFrameCount++;
+                $cursor += $skippableSize;
+                continue;
+            }
+
+            if ($magic !== self::FRAME_MAGIC) {
+                throw new \RuntimeException('Invalid LZ4 frame magic');
+            }
+
+            self::assertRange($bytes, $cursor, 3, 'frame descriptor');
+            $descriptorStart = $cursor;
+            $flags = ord($bytes[$cursor]);
+            $blockDescriptor = ord($bytes[$cursor + 1]);
+            $cursor += 2;
+
+            if (($flags & self::VERSION_MASK) !== self::VERSION_SUPPORTED) {
+                throw new \RuntimeException('Unsupported LZ4 frame descriptor version');
+            }
+
+            if (($flags & self::FLAG_RESERVED) !== 0) {
+                throw new \RuntimeException('LZ4 frame descriptor uses reserved flag bits');
+            }
+
+            if (($blockDescriptor & 0x8f) !== 0) {
+                throw new \RuntimeException('LZ4 block descriptor uses reserved bits');
+            }
+
+            $blockMaxCode = ($blockDescriptor >> 4) & 0x07;
+            if (!isset(self::BLOCK_MAX_SIZES[$blockMaxCode])) {
+                throw new \RuntimeException('Unsupported LZ4 maximum block size code');
+            }
+            $blockMaxSize = self::BLOCK_MAX_SIZES[$blockMaxCode];
+
+            $contentSize = null;
+            if (($flags & self::FLAG_CONTENT_SIZE) !== 0) {
+                self::assertRange($bytes, $cursor, 8, 'content size');
+                $contentSize = self::readUInt64($bytes, $cursor);
+                $cursor += 8;
+            }
+
+            $dictionaryId = null;
+            if (($flags & self::FLAG_DICTIONARY_ID) !== 0) {
+                self::assertRange($bytes, $cursor, 4, 'dictionary id');
+                $dictionaryId = self::readUInt32($bytes, $cursor);
+                $cursor += 4;
+            }
+
+            $descriptor = substr($bytes, $descriptorStart, $cursor - $descriptorStart);
+            self::assertRange($bytes, $cursor, 1, 'frame descriptor checksum');
+            $headerChecksum = ord($bytes[$cursor]);
+            $expectedHeaderChecksum = (self::xxh32($descriptor) >> 8) & 0xff;
+            if ($headerChecksum !== $expectedHeaderChecksum) {
+                throw new \RuntimeException('LZ4 frame header checksum does not match descriptor bytes');
+            }
+            $cursor++;
+
+            $blockChecksum = ($flags & self::FLAG_BLOCK_CHECKSUM) !== 0;
+            $blockCount = 0;
+            $blockTypes = [];
+            $compressedSize = 0;
+            while (true) {
+                self::assertRange($bytes, $cursor, 4, 'block size');
+                $blockSizeField = self::readUInt32($bytes, $cursor);
+                $cursor += 4;
+                if ($blockSizeField === 0) {
+                    break;
+                }
+
+                $uncompressedBlock = ($blockSizeField & self::BLOCK_UNCOMPRESSED_FLAG) !== 0;
+                $blockSize = $blockSizeField & self::BLOCK_SIZE_MASK;
+                if ($blockSize <= 0 || $blockSize > $blockMaxSize) {
+                    throw new \RuntimeException('LZ4 block size exceeds the configured frame maximum');
+                }
+
+                self::assertRange($bytes, $cursor, $blockSize, 'block payload');
+                $cursor += $blockSize;
+                $compressedSize += $blockSize;
+
+                if ($blockChecksum) {
+                    self::assertRange($bytes, $cursor, 4, 'block checksum');
+                    $cursor += 4;
+                }
+
+                $blockTypes[] = $uncompressedBlock ? 'uncompressed' : 'compressed';
+                $blockCount++;
+            }
+
+            $contentChecksum = ($flags & self::FLAG_CONTENT_CHECKSUM) !== 0;
+            if ($contentChecksum) {
+                self::assertRange($bytes, $cursor, 4, 'content checksum');
+                $cursor += 4;
+            }
+
+            $hasDictionary = $dictionaryId !== null;
+            if ($hasDictionary) {
+                $dictionaryFrameCount++;
+            }
+            $dataFrameCount++;
+
+            $frames[] = [
+                'type' => 'frame',
+                'dictionaryId' => $dictionaryId,
+                'contentSize' => $contentSize,
+                'blockMaxSize' => $blockMaxSize,
+                'blockIndependent' => ($flags & self::FLAG_BLOCK_INDEPENDENCE) !== 0,
+                'blockChecksum' => $blockChecksum,
+                'contentChecksum' => $contentChecksum,
+                'blockCount' => $blockCount,
+                'blockTypes' => $blockTypes,
+                'compressedSize' => $compressedSize,
+                'frameOffset' => $frameStart,
+                'frameSize' => $cursor - $frameStart,
+                'policy' => $hasDictionary ? 'blocked' : 'decodable-without-dictionary',
+                'diagnostics' => $hasDictionary
+                    ? ['lz4-dictionary-frame-not-decoded', 'lz4-external-dictionary-required']
+                    : [],
+            ];
+        }
+
+        return [
+            'frameCount' => count($frames),
+            'dataFrameCount' => $dataFrameCount,
+            'skippableFrameCount' => $skippableFrameCount,
+            'dictionaryFrameCount' => $dictionaryFrameCount,
+            'extractionPolicy' => $dictionaryFrameCount === 0 ? 'no-dictionary-frames' : 'dictionary-frames-blocked',
+            'frames' => $frames,
+        ];
+    }
+
+    /**
      * @return list<array{
      *     type:string,
      *     data:string,

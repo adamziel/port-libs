@@ -2780,6 +2780,64 @@ return [
         $t->true(strlen($lz4) < strlen($reviewPacket));
     },
 
+    'preflights dictionary backed lz4 frames without exposing package bytes' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
+        $dictionaryId = 0x1a2b3c4d;
+        $dictionaryPayload = 'packet/word/document.xml needs an external LZ4 dictionary';
+        $descriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
+            . chr(0x40)
+            . pack('V2', strlen($dictionaryPayload), 0)
+            . pack('V', $dictionaryId);
+        $dictionaryFrame = pack('V', 0x184d2204)
+            . $descriptor
+            . $lz4HeaderChecksum($descriptor)
+            . pack('V', 0x80000000 | strlen($dictionaryPayload))
+            . $dictionaryPayload
+            . pack('V', 0)
+            . pack('V', intval(hash('xxh32', $dictionaryPayload), 16));
+        $skippable = Lz4Frame::skippableFrame('dictionary-id:0x1a2b3c4d', 11);
+        $stream = $skippable . $dictionaryFrame;
+        $cleanPolicy = Lz4Frame::dictionaryPolicyPreflight(Lz4Frame::build('plain review packet'));
+
+        $policy = Lz4Frame::dictionaryPolicyPreflight($stream);
+        $inspection = ArchiveCompressionStream::inspectLz4DictionaryPolicy($stream);
+
+        $t->same('no-dictionary-frames', $cleanPolicy['extractionPolicy']);
+        $t->same(0, $cleanPolicy['dictionaryFrameCount']);
+        $t->same('dictionary-frames-blocked', $policy['extractionPolicy']);
+        $t->same(2, $policy['frameCount']);
+        $t->same(1, $policy['dataFrameCount']);
+        $t->same(1, $policy['skippableFrameCount']);
+        $t->same(1, $policy['dictionaryFrameCount']);
+        $t->same('skippable', $policy['frames'][0]['type']);
+        $t->same(11, $policy['frames'][0]['id']);
+        $t->same('dictionary-id:0x1a2b3c4d', $policy['frames'][0]['data']);
+        $t->same('metadata', $policy['frames'][0]['policy']);
+        $t->same('frame', $policy['frames'][1]['type']);
+        $t->same($dictionaryId, $policy['frames'][1]['dictionaryId']);
+        $t->same(strlen($dictionaryPayload), $policy['frames'][1]['contentSize']);
+        $t->same(65536, $policy['frames'][1]['blockMaxSize']);
+        $t->same(true, $policy['frames'][1]['blockIndependent']);
+        $t->same(false, $policy['frames'][1]['blockChecksum']);
+        $t->same(true, $policy['frames'][1]['contentChecksum']);
+        $t->same(1, $policy['frames'][1]['blockCount']);
+        $t->same(['uncompressed'], $policy['frames'][1]['blockTypes']);
+        $t->same(strlen($dictionaryPayload), $policy['frames'][1]['compressedSize']);
+        $t->same(strlen($skippable), $policy['frames'][1]['frameOffset']);
+        $t->same('blocked', $policy['frames'][1]['policy']);
+        $t->same(['lz4-dictionary-frame-not-decoded', 'lz4-external-dictionary-required'], $policy['frames'][1]['diagnostics']);
+        $t->same('lz4', $inspection['format']);
+        $t->same('lz4-dictionary-policy', $inspection['type']);
+        $t->same(strlen($stream), $inspection['compressedSize']);
+        $t->same(1, $inspection['dictionaryFrameCount']);
+        $t->same('dictionary-frames-blocked', $inspection['extractionPolicy']);
+        $t->same($policy['frames'], $inspection['stream']['frames']);
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($stream));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeTarBytes(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR
+        ));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

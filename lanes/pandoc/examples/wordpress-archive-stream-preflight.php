@@ -6,6 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\ArchiveCompressionStream;
 use PortLibs\Pandoc\GzipStream;
+use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
 use PortLibs\Pandoc\ZipPackage;
@@ -94,6 +95,7 @@ $rewriteTarHeaderWithSignedChecksum = static function (string $archive): string 
 };
 
 $tarOctalField = static fn (int $value): string => str_pad(decoct($value), 7, '0', STR_PAD_LEFT) . "\0";
+$lz4HeaderChecksum = static fn (string $descriptor): string => chr((intval(hash('xxh32', $descriptor), 16) >> 8) & 0xff);
 
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
@@ -107,6 +109,7 @@ $sparsePolicyPaxPayload = 'schily sparse payload fragment';
 $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
 $charsetContentBytes = "# PAX charset source packet\n\nReady for WordPress archive charset review.\n";
 $duplicatePaxContentBytes = "# Duplicate PAX source packet\n\nReady for WordPress archive duplicate-key review.\n";
+$lz4DictionaryPayload = 'packet/word/document.xml needs an external LZ4 dictionary';
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 
@@ -373,6 +376,26 @@ try {
 } catch (RuntimeException) {
     $duplicatePaxExtractionBlocked = true;
 }
+$lz4DictionaryId = 0x1a2b3c4d;
+$lz4DictionaryDescriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
+    . chr(0x40)
+    . pack('V2', strlen($lz4DictionaryPayload), 0)
+    . pack('V', $lz4DictionaryId);
+$lz4DictionaryFrame = pack('V', 0x184d2204)
+    . $lz4DictionaryDescriptor
+    . $lz4HeaderChecksum($lz4DictionaryDescriptor)
+    . pack('V', 0x80000000 | strlen($lz4DictionaryPayload))
+    . $lz4DictionaryPayload
+    . pack('V', 0)
+    . pack('V', intval(hash('xxh32', $lz4DictionaryPayload), 16));
+$lz4DictionaryStream = Lz4Frame::skippableFrame('dictionary-id:0x1a2b3c4d', 11) . $lz4DictionaryFrame;
+$lz4DictionaryInspection = ArchiveCompressionStream::inspectLz4DictionaryPolicy($lz4DictionaryStream);
+$lz4DictionaryExtractionBlocked = false;
+try {
+    Lz4Frame::decode($lz4DictionaryStream);
+} catch (RuntimeException) {
+    $lz4DictionaryExtractionBlocked = true;
+}
 $nestedZipPackage = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -491,6 +514,13 @@ if (in_array('--self-test', $argv, true)) {
         'duplicatePaxEntryCount' => 1,
         'duplicatePaxKeyword' => 'org.wordpress.import.review',
         'duplicatePaxValues' => ['first review state', 'second review state'],
+        'lz4DictionaryFormat' => 'lz4',
+        'lz4DictionaryPolicyType' => 'lz4-dictionary-policy',
+        'lz4DictionaryExtractionPolicy' => 'dictionary-frames-blocked',
+        'lz4DictionaryFrameCount' => 2,
+        'lz4DictionaryId' => $lz4DictionaryId,
+        'lz4DictionaryBlockCount' => 1,
+        'lz4DictionaryPayloadSize' => strlen($lz4DictionaryPayload),
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'nestedCandidateCount' => 4,
@@ -595,6 +625,18 @@ if (in_array('--self-test', $argv, true)) {
         || ($duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] ?? null) !== $expected['duplicatePaxKeyword']
         || ($duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values'] ?? []) !== $expected['duplicatePaxValues']
         || ($duplicatePaxInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-duplicate-pax.tar'
+        || $lz4DictionaryInspection['format'] !== $expected['lz4DictionaryFormat']
+        || $lz4DictionaryInspection['type'] !== $expected['lz4DictionaryPolicyType']
+        || $lz4DictionaryInspection['extractionPolicy'] !== $expected['lz4DictionaryExtractionPolicy']
+        || $lz4DictionaryInspection['frameCount'] !== $expected['lz4DictionaryFrameCount']
+        || $lz4DictionaryInspection['dictionaryFrameCount'] !== 1
+        || !$lz4DictionaryExtractionBlocked
+        || ($lz4DictionaryInspection['stream']['frames'][0]['data'] ?? null) !== 'dictionary-id:0x1a2b3c4d'
+        || ($lz4DictionaryInspection['stream']['frames'][1]['dictionaryId'] ?? null) !== $expected['lz4DictionaryId']
+        || ($lz4DictionaryInspection['stream']['frames'][1]['blockCount'] ?? null) !== $expected['lz4DictionaryBlockCount']
+        || ($lz4DictionaryInspection['stream']['frames'][1]['contentSize'] ?? null) !== $expected['lz4DictionaryPayloadSize']
+        || ($lz4DictionaryInspection['stream']['frames'][1]['policy'] ?? null) !== 'blocked'
+        || ($lz4DictionaryInspection['stream']['frames'][1]['diagnostics'] ?? []) !== ['lz4-dictionary-frame-not-decoded', 'lz4-external-dictionary-required']
         || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
@@ -680,6 +722,12 @@ echo 'duplicatePax.duplicateEntryCount=' . $duplicatePaxInspection['duplicatePax
 echo 'duplicatePax.keyword=' . $duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] . "\n";
 echo 'duplicatePax.values=' . implode('|', $duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values']) . "\n";
 echo 'duplicatePax.extractionBlocked=' . ($duplicatePaxExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'lz4Dictionary.format=' . $lz4DictionaryInspection['format'] . "\n";
+echo 'lz4Dictionary.extractionPolicy=' . $lz4DictionaryInspection['extractionPolicy'] . "\n";
+echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionaryFrameCount'] . "\n";
+echo 'lz4Dictionary.dictionaryId=' . $lz4DictionaryInspection['stream']['frames'][1]['dictionaryId'] . "\n";
+echo 'lz4Dictionary.payloadSize=' . $lz4DictionaryInspection['stream']['frames'][1]['contentSize'] . "\n";
+echo 'lz4Dictionary.extractionBlocked=' . ($lz4DictionaryExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
 echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";

@@ -219,6 +219,36 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     format:string,
+     *     type:string,
+     *     compressedSize:int,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     dictionaryFrameCount:int,
+     *     extractionPolicy:string,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectLz4DictionaryPolicy(string $bytes): array
+    {
+        $policy = Lz4Frame::dictionaryPolicyPreflight($bytes);
+
+        return [
+            'format' => 'lz4',
+            'type' => 'lz4-dictionary-policy',
+            'compressedSize' => strlen($bytes),
+            'frameCount' => $policy['frameCount'],
+            'dataFrameCount' => $policy['dataFrameCount'],
+            'skippableFrameCount' => $policy['skippableFrameCount'],
+            'dictionaryFrameCount' => $policy['dictionaryFrameCount'],
+            'extractionPolicy' => $policy['extractionPolicy'],
+            'stream' => $policy,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
      *     tarBytes:string,
      *     archive:TarArchive,
      *     entryNames:list<string>,
