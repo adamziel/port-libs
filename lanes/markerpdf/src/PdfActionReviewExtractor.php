@@ -3164,7 +3164,7 @@ final class PdfActionReviewExtractor
             return in_array(strtolower(rtrim($match[0], ':')), ['http', 'https', 'mailto', 'ftp'], true);
         }
 
-        return str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/') || str_starts_with($trimmed, './') || str_starts_with($trimmed, '../');
+        return !str_contains($trimmed, '\\');
     }
 
     /**
