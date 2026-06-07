@@ -223,6 +223,35 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $nestedDefaultPartialFallback = (new DocTemplate())->renderResource('packets/review.html', [
+        'packets/review.html' => <<<'HTML'
+<article class="nested-default-partial">
+<style>
+${ components/styles.html() }
+</style>
+<section>${ fragments/default.plain() }</section>
+</article>
+HTML,
+    ], [
+        'document-css' => true,
+        'mainfont' => 'Atkinson Hyperlegible',
+        'csl-css' => true,
+        'csl-entry-spacing' => '0.75em',
+        'body' => 'Nested default partial body',
+    ], null, 'html');
+    foreach ([
+        '/* Default styles provided by pandoc.',
+        'font-family: Atkinson Hyperlegible;',
+        '/* CSS for citations */',
+        'margin-bottom: 0.75em;',
+        '<section>Nested default partial body</section>',
+    ] as $needle) {
+        if (!str_contains($nestedDefaultPartialFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate nested default partial fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $defaultFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'lang' => 'en',
         'dir' => 'ltr',

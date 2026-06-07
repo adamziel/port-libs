@@ -11,6 +11,7 @@ final class DocTemplate
     private const MAX_FILESYSTEM_RESOURCE_FILES = 512;
     private const MAX_FILESYSTEM_RESOURCE_BYTES = 1048576;
     private const MAX_FILESYSTEM_RESOURCE_TOTAL_BYTES = 4194304;
+    private const DEFAULT_PARTIAL_FALLBACK_SENTINEL = "\0default-partial-fallback";
 
     /**
      * @param array<string, mixed> $context
@@ -1631,6 +1632,7 @@ CSS;
                 }
             }
         }
+        $sources[self::DEFAULT_PARTIAL_FALLBACK_SENTINEL] = '1';
 
         return [
             'partials' => $partials,
@@ -2558,7 +2560,23 @@ CSS;
     private function renderPartial(string $name, array $context, array $partials, array $partialSources, array $partialStack, bool $preserveBreakableSpaces): string
     {
         if (!array_key_exists($name, $partials) || !is_string($partials[$name])) {
-            throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
+            $fallback = $this->defaultPartialFallbackFor($name, $partialSources);
+            if ($fallback === null) {
+                throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
+            }
+
+            [$source, $sourceName] = $fallback;
+            $rendered = $this->renderTemplate(
+                $source,
+                $context,
+                $partials,
+                $partialSources,
+                [...$partialStack, $name],
+                $preserveBreakableSpaces,
+                $sourceName,
+            );
+
+            return $this->stripIncludedPartialFinalNewline($rendered);
         }
 
         if (count($partialStack) >= self::MAX_PARTIAL_DEPTH) {
@@ -2576,6 +2594,25 @@ CSS;
         );
 
         return $this->stripIncludedPartialFinalNewline($rendered);
+    }
+
+    /**
+     * @param array<string, string> $partialSources
+     * @return array{0:string, 1:string}|null
+     */
+    private function defaultPartialFallbackFor(string $name, array $partialSources): ?array
+    {
+        if (!array_key_exists(self::DEFAULT_PARTIAL_FALLBACK_SENTINEL, $partialSources)) {
+            return null;
+        }
+
+        $basename = $this->templateResourceBasename(str_replace('\\', '/', $name));
+        $source = $this->defaultTemplateResourceForBasename($basename);
+        if ($source === null) {
+            return null;
+        }
+
+        return [$source, 'templates/' . $basename];
     }
 
     private function stripIncludedPartialFinalNewline(string $value): string

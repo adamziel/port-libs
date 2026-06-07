@@ -1932,6 +1932,41 @@ HTML,
         $t->same('/* custom local style */', $custom);
     },
 
+    'renders pandoc default partial fallbacks by basename for nested resource paths' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $html = $renderer->renderResource('templates/review.html', [
+            'templates/review.html' => <<<'HTML'
+<article>
+<style>
+${ components/styles.html() }
+</style>
+<section>${ fragments/default.plain() }</section>
+</article>
+HTML,
+        ], [
+            'document-css' => true,
+            'mainfont' => 'Atkinson Hyperlegible',
+            'csl-css' => true,
+            'csl-entry-spacing' => '0.75em',
+            'body' => 'Plain fallback body',
+        ]);
+
+        $t->contains('/* Default styles provided by pandoc.', $html);
+        $t->contains('font-family: Atkinson Hyperlegible;', $html);
+        $t->contains('/* CSS for citations */', $html);
+        $t->contains('margin-bottom: 0.75em;', $html);
+        $t->contains('<section>Plain fallback body</section>', $html);
+
+        $custom = $renderer->renderResource('templates/review.html', [
+            'templates/review.html' => '${ components/styles.html() }',
+            'templates/components/styles.html' => '/* custom component style */',
+        ], []);
+
+        $t->same('/* custom component style */', $custom);
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ components/styles.html() }', []));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'
