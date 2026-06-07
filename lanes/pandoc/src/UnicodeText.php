@@ -525,6 +525,95 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const WINDOWS_1256_REPLACEMENTS = [
+        0x80 => 0x20ac,
+        0x81 => 0x067e,
+        0x82 => 0x201a,
+        0x83 => 0x0192,
+        0x84 => 0x201e,
+        0x85 => 0x2026,
+        0x86 => 0x2020,
+        0x87 => 0x2021,
+        0x88 => 0x02c6,
+        0x89 => 0x2030,
+        0x8a => 0x0679,
+        0x8b => 0x2039,
+        0x8c => 0x0152,
+        0x8d => 0x0686,
+        0x8e => 0x0698,
+        0x8f => 0x0688,
+        0x90 => 0x06af,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+        0x98 => 0x06a9,
+        0x99 => 0x2122,
+        0x9a => 0x0691,
+        0x9b => 0x203a,
+        0x9c => 0x0153,
+        0x9d => 0x200c,
+        0x9e => 0x200d,
+        0x9f => 0x06ba,
+        0xa1 => 0x060c,
+        0xaa => 0x06be,
+        0xba => 0x061b,
+        0xbf => 0x061f,
+        0xc0 => 0x06c1,
+        0xc1 => 0x0621,
+        0xc2 => 0x0622,
+        0xc3 => 0x0623,
+        0xc4 => 0x0624,
+        0xc5 => 0x0625,
+        0xc6 => 0x0626,
+        0xc7 => 0x0627,
+        0xc8 => 0x0628,
+        0xc9 => 0x0629,
+        0xca => 0x062a,
+        0xcb => 0x062b,
+        0xcc => 0x062c,
+        0xcd => 0x062d,
+        0xce => 0x062e,
+        0xcf => 0x062f,
+        0xd0 => 0x0630,
+        0xd1 => 0x0631,
+        0xd2 => 0x0632,
+        0xd3 => 0x0633,
+        0xd4 => 0x0634,
+        0xd5 => 0x0635,
+        0xd6 => 0x0636,
+        0xd8 => 0x0637,
+        0xd9 => 0x0638,
+        0xda => 0x0639,
+        0xdb => 0x063a,
+        0xdc => 0x0640,
+        0xdd => 0x0641,
+        0xde => 0x0642,
+        0xdf => 0x0643,
+        0xe1 => 0x0644,
+        0xe3 => 0x0645,
+        0xe4 => 0x0646,
+        0xe5 => 0x0647,
+        0xe6 => 0x0648,
+        0xec => 0x0649,
+        0xed => 0x064a,
+        0xf0 => 0x064b,
+        0xf1 => 0x064c,
+        0xf2 => 0x064d,
+        0xf3 => 0x064e,
+        0xf5 => 0x064f,
+        0xf6 => 0x0650,
+        0xf8 => 0x0651,
+        0xfa => 0x0652,
+        0xfd => 0x200e,
+        0xfe => 0x200f,
+        0xff => 0x06d2,
+    ];
+
+    /** @var array<int, int> */
     private const KOI8_R_REPLACEMENTS = [
         0x80 => 0x2500,
         0x81 => 0x2502,
@@ -1628,6 +1717,7 @@ final class UnicodeText
             || $normalized === 'windows-1253'
             || $normalized === 'windows-1254'
             || $normalized === 'windows-1255'
+            || $normalized === 'windows-1256'
             || $normalized === 'koi8-r'
             || $normalized === 'koi8-u'
             || $normalized === 'iso-8859-1'
@@ -2119,6 +2209,7 @@ final class UnicodeText
             'windows1253', 'cp1253', 'microsoftcp1253', 'ms1253', 'xcp1253' => 'windows-1253',
             'windows1254', 'cp1254', 'microsoftcp1254', 'ms1254', 'xcp1254' => 'windows-1254',
             'windows1255', 'cp1255', 'microsoftcp1255', 'ms1255', 'xcp1255' => 'windows-1255',
+            'windows1256', 'cp1256', 'microsoftcp1256', 'ms1256', 'xcp1256' => 'windows-1256',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'koi8u', 'cskoi8u' => 'koi8-u',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
@@ -2578,6 +2669,10 @@ final class UnicodeText
                 }
 
                 $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($encoding === 'windows-1256' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::WINDOWS_1256_REPLACEMENTS[$byte] ?? $byte);
                 continue;
             }
             if (($encoding === 'koi8-r' || $encoding === 'koi8-u') && $byte >= 0x80) {

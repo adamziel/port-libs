@@ -65,6 +65,9 @@ $iso88595Text = (string) $iso88595Source->children[1]->attr('text');
 $iso88596Bytes = "# \xC7\xE4\xD9\xD1\xC8\xEA\xC9\n\n\xE5\xCD\xD1\xD1 \xD9\xD1\xC8\xEA\xC9\xAC \xD3\xC4\xC7\xE4\xBB \xE7\xE4\xBF";
 $iso88596Source = (new MarkdownReader())->readBytes($iso88596Bytes, 'iso-ir-127');
 $iso88596Text = (string) $iso88596Source->children[1]->attr('text');
+$windows1256Bytes = "# \xC7\xE1\xDA\xD1\xC8\xED\xC9\n\n\xE3\xCD\xD1\xD1 \x93\xDA\xD1\xC8\xED\xC9\x94 \x97 \x8020; \xDD\xC7\xD1\xD3\xED: \x81\x8D\x8E\x90 \x98\xBA \xC7\xD1\xCF\xE6: \x9A\x9F\xFF.";
+$windows1256Source = (new MarkdownReader())->readBytes($windows1256Bytes, 'cp1256');
+$windows1256Text = (string) $windows1256Source->children[1]->attr('text');
 $iso88597Bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
 $iso88597Source = (new MarkdownReader())->readBytes($iso88597Bytes, 'iso-ir-126');
 $iso88597Text = (string) $iso88597Source->children[1]->attr('text');
@@ -439,6 +442,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88596Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88596Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-1256 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows1256Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1256Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1256Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-8859-7 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso88597Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88597Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88597Text) . '/' . UnicodeText::displayWidth($iso88597Text, 'wide')])]),
@@ -735,6 +743,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>ISO-8859-6 source</td><td>محرر عربية، سؤال؛ هل؟</td><td>iso-8859-6:21</td>')) {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-6 Arabic decode audit row');
+    }
+    if (($windows1256Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-1256') {
+        throw new RuntimeException('charset handoff self-test missing Windows-1256 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Windows-1256 source</td><td>محرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.</td><td>windows-1256:45</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Windows-1256 Arabic decode audit row');
     }
     if (($iso88597Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-7') {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-7 source encoding');

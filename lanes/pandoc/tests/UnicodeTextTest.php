@@ -368,6 +368,26 @@ return [
         $t->contains('<h1 id="العربية">العربية</h1>', $blocks);
         $t->contains('<p>محرر عربية، سؤال؛ هل؟</p>', $blocks);
     },
+    'decodes windows 1256 arabic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xC7\xE1\xDA\xD1\xC8\xED\xC9\n\n\xE3\xCD\xD1\xD1 \x93\xDA\xD1\xC8\xED\xC9\x94 \x97 \x8020; \xDD\xC7\xD1\xD3\xED: \x81\x8D\x8E\x90 \x98\xBA \xC7\xD1\xCF\xE6: \x9A\x9F\xFF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp1256');
+        $document = (new MarkdownReader())->readBytes($bytes, 'microsoft-cp1256');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x81\x8A\x8D\x8E\x8F\x90\x98\x9A\x9D\x9E\x9F\xAA\xBA\xBF\xC0\xF0\xF1\xF2\xF3\xF5\xF6\xF8\xFA\xFD\xFE\xFF", 'windows-1256');
+
+        $t->same('windows-1256', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# العربية\n\nمحرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.", $decoded['text']);
+        $t->same("پٹچژڈگکڑ\u{200C}\u{200D}ںھ؛؟ہًٌٍَُِّْ\u{200E}\u{200F}ے", $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same(14, UnicodeText::displayWidth($specials['text']));
+        $t->same(['encoding' => 'windows-1256', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('العربية', $document->children[0]->attr('text'));
+        $t->same('محرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.', $document->children[1]->attr('text'));
+        $t->same(45, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="العربية">العربية</h1>', $blocks);
+        $t->contains('<p>محرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.</p>', $blocks);
+    },
     'decodes iso 8859 7 greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC5\xEB\xEB\xE7\xED\xE9\xEA\xDC\n\n\xD3\xF5\xED\xF4\xDC\xEA\xF4\xE7\xF2 \xAB\xEA\xE5\xDF\xEC\xE5\xED\xEF\xBB \xAF \xA420; \xD4\xFC\xED\xEF\xF2 \xEA\xE1\xE9 \xEF\xF2.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-126');
