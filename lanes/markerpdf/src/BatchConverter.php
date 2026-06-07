@@ -459,6 +459,7 @@ final class BatchConverter
                 'repeated_options' => $repeatedOptions,
                 'repeated_option_counts' => $repeatedOptionCounts,
                 'last_occurrence_wins' => $repeatedOptions !== [],
+                'argfile_boundary' => $this->runtimeMainArgparseAtFileBoundary($tokens),
             ],
             'semantic_boundaries' => [
                 'input_folder_exists_checked_by_argparse' => false,
@@ -472,6 +473,10 @@ final class BatchConverter
                 'metadata_file_truthy_for_json_load' => $metadataFileTruthy,
                 'empty_metadata_file_skips_json_load' => $options['metadata_file'] === '',
                 'repeated_options_last_occurrence_wins' => $repeatedOptions !== [],
+                'fromfile_prefix_chars_configured' => false,
+                'at_file_tokens_expand_before_parse' => false,
+                'at_prefixed_tokens_seen' => $this->runtimeMainArgparseAtFileTokens($tokens) !== [],
+                'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeMainArgparseAtFileTokens($tokens) !== [],
             ],
             'blocked_by' => null,
             'blocked_stages' => [],
@@ -3806,6 +3811,11 @@ final class BatchConverter
                 'filesystem_touched_before_error' => false,
                 'metadata_file_read_before_error' => false,
                 'model_handoff_reached_before_error' => false,
+                'fromfile_prefix_chars_configured' => false,
+                'at_file_tokens_expand_before_parse' => false,
+                'at_prefixed_tokens_seen' => $this->runtimeMainArgparseAtFileTokens($argv) !== [],
+                'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeMainArgparseAtFileTokens($argv) !== [],
+                'argfile_boundary' => $this->runtimeMainArgparseAtFileBoundary($argv),
             ],
             'blocked_by' => 'parse_args',
             'blocked_stages' => $this->runtimeMainArgparseBlockedStages(),
@@ -3880,6 +3890,9 @@ final class BatchConverter
                 '--min_length' => ['type' => 'int', 'default' => null, 'dest' => 'min_length'],
             ],
             'allow_abbrev' => true,
+            'fromfile_prefix_chars' => null,
+            'expands_response_files' => false,
+            'at_file_tokens_are_literals' => true,
             'error_exit_code' => 2,
         ];
     }
@@ -3923,6 +3936,43 @@ final class BatchConverter
         }
 
         return $tokens;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function runtimeMainArgparseAtFileTokens(array $tokens): array
+    {
+        return array_values(array_filter(
+            $tokens,
+            static fn (string $token): bool => str_starts_with($token, '@')
+        ));
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array<string, mixed>
+     */
+    private function runtimeMainArgparseAtFileBoundary(array $tokens): array
+    {
+        $atFileTokens = $this->runtimeMainArgparseAtFileTokens($tokens);
+
+        return [
+            'source' => 'convert.py argparse.ArgumentParser response-file boundary',
+            'argument_parser_call' => 'argparse.ArgumentParser(description="Convert multiple pdfs to markdown.")',
+            'fromfile_prefix_chars' => null,
+            'response_file_expansion_enabled' => false,
+            'at_prefixed_tokens' => $atFileTokens,
+            'at_prefixed_token_count' => count($atFileTokens),
+            'tokens_remain_in_argv' => true,
+            'reads_at_files_before_parse_args' => false,
+            'filesystem_touched_before_error' => false,
+            'blocks_runtime_preflight' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
     }
 
     private function runtimeMainArgparseIntegerValue(string $value): ?int

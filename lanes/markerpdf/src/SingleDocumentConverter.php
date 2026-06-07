@@ -181,6 +181,7 @@ final class SingleDocumentConverter
                 ],
                 'options' => $options,
                 'defaults_applied' => $defaultsApplied,
+                'argfile_boundary' => $this->runtimeArgumentAtFileBoundary($tokens),
             ],
             'language_parse' => [
                 'source' => 'args.langs.split(",") if args.langs else None',
@@ -201,6 +202,10 @@ final class SingleDocumentConverter
                 'negative_start_page_allowed_by_argparse' => $options['start_page'] !== null && $options['start_page'] < 0,
                 'batch_multiplier_less_than_one_deferred_to_convert_single_pdf' => $options['batch_multiplier'] < 1,
                 'empty_langs_string_deferred_to_none' => $langsArgument === '',
+                'fromfile_prefix_chars_configured' => false,
+                'at_file_tokens_expand_before_parse' => false,
+                'at_prefixed_tokens_seen' => $this->runtimeArgumentAtFileTokens($tokens) !== [],
+                'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeArgumentAtFileTokens($tokens) !== [],
             ],
             'blocked_by' => null,
             'blocked_stages' => [],
@@ -455,6 +460,11 @@ final class SingleDocumentConverter
                 'output_folder_exists_checked_by_argparse' => false,
                 'filesystem_touched_before_error' => false,
                 'model_handoff_reached_before_error' => false,
+                'fromfile_prefix_chars_configured' => false,
+                'at_file_tokens_expand_before_parse' => false,
+                'at_prefixed_tokens_seen' => $this->runtimeArgumentAtFileTokens($argv) !== [],
+                'at_prefixed_tokens_are_literal_cli_values' => $this->runtimeArgumentAtFileTokens($argv) !== [],
+                'argfile_boundary' => $this->runtimeArgumentAtFileBoundary($argv),
             ],
             'blocked_by' => 'parse_args',
             'blocked_stages' => $this->runtimeArgumentBlockedStages(),
@@ -527,6 +537,9 @@ final class SingleDocumentConverter
                 '--batch_multiplier' => ['type' => 'int', 'default' => 2, 'dest' => 'batch_multiplier'],
             ],
             'allow_abbrev' => true,
+            'fromfile_prefix_chars' => null,
+            'expands_response_files' => false,
+            'at_file_tokens_are_literals' => true,
             'error_exit_code' => 2,
         ];
     }
@@ -566,6 +579,45 @@ final class SingleDocumentConverter
         }
 
         return $tokens;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function runtimeArgumentAtFileTokens(array $tokens): array
+    {
+        return array_values(array_filter(
+            $tokens,
+            static fn (string $token): bool => str_starts_with($token, '@')
+        ));
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array<string, mixed>
+     */
+    private function runtimeArgumentAtFileBoundary(array $tokens): array
+    {
+        $atFileTokens = $this->runtimeArgumentAtFileTokens($tokens);
+
+        return [
+            'source' => 'convert_single.py argparse.ArgumentParser response-file boundary',
+            'argument_parser_call' => 'argparse.ArgumentParser()',
+            'fromfile_prefix_chars' => null,
+            'response_file_expansion_enabled' => false,
+            'at_prefixed_tokens' => $atFileTokens,
+            'at_prefixed_token_count' => count($atFileTokens),
+            'tokens_remain_in_argv' => true,
+            'reads_at_files_before_parse_args' => false,
+            'filesystem_touched_before_error' => false,
+            'blocks_model_load' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_streamlit' => false,
+            'executes_fastapi' => false,
+            'executes_external_pdf_tools' => false,
+        ];
     }
 
     private function runtimeArgumentIntegerValue(string $value): ?int
