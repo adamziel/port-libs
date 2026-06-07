@@ -17,6 +17,13 @@ final class PdfMetadataExtractor
      */
     private array $currentObjectReferenceOwners = [];
 
+    /**
+     * @var array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>>
+     */
+    private array $currentDirectObjectDefinitions = [];
+
+    private bool $currentObjectSelectionHasXref = false;
+
     private const VIEWER_PREFERENCE_NAME_VALUES = [
         'NonFullScreenPageMode' => ['key' => 'non_full_screen_page_mode', 'allowed' => ['UseNone', 'UseOutlines', 'UseThumbs', 'UseOC']],
         'Direction' => ['key' => 'direction', 'allowed' => ['L2R', 'R2L']],
@@ -6002,10 +6009,10 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @param array{body: string, object: int|null} $node
+     * @param array{body: string, object: int|null, generation?: int} $node
      * @param array<int, string> $objects
      * @param list<array{name: string, value: string, source: string}> $entries
-     * @param array<int, true> $seenObjects
+     * @param array<string, true> $seenObjects
      * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      */
     private function collectDestinationNameTreeEntries(
@@ -6023,10 +6030,12 @@ final class PdfMetadataExtractor
 
         $objectNumber = $node['object'];
         if ($objectNumber !== null) {
-            if (isset($seenObjects[$objectNumber])) {
+            $generation = $node['generation'] ?? -1;
+            $seenKey = $objectNumber . ':' . $generation;
+            if (isset($seenObjects[$seenKey])) {
                 return;
             }
-            $seenObjects[$objectNumber] = true;
+            $seenObjects[$seenKey] = true;
         }
 
         $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
@@ -13087,13 +13096,17 @@ final class PdfMetadataExtractor
     private function pdfObjects(string $pdfBytes): array
     {
         $this->currentObjectReferenceOwners = [];
+        $this->currentDirectObjectDefinitions = [];
+        $this->currentObjectSelectionHasXref = false;
         $definitions = $this->directObjectDefinitions($pdfBytes);
+        $this->currentDirectObjectDefinitions = $definitions;
         if ($definitions === []) {
             return [];
         }
 
         $objects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntriesFromStartxrefChain($pdfBytes, $objects, $definitions);
+        $this->currentObjectSelectionHasXref = $xrefEntries !== [];
         if ($xrefEntries !== []) {
             $objects = $this->liveDirectObjects($definitions, $xrefEntries);
             $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
@@ -18189,7 +18202,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null}|null
+     * @return array{body: string, object: int|null, generation?: int}|null
      */
     private function resolveDictionaryFromValue(?string $value, array $objects): ?array
     {
@@ -18205,7 +18218,11 @@ final class PdfMetadataExtractor
             }
 
             $body = $this->dictionaryObjectBody($objectBody);
-            return $body === null ? null : ['body' => $body, 'object' => $reference['objectNumber']];
+            return $body === null ? null : [
+                'body' => $body,
+                'object' => $reference['objectNumber'],
+                'generation' => $reference['generation'],
+            ];
         }
 
         $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
@@ -18266,7 +18283,20 @@ final class PdfMetadataExtractor
 
         $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
         if ($owner !== null && $objects[$objectNumber] === $owner['body']) {
-            return $owner['generation'] === $generation ? $owner['body'] : null;
+            if ($owner['generation'] === $generation) {
+                return $owner['body'];
+            }
+
+            if (!$this->currentObjectSelectionHasXref) {
+                $definition = $this->directObjectDefinitionForGeneration(
+                    $this->currentDirectObjectDefinitions[$objectNumber] ?? [],
+                    $generation
+                );
+
+                return $definition['body'] ?? null;
+            }
+
+            return null;
         }
 
         return $objects[$objectNumber];

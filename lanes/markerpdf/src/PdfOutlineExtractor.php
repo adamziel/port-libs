@@ -12,6 +12,13 @@ final class PdfOutlineExtractor
     private array $objectGenerations = [];
 
     /**
+     * @var array<int, array<int, mixed>>
+     */
+    private array $objectValuesByGeneration = [];
+
+    private bool $objectSelectionHasXref = false;
+
+    /**
      * @var array<int, bool>
      */
     private array $objectSingleTopLevelValues = [];
@@ -2088,6 +2095,8 @@ final class PdfOutlineExtractor
         $values = [];
         $selectedBodies = [];
         $this->objectGenerations = [];
+        $this->objectValuesByGeneration = [];
+        $this->objectSelectionHasXref = false;
         $this->objectSingleTopLevelValues = [];
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
@@ -2095,6 +2104,7 @@ final class PdfOutlineExtractor
         }
 
         $xrefEntries = $this->currentXrefEntries($pdfBytes);
+        $this->objectSelectionHasXref = $xrefEntries !== [];
         $candidates = [];
         foreach ($matches as $match) {
             $objectNumber = (int) $match[1][0];
@@ -2106,6 +2116,18 @@ final class PdfOutlineExtractor
         }
 
         foreach ($candidates as $objectNumber => $objectCandidates) {
+            if ($xrefEntries === []) {
+                foreach ($objectCandidates as $objectCandidate) {
+                    $tokens = $this->tokens(trim($objectCandidate['body']));
+                    if ($tokens === []) {
+                        continue;
+                    }
+
+                    $index = 0;
+                    $this->objectValuesByGeneration[$objectNumber][$objectCandidate['generation']] = $this->parseValue($tokens, $index);
+                }
+            }
+
             $candidate = null;
             if ($xrefEntries !== [] && isset($xrefEntries[$objectNumber])) {
                 $entry = $xrefEntries[$objectNumber];
@@ -2137,6 +2159,7 @@ final class PdfOutlineExtractor
 
             $index = 0;
             $values[$objectNumber] = $this->parseValue($tokens, $index);
+            $this->objectValuesByGeneration[$objectNumber][$candidate['generation']] = $values[$objectNumber];
             $this->objectSingleTopLevelValues[$objectNumber] = $index >= count($tokens);
             $selectedBodies[$objectNumber] = trim($candidate['body']);
             $this->objectGenerations[$objectNumber] = $candidate['generation'];
@@ -3347,10 +3370,11 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            if (isset($seen[$objectNumber])) {
+            $seenKey = $objectNumber . ':' . $this->referenceGeneration($kid);
+            if (isset($seen[$seenKey])) {
                 continue;
             }
-            $seen[$objectNumber] = true;
+            $seen[$seenKey] = true;
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
@@ -3407,10 +3431,11 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            if (isset($seen[$objectNumber])) {
+            $seenKey = $objectNumber . ':' . $this->referenceGeneration($kid);
+            if (isset($seen[$seenKey])) {
                 continue;
             }
-            $seen[$objectNumber] = true;
+            $seen[$seenKey] = true;
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
@@ -6155,7 +6180,10 @@ final class PdfOutlineExtractor
             return $value;
         }
 
-        return $this->resolveValue($objects[$objectNumber], $objects, $depth + 1);
+        $generation = $this->referenceGeneration($value);
+        $target = $this->objectValueForReference($objects, $objectNumber, $generation);
+
+        return $target === null ? null : $this->resolveValue($target, $objects, $depth + 1);
     }
 
     /**
@@ -6213,9 +6241,25 @@ final class PdfOutlineExtractor
             return null;
         }
 
-        return ($this->objectGenerations[$objectNumber] ?? 0) === $this->referenceGeneration($value)
-            ? $objectNumber
-            : null;
+        return $this->objectValueForReference($objects, $objectNumber, $this->referenceGeneration($value)) === null
+            ? null
+            : $objectNumber;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function objectValueForReference(array $objects, int $objectNumber, int $generation): mixed
+    {
+        if (($this->objectGenerations[$objectNumber] ?? 0) === $generation) {
+            return $objects[$objectNumber] ?? null;
+        }
+
+        if (!$this->objectSelectionHasXref && array_key_exists($generation, $this->objectValuesByGeneration[$objectNumber] ?? [])) {
+            return $this->objectValuesByGeneration[$objectNumber][$generation];
+        }
+
+        return null;
     }
 
     /**
