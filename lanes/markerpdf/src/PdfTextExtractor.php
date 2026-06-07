@@ -13783,6 +13783,21 @@ final class PdfTextExtractor
                 ];
             }
 
+            foreach ($kidNodes as $nodeIndex => $kidNode) {
+                $kidNodes[$nodeIndex]['entries'] = $this->pageLabelNumberTreeEntries(
+                    $kidNode['dictionary'],
+                    $objects,
+                    $pageCount,
+                    $kidNode['seen'],
+                    $limits
+                );
+            }
+
+            $kidNodes = array_values(array_filter(
+                $kidNodes,
+                static fn (array $kidNode): bool => !($kidNode['local_limits'] === null && $kidNode['entries'] === [])
+            ));
+
             $sortableKidLimits = true;
             foreach ($kidNodes as $kidNode) {
                 if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
@@ -13810,7 +13825,7 @@ final class PdfTextExtractor
                 $kidLimits = $kidNode['limits'];
                 $claimableLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
                 $kidContributed = false;
-                foreach ($this->pageLabelNumberTreeEntries($kidNode['dictionary'], $objects, $pageCount, $kidNode['seen'], $limits) as $pageIndex => $section) {
+                foreach ($kidNode['entries'] as $pageIndex => $section) {
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
                             // Keep accepted singleton endpoint kids, but block ranges that cross a claimed endpoint.

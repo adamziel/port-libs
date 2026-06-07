@@ -1762,6 +1762,20 @@ final class MarkerAppPreview
         }
 
         foreach ($kidNodeGroups as $kidNodes) {
+            foreach ($kidNodes as $nodeIndex => $kidNode) {
+                $kidNodes[$nodeIndex]['sections'] = $this->pageLabelSections(
+                    $kidNode['body'],
+                    $objects,
+                    $kidNode['seen'],
+                    $limits
+                );
+            }
+
+            $kidNodes = array_values(array_filter(
+                $kidNodes,
+                static fn (array $kidNode): bool => !($kidNode['local_limits'] === null && $kidNode['sections'] === [])
+            ));
+
             $sortableKidLimits = true;
             foreach ($kidNodes as $kidNode) {
                 if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
@@ -1794,7 +1808,7 @@ final class MarkerAppPreview
                     $seenPageIndexes[$section['page_index']] = true;
                 }
 
-                foreach ($this->pageLabelSections($kidNode['body'], $objects, $kidNode['seen'], $limits) as $section) {
+                foreach ($kidNode['sections'] as $section) {
                     $pageIndex = $section['page_index'];
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
