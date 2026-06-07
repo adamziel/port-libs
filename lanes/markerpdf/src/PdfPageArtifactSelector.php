@@ -325,7 +325,8 @@ final class PdfPageArtifactSelector
 
         $dictionaryCount = 0;
         $payload = null;
-        foreach ($value as $candidate) {
+        $payloadKey = null;
+        foreach ($value as $key => $candidate) {
             if (!is_array($candidate) || array_is_list($candidate)) {
                 continue;
             }
@@ -337,7 +338,12 @@ final class PdfPageArtifactSelector
                 }
 
                 $payload = $candidate;
+                $payloadKey = self::integerArrayKey($key);
             }
+        }
+
+        if ($payload !== null && $payloadKey !== null && !self::hasPotentialPageMarker($payload)) {
+            $payload[self::ENVELOPE_PAGE_KEY_MARKER] = $payloadKey;
         }
 
         return $dictionaryCount === 1 ? $payload : null;

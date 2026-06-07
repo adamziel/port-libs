@@ -4162,4 +4162,148 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'rejects singleton source-key direct payload when key misses selected pdftext page' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5500, [
+                    ['text' => 'Singleton stale key cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5501, [
+                    ['text' => 'Second singleton key column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First singleton key column has no trusted order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'dictionary_output' => [
+                        '5500' => [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'singleton stale key row payload must stay hidden'],
+                            ],
+                            'raw_payload' => 'singleton stale key order payload must stay hidden',
+                        ],
+                    ],
+                    'raw_payload' => 'singleton stale key wrapper payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                [
+                    'dictionary_output' => [
+                        '5500' => ['image' => 'singleton-stale-key-order-render'],
+                    ],
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(5501, $result['pages'][0]['pnum']);
+        $t->same(['Second singleton key column remains source ordered', 'First singleton key column has no trusted order'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second singleton key column remains source ordered First singleton key column has no trusted order', $blocks[0]['text']);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->true(!str_contains($encoded, '__markerpdf_envelope_page_key_marker'));
+        $t->true(!str_contains($encoded, 'Singleton stale key cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'singleton stale key order payload'));
+        $t->true(!str_contains($encoded, 'singleton stale key row payload'));
+        $t->true(!str_contains($encoded, 'singleton stale key wrapper payload'));
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'rejects singleton keyed layout and order payload mismatches for WordPress imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-singleton-key-mismatch-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% singleton keyed mismatch pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5510, [
+                        ['text' => 'Singleton keyed converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5511, [
+                        ['text' => 'Second converter singleton key column stays source ordered.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter singleton key has no supplied layout.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        [
+                            'pages' => [
+                                '5510' => ['image' => 'singleton-key-stale-layout-render'],
+                            ],
+                        ],
+                    ],
+                    'layout_results' => [[
+                        'pages' => [
+                            '5510' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0], 'raw_payload' => 'singleton stale layout title payload must stay hidden'],
+                                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ],
+                                'raw_payload' => 'singleton stale layout payload must stay hidden',
+                            ],
+                        ],
+                        'raw_payload' => 'singleton stale layout wrapper payload must stay hidden',
+                    ]],
+                    'order_images' => [
+                        [
+                            'dictionary_output' => [
+                                '5510' => ['image' => 'singleton-key-stale-order-render'],
+                            ],
+                        ],
+                    ],
+                    'order_results' => [[
+                        'dictionary_output' => [
+                            '5510' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'singleton stale order row payload must stay hidden'],
+                                ],
+                                'raw_payload' => 'singleton stale order payload must stay hidden',
+                            ],
+                        ],
+                        'raw_payload' => 'singleton stale order wrapper payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same([], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->true(!array_key_exists('layout_plan', $result['metadata']));
+        $t->true(!array_key_exists('order_plan', $result['metadata']));
+        $t->contains('Second converter singleton key column stays source ordered.', $text);
+        $t->contains('First converter singleton key has no supplied layout.', $text);
+        $t->true(strpos($text, 'Second converter singleton key column stays source ordered.') < strpos($text, 'First converter singleton key has no supplied layout.'));
+        $t->true(!str_contains($text, '# First Converter Singleton Key Has No Supplied Layout.'));
+        $t->true(!str_contains($text, 'Singleton keyed converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, '__markerpdf_envelope_page_key_marker'));
+        $t->true(!str_contains($encoded, 'singleton stale layout title payload'));
+        $t->true(!str_contains($encoded, 'singleton stale layout payload'));
+        $t->true(!str_contains($encoded, 'singleton stale layout wrapper payload'));
+        $t->true(!str_contains($encoded, 'singleton stale order row payload'));
+        $t->true(!str_contains($encoded, 'singleton stale order payload'));
+        $t->true(!str_contains($encoded, 'singleton stale order wrapper payload'));
+    },
 ];
