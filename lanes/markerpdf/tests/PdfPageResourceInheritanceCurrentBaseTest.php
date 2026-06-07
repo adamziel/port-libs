@@ -519,6 +519,45 @@ $pageResourceObjectTrailingTokenCurrentBasePdf = static function () use ($pageRe
         . "%%EOF";
 };
 
+$pageResourceEntryTailCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'BT /Ftailed 12 Tf 72 720 Td <41> Tj T* '
+        . '/Fvalid 12 Tf <42> Tj T* '
+        . '/Span /TailedActual BDC <43> Tj EMC T* '
+        . '/Span /ValidActual BDC <44> Tj EMC ET '
+        . 'q /TailedForm Do Q q /ValidForm Do Q';
+    $tailedForm = 'BT /Fvalid 12 Tf 12 24 Td (Tailed resource form leak) Tj ET';
+    $validForm = 'BT /Fvalid 12 Tf 12 24 Td (Valid inherited entry-tail form text) Tj ET';
+    $tailedCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Tailed resource font leak',
+    ]);
+    $validCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '42' => 'Valid inherited entry-tail font text',
+        '43' => 'Property entry-tail glyph text',
+        '44' => 'Valid inherited entry-tail actual glyph',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /TailedEntryFont /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($tailedCMap) . " >>\nstream\n{$tailedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ValidEntryTailFont /Encoding /Identity-H /ToUnicode 8 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($validCMap) . " >>\nstream\n{$validCMap}\nendstream\nendobj\n"
+        . "9 0 obj\n<< /ActualText (Tailed resource ActualText leak) >>\nendobj\n"
+        . "10 0 obj\n<< "
+        . "/Font << /Ftailed 5 0 R 99 0 R /Fvalid 7 0 R >> "
+        . "/XObject << /TailedForm 12 0 R 99 0 R /ValidForm 13 0 R >> "
+        . "/Properties << /TailedActual 9 0 R 99 0 R /ValidActual 11 0 R >> "
+        . ">>\nendobj\n"
+        . "11 0 obj\n<< /ActualText (Valid inherited entry-tail ActualText) >>\nendobj\n"
+        . "12 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($tailedForm) . " >>\nstream\n{$tailedForm}\nendstream\nendobj\n"
+        . "13 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($validForm) . " >>\nstream\n{$validForm}\nendstream\nendobj\n"
+        . "99 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -985,5 +1024,36 @@ return [
         $t->same(false, str_contains($plainText, 'Trailing token resource font leak'));
         $t->same(false, str_contains($plainText, 'Trailing token resource form leak'));
         $t->same(false, str_contains($plainText, 'TailForm'));
+    },
+    'rejects tailed inherited resource entry references before font or ActualText lookup' => static function (TestRunner $t) use ($pageResourceEntryTailCurrentBasePdf): void {
+        $pdf = $pageResourceEntryTailCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resources = $boundary[0]['resources'] ?? [];
+        $expected = [
+            'A',
+            'Valid inherited entry-tail font text',
+            'Property entry-tail glyph text',
+            'Valid inherited entry-tail ActualText',
+            'Valid inherited entry-tail form text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(true, $resources['inherited'] ?? null);
+        $t->same(2, $resources['resource_owner_object'] ?? null);
+        $t->same(10, $resources['resource_object'] ?? null);
+        $t->same(['Font', 'XObject', 'Properties'], $resources['categories'] ?? null);
+        $t->same(['Fvalid'], $resources['font_names'] ?? null);
+        $t->same(['ValidForm'], $resources['xobject_names'] ?? null);
+        $t->same(['ValidActual'], $resources['properties_names'] ?? null);
+        $t->same(false, str_contains($plainText, 'Tailed resource font leak'));
+        $t->same(false, str_contains($plainText, 'Tailed resource ActualText leak'));
+        $t->same(false, str_contains($plainText, 'Tailed resource form leak'));
+        $t->same(false, str_contains($plainText, 'Ftailed'));
+        $t->same(false, str_contains($plainText, 'TailedForm'));
     },
 ];

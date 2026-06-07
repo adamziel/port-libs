@@ -1550,13 +1550,60 @@ final class PdfPagePropertyExtractor
         }
 
         $names = [];
-        foreach ($this->dictionaryEntries($subdictionary['body']) as $name => $value) {
-            if ($this->resourceSubdictionaryEntryIsResolvable($value, $objects, $key)) {
-                $names[] = $name;
+        foreach ($this->resourceSubdictionaryEntries($subdictionary['body']) as $name => $entry) {
+            if (
+                !$entry['malformed_tail']
+                && $this->resourceSubdictionaryEntryIsResolvable($entry['value'], $objects, $key)
+            ) {
+                $names[$name] = $name;
+                continue;
             }
+
+            unset($names[$name]);
         }
 
-        return $names;
+        return array_values($names);
+    }
+
+    /**
+     * @return array<string, array{value: string, malformed_tail: bool}>
+     */
+    private function resourceSubdictionaryEntries(string $dictionary): array
+    {
+        $entries = [];
+        for ($offset = 0, $length = strlen($dictionary); $offset < $length;) {
+            $offset = $this->skipWhitespace($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (($dictionary[$offset] ?? '') !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($dictionary, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            $value = $this->readPdfValueAt($dictionary, $offset + strlen($match[0]));
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $tailOffset = $this->skipWhitespace($dictionary, $value['end']);
+            $entries[$name] = [
+                'value' => $value['raw'],
+                'malformed_tail' => $tailOffset < $length && ($dictionary[$tailOffset] ?? '') !== '/',
+            ];
+            $offset = $value['end'];
+        }
+
+        return $entries;
     }
 
     /**

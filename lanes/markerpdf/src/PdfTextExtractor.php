@@ -6311,7 +6311,7 @@ final class PdfTextExtractor
         }
 
         $fonts = [];
-        foreach ($this->topLevelResourceReferenceEntries($fontDictionary) as $resourceName => $resource) {
+        foreach ($this->topLevelResourceReferenceEntries($fontDictionary, true) as $resourceName => $resource) {
             $resolved = $this->resolvedResourceObjectBody(
                 $objects,
                 $resource['objectNumber'],
@@ -19871,7 +19871,7 @@ final class PdfTextExtractor
 
         $maps = [];
         $namedCMapBodies = $this->namedCMapBodies($objects);
-        foreach ($this->topLevelResourceReferenceEntries($fontDictionary) as $resourceName => $resource) {
+        foreach ($this->topLevelResourceReferenceEntries($fontDictionary, true) as $resourceName => $resource) {
             $resolved = $this->resolvedResourceObjectBody(
                 $objects,
                 $resource['objectNumber'],
@@ -20031,6 +20031,12 @@ final class PdfTextExtractor
             $referenceOffset = $valueOffset;
             $reference = $this->readPdfIndirectReferenceToken($propertiesDictionary, $referenceOffset);
             if ($reference !== null) {
+                if ($this->resourceEntryValueHasMalformedTail($propertiesDictionary, $valueOffset)) {
+                    $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+                    $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+                    continue;
+                }
+
                 $resolved = $this->resolvedResourceObjectBody(
                     $objects,
                     $reference['objectNumber'],
@@ -20040,6 +20046,12 @@ final class PdfTextExtractor
                     ? null
                     : $this->dictionaryObjectBody($resolved['body']);
             } elseif (substr($propertiesDictionary, $valueOffset, 2) === '<<') {
+                if ($this->resourceEntryValueHasMalformedTail($propertiesDictionary, $valueOffset)) {
+                    $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+                    $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+                    continue;
+                }
+
                 $dictionaryOffset = $valueOffset;
                 $dictionary = $this->readPdfDictionaryTokenAt($propertiesDictionary, $dictionaryOffset);
             }
@@ -20057,6 +20069,14 @@ final class PdfTextExtractor
         }
 
         return $properties;
+    }
+
+    private function resourceEntryValueHasMalformedTail(string $dictionary, int $valueOffset): bool
+    {
+        $tailOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+        $this->skipContentWhitespaceAndComments($dictionary, $tailOffset);
+
+        return $tailOffset < strlen($dictionary) && ($dictionary[$tailOffset] ?? '') !== '/';
     }
 
     /**
