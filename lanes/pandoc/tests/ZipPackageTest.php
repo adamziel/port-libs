@@ -1921,6 +1921,65 @@ return [
         ));
     },
 
+    'preflights zip archive extra data records before package import handoff' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>archive extra metadata</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]);
+        $eocdOffset = strrpos($zip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+        $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+        $archiveExtraData = 'review-archive-extra-data';
+        $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+        $cleanSummary = ZipPackage::archiveExtraDataRecordPreflight($zip);
+
+        $t->same(1, $cleanSummary['entryCount']);
+        $t->same(false, $cleanSummary['hasArchiveExtraDataRecord']);
+        $t->same(true, $cleanSummary['isSupportedByBoundedReader']);
+        $t->same([], $cleanSummary['archiveExtraDataRecords']);
+
+        $tailRecordZip = substr($zip, 0, $eocdOffset) . $archiveExtraRecord . substr($zip, $eocdOffset);
+        $tailSummary = ZipPackage::archiveExtraDataRecordPreflight($tailRecordZip);
+        $tailRecord = $tailSummary['archiveExtraDataRecords'][0];
+
+        $t->same(1, $tailSummary['entryCount']);
+        $t->same(1, $tailSummary['archiveExtraDataRecordCount']);
+        $t->same(true, $tailSummary['hasArchiveExtraDataRecord']);
+        $t->same(false, $tailSummary['isSupportedByBoundedReader']);
+        $t->same($eocdOffset, $tailSummary['centralDirectoryEnd']);
+        $t->same($eocdOffset, $tailRecord['offset']);
+        $t->same($eocdOffset + 8, $tailRecord['dataOffset']);
+        $t->same(strlen($archiveExtraData), $tailRecord['dataLength']);
+        $t->same($eocdOffset + strlen($archiveExtraRecord), $tailRecord['endOffset']);
+        $t->same('between-central-directory-and-eocd', $tailRecord['location']);
+        $t->same(['archive-extra-data-record'], $tailRecord['issues']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($tailRecordZip));
+
+        $prefixRecordZip = substr($zip, 0, $centralDirectoryOffset)
+            . $archiveExtraRecord
+            . substr($zip, $centralDirectoryOffset);
+        $prefixRecordZip = $rewriteEndOfCentralDirectory($prefixRecordZip, [
+            'centralDirectorySize' => $centralDirectorySize + strlen($archiveExtraRecord),
+        ]);
+        $prefixSummary = ZipPackage::archiveExtraDataRecordPreflight($prefixRecordZip);
+        $prefixRecord = $prefixSummary['archiveExtraDataRecords'][0];
+
+        $t->same(1, $prefixSummary['entryCount']);
+        $t->same(1, $prefixSummary['archiveExtraDataRecordCount']);
+        $t->same(false, $prefixSummary['isSupportedByBoundedReader']);
+        $t->same($centralDirectoryOffset, $prefixRecord['offset']);
+        $t->same('central-directory-prefix', $prefixRecord['location']);
+        $t->same(['archive-extra-data-record'], $prefixRecord['issues']);
+        $t->same('word/document.xml', $prefixSummary['entries'][0]['name']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($prefixRecordZip));
+    },
+
     'preflights zip end of central directory archive layout before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

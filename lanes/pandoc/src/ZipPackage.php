@@ -9,6 +9,7 @@ final class ZipPackage
     private const EOCD_SIGNATURE = "PK\x05\x06";
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
     private const CENTRAL_DIRECTORY_DIGITAL_SIGNATURE = "PK\x05\x05";
+    private const ARCHIVE_EXTRA_DATA_RECORD_SIGNATURE = "PK\x06\x08";
     private const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = "PK\x06\x06";
     private const ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE = "PK\x06\x07";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
@@ -150,6 +151,7 @@ final class ZipPackage
         $cursor = $centralDirectoryOffset;
         for ($index = 0; $index < $entryCount; $index++) {
             if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                self::rejectUnsupportedArchiveExtraDataRecord($bytes, $cursor, "central directory entry {$index}");
                 throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
             }
 
@@ -1792,6 +1794,158 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryEnd:int,
+     *     eocdOffset:int,
+     *     archiveExtraDataRecordCount:int,
+     *     hasArchiveExtraDataRecord:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     archiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
+     *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, offset:int}>
+     * }
+     */
+    public static function archiveExtraDataRecordPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before archive extra data records can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $records = [];
+        $entries = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $centralDirectoryEnd = $archive['centralDirectoryEnd'];
+
+        $prefixRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+        if ($prefixRecord !== null) {
+            $records[] = self::archiveExtraDataRecordSummary(
+                $prefixRecord,
+                'central-directory-prefix',
+                $archive['eocdOffset'],
+                $centralDirectoryEnd
+            );
+            $cursor = $prefixRecord['endOffset'];
+        }
+
+        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                $record = self::archiveExtraDataRecordAt($bytes, $cursor);
+                if ($record !== null) {
+                    $records[] = self::archiveExtraDataRecordSummary(
+                        $record,
+                        'before-central-directory-entry',
+                        $archive['eocdOffset'],
+                        $centralDirectoryEnd
+                    );
+                    $cursor = $record['endOffset'];
+                    break;
+                }
+
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $variableStart = $cursor + 46;
+            self::assertRange($bytes, $variableStart, $nameLength + $extraLength + $commentLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            $entries[] = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'centralDirectoryIndex' => $index,
+                'offset' => $cursor,
+            ];
+            $cursor += 46 + $nameLength + $extraLength + $commentLength;
+        }
+
+        while ($cursor < $centralDirectoryEnd) {
+            $record = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($record !== null) {
+                $records[] = self::archiveExtraDataRecordSummary(
+                    $record,
+                    'central-directory-tail',
+                    $archive['eocdOffset'],
+                    $centralDirectoryEnd
+                );
+                $cursor = $record['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        if ($centralDirectoryEnd < $archive['eocdOffset']) {
+            $tailCursor = $centralDirectoryEnd;
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $tailCursor);
+            if ($signature !== null && $signature['endOffset'] <= $archive['eocdOffset']) {
+                $tailCursor = $signature['endOffset'];
+            }
+
+            while ($tailCursor < $archive['eocdOffset']) {
+                $record = self::archiveExtraDataRecordAt($bytes, $tailCursor);
+                if ($record === null) {
+                    break;
+                }
+
+                $records[] = self::archiveExtraDataRecordSummary(
+                    $record,
+                    $tailCursor === $centralDirectoryEnd
+                        ? 'between-central-directory-and-eocd'
+                        : 'after-central-directory-signature',
+                    $archive['eocdOffset'],
+                    $centralDirectoryEnd
+                );
+                $tailCursor = $record['endOffset'];
+            }
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'eocdOffset' => $archive['eocdOffset'],
+            'archiveExtraDataRecordCount' => count($records),
+            'hasArchiveExtraDataRecord' => $records !== [],
+            'isSupportedByBoundedReader' => $records === [],
+            'archiveExtraDataRecords' => $records,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     zip64ExtraFieldEntryCount:int,
      *     centralZip64ExtraFieldEntryCount:int,
      *     localZip64ExtraFieldEntryCount:int,
@@ -3359,6 +3513,8 @@ final class ZipPackage
 
     private static function rejectUnexpectedCentralDirectoryTail(string $bytes, int $offset, string $label): void
     {
+        self::rejectUnsupportedArchiveExtraDataRecord($bytes, $offset, $label);
+
         if (substr($bytes, $offset, 4) === self::CENTRAL_DIRECTORY_DIGITAL_SIGNATURE) {
             throw new \RuntimeException(
                 'Malformed ZIP central-directory digital signature record'
@@ -3366,6 +3522,65 @@ final class ZipPackage
         }
 
         throw new \RuntimeException("Unexpected ZIP bytes {$label}");
+    }
+
+    private static function rejectUnsupportedArchiveExtraDataRecord(string $bytes, int $offset, string $label): void
+    {
+        $record = self::archiveExtraDataRecordAt($bytes, $offset);
+        if ($record === null) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            'ZIP archive extra data records are not supported by this bounded package reader '
+            . "({$label}, {$record['dataLength']} bytes at offset {$record['offset']})"
+        );
+    }
+
+    /**
+     * @return array{offset:int, dataOffset:int, dataLength:int, endOffset:int}|null
+     */
+    private static function archiveExtraDataRecordAt(string $bytes, int $offset): ?array
+    {
+        if (substr($bytes, $offset, 4) !== self::ARCHIVE_EXTRA_DATA_RECORD_SIGNATURE) {
+            return null;
+        }
+
+        self::assertRange($bytes, $offset, 8, 'ZIP archive extra data record');
+        $dataLength = self::readUInt32($bytes, $offset + 4);
+        $dataOffset = $offset + 8;
+        self::assertRange($bytes, $dataOffset, $dataLength, 'ZIP archive extra data');
+
+        return [
+            'offset' => $offset,
+            'dataOffset' => $dataOffset,
+            'dataLength' => $dataLength,
+            'endOffset' => $dataOffset + $dataLength,
+        ];
+    }
+
+    /**
+     * @param array{offset:int, dataOffset:int, dataLength:int, endOffset:int} $record
+     * @return array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}
+     */
+    private static function archiveExtraDataRecordSummary(array $record, string $location, int $eocdOffset, int $centralDirectoryEnd): array
+    {
+        $issues = ['archive-extra-data-record'];
+        if ($record['endOffset'] > $centralDirectoryEnd && $record['offset'] < $centralDirectoryEnd) {
+            $issues[] = 'archive-extra-data-record-overlaps-central-directory-end';
+        }
+        if ($record['endOffset'] > $eocdOffset) {
+            $issues[] = 'archive-extra-data-record-overlaps-eocd';
+        }
+
+        return [
+            'offset' => $record['offset'],
+            'dataOffset' => $record['dataOffset'],
+            'dataLength' => $record['dataLength'],
+            'endOffset' => $record['endOffset'],
+            'location' => $location,
+            'issues' => $issues,
+        ];
     }
 
     /**
