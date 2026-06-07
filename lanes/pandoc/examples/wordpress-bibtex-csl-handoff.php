@@ -63,6 +63,8 @@ Role-rich source @role-review keeps editorial review names attached.
 
 Secondary editor source @secondary-editor-review preserves compiler, editorial director, and reviewer roles.
 
+Secondary review role source @secondary-review-roles and introduction packet [@secondary-introduction-role] preserve commentator, annotator, foreword, introduction, and afterword aliases.
+
 Annotated name source @name-annotation-review keeps reviewer name annotations attached.
 
 Shorthand source @shorthand-review and short editor source [@short-editor-review] keep compact citation labels visible.
@@ -508,6 +510,29 @@ $bibtex = <<<'BIB'
   title       = {Migration Source Dossier},
   date        = {2026},
   publisher   = {Review Press}
+}
+
+@collection{secondary-review-roles,
+  author      = {Smith, Ada},
+  editora     = {Roe, Pat and {{Migration Desk}}},
+  editoratype = {commentator},
+  editorb     = {Ng, Nia},
+  editorbtype = {annotator},
+  editorc     = {de la Cruz, Ana Maria},
+  editorctype = {foreword},
+  title       = {Secondary Review Role Dossier},
+  date        = {2026},
+  publisher   = {Review Press}
+}
+
+@book{secondary-introduction-role,
+  author      = {Curator, Eli},
+  editora     = {M{\"u}ller, Mia},
+  editoratype = {introduction},
+  editorb     = {Garc{\'i}a, Gia},
+  editorbtype = {afterword},
+  title       = {Secondary Introduction Packet},
+  date        = {2025}
 }
 
 @book{name-annotation-review,
@@ -1114,6 +1139,26 @@ XML);
     }
     if (($secondaryEditorReview['editorialRoles'][2]['names'][0]['nonDroppingParticle'] ?? null) !== 'de la') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary reviewer name particles');
+    }
+    $secondaryReviewRoles = $processor->item('secondary-review-roles');
+    if (($secondaryReviewRoles['commentators'][1]['literal'] ?? null) !== 'Migration Desk') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary commentator alias metadata');
+    }
+    if (($secondaryReviewRoles['annotators'][0]['family'] ?? null) !== 'Ng') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary annotator alias metadata');
+    }
+    if (($secondaryReviewRoles['forewordAuthors'][0]['nonDroppingParticle'] ?? null) !== 'de la') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary foreword alias particles');
+    }
+    if (($secondaryReviewRoles['editorialRoles'][0]['label'] ?? null) !== 'Commentator') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary commentator role label');
+    }
+    $secondaryIntroductionRole = $processor->item('secondary-introduction-role');
+    if (($secondaryIntroductionRole['introductionAuthors'][0]['family'] ?? null) !== 'Müller') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary introduction alias metadata');
+    }
+    if (($secondaryIntroductionRole['afterwordAuthors'][0]['family'] ?? null) !== 'García') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve secondary afterword alias metadata');
     }
     $nameAnnotationReview = $processor->item('name-annotation-review');
     if (($nameAnnotationReview['nameAddon'] ?? null) !== 'Imported source names verified by review desk') {
@@ -1725,6 +1770,9 @@ XML);
         '<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.</dd>',
         '<p>Secondary editor source Smith (2026) preserves compiler, editorial director, and reviewer roles.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Migration Source Dossier. Review Press, 2026. Compiled by Roe, Pat; Migration Desk. Editorial direction by Ng, Nia. Reviewer: de la Cruz, Ana Maria.</dd>',
+        '<p>Secondary review role source Smith (2026) and introduction packet (Curator 2025) preserve commentator, annotator, foreword, introduction, and afterword aliases.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Secondary Review Role Dossier. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.</dd>',
+        '<dt>Curator 2025</dt><dd>Curator, Eli. Secondary Introduction Packet. 2025. Introduction by Müller, Mia. Afterword by García, Gia.</dd>',
         '<p>Annotated name source Smith and Ng (2026) keeps reviewer name annotations attached.</p>',
         '<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.</dd>',
         '<p>Shorthand source WIR and short editor source (Review Editors 2025) keep compact citation labels visible.</p>',

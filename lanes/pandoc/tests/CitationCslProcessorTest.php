@@ -3505,6 +3505,95 @@ XML);
             'editorial-roles' => 'compiler',
         ]]));
     },
+    'maps bounded biblatex secondary editor review roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{secondary-review-roles,
+  author      = {Smith, Ada},
+  editora     = {Roe, Pat and {{Migration Desk}}},
+  editoratype = {commentator},
+  editorb     = {Ng, Nia},
+  editorbtype = {annotator},
+  editorc     = {de la Cruz, Ana Maria},
+  editorctype = {foreword},
+  title       = {Secondary Review Role Dossier},
+  date        = {2026},
+  publisher   = {Review Press}
+}
+
+@book{secondary-introduction-role,
+  author      = {Curator, Eli},
+  editora     = {M{\"u}ller, Mia},
+  editoratype = {introduction},
+  editorb     = {Garc{\'i}a, Gia},
+  editorbtype = {afterword},
+  title       = {Secondary Introduction Packet},
+  date        = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('secondary-review-roles', $items[0]['id']);
+        $t->same([['family' => 'Roe', 'given' => 'Pat'], ['literal' => 'Migration Desk']], $items[0]['commentator']);
+        $t->same([['family' => 'Ng', 'given' => 'Nia']], $items[0]['annotator']);
+        $t->same([['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la']], $items[0]['foreword']);
+        $t->same('commentator', $items[0]['editorial-roles'][0]['type'] ?? null);
+        $t->same('Commentator', $items[0]['editorial-roles'][0]['label'] ?? null);
+        $t->same('annotator', $items[0]['editorial-roles'][1]['type'] ?? null);
+        $t->same('Annotator', $items[0]['editorial-roles'][1]['label'] ?? null);
+        $t->same('foreword', $items[0]['editorial-roles'][2]['type'] ?? null);
+        $t->same('Foreword', $items[0]['editorial-roles'][2]['label'] ?? null);
+        $t->same([['family' => 'Müller', 'given' => 'Mia']], $items[1]['introduction']);
+        $t->same([['family' => 'García', 'given' => 'Gia']], $items[1]['afterword']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('secondary-review-roles');
+        $t->same('Migration Desk', $item['commentators'][1]['literal'] ?? null);
+        $t->same('Ng', $item['annotators'][0]['family'] ?? null);
+        $t->same('de la', $item['forewordAuthors'][0]['nonDroppingParticle'] ?? null);
+        $intro = $processor->item('secondary-introduction-role');
+        $t->same('Müller', $intro['introductionAuthors'][0]['family'] ?? null);
+        $t->same('García', $intro['afterwordAuthors'][0]['family'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('secondary-review-roles', '[@secondary-review-roles]')]));
+        $t->same(
+            'Smith, Ada. Secondary Review Role Dossier. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.',
+            $processor->renderBibliographyEntry('secondary-review-roles')
+        );
+        $t->same(
+            'Curator, Eli. Secondary Introduction Packet. 2025. Introduction by Müller, Mia. Afterword by García, Gia.',
+            $processor->renderBibliographyEntry('secondary-introduction-role')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text value="secondary roles"/>
+        <names variable="commentator"/>
+        <names variable="annotator"/>
+        <names variable="foreword"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[secondary roles | Roe and Migration Desk | Ng | de la Cruz]', $styled->renderCitationCluster([$citation('secondary-review-roles', '[@secondary-review-roles]')]));
+        $t->same('Secondary Review Role Dossier :: Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.', $styled->renderBibliographyEntry('secondary-review-roles'));
+
+        $document = (new MarkdownReader())->read('Secondary review source @secondary-review-roles and intro packet [@secondary-introduction-role] preserve review role aliases.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Secondary review source Smith (2026) and intro packet (Curator 2025) preserve review role aliases.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Secondary Review Role Dossier. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Secondary Introduction Packet. 2025. Introduction by Müller, Mia. Afterword by García, Gia.</dd>', $blocks);
+    },
     'maps bounded biblatex name annotations and name addendum metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{name-annotation-review,

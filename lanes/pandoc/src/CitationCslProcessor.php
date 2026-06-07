@@ -3968,12 +3968,12 @@ final class CitationCslProcessor
             ['illustrators', 'Illustrated by', 'illustrator'],
             ['interviewers', 'Interview by', 'interviewer'],
             ['reviewedAuthors', 'Reviewed author:', 'reviewed-author'],
-            ['commentators', 'Commentary by'],
-            ['annotators', 'Annotated by'],
+            ['commentators', 'Commentary by', 'commentator'],
+            ['annotators', 'Annotated by', 'annotator'],
             ['containerAuthors', 'Container author:', 'container-author'],
-            ['introductionAuthors', 'Introduction by'],
-            ['forewordAuthors', 'Foreword by'],
-            ['afterwordAuthors', 'Afterword by'],
+            ['introductionAuthors', 'Introduction by', 'introduction'],
+            ['forewordAuthors', 'Foreword by', 'foreword'],
+            ['afterwordAuthors', 'Afterword by', 'afterword'],
             ['originalAuthors', 'Original author:'],
         ];
 
@@ -4009,6 +4009,11 @@ final class CitationCslProcessor
             'illustrator' => 'Illustrated by',
             'interviewer' => 'Interview by',
             'reviewed-author' => 'Reviewed author:',
+            'commentator' => 'Commentary by',
+            'annotator' => 'Annotated by',
+            'introduction' => 'Introduction by',
+            'foreword' => 'Foreword by',
+            'afterword' => 'Afterword by',
             default => rtrim($label !== '' ? $label : self::editorialRoleDefaultLabel($type), ':') . ':',
         };
 
@@ -4025,7 +4030,12 @@ final class CitationCslProcessor
             'editorial-director',
             'illustrator',
             'interviewer',
-            'reviewed-author' => $this->normalizedEditorialRoleType($type),
+            'reviewed-author',
+            'commentator',
+            'annotator',
+            'introduction',
+            'foreword',
+            'afterword' => $this->normalizedEditorialRoleType($type),
             default => null,
         };
     }

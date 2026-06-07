@@ -1244,7 +1244,12 @@ final class BibtexCslParser
             'editorial-director',
             'illustrator',
             'interviewer',
-            'reviewed-author' => self::normalizedEditorialRoleType($type),
+            'reviewed-author',
+            'commentator',
+            'annotator',
+            'introduction',
+            'foreword',
+            'afterword' => self::normalizedEditorialRoleType($type),
             default => null,
         };
     }
@@ -1262,6 +1267,11 @@ final class BibtexCslParser
             'illustrator' => 'Illustrator',
             'interviewer' => 'Interviewer',
             'reviewed-author' => 'Reviewed author',
+            'commentator' => 'Commentator',
+            'annotator' => 'Annotator',
+            'introduction' => 'Introduction',
+            'foreword' => 'Foreword',
+            'afterword' => 'Afterword',
             default => ucfirst(strtolower(str_replace('-', ' ', $type))),
         };
     }
