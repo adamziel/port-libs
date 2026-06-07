@@ -1734,6 +1734,86 @@ return [
         $t->same('anchor-punctuation-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="anchor-punctuation-body">Anchor punctuation body</h1>', $blocks);
     },
+    'records pandoc yaml anchor provenance with metadata paths' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Anchor provenance **Packet**',
+            'review-defaults_: &review_defaults',
+            '  status: queued',
+            '  labels: &review_labels [metadata, wordpress]',
+            'flow-defaults_: &flow_defaults {status: draft, labels: [flow, review]}',
+            'review:',
+            '  <<: *review_defaults',
+            '  labels: *review_labels',
+            'references:',
+            '  - &source_ref',
+            '    id: source-export',
+            '    metadata:',
+            '      source-uri: &source_uri https://example.test/export#anchor',
+            '  - <<: *source_ref',
+            '    id: copied-export',
+            'flow-review: {defaults: *flow_defaults, source-uri: *source_uri}',
+            'set-review: !!set &review_set {front-matter, wordpress}',
+            'pairs-review: !!pairs &review_pairs [{owner: Import Desk}, {owner: QA Desk}]',
+            '...',
+            '',
+            '# Anchor provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataAnchorProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Anchor provenance **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['metadata', 'wordpress'], $meta['review']['labels']);
+        $t->same('source-export', $meta['references'][0]['id']);
+        $t->same('https://example.test/export#anchor', $meta['references'][1]['metadata']['source-uri']);
+        $t->same('draft', $meta['flow-review']['defaults']['status']);
+        $t->same('https://example.test/export#anchor', $meta['flow-review']['source-uri']);
+        $t->same(['front-matter' => null, 'wordpress' => null], $meta['set-review']);
+        $t->same('Import Desk', $meta['pairs-review'][0]['value']);
+        $t->same(false, array_key_exists('__yamlMetadataAnchorProvenance', $meta));
+        $t->same(7, count($provenance));
+        $t->same(array_fill(0, 7, 'yaml-anchor'), array_column($provenance, 'type'));
+        $t->same([
+            '&review_defaults',
+            '&review_labels',
+            '&flow_defaults',
+            '&source_ref',
+            '&source_uri',
+            '&review_set',
+            '&review_pairs',
+        ], array_column($provenance, 'anchor'));
+        $t->same([
+            'review_defaults',
+            'review_labels',
+            'flow_defaults',
+            'source_ref',
+            'source_uri',
+            'review_set',
+            'review_pairs',
+        ], array_column($provenance, 'name'));
+        $t->same([
+            '/review-defaults_',
+            '/review-defaults_/labels',
+            '/flow-defaults_',
+            '/references/0',
+            '/references/0/metadata/source-uri',
+            '/set-review',
+            '/pairs-review',
+        ], array_column($provenance, 'path'));
+        $t->same([
+            'mapping',
+            'sequence',
+            'mapping',
+            'mapping',
+            'scalar',
+            'mapping',
+            'sequence',
+        ], array_column($provenance, 'kind'));
+        $t->same('anchor-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="anchor-provenance-body">Anchor provenance body</h1>', $blocks);
+    },
     'maps pandoc yaml alias diagnostics without hiding metadata values' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

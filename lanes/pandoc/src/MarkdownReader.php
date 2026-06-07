@@ -43,6 +43,9 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataCommentProvenance = [];
 
+    /** @var list<array<string, string>> */
+    private array $yamlMetadataAnchorProvenance = [];
+
     private bool $yamlMetadataInvalid = false;
 
     /** @var array<string, string> */
@@ -522,6 +525,7 @@ final class MarkdownReader
         $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
         $previousYamlMetadataDirectiveProvenance = $this->yamlMetadataDirectiveProvenance;
         $previousYamlMetadataCommentProvenance = $this->yamlMetadataCommentProvenance;
+        $previousYamlMetadataAnchorProvenance = $this->yamlMetadataAnchorProvenance;
         $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
         $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
         $this->yamlMetadataAnchors = [];
@@ -530,6 +534,7 @@ final class MarkdownReader
         $this->yamlMetadataTagProvenance = [];
         $this->yamlMetadataDirectiveProvenance = [];
         $this->yamlMetadataCommentProvenance = [];
+        $this->yamlMetadataAnchorProvenance = [];
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
         try {
@@ -549,6 +554,9 @@ final class MarkdownReader
             if ($this->yamlMetadataCommentProvenance !== []) {
                 $metadata['__yamlMetadataCommentProvenance'] = $this->yamlMetadataCommentProvenance;
             }
+            if ($this->yamlMetadataAnchorProvenance !== []) {
+                $metadata['__yamlMetadataAnchorProvenance'] = $this->yamlMetadataAnchorProvenance;
+            }
 
             return $metadata;
         } finally {
@@ -558,6 +566,7 @@ final class MarkdownReader
             $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
             $this->yamlMetadataDirectiveProvenance = $previousYamlMetadataDirectiveProvenance;
             $this->yamlMetadataCommentProvenance = $previousYamlMetadataCommentProvenance;
+            $this->yamlMetadataAnchorProvenance = $previousYamlMetadataAnchorProvenance;
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
         }
@@ -578,6 +587,8 @@ final class MarkdownReader
         $nextDirectives = $this->yamlMetadataDirectiveProvenanceList($next['__yamlMetadataDirectiveProvenance'] ?? []);
         $currentComments = $this->yamlMetadataCommentProvenanceList($current['__yamlMetadataCommentProvenance'] ?? []);
         $nextComments = $this->yamlMetadataCommentProvenanceList($next['__yamlMetadataCommentProvenance'] ?? []);
+        $currentAnchors = $this->yamlMetadataAnchorProvenanceList($current['__yamlMetadataAnchorProvenance'] ?? []);
+        $nextAnchors = $this->yamlMetadataAnchorProvenanceList($next['__yamlMetadataAnchorProvenance'] ?? []);
         $currentFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($current['__yamlMetadataFieldQuoteMap'] ?? []);
         $nextFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($next['__yamlMetadataFieldQuoteMap'] ?? []);
         unset(
@@ -589,6 +600,8 @@ final class MarkdownReader
             $next['__yamlMetadataDirectiveProvenance'],
             $current['__yamlMetadataCommentProvenance'],
             $next['__yamlMetadataCommentProvenance'],
+            $current['__yamlMetadataAnchorProvenance'],
+            $next['__yamlMetadataAnchorProvenance'],
             $current['__yamlMetadataFieldQuoteMap'],
             $next['__yamlMetadataFieldQuoteMap']
         );
@@ -609,6 +622,10 @@ final class MarkdownReader
         $commentProvenance = array_merge($currentComments, $nextComments);
         if ($commentProvenance !== []) {
             $merged['__yamlMetadataCommentProvenance'] = $commentProvenance;
+        }
+        $anchorProvenance = array_merge($currentAnchors, $nextAnchors);
+        if ($anchorProvenance !== []) {
+            $merged['__yamlMetadataAnchorProvenance'] = $anchorProvenance;
         }
         $fieldQuoteMap = array_replace($currentFieldQuoteMap, $nextFieldQuoteMap);
         if ($fieldQuoteMap !== []) {
@@ -704,6 +721,28 @@ final class MarkdownReader
      * @return list<array<string, string>>
      */
     private function yamlMetadataCommentProvenanceList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $provenance = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $provenance[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataAnchorProvenanceList(mixed $value): array
     {
         if (!is_array($value) || !array_is_list($value)) {
             return [];
@@ -3257,6 +3296,9 @@ final class MarkdownReader
         }
 
         if ($recordProvenance) {
+            if ($anchorName !== null && $anchorName !== '') {
+                $this->recordYamlMetadataAnchorProvenance($anchorName, null, 'node');
+            }
             foreach ($tags as $tag) {
                 $this->recordYamlMetadataTagProvenance($tag);
             }
@@ -3643,7 +3685,56 @@ final class MarkdownReader
             return;
         }
 
+        $this->recordYamlMetadataAnchorProvenance($anchorName, $value);
         $this->yamlMetadataAnchors[$anchorName] = $this->cloneYamlMetadataValue($value);
+    }
+
+    private function recordYamlMetadataAnchorProvenance(string $anchorName, mixed $value = null, ?string $kind = null): void
+    {
+        $path = $this->currentYamlMetadataDiagnosticPath() ?? '';
+        $kind ??= $this->yamlMetadataValueKind($value);
+        foreach ($this->yamlMetadataAnchorProvenance as $index => $entry) {
+            if (($entry['name'] ?? '') === $anchorName && ($entry['path'] ?? '') === $path) {
+                $this->yamlMetadataAnchorProvenance[$index]['kind'] = $kind;
+
+                return;
+            }
+        }
+        if ($kind !== 'node') {
+            foreach ($this->yamlMetadataAnchorProvenance as $index => $entry) {
+                if (($entry['name'] ?? '') === $anchorName && ($entry['kind'] ?? '') === 'node') {
+                    $this->yamlMetadataAnchorProvenance[$index]['kind'] = $kind;
+
+                    return;
+                }
+            }
+        }
+
+        $provenance = [
+            'type' => 'yaml-anchor',
+            'anchor' => '&' . $anchorName,
+            'name' => $anchorName,
+            'kind' => $kind,
+        ];
+        if ($path !== '') {
+            $provenance['path'] = $path;
+        }
+
+        $this->yamlMetadataAnchorProvenance[] = $provenance;
+    }
+
+    private function yamlMetadataValueKind(mixed $value): string
+    {
+        if (is_array($value)) {
+            return array_is_list($value) ? 'sequence' : 'mapping';
+        }
+
+        return match (get_debug_type($value)) {
+            'null' => 'null',
+            'bool' => 'boolean',
+            'int', 'float' => 'number',
+            default => 'scalar',
+        };
     }
 
     private function cloneYamlMetadataValue(mixed $value): mixed
@@ -3712,6 +3803,7 @@ final class MarkdownReader
         $tagProvenance = [];
         $directiveProvenance = [];
         $commentProvenance = [];
+        $anchorProvenance = [];
         $fieldQuoteMap = $this->yamlMetadataFieldQuoteMap($metadata['__yamlMetadataFieldQuoteMap'] ?? []);
         foreach ($metadata as $key => $value) {
             $fieldName = (string) $key;
@@ -3729,6 +3821,10 @@ final class MarkdownReader
             }
             if ($fieldName === '__yamlMetadataCommentProvenance') {
                 $commentProvenance = array_merge($commentProvenance, $this->yamlMetadataCommentProvenanceList($value));
+                continue;
+            }
+            if ($fieldName === '__yamlMetadataAnchorProvenance') {
+                $anchorProvenance = array_merge($anchorProvenance, $this->yamlMetadataAnchorProvenanceList($value));
                 continue;
             }
             if ($fieldName === '__yamlMetadataFieldQuoteMap') {
@@ -3813,6 +3909,9 @@ final class MarkdownReader
         }
         if ($commentProvenance !== []) {
             $attrs['yamlMetadataCommentProvenance'] = $commentProvenance;
+        }
+        if ($anchorProvenance !== []) {
+            $attrs['yamlMetadataAnchorProvenance'] = $anchorProvenance;
         }
 
         return $attrs;

@@ -450,6 +450,7 @@ $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
 $yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
+$yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
 $invalidTagDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-tag-directive'
@@ -839,6 +840,25 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-source-anchor-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing punctuation anchor flow status');
+    }
+    if (array_key_exists('__yamlMetadataAnchorProvenance', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked anchor provenance into plain metadata');
+    }
+    $yamlAnchorPairs = [];
+    foreach ($yamlAnchorProvenance as $entry) {
+        $yamlAnchorPairs[] = ($entry['anchor'] ?? '') . "\0" . ($entry['path'] ?? '') . "\0" . ($entry['kind'] ?? '');
+    }
+    foreach ([
+        "&review_defaults\0/reviewDefaults_\0mapping",
+        "&review_labels\0/reviewDefaults_/labels\0sequence",
+        "&source:review/defaults\0/source-anchor-defaults_\0mapping",
+        "&source/ref-primary\0/punctuation-anchor-references/0\0mapping",
+        "&alias_diag_self\0/alias-diagnostics/self\0scalar",
+        "&source_reference\0/references/0\0mapping",
+    ] as $expectedAnchorPair) {
+        if (!in_array($expectedAnchorPair, $yamlAnchorPairs, true)) {
+            throw new RuntimeException('YAML metadata self-test missing anchor provenance ' . str_replace("\0", ' ', $expectedAnchorPair));
+        }
     }
     if (($meta['multiline-flow-labels'] ?? []) !== ['migration', 'Data Liberation', 'wordpress']) {
         throw new RuntimeException('YAML metadata self-test missing multiline flow sequence metadata');
@@ -1504,6 +1524,8 @@ echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";
 echo 'YAML comment provenance: ' . count($yamlCommentProvenance) . "\n";
 echo 'YAML comment provenance paths: ' . implode(', ', array_filter(array_column($yamlCommentProvenance, 'path'))) . "\n";
+echo 'YAML anchor provenance: ' . count($yamlAnchorProvenance) . "\n";
+echo 'YAML anchor provenance paths: ' . implode(', ', array_filter(array_column($yamlAnchorProvenance, 'path'))) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
