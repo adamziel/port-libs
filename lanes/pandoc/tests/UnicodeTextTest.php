@@ -353,6 +353,25 @@ return [
         $t->contains('<h1 id="עברית">עברית</h1>', $blocks);
         $t->contains("<p>עורך עברית «מקור» ‗ 12; \u{200F}RTL.</p>", $blocks);
     },
+    'decodes iso 8859 9 latin5 turkish source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Latin5 Import\n\nTurkish \xDDstanbul, \xD0a\xF0, \xDEi\xFEli, \xFDl\xFDk; \xD6\xDC remain.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-148');
+        $document = (new MarkdownReader())->readBytes($bytes, 'latin5');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xD0\xDD\xDE\xF0\xFD\xFE", 'csisolatin5');
+
+        $t->same('iso-8859-9', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Latin5 Import\n\nTurkish İstanbul, Ğağ, Şişli, ılık; ÖÜ remain.", $decoded['text']);
+        $t->same('ĞİŞğış', $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same(['encoding' => 'iso-8859-9', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Latin5 Import', $document->children[0]->attr('text'));
+        $t->same('Turkish İstanbul, Ğağ, Şişli, ılık; ÖÜ remain.', $document->children[1]->attr('text'));
+        $t->same(46, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="latin5-import">Latin5 Import</h1>', $blocks);
+        $t->contains('<p>Turkish İstanbul, Ğağ, Şişli, ılık; ÖÜ remain.</p>', $blocks);
+    },
     'decodes tis 620 thai source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xE4\xB7\xC2\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-166');

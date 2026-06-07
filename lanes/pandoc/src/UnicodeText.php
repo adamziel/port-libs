@@ -970,6 +970,16 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const ISO_8859_9_REPLACEMENTS = [
+        0xd0 => 0x011e,
+        0xdd => 0x0130,
+        0xde => 0x015e,
+        0xf0 => 0x011f,
+        0xfd => 0x0131,
+        0xfe => 0x015f,
+    ];
+
+    /** @var array<int, int> */
     private const TIS_620_REPLACEMENTS = [
         0xa0 => 0x00a0,
         0xa1 => 0x0e01,
@@ -1362,6 +1372,7 @@ final class UnicodeText
             || $normalized === 'iso-8859-6'
             || $normalized === 'iso-8859-7'
             || $normalized === 'iso-8859-8'
+            || $normalized === 'iso-8859-9'
             || $normalized === 'iso-8859-10'
             || $normalized === 'iso-8859-13'
             || $normalized === 'tis-620'
@@ -1847,6 +1858,7 @@ final class UnicodeText
             'iso88597', 'iso88597:1987', 'latin7greek', 'isoir126', 'greek', 'greek8', 'elot928', 'ecma118', 'csisolatingreek' => 'iso-8859-7',
             'iso88598', 'iso885981999', 'latinhebrew', 'isoir138', 'hebrew', 'csisolatinhebrew',
             'iso88598i', 'iso88598e', 'logical', 'visual' => 'iso-8859-8',
+            'iso88599', 'iso88599:1989', 'latin5', 'latin-5', 'l5', 'isoir148', 'turkish', 'csisolatin5' => 'iso-8859-9',
             'iso885910', 'iso885910:1992', 'latin6', 'latin-6', 'l6', 'isoir157', 'csisolatin6' => 'iso-8859-10',
             'iso885913', 'iso885913:1998', 'latin7', 'latin-7', 'l7', 'isoir179', 'csisolatin7' => 'iso-8859-13',
             'tis620', 'tis6202533', 'cstis620', 'isoir166', 'iso885911', 'iso8859112001', 'thai' => 'tis-620',
@@ -2298,6 +2310,10 @@ final class UnicodeText
                 }
 
                 $out .= self::fromCodepoint(self::ISO_8859_8_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'iso-8859-9' && isset(self::ISO_8859_9_REPLACEMENTS[$byte])) {
+                $out .= self::fromCodepoint(self::ISO_8859_9_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'tis-620' && $byte >= 0xa0) {
