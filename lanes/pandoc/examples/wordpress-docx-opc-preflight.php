@@ -29,6 +29,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
   <Override PartName="/word/media/stale%20source.png" ContentType="image/png"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/thumbnail.png" ContentType="image/png"/>
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
@@ -47,6 +48,7 @@ $packageRelationshipsXml = <<<'XML'
     <review:Trace value="ignored"/>
   </Relationship>
   <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>
   <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
 </Relationships>
 XML;
@@ -324,6 +326,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/embeddings/source workbook.xlsx', 'data' => $embeddedWorkbookBytes],
     ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+    ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
     ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
@@ -1320,6 +1323,24 @@ $emptySignatureOriginGuard = [
 
 $corePropertiesPreflight = $graph->preflightCoreProperties();
 $corePropertiesPart = $corePropertiesPreflight['relationships'][0]['targetPart'] ?? null;
+$thumbnailPreflight = [];
+foreach ($graph->preflightThumbnails() as $thumbnail) {
+    $thumbnailPreflight[$thumbnail['source'] . ':' . $thumbnail['id']] = [
+        'source' => $thumbnail['source'],
+        'id' => $thumbnail['id'],
+        'target' => $thumbnail['target'],
+        'targetPart' => $thumbnail['targetPart'],
+        'contentType' => $thumbnail['contentType'],
+        'external' => $thumbnail['external'],
+        'exists' => $thumbnail['exists'],
+        'relationshipTypeKind' => $thumbnail['relationshipTypeKind'],
+        'relationshipTypeValid' => $thumbnail['relationshipTypeValid'],
+        'externalTargetKind' => $thumbnail['externalTargetKind'],
+        'externalTargetScheme' => $thumbnail['externalTargetScheme'],
+        'valid' => $thumbnail['valid'],
+        'issues' => $thumbnail['issues'],
+    ];
+}
 $strictXmlShapeGuards = [
     'contentTypeUnexpectedAttributeRejected' => false,
     'contentTypeDefaultDotExtensionRejected' => false,
@@ -1424,6 +1445,7 @@ $summary = [
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
         'preflight' => $corePropertiesPreflight,
     ],
+    'thumbnailPreflight' => $thumbnailPreflight,
     'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
     'digitalSignatureMetadata' => $digitalSignatureMetadata,
@@ -1510,6 +1532,10 @@ $summary = [
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
+        'thumbnailParts' => array_values(array_unique(array_filter(
+            array_map(static fn (array $thumbnail): ?string => $thumbnail['targetPart'], $thumbnailPreflight),
+            static fn (?string $target): bool => $target !== null
+        ))),
         'mediaParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
             static fn (?string $target): bool => $target !== null && str_starts_with($target, '/word/media/')
@@ -1655,6 +1681,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['coreProperties']['preflight']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
         || ($summary['coreProperties']['preflight']['relationships'][0]['valid'] ?? null) !== true
         || ($summary['coreProperties']['preflight']['relationships'][0]['issues'] ?? null) !== []
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['source'] ?? null) !== '/'
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['targetPart'] ?? null) !== '/docProps/thumbnail.png'
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['relationshipTypeKind'] ?? null) !== 'absolute-uri'
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['external'] ?? null) !== false
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['exists'] ?? null) !== true
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['valid'] ?? null) !== true
+        || ($summary['thumbnailPreflight']['/:rIdThumbnail']['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['thumbnailParts'] ?? null) !== ['/docProps/thumbnail.png']
         || ($summary['digitalSignatures'][0]['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
@@ -1696,6 +1731,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['contentTypeOverrides']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['packageConsistency']['contentTypeOverrides']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdCore']['targetPart'] ?? null) !== '/docProps/core.xml'
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['targetPart'] ?? null) !== '/docProps/thumbnail.png'
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdThumbnail']['issues'] ?? null) !== []
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdSignatureOrigin']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
         || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceImage']['targetPart'] ?? null) !== '/word/media/review source.png'
         || isset($summary['packageConsistency']['relationshipTargets']['/word/draft.xml:rIdDraftImage'])
@@ -1715,7 +1753,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loadAction'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loadReason'] ?? null) !== 'loaded'
-        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 3
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 4
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipSource'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadAction'] ?? null) !== 'loaded'
@@ -1938,6 +1976,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeValid'] ?? null) !== false
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['sourceCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/docProps/thumbnail.png']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['contentTypes'] ?? null) !== ['image/png']
         || ($summary['contentTypeInventory']['application/vnd.openxmlformats-package.relationships+xml']['parts'] ?? null) !== [
             '/_rels/.rels',
             '/_xmlsignatures/_rels/origin.sigs.rels',
@@ -1953,6 +1995,7 @@ if (($argv[1] ?? '') === '--self-test') {
             '/word/review source.xml',
         ]
         || ($summary['contentTypeInventory']['image/png']['parts'] ?? null) !== [
+            '/docProps/thumbnail.png',
             '/word/media/draft-hidden.png',
             '/word/media/footnote-source.png',
             '/word/media/hero image.PNG',
@@ -1969,6 +2012,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packagePartReferences']['/docProps/core.xml']['directReferences'][0]['source'] ?? null) !== '/'
         || ($summary['packagePartReferences']['/docProps/core.xml']['directReferences'][0]['id'] ?? null) !== 'rIdCore'
         || ($summary['packagePartReferences']['/docProps/core.xml']['reachableReferenceCount'] ?? null) !== 0
+        || ($summary['packagePartReferences']['/docProps/thumbnail.png']['directReferences'][0]['source'] ?? null) !== '/'
+        || ($summary['packagePartReferences']['/docProps/thumbnail.png']['directReferences'][0]['id'] ?? null) !== 'rIdThumbnail'
+        || ($summary['packagePartReferences']['/docProps/thumbnail.png']['reachableReferenceCount'] ?? null) !== 0
         || ($summary['packagePartReferences']['/word/document.xml']['directReferences'][0]['id'] ?? null) !== 'rIdDocument'
         || ($summary['packagePartReferences']['/word/document.xml']['reachableReferences'][0]['depth'] ?? null) !== 0
         || ($summary['packagePartReferences']['/word/media/hero image.PNG']['directReferences'][0]['source'] ?? null) !== '/word/document.xml'

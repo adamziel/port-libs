@@ -3968,6 +3968,124 @@ XML;
         $t->same(false, $badById['rIdExternalCore']['valid']);
         $t->same(['external-core-properties-target'], $badById['rIdExternalCore']['issues']);
     },
+    'preflights OPC package and part thumbnail relationships' => static function (TestRunner $t): void {
+        $thumbnailType = OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE;
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/thumbnail.png" ContentType="image/png"/>
+  <Override PartName="/word/media/section-thumbnail.jpg" ContentType="image/jpeg; source=review"/>
+  <Override PartName="/word/media/bad-thumbnail.xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $packageRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdPackageThumbnail" Type="{$thumbnailType}" Target="docProps/thumbnail.png"/>
+  <Relationship Id="rIdMissingPackageThumbnail" Type="{$thumbnailType}" Target="word/media/missing-thumbnail.png"/>
+</Relationships>
+XML;
+        $documentRelationshipsXml = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSectionThumbnail" Type="{$thumbnailType}" Target="media/section-thumbnail.jpg"/>
+  <Relationship Id="rIdBadThumbnail" Type="{$thumbnailType}" Target="media/bad-thumbnail.xml"/>
+  <Relationship Id="rIdRelatedThumbnail" Type="{$thumbnailType}" Target="media/related-thumbnail.png"/>
+  <Relationship Id="rIdExternalThumbnail" Type="{$thumbnailType}" Target="https://example.test/wp-content/uploads/thumb.png" TargetMode="External"/>
+</Relationships>
+XML;
+        $thumbnailRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdThumbnailAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="audit.png"/>
+</Relationships>
+XML;
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
+            ['name' => 'word/media/section-thumbnail.jpg', 'data' => 'JPG'],
+            ['name' => 'word/media/bad-thumbnail.xml', 'data' => '<not-image/>'],
+            ['name' => 'word/media/related-thumbnail.png', 'data' => 'PNG'],
+            ['name' => 'word/media/_rels/related-thumbnail.png.rels', 'data' => $thumbnailRelationshipsXml],
+        ]));
+
+        $thumbnailRows = [];
+        foreach ($graph->preflightThumbnails() as $thumbnail) {
+            $thumbnailRows[$thumbnail['source'] . ':' . $thumbnail['id']] = $thumbnail;
+        }
+
+        $t->same([
+            '/:rIdPackageThumbnail',
+            '/:rIdMissingPackageThumbnail',
+            '/word/document.xml:rIdSectionThumbnail',
+            '/word/document.xml:rIdBadThumbnail',
+            '/word/document.xml:rIdRelatedThumbnail',
+            '/word/document.xml:rIdExternalThumbnail',
+        ], array_keys($thumbnailRows));
+
+        $packageThumbnail = $thumbnailRows['/:rIdPackageThumbnail'];
+        $t->same(OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE, $packageThumbnail['type']);
+        $t->same('/docProps/thumbnail.png', $packageThumbnail['targetPart']);
+        $t->same('image/png', $packageThumbnail['contentType']);
+        $t->same('image/', $packageThumbnail['expectedContentTypePrefix']);
+        $t->same(false, $packageThumbnail['external']);
+        $t->same(true, $packageThumbnail['exists']);
+        $t->same(false, $packageThumbnail['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source'], $packageThumbnail['issues']);
+
+        $missingPackageThumbnail = $thumbnailRows['/:rIdMissingPackageThumbnail'];
+        $t->same('/word/media/missing-thumbnail.png', $missingPackageThumbnail['targetPart']);
+        $t->same('image/png', $missingPackageThumbnail['contentType']);
+        $t->same(false, $missingPackageThumbnail['external']);
+        $t->same(false, $missingPackageThumbnail['exists']);
+        $t->same(false, $missingPackageThumbnail['valid']);
+        $t->same(['missing-in-package', 'multiple-thumbnail-relationships-for-source'], $missingPackageThumbnail['issues']);
+
+        $sectionThumbnail = $thumbnailRows['/word/document.xml:rIdSectionThumbnail'];
+        $t->same('/word/media/section-thumbnail.jpg', $sectionThumbnail['targetPart']);
+        $t->same('image/jpeg; source=review', $sectionThumbnail['contentType']);
+        $t->same(false, $sectionThumbnail['external']);
+        $t->same(true, $sectionThumbnail['exists']);
+        $t->same(false, $sectionThumbnail['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source'], $sectionThumbnail['issues']);
+
+        $badThumbnail = $thumbnailRows['/word/document.xml:rIdBadThumbnail'];
+        $t->same('/word/media/bad-thumbnail.xml', $badThumbnail['targetPart']);
+        $t->same('application/xml', $badThumbnail['contentType']);
+        $t->same(false, $badThumbnail['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'invalid-thumbnail-content-type'], $badThumbnail['issues']);
+
+        $relatedThumbnail = $thumbnailRows['/word/document.xml:rIdRelatedThumbnail'];
+        $t->same('/word/media/related-thumbnail.png', $relatedThumbnail['targetPart']);
+        $t->same('image/png', $relatedThumbnail['contentType']);
+        $t->same(true, $relatedThumbnail['exists']);
+        $t->same(false, $relatedThumbnail['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'thumbnail-target-has-relationships'], $relatedThumbnail['issues']);
+
+        $externalThumbnail = $thumbnailRows['/word/document.xml:rIdExternalThumbnail'];
+        $t->same('https://example.test/wp-content/uploads/thumb.png', $externalThumbnail['target']);
+        $t->same(null, $externalThumbnail['targetPart']);
+        $t->same(null, $externalThumbnail['contentType']);
+        $t->same(true, $externalThumbnail['external']);
+        $t->same('absolute-uri', $externalThumbnail['externalTargetKind']);
+        $t->same('https', $externalThumbnail['externalTargetScheme']);
+        $t->same(false, $externalThumbnail['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'external-thumbnail-target'], $externalThumbnail['issues']);
+
+        $documentOnly = $graph->preflightThumbnails('/WORD/DOCUMENT.XML');
+        $t->same([
+            'rIdSectionThumbnail',
+            'rIdBadThumbnail',
+            'rIdRelatedThumbnail',
+            'rIdExternalThumbnail',
+        ], array_column($documentOnly, 'id'));
+        $t->same([], $graph->preflightThumbnails('/word/media/related-thumbnail.png'));
+        $t->same([], $graph->preflightThumbnails('/word/missing.xml'));
+    },
     'flags nested OPC relationship parts without loading them as sources' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

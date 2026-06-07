@@ -8,6 +8,7 @@ final class OpcRelationshipGraph
 {
     public const OFFICE_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     public const CORE_PROPERTIES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    public const THUMBNAIL_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
     public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
@@ -1196,6 +1197,73 @@ final class OpcRelationshipGraph
             'issues' => $issues,
             'relationships' => $relationships,
         ];
+    }
+
+    /**
+     * @return list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentTypePrefix:string, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
+     */
+    public function preflightThumbnails(?string $sourcePartName = null): array
+    {
+        $sources = $sourcePartName === null
+            ? $this->sourcePartNames()
+            : [$this->relationshipSourceNameForEquivalent($sourcePartName)];
+
+        $preflight = [];
+        foreach ($sources as $source) {
+            $sourceTargets = $this->preflightTargetsForSource($source, self::THUMBNAIL_RELATIONSHIP_TYPE);
+            $sourceHasMultipleThumbnails = count($sourceTargets) > 1;
+
+            foreach ($sourceTargets as $target) {
+                $targetPart = self::targetPartFromPreflightTarget($target);
+                $issues = $target['issues'];
+                if ($sourceHasMultipleThumbnails) {
+                    $issues[] = 'multiple-thumbnail-relationships-for-source';
+                }
+
+                if ($target['external']) {
+                    $issues[] = 'external-thumbnail-target';
+                }
+
+                if (
+                    $target['contentType'] !== null
+                    && !self::isImageContentType($target['contentType'])
+                ) {
+                    $issues[] = 'invalid-thumbnail-content-type';
+                }
+
+                if ($targetPart !== null && $this->hasRelationshipsForSource($targetPart)) {
+                    $issues[] = 'thumbnail-target-has-relationships';
+                }
+
+                $issues = array_values(array_unique($issues));
+                $preflight[] = [
+                    'source' => $source,
+                    'id' => $target['id'],
+                    'type' => $target['type'],
+                    'target' => $target['target'],
+                    'targetPart' => $targetPart,
+                    'contentType' => $target['contentType'],
+                    'expectedContentTypePrefix' => 'image/',
+                    'external' => $target['external'],
+                    'exists' => $target['exists'],
+                    'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'relationshipTypeKind' => $target['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $target['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                    'externalTargetKind' => $target['externalTargetKind'],
+                    'externalTargetScheme' => $target['externalTargetScheme'],
+                    'externalTargetAllowed' => $target['externalTargetAllowed'],
+                    'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                    'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
+                    'valid' => $issues === [],
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        return $preflight;
     }
 
     /**
@@ -2459,6 +2527,11 @@ final class OpcRelationshipGraph
         }
 
         return $mediaType . ';' . implode(';', $parameters);
+    }
+
+    private static function isImageContentType(string $contentType): bool
+    {
+        return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), 'image/');
     }
 
     /**
