@@ -195,6 +195,11 @@ final class UpstreamRunnerDependencyAudit
         'test:test-pandoc-lua-engine' => [],
     ];
 
+    private const RUNNER_EXPECTED_DATA_FILES = [
+        'test:test-pandoc' => [],
+        'test:test-pandoc-lua-engine' => [],
+    ];
+
     private const RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS = [
         'test:test-pandoc' => [],
         'test:test-pandoc-lua-engine' => [],
@@ -275,6 +280,10 @@ final class UpstreamRunnerDependencyAudit
     ];
 
     private const BENCHMARK_EXPECTED_EXTRA_SOURCE_FILES = [
+        'benchmark:benchmark-pandoc' => [],
+    ];
+
+    private const BENCHMARK_EXPECTED_DATA_FILES = [
         'benchmark:benchmark-pandoc' => [],
     ];
 
@@ -739,6 +748,9 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerDependencyClosure['unexpectedExtraSourceFiles'] !== []) {
             $blockedReasons[] = 'unexpected Cabal runner extra-source-files: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedExtraSourceFiles']);
         }
+        if ($runnerDependencyClosure['unexpectedDataFiles'] !== []) {
+            $blockedReasons[] = 'unexpected Cabal runner data-files: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedDataFiles']);
+        }
         if ($runnerDependencyClosure['unexpectedNativeSystemFields'] !== []) {
             $blockedReasons[] = 'unexpected Cabal runner native/system dependencies: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedNativeSystemFields']);
         }
@@ -789,6 +801,9 @@ final class UpstreamRunnerDependencyAudit
         }
         if ($benchmarkDependencyClosure['unexpectedExtraSourceFiles'] !== []) {
             $blockedReasons[] = 'unexpected Cabal benchmark extra-source-files: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedExtraSourceFiles']);
+        }
+        if ($benchmarkDependencyClosure['unexpectedDataFiles'] !== []) {
+            $blockedReasons[] = 'unexpected Cabal benchmark data-files: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedDataFiles']);
         }
         if ($benchmarkDependencyClosure['unexpectedNativeSystemFields'] !== []) {
             $blockedReasons[] = 'unexpected Cabal benchmark native/system dependencies: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedNativeSystemFields']);
@@ -861,8 +876,8 @@ final class UpstreamRunnerDependencyAudit
             'nonMutatingPlan' => $ready ? [
                 'record Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
-                'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected test-options, native/system dependency fields, and pandoc-lua-engine library HsLua module dependency closure',
-                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files, plus no unexpected benchmark-options or native/system dependency fields, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
+                'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected test-options, native/system dependency fields, and pandoc-lua-engine library HsLua module dependency closure',
+                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, plus no unexpected benchmark-options or native/system dependency fields, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
@@ -1039,6 +1054,14 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array<string, list<string>>
+     */
+    public static function expectedRunnerDataFiles(): array
+    {
+        return self::RUNNER_EXPECTED_DATA_FILES;
+    }
+
+    /**
      * @return array<string, array<string, list<string>>>
      */
     public static function expectedRunnerNativeSystemFields(): array
@@ -1148,6 +1171,14 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedBenchmarkExtraSourceFiles(): array
     {
         return self::BENCHMARK_EXPECTED_EXTRA_SOURCE_FILES;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function expectedBenchmarkDataFiles(): array
+    {
+        return self::BENCHMARK_EXPECTED_DATA_FILES;
     }
 
     /**
@@ -1572,7 +1603,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, testOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, otherModules:list<string>}>
+     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, dataFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, testOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>, otherModules:list<string>}>
      */
     public static function parseCabalTestSuites(string $contents): array
     {
@@ -1593,6 +1624,7 @@ final class UpstreamRunnerDependencyAudit
             $autogenModules = self::extractCabalModuleNames($fields['autogen-modules'] ?? '');
             $reexportedModules = self::extractCabalReexportedModuleSpecs($fields['reexported-modules'] ?? '');
             $extraSourceFiles = self::extractCabalFileGlobs($fields['extra-source-files'] ?? '');
+            $dataFiles = self::extractCabalFileGlobs($fields['data-files'] ?? '');
             $defaultLanguage = self::firstFieldValue($fields['default-language'] ?? null);
             $mixins = self::extractCabalMixinSpecs($fields['mixins'] ?? '');
             $buildToolDepends = self::extractCabalBuildToolDepends($fields['build-tool-depends'] ?? '');
@@ -1615,6 +1647,7 @@ final class UpstreamRunnerDependencyAudit
                 'autogenModules' => $autogenModules,
                 'reexportedModules' => $reexportedModules,
                 'extraSourceFiles' => $extraSourceFiles,
+                'dataFiles' => $dataFiles,
                 'defaultLanguage' => $defaultLanguage,
                 'mixins' => $mixins,
                 'buildToolDepends' => $buildToolDepends,
@@ -1632,7 +1665,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, benchmarkOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>}>
+     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, cppOptions:list<string>, autogenModules:list<string>, reexportedModules:list<string>, extraSourceFiles:list<string>, dataFiles:list<string>, defaultLanguage:string|null, mixins:list<string>, buildToolDepends:list<string>, buildTools:list<string>, benchmarkOptions:list<string>, defaultExtensions:list<string>, otherExtensions:list<string>}>
      */
     public static function parseCabalBenchmarks(string $contents): array
     {
@@ -1657,6 +1690,7 @@ final class UpstreamRunnerDependencyAudit
                 'autogenModules' => self::extractCabalModuleNames($fields['autogen-modules'] ?? ''),
                 'reexportedModules' => self::extractCabalReexportedModuleSpecs($fields['reexported-modules'] ?? ''),
                 'extraSourceFiles' => self::extractCabalFileGlobs($fields['extra-source-files'] ?? ''),
+                'dataFiles' => self::extractCabalFileGlobs($fields['data-files'] ?? ''),
                 'defaultLanguage' => self::firstFieldValue($fields['default-language'] ?? null),
                 'mixins' => self::extractCabalMixinSpecs($fields['mixins'] ?? ''),
                 'buildToolDepends' => self::extractCabalBuildToolDepends($fields['build-tool-depends'] ?? ''),
@@ -2017,6 +2051,7 @@ final class UpstreamRunnerDependencyAudit
                 'autogenModules' => $suites[$suiteName]['autogenModules'],
                 'reexportedModules' => $suites[$suiteName]['reexportedModules'],
                 'extraSourceFiles' => $suites[$suiteName]['extraSourceFiles'],
+                'dataFiles' => $suites[$suiteName]['dataFiles'],
                 'defaultLanguage' => $suites[$suiteName]['defaultLanguage'],
                 'mixins' => $suites[$suiteName]['mixins'],
                 'buildToolDepends' => $suites[$suiteName]['buildToolDepends'],
@@ -2044,6 +2079,7 @@ final class UpstreamRunnerDependencyAudit
         $unexpectedAutogenModules = [];
         $unexpectedReexportedModules = [];
         $unexpectedExtraSourceFiles = [];
+        $unexpectedDataFiles = [];
         $unexpectedNativeSystemFields = [];
         $missingOtherModules = [];
 
@@ -2164,6 +2200,13 @@ final class UpstreamRunnerDependencyAudit
                 }
             }
 
+            $expectedDataFiles = self::RUNNER_EXPECTED_DATA_FILES[$target] ?? [];
+            foreach ($present[$target]['dataFiles'] as $pattern) {
+                if (!in_array($pattern, $expectedDataFiles, true)) {
+                    $unexpectedDataFiles[$target][] = $pattern;
+                }
+            }
+
             $unexpectedNativeSystemFields[$target] = self::unexpectedCabalNativeSystemFields(
                 $present[$target]['nativeSystemFields'],
                 self::RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS[$target] ?? []
@@ -2193,6 +2236,7 @@ final class UpstreamRunnerDependencyAudit
             'expectedAutogenModules' => self::RUNNER_EXPECTED_AUTOGEN_MODULES,
             'expectedReexportedModules' => self::RUNNER_EXPECTED_REEXPORTED_MODULES,
             'expectedExtraSourceFiles' => self::RUNNER_EXPECTED_EXTRA_SOURCE_FILES,
+            'expectedDataFiles' => self::RUNNER_EXPECTED_DATA_FILES,
             'expectedNativeSystemFields' => self::RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS,
             'expectedOtherModules' => self::RUNNER_OTHER_MODULES,
             'present' => $present,
@@ -2211,6 +2255,7 @@ final class UpstreamRunnerDependencyAudit
             'unexpectedAutogenModules' => $unexpectedAutogenModules,
             'unexpectedReexportedModules' => $unexpectedReexportedModules,
             'unexpectedExtraSourceFiles' => $unexpectedExtraSourceFiles,
+            'unexpectedDataFiles' => $unexpectedDataFiles,
             'unexpectedNativeSystemFields' => $unexpectedNativeSystemFields,
             'missingOtherModules' => $missingOtherModules,
         ];
@@ -2247,6 +2292,7 @@ final class UpstreamRunnerDependencyAudit
                 'autogenModules' => $benchmarks[$benchmarkName]['autogenModules'],
                 'reexportedModules' => $benchmarks[$benchmarkName]['reexportedModules'],
                 'extraSourceFiles' => $benchmarks[$benchmarkName]['extraSourceFiles'],
+                'dataFiles' => $benchmarks[$benchmarkName]['dataFiles'],
                 'defaultLanguage' => $benchmarks[$benchmarkName]['defaultLanguage'],
                 'mixins' => $benchmarks[$benchmarkName]['mixins'],
                 'buildToolDepends' => $benchmarks[$benchmarkName]['buildToolDepends'],
@@ -2273,6 +2319,7 @@ final class UpstreamRunnerDependencyAudit
         $unexpectedAutogenModules = [];
         $unexpectedReexportedModules = [];
         $unexpectedExtraSourceFiles = [];
+        $unexpectedDataFiles = [];
         $unexpectedNativeSystemFields = [];
 
         foreach (self::BENCHMARK_ENTRY_POINTS as $target => $entryPoint) {
@@ -2392,6 +2439,13 @@ final class UpstreamRunnerDependencyAudit
                 }
             }
 
+            $expectedDataFiles = self::BENCHMARK_EXPECTED_DATA_FILES[$target] ?? [];
+            foreach ($present[$target]['dataFiles'] as $pattern) {
+                if (!in_array($pattern, $expectedDataFiles, true)) {
+                    $unexpectedDataFiles[$target][] = $pattern;
+                }
+            }
+
             $unexpectedNativeSystemFields[$target] = self::unexpectedCabalNativeSystemFields(
                 $present[$target]['nativeSystemFields'],
                 self::BENCHMARK_EXPECTED_NATIVE_SYSTEM_FIELDS[$target] ?? []
@@ -2415,6 +2469,7 @@ final class UpstreamRunnerDependencyAudit
             'expectedAutogenModules' => self::BENCHMARK_EXPECTED_AUTOGEN_MODULES,
             'expectedReexportedModules' => self::BENCHMARK_EXPECTED_REEXPORTED_MODULES,
             'expectedExtraSourceFiles' => self::BENCHMARK_EXPECTED_EXTRA_SOURCE_FILES,
+            'expectedDataFiles' => self::BENCHMARK_EXPECTED_DATA_FILES,
             'expectedNativeSystemFields' => self::BENCHMARK_EXPECTED_NATIVE_SYSTEM_FIELDS,
             'present' => $present,
             'missingTargets' => $missingTargets,
@@ -2432,6 +2487,7 @@ final class UpstreamRunnerDependencyAudit
             'unexpectedAutogenModules' => $unexpectedAutogenModules,
             'unexpectedReexportedModules' => $unexpectedReexportedModules,
             'unexpectedExtraSourceFiles' => $unexpectedExtraSourceFiles,
+            'unexpectedDataFiles' => $unexpectedDataFiles,
             'unexpectedNativeSystemFields' => $unexpectedNativeSystemFields,
         ];
     }
@@ -2868,7 +2924,7 @@ final class UpstreamRunnerDependencyAudit
     private static function mergeCabalFields(array $base, array $next): array
     {
         foreach ($next as $field => $value) {
-            if (in_array($field, array_merge(['build-depends', 'setup-depends', 'build-tool-depends', 'build-tools', 'default-extensions', 'other-extensions', 'other-modules', 'autogen-modules', 'reexported-modules', 'mixins', 'extra-source-files'], self::CABAL_NATIVE_SYSTEM_FIELDS), true) && array_key_exists($field, $base) && $base[$field] !== '') {
+            if (in_array($field, array_merge(['build-depends', 'setup-depends', 'build-tool-depends', 'build-tools', 'default-extensions', 'other-extensions', 'other-modules', 'autogen-modules', 'reexported-modules', 'mixins', 'extra-source-files', 'data-files'], self::CABAL_NATIVE_SYSTEM_FIELDS), true) && array_key_exists($field, $base) && $base[$field] !== '') {
                 $base[$field] .= ",\n" . $value;
                 continue;
             }
@@ -3553,6 +3609,7 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['unexpectedAutogenModules'] === []
             && $runnerDependencyClosure['unexpectedReexportedModules'] === []
             && $runnerDependencyClosure['unexpectedExtraSourceFiles'] === []
+            && $runnerDependencyClosure['unexpectedDataFiles'] === []
             && $runnerDependencyClosure['unexpectedNativeSystemFields'] === []
             && $runnerDependencyClosure['missingOtherModules'] === []
             && $benchmarkDependencyClosure['missingTargets'] === []
@@ -3570,6 +3627,7 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkDependencyClosure['unexpectedAutogenModules'] === []
             && $benchmarkDependencyClosure['unexpectedReexportedModules'] === []
             && $benchmarkDependencyClosure['unexpectedExtraSourceFiles'] === []
+            && $benchmarkDependencyClosure['unexpectedDataFiles'] === []
             && $benchmarkDependencyClosure['unexpectedNativeSystemFields'] === []
             && $luaEngineLibraryClosure['missingDependencies'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
@@ -3583,10 +3641,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

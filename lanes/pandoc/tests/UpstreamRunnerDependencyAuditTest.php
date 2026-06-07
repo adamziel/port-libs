@@ -562,6 +562,7 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerAutogenModules(), $audit['runnerDependencyClosure']['expectedAutogenModules']);
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerReexportedModules(), $audit['runnerDependencyClosure']['expectedReexportedModules']);
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerExtraSourceFiles(), $audit['runnerDependencyClosure']['expectedExtraSourceFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedRunnerDataFiles(), $audit['runnerDependencyClosure']['expectedDataFiles']);
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerNativeSystemFields(), $audit['runnerDependencyClosure']['expectedNativeSystemFields']);
         $t->same([], $audit['runnerDependencyClosure']['unexpectedDefaultExtensions']);
         $t->same([], $audit['runnerDependencyClosure']['unexpectedOtherExtensions']);
@@ -569,11 +570,14 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['unexpectedAutogenModules']);
         $t->same([], $audit['runnerDependencyClosure']['unexpectedReexportedModules']);
         $t->same([], $audit['runnerDependencyClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedDataFiles']);
         $t->same([], $audit['runnerDependencyClosure']['unexpectedNativeSystemFields']);
         $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkOptions(), $audit['benchmarkDependencyClosure']['expectedBenchmarkOptions']);
         $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkExtraSourceFiles(), $audit['benchmarkDependencyClosure']['expectedExtraSourceFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkDataFiles(), $audit['benchmarkDependencyClosure']['expectedDataFiles']);
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedBenchmarkOptions']);
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDataFiles']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDependencies(), $audit['luaEngineLibraryClosure']['expectedDependencies']);
         $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
         $t->same(true, in_array('hslua-module-zip', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
@@ -591,6 +595,8 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['autogenModules']);
         $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['extraSourceFiles']);
         $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['extraSourceFiles']);
+        $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['dataFiles']);
+        $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['dataFiles']);
         $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['testOptions']);
         $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['testOptions']);
         $t->same([], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['nativeSystemFields']);
@@ -633,9 +639,9 @@ return [
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
-        $t->contains('no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, or extra-source-files', $audit['nonMutatingPlan'][3]);
+        $t->contains('no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -2689,6 +2695,106 @@ return [
         $t->contains('unexpected Cabal runner extra-source-files: test:test-pandoc (test/generated-goldens/*.native, test/generated-markdown/*.md); test:test-pandoc-lua-engine (test/generated-lua/*.lua)', $blocked);
         $t->contains('unexpected Cabal benchmark extra-source-files: benchmark:benchmark-pandoc (benchmark/generated/*.md, test/generated-goldens/*.native, test/generated-markdown/*.md)', $blocked);
         $t->contains('no unexpected runner or benchmark extra-source-files', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks runner and benchmark data file drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "common common-executable\n  import: common-options",
+            implode("\n", [
+                'common common-executable',
+                '  import: common-options',
+                '  data-files:',
+                '    test/generated-data/*.json,',
+                '    test/generated-media/*.png',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "benchmark benchmark-pandoc\n  import: common-executable",
+            implode("\n", [
+                'benchmark benchmark-pandoc',
+                '  import: common-executable',
+                '  data-files: benchmark/generated/*.json',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "common test-options\n  build-depends: base >= 4.12 && < 5",
+            implode("\n", [
+                'common test-options',
+                '  build-depends: base >= 4.12 && < 5',
+                '  data-files: test/generated-lua/*.json',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedMixins']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedTestOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedAutogenModules']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedReexportedModules']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedNativeSystemFields']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedMixins']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedBenchmarkOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedAutogenModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedReexportedModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedNativeSystemFields']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedRunnerDataFiles(), $audit['runnerDependencyClosure']['expectedDataFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkDataFiles(), $audit['benchmarkDependencyClosure']['expectedDataFiles']);
+        $t->same([
+            'test/generated-data/*.json',
+            'test/generated-media/*.png',
+        ], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['dataFiles']);
+        $t->same([
+            'test/generated-lua/*.json',
+        ], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['dataFiles']);
+        $t->same([
+            'benchmark/generated/*.json',
+            'test/generated-data/*.json',
+            'test/generated-media/*.png',
+        ], $audit['benchmarkDependencyClosure']['present'][$target]['dataFiles']);
+        $t->same($audit['runnerDependencyClosure']['present']['test:test-pandoc']['dataFiles'], $audit['runnerDependencyClosure']['unexpectedDataFiles']['test:test-pandoc']);
+        $t->same($audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['dataFiles'], $audit['runnerDependencyClosure']['unexpectedDataFiles']['test:test-pandoc-lua-engine']);
+        $t->same($audit['benchmarkDependencyClosure']['present'][$target]['dataFiles'], $audit['benchmarkDependencyClosure']['unexpectedDataFiles'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal runner data-files: test:test-pandoc (test/generated-data/*.json, test/generated-media/*.png); test:test-pandoc-lua-engine (test/generated-lua/*.json)', $blocked);
+        $t->contains('unexpected Cabal benchmark data-files: benchmark:benchmark-pandoc (benchmark/generated/*.json, test/generated-data/*.json, test/generated-media/*.png)', $blocked);
+        $t->contains('no unexpected runner or benchmark data-files', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks empty runner and benchmark artifacts before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
