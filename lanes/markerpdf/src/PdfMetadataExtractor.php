@@ -6337,8 +6337,12 @@ final class PdfMetadataExtractor
             $seenObjects[$seenKey] = true;
         }
 
-        $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
         $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
+        if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($node, $objects, $inheritedLimits)) {
+            return;
+        }
+
+        $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
         $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
         if ($kids === []) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
@@ -6802,6 +6806,32 @@ final class PdfMetadataExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array{body: string, object: int|null} $node
+     * @param array<int, string> $objects
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     */
+    private function nameTreeLocalLimitsDisjointFromInherited(array $node, array $objects, ?array $inheritedLimits): bool
+    {
+        if ($inheritedLimits === null) {
+            return false;
+        }
+
+        $nodeLimits = $this->nameTreeNodeLimits($node, $objects);
+        if ($nodeLimits === null) {
+            return false;
+        }
+
+        $lowerBytes = strcmp($nodeLimits['lower_bytes'], $inheritedLimits['lower_bytes']) < 0
+            ? $inheritedLimits['lower_bytes']
+            : $nodeLimits['lower_bytes'];
+        $upperBytes = strcmp($nodeLimits['upper_bytes'], $inheritedLimits['upper_bytes']) > 0
+            ? $inheritedLimits['upper_bytes']
+            : $nodeLimits['upper_bytes'];
+
+        return strcmp($lowerBytes, $upperBytes) > 0;
     }
 
     /**

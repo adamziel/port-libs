@@ -1160,9 +1160,13 @@ final class PdfNamedDestinationExtractor
             return [];
         }
 
+        $kids = $this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache));
+        if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($dictionary, $objects, $cache, $inheritedLimits)) {
+            return [];
+        }
+
         $entries = [];
         $limits = $this->nameTreeEffectiveLimits($dictionary, $objects, $cache, $inheritedLimits);
-        $kids = $this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache));
         $names = $this->resolve($dictionary['Names'] ?? null, $objects, $cache);
         if ($kids === [] && is_array($names) && array_is_list($names)) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $limits)
@@ -1349,6 +1353,37 @@ final class PdfNamedDestinationExtractor
             'lower_bytes' => $lower['bytes'],
             'upper_bytes' => $upper['bytes'],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     */
+    private function nameTreeLocalLimitsDisjointFromInherited(
+        array $node,
+        array $objects,
+        array &$cache,
+        ?array $inheritedLimits
+    ): bool {
+        if ($inheritedLimits === null) {
+            return false;
+        }
+
+        $nodeLimits = $this->nameTreeNodeLimits($node, $objects, $cache);
+        if ($nodeLimits === null) {
+            return false;
+        }
+
+        $lowerBytes = strcmp($nodeLimits['lower_bytes'], $inheritedLimits['lower_bytes']) < 0
+            ? $inheritedLimits['lower_bytes']
+            : $nodeLimits['lower_bytes'];
+        $upperBytes = strcmp($nodeLimits['upper_bytes'], $inheritedLimits['upper_bytes']) > 0
+            ? $inheritedLimits['upper_bytes']
+            : $nodeLimits['upper_bytes'];
+
+        return strcmp($lowerBytes, $upperBytes) > 0;
     }
 
     /**
