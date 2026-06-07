@@ -1519,7 +1519,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isCreator:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1578,7 +1578,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isCreator:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, isCircaDate:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1606,6 +1606,10 @@ final class CslStyle
 
             $disambiguate = true;
         }
+        $isCreator = array_map(
+            static fn (string $variable): string => self::normalizeCreatorConditionVariable($variable),
+            self::spaceSeparatedAttribute($branch, 'is-creator')
+        );
         $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
         $isUncertainDate = self::spaceSeparatedAttribute($branch, 'is-uncertain-date');
         $isCircaDate = self::spaceSeparatedAttribute($branch, 'is-circa-date');
@@ -1619,9 +1623,14 @@ final class CslStyle
                 throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch position is not supported: ' . $position);
             }
         }
+        foreach ($isCreator as $variable) {
+            if (!in_array($variable, self::supportedCreatorConditionVariables(), true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch is-creator variable is not supported: ' . $variable);
+            }
+        }
 
-        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isNumeric === [] && $isUncertainDate === [] && $isCircaDate === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-numeric, is-uncertain-date, or is-circa-date');
+        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isCreator === [] && $isNumeric === [] && $isUncertainDate === [] && $isCircaDate === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-creator, is-numeric, is-uncertain-date, or is-circa-date');
         }
 
         return [
@@ -1631,6 +1640,7 @@ final class CslStyle
             'locators' => $locators,
             'positions' => $positions,
             'disambiguate' => $disambiguate,
+            'isCreator' => $isCreator,
             'isNumeric' => $isNumeric,
             'isUncertainDate' => $isUncertainDate,
             'isCircaDate' => $isCircaDate,
@@ -1641,6 +1651,49 @@ final class CslStyle
     private static function normalizeLocatorCondition(string $locator): string
     {
         return str_replace(['_', ' '], '-', strtolower(trim($locator)));
+    }
+
+    private static function normalizeCreatorConditionVariable(string $variable): string
+    {
+        return str_replace(['_', ' '], '-', strtolower(trim($variable)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function supportedCreatorConditionVariables(): array
+    {
+        return [
+            'short-author',
+            'short-editor',
+            'author',
+            'editor',
+            'holder',
+            'translator',
+            'chair',
+            'container-author',
+            'collection-editor',
+            'composer',
+            'contributor',
+            'editor-translator',
+            'event-organizer',
+            'organizer',
+            'original-author',
+            'recipient',
+            'compiler',
+            'curator',
+            'director',
+            'editorial-director',
+            'illustrator',
+            'interviewer',
+            'reviewed-author',
+            'redactor',
+            'commentator',
+            'annotator',
+            'introduction',
+            'foreword',
+            'afterword',
+        ];
     }
 
     /**

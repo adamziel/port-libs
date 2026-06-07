@@ -10996,6 +10996,148 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>type-any | Book Source Packet</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2024</dt><dd>type-none | Web Source Packet</dd>', $blocks);
     },
+    'applies bounded csl is creator conditionals for name variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'author-editor-packet',
+                'type' => 'report',
+                'title' => 'Author and Editor Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'editor' => [
+                    ['literal' => 'Editor Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'author-packet',
+                'type' => 'report',
+                'title' => 'Author Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Maya'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'editor-packet',
+                'type' => 'report',
+                'title' => 'Editor Packet',
+                'editor' => [
+                    ['literal' => 'Editor Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'translator-packet',
+                'type' => 'report',
+                'title' => 'Translator Packet',
+                'translator' => [
+                    ['literal' => 'Translator Team'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+            ],
+            [
+                'id' => 'title-only-packet',
+                'type' => 'report',
+                'title' => 'Untitled Packet',
+                'issued' => ['date-parts' => [[2022]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Creator Condition Review</title>
+    <id>https://example.test/styles/bounded-creator-condition-review</id>
+    <updated>2026-06-07T15:19:00+00:00</updated>
+  </info>
+  <macro name="creator-route">
+    <choose>
+      <if is-creator="author editor">
+        <text value="author-editor"/>
+      </if>
+      <else-if is-creator="author editor" match="any">
+        <text value="creator-any"/>
+      </else-if>
+      <else-if is-creator="translator" match="any">
+        <text value="translator-creator"/>
+      </else-if>
+      <else-if is-creator="author editor translator" match="none">
+        <text value="creator-none"/>
+      </else-if>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text macro="creator-route"/>
+        <names variable="author editor translator">
+          <substitute>
+            <text variable="title"/>
+          </substitute>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text macro="creator-route"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $branches = $summary['macros']['creator-route'][0]['branches'] ?? [];
+        $t->same(['author', 'editor'], $branches[0]['isCreator'] ?? null);
+        $t->same('all', $branches[0]['match'] ?? null);
+        $t->same(['author', 'editor'], $branches[1]['isCreator'] ?? null);
+        $t->same('any', $branches[1]['match'] ?? null);
+        $t->same(['author', 'editor', 'translator'], $branches[3]['isCreator'] ?? null);
+        $t->same('none', $branches[3]['match'] ?? null);
+
+        $t->same('(author-editor | Smith | 2026; creator-any | Cruz | 2025; creator-any | Editor Desk | 2024; translator-creator | Translator Team | 2023; creator-none | Untitled Packet | 2022)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'author-editor-packet', 'text' => '[@author-editor-packet]']),
+            new AstNode('citation', ['id' => 'author-packet', 'text' => '[@author-packet]']),
+            new AstNode('citation', ['id' => 'editor-packet', 'text' => '[@editor-packet]']),
+            new AstNode('citation', ['id' => 'translator-packet', 'text' => '[@translator-packet]']),
+            new AstNode('citation', ['id' => 'title-only-packet', 'text' => '[@title-only-packet]']),
+        ]));
+        $t->same('Author and Editor Packet :: author-editor', $processor->renderBibliographyEntry('author-editor-packet'));
+        $t->same('Author Packet :: creator-any', $processor->renderBibliographyEntry('author-packet'));
+        $t->same('Editor Packet :: creator-any', $processor->renderBibliographyEntry('editor-packet'));
+        $t->same('Translator Packet :: translator-creator', $processor->renderBibliographyEntry('translator-packet'));
+        $t->same('Untitled Packet :: creator-none', $processor->renderBibliographyEntry('title-only-packet'));
+
+        $document = (new MarkdownReader())->read('Creator routes [@author-editor-packet; @title-only-packet; @translator-packet] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Creator routes (author-editor | Smith | 2026; creator-none | Untitled Packet | 2022; translator-creator | Translator Team | 2023) stay visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Author and Editor Packet :: author-editor</dd>', $blocks);
+        $t->contains('<dt>Untitled Packet 2022</dt><dd>Untitled Packet :: creator-none</dd>', $blocks);
+        $t->contains('<dt>Translator Team 2023</dt><dd>Translator Packet :: translator-creator</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Invalid Creator Condition Review</title>
+    <id>https://example.test/styles/invalid-creator-condition-review</id>
+    <updated>2026-06-07T15:19:00+00:00</updated>
+  </info>
+  <citation>
+    <layout>
+      <choose>
+        <if is-creator="sideways">
+          <text value="bad"/>
+        </if>
+      </choose>
+    </layout>
+  </citation>
+</style>
+XML));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

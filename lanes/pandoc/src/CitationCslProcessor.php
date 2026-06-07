@@ -4999,6 +4999,15 @@ final class CitationCslProcessor
             $conditions[] = $this->citationDisambiguateMatches($item, $scope, $citation);
         }
 
+        $isCreatorVariables = $branch['isCreator'] ?? [];
+        if (is_array($isCreatorVariables)) {
+            foreach ($isCreatorVariables as $variable) {
+                if (is_scalar($variable)) {
+                    $conditions[] = $this->renderingVariableIsCreator($item, (string) $variable);
+                }
+            }
+        }
+
         $isNumericVariables = $branch['isNumeric'] ?? [];
         if (is_array($isNumericVariables)) {
             foreach ($isNumericVariables as $variable) {
@@ -6031,6 +6040,19 @@ final class CitationCslProcessor
         }
 
         return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderingVariableIsCreator(array $item, string $variable): bool
+    {
+        $normalized = str_replace(['_', ' '], '-', strtolower(trim($variable)));
+        if ($normalized === '') {
+            return false;
+        }
+
+        return $this->namesForRenderingVariable($item, $normalized) !== [];
     }
 
     /**
