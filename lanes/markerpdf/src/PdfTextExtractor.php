@@ -2107,7 +2107,7 @@ final class PdfTextExtractor
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
         $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
-        $count = $countValue === null ? null : $this->streamLengthValueAt($countValue, 0, $objects);
+        $count = $this->lightweightOutlineCountValue($countValue, $objects);
 
         return $count !== 0;
     }
@@ -2122,9 +2122,60 @@ final class PdfTextExtractor
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
         $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
-        $count = $countValue === null ? null : $this->streamLengthValueAt($countValue, 0, $objects);
+        $count = $this->lightweightOutlineCountValue($countValue, $objects);
 
         return $count !== 0;
+    }
+
+    /**
+     * PDF outline /Count is a signed integer, not a byte length. Decimal or
+     * tailed values are malformed and should behave as absent for traversal.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function lightweightOutlineCountValue(?string $value, array $objects, array $seen = []): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            if ($this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)) {
+                return null;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->lightweightOutlineCountValue(trim($body), $objects, $seen);
+        }
+
+        if (preg_match('/\G([+-]?\d+)/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        if ($this->skipPdfWhitespace($value, $offset + strlen($match[0])) !== strlen($value)) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     /**
