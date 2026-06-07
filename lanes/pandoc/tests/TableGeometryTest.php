@@ -3103,6 +3103,59 @@ return [
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
     },
+    'serializes top caption placement for table geometry and writer handoff' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Top caption audit',
+            'captionSource' => [
+                'element' => 'caption',
+                'position' => 'before-table-sections',
+                'childIndex' => 0,
+                'captionSide' => 'top',
+            ],
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoc');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'latex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same('top', $packet['captions']['long']['captionSide'] ?? null);
+        $t->same('before-table', $packet['captions']['long']['captionPlacement'] ?? null);
+        $t->same(true, $packet['captions']['long']['captionBeforeTable'] ?? null);
+        $t->same(false, $packet['captions']['long']['captionAfterTable'] ?? null);
+        $t->same('before-table', $packet['summary']['captionPlacement'] ?? null);
+        $t->same(true, $packet['summary']['captionBeforeTable'] ?? null);
+        $t->same(false, $packet['summary']['captionAfterTable'] ?? null);
+        $t->same(['markdown-caption-side-reordered'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same(['asciidoc-caption-side-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same(['latex-caption-side-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same('caption-side', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('table-caption-top-placement', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('before-table', $markdownDiagnostics[0]['captionPlacement'] ?? null);
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-caption-side-reordered',
+            'asciidoc-caption-side-review-required',
+            'latex-caption-side-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+        $t->contains('<figcaption class="wp-element-caption">Top caption audit</figcaption><table>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+    },
     'serializes block-level table caption provenance for importer review packets' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Fallback block caption text',

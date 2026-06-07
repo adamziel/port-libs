@@ -3507,9 +3507,9 @@ final class PdfAcroFormExtractor
             $body = $this->dictionaryObjectBody($objects[$ancestorObject] ?? '') ?? trim($objects[$ancestorObject] ?? '');
             $inherited = $this->mergeFieldAttributes($body, $inherited, $ancestorObject);
 
-            $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
-            $alternateName = $this->pdfStringValueAfterName($body, 'TU', $objects);
-            $mappingName = $this->pdfStringValueAfterName($body, 'TM', $objects);
+            $partialName = $this->lastPdfStringValueAfterName($body, 'T', $objects);
+            $alternateName = $this->lastPdfStringValueAfterName($body, 'TU', $objects);
+            $mappingName = $this->lastPdfStringValueAfterName($body, 'TM', $objects);
             if ($partialName !== null && $partialName !== '') {
                 $nameParts[] = $partialName;
             }
@@ -3563,9 +3563,9 @@ final class PdfAcroFormExtractor
         }
 
         $effective = $this->mergeFieldAttributes($body, $inherited, $objectNumber);
-        $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
-        $alternateName = $this->pdfStringValueAfterName($body, 'TU', $objects);
-        $mappingName = $this->pdfStringValueAfterName($body, 'TM', $objects);
+        $partialName = $this->lastPdfStringValueAfterName($body, 'T', $objects);
+        $alternateName = $this->lastPdfStringValueAfterName($body, 'TU', $objects);
+        $mappingName = $this->lastPdfStringValueAfterName($body, 'TM', $objects);
         $currentNameParts = $nameParts;
         if ($partialName !== null && $partialName !== '') {
             $currentNameParts[] = $partialName;
@@ -4843,7 +4843,7 @@ final class PdfAcroFormExtractor
     {
         $effective = $inherited;
         foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen'] as $name) {
-            $value = $this->valueAfterName($body, $name);
+            $value = $this->lastTopLevelValueAfterName($body, $name);
             if ($value === null) {
                 continue;
             }
@@ -4865,7 +4865,7 @@ final class PdfAcroFormExtractor
     {
         $defaults = [];
         foreach (['DA', 'DR', 'Q'] as $name) {
-            $value = $this->valueAfterName($acroForm, $name);
+            $value = $this->lastTopLevelValueAfterName($acroForm, $name);
             if ($value !== null) {
                 $defaults[$name] = [
                     'value' => $value,
@@ -6458,7 +6458,7 @@ final class PdfAcroFormExtractor
             return;
         }
 
-        $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
+        $partialName = $this->lastPdfStringValueAfterName($body, 'T', $objects);
         $currentNameParts = $nameParts;
         if ($partialName !== null && $partialName !== '') {
             $currentNameParts[] = $partialName;
@@ -6467,7 +6467,7 @@ final class PdfAcroFormExtractor
         $fieldName = $currentNameParts === [] ? '#' . $objectNumber : implode('.', $currentNameParts);
         if (
             $partialName !== null
-            || $this->pdfStringValueAfterName($body, 'TM', $objects) !== null
+            || $this->lastPdfStringValueAfterName($body, 'TM', $objects) !== null
             || $this->valueAfterName($body, 'FT') !== null
             || $this->valueAfterName($body, 'Kids') !== null
             || $this->isWidget($body)
@@ -10312,6 +10312,12 @@ final class PdfAcroFormExtractor
     private function pdfStringValueAfterName(string $body, string $name, array $objects): ?string
     {
         $value = $this->valueAfterName($body, $name);
+        return $value === null ? null : $this->pdfValueToString($value, $objects);
+    }
+
+    private function lastPdfStringValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->lastTopLevelValueAfterName($body, $name);
         return $value === null ? null : $this->pdfValueToString($value, $objects);
     }
 

@@ -777,6 +777,80 @@ return [
         $t->true(!str_contains($fragment->serialize(), 'open="open"'), 'Expected open to serialize as an HTML5 boolean attribute');
         $t->true(!str_contains($fragment->serialize(), 'controls=""'), 'Expected controls to serialize as an HTML5 boolean attribute');
     },
+    'normalizes media track caption metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<video controls poster="./cover.jpg">'
+            . '<source src="./review.mp4" type="video/mp4">'
+            . '<track src="./captions/en.vtt" kind="CAPTIONS" srclang="EN-us" label=" English captions " default="default">'
+            . '<track src="java&#10;script:alert(1)" kind="metadata" srclang="x-review" label="Bad source">'
+            . '<track src="./captions/bad.vtt" kind="transcript" srclang="bad<tag>" label="Bad metadata">'
+            . '</video><audio controls><track src="./audio/es.vtt" kind="subtitles" srclang="es-419" label="Spanish subtitles"></audio>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/media-track-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<video controls poster="https://source.example.test/import/posts/cover.jpg">'
+            . '<source src="https://source.example.test/import/posts/review.mp4" type="video/mp4">'
+            . '<track src="https://source.example.test/import/posts/captions/en.vtt" kind="captions" srclang="en-US" label="English captions" default>'
+            . '<track kind="metadata" srclang="x-review" label="Bad source">'
+            . '<track src="https://source.example.test/import/posts/captions/bad.vtt" label="Bad metadata">'
+            . '</video><audio controls><track src="https://source.example.test/import/posts/audio/es.vtt" kind="subtitles" srclang="es-419" label="Spanish subtitles"></audio>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('', $fragment->textContent());
+        $t->same(['audio', 'source', 'track', 'video'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['kind', 'src', 'srclang'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-url', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same('video', $nodes[0]['name']);
+        $t->same([
+            'controls' => '',
+            'poster' => 'https://source.example.test/import/posts/cover.jpg',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/captions/en.vtt',
+            'kind' => 'captions',
+            'srclang' => 'en-US',
+            'label' => 'English captions',
+            'default' => '',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'kind' => 'metadata',
+            'srclang' => 'x-review',
+            'label' => 'Bad source',
+        ], $nodes[0]['children'][2]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/captions/bad.vtt',
+            'label' => 'Bad metadata',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same('audio', $nodes[1]['name']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/audio/es.vtt',
+            'kind' => 'subtitles',
+            'srclang' => 'es-419',
+            'label' => 'Spanish subtitles',
+        ], $nodes[1]['children'][0]['attrs']);
+        $t->same('/migration/media-track-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'default="default"'), 'Expected default to serialize as an HTML5 boolean attribute');
+        $t->true(!str_contains($html, 'CAPTIONS'), 'Expected track kind to normalize to the HTML token form');
+        $t->true(!str_contains($html, 'EN-us'), 'Expected track language tags to be canonicalized');
+        $t->true(!str_contains($html, 'transcript'), 'Expected non-HTML track kind values to be stripped');
+        $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed track language tags to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe caption source URL to be stripped');
+    },
     'marks closed details disclosure content for WordPress review handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<details data-pandoc-details-state="source-spoof"><summary onclick="alert(1)">Migration notes</summary>'

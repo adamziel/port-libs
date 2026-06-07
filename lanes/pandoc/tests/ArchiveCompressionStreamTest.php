@@ -172,6 +172,75 @@ $lz4DictionaryCompressedFrame = static function (
         . pack('V', intval(hash('xxh32', $decodedPayload), 16));
 };
 
+$zipFixtureBytes = static function (array $entries, string $packageComment = ''): string {
+    $body = '';
+    $centralDirectory = '';
+    foreach ($entries as $entry) {
+        $name = (string) $entry['name'];
+        $data = (string) ($entry['data'] ?? '');
+        $method = (int) ($entry['compressionMethod'] ?? 0);
+        $flags = (int) ($entry['flags'] ?? 0);
+        $localFlags = (int) ($entry['localFlags'] ?? $flags);
+        $centralExtra = (string) ($entry['centralExtra'] ?? $entry['extra'] ?? '');
+        $localExtra = (string) ($entry['localExtra'] ?? $entry['extra'] ?? '');
+        $comment = (string) ($entry['comment'] ?? '');
+        $payload = $method === 8 ? gzdeflate($data) : $data;
+        $crc32 = (int) sprintf('%u', crc32($data));
+        $localHeaderOffset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $localFlags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($payload),
+            strlen($data),
+            strlen($name),
+            strlen($localExtra)
+        ) . $name . $localExtra . $payload;
+
+        $centralDirectory .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($payload),
+            strlen($data),
+            strlen($name),
+            strlen($centralExtra),
+            strlen($comment),
+            0,
+            0,
+            (int) ($entry['externalAttributes'] ?? 0),
+            $localHeaderOffset
+        ) . $name . $centralExtra . $comment;
+    }
+
+    return $body
+        . $centralDirectory
+        . pack(
+            'VvvvvVVv',
+            0x06054b50,
+            0,
+            0,
+            count($entries),
+            count($entries),
+            strlen($centralDirectory),
+            strlen($body),
+            strlen($packageComment)
+        )
+        . $packageComment;
+};
+
 return [
     'builds and reads bounded tar package fixture entries' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
@@ -2441,6 +2510,133 @@ return [
         $t->same(2, $lz4Inspection['stream']['frameCount']);
         $t->same(1, $lz4Inspection['stream']['skippableFrameCount']);
         $t->same('zip package reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+    },
+
+    'preflights encrypted zip package streams without exposing entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $utf8 = 0x0800;
+        $winZipAesExtra = pack('vvv', 0x9901, 7, 2) . 'AE' . "\x03" . pack('v', 8);
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'flags' => $utf8,
+            ],
+            [
+                'name' => 'word/encrypted.xml',
+                'data' => '<w:document>traditional encrypted payload bytes</w:document>',
+                'flags' => $utf8 | 0x0001,
+            ],
+            [
+                'name' => 'word/strong.xml',
+                'data' => '<w:document>strong encrypted payload bytes</w:document>',
+                'flags' => $utf8 | 0x0040,
+            ],
+            [
+                'name' => 'word/aes.xml',
+                'data' => '<w:document>AES metadata payload bytes</w:document>',
+                'flags' => $utf8 | 0x2000,
+                'extra' => $winZipAesExtra,
+            ],
+            [
+                'name' => 'word/local-only.xml',
+                'data' => '<w:document>local header encrypted payload bytes</w:document>',
+                'flags' => $utf8,
+                'localFlags' => $utf8 | 0x0001,
+            ],
+        ], 'encrypted review fixture');
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-encrypted-package.zip',
+                'comment' => 'encrypted zip preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('encrypted zip reviewer metadata', 10)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipEncryptionPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(5, $inspection['entryCount']);
+            $t->same(4, $inspection['encryptedEntryCount']);
+            $t->same(2, $inspection['traditionalEncryptionEntryCount']);
+            $t->same(1, $inspection['strongEncryptionEntryCount']);
+            $t->same(1, $inspection['centralDirectoryEncryptionEntryCount']);
+            $t->same(1, $inspection['winZipAesEntryCount']);
+            $t->same(true, $inspection['hasEncryptedEntries']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same('encrypted-zip-entries-blocked', $inspection['extractionPolicy']);
+            $t->same(['encrypted-zip-entries'], $inspection['issues']);
+            $t->same([
+                'word/encrypted.xml',
+                'word/strong.xml',
+                'word/aes.xml',
+                'word/local-only.xml',
+            ], array_column($inspection['encryptedEntries'], 'name'));
+            $t->same('metadata', $inspection['entries'][0]['policy']);
+            $t->same('blocked', $inspection['encryptedEntries'][0]['policy']);
+            $t->same(['traditional'], $inspection['encryptedEntries'][0]['encryptionTypes']);
+            $t->same([
+                'zip-encrypted-entry-not-extracted',
+                'zip-traditional-encryption',
+            ], $inspection['encryptedEntries'][0]['diagnostics']);
+            $t->same(['strong'], $inspection['encryptedEntries'][1]['encryptionTypes']);
+            $t->same([
+                'zip-encrypted-entry-not-extracted',
+                'zip-strong-encryption',
+            ], $inspection['encryptedEntries'][1]['diagnostics']);
+            $t->same(['central-directory', 'winzip-aes'], $inspection['encryptedEntries'][2]['encryptionTypes']);
+            $t->same([
+                'zip-encrypted-entry-not-extracted',
+                'zip-central-directory-encryption',
+                'zip-winzip-aes-extra-field',
+            ], $inspection['encryptedEntries'][2]['diagnostics']);
+            $t->same([0x9901], $inspection['encryptedEntries'][2]['centralExtraFieldIds']);
+            $t->same([0x9901], $inspection['encryptedEntries'][2]['localExtraFieldIds']);
+            $t->same(['traditional'], $inspection['encryptedEntries'][3]['encryptionTypes']);
+            $t->same([
+                'zip-encrypted-entry-not-extracted',
+                'zip-traditional-encryption',
+                'zip-local-header-flags-mismatch',
+            ], $inspection['encryptedEntries'][3]['diagnostics']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStream($bytes, $format, strlen($zipBytes)));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipEncryptionPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipEncryptionPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-encrypted-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('encrypted zip preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('encrypted zip reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
     },
 
     'auto-detects bounded zip package fixture compression streams' => static function (TestRunner $t): void {

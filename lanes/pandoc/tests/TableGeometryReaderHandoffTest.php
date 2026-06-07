@@ -300,6 +300,34 @@ HTML;
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'places explicit html top captions before wordpress table output' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="top-caption-grid" data-source="html-reader">
+<caption id="top-caption" class="caption-title" data-origin="html-reader" style="caption-side: top; color: blue">Top <em>caption</em></caption>
+<tbody><tr><th>Scope</th><td>Ready</td></tr></tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Top caption', $table->attr('caption'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('top', $packet['captions']['long']['captionSide'] ?? null);
+        $t->same('before-table', $packet['captions']['long']['captionPlacement'] ?? null);
+        $t->same(true, $packet['captions']['long']['captionBeforeTable'] ?? null);
+        $t->same(true, $packet['summary']['captionBeforeTable'] ?? null);
+        $t->same(false, $packet['summary']['captionAfterTable'] ?? null);
+        $markdownCodes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $packet['writerDowngrades']['markdown'] ?? []);
+        $t->same(true, in_array('markdown-caption-side-reordered', $markdownCodes, true));
+        $t->same(true, in_array('markdown-caption-source-attributes-require-raw-html', $markdownCodes, true));
+        $t->contains('<figcaption id="top-caption" class="wp-element-caption caption-title" data-origin="html-reader" style="caption-side: top; color: blue">Top <em>caption</em></figcaption><table id="top-caption-grid" data-source="html-reader">', $blocks);
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'expands html rowspan zero through the current tbody geometry group' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="rowspan-zero-grid" data-source="html-reader">

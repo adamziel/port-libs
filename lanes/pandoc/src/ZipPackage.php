@@ -25,6 +25,7 @@ final class ZipPackage
     private const MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT = 20;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
+    private const WINZIP_AES_EXTRA_ID = 0x9901;
     private const UINT32_FACTOR = 4294967296;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_FIFO_TYPE = 0x1000;
@@ -1932,6 +1933,188 @@ final class ZipPackage
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'splitArchiveEntries' => $splitArchiveEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     encryptedEntryCount:int,
+     *     traditionalEncryptionEntryCount:int,
+     *     strongEncryptionEntryCount:int,
+     *     centralDirectoryEncryptionEntryCount:int,
+     *     winZipAesEntryCount:int,
+     *     hasEncryptedEntries:bool,
+     *     extractionPolicy:string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     encryptedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function encryptionPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before encrypted entries can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $encryptedEntries = [];
+        $traditionalEncryptionEntryCount = 0;
+        $strongEncryptionEntryCount = 0;
+        $centralDirectoryEncryptionEntryCount = 0;
+        $winZipAesEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+        while ($index < $archive['totalEntryCount']) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $centralExtraFieldIds = self::extraFieldIdsForPolicy($centralExtraFieldData, "central extra fields for {$decodedName['text']}");
+            $localHeader = self::localHeaderMetadataForPolicy($bytes, $localHeaderOffset, $index);
+            $localExtraFieldIds = self::extraFieldIdsForPolicy($localHeader['extraFieldData'], "local extra fields for {$decodedName['text']}");
+
+            $hasTraditionalEncryption = ($flags & self::ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0
+                || (($localHeader['generalPurposeFlags'] & self::ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0);
+            $hasStrongEncryption = ($flags & self::STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG) !== 0
+                || (($localHeader['generalPurposeFlags'] & self::STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG) !== 0);
+            $hasCentralDirectoryEncryption = ($flags & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0
+                || (($localHeader['generalPurposeFlags'] & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0);
+            $hasWinZipAesExtraField = in_array(self::WINZIP_AES_EXTRA_ID, $centralExtraFieldIds, true)
+                || in_array(self::WINZIP_AES_EXTRA_ID, $localExtraFieldIds, true);
+
+            $encryptionTypes = [];
+            $diagnostics = [];
+            if ($hasTraditionalEncryption) {
+                $encryptionTypes[] = 'traditional';
+                $diagnostics[] = 'zip-traditional-encryption';
+            }
+            if ($hasStrongEncryption) {
+                $encryptionTypes[] = 'strong';
+                $diagnostics[] = 'zip-strong-encryption';
+            }
+            if ($hasCentralDirectoryEncryption) {
+                $encryptionTypes[] = 'central-directory';
+                $diagnostics[] = 'zip-central-directory-encryption';
+            }
+            if ($hasWinZipAesExtraField) {
+                $encryptionTypes[] = 'winzip-aes';
+                $diagnostics[] = 'zip-winzip-aes-extra-field';
+            }
+
+            if ($flags !== $localHeader['generalPurposeFlags']) {
+                $diagnostics[] = 'zip-local-header-flags-mismatch';
+            }
+            if ($method !== $localHeader['compressionMethod']) {
+                $diagnostics[] = 'zip-local-header-method-mismatch';
+            }
+            if ($rawName !== $localHeader['rawName']) {
+                $diagnostics[] = 'zip-local-header-name-mismatch';
+            }
+
+            if ($encryptionTypes !== []) {
+                array_unshift($diagnostics, 'zip-encrypted-entry-not-extracted');
+            }
+            $diagnostics = array_values(array_unique($diagnostics));
+
+            if ($hasTraditionalEncryption) {
+                $traditionalEncryptionEntryCount++;
+            }
+            if ($hasStrongEncryption) {
+                $strongEncryptionEntryCount++;
+            }
+            if ($hasCentralDirectoryEncryption) {
+                $centralDirectoryEncryptionEntryCount++;
+            }
+            if ($hasWinZipAesExtraField) {
+                $winZipAesEntryCount++;
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'compressionMethod' => $method,
+                'compressionMethodName' => self::compressionMethodName($method),
+                'generalPurposeFlags' => $flags,
+                'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
+                'centralExtraFieldIds' => $centralExtraFieldIds,
+                'localExtraFieldIds' => $localExtraFieldIds,
+                'compressedSize' => $compressedSize,
+                'uncompressedSize' => $uncompressedSize,
+                'hasTraditionalEncryption' => $hasTraditionalEncryption,
+                'hasStrongEncryption' => $hasStrongEncryption,
+                'hasCentralDirectoryEncryption' => $hasCentralDirectoryEncryption,
+                'hasWinZipAesExtraField' => $hasWinZipAesExtraField,
+                'encryptionTypes' => array_values(array_unique($encryptionTypes)),
+                'policy' => $encryptionTypes === [] ? 'metadata' : 'blocked',
+                'diagnostics' => $diagnostics,
+            ];
+            $entries[] = $entry;
+            if ($encryptionTypes !== []) {
+                $encryptedEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            throw new \RuntimeException('ZIP central directory size does not match scanned encrypted-entry policy records');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($encryptedEntries !== []) {
+            $issues[] = 'encrypted-zip-entries';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'encryptedEntryCount' => count($encryptedEntries),
+            'traditionalEncryptionEntryCount' => $traditionalEncryptionEntryCount,
+            'strongEncryptionEntryCount' => $strongEncryptionEntryCount,
+            'centralDirectoryEncryptionEntryCount' => $centralDirectoryEncryptionEntryCount,
+            'winZipAesEntryCount' => $winZipAesEntryCount,
+            'hasEncryptedEntries' => $encryptedEntries !== [],
+            'extractionPolicy' => $encryptedEntries === [] ? 'no-encrypted-zip-entries' : 'encrypted-zip-entries-blocked',
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'encryptedEntries' => $encryptedEntries,
             'entries' => $entries,
         ];
     }
@@ -4210,6 +4393,90 @@ final class ZipPackage
         }
 
         return $names;
+    }
+
+    /**
+     * @return array{
+     *     generalPurposeFlags:int,
+     *     compressionMethod:int,
+     *     rawName:string,
+     *     extraFieldData:string,
+     *     dataOffset:int
+     * }
+     */
+    private static function localHeaderMetadataForPolicy(string $bytes, int $offset, int $centralDirectoryIndex): array
+    {
+        if (substr($bytes, $offset, 4) !== self::LOCAL_FILE_SIGNATURE) {
+            throw new \RuntimeException("Invalid ZIP local file header for central directory entry {$centralDirectoryIndex}");
+        }
+
+        self::assertRange($bytes, $offset, 30, 'local file header');
+        $flags = self::readUInt16($bytes, $offset + 6);
+        $method = self::readUInt16($bytes, $offset + 8);
+        $nameLength = self::readUInt16($bytes, $offset + 26);
+        $extraLength = self::readUInt16($bytes, $offset + 28);
+        $variableStart = $offset + 30;
+        self::assertRange($bytes, $variableStart, $nameLength + $extraLength, 'local file header variable fields');
+        $rawName = substr($bytes, $variableStart, $nameLength);
+        self::assertSafePartName($rawName);
+
+        return [
+            'generalPurposeFlags' => $flags,
+            'compressionMethod' => $method,
+            'rawName' => $rawName,
+            'extraFieldData' => substr($bytes, $variableStart + $nameLength, $extraLength),
+            'dataOffset' => $variableStart + $nameLength + $extraLength,
+        ];
+    }
+
+    /**
+     * @return array{text:string, encoding:string}
+     */
+    private static function decodeZipNameForPolicy(string $rawName, int $flags, string $label): array
+    {
+        self::assertSafePartName($rawName);
+        if (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0) {
+            self::assertUtf8($rawName, "ZIP {$label}");
+            $name = $rawName;
+            $encoding = 'utf-8';
+        } else {
+            $name = self::decodeCp437($rawName);
+            $encoding = 'cp437';
+        }
+
+        self::assertSafePartName($name);
+
+        return [
+            'text' => $name,
+            'encoding' => $encoding,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function extraFieldIdsForPolicy(string $extraFieldData, string $label): array
+    {
+        $ids = [];
+        $cursor = 0;
+        $length = strlen($extraFieldData);
+        while ($cursor < $length) {
+            if ($cursor + 4 > $length) {
+                throw new \RuntimeException("ZIP {$label} contains a truncated extra field header");
+            }
+
+            $id = self::readUInt16($extraFieldData, $cursor);
+            $fieldLength = self::readUInt16($extraFieldData, $cursor + 2);
+            $dataStart = $cursor + 4;
+            if ($dataStart + $fieldLength > $length) {
+                throw new \RuntimeException("ZIP {$label} contains a truncated extra field payload");
+            }
+
+            $ids[] = $id;
+            $cursor = $dataStart + $fieldLength;
+        }
+
+        return $ids;
     }
 
     private static function deflateOptionFlagName(int $flags): ?string

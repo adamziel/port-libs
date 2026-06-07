@@ -2432,6 +2432,12 @@ final class TableGeometry
         $captionSide = trim((string) ($source['captionSide'] ?? ''));
         if ($captionSide !== '') {
             $record['captionSide'] = $captionSide;
+            $captionPlacement = self::captionPlacementFromSide($captionSide);
+            if ($captionPlacement !== '') {
+                $record['captionPlacement'] = $captionPlacement;
+                $record['captionBeforeTable'] = $captionPlacement === 'before-table';
+                $record['captionAfterTable'] = $captionPlacement === 'after-table';
+            }
         }
 
         $sourceAttributes = self::captionSourceAttributeSummary($source['sourceAttributes'] ?? []);
@@ -2440,6 +2446,15 @@ final class TableGeometry
         }
 
         return $record;
+    }
+
+    private static function captionPlacementFromSide(string $captionSide): string
+    {
+        return match (strtolower(trim($captionSide))) {
+            'top' => 'before-table',
+            'bottom' => 'after-table',
+            default => '',
+        };
     }
 
     /**
@@ -3396,6 +3411,9 @@ final class TableGeometry
                 ? (int) $captions['long']['sourceChildIndex']
                 : null,
             'captionSide' => (string) ($captions['long']['captionSide'] ?? ''),
+            'captionPlacement' => (string) ($captions['long']['captionPlacement'] ?? ''),
+            'captionBeforeTable' => (bool) ($captions['long']['captionBeforeTable'] ?? false),
+            'captionAfterTable' => (bool) ($captions['long']['captionAfterTable'] ?? false),
             'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
             'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
             'shortCaptionBlockTypes' => array_values(array_map(
@@ -4440,6 +4458,31 @@ final class TableGeometry
             }
         }
 
+        $captionPlacement = (string) ($long['captionPlacement'] ?? '');
+        if ($captionPlacement === 'before-table') {
+            $captionSideRequirements = [
+                'markdown' => ['markdown-caption-side-reordered', 'table-caption-top-placement'],
+                'asciidoc' => ['asciidoc-caption-side-review-required', 'table-caption-top-placement'],
+                'latex' => ['latex-caption-side-review-required', 'caption-position-review'],
+            ];
+            if (isset($captionSideRequirements[$writer])) {
+                [$code, $requiredFeature] = $captionSideRequirements[$writer];
+                $diagnostics[] = [
+                    'code' => $code,
+                    'writer' => $writer,
+                    'reason' => 'caption-side',
+                    'requiredFeature' => $requiredFeature,
+                    'caption' => (string) ($long['text'] ?? ''),
+                    'captionSource' => (string) ($long['source'] ?? 'none'),
+                    'sourceElement' => (string) ($long['sourceElement'] ?? ''),
+                    'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
+                    'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
+                    'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'captionPlacement' => $captionPlacement,
+                ];
+            }
+        }
+
         $sourceAttributes = is_array($long['sourceAttributes'] ?? null) ? $long['sourceAttributes'] : [];
         if ($sourceAttributes !== []) {
             $captionSourceRequirements = [
@@ -4462,6 +4505,7 @@ final class TableGeometry
                     'sourcePosition' => (string) ($long['sourcePosition'] ?? ''),
                     'sourceChildIndex' => is_numeric($long['sourceChildIndex'] ?? null) ? (int) $long['sourceChildIndex'] : null,
                     'captionSide' => (string) ($long['captionSide'] ?? ''),
+                    'captionPlacement' => $captionPlacement,
                     'attributeCount' => count($attributes),
                     'attributes' => $attributes,
                     'sourceAttributes' => $sourceAttributes,

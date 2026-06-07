@@ -995,6 +995,7 @@ final class PdfTextExtractor
      *     nested_unresolved_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
+     *     hex_string_filter_operand_count: int,
      *     duplicate_filter_declaration_count: int,
      *     duplicate_decodeparms_declaration_count: int,
      *     escaped_filter_name_operand_count: int,
@@ -1032,6 +1033,7 @@ final class PdfTextExtractor
             'nested_unresolved_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
+            'hex_string_filter_operand_count' => 0,
             'duplicate_filter_declaration_count' => 0,
             'duplicate_decodeparms_declaration_count' => 0,
             'escaped_filter_name_operand_count' => 0,
@@ -1130,6 +1132,7 @@ final class PdfTextExtractor
             $nestedUnresolvedFilterOperandCount = $this->nestedUnresolvedStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
+            $hexStringFilterOperandCount = $this->hexStringStreamFilterOperandCount($operandGroups['Filter']);
             $escapedFilterNameOperandCount = $this->escapedStreamFilterNameOperandCount($operandGroups['Filter']);
             $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters, $decodeParms, $objects);
             $filterEndMarkerProblemCount = count($filterEndMarkerProblems);
@@ -1174,6 +1177,7 @@ final class PdfTextExtractor
             $review['nested_unresolved_filter_operand_count'] += $nestedUnresolvedFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
+            $review['hex_string_filter_operand_count'] += $hexStringFilterOperandCount;
             $review['duplicate_filter_declaration_count'] += $duplicateFilterDeclarationCount;
             $review['duplicate_decodeparms_declaration_count'] += $duplicateDecodeParmsDeclarationCount;
             $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
@@ -1204,6 +1208,7 @@ final class PdfTextExtractor
                 'nested_unresolved_filter_operand_count' => $nestedUnresolvedFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
+                'hex_string_filter_operand_count' => $hexStringFilterOperandCount,
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                 'duplicate_decodeparms_declaration_count' => $duplicateDecodeParmsDeclarationCount,
                 'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
@@ -31292,6 +31297,24 @@ final class PdfTextExtractor
         $count = 0;
         foreach ($operands as $operand) {
             if (($operand['kind'] ?? null) === 'indirect') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function hexStringStreamFilterOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (
+                ($operand['extra_filter_operand_type'] ?? null) === 'hex_string'
+                || (($operand['token_type'] ?? null) === 'hex_string' && $this->streamFilterOperandIsMalformed($operand))
+            ) {
                 $count++;
             }
         }

@@ -1016,6 +1016,79 @@ return [
         $t->same(12, $document['pages'][0]['pnum']);
         $t->same(12, $document['pages'][0]['pdftext_source']['page']);
     },
+    'rejects negative pdftext page reference and character indexes before WordPress metadata' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage): void {
+        $negativePage = $pdftextLinkedPage();
+        $negativePage['page'] = -1;
+
+        $negativeReferencePage = $pdftextLinkedPage();
+        $negativeReferencePage['refs'] = [[
+            'page' => -2,
+            'idx' => 0,
+            'coord' => [144.0, 216.0],
+        ]];
+
+        $negativeReferenceIndex = $pdftextLinkedPage();
+        $negativeReferenceIndex['refs'] = [[
+            'page' => 2,
+            'idx' => -1,
+            'coord' => [144.0, 216.0],
+        ]];
+
+        $negativeDestinationPage = $pdftextLinkedPage();
+        $negativeDestinationPage['refs'] = [[
+            'url' => '#negative-destination',
+            'dest_page' => -3,
+            'dest_pos' => [72.0, 144.0],
+        ]];
+
+        $negativeSpanRange = $pdftextCharsPage();
+        $negativeSpanRange['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = -1;
+        $negativeSpanRange['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 8;
+
+        $negativeCharIndex = $pdftextCharsPage();
+        $negativeCharIndex['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 0;
+        $negativeCharIndex['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 8;
+        $negativeCharIndex['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = -1;
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativePage], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeReferencePage], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeReferenceIndex], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeDestinationPage], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeSpanRange], maxPages: 1, keepChars: true));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$negativeCharIndex], maxPages: 1, keepChars: true));
+
+        $zeroIndexed = $pdftextCharsPage();
+        $zeroIndexed['page'] = 0;
+        $zeroIndexed['refs'] = [[
+            'page' => 0,
+            'idx' => 0,
+            'coord' => [0.0, 0.0],
+            'dest_page' => 0,
+            'dest_pos' => [0.0, 0.0],
+        ]];
+        $zeroIndexed['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 0.0;
+        $zeroIndexed['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 1.0;
+        $zeroIndexed['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = 0.0;
+        $zeroIndexed['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['char_idx'] = 1.0;
+
+        $document = $extractor->getTextBlocks([$zeroIndexed], maxPages: 1, keepChars: true);
+        $page = $document['pages'][0];
+        $span = $page['blocks'][0]['lines'][0]['spans'][0];
+        $refs = $page['pdftext_source']['refs'];
+
+        $t->same(0, $page['pnum']);
+        $t->same(0, $page['pdftext_source']['page']);
+        $t->same(0, $span['char_start_idx']);
+        $t->same(1, $span['char_end_idx']);
+        $t->same(0, $span['chars'][0]['char_idx']);
+        $t->same(1, $span['chars'][1]['char_idx']);
+        $t->same(0, $refs[0]['page']);
+        $t->same(0, $refs[0]['idx']);
+        $t->same('page-0-0', $refs[0]['ref']);
+        $t->same('#page-0-0', $refs[0]['url']);
+        $t->same(0, $refs[0]['dest_page']);
+    },
     'drops non core pdftext page payload keys before WordPress metadata' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['raw_page_bytes'] = 'raw page bytes must not cross dictionary_output';

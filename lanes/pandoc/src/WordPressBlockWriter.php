@@ -408,7 +408,10 @@ final class WordPressBlockWriter
 
         $columnCount = $this->tableColumnCount($node);
         $accessibilityAttrs = $this->tableAccessibilityAttrs($node);
-        $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
+        $captionHtml = $this->renderTableCaptionHtml($node);
+        $captionPlacement = $this->tableCaptionPlacement($node);
+        $html = $captionHtml !== '' && $captionPlacement === 'top' ? $captionHtml : '';
+        $html .= '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
             $html .= $this->renderTableRows($this->tableRowEntries($head, true), $node, $columnCount, 'head', $accessibilityAttrs);
@@ -431,8 +434,8 @@ final class WordPressBlockWriter
         }
         $html .= '</table>';
 
-        if ($this->tableHasCaption($node)) {
-            $html .= '<figcaption' . $this->renderTableCaptionAttrs($node) . '>' . $this->renderTableCaptionContent($node) . '</figcaption>';
+        if ($captionHtml !== '' && $captionPlacement !== 'top') {
+            $html .= $captionHtml;
         }
 
         return $html;
@@ -476,6 +479,27 @@ final class WordPressBlockWriter
     private function tableHasCaption(AstNode $node): bool
     {
         return (string) $node->attr('caption', '') !== '' || $this->tableCaptionBlocks($node) !== [];
+    }
+
+    private function renderTableCaptionHtml(AstNode $node): string
+    {
+        if (!$this->tableHasCaption($node)) {
+            return '';
+        }
+
+        return '<figcaption' . $this->renderTableCaptionAttrs($node) . '>' . $this->renderTableCaptionContent($node) . '</figcaption>';
+    }
+
+    private function tableCaptionPlacement(AstNode $node): string
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return 'bottom';
+        }
+
+        $captionSide = strtolower(trim((string) ($captionSource['captionSide'] ?? '')));
+
+        return $captionSide === 'top' ? 'top' : 'bottom';
     }
 
     private function renderTableCaptionContent(AstNode $node): string

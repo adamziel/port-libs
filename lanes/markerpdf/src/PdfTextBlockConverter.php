@@ -58,7 +58,7 @@ final class PdfTextBlockConverter
                     }
                     foreach (['char_start_idx', 'char_end_idx'] as $metadataKey) {
                         if (array_key_exists($metadataKey, $span)) {
-                            $spanObj[$metadataKey] = $this->integerMetadata($span[$metadataKey], "span {$metadataKey}");
+                            $spanObj[$metadataKey] = $this->unsignedIntegerMetadata($span[$metadataKey], "span {$metadataKey}");
                         }
                     }
                     if (array_key_exists('chars', $span) && is_array($span['chars'])) {
@@ -99,7 +99,7 @@ final class PdfTextBlockConverter
         if ($pageWidth <= 0.0 || $pageHeight <= 0.0) {
             throw new InvalidArgumentException('pdftext bbox must have positive width and height.');
         }
-        $sourcePage = $this->integerMetadata($page['page'], 'page');
+        $sourcePage = $this->unsignedIntegerMetadata($page['page'], 'page');
         $rotation = $this->pageRotation($page['rotation']);
         if ($rotation === 90 || $rotation === 270) {
             [$pageWidth, $pageHeight] = [$pageHeight, $pageWidth];
@@ -269,12 +269,12 @@ final class PdfTextBlockConverter
                     }
                     foreach (['char_start_idx', 'char_end_idx'] as $metadataKey) {
                         if (array_key_exists($metadataKey, $span)) {
-                            $this->integerMetadata($span[$metadataKey], "span {$metadataKey}");
+                            $this->unsignedIntegerMetadata($span[$metadataKey], "span {$metadataKey}");
                         }
                     }
                     if (array_key_exists('char_start_idx', $span) && array_key_exists('char_end_idx', $span)) {
-                        $startIndex = $this->integerMetadata($span['char_start_idx'], 'span char_start_idx');
-                        $endIndex = $this->integerMetadata($span['char_end_idx'], 'span char_end_idx');
+                        $startIndex = $this->unsignedIntegerMetadata($span['char_start_idx'], 'span char_start_idx');
+                        $endIndex = $this->unsignedIntegerMetadata($span['char_end_idx'], 'span char_end_idx');
                         if ($startIndex > $endIndex) {
                             throw new InvalidArgumentException('pdftext span char_start_idx must be less than or equal to char_end_idx.');
                         }
@@ -355,19 +355,19 @@ final class PdfTextBlockConverter
                 }
             }
             if (array_key_exists('page', $ref)) {
-                $row['page'] = $this->integerMetadata($ref['page'], "refs[{$index}].page");
+                $row['page'] = $this->unsignedIntegerMetadata($ref['page'], "refs[{$index}].page");
             }
             if (array_key_exists('dest_pos', $ref)) {
                 $row['dest_pos'] = $this->pointMetadata($ref['dest_pos'], "refs[{$index}].dest_pos");
             }
             if (array_key_exists('dest_page', $ref)) {
-                $row['dest_page'] = $this->integerMetadata($ref['dest_page'], "refs[{$index}].dest_page");
+                $row['dest_page'] = $this->unsignedIntegerMetadata($ref['dest_page'], "refs[{$index}].dest_page");
             }
             if (array_key_exists('bbox', $ref)) {
                 $row['bbox'] = $this->bbox($ref['bbox'], "refs[{$index}].bbox");
             }
             if (array_key_exists('idx', $ref)) {
-                $row['idx'] = $this->integerMetadata($ref['idx'], "refs[{$index}].idx");
+                $row['idx'] = $this->unsignedIntegerMetadata($ref['idx'], "refs[{$index}].idx");
             }
             if (array_key_exists('ref', $ref)) {
                 if (!is_string($ref['ref'])) {

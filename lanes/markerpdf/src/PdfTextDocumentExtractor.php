@@ -488,7 +488,7 @@ final class PdfTextDocumentExtractor
                 }
                 foreach (['char_start_idx', 'char_end_idx'] as $indexKey) {
                     if (array_key_exists($indexKey, $sanitizedSpan)) {
-                        $sanitizedSpan[$indexKey] = $this->dictionaryOutputIntegerMetadata($sanitizedSpan[$indexKey], "span.{$indexKey}");
+                        $sanitizedSpan[$indexKey] = $this->dictionaryOutputUnsignedIntegerMetadata($sanitizedSpan[$indexKey], "span.{$indexKey}");
                     }
                 }
                 if (
@@ -563,14 +563,14 @@ final class PdfTextDocumentExtractor
             return $chars;
         }
 
-        $startIndex = $this->dictionaryOutputIntegerMetadata($span['char_start_idx'], 'span.char_start_idx');
-        $endIndex = $this->dictionaryOutputIntegerMetadata($span['char_end_idx'], 'span.char_end_idx');
+        $startIndex = $this->dictionaryOutputUnsignedIntegerMetadata($span['char_start_idx'], 'span.char_start_idx');
+        $endIndex = $this->dictionaryOutputUnsignedIntegerMetadata($span['char_end_idx'], 'span.char_end_idx');
         if ($startIndex > $endIndex) {
             throw new InvalidArgumentException('pdftext span.char_start_idx must be less than or equal to span.char_end_idx.');
         }
 
         foreach ($chars as $index => $char) {
-            $charIndex = $this->dictionaryOutputIntegerMetadata($char['char_idx'] ?? null, "char {$index}.char_idx");
+            $charIndex = $this->dictionaryOutputUnsignedIntegerMetadata($char['char_idx'] ?? null, "char {$index}.char_idx");
             if ($charIndex < $startIndex || $charIndex > $endIndex) {
                 throw new InvalidArgumentException("pdftext char {$index}.char_idx must be within the parent span character range.");
             }
@@ -672,9 +672,9 @@ final class PdfTextDocumentExtractor
             if (!array_key_exists('char_start_idx', $span)) {
                 throw new InvalidArgumentException("pdftext char {$index}.char_idx is required when keep_chars=true.");
             }
-            $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($span['char_start_idx'], 'span.char_start_idx') + $index;
+            $char['char_idx'] = $this->dictionaryOutputUnsignedIntegerMetadata($span['char_start_idx'], 'span.char_start_idx') + $index;
         }
-        $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($char['char_idx'], "char {$index}.char_idx");
+        $char['char_idx'] = $this->dictionaryOutputUnsignedIntegerMetadata($char['char_idx'], "char {$index}.char_idx");
         if (
             array_key_exists('char_start_idx', $span)
             && array_key_exists('char_end_idx', $span)

@@ -2310,6 +2310,35 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($tagName) === 'track') {
+                $trackAttributeName = strtolower($name);
+                if ($trackAttributeName === 'kind') {
+                    $kind = self::normalizeHtmlTrackKindAttribute($value, $diagnostics);
+                    if ($kind !== null) {
+                        $attrs[$name] = $kind;
+                    }
+                    continue;
+                }
+                if ($trackAttributeName === 'srclang') {
+                    $language = self::normalizeHtmlTrackLanguageAttribute($value, $diagnostics);
+                    if ($language !== null) {
+                        $attrs[$name] = $language;
+                    }
+                    continue;
+                }
+                if ($trackAttributeName === 'label') {
+                    $label = self::cleanHtmlMetadataAttribute($value);
+                    if ($label !== '') {
+                        $attrs[$name] = $label;
+                    }
+                    continue;
+                }
+                if ($trackAttributeName === 'default') {
+                    $attrs[$name] = '';
+                    continue;
+                }
+            }
+
             if ($mode === 'html' && strtolower($name) === 'srcset') {
                 $srcset = self::normalizeSrcsetAttribute($value, $tagName, $diagnostics, $baseUrl);
                 if ($srcset === null) {
@@ -2377,6 +2406,99 @@ final class Html5DomFragment
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlTrackKindAttribute(string $value, array &$diagnostics): ?string
+    {
+        $kind = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($kind === '') {
+            return null;
+        }
+
+        if (in_array($kind, ['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'], true)) {
+            return $kind;
+        }
+
+        $diagnostics[] = [
+            'code' => 'unsafe-attribute',
+            'tag' => 'track',
+            'attribute' => 'kind',
+            'value' => $kind,
+        ];
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlTrackLanguageAttribute(string $value, array &$diagnostics): ?string
+    {
+        $language = self::cleanHtmlMetadataAttribute($value);
+        if ($language === '') {
+            return null;
+        }
+
+        $parts = explode('-', $language);
+        $canonical = [];
+        foreach ($parts as $index => $part) {
+            if (preg_match('/^[A-Za-z0-9]{1,8}$/', $part) !== 1) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'track',
+                    'attribute' => 'srclang',
+                    'value' => $language,
+                ];
+
+                return null;
+            }
+
+            if ($index === 0) {
+                if (preg_match('/^(?:[A-Za-z]{2,8}|x)$/', $part) !== 1) {
+                    $diagnostics[] = [
+                        'code' => 'unsafe-attribute',
+                        'tag' => 'track',
+                        'attribute' => 'srclang',
+                        'value' => $language,
+                    ];
+
+                    return null;
+                }
+
+                $canonical[] = strtolower($part);
+                continue;
+            }
+
+            if (strlen($part) === 4 && preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
+                $canonical[] = ucfirst(strtolower($part));
+                continue;
+            }
+            if (
+                (strlen($part) === 2 && preg_match('/^[A-Za-z]{2}$/', $part) === 1)
+                || (strlen($part) === 3 && preg_match('/^[0-9]{3}$/', $part) === 1)
+            ) {
+                $canonical[] = strtoupper($part);
+                continue;
+            }
+
+            $canonical[] = strtolower($part);
+        }
+
+        if ($canonical[0] === 'x' && count($canonical) === 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'track',
+                'attribute' => 'srclang',
+                'value' => $language,
+            ];
+
+            return null;
+        }
+
+        return implode('-', $canonical);
     }
 
     private static function normalizeUrlAttributeValue(string $value): string
