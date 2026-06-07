@@ -82,9 +82,9 @@ final class SingleDocumentConverter
                     $valueProvided = true;
                 }
 
-                $resolvedOption = $this->runtimeArgumentResolveOptionName($optionName, array_keys($definitions));
+                $resolvedOption = $this->runtimeArgumentResolveOptionName($optionName, array_keys($definitions), $token);
                 if ($resolvedOption['error'] !== null) {
-                    return $this->runtimeArgumentErrorPlan($tokens, $resolvedOption['error'], $optionName);
+                    return $this->runtimeArgumentErrorPlan($tokens, $resolvedOption['error'], $token);
                 }
                 $optionName = $resolvedOption['option'];
 
@@ -527,8 +527,10 @@ final class SingleDocumentConverter
      * @param list<string> $optionNames
      * @return array{option: string, error: string|null}
      */
-    private function runtimeArgumentResolveOptionName(string $token, array $optionNames): array
+    private function runtimeArgumentResolveOptionName(string $token, array $optionNames, ?string $displayToken = null): array
     {
+        $displayToken ??= $token;
+
         if (in_array($token, $optionNames, true)) {
             return ['option' => $token, 'error' => null];
         }
@@ -544,11 +546,11 @@ final class SingleDocumentConverter
         if (count($matches) > 1) {
             return [
                 'option' => $token,
-                'error' => 'ambiguous option: ' . $token . ' could match ' . implode(', ', $matches),
+                'error' => 'ambiguous option: ' . $displayToken . ' could match ' . implode(', ', $matches),
             ];
         }
 
-        return ['option' => $token, 'error' => 'unrecognized arguments: ' . $token];
+        return ['option' => $token, 'error' => 'unrecognized arguments: ' . $displayToken];
     }
 
     /**

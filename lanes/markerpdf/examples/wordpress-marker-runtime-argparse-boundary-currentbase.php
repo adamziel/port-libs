@@ -50,6 +50,23 @@ $ambiguousPlan = $batch->runtimeMainArgumentPreflightPlan([
     '/wp/uploads',
     '/wp/marker-output',
 ]);
+$unknownEqualsPlan = $batch->runtimeMainArgumentPreflightPlan([
+    '/wp/uploads',
+    '/wp/marker-output',
+    '--gpu=1',
+]);
+$ambiguousEqualsPlan = $batch->runtimeMainArgumentPreflightPlan([
+    '/wp/uploads',
+    '/wp/marker-output',
+    '--m=3',
+]);
+$metadataEqualsAbbrevPlan = $batch->runtimeMainArgumentPreflightPlan([
+    '/wp/uploads',
+    '/wp/marker-output',
+    '--metadata=wordpress-metadata.json',
+    '--work=3',
+    '--n=2',
+]);
 $singleDefaultPlan = $single->runtimeArgumentPreflightPlan([
     '/wp/uploads/editorial-checklist.pdf',
     '/wp/marker-output',
@@ -76,6 +93,19 @@ $singleInvalidMaxPagesPlan = $single->runtimeArgumentPreflightPlan([
     '--max_pages',
     'many',
 ]);
+$singleUnknownEqualsPlan = $single->runtimeArgumentPreflightPlan([
+    '/wp/uploads/editorial-checklist.pdf',
+    '/wp/marker-output',
+    '--gpu=1',
+]);
+$singleEqualsAbbrevPlan = $single->runtimeArgumentPreflightPlan([
+    '/wp/uploads/editorial-checklist.pdf',
+    '/wp/marker-output',
+    '--max=3',
+    '--s=2',
+    '--b=4',
+    '--langs=English,French',
+]);
 $singleMissingOutputPlan = $single->runtimeArgumentPreflightPlan([
     '--langs',
     'English',
@@ -100,6 +130,21 @@ if (($abbrevPlan['arguments']['options']['workers'] ?? null) !== 3) {
 if (!str_contains((string) $ambiguousPlan['parse_args']['error_message'], 'ambiguous option: --m')) {
     throw new RuntimeException('Expected ambiguous --m abbreviation to fail at argparse.');
 }
+if ($unknownEqualsPlan['parse_args']['error_message'] !== 'unrecognized arguments: --gpu=1') {
+    throw new RuntimeException('Expected unknown --gpu=1 token to stay intact in argparse error output.');
+}
+if (!str_contains((string) $ambiguousEqualsPlan['parse_args']['error_message'], 'ambiguous option: --m=3')) {
+    throw new RuntimeException('Expected ambiguous --m=3 token to stay intact in argparse error output.');
+}
+if (($metadataEqualsAbbrevPlan['arguments']['options']['metadata_file'] ?? null) !== 'wordpress-metadata.json') {
+    throw new RuntimeException('Expected --metadata= abbreviation to resolve to --metadata_file.');
+}
+if (($metadataEqualsAbbrevPlan['arguments']['options']['workers'] ?? null) !== 3) {
+    throw new RuntimeException('Expected --work= abbreviation to resolve to --workers.');
+}
+if (($metadataEqualsAbbrevPlan['arguments']['options']['num_chunks'] ?? null) !== 2) {
+    throw new RuntimeException('Expected --n= abbreviation to resolve to --num_chunks.');
+}
 if ($singleDefaultPlan['parse_args']['parse_args_success'] !== true || $singleDefaultPlan['next_stage'] !== 'load_all_models') {
     throw new RuntimeException('Expected convert_single.py default argparse plan to stop before model loading.');
 }
@@ -114,6 +159,18 @@ if ($singleEmptyLangsPlan['language_parse']['empty_langs_string_becomes_none'] !
 }
 if ($singleInvalidMaxPagesPlan['parse_args']['error_boundary'] !== 'argparse-system-exit') {
     throw new RuntimeException('Expected invalid convert_single.py --max_pages value to fail at argparse.');
+}
+if ($singleUnknownEqualsPlan['parse_args']['error_message'] !== 'unrecognized arguments: --gpu=1') {
+    throw new RuntimeException('Expected unknown convert_single.py --gpu=1 token to stay intact in argparse error output.');
+}
+if (($singleEqualsAbbrevPlan['arguments']['options']['max_pages'] ?? null) !== 3) {
+    throw new RuntimeException('Expected convert_single.py --max= abbreviation to resolve to --max_pages.');
+}
+if (($singleEqualsAbbrevPlan['arguments']['options']['start_page'] ?? null) !== 2) {
+    throw new RuntimeException('Expected convert_single.py --s= abbreviation to resolve to --start_page.');
+}
+if (($singleEqualsAbbrevPlan['arguments']['options']['batch_multiplier'] ?? null) !== 4) {
+    throw new RuntimeException('Expected convert_single.py --b= abbreviation to resolve to --batch_multiplier.');
 }
 if (($singleMissingOutputPlan['parse_args']['missing_required_arguments'][0] ?? null) !== 'output') {
     throw new RuntimeException('Expected convert_single.py missing output argument to fail before filesystem checks.');
@@ -140,6 +197,13 @@ echo json_encode([
     'missing_out_folder_blocks_filesystem' => $missingOutputPlan['parse_args']['filesystem_touched_before_error'] === false,
     'abbreviated_workers_value' => $abbrevPlan['arguments']['options']['workers'],
     'ambiguous_option_error' => $ambiguousPlan['parse_args']['error_message'],
+    'unknown_equals_option_error' => $unknownEqualsPlan['parse_args']['error_message'],
+    'unknown_equals_error_argument' => $unknownEqualsPlan['parse_args']['error_argument'],
+    'ambiguous_equals_option_error' => $ambiguousEqualsPlan['parse_args']['error_message'],
+    'ambiguous_equals_error_argument' => $ambiguousEqualsPlan['parse_args']['error_argument'],
+    'metadata_equals_abbrev_value' => $metadataEqualsAbbrevPlan['arguments']['options']['metadata_file'],
+    'workers_equals_abbrev_value' => $metadataEqualsAbbrevPlan['arguments']['options']['workers'],
+    'num_chunks_equals_abbrev_value' => $metadataEqualsAbbrevPlan['arguments']['options']['num_chunks'],
     'invalid_worker_blocked_stages' => $invalidWorkerPlan['blocked_stages'],
     'single_source' => $singleDefaultPlan['source'],
     'single_default_parse_success' => $singleDefaultPlan['parse_args']['parse_args_success'],
@@ -153,6 +217,12 @@ echo json_encode([
     'single_empty_langs_becomes_none' => $singleEmptyLangsPlan['language_parse']['empty_langs_string_becomes_none'],
     'single_invalid_max_pages_error_boundary' => $singleInvalidMaxPagesPlan['parse_args']['error_boundary'],
     'single_invalid_max_pages_exit_code' => $singleInvalidMaxPagesPlan['parse_args']['exit_code'],
+    'single_unknown_equals_option_error' => $singleUnknownEqualsPlan['parse_args']['error_message'],
+    'single_unknown_equals_error_argument' => $singleUnknownEqualsPlan['parse_args']['error_argument'],
+    'single_max_equals_abbrev_value' => $singleEqualsAbbrevPlan['arguments']['options']['max_pages'],
+    'single_start_equals_abbrev_value' => $singleEqualsAbbrevPlan['arguments']['options']['start_page'],
+    'single_batch_equals_abbrev_value' => $singleEqualsAbbrevPlan['arguments']['options']['batch_multiplier'],
+    'single_langs_equals_abbrev_value' => $singleEqualsAbbrevPlan['arguments']['options']['langs'],
     'single_missing_output_error' => $singleMissingOutputPlan['parse_args']['error_message'],
     'single_invalid_parse_blocked_stages' => $singleInvalidMaxPagesPlan['blocked_stages'],
     'executes_python_or_models' => $defaultPlan['executes_python_or_models'],

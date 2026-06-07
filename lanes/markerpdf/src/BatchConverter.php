@@ -309,12 +309,12 @@ final class BatchConverter
                     $valueProvided = true;
                 }
 
-                $resolvedOption = $this->runtimeMainArgparseResolveOptionName($optionName, array_keys($definitions));
+                $resolvedOption = $this->runtimeMainArgparseResolveOptionName($optionName, array_keys($definitions), $token);
                 if ($resolvedOption['error'] !== null) {
                     return $this->runtimeMainArgparseErrorPlan(
                         $tokens,
                         $resolvedOption['error'],
-                        $optionName
+                        $token
                     );
                 }
                 $optionName = $resolvedOption['option'];
@@ -4204,8 +4204,10 @@ final class BatchConverter
      * @param list<string> $optionNames
      * @return array{option: string, error: string|null}
      */
-    private function runtimeMainArgparseResolveOptionName(string $token, array $optionNames): array
+    private function runtimeMainArgparseResolveOptionName(string $token, array $optionNames, ?string $displayToken = null): array
     {
+        $displayToken ??= $token;
+
         if (in_array($token, $optionNames, true)) {
             return ['option' => $token, 'error' => null];
         }
@@ -4221,11 +4223,11 @@ final class BatchConverter
         if (count($matches) > 1) {
             return [
                 'option' => $token,
-                'error' => 'ambiguous option: ' . $token . ' could match ' . implode(', ', $matches),
+                'error' => 'ambiguous option: ' . $displayToken . ' could match ' . implode(', ', $matches),
             ];
         }
 
-        return ['option' => $token, 'error' => 'unrecognized arguments: ' . $token];
+        return ['option' => $token, 'error' => 'unrecognized arguments: ' . $displayToken];
     }
 
     /**
