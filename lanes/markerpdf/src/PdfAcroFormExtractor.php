@@ -10370,7 +10370,7 @@ final class PdfAcroFormExtractor
 
         $char = $body[$offset];
 
-        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
+        return $this->isPdfDelimiterOrWhitespace($char);
     }
 
     /**
@@ -10443,7 +10443,7 @@ final class PdfAcroFormExtractor
         }
 
         $end = $offset;
-        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+        while ($end < strlen($body) && !$this->isPdfDelimiterOrWhitespace($body[$end])) {
             $end++;
         }
 
@@ -10685,7 +10685,7 @@ final class PdfAcroFormExtractor
         }
 
         $end = $offset;
-        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+        while ($end < strlen($body) && !$this->isPdfDelimiterOrWhitespace($body[$end])) {
             $end++;
         }
 
@@ -11029,7 +11029,7 @@ final class PdfAcroFormExtractor
     {
         $length = strlen($body);
         while ($offset < $length) {
-            while ($offset < $length && ctype_space($body[$offset])) {
+            while ($offset < $length && $this->isPdfWhitespace($body[$offset])) {
                 $offset++;
             }
 
@@ -11056,7 +11056,7 @@ final class PdfAcroFormExtractor
     private function skipPdfName(string $body, int $offset): int
     {
         $end = $offset + 1;
-        while ($end < strlen($body) && !ctype_space($body[$end]) && !str_contains('[]()<>{}/%', $body[$end])) {
+        while ($end < strlen($body) && !$this->isPdfDelimiterOrWhitespace($body[$end])) {
             $end++;
         }
 
@@ -11650,7 +11650,17 @@ final class PdfAcroFormExtractor
 
     private function isPdfKeywordBoundary(?string $char): bool
     {
-        return $char === null || ctype_space($char) || str_contains('[]()<>{}/%', $char);
+        return $char === null || $this->isPdfDelimiterOrWhitespace($char);
+    }
+
+    private function isPdfDelimiterOrWhitespace(string $char): bool
+    {
+        return $this->isPdfWhitespace($char) || str_contains('[]()<>{}/%', $char);
+    }
+
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || ctype_space($char);
     }
 
     /**
