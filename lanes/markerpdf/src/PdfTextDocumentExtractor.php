@@ -138,14 +138,66 @@ final class PdfTextDocumentExtractor
             if (!array_key_exists('blocks', $pages) && array_key_exists('pages', $pages)) {
                 $nestedPages = $this->normalizeSuppliedDictionaryValue($pages['pages']);
                 if (is_array($nestedPages)) {
-                    return array_values($nestedPages);
+                    return $this->orderedSuppliedDictionaryPageList($nestedPages);
                 }
             }
 
+            return $this->orderedSuppliedDictionaryPageList($pages);
+        }
+
+        return $this->orderedSuppliedDictionaryPageList($pdftextPages);
+    }
+
+    /**
+     * pdftext.dictionary_output returns page dictionaries in document order.
+     * Native adapter caches sometimes preserve that output as a JSON object map
+     * keyed by source page/index; sort only those page-shaped numeric maps before
+     * applying upstream-style start_page/max_pages slicing.
+     *
+     * @param array<mixed> $pages
+     * @return list<mixed>
+     */
+    private function orderedSuppliedDictionaryPageList(array $pages): array
+    {
+        if (array_is_list($pages)) {
             return array_values($pages);
         }
 
-        return array_values($pdftextPages);
+        $keyedPages = [];
+        foreach ($pages as $key => $page) {
+            $pageKey = $this->integerArrayKey($key);
+            if ($pageKey === null || !is_array($page) || !array_key_exists('blocks', $page)) {
+                return array_values($pages);
+            }
+
+            $keyedPages[] = [
+                'key' => $pageKey,
+                'index' => count($keyedPages),
+                'page' => $page,
+            ];
+        }
+
+        usort(
+            $keyedPages,
+            static fn (array $left, array $right): int => ($left['key'] <=> $right['key'])
+                ?: ($left['index'] <=> $right['index'])
+        );
+
+        return array_map(static fn (array $entry): mixed => $entry['page'], $keyedPages);
+    }
+
+    private function integerArrayKey(int|string $key): ?int
+    {
+        if (is_int($key)) {
+            return $key;
+        }
+
+        $trimmed = trim($key);
+        if (preg_match('/^[+-]?\d+$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        return (int) $trimmed;
     }
 
     /**
