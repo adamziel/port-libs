@@ -1852,6 +1852,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!$versionFourRejected) {
         throw new RuntimeException('Legacy DOC handoff self-test accepted dirty version 4 CFB header padding');
     }
+    $versionFourRejected = false;
+    try {
+        CompoundFileBinary::fromBytes($versionFourDocBytes . "\0");
+    } catch (RuntimeException) {
+        $versionFourRejected = true;
+    }
+    if (!$versionFourRejected) {
+        throw new RuntimeException('Legacy DOC handoff self-test accepted version 4 CFB trailing partial sector');
+    }
 
     $directoryFieldOffset = static function (int $directoryId, int $fieldOffset) use ($fat, $sectorSize, $end): int {
         $entryOffset = ($directoryId * 128) + $fieldOffset;
@@ -1923,6 +1932,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
         'non-null CFB header CLSID' => substr_replace($docBytes, "\x01", 8, 1),
         'nonzero CFB header reserved bytes' => substr_replace($docBytes, "\x01\0\0\0\0\0", 34, 6),
+        'trailing CFB partial sector' => $docBytes . "\0",
         'invalid CFB mini stream cutoff' => substr_replace($docBytes, $u32(2048), 56, 4),
         'CFB MiniFAT start sector without MiniFAT count' => substr_replace($docBytes, $u32(0), 64, 4),
         'CFB MiniFAT count without valid start sector' => substr_replace($docBytes, $u32($end), 60, 4),

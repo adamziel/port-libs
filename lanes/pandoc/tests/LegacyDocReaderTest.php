@@ -1658,6 +1658,19 @@ return [
         $versionFourWithDirtyHeaderPadding = substr_replace($versionFour, "\x01", 512, 1);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionFourWithDirtyHeaderPadding));
     },
+    'rejects CFB files with trailing partial sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
+        $versionThree = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $t->same('root stream bytes', CompoundFileBinary::fromBytes($versionThree)->readStream('WordDocument'));
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionThree . "\0"));
+
+        $versionFour = $buildCfb([
+            'WordDocument' => str_repeat('V', 4096),
+        ], true, [], ['majorVersion' => 4]);
+        $t->same(str_repeat('V', 4096), CompoundFileBinary::fromBytes($versionFour)->readStream('WordDocument'));
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($versionFour . "\0"));
+    },
     'rejects reserved CFB header fields and invalid root storage identity before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

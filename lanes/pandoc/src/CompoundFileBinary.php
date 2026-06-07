@@ -95,6 +95,9 @@ final class CompoundFileBinary
                 throw new \RuntimeException('CFB version 4 header sector padding must be zero');
             }
         }
+        if ((strlen($bytes) - $sectorSize) % $sectorSize !== 0) {
+            throw new \RuntimeException('CFB file length must end on a sector boundary');
+        }
         $directorySectorCount = self::u32($bytes, 40);
         $fatSectorCount = self::u32($bytes, 44);
         $firstDirectorySector = self::u32($bytes, 48);
