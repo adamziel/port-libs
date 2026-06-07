@@ -370,6 +370,7 @@ final class DocTemplate
     {
         return match ($basename) {
             'default.html5' => $this->defaultHtml5Template(),
+            'default.plain' => $this->defaultPlainTemplate(),
             'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
@@ -391,6 +392,7 @@ final class DocTemplate
     {
         return [
             'default.html5',
+            'default.plain',
             'default.markdown',
             'default.commonmark',
             'default.latex',
@@ -1082,6 +1084,13 @@ $it$$endfor$
 </body>
 </html>
 HTML;
+    }
+
+    private function defaultPlainTemplate(): string
+    {
+        return <<<'PLAIN'
+$body$
+PLAIN;
     }
 
     private function defaultHtmlStylesTemplate(): string

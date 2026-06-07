@@ -329,6 +329,14 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $plainFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'body' => "Plain text review packet\n\n",
+    ], null, 'plain');
+    if ($plainFallback !== "Plain text review packet\n") {
+        fwrite(STDERR, "Missing expected doctemplate plain default fallback\n");
+        exit(1);
+    }
+
     $officeFallbacks = [
         'latex' => [
             (new DocTemplate())->renderResource('templates/default', [], [

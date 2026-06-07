@@ -1321,6 +1321,24 @@ HTML,
         ], null, 'commonmark_x'));
     },
 
+    'renders bounded pandoc default plain template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same('Plain review body', $renderer->renderResource('templates/default', [], [
+            'body' => 'Plain review body',
+        ], null, 'plain'));
+
+        $t->same("Direct plain body\n", $renderer->renderResource('templates/default.plain', [], [
+            'body' => "Direct plain body\n\n",
+        ]));
+
+        $t->same('custom plain', $renderer->renderResource('templates/default', [
+            'templates/default.plain' => 'custom $body$',
+        ], [
+            'body' => 'plain',
+        ], null, 'plain'));
+    },
+
     'renders bounded pandoc default latex template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
