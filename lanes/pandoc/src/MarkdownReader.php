@@ -2608,11 +2608,15 @@ final class MarkdownReader
     private function normalizeYamlFlowKeyOnlyItem(string $item): string
     {
         $item = trim($item);
-        if (preg_match('/^\?[ \t]+(.+)$/s', $item, $m) !== 1) {
+        if ($item === '') {
             return '';
         }
 
-        $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue(trim($m[1])));
+        if (preg_match('/^\?[ \t]+(.+)$/s', $item, $m) === 1) {
+            $item = trim($m[1]);
+        }
+
+        $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue($item));
 
         return $normalized ?? '';
     }
