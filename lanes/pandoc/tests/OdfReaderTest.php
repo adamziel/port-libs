@@ -2206,6 +2206,58 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
     },
+    'maps ODT text and variable input fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithInputFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:user-field-decls>
+        <text:user-field-decl text:name="Reviewer" office:value-type="string" office:string-value="Migration Desk"/>
+      </text:user-field-decls>
+      <text:p>Inputs <text:text-input text:description="Confirm source title">Imported packet title</text:text-input>, <text:variable-input text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-input>, and <text:user-field-input text:name="Reviewer">Migration Desk</text:user-field-input> remain visible.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithInputFields));
+        $paragraph = $result['document']->children[0];
+        $textInput = $paragraph->children[1];
+        $variableInput = $paragraph->children[3];
+        $userFieldInput = $paragraph->children[5];
+
+        $t->same('Inputs Imported packet title, Ready, and Migration Desk remain visible.', $paragraph->attr('text'));
+        $t->same('span', $textInput->type);
+        $t->same(['odf-field', 'odf-field-text-input'], $textInput->attr('classes'));
+        $t->same('text-input', $textInput->attr('fieldType'));
+        $t->same('Confirm source title', $textInput->attr('fieldMetadata')['description']);
+        $t->same('Imported packet title', $textInput->children[0]->attr('text'));
+        $t->same('Confirm source title', $textInput->attr('attributes')['data-odf-field-description']);
+
+        $t->same('span', $variableInput->type);
+        $t->same('variable-input', $variableInput->attr('fieldType'));
+        $t->same('ReviewStatus', $variableInput->attr('fieldName'));
+        $t->same('string', $variableInput->attr('fieldMetadata')['valueType']);
+        $t->same('Ready', $variableInput->attr('fieldMetadata')['stringValue']);
+        $t->same('Ready', $variableInput->children[0]->attr('text'));
+
+        $t->same('span', $userFieldInput->type);
+        $t->same('user-field-input', $userFieldInput->attr('fieldType'));
+        $t->same('Reviewer', $userFieldInput->attr('fieldName'));
+        $t->same('Migration Desk', $userFieldInput->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Imported packet title]{.odf-field .odf-field-text-input data-odf-field-type="text-input" data-odf-field-description="Confirm source title"}', $markdown);
+        $t->contains('[Ready]{.odf-field .odf-field-variable-input data-odf-field-type="variable-input" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready"}', $markdown);
+        $t->contains('[Migration Desk]{.odf-field .odf-field-user-field-input data-odf-field-type="user-field-input" data-odf-field-name="Reviewer"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-text-input" data-odf-field-type="text-input" data-odf-field-description="Confirm source title">Imported packet title</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-variable-input" data-odf-field-type="variable-input" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-user-field-input" data-odf-field-type="user-field-input" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
+    },
     'maps ODT database fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithDatabaseFields = <<<'XML'
 <office:document-content

@@ -2803,8 +2803,11 @@ final class OdfReader
         return in_array($element->localName, [
             'variable-set',
             'variable-get',
+            'variable-input',
             'user-field-get',
+            'user-field-input',
             'expression',
+            'text-input',
             'conditional-text',
             'hidden-text',
             'database-display',
@@ -2982,6 +2985,7 @@ final class OdfReader
 
         $metadata = self::withoutEmpty([
             'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
+            'description' => self::nullable(self::attr($field, self::TEXT_NS, 'description')),
             'refName' => self::nullable(self::attr($field, self::TEXT_NS, 'ref-name')),
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
             'condition' => self::nullable(self::attr($field, self::TEXT_NS, 'condition')),
@@ -3020,7 +3024,8 @@ final class OdfReader
      */
     private function fieldMetadataWithDeclarations(\DOMElement $field, array $metadata): array
     {
-        if (!$this->isElement($field, self::TEXT_NS, 'user-field-get')) {
+        if (!$this->isElement($field, self::TEXT_NS, 'user-field-get')
+            && !$this->isElement($field, self::TEXT_NS, 'user-field-input')) {
             return $metadata;
         }
 
