@@ -8178,18 +8178,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{
-     *     object_number: int,
-     *     subtype: string|null,
-     *     filters: list<string>,
-     *     preview_only_filters: list<string>,
-     *     raw_length: int,
-     *     decoded_with_current_filters: bool,
-     *     decoded_length: int|null,
-     *     decoded_sha256: string|null,
-     *     payload_in_visible_text: false,
-     *     review_only: true
-     * }|null
+     * @return array<string, mixed>|null
      */
     private function imageXObjectMetadataStreamReview(string $imageDictionary, array $objects): ?array
     {
@@ -8213,8 +8202,18 @@ final class PdfTextExtractor
         }
 
         $filters = $this->streamFilters($stream['dict'], $objects);
+        $filterOperandBoundary = $filters === null
+            ? $this->imageXObjectMetadataStreamFilterOperandBoundaryReview($stream['dict'], $objects)
+            : [];
         $resolvedFilters = $filters === null
-            ? []
+            ? (
+                isset($filterOperandBoundary['filters']) && is_array($filterOperandBoundary['filters'])
+                    ? array_values(array_filter(
+                        $filterOperandBoundary['filters'],
+                        static fn (mixed $filter): bool => is_string($filter)
+                    ))
+                    : []
+            )
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $decoded = $filters === null
             ? null
@@ -8224,6 +8223,7 @@ final class PdfTextExtractor
             'object_number' => $reference['objectNumber'],
             'object_generation' => $reference['generation'],
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
+            ...$filterOperandBoundary,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $this->previewOnlyImageXObjectFilters($resolvedFilters),
             'raw_length' => strlen($stream['stream']),
@@ -8233,6 +8233,281 @@ final class PdfTextExtractor
             'payload_in_visible_text' => false,
             'review_only' => true,
         ];
+    }
+
+    /**
+     * Image-local metadata streams are review metadata, but their `/Filter`
+     * helper objects still need the same hidden-operand boundary as image
+     * payload streams. A helper like `/FlateDecode /Crypt ...` must not be
+     * decoded just because the first token names a supported filter.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function imageXObjectMetadataStreamFilterOperandBoundaryReview(string $dictionary, array $objects): array
+    {
+        $offset = $this->topLevelNameValueOffset($dictionary, 'Filter');
+        if ($offset === null) {
+            return [];
+        }
+
+        $value = $this->pdfValueAtOffset($dictionary, $offset);
+        $operands = $value === null
+            ? [[
+                'name' => 'Filter',
+                'kind' => 'malformed',
+                'resolved' => false,
+                'valid_filter_operand' => false,
+            ]]
+            : $this->imageXObjectMetadataStreamFilterOperandReviews($value, $objects);
+        if ($operands === []) {
+            return [];
+        }
+
+        $extraOperand = $this->imageXObjectMetadataStreamTopLevelFilterExtraOperand($dictionary, $offset);
+        if ($extraOperand !== null && isset($operands[0])) {
+            $operands[0] = $this->streamFilterOperandReviewWithExtraOperand($operands[0], $extraOperand);
+        }
+
+        $invalidCount = 0;
+        $dictionaryCount = 0;
+        $malformedCount = 0;
+        $unresolvedCount = 0;
+        foreach ($operands as $operand) {
+            if (($operand['resolved'] ?? true) !== true) {
+                $invalidCount++;
+                $unresolvedCount++;
+                continue;
+            }
+
+            if ($this->streamFilterOperandIsDictionary($operand)) {
+                $invalidCount++;
+                $dictionaryCount++;
+                continue;
+            }
+
+            if ($this->streamFilterOperandIsMalformed($operand)) {
+                $invalidCount++;
+                $malformedCount++;
+            }
+        }
+
+        if ($invalidCount === 0) {
+            return [];
+        }
+
+        return [
+            'status' => 'rejected_malformed_image_xobject_metadata_stream_filter_operand',
+            'filter_operand_policy' => $this->streamFilterOperandPolicy(
+                null,
+                $invalidCount,
+                $dictionaryCount,
+                $malformedCount
+            ),
+            'filters' => $this->imageXObjectMetadataStreamFilterNamesFromOperandReviews($operands),
+            'invalid_filter_operand_count' => $invalidCount,
+            'dictionary_filter_operand_count' => $dictionaryCount,
+            'malformed_filter_operand_count' => $malformedCount,
+            'unresolved_filter_operand_count' => $unresolvedCount,
+            'filter_operands' => $operands,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return list<array<string, mixed>>
+     */
+    private function imageXObjectMetadataStreamFilterOperandReviews(
+        string $value,
+        array $objects,
+        array $seenObjects = []
+    ): array {
+        $value = trim($value);
+        if ($value === '') {
+            return [[
+                'name' => 'Filter',
+                'kind' => 'empty',
+                'resolved' => false,
+                'valid_filter_operand' => false,
+            ]];
+        }
+
+        if ($value[0] === '[') {
+            $arrayBody = $this->readPdfArrayAt($value, 0);
+            if ($arrayBody === null) {
+                return [[
+                    'name' => 'Filter',
+                    'kind' => 'direct',
+                    'token_type' => 'array',
+                    'resolved' => true,
+                    'valid_filter_operand' => false,
+                    'dictionary_filter_operand' => false,
+                    'value_preview' => $this->xrefStreamOperandValuePreview($value),
+                ]];
+            }
+
+            $reviews = [];
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                foreach ($this->imageXObjectMetadataStreamFilterOperandReviews($item, $objects, $seenObjects) as $review) {
+                    $reviews[] = $review;
+                }
+            }
+
+            return $reviews;
+        }
+
+        if ($value[0] === '/') {
+            $end = $this->pdfNameTokenEndOffset($value, 0);
+            return [[
+                'name' => 'Filter',
+                'kind' => 'direct',
+                'value' => $this->decodePdfName(substr($value, 1, $end - 1)),
+                'token_type' => 'name',
+                'resolved' => true,
+                'valid_filter_operand' => $this->skipPdfWhitespace($value, $end) === strlen($value),
+                'dictionary_filter_operand' => false,
+                'escaped_name_operand' => $this->pdfNameTokenContainsHexEscape(substr($value, 0, $end)),
+            ]];
+        }
+
+        if (preg_match('/\Gnull\b/s', $value, $match, 0, 0) === 1) {
+            return [[
+                'name' => 'Filter',
+                'kind' => 'direct',
+                'value' => null,
+                'token_type' => 'null',
+                'resolved' => true,
+                'valid_filter_operand' => $this->skipPdfWhitespace($value, strlen($match[0])) === strlen($value),
+                'dictionary_filter_operand' => false,
+            ]];
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($value, 0);
+        if ($reference !== null && $this->skipPdfWhitespace($value, $reference['endOffset']) === strlen($value)) {
+            return [$this->imageXObjectMetadataStreamIndirectFilterOperandReview(
+                $reference['objectNumber'],
+                $reference['generation'],
+                $objects,
+                $seenObjects
+            )];
+        }
+
+        $tokenType = $this->pdfOperandTokenType($value);
+        return [[
+            'name' => 'Filter',
+            'kind' => 'direct',
+            'token_type' => $tokenType,
+            'resolved' => true,
+            'valid_filter_operand' => false,
+            'dictionary_filter_operand' => $this->filterOperandBodyContainsDictionary($value, $objects, $seenObjects),
+            'value_preview' => $this->xrefStreamOperandValuePreview($value),
+        ]];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     * @return array<string, mixed>
+     */
+    private function imageXObjectMetadataStreamIndirectFilterOperandReview(
+        int $objectNumber,
+        int $generation,
+        array $objects,
+        array $seenObjects
+    ): array {
+        $objectKey = $objectNumber . ':' . $generation;
+        $body = $objectNumber <= 0 || isset($seenObjects[$objectKey])
+            ? null
+            : $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+
+        $review = [
+            'name' => 'Filter',
+            'kind' => 'indirect',
+            'object_number' => $objectNumber,
+            'generation' => $generation,
+            'resolved' => $body !== null,
+            'value_preview' => $body === null ? null : $this->xrefStreamOperandValuePreview($body),
+        ];
+
+        if ($body === null) {
+            return $review;
+        }
+
+        $body = trim($body);
+        $nextSeenObjects = $seenObjects;
+        $nextSeenObjects[$objectKey] = true;
+        $tokenType = $this->pdfOperandTokenType($body);
+        $review['token_type'] = $tokenType;
+        if ($tokenType === 'name') {
+            $nameEnd = $this->pdfNameTokenEndOffset($body, 0);
+            $review['value'] = $this->decodePdfName(substr($body, 1, $nameEnd - 1));
+            $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape(substr($body, 0, $nameEnd));
+        }
+        if ($tokenType === 'null') {
+            $review['value'] = null;
+        }
+
+        $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary(
+            $body,
+            $objects,
+            $nextSeenObjects
+        );
+        $review['valid_filter_operand'] = $this->filterNamesFromSingleValue(
+            $body,
+            $objects,
+            $nextSeenObjects
+        ) !== null;
+
+        $extraOperand = $this->indirectFilterHelperExtraOperand($body);
+        if ($extraOperand !== null) {
+            $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraOperand);
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function imageXObjectMetadataStreamTopLevelFilterExtraOperand(string $dictionary, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($dictionary, $offset);
+        if ($offset >= strlen($dictionary)) {
+            return null;
+        }
+
+        if ($dictionary[$offset] === '[') {
+            return $this->directArrayFilterExtraOperand($dictionary, $offset);
+        }
+        if ($dictionary[$offset] === '/') {
+            return $this->directScalarFilterExtraOperand($dictionary, $offset);
+        }
+        if (preg_match('/\Gnull\b/s', $dictionary, $match, 0, $offset) === 1) {
+            return $this->directNullFilterExtraOperand($dictionary, $offset);
+        }
+        if ($this->pdfIndirectReferenceTokenAt($dictionary, $offset) !== null) {
+            return $this->directReferenceFilterExtraOperand($dictionary, $offset);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     * @return list<string>
+     */
+    private function imageXObjectMetadataStreamFilterNamesFromOperandReviews(array $operands): array
+    {
+        $filters = [];
+        foreach ($operands as $operand) {
+            $value = $operand['value'] ?? null;
+            if (is_string($value)) {
+                $filters[] = $value;
+            }
+        }
+
+        return $filters;
     }
 
     /**
