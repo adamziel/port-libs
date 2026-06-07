@@ -5922,6 +5922,7 @@ final class CitationCslProcessor
             'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
             'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
+            'original-date' => $this->renderDateVariable($item['originalDate'] ?? null, $scope, 'original-date'),
             'short-author' => $this->renderNamesElement(['variable' => 'short-author'], $item, $scope),
             'short-editor' => $this->renderNamesElement(['variable' => 'short-editor'], $item, $scope),
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),

@@ -947,6 +947,71 @@ BIB;
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'applies bounded csl text variable rendering for original dates' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'reprint-source',
+                'type' => 'book',
+                'title' => 'Reprinted Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'original-date' => ['date-parts' => [[1910, 5, 1]]],
+            ],
+            [
+                'id' => 'literal-original',
+                'type' => 'manuscript',
+                'title' => 'Literal Original Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'original-date' => ['literal' => 'undated manuscript'],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Original Date Text Variable Review</title>
+    <id>https://example.test/styles/bounded-original-date-text-variable-review</id>
+    <updated>2026-06-07T16:36:53+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-date" prefix="orig "/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-date" prefix="original "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Original Date Text Variable Review', $summary['title'] ?? null);
+        $t->same('original-date', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('original ', $summary['bibliographyRendering'][1]['prefix'] ?? null);
+
+        $t->same('(Smith | orig 1910-05-01; Ng | orig undated manuscript)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'reprint-source', 'text' => '[@reprint-source]']),
+            new AstNode('citation', ['id' => 'literal-original', 'text' => '[@literal-original]']),
+        ]));
+        $t->same('Reprinted Packet :: original 1910-05-01', $processor->renderBibliographyEntry('reprint-source'));
+        $t->same('Literal Original Packet :: original undated manuscript', $processor->renderBibliographyEntry('literal-original'));
+
+        $document = (new MarkdownReader())->read('Original date text [@reprint-source; @literal-original] remains visible in review output.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original date text (Smith | orig 1910-05-01; Ng | orig undated manuscript) remains visible in review output.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Reprinted Packet :: original 1910-05-01</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Literal Original Packet :: original undated manuscript</dd>', $blocks);
+    },
     'maps bounded biblatex original subtitle and title addendum metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{original-subtitle-manual,
