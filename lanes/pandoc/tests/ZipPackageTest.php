@@ -3010,6 +3010,39 @@ return [
         ])));
     },
 
+    'rejects zip package part names with control bytes before exposing entries' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            ['name' => "word/media/review\nimage.png", 'data' => 'newline raw central name'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            ['name' => "word/media/review\timage.png", 'data' => 'tab raw central name'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            ['name' => "word/media/review\x7fimage.png", 'data' => 'delete raw central name'],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            ['name' => "word/media/generated\nreview.png", 'data' => 'generated newline name'],
+        ]));
+
+        $rawName = 'word/media/review-image.bin';
+        $unsafeUnicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, "word/media/review\nimage.png");
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'unicode path control byte',
+                'flags' => 0,
+                'centralExtra' => $unsafeUnicodePathExtra,
+            ],
+        ])));
+
+        $safePackage = ZipPackage::fromParts([
+            ['name' => 'word/media/review image.png', 'data' => 'spaces remain safe package names', 'compressionMethod' => 0],
+            ['name' => 'word/media/review-image.png', 'data' => 'dash remains safe package name', 'compressionMethod' => 0],
+        ]);
+        $t->same(['word/media/review image.png', 'word/media/review-image.png'], $safePackage->names());
+        $t->same('spaces remain safe package names', $safePackage->read('/word/media/review image.png'));
+    },
+
     'rejects duplicate encrypted and split zip package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             ['name' => 'word/document.xml', 'data' => 'first'],

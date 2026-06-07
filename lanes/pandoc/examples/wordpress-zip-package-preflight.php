@@ -821,6 +821,54 @@ $buildRawUnicodeTraversalBackedPackage = static function () use ($crc32, $buildU
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildControlNameBackedPackage = static function (string $rawName, ?string $unicodeName = null) use ($crc32, $buildUnicodeExtra): string {
+    $data = "Control-byte media path should stay blocked\n";
+    $crc = $crc32($data);
+    $extra = $unicodeName === null ? '' : $buildUnicodeExtra(0x7075, $rawName, $unicodeName);
+    $flags = $unicodeName === null ? 0x0800 : 0;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($rawName),
+        strlen($extra)
+    );
+    $body .= $rawName . $extra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($rawName),
+        strlen($extra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $rawName . $extra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildDirectoryPayloadBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/';
     $data = "Directory payload should stay blocked\n";
@@ -2663,6 +2711,34 @@ try {
 } catch (RuntimeException $exception) {
     $rawUnicodeTraversalRejected = str_contains($exception->getMessage(), 'Unsafe ZIP package entry name');
 }
+$zipControlNameRawRejected = false;
+try {
+    ZipPackage::fromString($buildControlNameBackedPackage("word/media/review\nimage.png"));
+} catch (RuntimeException $exception) {
+    $zipControlNameRawRejected = str_contains($exception->getMessage(), 'control characters');
+}
+$zipControlNameGeneratedRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => "word/media/generated\nreview.png",
+            'data' => "generated control-byte ZIP media path\n",
+            'compressionMethod' => 0,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $zipControlNameGeneratedRejected = str_contains($exception->getMessage(), 'control characters');
+}
+$zipControlNameUnicodeRejected = false;
+try {
+    $rawControlName = 'word/media/review-image.bin';
+    ZipPackage::fromString($buildControlNameBackedPackage($rawControlName, "word/media/review\nimage.png"));
+} catch (RuntimeException $exception) {
+    $zipControlNameUnicodeRejected = str_contains($exception->getMessage(), 'control characters');
+}
+$zipControlNameRejected = $zipControlNameRawRejected
+    && $zipControlNameGeneratedRejected
+    && $zipControlNameUnicodeRejected;
 $directoryPayloadRejected = false;
 try {
     ZipPackage::fromString($buildDirectoryPayloadBackedPackage());
@@ -3397,6 +3473,10 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($unicodeNameCollisionPackage->read('/' . $unicodeNameCollisionDecomposedName) !== "decomposed reviewer attachment placeholder\n") {
         throw new RuntimeException('Expected exact Unicode ZIP media path to remain readable before normalized handoff rejection');
+    }
+
+    if (!$zipControlNameRejected) {
+        throw new RuntimeException('Expected ZIP entry names with control bytes to be rejected before media import');
     }
 
     if (!$packageSizeRejected) {
@@ -4298,6 +4378,7 @@ echo 'zip64SizeUpgradeFields=' . implode(',', $zip64SizeUpgradePreflight['zip64E
 echo 'zip64SizeUpgradeLocalOffset=' . ($zip64SizeUpgradePreflight['zip64Entries'][0]['centralZip64Values']['localHeaderOffset'] ?? 'none') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipControlNamePolicy=' . ($zipControlNameRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDosDirectoryAttributePolicy=' . ($dosDirectoryAttributeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnixFileTypeNamePolicy=' . ($unixFileTypeNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

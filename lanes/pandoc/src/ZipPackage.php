@@ -4084,8 +4084,14 @@ final class ZipPackage
         }
 
         if (
-            str_contains($name, "\0")
-            || str_starts_with($name, '/')
+            preg_match('/[\x00-\x1f\x7f]/', $name) === 1
+            || (preg_match('//u', $name) === 1 && preg_match('/\p{Cc}/u', $name) === 1)
+        ) {
+            throw new \RuntimeException('Unsafe ZIP package entry name contains control characters');
+        }
+
+        if (
+            str_starts_with($name, '/')
             || str_contains($name, '\\')
             || preg_match('/^[A-Za-z]:/', $name) === 1
         ) {
