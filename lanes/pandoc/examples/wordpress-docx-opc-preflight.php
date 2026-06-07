@@ -5,13 +5,14 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\OpcContentTypes;
+use PortLibs\Pandoc\OpcMarkupCompatibility;
 use PortLibs\Pandoc\OpcPackagePath;
 use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
 $contentTypesXml = <<<'XML'
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" review:source="import-preflight">
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review:Audit review:Note" mc:PreserveAttributes="review:source review:origin" review:source="import-preflight">
   <review:Audit packet="docx"/>
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" review:origin="fixture">
     <review:Note value="ignored"/>
@@ -40,7 +41,7 @@ $contentTypesXml = <<<'XML'
 XML;
 
 $packageRelationshipsXml = <<<'XML'
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" review:source="import-preflight">
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review:Audit review:Trace" mc:PreserveAttributes="review:source review:label" review:source="import-preflight">
   <review:Audit packet="docx"/>
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml" review:label="main">
     <review:Trace value="ignored"/>
@@ -1267,9 +1268,13 @@ $strictXmlShapeGuards = [
 $markupCompatibilityGuards = [
     'ignorableContentTypeExtensionAccepted' => $types->contentTypeForPart('/word/document.xml') === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
     'ignorableRelationshipExtensionAccepted' => $graph->firstTargetOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument') === '/word/document.xml',
+    'preserveContentTypeDeclarationsAccepted' => $types->contentTypeForPart('/word/media/source diagram.svg') === 'image/svg+xml; charset=UTF-8',
+    'preserveRelationshipDeclarationsAccepted' => $graph->requireRelationshipsForSource('/')->byId('rIdDocument') !== null,
     'undeclaredContentTypeExtensionRejected' => false,
     'undeclaredRelationshipExtensionRejected' => false,
     'unsupportedMarkupCompatibilityAttributeRejected' => false,
+    'malformedPreserveDeclarationRejected' => false,
+    'coreNamespacePreserveDeclarationRejected' => false,
 ];
 try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml" ContentType="application/xml" Extra="1"/></Types>');
@@ -1330,6 +1335,16 @@ try {
     OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:ProcessContent="review"><Default Extension="xml" ContentType="application/xml"/></Types>');
 } catch (InvalidArgumentException) {
     $markupCompatibilityGuards['unsupportedMarkupCompatibilityAttributeRejected'] = true;
+}
+try {
+    OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review"><Default Extension="xml" ContentType="application/xml"/></Types>');
+} catch (InvalidArgumentException) {
+    $markupCompatibilityGuards['malformedPreserveDeclarationRejected'] = true;
+}
+try {
+    OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" xmlns:r="' . OpcRelationships::NAMESPACE_URI . '" mc:Ignorable="review" mc:PreserveAttributes="r:Id"><Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>', '/word/document.xml');
+} catch (InvalidArgumentException) {
+    $markupCompatibilityGuards['coreNamespacePreserveDeclarationRejected'] = true;
 }
 
 $summary = [
@@ -1791,9 +1806,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['strictXmlShapeGuards']['relationshipRootTextRejected'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['ignorableContentTypeExtensionAccepted'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['ignorableRelationshipExtensionAccepted'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['preserveContentTypeDeclarationsAccepted'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['preserveRelationshipDeclarationsAccepted'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['undeclaredContentTypeExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['undeclaredRelationshipExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityGuards']['unsupportedMarkupCompatibilityAttributeRejected'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['malformedPreserveDeclarationRejected'] ?? null) !== true
+        || ($summary['integrity']['markupCompatibilityGuards']['coreNamespacePreserveDeclarationRejected'] ?? null) !== true
         || ($summary['integrity']['markupCompatibilityProcessContent']['sourceParts'] ?? null) !== ['/']
         || ($summary['integrity']['markupCompatibilityProcessContent']['relationshipIds'] ?? null) !== ['rIdProcessDocument', 'rIdProcessAudit']
         || ($summary['integrity']['markupCompatibilityProcessContent']['officeDocumentTargetPart'] ?? null) !== '/word/process-document.xml'

@@ -30,6 +30,8 @@ final class OpcRelationships
 
         $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC relationships XML root');
         $processContentElements = OpcMarkupCompatibility::processContentElementsForElement($root, $ignorableNamespaces, 'OPC relationships XML root');
+        OpcMarkupCompatibility::preserveElementsForElement($root, $ignorableNamespaces, 'OPC relationships XML root');
+        OpcMarkupCompatibility::preserveAttributesForElement($root, $ignorableNamespaces, 'OPC relationships XML root');
         self::assertRootShape($root, $ignorableNamespaces);
 
         $relationships = new self($sourcePartName);
@@ -236,6 +238,8 @@ final class OpcRelationships
                 OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableDeclaration($attribute)
                 || OpcMarkupCompatibility::isProcessContentDeclaration($attribute)
+                || OpcMarkupCompatibility::isPreserveElementsDeclaration($attribute)
+                || OpcMarkupCompatibility::isPreserveAttributesDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
             ) {
                 continue;

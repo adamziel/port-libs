@@ -460,10 +460,70 @@ XML;
         foreach ([
             '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" review:source="import-preflight"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
             '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . $markupCompatibilityNamespace . '" mc:Ignorable="missing"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
-            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . $markupCompatibilityNamespace . '" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review:*"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
             '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review"><review:Audit/><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
             '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png" review:origin="fixture"/></Relationships>',
             '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"><review:Note/></Relationship></Relationships>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml, '/word/document.xml'));
+        }
+    },
+    'honors bounded OPC markup compatibility preserve declarations' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review:Audit review:Note" mc:PreserveAttributes="review:source review:origin" review:source="import-preflight">
+  <review:Audit packet="docx"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" review:origin="fixture">
+    <review:Note value="ignored"/>
+  </Default>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $relationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review:*" mc:PreserveAttributes="review:*" review:source="import-preflight">
+  <review:Audit packet="docx"/>
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml" review:label="main">
+    <review:Trace value="ignored"/>
+  </Relationship>
+</Relationships>
+XML;
+
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $types->contentTypeForPart('/_rels/.rels'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart('/word/document.xml'));
+
+        $relationships = OpcRelationships::fromXml($relationshipsXml);
+        $t->same('/word/document.xml', $relationships->resolveTarget('rIdDocument'));
+        $t->same(1, count($relationships->all()));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $relationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+
+        $root = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(true, $root['valid']);
+        $t->same('/word/document.xml', $root['relationships'][0]['targetPart']);
+        $t->same(['rIdDocument'], array_map(
+            static fn (OpcRelationship $relationship): string => $relationship->id,
+            $graph->requireRelationshipsForSource('/')->all()
+        ));
+
+        foreach ([
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="missing:Audit"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:PreserveAttributes="review:origin"><Default Extension="xml" ContentType="application/xml"/></Types>',
+            '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" xmlns:p="' . OpcContentTypes::NAMESPACE_URI . '" mc:Ignorable="review" mc:PreserveElements="p:Default"><Default Extension="xml" ContentType="application/xml"/></Types>',
+        ] as $xml) {
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
+        }
+
+        foreach ([
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveElements="review"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:Ignorable="review" mc:PreserveAttributes="missing:origin"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" mc:PreserveElements="review:*"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
+            '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '" xmlns:mc="' . OpcMarkupCompatibility::NAMESPACE_URI . '" xmlns:review="urn:wordpress-review" xmlns:r="' . OpcRelationships::NAMESPACE_URI . '" mc:Ignorable="review" mc:PreserveAttributes="r:Id"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>',
         ] as $xml) {
             $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($xml, '/word/document.xml'));
         }

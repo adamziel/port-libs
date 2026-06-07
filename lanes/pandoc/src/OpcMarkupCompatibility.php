@@ -60,6 +60,16 @@ final class OpcMarkupCompatibility
         return $attribute->namespaceURI === self::NAMESPACE_URI && $attribute->localName === 'ProcessContent';
     }
 
+    public static function isPreserveElementsDeclaration(\DOMAttr $attribute): bool
+    {
+        return $attribute->namespaceURI === self::NAMESPACE_URI && $attribute->localName === 'PreserveElements';
+    }
+
+    public static function isPreserveAttributesDeclaration(\DOMAttr $attribute): bool
+    {
+        return $attribute->namespaceURI === self::NAMESPACE_URI && $attribute->localName === 'PreserveAttributes';
+    }
+
     /**
      * @param array<string, true> $ignorableNamespaces
      * @return array<string, true>
@@ -90,6 +100,36 @@ final class OpcMarkupCompatibility
         }
 
         return $elements;
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     * @return array<string, true>
+     */
+    public static function preserveElementsForElement(\DOMElement $element, array $ignorableNamespaces, string $label): array
+    {
+        return self::preserveQualifiedNamesForElement(
+            $element,
+            'PreserveElements',
+            $ignorableNamespaces,
+            $label,
+            true,
+        );
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     * @return array<string, true>
+     */
+    public static function preserveAttributesForElement(\DOMElement $element, array $ignorableNamespaces, string $label): array
+    {
+        return self::preserveQualifiedNamesForElement(
+            $element,
+            'PreserveAttributes',
+            $ignorableNamespaces,
+            $label,
+            true,
+        );
     }
 
     /**
@@ -172,5 +212,45 @@ final class OpcMarkupCompatibility
 
         return isset($processContentElements[$namespace . "\0" . $element->localName])
             || isset($processContentElements[$namespace . "\0*"]);
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     * @return array<string, true>
+     */
+    private static function preserveQualifiedNamesForElement(
+        \DOMElement $element,
+        string $attributeName,
+        array $ignorableNamespaces,
+        string $label,
+        bool $allowWildcard,
+    ): array {
+        $value = $element->getAttributeNS(self::NAMESPACE_URI, $attributeName);
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $names = [];
+        $localNamePattern = $allowWildcard
+            ? '[A-Za-z_][A-Za-z0-9._-]*|\*'
+            : '[A-Za-z_][A-Za-z0-9._-]*';
+        foreach (preg_split('/\s+/', trim($value)) ?: [] as $name) {
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):(' . $localNamePattern . ')$/D', $name, $matches) !== 1) {
+                throw new \InvalidArgumentException($label . ' mc:' . $attributeName . ' contains invalid QName: ' . $name);
+            }
+
+            $namespace = $element->lookupNamespaceURI($matches[1]);
+            if ($namespace === null || $namespace === '') {
+                throw new \InvalidArgumentException($label . ' mc:' . $attributeName . ' references undeclared prefix: ' . $matches[1]);
+            }
+
+            if (!isset($ignorableNamespaces[$namespace])) {
+                throw new \InvalidArgumentException($label . ' mc:' . $attributeName . ' must reference ignorable extension namespaces: ' . $matches[1]);
+            }
+
+            $names[$namespace . "\0" . $matches[2]] = true;
+        }
+
+        return $names;
     }
 }

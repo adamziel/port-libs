@@ -27,6 +27,8 @@ final class OpcContentTypes
 
         $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC content-types XML root');
         $processContentElements = OpcMarkupCompatibility::processContentElementsForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
+        OpcMarkupCompatibility::preserveElementsForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
+        OpcMarkupCompatibility::preserveAttributesForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
         self::assertRootShape($root, $ignorableNamespaces);
 
         $types = new self();
@@ -174,6 +176,8 @@ final class OpcContentTypes
                 OpcMarkupCompatibility::isNamespaceDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableDeclaration($attribute)
                 || OpcMarkupCompatibility::isProcessContentDeclaration($attribute)
+                || OpcMarkupCompatibility::isPreserveElementsDeclaration($attribute)
+                || OpcMarkupCompatibility::isPreserveAttributesDeclaration($attribute)
                 || OpcMarkupCompatibility::isIgnorableExtensionAttribute($attribute, $ignorableNamespaces)
             ) {
                 continue;
