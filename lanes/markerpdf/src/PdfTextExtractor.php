@@ -4718,6 +4718,9 @@ final class PdfTextExtractor
                 'stroking_alpha' => $this->pdfNumberValueAfterNameResolvingObjects($dictionary, 'CA', $objects),
                 'nonstroking_alpha' => $this->pdfNumberValueAfterNameResolvingObjects($dictionary, 'ca', $objects),
                 'alpha_source' => $this->pdfBooleanValueAfterNameResolvingObjects($dictionary, 'AIS', $objects),
+                'stroking_overprint' => $this->pdfBooleanValueAfterNameResolvingObjects($dictionary, 'OP', $objects),
+                'nonstroking_overprint' => $this->pdfBooleanValueAfterNameResolvingObjects($dictionary, 'op', $objects),
+                'overprint_mode' => $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'OPM', $objects),
                 'blend_modes' => $this->extGStateBlendModes($dictionary, $objects),
                 'has_soft_mask' => $softMaskValue !== null,
                 'soft_mask' => $softMaskValue === null ? null : $this->extGStateSoftMaskReview($softMaskValue, $objects),
@@ -5687,6 +5690,9 @@ final class PdfTextExtractor
             'stroking_alpha' => null,
             'nonstroking_alpha' => null,
             'alpha_source' => null,
+            'stroking_overprint' => null,
+            'nonstroking_overprint' => null,
+            'overprint_mode' => null,
             'line_width' => 1.0,
             'blend_modes' => [],
             'soft_mask' => null,
@@ -5727,6 +5733,14 @@ final class PdfTextExtractor
         }
         if (is_bool($state['alpha_source'] ?? null)) {
             $default['alpha_source'] = $state['alpha_source'];
+        }
+        foreach (['stroking_overprint', 'nonstroking_overprint'] as $key) {
+            if (is_bool($state[$key] ?? null)) {
+                $default[$key] = $state[$key];
+            }
+        }
+        if (is_int($state['overprint_mode'] ?? null)) {
+            $default['overprint_mode'] = $state['overprint_mode'];
         }
         if (
             (is_int($state['line_width'] ?? null) || is_float($state['line_width'] ?? null))
@@ -6190,6 +6204,15 @@ final class PdfTextExtractor
         if (is_bool($review['alpha_source'] ?? null)) {
             $state['alpha_source'] = $review['alpha_source'];
         }
+        if (is_bool($review['stroking_overprint'] ?? null)) {
+            $state['stroking_overprint'] = $review['stroking_overprint'];
+        }
+        if (is_bool($review['nonstroking_overprint'] ?? null)) {
+            $state['nonstroking_overprint'] = $review['nonstroking_overprint'];
+        }
+        if (is_int($review['overprint_mode'] ?? null)) {
+            $state['overprint_mode'] = $review['overprint_mode'];
+        }
         if (($review['blend_modes'] ?? []) !== [] && is_array($review['blend_modes'])) {
             $state['blend_modes'] = array_values(array_filter(
                 $review['blend_modes'],
@@ -6218,6 +6241,9 @@ final class PdfTextExtractor
             && $state['stroking_alpha'] === null
             && $state['nonstroking_alpha'] === null
             && $state['alpha_source'] === null
+            && $state['stroking_overprint'] === null
+            && $state['nonstroking_overprint'] === null
+            && $state['overprint_mode'] === null
             && $state['blend_modes'] === []
             && $state['soft_mask'] === null
         ) {
