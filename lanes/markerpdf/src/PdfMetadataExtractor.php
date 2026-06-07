@@ -13720,7 +13720,7 @@ final class PdfMetadataExtractor
     {
         $values = [];
         foreach ($this->xmpRdfCollectionItems($element) as $item) {
-            $value = $this->xmpQualifiedTextValue($item);
+            $value = $this->xmpCollectionItemTextValue($item);
             if ($value !== null) {
                 $values[] = $value;
             }
@@ -13875,7 +13875,7 @@ final class PdfMetadataExtractor
     {
         $first = null;
         foreach ($this->xmpRdfCollectionItems($element) as $item) {
-            $value = $this->xmpQualifiedTextValue($item);
+            $value = $this->xmpCollectionItemTextValue($item);
             if ($value === null) {
                 continue;
             }
@@ -13887,6 +13887,42 @@ final class PdfMetadataExtractor
         }
 
         return $first ?? $this->xmpQualifiedTextValue($element);
+    }
+
+    private function xmpCollectionItemTextValue(DOMElement $item): ?string
+    {
+        if (!$this->xmpCollectionItemHasExplicitTextValue($item)) {
+            return null;
+        }
+
+        return $this->xmpQualifiedTextValue($item);
+    }
+
+    private function xmpCollectionItemHasExplicitTextValue(DOMElement $item): bool
+    {
+        if (!$this->xmpElementHasElementChildren($item)) {
+            return true;
+        }
+
+        if (
+            $item->hasAttributeNS(self::NS_RDF, 'value')
+            || $item->hasAttributeNS(self::NS_RDF, 'resource')
+            || $item->hasAttributeNS(self::NS_RDF, 'nodeID')
+        ) {
+            return true;
+        }
+
+        foreach ($this->xmpChildElements($item, self::NS_RDF, 'value') as $_value) {
+            return true;
+        }
+
+        foreach ($this->xmpChildElements($item, self::NS_RDF, 'Description') as $description) {
+            if ($this->xmpCollectionItemHasExplicitTextValue($description)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function xmpInheritedXmlLang(DOMElement $element): string
