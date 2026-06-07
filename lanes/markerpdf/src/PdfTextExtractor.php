@@ -32824,15 +32824,27 @@ final class PdfTextExtractor
             if ($mappingBlock['kind'] === 'char') {
                 $rawBlock = $mappingBlock['body'];
                 $block = $this->cMapOperatorBlockData($rawBlock);
-                $entries = $this->cMapTopLevelHexPairs($block);
-                $rowEntries = $this->cMapTopLevelHexPairRows($rawBlock, $mappingBlock['declaredCount']);
-                if ($rowEntries['hasMalformedRows']) {
-                    $entries = $rowEntries['pairs'];
+                $entries = array_map(
+                    static fn (array $pair): array => [
+                        'source' => $pair[0],
+                        'target' => $pair[1],
+                        'targetKind' => 'hex',
+                    ],
+                    $this->cMapTopLevelHexPairs($block)
+                );
+                $rowEntries = $this->cMapTopLevelBfCharRows($rawBlock, $mappingBlock['declaredCount']);
+                if (
+                    $rowEntries['hasMalformedRows']
+                    || $this->cMapBfCharRowsContainLiteralTargets($rowEntries['rows'])
+                ) {
+                    $entries = $rowEntries['rows'];
                 } elseif ($mappingBlock['declaredCount'] !== null) {
                     $entries = array_slice($entries, 0, max(0, $mappingBlock['declaredCount']));
                 }
 
-                foreach ($entries as [$sourceHex, $targetHex]) {
+                foreach ($entries as $entry) {
+                    $sourceHex = $entry['source'] ?? '';
+                    $targetHex = $entry['target'] ?? '';
                     $source = $this->normalizeHexKey($sourceHex);
                     if ($source !== '') {
                         $map[$source] = $this->decodeCMapUnicodeHex($targetHex);
@@ -33403,7 +33415,10 @@ final class PdfTextExtractor
         $cleanBlock = $this->cMapOperatorBlockData($block);
         $ranges = $this->cMapTopLevelBfRangeRows($cleanBlock);
         $rowRanges = $this->cMapTopLevelBfRangeRowRanges($block, $declaredCount);
-        if ($rowRanges['hasMalformedRows']) {
+        if (
+            $rowRanges['hasMalformedRows']
+            || $this->cMapBfRangeRowsContainLiteralTargets($rowRanges['ranges'])
+        ) {
             $ranges = $rowRanges['ranges'];
             $declaredCount = null;
         }
@@ -33547,6 +33562,113 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{rows: list<array{source: string, target: string, targetKind: 'hex'|'literal'}>, hasMalformedRows: bool}
+     */
+    private function cMapTopLevelBfCharRows(string $source, ?int $declaredCount = null): array
+    {
+        $rows = [];
+        $hasMalformedRows = false;
+        $rowLimit = $declaredCount === null ? null : max(0, $declaredCount);
+        $rowsSeen = 0;
+        $lines = preg_split('/\R/', $source);
+        if ($lines === false) {
+            return [
+                'rows' => [],
+                'hasMalformedRows' => false,
+            ];
+        }
+
+        foreach ($lines as $line) {
+            $tokens = $this->cMapTopLevelBfRangeTokens($line);
+            if ($tokens === []) {
+                continue;
+            }
+
+            if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                break;
+            }
+
+            if (!$this->cMapBfCharTokensAreWellFormedRows($tokens)) {
+                $hasMalformedRows = true;
+                if (count($tokens) >= 2) {
+                    $rowsSeen += max(1, intdiv(count($tokens), 2));
+                }
+                continue;
+            }
+
+            for ($index = 0, $count = count($tokens); $index + 1 < $count; $index += 2) {
+                if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                    break 2;
+                }
+                $rows[] = [
+                    'source' => $tokens[$index]['value'],
+                    'target' => $tokens[$index + 1]['value'],
+                    'targetKind' => $tokens[$index + 1]['type'],
+                ];
+                $rowsSeen++;
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'hasMalformedRows' => $hasMalformedRows,
+        ];
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'literal'|'array'|'other', value: string}> $tokens
+     */
+    private function cMapBfCharTokensAreWellFormedRows(array $tokens): bool
+    {
+        if ($tokens === [] || count($tokens) % 2 !== 0) {
+            return false;
+        }
+
+        for ($index = 0, $count = count($tokens); $index < $count; $index += 2) {
+            if (
+                ($tokens[$index]['type'] ?? null) !== 'hex'
+                || !in_array($tokens[$index + 1]['type'] ?? null, ['hex', 'literal'], true)
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{targetKind?: string}> $rows
+     */
+    private function cMapBfCharRowsContainLiteralTargets(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            if (($row['targetKind'] ?? null) === 'literal') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{targetKind?: string, targetKinds?: list<string>}> $rows
+     */
+    private function cMapBfRangeRowsContainLiteralTargets(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            if (($row['targetKind'] ?? null) === 'literal') {
+                return true;
+            }
+            $targetKinds = $row['targetKinds'] ?? [];
+            if (is_array($targetKinds) && in_array('literal', $targetKinds, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<array{start: string, end: string, target?: string, targets?: list<string>}>
      */
     private function cMapTopLevelBfRangeRows(string $source): array
@@ -33604,8 +33726,8 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<array{type: 'hex'|'array'|'other', value: string}> $tokens
-     * @return list<array{start: string, end: string, target?: string, targets?: list<string>}>
+     * @param list<array{type: 'hex'|'literal'|'array'|'other', value: string}> $tokens
+     * @return list<array{start: string, end: string, target?: string, targets?: list<string>, targetKind?: string, targetKinds?: list<string>}>
      */
     private function cMapBfRangeRowsFromTokens(array $tokens): array
     {
@@ -33618,28 +33740,42 @@ final class PdfTextExtractor
             }
 
             $target = $tokens[$index + 2];
-            if ($target['type'] === 'hex') {
+            if ($target['type'] === 'hex' || $target['type'] === 'literal') {
                 $rows[] = [
                     'start' => $tokens[$index]['value'],
                     'end' => $tokens[$index + 1]['value'],
                     'target' => $target['value'],
+                    'targetKind' => $target['type'],
                 ];
                 $index += 3;
                 continue;
             }
 
             if ($target['type'] === 'array') {
-                $targets = array_values(array_filter(
-                    array_map(
-                        fn (string $candidate): string => $this->normalizeHexKey($candidate),
-                        $this->cMapTopLevelHexTokens($target['value'])
-                    ),
-                    static fn (string $candidate): bool => $candidate !== ''
-                ));
+                $targets = [];
+                $targetKinds = [];
+                foreach ($this->cMapTopLevelBfRangeTokens($target['value']) as $targetToken) {
+                    $targetType = $targetToken['type'] ?? null;
+                    if ($targetType === 'hex') {
+                        $normalized = $this->normalizeHexKey($targetToken['value']);
+                        if ($normalized === '') {
+                            continue;
+                        }
+                        $targets[] = $normalized;
+                        $targetKinds[] = 'hex';
+                        continue;
+                    }
+
+                    if ($targetType === 'literal') {
+                        $targets[] = $targetToken['value'];
+                        $targetKinds[] = 'literal';
+                    }
+                }
                 $rows[] = [
                     'start' => $tokens[$index]['value'],
                     'end' => $tokens[$index + 1]['value'],
                     'targets' => $targets,
+                    'targetKinds' => $targetKinds,
                 ];
                 $index += 3;
                 continue;
@@ -33652,7 +33788,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<array{type: 'hex'|'array'|'other', value: string}> $tokens
+     * @param list<array{type: 'hex'|'literal'|'array'|'other', value: string}> $tokens
      */
     private function cMapBfRangeTokensAreWellFormedRows(array $tokens): bool
     {
@@ -33664,7 +33800,7 @@ final class PdfTextExtractor
             if (
                 ($tokens[$index]['type'] ?? null) !== 'hex'
                 || ($tokens[$index + 1]['type'] ?? null) !== 'hex'
-                || !in_array($tokens[$index + 2]['type'] ?? null, ['hex', 'array'], true)
+                || !in_array($tokens[$index + 2]['type'] ?? null, ['hex', 'literal', 'array'], true)
             ) {
                 return false;
             }
@@ -33698,7 +33834,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{type: 'hex'|'array'|'other', value: string}>
+     * @return list<array{type: 'hex'|'literal'|'array'|'other', value: string}>
      */
     private function cMapTopLevelBfRangeTokens(string $source): array
     {
@@ -33719,12 +33855,15 @@ final class PdfTextExtractor
             }
 
             if ($char === '(') {
-                $end = $this->skipPdfLiteralStringAt($source, $index);
-                if ($end === null) {
-                    break;
+                $token = $this->readLiteralToken($source, $index);
+                if (strlen($token) < 2 || !str_ends_with($token, ')')) {
+                    $tokens[] = ['type' => 'other', 'value' => ''];
+                    continue;
                 }
-                $tokens[] = ['type' => 'other', 'value' => ''];
-                $index = $end + 1;
+                $tokens[] = [
+                    'type' => 'literal',
+                    'value' => bin2hex($this->decodeLiteralString(substr($token, 1, -1))),
+                ];
                 continue;
             }
 
@@ -34359,17 +34498,28 @@ final class PdfTextExtractor
             return '';
         }
 
-        if (strlen($normalized) % 4 === 0) {
-            $bytes = hex2bin($normalized);
-            if ($bytes !== false) {
-                $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', $bytes);
-                if ($decoded !== false) {
-                    return $decoded;
-                }
+        $bytes = hex2bin($normalized);
+        if ($bytes === false) {
+            return '';
+        }
+
+        return $this->decodeCMapUnicodeBytes($bytes);
+    }
+
+    private function decodeCMapUnicodeBytes(string $bytes): string
+    {
+        if ($bytes === '') {
+            return '';
+        }
+
+        if (strlen($bytes) % 2 === 0) {
+            $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', $bytes);
+            if ($decoded !== false) {
+                return $decoded;
             }
         }
 
-        return $this->decodeHexString($normalized);
+        return $this->decodePdfStringBytes($bytes);
     }
 
     /**
