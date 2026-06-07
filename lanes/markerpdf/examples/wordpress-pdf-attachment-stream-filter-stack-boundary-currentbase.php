@@ -90,6 +90,34 @@ if (!is_array($attachment) || $summaryJson === false) {
     throw new RuntimeException('Expected stacked attachment summary row.');
 }
 
+$commentPayload = "Title,Status\nEOD Comment Attachment,Ready\n";
+$commentCompressed = gzcompress($commentPayload);
+if (!is_string($commentCompressed)) {
+    throw new RuntimeException('Unable to compress EOD-comment attachment smoke payload.');
+}
+$commentEncodedPayload = $ascii85Encode($commentCompressed)
+    . '% attachment filter comment reaches the stream boundary';
+$commentVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment EOD Comment Review) Tj ET';
+$commentPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($commentVisible) . " >>\nstream\n{$commentVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(eod-comment-stack.csv) 10 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (eod-comment-stack.csv) /Desc (EOD comment attachment stack) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($commentPayload) . " /CheckSum <" . md5($commentPayload) . "> >> /Length " . strlen($commentEncodedPayload) . " >>\nstream\n{$commentEncodedPayload}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$commentSummary = (new PdfAttachmentExtractor())->attachmentSummary($commentPdf);
+$commentFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($commentPdf);
+$commentText = (new PdfTextExtractor())->extractPlainText($commentPdf);
+$commentSummaryJson = json_encode($commentSummary, JSON_UNESCAPED_SLASHES);
+$commentFilesJson = json_encode($commentFiles, JSON_UNESCAPED_SLASHES);
+if ($commentSummaryJson === false || $commentFilesJson === false) {
+    throw new RuntimeException('Expected EOD-comment attachment summary JSON.');
+}
+
 $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Malformed Filter Review) Tj ET';
 $malformedPayload = "Title,Status\nDictionary Filter Attachment Leak,Blocked\n";
 $malformedChecksum = md5($malformedPayload);
@@ -291,6 +319,18 @@ $metadata = [
     'payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $attachment),
     'payload_content_exposed' => str_contains($summaryJson, 'Identity Crypt Stacked Attachment')
         || str_contains($summaryJson, 'Private Crypt Stacked Attachment'),
+    'eod_comment_attachment_decoded' => ($commentSummary['attachment_count'] ?? null) === 1
+        && ($commentSummary['attachments'][0]['filename'] ?? null) === 'eod-comment-stack.csv'
+        && ($commentSummary['attachments'][0]['checksum_matches'] ?? false) === true
+        && (($commentFiles[0]['content'] ?? null) === $commentPayload),
+    'eod_comment_filters' => $commentSummary['attachments'][0]['filters'] ?? [],
+    'eod_comment_payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $commentSummary['attachments'][0] ?? []),
+    'eod_comment_payload_excluded' => !str_contains($commentSummaryJson, 'EOD Comment Attachment')
+        && !str_contains($commentSummaryJson, 'attachment filter comment')
+        && !str_contains($commentFilesJson, 'attachment filter comment')
+        && !str_contains($commentText, 'EOD Comment Attachment')
+        && !str_contains($commentText, 'attachment filter comment'),
+    'eod_comment_visible_text_preserved' => $commentText === 'Visible Attachment EOD Comment Review',
     'dictionary_filter_attachment_rejected' => ($malformedSummary['attachment_count'] ?? null) === 0
         && $malformedFiles === [],
     'dictionary_filter_filename_excluded' => !str_contains($malformedSummaryJson, 'dict-filter.csv'),

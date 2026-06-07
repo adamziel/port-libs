@@ -7130,7 +7130,7 @@ final class PdfEmbeddedFileExtractor
             if ($stream[$index] === '%') {
                 $lineLength = strcspn($stream, "\r\n", $index);
                 if ($index + $lineLength >= $length) {
-                    return false;
+                    return true;
                 }
                 $index += $lineLength;
                 continue;

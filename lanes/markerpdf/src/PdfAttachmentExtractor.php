@@ -3826,7 +3826,7 @@ final class PdfAttachmentExtractor
             if ($bytes[$index] === '%') {
                 $lineLength = strcspn($bytes, "\r\n", $index);
                 if ($index + $lineLength >= $length) {
-                    return false;
+                    return true;
                 }
                 $index += $lineLength;
                 continue;

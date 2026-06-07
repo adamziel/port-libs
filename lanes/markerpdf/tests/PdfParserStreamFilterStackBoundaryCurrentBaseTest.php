@@ -499,6 +499,26 @@ $parserStreamFilterStackBoundaryCurrentBaseMissingInnerAscii85EodPdf = static fu
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseEodCommentPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (ASCII85 EOD Comment Stack) Tj T* (Comment Boundary Preserved) Tj ET';
+    $encoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($content)
+    ) . '~>% stack filter comment reaches the stream boundary';
+    $visibleAfter = 'BT /F1 12 Tf 72 684 Td (Visible After EOD Comment) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf = static function (
     ?int &$declaredLength = null
 ) use (
@@ -1252,6 +1272,28 @@ return [
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'Missing Inner ASCII85 EOD Leak'));
+        $t->true(!str_contains($text, 'ASCII85Decode'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, '~>'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'accepts stream-filter EOD comments that end at the captured stream boundary' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseEodCommentPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseEodCommentPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'ASCII85 EOD Comment Stack',
+            'Comment Boundary Preserved',
+            'Visible After EOD Comment',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'stack filter comment'));
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, '~>'));
