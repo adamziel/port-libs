@@ -131,6 +131,10 @@ final class PdfTextDocumentExtractor
                 continue;
             }
 
+            if (array_key_exists('blocks', $pages)) {
+                return [$pages];
+            }
+
             if (!array_key_exists('blocks', $pages) && array_key_exists('pages', $pages)) {
                 $nestedPages = $this->normalizeSuppliedDictionaryValue($pages['pages']);
                 if (is_array($nestedPages)) {

@@ -761,6 +761,86 @@ return [
         $t->true(!str_contains($encoded, 'json pdftext envelope payload'));
         $t->true(!str_contains($encoded, 'json pdftext adapter payload'));
     },
+    'wraps singleton pdftext page dictionaries inside named core envelopes' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = static function (int $pageNumber, string $lead, string $linkUrl, string $tail) use ($pdftextLinkedPage): array {
+            $page = $pdftextLinkedPage();
+            $page['page'] = $pageNumber;
+            $page['raw_singleton_payload'] = "singleton {$pageNumber} payload must not cross dictionary_output";
+            $page['blocks'][0]['lines'][0]['spans'][0]['text'] = $lead;
+            $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'singleton link';
+            $page['blocks'][0]['lines'][0]['spans'][1]['url'] = $linkUrl;
+            $page['blocks'][0]['lines'][0]['spans'][2]['text'] = $tail;
+            unset($page['blocks'][0]['lines'][0]['spans'][2]['url']);
+
+            return $page;
+        };
+
+        $stale = $page(990, 'Stale singleton adapter ', 'https://example.com/stale-singleton', ' should not import');
+        $dictionaryOutputPage = $page(991, 'Direct dictionary_output ', 'https://example.com/direct-dictionary-output', ' stays one page');
+        $pdftextPage = $page(992, 'Direct pdftext envelope ', 'https://example.com/direct-pdftext', ' wins before stale pages');
+        $pagesPage = $page(993, 'Direct pages envelope ', 'https://example.com/direct-pages', ' stays one page');
+        $extractor = new PdfTextDocumentExtractor();
+        $processor = new MarkdownPostProcessor();
+
+        $dictionaryOutputDocument = $extractor->getTextBlocks(
+            [
+                'pages' => [990 => $stale],
+                'dictionary_output' => $dictionaryOutputPage,
+                'raw_adapter_payload' => 'stale singleton adapter payload must not cross',
+            ],
+            maxPages: 1
+        );
+        $dictionaryOutputBlocks = $processor->mergeBlocks($processor->mergeSpans($dictionaryOutputDocument['pages']));
+        $dictionaryOutputEncoded = json_encode($dictionaryOutputDocument, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $dictionaryOutputDocument['page_range']);
+        $t->same(1, $dictionaryOutputDocument['metadata']['source_pages']);
+        $t->same(991, $dictionaryOutputDocument['pages'][0]['pnum']);
+        $t->same('Direct dictionary_output [singleton link](https://example.com/direct-dictionary-output) stays one page', $dictionaryOutputBlocks[0]['text']);
+        $t->same('https://example.com/direct-dictionary-output', $dictionaryOutputDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->same('#page-3-xy', $dictionaryOutputDocument['pages'][0]['pdftext_source']['refs'][0]['url']);
+        $t->true(!str_contains($dictionaryOutputEncoded, 'Stale singleton adapter'));
+        $t->true(!str_contains($dictionaryOutputEncoded, 'singleton 991 payload must not cross'));
+        $t->true(!str_contains($dictionaryOutputEncoded, 'stale singleton adapter payload must not cross'));
+
+        $pdftextDocument = $extractor->getTextBlocks(
+            [
+                'pages' => [990 => $stale],
+                'pdftext' => $pdftextPage,
+                'raw_adapter_payload' => 'stale pdftext singleton payload must not cross',
+            ],
+            maxPages: 1
+        );
+        $pdftextBlocks = $processor->mergeBlocks($processor->mergeSpans($pdftextDocument['pages']));
+        $pdftextEncoded = json_encode($pdftextDocument, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $pdftextDocument['page_range']);
+        $t->same(1, $pdftextDocument['metadata']['source_pages']);
+        $t->same(992, $pdftextDocument['pages'][0]['pnum']);
+        $t->same('Direct pdftext envelope [singleton link](https://example.com/direct-pdftext) wins before stale pages', $pdftextBlocks[0]['text']);
+        $t->same('https://example.com/direct-pdftext', $pdftextDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($pdftextEncoded, 'Stale singleton adapter'));
+        $t->true(!str_contains($pdftextEncoded, 'singleton 992 payload must not cross'));
+        $t->true(!str_contains($pdftextEncoded, 'stale pdftext singleton payload must not cross'));
+
+        $pagesDocument = $extractor->getTextBlocks(
+            [
+                'pages' => $pagesPage,
+                'metadata' => ['raw_private_payload' => 'direct pages singleton metadata must not cross'],
+            ],
+            maxPages: 1
+        );
+        $pagesBlocks = $processor->mergeBlocks($processor->mergeSpans($pagesDocument['pages']));
+        $pagesEncoded = json_encode($pagesDocument, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([0], $pagesDocument['page_range']);
+        $t->same(1, $pagesDocument['metadata']['source_pages']);
+        $t->same(993, $pagesDocument['pages'][0]['pnum']);
+        $t->same('Direct pages envelope [singleton link](https://example.com/direct-pages) stays one page', $pagesBlocks[0]['text']);
+        $t->same('https://example.com/direct-pages', $pagesDocument['pages'][0]['blocks'][0]['lines'][0]['spans'][1]['url']);
+        $t->true(!str_contains($pagesEncoded, 'singleton 993 payload must not cross'));
+        $t->true(!str_contains($pagesEncoded, 'direct pages singleton metadata must not cross'));
+    },
     'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';
