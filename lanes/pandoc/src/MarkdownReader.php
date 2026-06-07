@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    private const SUPPORTED_YAML_METADATA_VERSIONS = ['1.1', '1.2'];
 
     /** @var array<string, array{url:string, title:string}> */
     private array $referenceLinks = [];
@@ -34,6 +35,9 @@ final class MarkdownReader
 
     /** @var list<array<string, string>> */
     private array $yamlMetadataTagProvenance = [];
+
+    /** @var list<array<string, string>> */
+    private array $yamlMetadataDirectiveProvenance = [];
 
     private bool $yamlMetadataInvalid = false;
 
@@ -512,12 +516,14 @@ final class MarkdownReader
         $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
         $previousYamlMetadataDiagnosticPath = $this->yamlMetadataDiagnosticPath;
         $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
+        $previousYamlMetadataDirectiveProvenance = $this->yamlMetadataDirectiveProvenance;
         $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
         $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
         $this->yamlMetadataAnchors = [];
         $this->yamlMetadataDiagnostics = [];
         $this->yamlMetadataDiagnosticPath = [];
         $this->yamlMetadataTagProvenance = [];
+        $this->yamlMetadataDirectiveProvenance = [];
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
         try {
@@ -531,6 +537,9 @@ final class MarkdownReader
             if ($this->yamlMetadataTagProvenance !== []) {
                 $metadata['__yamlMetadataTagProvenance'] = $this->yamlMetadataTagProvenance;
             }
+            if ($this->yamlMetadataDirectiveProvenance !== []) {
+                $metadata['__yamlMetadataDirectiveProvenance'] = $this->yamlMetadataDirectiveProvenance;
+            }
 
             return $metadata;
         } finally {
@@ -538,6 +547,7 @@ final class MarkdownReader
             $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
             $this->yamlMetadataDiagnosticPath = $previousYamlMetadataDiagnosticPath;
             $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
+            $this->yamlMetadataDirectiveProvenance = $previousYamlMetadataDirectiveProvenance;
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
         }
@@ -554,6 +564,8 @@ final class MarkdownReader
         $nextDiagnostics = $this->yamlMetadataDiagnosticList($next['__yamlMetadataDiagnostics'] ?? []);
         $currentTags = $this->yamlMetadataTagProvenanceList($current['__yamlMetadataTagProvenance'] ?? []);
         $nextTags = $this->yamlMetadataTagProvenanceList($next['__yamlMetadataTagProvenance'] ?? []);
+        $currentDirectives = $this->yamlMetadataDirectiveProvenanceList($current['__yamlMetadataDirectiveProvenance'] ?? []);
+        $nextDirectives = $this->yamlMetadataDirectiveProvenanceList($next['__yamlMetadataDirectiveProvenance'] ?? []);
         $currentFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($current['__yamlMetadataFieldQuoteMap'] ?? []);
         $nextFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($next['__yamlMetadataFieldQuoteMap'] ?? []);
         unset(
@@ -561,6 +573,8 @@ final class MarkdownReader
             $next['__yamlMetadataDiagnostics'],
             $current['__yamlMetadataTagProvenance'],
             $next['__yamlMetadataTagProvenance'],
+            $current['__yamlMetadataDirectiveProvenance'],
+            $next['__yamlMetadataDirectiveProvenance'],
             $current['__yamlMetadataFieldQuoteMap'],
             $next['__yamlMetadataFieldQuoteMap']
         );
@@ -573,6 +587,10 @@ final class MarkdownReader
         $tagProvenance = array_merge($currentTags, $nextTags);
         if ($tagProvenance !== []) {
             $merged['__yamlMetadataTagProvenance'] = $tagProvenance;
+        }
+        $directiveProvenance = array_merge($currentDirectives, $nextDirectives);
+        if ($directiveProvenance !== []) {
+            $merged['__yamlMetadataDirectiveProvenance'] = $directiveProvenance;
         }
         $fieldQuoteMap = array_replace($currentFieldQuoteMap, $nextFieldQuoteMap);
         if ($fieldQuoteMap !== []) {
@@ -624,6 +642,28 @@ final class MarkdownReader
      * @return list<array<string, string>>
      */
     private function yamlMetadataTagProvenanceList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $provenance = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $provenance[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataDirectiveProvenanceList(mixed $value): array
     {
         if (!is_array($value) || !array_is_list($value)) {
             return [];
@@ -927,7 +967,8 @@ final class MarkdownReader
             return false;
         }
 
-        if (preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1) {
+        if (preg_match('/^%YAML[ \t]+(\d+(?:\.\d+)?)$/i', $directive, $m) === 1) {
+            $this->recordYamlVersionDirective($m[1]);
             return true;
         }
 
@@ -940,6 +981,28 @@ final class MarkdownReader
         }
 
         return false;
+    }
+
+    private function recordYamlVersionDirective(string $version): void
+    {
+        $supported = in_array($version, self::SUPPORTED_YAML_METADATA_VERSIONS, true);
+        $this->yamlMetadataDirectiveProvenance[] = [
+            'type' => 'yaml-directive',
+            'directive' => 'YAML',
+            'version' => $version,
+            'supported' => $supported ? 'true' : 'false',
+        ];
+        if ($supported) {
+            return;
+        }
+
+        $this->yamlMetadataDiagnostics[] = [
+            'type' => 'yaml-directive',
+            'reason' => 'unsupported-yaml-version',
+            'directive' => 'YAML',
+            'version' => $version,
+            'supportedVersions' => implode(',', self::SUPPORTED_YAML_METADATA_VERSIONS),
+        ];
     }
 
     /**
@@ -3503,6 +3566,7 @@ final class MarkdownReader
         $meta = [];
         $diagnostics = [];
         $tagProvenance = [];
+        $directiveProvenance = [];
         $fieldQuoteMap = $this->yamlMetadataFieldQuoteMap($metadata['__yamlMetadataFieldQuoteMap'] ?? []);
         foreach ($metadata as $key => $value) {
             $fieldName = (string) $key;
@@ -3512,6 +3576,10 @@ final class MarkdownReader
             }
             if ($fieldName === '__yamlMetadataTagProvenance') {
                 $tagProvenance = array_merge($tagProvenance, $this->yamlMetadataTagProvenanceList($value));
+                continue;
+            }
+            if ($fieldName === '__yamlMetadataDirectiveProvenance') {
+                $directiveProvenance = array_merge($directiveProvenance, $this->yamlMetadataDirectiveProvenanceList($value));
                 continue;
             }
             if ($fieldName === '__yamlMetadataFieldQuoteMap') {
@@ -3590,6 +3658,9 @@ final class MarkdownReader
         }
         if ($tagProvenance !== []) {
             $attrs['yamlMetadataTagProvenance'] = $tagProvenance;
+        }
+        if ($directiveProvenance !== []) {
+            $attrs['yamlMetadataDirectiveProvenance'] = $directiveProvenance;
         }
 
         return $attrs;

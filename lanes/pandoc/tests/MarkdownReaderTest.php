@@ -985,6 +985,68 @@ return [
         $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($implicitTags, 'tag'), true));
         $t->true(in_array('/review/owner', array_column($implicitTags, 'path'), true));
     },
+    'records pandoc yaml version directive provenance and unsupported diagnostics' => static function (TestRunner $t): void {
+        $supported = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.1',
+            '---',
+            'title: Supported **Packet**',
+            'review: {owner: Support Desk}',
+            '...',
+            '',
+            '# Supported directive body',
+        ]));
+        $supportedMeta = $supported->attr('meta');
+        $supportedDirectives = $supported->attr('yamlMetadataDirectiveProvenance', []);
+        $supportedDiagnostics = $supported->attr('yamlMetadataDiagnostics', []);
+
+        $unsupported = (new MarkdownReader())->read(implode("\n", [
+            '%YAML 1.3',
+            '---',
+            'title: Future **Packet**',
+            'review: {owner: Future Desk, status: queued}',
+            '...',
+            '',
+            '# Future directive body',
+        ]));
+        $unsupportedMeta = $unsupported->attr('meta');
+        $unsupportedDirectives = $unsupported->attr('yamlMetadataDirectiveProvenance', []);
+        $unsupportedDiagnostics = $unsupported->attr('yamlMetadataDiagnostics', []);
+        $unsupportedBlocks = (new WordPressBlockWriter())->write($unsupported);
+
+        $t->same('Supported **Packet**', $supportedMeta['title']);
+        $t->same('Support Desk', $supportedMeta['review']['owner']);
+        $t->same([
+            [
+                'type' => 'yaml-directive',
+                'directive' => 'YAML',
+                'version' => '1.1',
+                'supported' => 'true',
+            ],
+        ], $supportedDirectives);
+        $t->same([], $supportedDiagnostics);
+        $t->same(false, array_key_exists('__yamlMetadataDirectiveProvenance', $supportedMeta));
+        $t->same('Future **Packet**', $unsupportedMeta['title']);
+        $t->same('Future Desk', $unsupportedMeta['review']['owner']);
+        $t->same('queued', $unsupportedMeta['review']['status']);
+        $t->same('heading', $unsupported->children[0]->type);
+        $t->same('future-directive-body', $unsupported->children[0]->attr('id'));
+        $t->contains('<h1 id="future-directive-body">Future directive body</h1>', $unsupportedBlocks);
+        $t->same([
+            [
+                'type' => 'yaml-directive',
+                'directive' => 'YAML',
+                'version' => '1.3',
+                'supported' => 'false',
+            ],
+        ], $unsupportedDirectives);
+        $t->same('yaml-directive', $unsupportedDiagnostics[0]['type'] ?? '');
+        $t->same('unsupported-yaml-version', $unsupportedDiagnostics[0]['reason'] ?? '');
+        $t->same('YAML', $unsupportedDiagnostics[0]['directive'] ?? '');
+        $t->same('1.3', $unsupportedDiagnostics[0]['version'] ?? '');
+        $t->same('1.1,1.2', $unsupportedDiagnostics[0]['supportedVersions'] ?? '');
+        $t->same(false, array_key_exists('__yamlMetadataDirectiveProvenance', $unsupportedMeta));
+    },
     'maps pandoc yaml document markers with trailing comments in metadata blocks' => static function (TestRunner $t): void {
         $explicit = (new MarkdownReader())->read(implode("\n", [
             '--- # source export front matter',

@@ -410,6 +410,7 @@ $document = (new MarkdownReader())->read($markdown);
 $meta = $document->attr('meta', []);
 $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
+$yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
 $abstractWordPress = $abstractBlocks === []
@@ -522,6 +523,9 @@ $plainNumericMeta = $plainNumericDocument->attr('meta', []);
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
+    }
+    if (!in_array('1.2', array_column($yamlDirectiveProvenance, 'version'), true)) {
+        throw new RuntimeException('YAML metadata self-test missing YAML directive version provenance');
     }
     if (($meta['abstract'] ?? '') !== "Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).\n\n- Preserve front matter\n- Keep `source:key` audit\n") {
         throw new RuntimeException('YAML metadata self-test failed to preserve raw abstract metadata');
