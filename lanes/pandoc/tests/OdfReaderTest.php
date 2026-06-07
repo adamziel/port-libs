@@ -1183,6 +1183,91 @@ XML;
         $t->contains('<ol start="2">', $blocksHtml);
         $t->contains('<ol start="4" type="a">', $blocksHtml);
     },
+    'falls back to nearest lower ODT list level style when exact level is missing' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithSparseListLevels = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="SparseReviewSteps">
+      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
+      <text:list-level-style-number text:level="3" style:num-format="i" style:num-suffix=")" text:start-value="7"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithSparseNestedLists = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="SparseReviewSteps">
+        <text:list-item>
+          <text:p>Top sparse review item</text:p>
+          <text:list>
+            <text:list-item>
+              <text:p>Missing level two fallback item</text:p>
+              <text:list>
+                <text:list-item>
+                  <text:p>Exact sparse level item</text:p>
+                  <text:list>
+                    <text:list-item><text:p>Deep sparse fallback item</text:p></text:list-item>
+                  </text:list>
+                </text:list-item>
+              </text:list>
+            </text:list-item>
+          </text:list>
+        </text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSparseNestedLists, null, $stylesWithSparseListLevels));
+        $outer = $result['document']->children[0];
+        $level2 = $outer->children[0]->children[1];
+        $level3 = $level2->children[0]->children[1];
+        $level4 = $level3->children[0]->children[1];
+
+        $t->same('ordered_list', $outer->type);
+        $t->same('SparseReviewSteps', $outer->attr('styleName'));
+        $t->same(1, $outer->attr('start'));
+        $t->same('decimal', $outer->attr('style'));
+        $t->same(1, $outer->attr('listLevel'));
+        $t->same('Top sparse review item', $outer->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $level2->type);
+        $t->same('SparseReviewSteps', $level2->attr('inheritedStyleName'));
+        $t->same(1, $level2->attr('start'));
+        $t->same('decimal', $level2->attr('style'));
+        $t->same(2, $level2->attr('listLevel'));
+        $t->same('Missing level two fallback item', $level2->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $level3->type);
+        $t->same(7, $level3->attr('start'));
+        $t->same('lower_roman', $level3->attr('style'));
+        $t->same('one_paren', $level3->attr('delimiter'));
+        $t->same(')', $level3->attr('numberSuffix'));
+        $t->same(3, $level3->attr('listLevel'));
+        $t->same('Exact sparse level item', $level3->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $level4->type);
+        $t->same(7, $level4->attr('start'));
+        $t->same('lower_roman', $level4->attr('style'));
+        $t->same('one_paren', $level4->attr('delimiter'));
+        $t->same(')', $level4->attr('numberSuffix'));
+        $t->same(4, $level4->attr('listLevel'));
+        $t->same('Deep sparse fallback item', $level4->children[0]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('1.  Top sparse review item', $markdown);
+        $t->contains('1.  Missing level two fallback item', $markdown);
+        $t->contains('vii) Exact sparse level item', $markdown);
+        $t->contains('vii) Deep sparse fallback item', $markdown);
+        $t->contains('<ol start="7" type="i">', $blocksHtml);
+        $t->contains('<li>Deep sparse fallback item</li>', $blocksHtml);
+    },
     'maps ODT list number prefix and suffix delimiters like upstream list styles' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithDelimitedList = <<<'XML'
 <office:document-styles

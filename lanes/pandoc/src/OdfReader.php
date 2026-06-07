@@ -4565,7 +4565,30 @@ final class OdfReader
             ];
         }
 
-        $definition = $levels[$level] ?? reset($levels);
+        $definition = $levels[$level] ?? null;
+        if (!is_array($definition)) {
+            $nearestLowerLevel = null;
+            foreach ($levels as $candidateLevel => $candidateDefinition) {
+                if (!is_array($candidateDefinition)) {
+                    continue;
+                }
+                if (!is_int($candidateLevel) && !ctype_digit((string) $candidateLevel)) {
+                    continue;
+                }
+
+                $candidateLevel = (int) $candidateLevel;
+                if ($candidateLevel >= $level) {
+                    continue;
+                }
+                if ($nearestLowerLevel === null || $candidateLevel > $nearestLowerLevel) {
+                    $nearestLowerLevel = $candidateLevel;
+                    $definition = $candidateDefinition;
+                }
+            }
+        }
+        if (!is_array($definition)) {
+            $definition = reset($levels);
+        }
 
         return is_array($definition) ? $definition : [
             'type' => 'bullet',

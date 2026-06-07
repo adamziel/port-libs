@@ -181,7 +181,12 @@ $contentXml = <<<'XML'
         <text:list-item>
           <text:p>Match ODT media to WordPress attachments</text:p>
           <text:list>
-            <text:list-item><text:p>Check inherited nested checklist style</text:p></text:list-item>
+            <text:list-item>
+              <text:p>Check inherited nested checklist style</text:p>
+              <text:list>
+                <text:list-item><text:p>Check sparse nested fallback style</text:p></text:list-item>
+              </text:list>
+            </text:list-item>
           </text:list>
         </text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
@@ -578,14 +583,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<ol start="3"><li>Publish continued review checklist</li></ol>')) {
         throw new RuntimeException('Expected ODT continued list numbering to survive WordPress blocks');
     }
-    if (!str_contains($blocks, '<ol start="4" type="a"><li>Check inherited nested checklist style</li></ol>')) {
+    if (!str_contains($blocks, '<ol start="4" type="a"><li>Check inherited nested checklist style')) {
         throw new RuntimeException('Expected ODT nested lists without explicit style names to inherit parent list style');
+    }
+    if (!str_contains($blocks, '<ol start="4" type="a"><li>Check sparse nested fallback style</li></ol>')) {
+        throw new RuntimeException('Expected sparse ODT nested list levels to reuse the nearest lower list style');
     }
     if (!str_contains($markdown, '(1) Match ODT media to WordPress attachments')) {
         throw new RuntimeException('Expected ODT list prefix/suffix to render two-parentheses Markdown markers');
     }
     if (!str_contains($markdown, 'd)  Check inherited nested checklist style')) {
         throw new RuntimeException('Expected inherited ODT list suffix to render one-parenthesis Markdown markers');
+    }
+    if (!str_contains($markdown, 'd)  Check sparse nested fallback style')) {
+        throw new RuntimeException('Expected sparse ODT nested list fallback suffix to render one-parenthesis Markdown markers');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
