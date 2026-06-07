@@ -1058,6 +1058,9 @@ final class PdfTextExtractor
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
             $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter');
             $filters = $this->streamFilters($dict, $objects, true);
+            if ($this->cMapFilterOperandReviewsHaveUnselectedIndirect($operandGroups['Filter'])) {
+                $filters = null;
+            }
             $decodeParms = $filters === null
                 ? $this->streamDecodeParms($dict, $objects)
                 : $this->streamDecodeParmsForFilters($dict, $objects, $filters);
@@ -1323,6 +1326,11 @@ final class PdfTextExtractor
             $cMapName = $decodedName ?? $declaredName;
             if ($cMapName !== null && $cMapName !== '') {
                 $namedCMapObjects[$cMapName][$cMapObjectNumber] = true;
+            }
+
+            $dictionaryUseCMapName = $this->cMapIndirectUseCMapNameFromDictionary($stream['dict'], $objects);
+            if ($dictionaryUseCMapName !== null && $dictionaryUseCMapName !== '') {
+                $namedUseCMapReferences[$cMapObjectNumber][$dictionaryUseCMapName] = true;
             }
 
             if ($boundedDecoded === null) {
@@ -31003,8 +31011,58 @@ final class PdfTextExtractor
         if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter') > 0) {
             return null;
         }
+        if ($this->cMapStreamHasUnselectedIndirectFilterOperand($dict, $objects)) {
+            return null;
+        }
 
         return $this->decodeStream($dict, $stream, $objects, true, true, true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function cMapFilterOperandReviewsHaveUnselectedIndirect(array $operands): bool
+    {
+        foreach ($operands as $operand) {
+            if (
+                ($operand['kind'] ?? null) !== 'direct'
+                && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapStreamHasUnselectedIndirectFilterOperand(string $dict, array $objects): bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'Filter');
+        if ($offset === null) {
+            return false;
+        }
+
+        $value = $this->pdfValueAtOffset($dict, $offset);
+        if ($value === null) {
+            return false;
+        }
+
+        foreach ($this->xrefStreamOperandItems($value) as $item) {
+            $itemOffset = 0;
+            $reference = $this->pdfIndirectReferenceTokenAt($item, $itemOffset);
+            if ($reference === null || $this->skipPdfWhitespace($item, $reference['endOffset']) !== strlen($item)) {
+                continue;
+            }
+
+            if ($this->indirectObjectBodyForReference($objects, $reference['objectNumber'], $reference['generation']) === null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -31223,7 +31281,7 @@ final class PdfTextExtractor
      */
     private function cMapUseCMapNameFromDictionary(string $dict, array $objects): ?string
     {
-        $name = $this->pdfNameValueAfterNameResolvingObjects($dict, 'UseCMap', $objects);
+        $name = $this->cMapNameValueAfterNameResolvingObjects($dict, 'UseCMap', $objects);
         if ($name !== null && $name !== '') {
             return $name;
         }
@@ -31234,6 +31292,79 @@ final class PdfTextExtractor
         }
 
         return $this->cMapNameFromObjectBody($objects[$objectNumber], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapIndirectUseCMapNameFromDictionary(string $dict, array $objects): ?string
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'UseCMap');
+        if ($offset === null) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($dict, $offset);
+        if ($reference === null) {
+            return null;
+        }
+
+        return $this->cMapNameValueAt($dict, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function cMapNameValueAfterNameResolvingObjects(
+        string $body,
+        string $name,
+        array $objects,
+        array $seen = []
+    ): ?string {
+        $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->cMapNameValueAt($body, $offset, $objects, $seen);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function cMapNameValueAt(string $value, int $offset, array $objects, array $seen = []): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->cMapNameValueAt(trim($body), 0, $objects, $seen);
+        }
+
+        if (($value[$offset] ?? '') !== '/') {
+            return null;
+        }
+
+        $end = $offset + 1;
+        while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
+            $end++;
+        }
+
+        return $this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1));
     }
 
     /**
