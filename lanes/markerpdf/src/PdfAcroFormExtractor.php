@@ -11,6 +11,11 @@ final class PdfAcroFormExtractor
      */
     private array $objectGenerations = [];
 
+    /**
+     * @var array<int, int>
+     */
+    private array $syntheticDirectFieldParents = [];
+
     private const COMMON_FIELD_FLAGS = [
         1 => 'read_only',
         2 => 'required',
@@ -108,6 +113,7 @@ final class PdfAcroFormExtractor
      */
     public function extractForm(string $pdfBytes): array
     {
+        $this->syntheticDirectFieldParents = [];
         $objects = $this->pdfObjects($pdfBytes);
         $objects = $this->withDirectObjectStreamMembers($objects);
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
@@ -9175,7 +9181,7 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $kids = $this->materializeDirectDictionariesInNamedArray($body, 'Kids', $objects, $nextSyntheticObject);
+            $kids = $this->materializeDirectDictionariesInNamedArray($body, 'Kids', $objects, $nextSyntheticObject, $objectNumber);
             if ($kids['changed']) {
                 $body = $kids['body'];
                 $objects = $kids['objects'];
@@ -9322,7 +9328,8 @@ final class PdfAcroFormExtractor
         string $dictionaryBody,
         string $name,
         array $objects,
-        int &$nextSyntheticObject
+        int &$nextSyntheticObject,
+        ?int $syntheticParentObject = null
     ): array {
         $empty = [
             'body' => $dictionaryBody,
@@ -9348,7 +9355,7 @@ final class PdfAcroFormExtractor
                 return $empty;
             }
 
-            $materialized = $this->materializeDirectDictionariesInArrayBody($arrayBody, $objects, $nextSyntheticObject);
+            $materialized = $this->materializeDirectDictionariesInArrayBody($arrayBody, $objects, $nextSyntheticObject, null, $syntheticParentObject);
             if (!$materialized['changed']) {
                 return $empty;
             }
@@ -9370,7 +9377,7 @@ final class PdfAcroFormExtractor
             return $empty;
         }
 
-        $materialized = $this->materializeDirectDictionariesInArrayBody($arrayBody, $objects, $nextSyntheticObject);
+        $materialized = $this->materializeDirectDictionariesInArrayBody($arrayBody, $objects, $nextSyntheticObject, null, $syntheticParentObject);
         if (!$materialized['changed']) {
             return $empty;
         }
@@ -9395,7 +9402,8 @@ final class PdfAcroFormExtractor
         string $arrayBody,
         array $objects,
         int &$nextSyntheticObject,
-        ?callable $shouldMaterialize = null
+        ?callable $shouldMaterialize = null,
+        ?int $syntheticParentObject = null
     ): array {
         $shouldMaterialize ??= fn (string $dictionary): bool => $this->isFieldDictionaryCandidate($dictionary);
         $rewritten = '';
@@ -9422,6 +9430,9 @@ final class PdfAcroFormExtractor
                         $objectNumber = $nextSyntheticObject++;
                         $objects[$objectNumber] = '<<' . $dictionary . '>>';
                         $this->objectGenerations[$objectNumber] = 0;
+                        if ($syntheticParentObject !== null) {
+                            $this->syntheticDirectFieldParents[$objectNumber] = $syntheticParentObject;
+                        }
                         $added[] = $objectNumber;
                         $rewritten .= substr($arrayBody, $cursor, $offset - $cursor) . $objectNumber . ' 0 R';
                         $cursor = $dictionaryEnd;
@@ -9661,7 +9672,14 @@ final class PdfAcroFormExtractor
             return true;
         }
 
-        return $this->validObjectReferenceFromValue($parentValue, $objects) === $parentObject;
+        $resolvedParent = $this->validObjectReferenceFromValue($parentValue, $objects);
+        if ($resolvedParent === $parentObject) {
+            return true;
+        }
+
+        return $this->isWidget($childBody)
+            && isset($this->syntheticDirectFieldParents[$parentObject])
+            && $resolvedParent === $this->syntheticDirectFieldParents[$parentObject];
     }
 
     /**
