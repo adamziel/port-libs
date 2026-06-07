@@ -3365,20 +3365,51 @@ final class PdfLinkAnnotationExtractor
      */
     private function objectStreamHeaderMembers(string $header, int $declaredCount): array
     {
-        if (preg_match_all('/\d+/', $header, $matches) < 1) {
-            return [];
-        }
-
         $members = [];
-        $tokens = $matches[0];
-        for ($index = 0, $count = count($tokens); $index + 1 < $count && count($members) < $declaredCount; $index += 2) {
+        $offset = 0;
+        for ($index = 0; $index < $declaredCount; $index++) {
+            $objectNumber = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            if ($objectNumber === null) {
+                return [];
+            }
+
+            $memberOffset = $this->readObjectStreamHeaderUnsignedInteger($header, $offset);
+            if ($memberOffset === null) {
+                return [];
+            }
+
             $members[] = [
-                'object_id' => (int) $tokens[$index],
-                'offset' => (int) $tokens[$index + 1],
+                'object_id' => $objectNumber,
+                'offset' => $memberOffset,
             ];
         }
 
+        $this->skipWhitespaceAndComments($header, $offset);
+        if ($offset !== strlen($header)) {
+            return [];
+        }
+
         return $members;
+    }
+
+    private function readObjectStreamHeaderUnsignedInteger(string $header, int &$offset): ?int
+    {
+        $this->skipWhitespaceAndComments($header, $offset);
+        if (preg_match('/\G\+?(\d+)/s', $header, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[0]);
+        if ($offset < strlen($header) && !$this->isObjectStreamHeaderDelimiter($header[$offset])) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
+    private function isObjectStreamHeaderDelimiter(string $char): bool
+    {
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**
