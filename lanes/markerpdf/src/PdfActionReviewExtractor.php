@@ -2173,6 +2173,30 @@ final class PdfActionReviewExtractor
     }
 
     /**
+     * @param list<string> $keys
+     */
+    private function resolvedDictionaryHasDuplicateKeys(mixed $value, array $keys): bool
+    {
+        $resolved = $this->resolveValue($value);
+        if (
+            !is_array($resolved)
+            || ($resolved['pdfType'] ?? null) !== 'dict'
+            || !is_array($resolved['duplicateKeyReview'] ?? null)
+            || !is_array($resolved['duplicateKeyReview']['keys'] ?? null)
+        ) {
+            return false;
+        }
+
+        foreach ($keys as $key) {
+            if (in_array($key, $resolved['duplicateKeyReview']['keys'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<int, mixed> $objects
      * @return array<string, mixed>|null
      */
@@ -2289,8 +2313,11 @@ final class PdfActionReviewExtractor
             }
         }
 
-        $names = $this->resolveDictionary($catalog['Names'] ?? null);
-        $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null);
+        $namesValue = $catalog['Names'] ?? null;
+        $names = $this->resolveDictionary($namesValue);
+        $nameTreeRoot = $names === null || $this->resolvedDictionaryHasDuplicateKeys($namesValue, ['Dests'])
+            ? null
+            : $this->resolveDictionary($names['Dests'] ?? null);
         if ($nameTreeRoot !== null) {
             $this->collectNameTreeDestinations($nameTreeRoot, $destinations);
         }

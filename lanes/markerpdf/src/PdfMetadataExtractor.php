@@ -4168,7 +4168,7 @@ final class PdfMetadataExtractor
 
         $entries = [];
         $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
-        $nameTreeRoot = $names === null
+        $nameTreeRoot = $names === null || $this->dictionaryTopLevelHasDuplicateKeys($names['body'], ['Dests'])
             ? null
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
         if ($nameTreeRoot !== null) {
@@ -4685,7 +4685,7 @@ final class PdfMetadataExtractor
     {
         $entries = [];
         $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
-        $nameTreeRoot = $names === null
+        $nameTreeRoot = $names === null || $this->dictionaryTopLevelHasDuplicateKeys($names['body'], ['Dests'])
             ? null
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
         if ($nameTreeRoot !== null) {
@@ -18063,6 +18063,20 @@ final class PdfMetadataExtractor
         $entries = $this->dictionaryTopLevelEntries($dictionary);
 
         return $entries[$key] ?? null;
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function dictionaryTopLevelHasDuplicateKeys(string $dictionary, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if (count($this->dictionaryTopLevelRawValues($dictionary, $key)) > 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

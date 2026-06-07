@@ -90,8 +90,13 @@ final class PdfNamedDestinationExtractor
         $nameTreeEntries = [];
         $legacyDestinationValues = [];
 
-        $namesDictionary = $this->resolve($catalog['Names'] ?? null, $objects, $cache);
-        if ($this->isDictionary($namesDictionary) && array_key_exists('Dests', $namesDictionary)) {
+        $namesValue = $catalog['Names'] ?? null;
+        $namesDictionary = $this->resolve($namesValue, $objects, $cache);
+        if (
+            $this->isDictionary($namesDictionary)
+            && array_key_exists('Dests', $namesDictionary)
+            && !$this->valueDictionaryHasDuplicateKeys($namesValue, $objects, ['Dests'])
+        ) {
             foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache) as $entry) {
                 $nameTreeEntries[] = $entry;
             }
@@ -2140,6 +2145,63 @@ final class PdfNamedDestinationExtractor
         }
 
         return $objects[$objectId]['generations'][$generation] ?? null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param list<string> $keys
+     */
+    private function valueDictionaryHasDuplicateKeys(mixed $value, array $objects, array $keys): bool
+    {
+        $objectId = $this->validRefObjectId($value, $objects);
+        if ($objectId === null) {
+            return false;
+        }
+
+        $body = $this->objectBody($objectId, $objects, $this->refGeneration($value));
+
+        return $body !== null && $this->dictionaryBodyHasDuplicateKeys($body, $keys);
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function dictionaryBodyHasDuplicateKeys(string $body, array $keys): bool
+    {
+        $tokens = $this->tokens($body);
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            if (($tokens[$index]['type'] ?? null) !== 'dict-start') {
+                continue;
+            }
+
+            $index++;
+            $counts = [];
+            while (isset($tokens[$index]) && $tokens[$index]['type'] !== 'dict-end') {
+                $key = $tokens[$index];
+                $index++;
+                if (($key['type'] ?? null) !== 'name') {
+                    continue;
+                }
+
+                $name = (string) $key['value'];
+                $counts[$name] = ($counts[$name] ?? 0) + 1;
+                $before = $index;
+                $this->parseValue($tokens, $index);
+                if ($index === $before) {
+                    $index++;
+                }
+            }
+
+            foreach ($keys as $key) {
+                if (($counts[$key] ?? 0) > 1) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return false;
     }
 
     private function isRefValue(mixed $value): bool
