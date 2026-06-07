@@ -1367,7 +1367,7 @@ final class PdfPagePropertyExtractor
                 'resource_object' => $resources['object'],
                 'resource_generation' => $resources['generation'],
                 'inherited' => $objectNumber !== $pageObjectNumber,
-                'categories' => array_keys($this->dictionaryEntries($resourceBody)),
+                'categories' => $this->resourceDictionaryCategoryNames($resourceBody),
             ];
 
             foreach ([
@@ -1434,6 +1434,32 @@ final class PdfPagePropertyExtractor
         }
 
         return $invalid;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resourceDictionaryCategoryNames(string $resourceBody): array
+    {
+        $allowed = [
+            'ExtGState' => true,
+            'ColorSpace' => true,
+            'Pattern' => true,
+            'Shading' => true,
+            'XObject' => true,
+            'Font' => true,
+            'ProcSet' => true,
+            'Properties' => true,
+        ];
+
+        $categories = [];
+        foreach (array_keys($this->dictionaryEntries($resourceBody)) as $category) {
+            if (isset($allowed[$category])) {
+                $categories[] = $category;
+            }
+        }
+
+        return $categories;
     }
 
     /**
