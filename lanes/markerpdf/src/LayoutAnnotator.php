@@ -399,7 +399,7 @@ final class LayoutAnnotator
                 continue;
             }
 
-            $candidates = $this->dictionaryWrapperValues($value);
+            $candidates = $this->directLayoutResultPayloadEnvelopeCandidates($value);
             if (count($candidates) !== 1) {
                 continue;
             }
@@ -411,6 +411,33 @@ final class LayoutAnnotator
         }
 
         return null;
+    }
+
+    /**
+     * Direct payload envelopes may be serialized either as a singleton list or
+     * as a source-page keyed object map. Multi-dictionary maps remain ambiguous.
+     *
+     * @param array<mixed> $value
+     * @return list<array<string, mixed>>
+     */
+    private function directLayoutResultPayloadEnvelopeCandidates(array $value): array
+    {
+        $candidates = $this->dictionaryWrapperValues($value);
+        if (count($candidates) === 1 && $this->hasLayoutPayload($candidates[0])) {
+            return $candidates;
+        }
+        if (array_is_list($value) || $this->hasLayoutPayload($value)) {
+            return $candidates;
+        }
+
+        $mapped = [];
+        foreach ($value as $candidate) {
+            if (is_array($candidate) && !array_is_list($candidate)) {
+                $mapped[] = $candidate;
+            }
+        }
+
+        return $mapped;
     }
 
     /**

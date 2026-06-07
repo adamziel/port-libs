@@ -3942,4 +3942,151 @@ return [
         $t->true(!str_contains($encoded, 'direct pdftext selected order payload'));
         $t->true(!str_contains($encoded, 'direct pdftext order envelope payload'));
     },
+    'unwraps keyed direct payload envelopes before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5300, [
+                    ['text' => 'Keyed direct payload cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5301, [
+                    ['text' => 'Second keyed direct payload column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First keyed direct payload column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 5301,
+                    'dictionary_output' => [
+                        '5301' => [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'keyed direct left row payload must stay hidden'],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                            'raw_payload' => 'keyed direct order payload must stay hidden',
+                        ],
+                    ],
+                    'raw_payload' => 'keyed direct envelope payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['page' => 5301, 'image' => 'keyed-direct-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5301, $result['pages'][0]['pnum']);
+        $t->same(['First keyed direct payload column', 'Second keyed direct payload column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First keyed direct payload column Second keyed direct payload column', $blocks[0]['text']);
+        $t->same(5301, $order['page'] ?? null);
+        $t->same([0.0, 0.0, 612.0, 792.0], $order['image_bbox'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!array_key_exists('dictionary_output', $order));
+        $t->true(!str_contains($encoded, 'Keyed direct payload cover skipped'));
+        $t->true(!str_contains($encoded, 'keyed direct order payload'));
+        $t->true(!str_contains($encoded, 'keyed direct left row payload'));
+        $t->true(!str_contains($encoded, 'keyed direct envelope payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'unwraps keyed direct layout and order payload envelopes for WordPress imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-keyed-direct-payload-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% keyed direct envelope payload pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5310, [
+                        ['text' => 'Keyed direct payload converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5311, [
+                        ['text' => 'Second converter keyed direct payload body.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                        ['text' => 'First converter keyed direct payload heading.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 5311, 'image' => 'keyed-direct-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'page' => 5311,
+                        'pages' => [
+                            '5311' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                    ['label' => 'Title', 'bbox' => [318.0, 92.0, 570.0, 150.0], 'raw_payload' => 'keyed direct title layout row payload must stay hidden'],
+                                ],
+                                'raw_payload' => 'keyed direct layout payload must stay hidden',
+                            ],
+                        ],
+                        'raw_payload' => 'keyed direct layout envelope payload must stay hidden',
+                    ]],
+                    'order_images' => [
+                        ['page' => 5311, 'image' => 'keyed-direct-order-render'],
+                    ],
+                    'order_results' => [[
+                        'page' => 5311,
+                        'pdftext' => [
+                            '5311' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'keyed direct order row payload must stay hidden'],
+                                    ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ],
+                                'raw_payload' => 'keyed direct order payload must stay hidden',
+                            ],
+                        ],
+                        'raw_payload' => 'keyed direct order envelope payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->same([
+            [60.0, 92.0, 290.0, 150.0],
+            [318.0, 92.0, 570.0, 150.0],
+        ], $result['metadata']['order_plan']['requested_bboxes'][0] ?? null);
+        $t->contains('# First Converter Keyed Direct Payload Heading.', $text);
+        $t->contains('Second converter keyed direct payload body.', $text);
+        $t->true(strpos($text, '# First Converter Keyed Direct Payload Heading.') < strpos($text, 'Second converter keyed direct payload body.'));
+        $t->true(!str_contains($text, 'Keyed direct payload converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'keyed direct title layout row payload'));
+        $t->true(!str_contains($encoded, 'keyed direct layout payload'));
+        $t->true(!str_contains($encoded, 'keyed direct layout envelope payload'));
+        $t->true(!str_contains($encoded, 'keyed direct order row payload'));
+        $t->true(!str_contains($encoded, 'keyed direct order payload'));
+        $t->true(!str_contains($encoded, 'keyed direct order envelope payload'));
+    },
 ];

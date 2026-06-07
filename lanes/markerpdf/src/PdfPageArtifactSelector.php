@@ -264,6 +264,10 @@ final class PdfPageArtifactSelector
             if (self::hasDirectArtifactPayload($artifacts)) {
                 return null;
             }
+            $singleKeyedPayload = self::singleKeyedDirectArtifactPayload($artifacts);
+            if ($singleKeyedPayload !== null) {
+                return self::hasPotentialPageMarker($value) ? null : [$singleKeyedPayload];
+            }
 
             return array_values($artifacts);
         }
@@ -295,6 +299,80 @@ final class PdfPageArtifactSelector
         ] as $key) {
             if (array_key_exists($key, $value)) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Some adapter caches store a single selected payload under a source-page
+     * object-map key. That is still one direct payload, not a page-list envelope.
+     *
+     * @param array<mixed> $value
+     * @return array<string, mixed>|null
+     */
+    private static function singleKeyedDirectArtifactPayload(array $value): ?array
+    {
+        if (array_is_list($value) || self::hasDirectArtifactPayload($value)) {
+            return null;
+        }
+
+        $dictionaryCount = 0;
+        $payload = null;
+        foreach ($value as $candidate) {
+            if (!is_array($candidate) || array_is_list($candidate)) {
+                continue;
+            }
+
+            $dictionaryCount++;
+            if (self::hasDirectArtifactPayload($candidate)) {
+                if ($payload !== null) {
+                    return null;
+                }
+
+                $payload = $candidate;
+            }
+        }
+
+        return $dictionaryCount === 1 ? $payload : null;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private static function hasPotentialPageMarker(array $value, int $depth = 0): bool
+    {
+        foreach (self::PAGE_MARKER_FIELD_GROUPS as $fields) {
+            foreach ($fields as $field) {
+                if (array_key_exists($field, $value)) {
+                    return true;
+                }
+            }
+        }
+
+        if ($depth >= 2) {
+            return false;
+        }
+
+        foreach (self::PAGE_MARKER_METADATA_WRAPPERS as $key) {
+            $candidate = $value[$key] ?? null;
+            if (!is_array($candidate)) {
+                continue;
+            }
+
+            if (!array_is_list($candidate)) {
+                if (self::hasPotentialPageMarker($candidate, $depth + 1)) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            foreach ($candidate as $item) {
+                if (is_array($item) && !array_is_list($item) && self::hasPotentialPageMarker($item, $depth + 1)) {
+                    return true;
+                }
             }
         }
 
