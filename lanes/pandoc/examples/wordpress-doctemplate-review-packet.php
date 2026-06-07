@@ -358,6 +358,51 @@ HTML,
         exit(1);
     }
 
+    $asciidocFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'titleblock' => true,
+        'title' => 'AsciiDoc Review Packet',
+        'author' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-07',
+        'keywords' => ['migration', 'wordpress', 'review'],
+        'lang' => 'en-US',
+        'toc' => true,
+        'math' => true,
+        'abstract' => 'Native AsciiDoc default handoff.',
+        'header-includes' => [':wp-review: enabled'],
+        'include-before' => ['[NOTE]' . "\n" . '====' . "\n" . 'Review imported blocks before publishing.' . "\n" . '===='],
+        'body' => "== Imported Body\n\nConverted AsciiDoc packet.",
+        'include-after' => ['[appendix]' . "\n" . '== Handoff'],
+    ], null, 'asciidoctor');
+    foreach ([
+        '= AsciiDoc Review Packet',
+        'Migration bot; Content editor',
+        '2026-06-07',
+        ':keywords: migration, wordpress, review',
+        ':lang: en-US',
+        ':toc:',
+        ':stem: latexmath',
+        '[abstract]',
+        '== Abstract',
+        'Native AsciiDoc default handoff.',
+        ':wp-review: enabled',
+        "[NOTE]\n====\nReview imported blocks before publishing.\n====",
+        "== Imported Body\n\nConverted AsciiDoc packet.",
+        "[appendix]\n== Handoff",
+    ] as $needle) {
+        if (!str_contains($asciidocFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate asciidoc default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $legacyAsciiDocFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'body' => 'Legacy AsciiDoc body',
+    ], null, 'asciidoc_legacy');
+    if ($legacyAsciiDocFallback !== "Legacy AsciiDoc body\n") {
+        fwrite(STDERR, "Missing expected doctemplate asciidoc_legacy default fallback\n");
+        exit(1);
+    }
+
     $plainFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'body' => "Plain text review packet\n\n",
     ], null, 'plain');

@@ -1321,6 +1321,65 @@ HTML,
         ], null, 'commonmark_x'));
     },
 
+    'renders bounded pandoc default asciidoc template resource and aliases' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $asciidoc = $renderer->renderResource('templates/default', [], [
+            'titleblock' => true,
+            'title' => 'AsciiDoc Review Packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-07',
+            'keywords' => ['migration', 'wordpress', 'review'],
+            'lang' => 'en-US',
+            'toc' => true,
+            'math' => true,
+            'abstract' => 'Native AsciiDoc template review.',
+            'header-includes' => [':wp-review: enabled'],
+            'include-before' => ['[NOTE]' . "\n" . '====' . "\n" . 'Review imported blocks before publishing.' . "\n" . '===='],
+            'body' => "== Imported Body\n\nConverted content.",
+            'include-after' => ['[appendix]' . "\n" . '== Handoff'],
+        ], null, 'asciidoc');
+
+        foreach ([
+            '= AsciiDoc Review Packet',
+            'Migration bot; Content editor',
+            '2026-06-07',
+            ':keywords: migration, wordpress, review',
+            ':lang: en-US',
+            ':toc:',
+            ':stem: latexmath',
+            '[abstract]',
+            '== Abstract',
+            'Native AsciiDoc template review.',
+            ':wp-review: enabled',
+            "[NOTE]\n====\nReview imported blocks before publishing.\n====",
+            "== Imported Body\n\nConverted content.",
+            "[appendix]\n== Handoff",
+        ] as $needle) {
+            $t->contains($needle, $asciidoc);
+        }
+
+        $dateOnly = $renderer->renderResource('templates/default.asciidoc', [], [
+            'titleblock' => true,
+            'date' => '2026-06-07',
+            'body' => 'Date-only body',
+        ]);
+        $t->contains(':revdate: 2026-06-07', $dateOnly);
+        $t->contains('Date-only body', $dateOnly);
+
+        $t->same("Alias body\n", $renderer->renderResource('templates/default', [], [
+            'body' => 'Alias body',
+        ], null, 'asciidoctor'));
+        $t->same("Legacy body\n", $renderer->renderResource('templates/default', [], [
+            'body' => 'Legacy body',
+        ], null, 'asciidoc_legacy'));
+        $t->same('custom asciidoc', $renderer->renderResource('templates/default', [
+            'templates/default.asciidoc' => 'custom $body$',
+        ], [
+            'body' => 'asciidoc',
+        ], null, 'asciidoctor'));
+    },
+
     'renders bounded pandoc default plain template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

@@ -353,6 +353,7 @@ final class DocTemplate
             'epub' => 'epub3',
             'markdown_strict', 'multimarkdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra' => 'markdown',
             'gfm', 'commonmark_x' => 'commonmark',
+            'asciidoctor', 'asciidoc_legacy' => 'asciidoc',
             'native', 'csljson', 'json', 'xml', 'fb2', 'pptx', 'ipynb' => '',
             default => $format,
         };
@@ -373,6 +374,7 @@ final class DocTemplate
             'default.html5' => $this->defaultHtml5Template(),
             'default.plain' => $this->defaultPlainTemplate(),
             'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
+            'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
             'default.man' => $this->defaultManTemplate(),
@@ -398,6 +400,7 @@ final class DocTemplate
             'default.plain',
             'default.markdown',
             'default.commonmark',
+            'default.asciidoc',
             'default.latex',
             'default.beamer',
             'default.man',
@@ -437,6 +440,55 @@ $for(include-after)$
 $include-after$
 $endfor$
 MD;
+    }
+
+    private function defaultAsciiDocTemplate(): string
+    {
+        return <<<'ASCIIDOC'
+$if(titleblock)$
+= $title$
+$if(author)$
+$for(author)$$author$$sep$; $endfor$
+$if(date)$
+$date$
+$endif$
+$elseif(date)$
+:revdate: $date$
+$endif$
+$if(keywords)$
+:keywords: $for(keywords)$$keywords$$sep$, $endfor$
+$endif$
+$if(lang)$
+:lang: $lang$
+$endif$
+$if(toc)$
+:toc:
+$endif$
+$if(math)$
+:stem: latexmath
+$endif$
+
+$endif$
+$if(abstract)$
+[abstract]
+== Abstract
+$abstract$
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+ASCIIDOC;
     }
 
     private function defaultLatexTemplate(): string
