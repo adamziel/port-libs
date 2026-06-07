@@ -23,7 +23,7 @@ $containerXml = <<<'XML'
 XML;
 
 $opfXml = <<<'XML'
-<package xmlns="http://www.idpf.org/2007/opf" id="source-package" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/">
+<package xmlns="http://www.idpf.org/2007/opf" id="source-package" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/ ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xml:lang="ar" dir="rtl">
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title id="main-title" dir="ltr">WordPress EPUB source packet</dc:title>
@@ -34,6 +34,10 @@ $opfXml = <<<'XML'
     <dc:contributor id="translator" xml:lang="fr">Translation Desk</dc:contributor>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
+    <meta property="ibooks:specified-fonts">true</meta>
+    <meta property="ibooks:version">1.2</meta>
+    <meta property="calibre:series" content="WordPress migration packets"/>
+    <meta property="calibre:series_index" content="7"/>
     <meta refines="#main-title" property="title-type">main</meta>
     <meta refines="#main-title" property="file-as">WordPress EPUB source packet</meta>
     <meta refines="#main-title" property="display-seq">1</meta>
@@ -445,6 +449,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['metadata']['metaProperties']['schema:accessibilitySummary'][0]['propertyVocabulary']['iri'] ?? null) !== 'https://schema.org/accessibilitySummary') {
         throw new RuntimeException('Expected EPUB metadata properties to resolve package prefix vocabulary IRIs');
+    }
+    if (($result['metadata']['vendorMetadata']['ibooks']['specified-fonts'][0]['value'] ?? null) !== 'true') {
+        throw new RuntimeException('Expected EPUB ibooks vendor metadata to be summarized');
+    }
+    if (($result['metadata']['vendorMetadata']['calibre']['series'][0]['content'] ?? null) !== 'WordPress migration packets') {
+        throw new RuntimeException('Expected EPUB calibre vendor metadata content to be preserved');
+    }
+    if (($result['document']->attr('metadata')['vendorMetadata']['calibre']['series_index'][0]['value'] ?? null) !== '7') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose calibre series index metadata');
     }
     if (($result['metadata']['refinementSubjectSummary']['unknownSubjects'][0] ?? null) !== 'missing-review-subject') {
         throw new RuntimeException('Expected dangling EPUB OPF metadata refinement subjects to remain visible for review');
@@ -1172,6 +1185,9 @@ echo 'containerCfiPath=' . ($result['container']['links'][2]['epubCfi']['path'] 
 echo 'opfPrefixes=' . implode(',', array_keys($result['package']['prefixes'] ?? [])) . "\n";
 echo 'schemaPrefix=' . ($result['package']['prefixes']['schema'] ?? '') . "\n";
 echo 'metadataVocabularyResolved=' . ($result['metadata']['vocabulary']['resolvedPropertyCount'] ?? 0) . "\n";
+echo 'vendorMetadataItems=' . ($result['metadata']['vendorMetadata']['itemCount'] ?? 0) . "\n";
+echo 'ibooksSpecifiedFonts=' . ($result['metadata']['vendorMetadata']['ibooks']['specified-fonts'][0]['value'] ?? '') . "\n";
+echo 'calibreSeries=' . ($result['metadata']['vendorMetadata']['calibre']['series'][0]['value'] ?? '') . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'pageProgressionDirection=' . ($result['spineProperties']['pageProgressionDirection'] ?? '') . "\n";
 echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'yes' : 'no') . "\n";

@@ -1043,6 +1043,7 @@ final class EpubReader
             'linksByRel' => self::linksByRel($links),
             'raw' => $raw,
         ];
+        $metadata['vendorMetadata'] = self::vendorMetadataReport($metadata);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
@@ -2199,6 +2200,121 @@ final class EpubReader
         }
 
         return trim((string) ($entry['content'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function vendorMetadataReport(array $metadata): array
+    {
+        $metaProperties = is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : [];
+        $items = [];
+        $itemsByVendor = [
+            'ibooks' => [],
+            'calibre' => [],
+        ];
+        $diagnostics = [];
+
+        foreach ($metaProperties as $property => $entries) {
+            if (!is_string($property) || !is_array($entries)) {
+                continue;
+            }
+
+            $vendor = null;
+            $field = null;
+            if (str_starts_with($property, 'ibooks:')) {
+                $vendor = 'ibooks';
+                $field = substr($property, strlen('ibooks:'));
+            } elseif (str_starts_with($property, 'calibre:')) {
+                $vendor = 'calibre';
+                $field = substr($property, strlen('calibre:'));
+            }
+
+            if ($vendor === null || $field === null) {
+                continue;
+            }
+
+            foreach ($entries as $entryIndex => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $value = self::metadataEntryValue($entry);
+                $entryDiagnostics = [];
+                if ($field === '') {
+                    $entryDiagnostics[] = [
+                        'type' => 'empty-vendor-metadata-field',
+                        'vendor' => $vendor,
+                        'property' => $property,
+                        'entryIndex' => (int) $entryIndex,
+                    ];
+                }
+                if ($value === '') {
+                    $entryDiagnostics[] = [
+                        'type' => 'empty-vendor-metadata-value',
+                        'vendor' => $vendor,
+                        'property' => $property,
+                        'entryIndex' => (int) $entryIndex,
+                    ];
+                }
+
+                $item = [
+                    'vendor' => $vendor,
+                    'field' => $field,
+                    'property' => $property,
+                    'entryIndex' => (int) $entryIndex,
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+                    'value' => $value,
+                    'text' => is_string($entry['text'] ?? null) ? $entry['text'] : '',
+                    'content' => is_string($entry['content'] ?? null) ? $entry['content'] : null,
+                    'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                    'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                    'propertyVocabulary' => is_array($entry['propertyVocabulary'] ?? null) ? $entry['propertyVocabulary'] : null,
+                    'diagnostics' => $entryDiagnostics,
+                ];
+
+                $items[] = $item;
+                $itemsByVendor[$vendor][] = $item;
+                foreach ($entryDiagnostics as $diagnostic) {
+                    $diagnostics[] = $diagnostic;
+                }
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'ibooksCount' => count($itemsByVendor['ibooks']),
+            'calibreCount' => count($itemsByVendor['calibre']),
+            'items' => $items,
+            'itemsByVendor' => $itemsByVendor,
+            'ibooks' => self::vendorMetadataFields($itemsByVendor['ibooks']),
+            'calibre' => self::vendorMetadataFields($itemsByVendor['calibre']),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function vendorMetadataFields(array $items): array
+    {
+        $fields = [];
+        foreach ($items as $item) {
+            $field = is_string($item['field'] ?? null) ? $item['field'] : '';
+            if ($field === '') {
+                continue;
+            }
+
+            $fields[$field][] = $item;
+        }
+
+        return $fields;
     }
 
     /**

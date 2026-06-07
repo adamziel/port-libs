@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 08:59:46 UTC",
-    "sourceCommit": "63be7b48de2468cb308ecab366fd7ed1adc53468",
-    "sourceCommitShort": "63be7b48de24",
+    "generated": "2026-06-07 09:00:04 UTC",
+    "sourceCommit": "98bae3c17673f1d80bf3338e3b62f7c1d4663e57",
+    "sourceCommitShort": "98bae3c17673",
     "sourceBranch": "unknown",
-    "dashboardCommit": "63be7b48de2468cb308ecab366fd7ed1adc53468",
-    "dashboardCommitShort": "63be7b48de24",
+    "dashboardCommit": "98bae3c17673f1d80bf3338e3b62f7c1d4663e57",
+    "dashboardCommitShort": "98bae3c17673",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1896",
-            "coverage": "1,896 / 2,276 (83.3%)",
+            "mapped": "1897",
+            "coverage": "1,897 / 2,276 (83.3%)",
             "mapPercent": "83.3%",
-            "unmapped": "380",
-            "php": "1,477 pass / 0 fail",
+            "unmapped": "379",
+            "php": "1,478 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-07 UTC upstream-runner dependency audit current-base data-fil...",
+            "audit": "2026-06-07 UTC EPUB3 package current-base vendor-metadata slice on ac...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For upstream-runner follow-up, hydrate the pinned Pandoc chec...",
+            "nextTarget": "For EPUB follow-up, choose a non-overlapping OPF contributor/...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

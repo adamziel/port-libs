@@ -554,6 +554,42 @@ XML;
         $t->same($metadata['vocabulary'], $result['importReport']['metadata']['vocabulary']);
         $t->same($metadata['vocabulary'], $result['document']->attr('metadata')['vocabulary']);
     },
+    'reports OPF vendor metadata fields for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithVendorMetadata = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">',
+            $opfXml
+        );
+        $opfWithVendorMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta property="ibooks:specified-fonts">true</meta>'
+            . '<meta property="ibooks:version">1.2</meta>'
+            . '<meta property="calibre:series" content="Migration Library"/>'
+            . '<meta property="calibre:series_index" content="7"/>',
+            $opfWithVendorMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithVendorMetadata));
+        $vendorMetadata = $result['metadata']['vendorMetadata'] ?? [];
+
+        $t->same(true, $vendorMetadata['present'] ?? null);
+        $t->same(4, $vendorMetadata['itemCount'] ?? null);
+        $t->same(2, $vendorMetadata['ibooksCount'] ?? null);
+        $t->same(2, $vendorMetadata['calibreCount'] ?? null);
+        $t->same('true', $vendorMetadata['ibooks']['specified-fonts'][0]['value'] ?? null);
+        $t->same('true', $vendorMetadata['ibooks']['specified-fonts'][0]['text'] ?? null);
+        $t->same('http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/specified-fonts', $vendorMetadata['ibooks']['specified-fonts'][0]['propertyVocabulary']['iri'] ?? null);
+        $t->same('1.2', $vendorMetadata['ibooks']['version'][0]['value'] ?? null);
+        $t->same('Migration Library', $vendorMetadata['calibre']['series'][0]['value'] ?? null);
+        $t->same('', $vendorMetadata['calibre']['series'][0]['text'] ?? null);
+        $t->same('Migration Library', $vendorMetadata['calibre']['series'][0]['content'] ?? null);
+        $t->same('7', $vendorMetadata['calibre']['series_index'][0]['value'] ?? null);
+        $t->same('series_index', $vendorMetadata['itemsByVendor']['calibre'][1]['field'] ?? null);
+        $t->same([], $vendorMetadata['diagnostics'] ?? null);
+        $t->same($vendorMetadata, $result['importReport']['metadata']['vendorMetadata']);
+        $t->same($vendorMetadata, $result['document']->attr('metadata')['vendorMetadata']);
+    },
     'reports OPF unique identifier binding and diagnostics for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reader = new EpubReader();
         $result = $reader->readPackage($buildEpubPackage());
