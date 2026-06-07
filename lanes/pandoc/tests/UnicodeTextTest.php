@@ -435,6 +435,28 @@ return [
         $t->contains('<h1 id="עברית">עברית</h1>', $blocks);
         $t->contains("<p>עורך עברית «מקור» ‗ 12; \u{200F}RTL.</p>", $blocks);
     },
+    'decodes windows 1255 hebrew source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xF2\xE1\xF8\xE9\xFA\n\n\xF2\xE5\xF8\xEA \xF9\xC8\xD1\xEC\xE5\xC9\xED \x93\xEE\xF7\xE5\xF8\x94 \x97 \xA420; \xD7\xD8.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp1255');
+        $document = (new MarkdownReader())->readBytes($bytes, 'x-cp1255');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA4\xC0\xC8\xCA\xCC\xD1\xD2\xD7\xD8\xFD\xFE", 'windows-1255');
+        $undefined = UnicodeText::decodeBytes("A\x81B\x8AC\xD9D\xFBE\xFFF", 'microsoft-cp1255');
+
+        $t->same('windows-1255', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# עברית\n\nעורך שָׁלוֹם “מקור” — ₪20; ׳״.", $decoded['text']);
+        $t->same("₪ְָֺּׁׂ׳״\u{200E}\u{200F}", $specials['text']);
+        $t->same(3, UnicodeText::displayWidth($specials['text']));
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E\u{FFFD}F", $undefined['text']);
+        $t->same(5, $undefined['repairs']);
+        $t->same(['encoding' => 'windows-1255', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('עברית', $document->children[0]->attr('text'));
+        $t->same("עורך שָׁלוֹם “מקור” — ₪20; ׳״.", $document->children[1]->attr('text'));
+        $t->same(27, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="עברית">עברית</h1>', $blocks);
+        $t->contains('<p>עורך שָׁלוֹם “מקור” — ₪20; ׳״.</p>', $blocks);
+    },
     'decodes iso 8859 9 latin5 turkish source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Latin5 Import\n\nTurkish \xDDstanbul, \xD0a\xF0, \xDEi\xFEli, \xFDl\xFDk; \xD6\xDC remain.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-148');

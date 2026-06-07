@@ -74,6 +74,9 @@ $windows1253Text = (string) $windows1253Source->children[1]->attr('text');
 $iso88598Bytes = "# \xF2\xE1\xF8\xE9\xFA\n\n\xF2\xE5\xF8\xEA \xF2\xE1\xF8\xE9\xFA \xAB\xEE\xF7\xE5\xF8\xBB \xDF 12; \xFERTL.";
 $iso88598Source = (new MarkdownReader())->readBytes($iso88598Bytes, 'iso-ir-138');
 $iso88598Text = (string) $iso88598Source->children[1]->attr('text');
+$windows1255Bytes = "# \xF2\xE1\xF8\xE9\xFA\n\n\xF2\xE5\xF8\xEA \xF9\xC8\xD1\xEC\xE5\xC9\xED \x93\xEE\xF7\xE5\xF8\x94 \x97 \xA420; \xD7\xD8.";
+$windows1255Source = (new MarkdownReader())->readBytes($windows1255Bytes, 'cp1255');
+$windows1255Text = (string) $windows1255Source->children[1]->attr('text');
 $iso88599Bytes = "# Latin5 Import\n\nTurkish \xDDstanbul, \xD0a\xF0, \xDEi\xFEli, \xFDl\xFDk; \xD6\xDC remain.";
 $iso88599Source = (new MarkdownReader())->readBytes($iso88599Bytes, 'latin5');
 $iso88599Text = (string) $iso88599Source->children[1]->attr('text');
@@ -451,6 +454,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88598Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88598Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-1255 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows1255Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1255Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1255Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-8859-9 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso88599Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88599Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88599Text)])]),
@@ -745,6 +753,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>ISO-8859-8 source</td><td>עורך עברית «מקור» ‗ 12; \u{200F}RTL.</td><td>iso-8859-8:28</td>")) {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-8 Hebrew decode audit row');
+    }
+    if (($windows1255Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-1255') {
+        throw new RuntimeException('charset handoff self-test missing Windows-1255 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Windows-1255 source</td><td>עורך שָׁלוֹם “מקור” — ₪20; ׳״.</td><td>windows-1255:27</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Windows-1255 Hebrew decode audit row');
     }
     if (($iso88599Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-9') {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-9 source encoding');
