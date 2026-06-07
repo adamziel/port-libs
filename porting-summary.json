@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 11:31:16 UTC",
-    "sourceCommit": "e61ab782dfcb64d925a48bcd852995e24721777a",
-    "sourceCommitShort": "e61ab782dfcb",
+    "generated": "2026-06-07 11:31:26 UTC",
+    "sourceCommit": "4439fe72a05f6e687dd4c5547c8d42374a221276",
+    "sourceCommitShort": "4439fe72a05f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e61ab782dfcb64d925a48bcd852995e24721777a",
-    "dashboardCommitShort": "e61ab782dfcb",
+    "dashboardCommit": "4439fe72a05f6e687dd4c5547c8d42374a221276",
+    "dashboardCommitShort": "4439fe72a05f",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1912",
-            "coverage": "1,912 / 2,276 (84.0%)",
-            "mapPercent": "84.0%",
-            "unmapped": "364",
+            "mapped": "1913",
+            "coverage": "1,913 / 2,276 (84.1%)",
+            "mapPercent": "84.1%",
+            "unmapped": "363",
             "php": "1,493 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-07 UTC ODF/OpenDocument current-base chart title-axis-legend...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For charset/Unicode follow-up, keep work bounded to non-overl...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native U...",
+            "nextTarget": "For legacy DOC/CFB follow-up, keep work bounded to non-overla...",
+            "remainingGate": "No new support component is needed for this slice: it reuses native L...",
             "commit": "pending fast ac..."
         },
         {

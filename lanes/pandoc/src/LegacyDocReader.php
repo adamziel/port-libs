@@ -1349,6 +1349,11 @@ final class LegacyDocReader
             return $crossReferenceAttrs;
         }
 
+        $dataFieldAttrs = $this->dataFieldAttrs($fieldName, $tokens, $instruction);
+        if ($dataFieldAttrs !== null) {
+            return $dataFieldAttrs;
+        }
+
         $fieldNames = [
             'PAGE' => 'page',
             'NUMPAGES' => 'numpages',
@@ -1503,6 +1508,88 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-cross-reference', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function dataFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        $fieldTypes = [
+            'MERGEFIELD' => 'mail-merge',
+            'DOCVARIABLE' => 'document-variable',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $dataFieldName = null;
+        $prefix = null;
+        $suffix = null;
+        $switches = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if ($switch === '') {
+                    continue;
+                }
+                if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                    continue;
+                }
+                if (($switch === 'b' || $switch === 'f') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                    if ($switch === 'b') {
+                        $prefix = $tokens[$index];
+                    } else {
+                        $suffix = $tokens[$index];
+                    }
+                    $switches[] = $switch;
+                    continue;
+                }
+
+                $switches[] = $switch;
+                continue;
+            }
+
+            $dataFieldName ??= $token;
+        }
+        if ($dataFieldName === null || $dataFieldName === '') {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-data-field-type' => $fieldTypes[$fieldName],
+            'data-legacy-doc-data-field-name' => $dataFieldName,
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+        if ($prefix !== null && $prefix !== '') {
+            $attributes['data-legacy-doc-data-field-prefix'] = $prefix;
+        }
+        if ($suffix !== null && $suffix !== '') {
+            $attributes['data-legacy-doc-data-field-suffix'] = $suffix;
+        }
+        if ($switches !== []) {
+            $attributes['data-legacy-doc-data-field-switches'] = implode(' ', array_values(array_unique($switches)));
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }

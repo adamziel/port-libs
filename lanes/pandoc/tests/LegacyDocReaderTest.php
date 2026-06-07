@@ -4031,6 +4031,56 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC cross-reference instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC merge and document-variable field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Dear '
+                . $fieldBegin . ' MERGEFIELD "Customer Name" \b "before " \f " after" \* MERGEFORMAT ' . $fieldSeparator . 'Ada Lovelace' . $fieldEnd
+                . ', batch '
+                . $fieldBegin . ' DOCVARIABLE MigrationBatch \* Upper ' . $fieldSeparator . 'LEGACY-DOC-42' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $mergeField = $paragraph->children[1];
+        $t->same('span', $mergeField->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-mergefield'], $mergeField->attr('classes'));
+        $t->same('mergefield', $mergeField->attr('attributes')['data-legacy-doc-field']);
+        $t->same('MERGEFIELD "Customer Name" \b "before " \f " after" \* MERGEFORMAT', $mergeField->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('mail-merge', $mergeField->attr('attributes')['data-legacy-doc-data-field-type']);
+        $t->same('Customer Name', $mergeField->attr('attributes')['data-legacy-doc-data-field-name']);
+        $t->same('MERGEFORMAT', $mergeField->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('before ', $mergeField->attr('attributes')['data-legacy-doc-data-field-prefix']);
+        $t->same(' after', $mergeField->attr('attributes')['data-legacy-doc-data-field-suffix']);
+        $t->same('b f', $mergeField->attr('attributes')['data-legacy-doc-data-field-switches']);
+        $t->same('Ada Lovelace', $mergeField->children[0]->attr('text'));
+
+        $docVariable = $paragraph->children[3];
+        $t->same('span', $docVariable->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-docvariable'], $docVariable->attr('classes'));
+        $t->same('docvariable', $docVariable->attr('attributes')['data-legacy-doc-field']);
+        $t->same('document-variable', $docVariable->attr('attributes')['data-legacy-doc-data-field-type']);
+        $t->same('MigrationBatch', $docVariable->attr('attributes')['data-legacy-doc-data-field-name']);
+        $t->same('Upper', $docVariable->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('LEGACY-DOC-42', $docVariable->children[0]->attr('text'));
+
+        $t->contains('[Ada Lovelace]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-mergefield data-legacy-doc-field="mergefield"', $markdown);
+        $t->contains('data-legacy-doc-data-field-name="Customer Name"', $markdown);
+        $t->contains('[LEGACY-DOC-42]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-docvariable data-legacy-doc-field="docvariable"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-mergefield" data-legacy-doc-field="mergefield" data-legacy-doc-field-instruction="MERGEFIELD &quot;Customer Name&quot; \b &quot;before &quot; \f &quot; after&quot; \* MERGEFORMAT" data-legacy-doc-data-field-type="mail-merge" data-legacy-doc-data-field-name="Customer Name" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-data-field-prefix="before " data-legacy-doc-data-field-suffix=" after" data-legacy-doc-data-field-switches="b f">Ada Lovelace</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-docvariable" data-legacy-doc-field="docvariable" data-legacy-doc-field-instruction="DOCVARIABLE MigrationBatch \* Upper" data-legacy-doc-data-field-type="document-variable" data-legacy-doc-data-field-name="MigrationBatch" data-legacy-doc-field-format="Upper">LEGACY-DOC-42</span>', $blocks);
+        foreach (['MERGEFIELD', 'DOCVARIABLE'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC data field instructions should not render as visible text');
+        }
+    },
     'preserves legacy DOC symbol field provenance around displayed glyphs' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

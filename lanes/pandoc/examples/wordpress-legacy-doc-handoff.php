@@ -465,8 +465,8 @@ $fieldSeparator = "\x14";
 $fieldEnd = "\x15";
 $embeddedNativeData = 'opaque legacy embedded spreadsheet bytes';
 $firstPieceText = 'Legacy DOC import ΩЖ魚';
-$secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
-    . 'note ' . "\x02" . ' and endnote # while checking '
+$secondPieceText = "\rReview notes keep\vbreaks with "
+    . 'note ' . "\x02" . ' endnote # plus '
     . 'comment ' . "\x05" . ' and '
     . $fieldBegin . ' HYPERLINK "https://example.test/legacy-doc?source=42" \o "Source packet" '
     . $fieldSeparator . 'source dossier' . $fieldEnd
@@ -483,6 +483,10 @@ $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
     . ' with form value '
     . $fieldBegin . ' FORMTEXT \* MERGEFORMAT ' . $fieldSeparator . 'pending review' . $fieldEnd
+    . ' merge '
+    . $fieldBegin . ' MERGEFIELD Name ' . $fieldSeparator . 'Ada' . $fieldEnd
+    . ' var '
+    . $fieldBegin . ' DOCVARIABLE Batch ' . $fieldSeparator . '42' . $fieldEnd
     . ' and source symbol '
     . $fieldBegin . ' SYMBOL 183 \f "Symbol" \s 12 \u ' . $fieldSeparator . '·' . $fieldEnd
     . "\x01"
@@ -563,6 +567,8 @@ $fieldTypeCodes = [
     'PAGE' => 0x21,
     'DATE' => 0x1f,
     'FORMTEXT' => 0x46,
+    'MERGEFIELD' => 0x3b,
+    'DOCVARIABLE' => 0x40,
     'SYMBOL' => 0x39,
 ];
 $fieldRecordsForText = static function (string $text) use ($fieldBegin, $fieldSeparator, $fieldEnd, $fieldTypeCodes): array {
@@ -1169,7 +1175,21 @@ $miniFatBytes = '';
 for ($index = 0, $count = count($miniFat); $index < $count; $index++) {
     $miniFatBytes .= $u32($miniFat[$index] ?? $free);
 }
-$sectors[2] = $padTo($miniFatBytes, $sectorSize);
+$miniFatChunks = str_split($padTo($miniFatBytes, $sectorSize), $sectorSize);
+$previousMiniFatSector = 2;
+foreach ($miniFatChunks as $index => $chunk) {
+    if ($index === 0) {
+        $sectors[2] = $chunk;
+        $fat[2] = count($miniFatChunks) === 1 ? $end : count($sectors);
+        continue;
+    }
+
+    $sector = count($sectors);
+    $sectors[] = $chunk;
+    $fat[$previousMiniFatSector] = $sector;
+    $fat[$sector] = $index === count($miniFatChunks) - 1 ? $end : $sector + 1;
+    $previousMiniFatSector = $sector;
+}
 
 $fatBytes = '';
 for ($index = 0; $index < 128; $index++) {
@@ -1191,7 +1211,7 @@ $header = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
     . $u32(0)
     . $u32(4096)
     . $u32(2)
-    . $u32(1)
+    . $u32(count($miniFatChunks))
     . $u32($end)
     . $u32(0)
     . $u32(0)
@@ -1737,7 +1757,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['fieldCharacterCount'] ?? null) !== $totalFieldRecordCount || count($summary['fieldCharacters'] ?? []) !== $totalFieldRecordCount) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field-character inventory');
     }
-    if (($summary['metadata']['fieldCount'] ?? null) !== 9 || count($summary['fields'] ?? []) !== 9) {
+    if (($summary['metadata']['fieldCount'] ?? null) !== 11 || count($summary['fields'] ?? []) !== 11) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field range inventory');
     }
     if (($summary['metadata']['fields'] ?? []) !== ($summary['fields'] ?? [])) {
@@ -1749,7 +1769,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['fieldStories'] ?? [], 'story') !== ['main', 'header', 'endnote'] || array_column($summary['fieldStories'] ?? [], 'table') !== ['PlcfldMom', 'PlcfldHdr', 'PlcfldEdn']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story table mapping');
     }
-    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [7, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords)]) {
+    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [9, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords)]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story field counts');
     }
     if (array_column($summary['fieldStories'] ?? [], 'characterCount') !== [$totalPieceCharacters, $headerSubdocumentCharacters, $endnoteSubdocumentCharacters]) {
@@ -1762,6 +1782,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'pageref',
         'page',
         'formtext',
+        'mergefield',
+        'docvariable',
         'symbol',
         'date',
         'noteref',
@@ -1774,15 +1796,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['fields'][5]['typeCode'] ?? null) !== 0x46 || ($summary['fields'][5]['hasResult'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FORMTEXT Plcfld result range');
     }
-    if (($summary['fields'][7]['story'] ?? '') !== 'header' || ($summary['fields'][7]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][7]['type'] ?? '') !== 'date') {
+    if (($summary['fields'][6]['typeCode'] ?? null) !== 0x3b || ($summary['fields'][6]['type'] ?? '') !== 'mergefield') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing MERGEFIELD Plcfld metadata');
+    }
+    if (($summary['fields'][7]['typeCode'] ?? null) !== 0x40 || ($summary['fields'][7]['type'] ?? '') !== 'docvariable') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOCVARIABLE Plcfld metadata');
+    }
+    if (($summary['fields'][9]['story'] ?? '') !== 'header' || ($summary['fields'][9]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][9]['type'] ?? '') !== 'date') {
         throw new RuntimeException('Legacy DOC handoff self-test missing header Plcfld DATE metadata');
     }
-    if (($summary['fields'][8]['story'] ?? '') !== 'endnote' || ($summary['fields'][8]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][8]['type'] ?? '') !== 'noteref') {
+    if (($summary['fields'][10]['story'] ?? '') !== 'endnote' || ($summary['fields'][10]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][10]['type'] ?? '') !== 'noteref') {
         throw new RuntimeException('Legacy DOC handoff self-test missing endnote Plcfld NOTEREF metadata');
     }
     foreach ([
         '<p><span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="0" data-legacy-doc-bookmark-end-cp="21">Legacy DOC import ΩЖ魚</span></p>',
-        '<p>Reviewer notes keep hard<br/>breaks for block review with note ',
+        '<p>Review notes keep<br/>breaks with note ',
         '<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="' . (string) ($summary['footnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="35" data-legacy-doc-note-auto-numbered="true" data-legacy-doc-note-has-body="true" data-legacy-doc-note-body-character-count="35"><sup>1</sup></span>',
         '<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="' . (string) ($summary['endnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="29" data-legacy-doc-note-auto-numbered="false" data-legacy-doc-note-has-body="true" data-legacy-doc-note-body-character-count="29"><sup>#</sup></span>',
         '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-author-name="Mira Reviewer" data-legacy-doc-comment-bookmark-tag="8258" data-legacy-doc-comment-has-body="true" data-legacy-doc-comment-body-character-count="24"><sup>MR</sup></span>',
@@ -1792,6 +1820,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-pageref" data-legacy-doc-field="pageref" data-legacy-doc-field-instruction="PAGEREF legacy_anchor \p" data-legacy-doc-cross-reference-type="bookmark-page" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="p" data-legacy-doc-cross-reference-relative="true">7</span>',
         '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',
         '<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formtext" data-legacy-doc-field="formtext" data-legacy-doc-field-instruction="FORMTEXT \* MERGEFORMAT" data-legacy-doc-form-field-type="text" data-legacy-doc-field-format="MERGEFORMAT">pending review</span>',
+        '<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-mergefield" data-legacy-doc-field="mergefield" data-legacy-doc-field-instruction="MERGEFIELD Name" data-legacy-doc-data-field-type="mail-merge" data-legacy-doc-data-field-name="Name">Ada</span>',
+        '<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-docvariable" data-legacy-doc-field="docvariable" data-legacy-doc-field-instruction="DOCVARIABLE Batch" data-legacy-doc-data-field-type="document-variable" data-legacy-doc-data-field-name="Batch">42</span>',
         '<span class="legacy-doc-field legacy-doc-symbol-field legacy-doc-field-symbol" data-legacy-doc-field="symbol" data-legacy-doc-field-instruction="SYMBOL 183 \f &quot;Symbol&quot; \s 12 \u" data-legacy-doc-symbol-code="183" data-legacy-doc-symbol-font="Symbol" data-legacy-doc-symbol-size="12" data-legacy-doc-symbol-switches="u">·</span>',
         '<span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="' . (string) ($summary['embeddedObjectReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-object-character-code="1" data-legacy-doc-object-can-expose-bytes="false" data-legacy-doc-object-storage="ObjectPool/_42" data-legacy-doc-object-id="_42" data-legacy-doc-object-label="legacy-data.xlsx" data-legacy-doc-object-native-data-bytes="' . strlen($embeddedNativeData) . '" data-legacy-doc-object-transmission-format="unicode-text" data-legacy-doc-object-has-native-data="true" data-legacy-doc-object-has-presentation-data="true">embedded object: legacy-data.xlsx</span>',
         '<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) ($summary['pictureReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-picture-character-code="1" data-legacy-doc-picture-can-expose-bytes="false" data-legacy-doc-picture-source="fib-has-pictures" data-legacy-doc-picture-policy="metadata-only-native-review">inline picture</span>',
@@ -1800,7 +1830,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
         }
     }
-    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'FORMTEXT', 'SYMBOL', 'DATE', 'NOTEREF'] as $instruction) {
+    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'FORMTEXT', 'MERGEFIELD', 'DOCVARIABLE', 'SYMBOL', 'DATE', 'NOTEREF'] as $instruction) {
         if (str_contains(strip_tags($blocks), $instruction)) {
             throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instruction: ' . $instruction);
         }
