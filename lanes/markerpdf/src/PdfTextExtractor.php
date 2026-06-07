@@ -8803,7 +8803,15 @@ final class PdfTextExtractor
                 return [self::MALFORMED_IMAGE_FILTER_OPERAND];
             }
 
-            return $this->imageXObjectFilterOperandBoundaryValuesFromArrayBody($arrayBody, $objects, $seenObjects);
+            $filters = $this->imageXObjectFilterOperandBoundaryValuesFromArrayBody($arrayBody, $objects, $seenObjects);
+            if (
+                $this->skipPdfWhitespace($value, strlen($arrayBody) + 2) !== strlen($value)
+                && !in_array(self::MALFORMED_IMAGE_FILTER_OPERAND, $filters, true)
+            ) {
+                array_unshift($filters, self::MALFORMED_IMAGE_FILTER_OPERAND);
+            }
+
+            return $filters;
         }
 
         if ($value[0] === '/') {
@@ -9493,7 +9501,7 @@ final class PdfTextExtractor
     {
         $nonNullFilterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
-            if (is_string($filter)) {
+            if ($this->streamFilterCanCarryDecodeParms($filter)) {
                 $nonNullFilterIndexes[] = $filterIndex;
             }
         }
@@ -9508,7 +9516,10 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (array_key_exists($decodeParmsIndex, $filters)) {
+            if (
+                array_key_exists($decodeParmsIndex, $filters)
+                && $this->streamFilterCanCarryDecodeParms($filters[$decodeParmsIndex])
+            ) {
                 continue;
             }
 
@@ -17354,9 +17365,12 @@ final class PdfTextExtractor
     {
         $nonNullFilterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
-            if (is_string($filter)) {
+            if ($this->streamFilterCanCarryDecodeParms($filter)) {
                 $nonNullFilterIndexes[] = $filterIndex;
             }
+        }
+        if (!$this->streamFilterCanCarryDecodeParms($filters[$index] ?? null)) {
+            return null;
         }
 
         if ($this->decodeParmsUseCompactNonNullFilterIndexes($filters, count($decodeParms), $nonNullFilterIndexes)) {
@@ -17725,7 +17739,7 @@ final class PdfTextExtractor
         if ($nonNullFilterIndexes === null) {
             $nonNullFilterIndexes = [];
             foreach ($filters as $filterIndex => $filter) {
-                if (is_string($filter)) {
+                if ($this->streamFilterCanCarryDecodeParms($filter)) {
                     $nonNullFilterIndexes[] = $filterIndex;
                 }
             }
@@ -17733,6 +17747,12 @@ final class PdfTextExtractor
 
         return $decodeParmsCount === count($nonNullFilterIndexes)
             && count($filters) !== $decodeParmsCount;
+    }
+
+    private function streamFilterCanCarryDecodeParms(?string $filter): bool
+    {
+        return is_string($filter)
+            && !in_array($filter, [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND], true);
     }
 
     /**
@@ -18065,7 +18085,7 @@ final class PdfTextExtractor
 
         $nonNullFilterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
-            if (is_string($filter)) {
+            if ($this->streamFilterCanCarryDecodeParms($filter)) {
                 $nonNullFilterIndexes[] = $filterIndex;
             }
         }

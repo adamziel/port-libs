@@ -4340,8 +4340,13 @@ final class PdfImageRenderer
     {
         $resolved = trim($this->resolvePdfValue($value, $objects));
         if (str_starts_with($resolved, '[')) {
+            $array = $this->readBalancedArray($resolved, 0);
+            if ($array === null) {
+                return [self::MALFORMED_IMAGE_FILTER_OPERAND];
+            }
+
             $filters = [];
-            foreach ($this->pdfArrayValues($resolved) as $entry) {
+            foreach ($this->pdfArrayValues($array['value']) as $entry) {
                 $entry = trim($this->resolvePdfValue($entry, $objects));
                 if ($entry === 'null') {
                     $filters[] = null;
@@ -4355,6 +4360,13 @@ final class PdfImageRenderer
                 }
 
                 $filters[] = $this->imageFilterOperandFallbackName($entry);
+            }
+
+            if (
+                $this->skipPdfWhitespace($resolved, $array['next']) !== strlen($resolved)
+                && !in_array(self::MALFORMED_IMAGE_FILTER_OPERAND, $filters, true)
+            ) {
+                array_unshift($filters, self::MALFORMED_IMAGE_FILTER_OPERAND);
             }
 
             return $filters;
@@ -4440,9 +4452,12 @@ final class PdfImageRenderer
     {
         $nonNullFilterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
-            if (is_string($filter)) {
+            if ($this->imageFilterCanCarryDecodeParms($filter)) {
                 $nonNullFilterIndexes[] = $filterIndex;
             }
+        }
+        if (!$this->imageFilterCanCarryDecodeParms($filters[$index] ?? null)) {
+            return null;
         }
 
         if ($this->decodeParmsUseCompactNonNullFilterIndexes($filters, count($decodeParms), $nonNullFilterIndexes)) {
@@ -4480,7 +4495,7 @@ final class PdfImageRenderer
         if ($nonNullFilterIndexes === null) {
             $nonNullFilterIndexes = [];
             foreach ($filters as $filterIndex => $filter) {
-                if (is_string($filter)) {
+                if ($this->imageFilterCanCarryDecodeParms($filter)) {
                     $nonNullFilterIndexes[] = $filterIndex;
                 }
             }
@@ -4488,6 +4503,12 @@ final class PdfImageRenderer
 
         return $decodeParmsCount === count($nonNullFilterIndexes)
             && count($filters) !== $decodeParmsCount;
+    }
+
+    private function imageFilterCanCarryDecodeParms(?string $filter): bool
+    {
+        return is_string($filter)
+            && !in_array($filter, [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND], true);
     }
 
     private function isPreviewOnlyImageFilter(string $filter): bool
@@ -4867,7 +4888,7 @@ final class PdfImageRenderer
     {
         $nonNullFilterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
-            if (is_string($filter)) {
+            if ($this->imageFilterCanCarryDecodeParms($filter)) {
                 $nonNullFilterIndexes[] = $filterIndex;
             }
         }
@@ -4882,7 +4903,10 @@ final class PdfImageRenderer
                 continue;
             }
 
-            if (array_key_exists($decodeParmsIndex, $filters)) {
+            if (
+                array_key_exists($decodeParmsIndex, $filters)
+                && $this->imageFilterCanCarryDecodeParms($filters[$decodeParmsIndex])
+            ) {
                 continue;
             }
 
