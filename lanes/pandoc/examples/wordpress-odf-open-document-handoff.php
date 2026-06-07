@@ -214,7 +214,7 @@ $contentXml = <<<'XML'
         <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
       </text:list>
       <draw:frame draw:name="Source hero" svg:width="6cm" svg:height="3.5cm">
-        <draw:image xlink:href="../Pictures/source%20hero.png">
+        <draw:image xlink:href="../Pictures/source%20hero.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad">
           <svg:title>Source hero</svg:title>
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
@@ -689,8 +689,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'chart:bar')) {
         throw new RuntimeException('Expected ODT chart object XML to stay out of WordPress output');
     }
-    if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm"/>')) {
-        throw new RuntimeException('Expected ODT image dimensions to render in WordPress blocks');
+    if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>')) {
+        throw new RuntimeException('Expected ODT image dimensions and xlink review metadata to render in WordPress blocks');
     }
     if (str_contains($blocks, '../Pictures/source%20hero.png')) {
         throw new RuntimeException('Expected ODT parent-relative image hrefs to normalize before WordPress output');

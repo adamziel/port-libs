@@ -3618,6 +3618,15 @@ final class OdfReader
         if ($dimensions !== []) {
             $attrs += $dimensions;
         }
+        $linkMetadata = $this->frameImageLinkMetadata($image);
+        if ($linkMetadata['metadata'] !== []) {
+            $attrs['odfImageMetadata'] = $linkMetadata['metadata'];
+            $attributes = $attrs['attributes'] ?? [];
+            if (!is_array($attributes)) {
+                $attributes = [];
+            }
+            $attrs['attributes'] = $attributes + $linkMetadata['attributes'];
+        }
         if (is_array($manifestItem)) {
             $attrs['mediaType'] = $manifestItem['mediaType'] ?? null;
             $attrs['encrypted'] = $encrypted;
@@ -3731,6 +3740,27 @@ final class OdfReader
         }
 
         return $attributes + ['attributes' => $attributes];
+    }
+
+    /**
+     * @return array{metadata:array<string, string>,attributes:array<string, string>}
+     */
+    private function frameImageLinkMetadata(\DOMElement $image): array
+    {
+        $metadata = self::withoutEmpty([
+            'xlinkType' => self::nullable(self::attr($image, self::XLINK_NS, 'type')),
+            'xlinkShow' => self::nullable(self::attr($image, self::XLINK_NS, 'show')),
+            'xlinkActuate' => self::nullable(self::attr($image, self::XLINK_NS, 'actuate')),
+        ]);
+        $attributes = [];
+        foreach ($metadata as $name => $value) {
+            $attributes['data-odf-image-' . self::kebabCase($name)] = (string) $value;
+        }
+
+        return [
+            'metadata' => array_map(static fn (mixed $value): string => (string) $value, $metadata),
+            'attributes' => $attributes,
+        ];
     }
 
     private function frameObjectMathNode(\DOMElement $frame, ?ZipPackage $package): ?AstNode

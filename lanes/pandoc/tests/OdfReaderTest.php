@@ -3797,6 +3797,50 @@ XML;
         $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" width="2.5cm" height="1.25cm"/>', $blocksHtml);
         $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" width="5cm" height="3cm"/>', $blocksHtml);
     },
+    'preserves ODT frame image xlink metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithLinkedImage = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Linked <draw:frame draw:name="Linked hero" svg:width="4cm"><draw:image xlink:href="Pictures/hero.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"><svg:title>Linked hero title</svg:title><svg:desc>Linked hero alt</svg:desc></draw:image></draw:frame> image.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithLinkedImage));
+        $paragraph = $result['document']->children[0];
+        $image = $paragraph->children[1];
+        $metadata = $image->attr('odfImageMetadata');
+        $attributes = $image->attr('attributes');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Linked Linked hero alt image.', $paragraph->attr('text'));
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png', $image->attr('url'));
+        $t->same('Linked hero alt', $image->attr('alt'));
+        $t->same('Linked hero title', $image->attr('title'));
+        $t->same('4cm', $image->attr('width'));
+        $t->same([
+            'xlinkType' => 'simple',
+            'xlinkShow' => 'embed',
+            'xlinkActuate' => 'onLoad',
+        ], $metadata);
+        $t->same('4cm', $attributes['width']);
+        $t->same('simple', $attributes['data-odf-image-xlink-type']);
+        $t->same('embed', $attributes['data-odf-image-xlink-show']);
+        $t->same('onLoad', $attributes['data-odf-image-xlink-actuate']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('![Linked hero alt](Pictures/hero.png "Linked hero title"){width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"}', $markdown);
+        $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);
