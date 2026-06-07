@@ -2145,6 +2145,9 @@ final class MarkerAppPreview
         if ($dict === null) {
             return null;
         }
+        if ($this->pageLabelDictionaryHasNumberTreeKeys($dict)) {
+            return null;
+        }
 
         $styleValue = $this->resolvedPageLabelValueAfterName($dict, 'S', $objects, $seen);
         $style = null;
@@ -2173,6 +2176,17 @@ final class MarkerAppPreview
             'style' => $style,
             'start' => $start,
         ];
+    }
+
+    private function pageLabelDictionaryHasNumberTreeKeys(string $dict): bool
+    {
+        foreach (['Nums', 'Kids', 'Limits'] as $name) {
+            if ($this->valueAfterName($dict, $name) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function pageLabelDictionaryToken(string $value): ?string

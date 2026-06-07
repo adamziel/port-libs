@@ -13999,6 +13999,9 @@ final class PdfTextExtractor
             if ($labelDictionary === null) {
                 continue;
             }
+            if ($this->pageLabelDictionaryHasNumberTreeKeys($labelDictionary)) {
+                continue;
+            }
 
             if (
                 $pageIndex < 0
@@ -14402,6 +14405,17 @@ final class PdfTextExtractor
         }
 
         return $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name);
+    }
+
+    private function pageLabelDictionaryHasNumberTreeKeys(string $dictionary): bool
+    {
+        foreach (['Nums', 'Kids', 'Limits'] as $name) {
+            if ($this->pageLabelTopLevelValueAfterName($dictionary, $name) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
