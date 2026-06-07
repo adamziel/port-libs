@@ -1294,7 +1294,7 @@ final class PdfOutlineExtractor
                 }
 
                 $previousSiblingObject = $current;
-                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
                 continue;
             }
 
@@ -1422,7 +1422,7 @@ final class PdfOutlineExtractor
 
             if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->outlineActionReviewRows(
-                    $dict['First'] ?? null,
+                    $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
                     $pageIndexes,
                     $destinations,
@@ -1432,7 +1432,7 @@ final class PdfOutlineExtractor
                     $pageReviewsByPage,
                     $taggedContentByPage,
                     $current,
-                    $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects),
+                    $this->outlineTraversalReferenceObjectNumber($dict, 'Last', $objects, $current),
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -1446,10 +1446,135 @@ final class PdfOutlineExtractor
             }
 
             $previousSiblingObject = $current;
-            $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+            $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     */
+    private function outlineTraversalReferenceValue(array $outline, string $key, ?int $outlineObject): mixed
+    {
+        if ($outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, $key)) {
+            return null;
+        }
+
+        return $outline[$key] ?? null;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     */
+    private function outlineTraversalReferenceObjectNumber(
+        array $outline,
+        string $key,
+        array $objects,
+        ?int $outlineObject
+    ): ?int {
+        return $this->validReferenceObjectNumber(
+            $this->outlineTraversalReferenceValue($outline, $key, $outlineObject),
+            $objects
+        );
+    }
+
+    private function outlineObjectDictionaryKeyHasTrailingOperands(int $objectNumber, string $key): bool
+    {
+        $tokens = $this->tokens($this->objectBodies[$objectNumber] ?? '');
+        if (($tokens[0] ?? null) !== '<<') {
+            return false;
+        }
+
+        $selectedHasTrailingOperands = false;
+        $found = false;
+        $index = 1;
+        $count = count($tokens);
+        while ($index < $count && ($tokens[$index] ?? null) !== '>>') {
+            $token = $tokens[$index] ?? null;
+            if (!is_string($token) || !str_starts_with($token, '/')) {
+                $index++;
+                continue;
+            }
+
+            $decodedKey = $this->decodePdfName(substr($token, 1));
+            $index++;
+            $valueEnd = $this->pdfTokenValueEndOffset($tokens, $index);
+            if ($decodedKey === $key) {
+                $found = true;
+                $selectedHasTrailingOperands = $this->dictionaryTokensHaveTrailingOperandsBeforeNextKey($tokens, $valueEnd);
+            }
+            $index = $valueEnd;
+        }
+
+        return $found && $selectedHasTrailingOperands;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function dictionaryTokensHaveTrailingOperandsBeforeNextKey(array $tokens, int $offset): bool
+    {
+        for ($count = count($tokens); $offset < $count;) {
+            $token = $tokens[$offset] ?? null;
+            if ($token === null || $token === '>>') {
+                return false;
+            }
+            if (is_string($token) && str_starts_with($token, '/')) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function pdfTokenValueEndOffset(array $tokens, int $index): int
+    {
+        $token = $tokens[$index] ?? null;
+        if ($token === null) {
+            return $index;
+        }
+
+        if ($token === '<<') {
+            $index++;
+            $count = count($tokens);
+            while ($index < $count && ($tokens[$index] ?? null) !== '>>') {
+                $key = $tokens[$index] ?? null;
+                $index++;
+                if (!is_string($key) || !str_starts_with($key, '/')) {
+                    continue;
+                }
+                $index = $this->pdfTokenValueEndOffset($tokens, $index);
+            }
+
+            return ($tokens[$index] ?? null) === '>>' ? $index + 1 : $index;
+        }
+
+        if ($token === '[') {
+            $index++;
+            $count = count($tokens);
+            while ($index < $count && ($tokens[$index] ?? null) !== ']') {
+                $index = $this->pdfTokenValueEndOffset($tokens, $index);
+            }
+
+            return ($tokens[$index] ?? null) === ']' ? $index + 1 : $index;
+        }
+
+        if (
+            preg_match('/^[+-]?\d+$/', (string) $token) === 1
+            && preg_match('/^[+-]?\d+$/', (string) ($tokens[$index + 1] ?? '')) === 1
+            && ($tokens[$index + 2] ?? null) === 'R'
+        ) {
+            return $index + 3;
+        }
+
+        return $index + 1;
     }
 
     /**
@@ -3897,7 +4022,7 @@ final class PdfOutlineExtractor
                 }
 
                 $previousSiblingObject = $current;
-                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
                 continue;
             }
 
@@ -3913,7 +4038,17 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
-                foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->outlineItems(
+                    $this->outlineTraversalReferenceValue($dict, 'First', $current),
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $current,
+                    $this->outlineTraversalReferenceObjectNumber($dict, 'Last', $objects, $current),
+                    $maxDepth,
+                    $level + 1,
+                    $seen
+                ) as $child) {
                     $items[] = $child;
                 }
             }
@@ -3923,7 +4058,7 @@ final class PdfOutlineExtractor
             }
 
             $previousSiblingObject = $current;
-            $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+            $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
         }
 
         return $items;
@@ -3988,7 +4123,7 @@ final class PdfOutlineExtractor
                 }
 
                 $previousSiblingObject = $current;
-                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
                 continue;
             }
 
@@ -4013,7 +4148,17 @@ final class PdfOutlineExtractor
             }
 
             if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
-                foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->outlineItemsWithDestinationViews(
+                    $this->outlineTraversalReferenceValue($dict, 'First', $current),
+                    $objects,
+                    $pageIndexes,
+                    $destinations,
+                    $current,
+                    $this->outlineTraversalReferenceObjectNumber($dict, 'Last', $objects, $current),
+                    $maxDepth,
+                    $level + 1,
+                    $seen
+                ) as $child) {
                     $items[] = $child;
                 }
             }
@@ -4023,7 +4168,7 @@ final class PdfOutlineExtractor
             }
 
             $previousSiblingObject = $current;
-            $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+            $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
         }
 
         return $items;
@@ -4094,7 +4239,7 @@ final class PdfOutlineExtractor
                 }
 
                 $previousSiblingObject = $current;
-                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
                 continue;
             }
 
@@ -4152,7 +4297,7 @@ final class PdfOutlineExtractor
 
             if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
-                    $dict['First'] ?? null,
+                    $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
                     $pageIndexes,
                     $pageObjectsByIndex,
@@ -4164,7 +4309,7 @@ final class PdfOutlineExtractor
                     $pageReviewsByPage,
                     $taggedContentByPage,
                     $current,
-                    $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects),
+                    $this->outlineTraversalReferenceObjectNumber($dict, 'Last', $objects, $current),
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -4178,7 +4323,7 @@ final class PdfOutlineExtractor
             }
 
             $previousSiblingObject = $current;
-            $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+            $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
         }
 
         return $items;
@@ -4534,7 +4679,7 @@ final class PdfOutlineExtractor
                 }
 
                 $previousSiblingObject = $current;
-                $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+                $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
                 continue;
             }
 
@@ -4558,11 +4703,11 @@ final class PdfOutlineExtractor
 
             if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->remoteGoToOutlineItems(
-                    $dict['First'] ?? null,
+                    $this->outlineTraversalReferenceValue($dict, 'First', $current),
                     $objects,
                     $destinations,
                     $current,
-                    $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects),
+                    $this->outlineTraversalReferenceObjectNumber($dict, 'Last', $objects, $current),
                     $maxDepth,
                     $level + 1,
                     $seen,
@@ -4577,7 +4722,7 @@ final class PdfOutlineExtractor
             }
 
             $previousSiblingObject = $current;
-            $current = $this->validReferenceObjectNumber($dict['Next'] ?? null, $objects);
+            $current = $this->outlineTraversalReferenceObjectNumber($dict, 'Next', $objects, $current);
         }
 
         return $items;

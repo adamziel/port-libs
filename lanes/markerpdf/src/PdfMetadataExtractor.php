@@ -4285,14 +4285,14 @@ final class PdfMetadataExtractor
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $items = $this->documentOutlineRootAllowsItemTraversal($outlineRoot['body'], $objects)
             ? $this->documentOutlineItemMetadataRows(
-                $this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First'),
+                $this->documentOutlineReferenceValue($outlineRoot['body'], 'First'),
                 $objects,
                 $pageIndexes,
                 $pageLabels,
                 $destinationsByName,
                 $structureContext,
                 $outlineRoot['object'],
-                $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last'), $objects),
+                $this->documentOutlineReferenceObjectNumber($outlineRoot['body'], 'Last', $objects),
                 15
             )
             : [];
@@ -5084,7 +5084,7 @@ final class PdfMetadataExtractor
                 }
 
                 $previousSiblingObject = $current;
-                $current = $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next'), $objects);
+                $current = $this->documentOutlineReferenceObjectNumber($dictionary, 'Next', $objects);
                 continue;
             }
 
@@ -5102,14 +5102,14 @@ final class PdfMetadataExtractor
 
             if ($this->documentOutlineItemAllowsChildTraversal($dictionary, $objects)) {
                 foreach ($this->documentOutlineItemMetadataRows(
-                    $this->dictionaryTopLevelRawValue($dictionary, 'First'),
+                    $this->documentOutlineReferenceValue($dictionary, 'First'),
                     $objects,
                     $pageIndexes,
                     $pageLabels,
                     $destinationsByName,
                     $structureContext,
                     $current,
-                    $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
+                    $this->documentOutlineReferenceObjectNumber($dictionary, 'Last', $objects),
                     $maxDepth,
                     $level + 1,
                     $seen
@@ -5123,14 +5123,80 @@ final class PdfMetadataExtractor
             }
 
             $previousSiblingObject = $current;
-            $current = $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Next'), $objects);
+            $current = $this->documentOutlineReferenceObjectNumber($dictionary, 'Next', $objects);
         }
 
         return $items;
     }
 
+    private function documentOutlineReferenceValue(string $dictionary, string $key): ?string
+    {
+        if ($this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, $key)) {
+            return null;
+        }
+
+        return $this->dictionaryTopLevelRawValue($dictionary, $key);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function documentOutlineReferenceObjectNumber(string $dictionary, string $key, array $objects): ?int
+    {
+        return $this->validObjectNumberFromReference(
+            $this->documentOutlineReferenceValue($dictionary, $key),
+            $objects
+        );
+    }
+
+    private function dictionaryTopLevelSelectedValueHasTrailingOperands(string $dictionary, string $key): bool
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $selectedHasTrailingOperands = false;
+        $found = false;
+
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $afterValue = $valueOffset + strlen($value);
+            if ($this->decodePdfName($match[1]) === $key) {
+                $found = true;
+                $selectedHasTrailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue) !== [];
+            }
+
+            $offset = $afterValue;
+        }
+
+        return $found && $selectedHasTrailingOperands;
+    }
+
     private function documentOutlineItemParentMatches(string $dictionary, array $objects, ?int $expectedParentObject): bool
     {
+        if ($this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Parent')) {
+            return false;
+        }
+
         $parentValue = $this->dictionaryTopLevelRawValue($dictionary, 'Parent');
         if ($expectedParentObject === null) {
             return $parentValue === null;
@@ -5168,6 +5234,10 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineItemPrevMatches(string $dictionary, array $objects, ?int $previousSiblingObject): bool
     {
+        if ($this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Prev')) {
+            return false;
+        }
+
         $prevValue = $this->dictionaryTopLevelRawValue($dictionary, 'Prev');
         if ($prevValue === null) {
             return true;
