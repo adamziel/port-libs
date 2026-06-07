@@ -6119,6 +6119,8 @@ final class PdfSecurityPreflight
                         $reasons[] = 'permission_word_unresolved_reference';
                     } elseif (in_array('permission_word_composite_operand_review', $entryStatuses, true)) {
                         $reasons[] = 'permission_word_composite_operand';
+                    } elseif (in_array('permission_word_trailing_operand_review', $entryStatuses, true)) {
+                        $reasons[] = 'permission_word_trailing_operand';
                     } elseif (in_array('permission_word_non_integer_review', $entryStatuses, true)) {
                         $reasons[] = 'permission_word_non_integer';
                     } else {

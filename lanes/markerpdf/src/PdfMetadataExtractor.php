@@ -8699,8 +8699,10 @@ final class PdfMetadataExtractor
         $entries = [];
         foreach ($values as $index => $value) {
             $resolved = $this->resolvePdfValue($value, $objects);
-            $valueForReview = $this->firstPdfValueToken($resolved ?? $value);
+            $resolvedValue = $resolved ?? $value;
+            $valueForReview = $this->firstPdfValueToken($resolvedValue);
             $operandShape = $this->standardPermissionWordOperandShape($valueForReview);
+            $singleValue = $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
             $entry = [
                 'source' => 'standard_permission_word_entry_review',
                 'index' => $index,
@@ -8709,8 +8711,17 @@ final class PdfMetadataExtractor
                 'resolved' => $resolved !== null,
                 'operand_shape' => $operandShape,
                 'integer' => false,
+                'single_value' => $singleValue,
                 'review_only' => true,
             ];
+
+            if ($valueForReview !== '' && !$singleValue) {
+                $trailingOperandReview = $this->standardPermissionWordTrailingOperandReview($resolvedValue, $valueForReview);
+                $entries[] = array_merge($entry, $trailingOperandReview, [
+                    'status' => 'permission_word_trailing_operand_review',
+                ]);
+                continue;
+            }
 
             if (preg_match('/^[+-]?\d+$/', $valueForReview) !== 1) {
                 $entries[] = $entry + [
@@ -18598,12 +18609,12 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        $value = $this->firstPdfValueToken($value);
-        if (preg_match('/^[+-]?\d+$/', $value) !== 1) {
+        $token = $this->firstPdfValueToken($value);
+        if (!$this->pdfValueIsSingleToken($value, $token) || preg_match('/^[+-]?\d+$/', $token) !== 1) {
             return null;
         }
 
-        return (int) $value;
+        return (int) $token;
     }
 
     /**
@@ -18860,6 +18871,39 @@ final class PdfMetadataExtractor
         }
 
         return $this->readPdfValueAt($trimmed, 0) ?? $trimmed;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function standardPermissionWordTrailingOperandReview(string $value, string $firstToken): array
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        $after = $this->skipPdfWhitespace($value, $offset + strlen($firstToken));
+        $operand = $after < strlen($value) ? $this->readPdfValueAt($value, $after) : null;
+        if ($operand === null || $operand === '') {
+            return [
+                'trailing_operand' => true,
+                'trailing_operand_shape' => 'malformed',
+                'trailing_operand_preview' => 'malformed_top_level_token',
+            ];
+        }
+
+        $shape = $this->metadataStreamFilterOperandTokenType($operand);
+        $review = [
+            'trailing_operand' => true,
+            'trailing_operand_shape' => $shape,
+            'trailing_operand_preview' => $this->metadataStreamFilterOperandPreview($operand),
+        ];
+
+        if ($shape === 'name') {
+            $name = $this->nameValueAt($operand, 0);
+            if ($name !== null) {
+                $review['trailing_operand_name'] = $name;
+            }
+        }
+
+        return $review;
     }
 
     private function dictionaryStringValue(string $dictionary, string $key): ?string
