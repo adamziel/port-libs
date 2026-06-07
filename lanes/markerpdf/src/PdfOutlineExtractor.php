@@ -1179,6 +1179,7 @@ final class PdfOutlineExtractor
                 'structure_element_page_object',
                 'structure_element_mcids',
                 'structure_element_associated_file_count',
+                'structure_element_boundary_review',
                 'metadata_stream_review',
             ] as $key) {
                 if (array_key_exists($key, $item)) {

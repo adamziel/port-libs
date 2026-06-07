@@ -4542,8 +4542,28 @@ final class PdfMetadataExtractor
         $rawRoles = [];
         $mcids = [];
         $associatedFileCount = 0;
+        $boundaryReviewCount = 0;
+        $boundaryStatuses = [];
+        $boundaryObjects = [];
+        $boundaryTrailingObjects = [];
 
         foreach ($items as $item) {
+            $boundaryReview = $item['structure_element_boundary_review'] ?? null;
+            if (is_array($boundaryReview)) {
+                $boundaryReviewCount++;
+                if (is_string($boundaryReview['status'] ?? null) && $boundaryReview['status'] !== '') {
+                    $boundaryStatuses[] = $boundaryReview['status'];
+                }
+                if (is_int($boundaryReview['object_number'] ?? null)) {
+                    $boundaryObjects[] = $boundaryReview['object_number'];
+                }
+                foreach (($boundaryReview['trailing_reference_object_numbers'] ?? []) as $objectNumber) {
+                    if (is_int($objectNumber)) {
+                        $boundaryTrailingObjects[] = $objectNumber;
+                    }
+                }
+            }
+
             $structure = $item['structure_element'] ?? null;
             if (!is_array($structure)) {
                 continue;
@@ -4576,18 +4596,30 @@ final class PdfMetadataExtractor
             }
         }
 
-        if ($objects === [] && $roles === [] && $rawRoles === [] && $mcids === [] && $associatedFileCount === 0) {
+        if (
+            $objects === []
+            && $roles === []
+            && $rawRoles === []
+            && $mcids === []
+            && $associatedFileCount === 0
+            && $boundaryReviewCount === 0
+        ) {
             return [];
         }
 
-        $summary = [
-            'structure_element_count' => count(array_filter(
-                $items,
-                static fn (array $item): bool => is_array($item['structure_element'] ?? null)
-            )),
-            'structure_element_review_only' => true,
-            'structure_element_payload_included' => false,
-        ];
+        $structureElementCount = count(array_filter(
+            $items,
+            static fn (array $item): bool => is_array($item['structure_element'] ?? null)
+        ));
+
+        $summary = [];
+        if ($structureElementCount > 0) {
+            $summary = [
+                'structure_element_count' => $structureElementCount,
+                'structure_element_review_only' => true,
+                'structure_element_payload_included' => false,
+            ];
+        }
 
         if ($objects !== []) {
             $summary['structure_element_objects'] = array_values(array_unique($objects));
@@ -4603,6 +4635,20 @@ final class PdfMetadataExtractor
         }
         if ($associatedFileCount > 0) {
             $summary['structure_element_associated_file_count'] = $associatedFileCount;
+        }
+        if ($boundaryReviewCount > 0) {
+            $summary['structure_element_boundary_review_count'] = $boundaryReviewCount;
+            $summary['structure_element_boundary_review_only'] = true;
+            $summary['structure_element_boundary_payload_included'] = false;
+            if ($boundaryStatuses !== []) {
+                $summary['structure_element_boundary_statuses'] = $this->uniqueStrings($boundaryStatuses);
+            }
+            if ($boundaryObjects !== []) {
+                $summary['structure_element_boundary_objects'] = $this->uniqueIntegers($boundaryObjects);
+            }
+            if ($boundaryTrailingObjects !== []) {
+                $summary['structure_element_boundary_trailing_reference_objects'] = $this->uniqueIntegers($boundaryTrailingObjects);
+            }
         }
 
         return $summary;
@@ -5291,26 +5337,32 @@ final class PdfMetadataExtractor
             $row[$key] = $value;
         }
 
-        $structureElement = $this->documentOutlineItemStructureElementMetadata(
-            $this->dictionaryTopLevelRawValue($dictionary, 'SE'),
-            $objects,
-            $pageIndexes,
-            $structureContext
-        );
-        if ($structureElement !== []) {
-            $row['structure_element'] = $structureElement;
-            foreach ([
-                'object' => 'structure_element_object',
-                'raw_role' => 'structure_element_raw_role',
-                'role' => 'structure_element_role',
-                'page' => 'structure_element_page',
-                'page_number' => 'structure_element_page_number',
-                'page_object' => 'structure_element_page_object',
-                'mcids' => 'structure_element_mcids',
-                'associated_file_count' => 'structure_element_associated_file_count',
-            ] as $sourceKey => $targetKey) {
-                if (array_key_exists($sourceKey, $structureElement)) {
-                    $row[$targetKey] = $structureElement[$sourceKey];
+        $structureElementValue = $this->dictionaryTopLevelRawValue($dictionary, 'SE');
+        $structureElementBoundaryReview = $this->documentOutlineStructureElementMalformedOperandReview($dictionary);
+        if ($structureElementBoundaryReview !== []) {
+            $row['structure_element_boundary_review'] = $structureElementBoundaryReview;
+        } else {
+            $structureElement = $this->documentOutlineItemStructureElementMetadata(
+                $structureElementValue,
+                $objects,
+                $pageIndexes,
+                $structureContext
+            );
+            if ($structureElement !== []) {
+                $row['structure_element'] = $structureElement;
+                foreach ([
+                    'object' => 'structure_element_object',
+                    'raw_role' => 'structure_element_raw_role',
+                    'role' => 'structure_element_role',
+                    'page' => 'structure_element_page',
+                    'page_number' => 'structure_element_page_number',
+                    'page_object' => 'structure_element_page_object',
+                    'mcids' => 'structure_element_mcids',
+                    'associated_file_count' => 'structure_element_associated_file_count',
+                ] as $sourceKey => $targetKey) {
+                    if (array_key_exists($sourceKey, $structureElement)) {
+                        $row[$targetKey] = $structureElement[$sourceKey];
+                    }
                 }
             }
         }
@@ -6199,6 +6251,97 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * Outline item /SE is a single structure-element association. Extra
+     * top-level operands before the next dictionary key are ambiguous and must
+     * not silently promote the first referenced StructElem into document or
+     * navigation metadata.
+     *
+     * @return array<string, mixed>
+     */
+    private function documentOutlineStructureElementMalformedOperandReview(string $dictionary): array
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $structureElementEntryIndex = 0;
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $key = $this->decodePdfName($match[1]);
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $afterValue = $valueOffset + strlen($value);
+            if ($key !== 'SE') {
+                $offset = $afterValue;
+                continue;
+            }
+
+            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            if ($trailingOperands === []) {
+                $structureElementEntryIndex++;
+                $offset = $afterValue;
+                continue;
+            }
+
+            $review = [
+                'source' => 'outline_item_structure_element_boundary',
+                'review_only' => true,
+                'payload_included' => false,
+                'visible_text_source' => false,
+                'structure_element_promoted' => false,
+                'status' => 'rejected_malformed_outline_item_structure_element_operand',
+                'structure_element_entry_count' => count($this->dictionaryTopLevelRawValues($dictionary, 'SE')),
+                'selected_entry_index' => $structureElementEntryIndex,
+                'structure_element_operand_count' => 1 + count($trailingOperands),
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+            ];
+
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null) {
+                $review['object_number'] = $reference['objectNumber'];
+                $review['object_generation'] = $reference['generation'];
+            }
+
+            $trailingObjectNumbers = [];
+            $trailingOperandShapes = [];
+            foreach ($trailingOperands as $operand) {
+                $trailingOperandShapes[] = $this->outlineMetadataReferenceOperandShape($operand);
+                $reference = $this->objectReferenceFromValue($operand);
+                if ($reference !== null) {
+                    $trailingObjectNumbers[] = $reference['objectNumber'];
+                }
+            }
+            if ($trailingObjectNumbers !== []) {
+                $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
+            }
+            if ($trailingOperandShapes !== []) {
+                $review['trailing_operand_shapes'] = $this->uniqueStrings($trailingOperandShapes);
+            }
+
+            return $review;
+        }
+
+        return [];
     }
 
     /**
