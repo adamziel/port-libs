@@ -7,6 +7,7 @@ namespace PortLibs\MarkerPDF;
 final class PdfPageArtifactSelector
 {
     private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
+    private const ENVELOPE_PAGE_KEY_MARKER = '__markerpdf_envelope_page_key_marker';
     private const MISSING_PAGE_ARTIFACT = '__markerpdf_missing_page_artifact';
     private const PAGE_MARKER_METADATA_WRAPPERS = [
         'metadata',
@@ -268,6 +269,10 @@ final class PdfPageArtifactSelector
             if ($singleKeyedPayload !== null) {
                 return self::hasPotentialPageMarker($value) ? null : [$singleKeyedPayload];
             }
+            $keyedArtifacts = self::keyedEnvelopeArtifacts($artifacts);
+            if ($keyedArtifacts !== null) {
+                return $keyedArtifacts;
+            }
 
             return array_values($artifacts);
         }
@@ -339,6 +344,50 @@ final class PdfPageArtifactSelector
     }
 
     /**
+     * Some native caches serialize a full source-page object map under a
+     * pdftext-shaped envelope. Keep the key as selector-only page identity so
+     * selected pages can be aligned without copying stale payloads downstream.
+     *
+     * @param array<mixed> $value
+     * @return list<mixed>|null
+     */
+    private static function keyedEnvelopeArtifacts(array $value): ?array
+    {
+        if (array_is_list($value) || self::hasDirectArtifactPayload($value)) {
+            return null;
+        }
+
+        $artifacts = [];
+        foreach ($value as $key => $candidate) {
+            $pageKey = self::integerArrayKey($key);
+            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate)) {
+                return null;
+            }
+
+            if (!self::hasPotentialPageMarker($candidate)) {
+                $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+            }
+            $artifacts[] = $candidate;
+        }
+
+        return count($artifacts) > 1 ? $artifacts : null;
+    }
+
+    private static function integerArrayKey(int|string $key): ?int
+    {
+        if (is_int($key)) {
+            return $key;
+        }
+
+        $trimmed = trim($key);
+        if (preg_match('/^[+-]?\d+$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        return (int) $trimmed;
+    }
+
+    /**
      * @param array<mixed> $value
      */
     private static function hasPotentialPageMarker(array $value, int $depth = 0): bool
@@ -380,7 +429,7 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>, malformed_page_markers?: list<int>}
+     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, envelope_page_keys?: list<int>, ambiguous_wrapper_lists?: list<int>, malformed_page_markers?: list<int>}
      */
     private function pageMarkers(array $artifact): array
     {
@@ -412,6 +461,11 @@ final class PdfPageArtifactSelector
         $selectedPageNumbers = $this->integerFieldsFromSources($sources, ['selected_page_number', 'selected_page_numbers', 'trimmed_page_number', 'trimmed_page_numbers', 'relative_page_number', 'relative_page_numbers', 'selected_page_num', 'selected_page_nums', 'trimmed_page_num', 'trimmed_page_nums', 'relative_page_num', 'relative_page_nums']);
         if ($selectedPageNumbers !== []) {
             $markers['selected_page_numbers'] = $selectedPageNumbers;
+        }
+
+        $envelopePageKeys = $this->integerFieldsFromSources($sources, [self::ENVELOPE_PAGE_KEY_MARKER]);
+        if ($envelopePageKeys !== []) {
+            $markers['envelope_page_keys'] = $envelopePageKeys;
         }
 
         if ($hasMalformedMarker) {
@@ -593,7 +647,7 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>, malformed_page_markers?: list<int>} $markers
+     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, envelope_page_keys?: list<int>, ambiguous_wrapper_lists?: list<int>, malformed_page_markers?: list<int>} $markers
      */
     private function pageMarkerMatchScore(array $markers, int $sourceIndex, ?int $pageNumber, int $selectedIndex): ?int
     {
@@ -646,6 +700,18 @@ final class PdfPageArtifactSelector
         }
         if (($markers['selected_page_numbers'] ?? []) !== []) {
             $score += 30;
+        }
+
+        foreach ($markers['envelope_page_keys'] ?? [] as $marker) {
+            if (
+                $marker !== $sourceIndex
+                && ($pageNumber === null || ($marker !== $pageNumber && $marker !== $pageNumber + 1))
+            ) {
+                return null;
+            }
+        }
+        if (($markers['envelope_page_keys'] ?? []) !== []) {
+            $score += 90;
         }
 
         return $markers !== [] ? $score : null;

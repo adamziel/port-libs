@@ -4089,4 +4089,77 @@ return [
         $t->true(!str_contains($encoded, 'keyed direct order payload'));
         $t->true(!str_contains($encoded, 'keyed direct order envelope payload'));
     },
+    'uses source-page keyed dictionary-output maps before selected pdftext order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5400, [
+                    ['text' => 'Source-key map cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5401, [
+                    ['text' => 'Second source-key map column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First source-key map column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'dictionary_output' => [
+                        '5401' => [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'source-key selected left row payload must stay hidden'],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                            'raw_payload' => 'source-key selected order payload must stay hidden',
+                        ],
+                        '5400' => [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ],
+                            'raw_payload' => 'source-key stale order payload must stay hidden',
+                        ],
+                    ],
+                    'raw_payload' => 'source-key dictionary-output wrapper payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                [
+                    'dictionary_output' => [
+                        '5401' => ['image' => 'source-key-selected-order-render'],
+                        '5400' => ['image' => 'source-key-stale-order-render'],
+                    ],
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5401, $result['pages'][0]['pnum']);
+        $t->same(['First source-key map column', 'Second source-key map column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First source-key map column Second source-key map column', $blocks[0]['text']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $order['image_bbox'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!array_key_exists('dictionary_output', $order));
+        $t->true(!str_contains($encoded, '__markerpdf_envelope_page_key_marker'));
+        $t->true(!str_contains($encoded, 'Source-key map cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'source-key selected order payload'));
+        $t->true(!str_contains($encoded, 'source-key selected left row payload'));
+        $t->true(!str_contains($encoded, 'source-key stale order payload'));
+        $t->true(!str_contains($encoded, 'source-key dictionary-output wrapper payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
