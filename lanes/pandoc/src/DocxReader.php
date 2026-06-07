@@ -5692,7 +5692,7 @@ final class DocxReader
                 $gridColumn += $colspan;
             }
 
-            $rows[] = new AstNode('table_row', [], $cells);
+            $rows[] = new AstNode('table_row', $this->tableRowAttrs($rowElement), $cells);
         }
 
         return TableGeometry::withReviewPacket(new AstNode('table', $this->tableAttrs($table), [
@@ -5747,6 +5747,42 @@ final class DocxReader
         $value = trim($value);
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function tableRowAttrs(\DOMElement $row): array
+    {
+        $properties = $this->firstChildElement($row, self::WORDPROCESSINGML_NS, 'trPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $classes = [];
+        $attributes = [];
+
+        $header = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblHeader');
+        if ($header instanceof \DOMElement && $this->onOffWordAttr($header, 'val', true)) {
+            $classes[] = 'docx-table-row-repeat-header';
+            $attributes['data-docx-table-row-repeat-header'] = 'true';
+        }
+
+        $cantSplit = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'cantSplit');
+        if ($cantSplit instanceof \DOMElement && $this->onOffWordAttr($cantSplit, 'val', true)) {
+            $classes[] = 'docx-table-row-cant-split';
+            $attributes['data-docx-table-row-cant-split'] = 'true';
+        }
+
+        if ($attributes === []) {
+            return [];
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+            'htmlAttributes' => $attributes,
+        ];
     }
 
     /**

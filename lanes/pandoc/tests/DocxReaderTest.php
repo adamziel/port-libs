@@ -767,6 +767,30 @@ $tableCellShadingDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableRowPropertiesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:trPr><w:tblHeader/><w:cantSplit w:val="false"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Reviewer field</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:cantSplit/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Long source note</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Keep with row</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:tblHeader w:val="off"/><w:cantSplit w:val="0"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Plain continuation</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Can split</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $notesContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2422,6 +2446,14 @@ $buildTableCellShadingPackage = static function () use ($contentTypesXml, $packa
     ]);
 };
 
+$buildTableRowPropertiesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableRowPropertiesDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableRowPropertiesDocumentXml],
+    ]);
+};
+
 $buildNotesPackage = static function () use (
     $notesContentTypesXml,
     $packageRelationshipsXml,
@@ -3692,6 +3724,46 @@ return [
         $t->contains('<td class="docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" style="background-color:#D9EAF7"><p>Highlighted source cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-shading docx-cell-shading-pct15" data-docx-cell-shading-val="pct15" data-docx-cell-shading-theme-fill="accent2" data-docx-cell-shading-theme-fill-tint="66" data-docx-cell-shading-theme-color="text1"><p>Theme shaded review cell</p></td>', $blocks);
         $t->contains('<td><p>No shading fallback</p></td><td><p>Plain cell</p></td>', $blocks);
+    },
+    'preserves DOCX table row repeat-header and cant-split metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableRowPropertiesPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableRowPropertiesPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $repeatHeader = $body->children[0];
+        $cantSplit = $body->children[1];
+        $plain = $body->children[2];
+
+        $t->same(['docx-table-row-repeat-header'], $repeatHeader->attr('classes'));
+        $t->same('true', $repeatHeader->attr('attributes')['data-docx-table-row-repeat-header']);
+        $t->same('true', $repeatHeader->attr('htmlAttributes')['data-docx-table-row-repeat-header']);
+        $t->true(!isset($repeatHeader->attr('attributes', [])['data-docx-table-row-cant-split']), 'Explicit false cantSplit should not create DOCX row metadata');
+
+        $t->same(['docx-table-row-cant-split'], $cantSplit->attr('classes'));
+        $t->same('true', $cantSplit->attr('attributes')['data-docx-table-row-cant-split']);
+        $t->same('true', $cantSplit->attr('htmlAttributes')['data-docx-table-row-cant-split']);
+
+        $t->true(!isset($plain->attr('attributes', [])['data-docx-table-row-repeat-header']), 'Explicit off tblHeader should not create DOCX row metadata');
+        $t->true(!isset($plain->attr('attributes', [])['data-docx-table-row-cant-split']), 'Explicit 0 cantSplit should not create DOCX row metadata');
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('true', $geometry['sections'][0]['rows'][0]['sourceAttributes']['attributes']['data-docx-table-row-repeat-header'] ?? null);
+        $t->same(['docx-table-row-repeat-header'], $geometry['sections'][0]['rows'][0]['sourceAttributes']['classes'] ?? null);
+        $t->same('true', $geometry['sections'][0]['rows'][1]['sourceAttributes']['attributes']['data-docx-table-row-cant-split'] ?? null);
+        $t->true(!isset($geometry['sections'][0]['rows'][2]['sourceAttributes']), 'Disabled DOCX row properties should not appear in the geometry source-attribute packet');
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Reviewer field | Status |', $normalizedMarkdown);
+        $t->contains('| Long source note | Keep with row |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-row'), 'Pipe-table Markdown handoff should not leak DOCX table-row metadata');
+        $t->contains('<tr class="docx-table-row-repeat-header" data-docx-table-row-repeat-header="true"><td><p>Reviewer field</p></td><td><p>Status</p></td></tr>', $blocks);
+        $t->contains('<tr class="docx-table-row-cant-split" data-docx-table-row-cant-split="true"><td><p>Long source note</p></td><td><p>Keep with row</p></td></tr>', $blocks);
+        $t->contains('<tr><td><p>Plain continuation</p></td><td><p>Can split</p></td></tr>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

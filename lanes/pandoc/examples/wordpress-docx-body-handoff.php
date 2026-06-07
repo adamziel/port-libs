@@ -572,6 +572,7 @@ XML],
         <w:tblDescription w:val="Reviewer summary table from the source DOCX package."/>
       </w:tblPr>
       <w:tr>
+        <w:trPr><w:tblHeader/></w:trPr>
         <w:tc>
           <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/><w:vAlign w:val="center"/><w:shd w:val="clear" w:fill="D9EAF7" w:color="auto"/></w:tcPr>
           <w:p><w:r><w:t>Review scope</w:t></w:r></w:p>
@@ -586,6 +587,7 @@ XML],
         <w:tc><w:p><w:r><w:t>Ready</w:t></w:r></w:p></w:tc>
       </w:tr>
       <w:tr>
+        <w:trPr><w:cantSplit/></w:trPr>
         <w:tc><w:p><w:r><w:t>Owner</w:t></w:r></w:p></w:tc>
         <w:tc>
           <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
@@ -1180,7 +1182,9 @@ if (($argv[1] ?? '') === '--self-test') {
         'data-docx-target-part="/word/embeddings/source-audit.xlsx"',
         'DOCX embedded package: Source audit package</span>',
         '<table class="docx-table-metadata" aria-description="Reviewer summary table from the source DOCX package." data-docx-table-description="Reviewer summary table from the source DOCX package.">',
+        '<tr class="docx-table-row-repeat-header" data-docx-table-row-repeat-header="true">',
         '<td class="docx-cell-vertical-align docx-cell-vertical-align-center docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" valign="middle" data-docx-cell-vertical-align="center" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" colspan="2" rowspan="2" style="background-color:#D9EAF7"><p>Review scope</p></td><td><p>Status</p></td>',
+        '<tr class="docx-table-row-cant-split" data-docx-table-row-cant-split="true">',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         '<figcaption class="wp-element-caption">DOCX review table</figcaption>',
         '<span class="docx-reference-marker docx-footnote-reference-marker" data-docx-reference-marker="footnote">DOCX footnote reference marker</span> DOCX footnote import note.<br/>Second footnote marker line.',
