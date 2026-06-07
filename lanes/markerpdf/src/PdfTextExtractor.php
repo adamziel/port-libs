@@ -32945,6 +32945,12 @@ final class PdfTextExtractor
                 } elseif ($mappingBlock['declaredCount'] !== null) {
                     $entries = array_slice($entries, 0, max(0, $mappingBlock['declaredCount']));
                 }
+                if (
+                    $mappingBlock['declaredCount'] !== null
+                    && ($rowEntries['rowSlots'] ?? count($entries)) < max(0, $mappingBlock['declaredCount'])
+                ) {
+                    continue;
+                }
 
                 foreach ($entries as $entry) {
                     $sourceHex = $entry['source'] ?? '';
@@ -33540,6 +33546,9 @@ final class PdfTextExtractor
 
         if ($declaredCount !== null) {
             $ranges = array_slice($ranges, 0, max(0, $declaredCount));
+            if (($rowRanges['rowSlots'] ?? count($ranges)) < max(0, $declaredCount)) {
+                return;
+            }
         }
 
         foreach ($ranges as $range) {
@@ -33674,7 +33683,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{rows: list<array{source: string, target: string, targetKind: 'hex'|'literal'}>, hasMalformedRows: bool}
+     * @return array{rows: list<array{source: string, target: string, targetKind: 'hex'|'literal'}>, hasMalformedRows: bool, rowSlots: int}
      */
     private function cMapTopLevelBfCharRows(string $source, ?int $declaredCount = null): array
     {
@@ -33687,6 +33696,7 @@ final class PdfTextExtractor
             return [
                 'rows' => [],
                 'hasMalformedRows' => false,
+                'rowSlots' => 0,
             ];
         }
 
@@ -33702,9 +33712,7 @@ final class PdfTextExtractor
 
             if (!$this->cMapBfCharTokensAreWellFormedRows($tokens)) {
                 $hasMalformedRows = true;
-                if (count($tokens) >= 2) {
-                    $rowsSeen += max(1, intdiv(count($tokens), 2));
-                }
+                $rowsSeen += $this->cMapMalformedRowSlotCount($tokens, 2);
                 continue;
             }
 
@@ -33724,6 +33732,7 @@ final class PdfTextExtractor
         return [
             'rows' => $rows,
             'hasMalformedRows' => $hasMalformedRows,
+            'rowSlots' => $rowsSeen,
         ];
     }
 
@@ -33812,7 +33821,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{ranges: list<array{start: string, end: string, target?: string, targets?: list<string>}>, hasMalformedRows: bool}
+     * @return array{ranges: list<array{start: string, end: string, target?: string, targets?: list<string>}>, hasMalformedRows: bool, rowSlots: int}
      */
     private function cMapTopLevelBfRangeRowRanges(string $source, ?int $declaredCount = null): array
     {
@@ -33825,6 +33834,7 @@ final class PdfTextExtractor
             return [
                 'ranges' => [],
                 'hasMalformedRows' => false,
+                'rowSlots' => 0,
             ];
         }
 
@@ -33856,6 +33866,7 @@ final class PdfTextExtractor
         return [
             'ranges' => $rows,
             'hasMalformedRows' => $hasMalformedRows,
+            'rowSlots' => $rowsSeen,
         ];
     }
 
