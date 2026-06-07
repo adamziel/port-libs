@@ -10057,6 +10057,11 @@ final class PdfAcroFormExtractor
             return false;
         }
 
+        $subtype = $this->pdfNameValueAfterName($body, 'Subtype');
+        if ($subtype !== null && $subtype !== '') {
+            return true;
+        }
+
         $actionType = $this->pdfNameValueAfterName($body, 'S');
         if ($actionType !== null && isset(self::ACTION_DICTIONARY_TYPES[$actionType])) {
             return true;
