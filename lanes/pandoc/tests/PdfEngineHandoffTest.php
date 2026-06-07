@@ -2996,6 +2996,134 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfNamedDestinations']);
     },
 
+    'fake runner inventories bounded pdf catalog name tree categories from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/name-trees.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Names 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Dests 9 0 R /EmbeddedFiles 13 0 R /JavaScript << /Names [(OpenReview) 17 0 R] >> /Templates << /Kids [18 0 R 19 0 R] /Limits [(cover) (summary)] >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Kids [10 0 R 11 0 R] /Limits [(appendix) (intro)] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Limits [(appendix) (appendix)] /Names [(appendix) [4 0 R /Fit]] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Limits [(intro) (intro)] /Names [(intro) 12 0 R] >>',
+            'endobj',
+            '12 0 obj',
+            '[3 0 R /FitH 720]',
+            'endobj',
+            '13 0 obj',
+            '<< /Names [(review-assets.zip) 14 0 R] >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /Filespec /F (review-assets.zip) >>',
+            'endobj',
+            '17 0 obj',
+            '<< /S /JavaScript /JS (app.alert("review")) >>',
+            'endobj',
+            '18 0 obj',
+            '<< /Limits [(cover) (cover)] /Names [(cover) 20 0 R] >>',
+            'endobj',
+            '19 0 obj',
+            '<< /Limits [(summary) (summary)] /Names [(summary) 21 0 R] >>',
+            'endobj',
+            '20 0 obj',
+            '<< /Type /Template /Name (cover) >>',
+            'endobj',
+            '21 0 obj',
+            '<< /Type /Template /Name (summary) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/name-trees.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/name-trees.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'category' => 'Dests',
+                'source' => 'catalog.Names.Dests',
+                'entryCount' => 2,
+                'names' => ['appendix', 'intro'],
+                'valueKinds' => ['array' => 1, 'reference' => 1],
+                'valueReferences' => ['12 0 R'],
+                'kidCount' => 2,
+                'limits' => ['appendix', 'intro'],
+            ],
+            [
+                'category' => 'EmbeddedFiles',
+                'source' => 'catalog.Names.EmbeddedFiles',
+                'entryCount' => 1,
+                'names' => ['review-assets.zip'],
+                'valueKinds' => ['reference' => 1],
+                'valueReferences' => ['14 0 R'],
+                'kidCount' => 0,
+                'limits' => [],
+            ],
+            [
+                'category' => 'JavaScript',
+                'source' => 'catalog.Names.JavaScript',
+                'entryCount' => 1,
+                'names' => ['OpenReview'],
+                'valueKinds' => ['reference' => 1],
+                'valueReferences' => ['17 0 R'],
+                'kidCount' => 0,
+                'limits' => [],
+            ],
+            [
+                'category' => 'Templates',
+                'source' => 'catalog.Names.Templates',
+                'entryCount' => 2,
+                'names' => ['cover', 'summary'],
+                'valueKinds' => ['reference' => 2],
+                'valueReferences' => ['20 0 R', '21 0 R'],
+                'kidCount' => 2,
+                'limits' => ['cover', 'summary'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfNameTrees']);
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->contains('pdf-byte-name-trees:4', $diagnostics);
+        $t->contains('pdf-byte-name-tree:Dests:2', $diagnostics);
+        $t->contains('pdf-byte-name-tree:EmbeddedFiles:1', $diagnostics);
+        $t->contains('pdf-byte-name-tree:JavaScript:1', $diagnostics);
+        $t->contains('pdf-byte-name-tree:Templates:2', $diagnostics);
+        $t->contains('pdf-byte-name-tree-kids:4', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfNameTrees']);
+    },
+
     'fake runner extracts bounded pdf tagging and structure-root metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/tagged.pdf']);

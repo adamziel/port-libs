@@ -304,6 +304,7 @@ final class PdfEngineHandoff
      *     pdfPageMode: string|null,
      *     pdfOpenAction: array<string, mixed>|null,
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     pdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     pdfUriBase: string|null,
      *     pdfViewerPreferences: array<string, bool|int|string>,
      *     pdfNeedsRendering: bool|null,
@@ -735,6 +736,7 @@ final class PdfEngineHandoff
         $pdfPageMode = null;
         $pdfOpenAction = null;
         $pdfNamedDestinations = [];
+        $pdfNameTrees = [];
         $pdfUriBase = null;
         $pdfViewerPreferences = [];
         $pdfNeedsRendering = null;
@@ -824,6 +826,7 @@ final class PdfEngineHandoff
                 $pdfPageMode = $pdfInspection['pageMode'];
                 $pdfOpenAction = $pdfInspection['openAction'];
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
+                $pdfNameTrees = $pdfInspection['nameTrees'];
                 $pdfUriBase = $pdfInspection['uriBase'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfNeedsRendering = $pdfInspection['needsRendering'];
@@ -1441,6 +1444,21 @@ final class PdfEngineHandoff
                 }
                 if ($pdfNamedDestinations !== []) {
                     $diagnostics[] = 'pdf-byte-named-destinations:' . count($pdfNamedDestinations);
+                }
+                if ($pdfNameTrees !== []) {
+                    $diagnostics[] = 'pdf-byte-name-trees:' . count($pdfNameTrees);
+                    $nameTreeKidCount = 0;
+                    foreach ($pdfNameTrees as $nameTree) {
+                        $category = is_string($nameTree['category'] ?? null) && $nameTree['category'] !== ''
+                            ? $nameTree['category']
+                            : 'unknown';
+                        $entryCount = is_int($nameTree['entryCount'] ?? null) ? $nameTree['entryCount'] : 0;
+                        $diagnostics[] = 'pdf-byte-name-tree:' . $category . ':' . $entryCount;
+                        $nameTreeKidCount += is_int($nameTree['kidCount'] ?? null) ? $nameTree['kidCount'] : 0;
+                    }
+                    if ($nameTreeKidCount > 0) {
+                        $diagnostics[] = 'pdf-byte-name-tree-kids:' . $nameTreeKidCount;
+                    }
                 }
                 if ($pdfUriBase !== null) {
                     $diagnostics[] = 'pdf-byte-uri-base:' . $pdfUriBase;
@@ -2116,6 +2134,7 @@ final class PdfEngineHandoff
             'pdfPageMode' => $pdfPageMode,
             'pdfOpenAction' => $pdfOpenAction,
             'pdfNamedDestinations' => $pdfNamedDestinations,
+            'pdfNameTrees' => $pdfNameTrees,
             'pdfUriBase' => $pdfUriBase,
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfNeedsRendering' => $pdfNeedsRendering,
@@ -2226,6 +2245,7 @@ final class PdfEngineHandoff
      *     finalPdfPageMode: string|null,
      *     finalPdfOpenAction: array<string, mixed>|null,
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
+     *     finalPdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     finalPdfUriBase: string|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
      *     finalPdfNeedsRendering: bool|null,
@@ -2450,6 +2470,7 @@ final class PdfEngineHandoff
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
             'finalPdfOpenAction' => is_array($finalRun) && is_array($finalRun['pdfOpenAction'] ?? null) ? $finalRun['pdfOpenAction'] : null,
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
+            'finalPdfNameTrees' => is_array($finalRun) && is_array($finalRun['pdfNameTrees'] ?? null) ? $finalRun['pdfNameTrees'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
@@ -3676,6 +3697,7 @@ final class PdfEngineHandoff
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
+            'nameTrees' => $this->extractPdfNameTrees($pdfBytes, $catalog),
             'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'needsRendering' => $this->extractPdfNeedsRendering($catalog),
@@ -5630,6 +5652,143 @@ final class PdfEngineHandoff
         );
 
         return $destinations;
+    }
+
+    /**
+     * @return list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>
+     */
+    private function extractPdfNameTrees(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Names')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $names = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($catalog, 'Names'), $objects);
+        if ($names['dictionary'] === null) {
+            return [];
+        }
+
+        $trees = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($names['dictionary']) as $entry) {
+            if (in_array($entry['key'], ['Kids', 'Limits', 'Names', 'Type'], true)) {
+                continue;
+            }
+
+            $root = $this->resolvePdfDictionaryValue($entry['value'], $objects);
+            if ($root['dictionary'] === null) {
+                continue;
+            }
+
+            $state = [
+                'entryCount' => 0,
+                'names' => [],
+                'valueKinds' => [],
+                'valueReferences' => [],
+                'kidCount' => 0,
+                'limits' => [],
+            ];
+            $visited = [];
+            if (is_string($root['object']) && $root['object'] !== 'inline') {
+                $visited[$this->pdfReferenceKey($root['object'])] = true;
+            }
+
+            $this->collectPdfNameTreeInventory(
+                $state,
+                $root['dictionary'],
+                $objects,
+                $visited,
+                0
+            );
+
+            $state['names'] = $this->uniqueStrings($state['names']);
+            sort($state['names']);
+            ksort($state['valueKinds']);
+            $state['valueReferences'] = $this->uniqueStrings($state['valueReferences']);
+            sort($state['valueReferences']);
+            $state['limits'] = $this->uniqueStrings($state['limits']);
+
+            $trees[] = [
+                'category' => $entry['key'],
+                'source' => 'catalog.Names.' . $entry['key'],
+                'entryCount' => $state['entryCount'],
+                'names' => $state['names'],
+                'valueKinds' => $state['valueKinds'],
+                'valueReferences' => $state['valueReferences'],
+                'kidCount' => $state['kidCount'],
+                'limits' => $state['limits'],
+            ];
+        }
+
+        usort($trees, static fn (array $a, array $b): int => $a['category'] <=> $b['category']);
+
+        return $trees;
+    }
+
+    /**
+     * @param array{entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>} $state
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfNameTreeInventory(
+        array &$state,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $limits = $this->extractPdfArrayValue($dictionary, 'Limits');
+        if ($limits !== null) {
+            foreach ($this->collectPdfNamesFromArray($limits) as $limit) {
+                $state['limits'][] = $limit;
+            }
+        }
+
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $values = $this->pdfTopLevelArrayValues($array);
+            for ($index = 0; $index + 1 < count($values); $index += 2) {
+                $name = $values[$index];
+                $value = $values[$index + 1];
+                if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $nameValue = trim($name['value']);
+                if ($nameValue === '') {
+                    continue;
+                }
+
+                $state['entryCount']++;
+                if (count($state['names']) < 128) {
+                    $state['names'][] = $nameValue;
+                }
+                $state['valueKinds'][$value['kind']] = ($state['valueKinds'][$value['kind']] ?? 0) + 1;
+                if ($value['kind'] === 'reference') {
+                    $state['valueReferences'][] = $value['value'];
+                }
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $state['kidCount']++;
+            $this->collectPdfNameTreeInventory(
+                $state,
+                $objects[$kidReference],
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
     }
 
     /**
