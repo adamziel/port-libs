@@ -337,6 +337,11 @@ plain-continuation-review:
     First paragraph
 
     Second paragraph
+  indented-note:
+    Queue log
+      source: wp-export.xml
+      status: pending
+    Ready.
   steps:
     - Collect source
       metadata packet
@@ -348,6 +353,11 @@ plain-continuation-reference:
     source note:
       Source reviewer
       plain scalar
+    source outline:
+      Reviewer outline
+        - collect metadata
+        - confirm blocks
+      Done.
 punctuation-anchor-references:
   - &source/ref-primary
     id: anchor-punctuation-ref
@@ -1255,11 +1265,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['plain-continuation-review']['paragraph'] ?? '') !== "First paragraph\nSecond paragraph") {
         throw new RuntimeException('YAML metadata self-test missing plain multiline blank-line folding');
     }
+    if (($meta['plain-continuation-review']['indented-note'] ?? '') !== "Queue log\n  source: wp-export.xml\n  status: pending\nReady.") {
+        throw new RuntimeException('YAML metadata self-test missing plain multiline more-indented folding');
+    }
     if (($meta['plain-continuation-review']['steps'] ?? []) !== ['Collect source metadata packet', 'Approve WordPress import']) {
         throw new RuntimeException('YAML metadata self-test missing sequence-item plain multiline folding');
     }
     if (($meta['plain-continuation-reference']['metadata']['source note'] ?? '') !== 'Source reviewer plain scalar') {
         throw new RuntimeException('YAML metadata self-test missing nested reference plain multiline folding');
+    }
+    if (($meta['plain-continuation-reference']['metadata']['source outline'] ?? '') !== "Reviewer outline\n  - collect metadata\n  - confirm blocks\nDone.") {
+        throw new RuntimeException('YAML metadata self-test missing nested reference plain multiline more-indented folding');
     }
     if (($meta['punctuation-anchor-references'][0]['id'] ?? '') !== 'anchor-punctuation-ref') {
         throw new RuntimeException('YAML metadata self-test missing punctuation anchor source reference');

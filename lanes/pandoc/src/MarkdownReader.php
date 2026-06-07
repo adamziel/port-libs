@@ -1592,16 +1592,26 @@ final class MarkdownReader
         }
 
         $folded = rtrim((string) array_shift($normalized), " \t");
+        $previousMoreIndented = $folded !== '' && preg_match('/^[ \t]/', $folded) === 1;
+
         foreach ($normalized as $line) {
             if (trim($line) === '') {
                 $folded = rtrim($folded, " \t") . "\n";
+                $previousMoreIndented = false;
                 continue;
             }
 
-            $content = trim($line);
-            $folded = str_ends_with($folded, "\n")
-                ? $folded . $content
-                : rtrim($folded, " \t") . ' ' . $content;
+            $moreIndented = preg_match('/^[ \t]/', $line) === 1;
+            $content = $moreIndented ? rtrim($line, " \t") : trim($line);
+            if (str_ends_with($folded, "\n")) {
+                $folded .= $content;
+            } elseif ($previousMoreIndented || $moreIndented) {
+                $folded = rtrim($folded, " \t") . "\n" . $content;
+            } else {
+                $folded = rtrim($folded, " \t") . ' ' . $content;
+            }
+
+            $previousMoreIndented = $moreIndented;
         }
 
         return $folded;

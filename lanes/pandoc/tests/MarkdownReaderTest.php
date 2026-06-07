@@ -3481,6 +3481,52 @@ return [
         $t->same('plain-multiline-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="plain-multiline-yaml-body">Plain multiline YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml plain multiline scalars with more indented lines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title:',
+            '  Plain indent **Packet**',
+            '  review',
+            'review:',
+            '  note:',
+            '    Queue log',
+            '      source: wp-export.xml',
+            '      status: pending',
+            '    Ready.',
+            '  checklist:',
+            '    Preserve source shape',
+            '      - keep front matter',
+            '      - import blocks',
+            '    Done.',
+            'references:',
+            '  - id: plain-indent-ref',
+            '    metadata:',
+            '      source note:',
+            '        Reviewer note',
+            '          line one',
+            '          line two',
+            '        End.',
+            '...',
+            '',
+            '# Plain indent YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Plain indent **Packet** review', $meta['title']);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same("Queue log\n  source: wp-export.xml\n  status: pending\nReady.", $meta['review']['note']);
+        $t->same("Preserve source shape\n  - keep front matter\n  - import blocks\nDone.", $meta['review']['checklist']);
+        $t->same('plain-indent-ref', $meta['references'][0]['id']);
+        $t->same("Reviewer note\n  line one\n  line two\nEnd.", $meta['references'][0]['metadata']['source note']);
+        $t->same(false, str_contains($meta['review']['note'], 'Queue log source:'));
+        $t->same(false, str_contains($meta['review']['checklist'], 'shape - keep'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('plain-indent-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="plain-indent-yaml-body">Plain indent YAML body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
