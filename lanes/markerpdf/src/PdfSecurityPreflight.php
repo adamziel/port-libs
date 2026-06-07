@@ -748,11 +748,23 @@ final class PdfSecurityPreflight
             'present' => false,
             'permission_bits_reliable' => $permissionBitsReliable,
             'authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
+            'authentication_material_ready_for_password_attempt' => (bool) (
+                $permissionAuthenticationTrustReview['authentication_material_ready_for_password_attempt'] ?? false
+            ),
             'permissions_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
             'authenticated_permission_bits_reliable' => (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false),
             'permission_authentication_status' => is_string($permissionAuthenticationTrustReview['status'] ?? null)
                 ? $permissionAuthenticationTrustReview['status']
                 : null,
+            'permission_digest_required' => (bool) ($permissionAuthenticationTrustReview['permission_digest_required'] ?? false),
+            'permission_digest_present' => (bool) ($permissionAuthenticationTrustReview['permission_digest_present'] ?? false),
+            'permission_digest_length_valid' => $permissionAuthenticationTrustReview['permission_digest_length_valid'] ?? null,
+            'permission_digest_status' => is_string($permissionAuthenticationTrustReview['permission_digest_status'] ?? null)
+                ? $permissionAuthenticationTrustReview['permission_digest_status']
+                : null,
+            'password_validation_performed' => (bool) (
+                $permissionAuthenticationTrustReview['password_validation_performed'] ?? false
+            ),
             'permission_boundary' => is_string($permissionAuthenticationTrustReview['trust_boundary'] ?? null)
                 ? $permissionAuthenticationTrustReview['trust_boundary']
                 : null,
@@ -827,8 +839,20 @@ final class PdfSecurityPreflight
         $syntacticAllowed = (bool) ($bit['allowed'] ?? false);
         $syntacticDenied = (bool) ($bit['denied'] ?? false);
         $authenticationRequired = (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false);
+        $authenticationMaterialReady = (bool) (
+            $permissionAuthenticationTrustReview['authentication_material_ready_for_password_attempt'] ?? false
+        );
         $permissionsAuthenticated = (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false);
         $authenticatedReliable = (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false);
+        $permissionAuthenticationStatus = is_string($permissionAuthenticationTrustReview['status'] ?? null)
+            ? $permissionAuthenticationTrustReview['status']
+            : null;
+        $permissionDigestStatus = is_string($permissionAuthenticationTrustReview['permission_digest_status'] ?? null)
+            ? $permissionAuthenticationTrustReview['permission_digest_status']
+            : null;
+        $passwordValidationPerformed = (bool) (
+            $permissionAuthenticationTrustReview['password_validation_performed'] ?? false
+        );
         $trustBoundary = is_string($permissionAuthenticationTrustReview['trust_boundary'] ?? null)
             ? $permissionAuthenticationTrustReview['trust_boundary']
             : 'blocked_until_password_validation_and_permission_authentication';
@@ -875,8 +899,15 @@ final class PdfSecurityPreflight
             'syntactic_denied' => $syntacticDenied,
             'effective_status' => $effectiveStatus,
             'authentication_required' => $authenticationRequired,
+            'authentication_material_ready_for_password_attempt' => $authenticationMaterialReady,
             'permissions_authenticated' => $permissionsAuthenticated,
             'authenticated_permission_bits_reliable' => $authenticatedReliable,
+            'permission_authentication_status' => $permissionAuthenticationStatus,
+            'permission_digest_required' => (bool) ($permissionAuthenticationTrustReview['permission_digest_required'] ?? false),
+            'permission_digest_present' => (bool) ($permissionAuthenticationTrustReview['permission_digest_present'] ?? false),
+            'permission_digest_length_valid' => $permissionAuthenticationTrustReview['permission_digest_length_valid'] ?? null,
+            'permission_digest_status' => $permissionDigestStatus,
+            'password_validation_performed' => $passwordValidationPerformed,
             'native_import_allowed_now' => $nativeImportAllowed,
             'permission_boundary' => $permissionBoundary,
             'wordpress_import_policy' => $wordpressPolicy,

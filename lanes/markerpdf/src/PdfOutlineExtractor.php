@@ -3528,8 +3528,11 @@ final class PdfOutlineExtractor
             }
         }
 
-        $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
-        $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null, $objects);
+        $namesValue = $this->resolveValue($catalog['Names'] ?? null, $objects);
+        $names = $this->dictionaryItems($namesValue);
+        $nameTreeRoot = $names === null || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
+            ? null
+            : $this->resolveDictionary($names['Dests'] ?? null, $objects);
         if ($nameTreeRoot !== null) {
             $this->collectNameTreeDestinations($nameTreeRoot, $objects, $rawDestinations, [], [], $pageIndexes);
         }
@@ -3572,8 +3575,11 @@ final class PdfOutlineExtractor
             }
         }
 
-        $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
-        $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null, $objects);
+        $namesValue = $this->resolveValue($catalog['Names'] ?? null, $objects);
+        $names = $this->dictionaryItems($namesValue);
+        $nameTreeRoot = $names === null || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
+            ? null
+            : $this->resolveDictionary($names['Dests'] ?? null, $objects);
         if ($nameTreeRoot !== null) {
             $this->collectNameTreeActionDestinations($nameTreeRoot, $objects, $destinations);
         }

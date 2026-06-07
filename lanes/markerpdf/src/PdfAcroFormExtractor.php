@@ -9998,9 +9998,13 @@ final class PdfAcroFormExtractor
         }
 
         if (str_starts_with($value, '[')) {
-            $body = $this->arrayBodyFromValue($value);
+            $endOffset = null;
+            $body = $this->readPdfArrayAt($value, 0, $endOffset);
+            if ($body === null || $endOffset === null || !$this->hasOnlyPdfWhitespaceOrCommentsAfter($value, $endOffset)) {
+                return null;
+            }
 
-            return $body === null ? null : [
+            return [
                 'body' => $body,
                 'object' => null,
             ];
@@ -10023,6 +10027,13 @@ final class PdfAcroFormExtractor
         }
 
         return $target;
+    }
+
+    private function hasOnlyPdfWhitespaceOrCommentsAfter(string $value, int $offset): bool
+    {
+        $this->skipWhitespace($value, $offset);
+
+        return $offset >= strlen($value);
     }
 
     private function isFieldWidgetDictionary(string $body): bool
