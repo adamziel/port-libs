@@ -240,7 +240,8 @@ final class PdfAttachmentExtractor
                 $objects,
                 'file-attachment-annotation',
                 $context,
-                $encryptionPolicy
+                $encryptionPolicy,
+                isset($entry['fileSpecRaw']) && is_string($entry['fileSpecRaw']) ? $entry['fileSpecRaw'] : null
             );
             if ($attachment !== null) {
                 $attachment['file_attachment_annotation'] = true;
@@ -898,7 +899,7 @@ final class PdfAttachmentExtractor
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @param list<int>|null $catalogObjectIds
-     * @return list<array{pageNumber: int, pageObjectId: int, annotationObjectId: int|null, contents: string|null, rect: list<float>, fileSpec: mixed}>
+     * @return list<array{pageNumber: int, pageObjectId: int, annotationObjectId: int|null, contents: string|null, rect: list<float>, fileSpec: mixed, fileSpecRaw?: string}>
      */
     private function fileAttachmentAnnotationEntries(array $objects, ?array $catalogObjectIds = null): array
     {
@@ -919,7 +920,7 @@ final class PdfAttachmentExtractor
                     continue;
                 }
 
-                $entries[] = [
+                $entry = [
                     'pageNumber' => $pageIndex + 1,
                     'pageObjectId' => $pageObjectId,
                     'annotationObjectId' => $annotation['objectId'],
@@ -927,6 +928,17 @@ final class PdfAttachmentExtractor
                     'rect' => $this->numberArray($dict['Rect'] ?? null),
                     'fileSpec' => $dict['FS'] ?? null,
                 ] + $this->fileAttachmentAnnotationReview($dict, $objects);
+                $annotationDictionaryBody = is_string($annotation['body'] ?? null)
+                    ? $this->topLevelDictionaryBodyFromObjectBody($annotation['body'])
+                    : null;
+                if ($annotationDictionaryBody !== null) {
+                    $rawFileSpec = $this->rawDictionaryEntryValue($annotationDictionaryBody, 'FS');
+                    if ($rawFileSpec !== null) {
+                        $entry['fileSpecRaw'] = $rawFileSpec;
+                    }
+                }
+
+                $entries[] = $entry;
             }
         }
 
@@ -1132,7 +1144,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @return list<array{objectId: int|null, value: mixed}>
+     * @return list<array{objectId: int|null, value: mixed, body?: string}>
      */
     private function annotationValues(mixed $annots, array $objects): array
     {
@@ -1146,10 +1158,15 @@ final class PdfAttachmentExtractor
         foreach ($values as $value) {
             $objectId = $this->refObjectId($value);
             $object = $this->objectForReference($value, $objects);
-            $annotations[] = [
+            $annotation = [
                 'objectId' => $objectId,
                 'value' => $object !== null ? $object['value'] : $value,
             ];
+            if ($object !== null) {
+                $annotation['body'] = $object['body'];
+            }
+
+            $annotations[] = $annotation;
         }
 
         return $annotations;
