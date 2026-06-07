@@ -688,6 +688,11 @@ final class CitationCslProcessor
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList']);
+        $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
+        $language = self::stringField($item, 'language');
+        if ($language === '' && $languageList !== []) {
+            $language = implode('; ', $languageList);
+        }
         $originalLanguageList = self::stringListFromFirstField($item, ['original-language-list', 'originalLanguageList']);
         $originalLanguage = self::stringField($item, 'original-language');
         if ($originalLanguage === '' && $originalLanguageList !== []) {
@@ -787,7 +792,8 @@ final class CitationCslProcessor
             'archivePlace' => self::firstStringField($item, ['archive-place', 'archivePlace']),
             'archiveLocation' => self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']),
             'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library']),
-            'language' => self::stringField($item, 'language'),
+            'language' => $language,
+            'languageList' => $languageList !== [] ? $languageList : ($language !== '' ? [$language] : []),
             'abstract' => self::stringField($item, 'abstract'),
             'medium' => self::stringField($item, 'medium'),
             'note' => self::stringField($item, 'note'),
@@ -5798,6 +5804,7 @@ final class CitationCslProcessor
             'archive_location', 'archive-location' => (string) $item['archiveLocation'],
             'call-number', 'callnumber' => (string) $item['callNumber'],
             'language' => (string) $item['language'],
+            'language-list' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
             'abstract' => (string) $item['abstract'],
             'medium' => (string) $item['medium'],
             'note' => (string) $item['note'],

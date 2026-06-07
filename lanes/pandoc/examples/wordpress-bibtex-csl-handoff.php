@@ -35,6 +35,8 @@ Original subtitle source @original-subtitle-manual keeps original-title addenda 
 
 Original language list source @original-language-list-manual preserves source-language lists for review.
 
+Primary language list source @primary-language-list-manual preserves source language lists for review.
+
 Patent and legal sources @import-patent and @review-act preserve legal review metadata.
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
@@ -289,6 +291,14 @@ $bibtex = <<<'BIB'
   origlocation  = {Madrid},
   language      = {english},
   origlanguage  = {spanish and basque and catalan}
+}
+
+@book{primary-language-list-manual,
+  author    = {Smith, Ada},
+  title     = {Primary Language Source},
+  date      = {2026},
+  publisher = {Review Press},
+  language  = {english and french and spanish}
 }
 
 @patent{import-patent,
@@ -884,6 +894,46 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($originalLanguageListManual['originalLanguageList'] ?? null) !== ['spanish', 'basque', 'catalan']) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original language list metadata');
+    }
+    $primaryLanguageListManual = $processor->item('primary-language-list-manual');
+    if (($primaryLanguageListManual['language'] ?? null) !== 'english; french; spanish') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve primary language list display metadata');
+    }
+    if (($primaryLanguageListManual['languageList'] ?? null) !== ['english', 'french', 'spanish']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve primary language list metadata');
+    }
+    if (($primaryLanguageListManual['raw']['language-list'] ?? null) !== ['english', 'french', 'spanish']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw primary language list metadata');
+    }
+    $languageStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $languageBlocks = (new WordPressBlockWriter())->write($languageStyled->appendBibliography(
+        (new MarkdownReader())->read('Language list review [@primary-language-list-manual] keeps source languages visible.'),
+        'Language Sources'
+    ));
+    if (!str_contains($languageBlocks, '<p>Language list review Smith | english; french; spanish | english; french; spanish keeps source languages visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render primary language list variables in custom citations');
+    }
+    if (!str_contains($languageBlocks, '<dt>Smith 2026</dt><dd>Primary Language Source | english; french; spanish</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render primary language list variables in custom bibliography output');
     }
     $importPatent = $processor->item('import-patent');
     if (($importPatent['number'] ?? null) !== 'US-123456') {
@@ -1644,6 +1694,8 @@ XML);
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<p>Original language list source Smith (2026) preserves source-language lists for review.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.</dd>',
+        '<p>Primary language list source Smith (2026) preserves source language lists for review.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Primary Language Source. Review Press, 2026.</dd>',
         '<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>',
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',

@@ -572,6 +572,7 @@ final class BibtexCslParser
         $publisherPlaceList = self::literalListFromFirstField($fields, ['location', 'address', 'venue']);
         $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher']);
         $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress']);
+        $languageList = self::literalListFromFirstField($fields, ['language']);
         $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage']);
         $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'eventlocation', 'eventplace', 'venue']);
         $eventPlace = self::literalListDisplay($eventPlaceList);
@@ -647,7 +648,7 @@ final class BibtexCslParser
             'archive-place' => self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']),
             'archive_location' => self::firstField($fields, ['eprint', 'archive_location', 'archive-location']),
             'call-number' => self::firstField($fields, ['callnumber', 'call-number', 'library']),
-            'language' => self::firstField($fields, ['langid', 'language', 'hyphenation']),
+            'language' => self::literalListDisplay($languageList) ?: self::firstField($fields, ['langid', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
             'medium' => self::firstField($fields, ['howpublished', 'medium']),
             'note' => self::firstField($fields, ['note']),
@@ -688,6 +689,10 @@ final class BibtexCslParser
 
         if ($eventPlaceList !== []) {
             $item['event-place-list'] = $eventPlaceList;
+        }
+
+        if ($languageList !== []) {
+            $item['language-list'] = $languageList;
         }
 
         $biblatexCustomFields = self::biblatexCustomFieldsFromFields($fields);

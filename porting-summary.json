@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 11:09:59 UTC",
-    "sourceCommit": "d1f81c69ab23ace51c62630abe5908fd9b84065f",
-    "sourceCommitShort": "d1f81c69ab23",
+    "generated": "2026-06-07 11:10:16 UTC",
+    "sourceCommit": "9d234f321399da03c03017776720b03dd4d6a612",
+    "sourceCommitShort": "9d234f321399",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d1f81c69ab23ace51c62630abe5908fd9b84065f",
-    "dashboardCommitShort": "d1f81c69ab23",
+    "dashboardCommit": "9d234f321399da03c03017776720b03dd4d6a612",
+    "dashboardCommitShort": "9d234f321399",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1908",
-            "coverage": "1,908 / 2,276 (83.8%)",
-            "mapPercent": "83.8%",
-            "unmapped": "368",
-            "php": "1,489 pass / 0 fail",
+            "mapped": "1909",
+            "coverage": "1,909 / 2,276 (83.9%)",
+            "mapPercent": "83.9%",
+            "unmapped": "367",
+            "php": "1,490 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-07 UTC ODF/OpenDocument current-base chart title-axis-legend...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For table geometry follow-up, keep work bounded to non-overla...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native T...",
-            "commit": "pending fast ac..."
+            "nextTarget": "For BibTeX/CSL follow-up, keep work bounded to non-overlappin...",
+            "remainingGate": "No new support component is needed for this slice: it reuses native B...",
+            "commit": "pending isolate..."
         },
         {
             "lane": "quadrable",

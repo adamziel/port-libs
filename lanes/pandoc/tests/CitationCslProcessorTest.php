@@ -1094,6 +1094,83 @@ XML);
         $t->contains('<p>Original-language source Smith (2026) preserves source-language lists for review.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.</dd>', $blocks);
     },
+    'maps bounded biblatex primary language lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{language-list-manual,
+  author    = {Smith, Ada},
+  title     = {Multilingual Imported Source},
+  date      = {2026},
+  publisher = {Review Press},
+  language  = {english and french and spanish}
+}
+
+@online{langid-only-source,
+  author = {{Locale Desk}},
+  title  = {LangID Only Source},
+  date   = {2025},
+  langid = {ngerman}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('english; french; spanish', $items[0]['language'] ?? null);
+        $t->same(['english', 'french', 'spanish'], $items[0]['language-list'] ?? null);
+        $t->same('english and french and spanish', $items[0]['rawBibtex']['fields']['language'] ?? null);
+        $t->same('ngerman', $items[1]['language'] ?? null);
+        $t->same(null, $items[1]['language-list'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('language-list-manual');
+        $langidOnly = $processor->item('langid-only-source');
+        $t->same('english; french; spanish', $manual['language'] ?? null);
+        $t->same(['english', 'french', 'spanish'], $manual['languageList'] ?? null);
+        $t->same('ngerman', $langidOnly['language'] ?? null);
+        $t->same(['ngerman'], $langidOnly['languageList'] ?? null);
+        $t->same('(Smith 2026; Locale Desk 2025)', $processor->renderCitationCluster([
+            $citation('language-list-manual', '[@language-list-manual]'),
+            $citation('langid-only-source', '[@langid-only-source]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | english; french; spanish | english; french; spanish; Locale Desk | ngerman | ngerman]', $styled->renderCitationCluster([
+            $citation('language-list-manual', '[@language-list-manual]'),
+            $citation('langid-only-source', '[@langid-only-source]'),
+        ]));
+        $t->same('Multilingual Imported Source :: english; french; spanish', $styled->renderBibliographyEntry('language-list-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-primary-language-list',
+            'title' => 'Manual Language Source',
+            'language-list' => ['italian', 'latin'],
+        ]])->item('manual-primary-language-list');
+        $t->same('italian; latin', $direct['language'] ?? null);
+        $t->same(['italian', 'latin'], $direct['languageList'] ?? null);
+
+        $document = (new MarkdownReader())->read('Language source [@language-list-manual] keeps primary language metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Language Sources'));
+        $t->contains('<p>Language source [Smith | english; french; spanish | english; french; spanish] keeps primary language metadata visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Multilingual Imported Source :: english; french; spanish</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,
