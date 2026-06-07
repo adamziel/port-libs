@@ -639,9 +639,9 @@ return [
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, no unexpected direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
-        $t->contains('no unexpected Cabal hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files', $audit['nonMutatingPlan'][3]);
+        $t->contains('no unexpected Cabal benchmark direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -1057,6 +1057,62 @@ return [
         $t->contains('test:test-pandoc (pandoc-types expected >= 1.23.1 && < 1.24, found >= 1.22 && < 1.24, zip-archive expected >= 0.4.3 && < 0.5, found none)', $blocked);
         $t->contains('test:test-pandoc-lua-engine (hslua expected >= 2.5 && < 2.6, found >= 2.4 && < 2.6, tasty-lua expected >= 1.1 && < 1.2, found none)', $blocked);
         $t->contains('direct runner build-depends', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks unexpected runner and benchmark direct dependencies before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "    Diff >= 0.2 && < 1.1,\n    Glob >= 0.7 && < 0.11,",
+            "    Diff >= 0.2 && < 1.1,\n    aeson >= 2.0 && < 2.3,\n    Glob >= 0.7 && < 0.11,",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "    deepseq,\n    mtl",
+            "    deepseq,\n    criterion >= 1.6 && < 1.7,\n    mtl",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "    directory,\n    data-default,",
+            "    directory,\n    hspec >= 2.10,\n    data-default,",
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedDependencyConstraints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same(['aeson >= 2.0 && < 2.3'], $audit['runnerDependencyClosure']['unexpectedDependencies']['test:test-pandoc']);
+        $t->same(['hspec >= 2.10'], $audit['runnerDependencyClosure']['unexpectedDependencies']['test:test-pandoc-lua-engine']);
+        $t->same(['criterion >= 1.6 && < 1.7'], $audit['benchmarkDependencyClosure']['unexpectedDependencies'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal runner direct build-depends: test:test-pandoc (aeson >= 2.0 && < 2.3); test:test-pandoc-lua-engine (hspec >= 2.10)', $blocked);
+        $t->contains('unexpected Cabal benchmark direct build-depends: benchmark:benchmark-pandoc (criterion >= 1.6 && < 1.7)', $blocked);
+        $t->contains('no unexpected runner or benchmark direct build-depends', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks stale repo relative lua runner source directory before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

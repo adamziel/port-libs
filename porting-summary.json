@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 16:48:13 UTC",
-    "sourceCommit": "abb3ced14b55bfdea423eba08f7837618dfb2917",
-    "sourceCommitShort": "abb3ced14b55",
+    "generated": "2026-06-07 16:48:26 UTC",
+    "sourceCommit": "481ee979ea48dbf9689ff3161d3b00ec4fe07a9f",
+    "sourceCommitShort": "481ee979ea48",
     "sourceBranch": "unknown",
-    "dashboardCommit": "abb3ced14b55bfdea423eba08f7837618dfb2917",
-    "dashboardCommitShort": "abb3ced14b55",
+    "dashboardCommit": "481ee979ea48dbf9689ff3161d3b00ec4fe07a9f",
+    "dashboardCommitShort": "481ee979ea48",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1952",
-            "coverage": "1,952 / 2,276 (85.8%)",
+            "mapped": "1953",
+            "coverage": "1,953 / 2,276 (85.8%)",
             "mapPercent": "85.8%",
-            "unmapped": "324",
-            "php": "1,533 pass / 0 fail",
+            "unmapped": "323",
+            "php": "1,534 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-07 UTC Charset/Unicode current-base Windows-1256 Arabic sourc...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For ZIP/OPC package follow-up, choose non-overlapping central...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native Z...",
+            "nextTarget": "For upstream-runner follow-up, hydrate the pinned Pandoc chec...",
+            "remainingGate": "Upstream runner parity unavailable",
             "commit": "pending fast ac..."
         },
         {
