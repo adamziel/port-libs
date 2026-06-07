@@ -260,6 +260,37 @@ if ($extraDecodeParmsSummaryJson === false || $extraDecodeParmsFilesJson === fal
     throw new RuntimeException('Expected extra DecodeParms attachment summary JSON.');
 }
 
+$duplicatePredictorParameterPayload = "Title,Status\nDuplicate Predictor Parameter Attachment Smoke Leak,Blocked\n";
+$duplicateCryptNamePayload = "Title,Status\nDuplicate Crypt Name Attachment Smoke Leak,Blocked\n";
+$validAfterParameterDuplicatesPayload = "Title,Status\nValid Attachment After Parameter Duplicates,Ready\n";
+$duplicatePredictorParameterEncoded = $ascii85Encode(gzcompress($duplicatePredictorParameterPayload));
+$duplicateCryptNameEncoded = $ascii85Encode(gzcompress($duplicateCryptNamePayload));
+$validAfterParameterDuplicatesEncoded = $ascii85Encode(gzcompress($validAfterParameterDuplicatesPayload));
+$duplicateParameterVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment DecodeParms Parameter Review) Tj ET';
+$duplicateParameterPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($duplicateParameterVisible) . " >>\nstream\n{$duplicateParameterVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(duplicate-predictor-parameter.csv) 10 0 R (duplicate-crypt-name.csv) 12 0 R (valid-after-parameter-duplicates.csv) 14 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (duplicate-predictor-parameter.csv) /Desc (Duplicate predictor parameter attachment) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null << /Predictor 99 /Predictor 1 /Columns 1 >> ] /Params << /Size " . strlen($duplicatePredictorParameterPayload) . " /CheckSum <" . md5($duplicatePredictorParameterPayload) . "> >> /Length " . strlen($duplicatePredictorParameterEncoded) . " >>\nstream\n{$duplicatePredictorParameterEncoded}\nendstream\nendobj\n"
+    . "12 0 obj\n<< /Type /Filespec /F (duplicate-crypt-name.csv) /Desc (Duplicate Crypt Name attachment) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /Crypt /ASCII85Decode /FlateDecode ] /DecodeParms [ << /Name /PrivateCF /Name /Identity >> null null ] /Params << /Size " . strlen($duplicateCryptNamePayload) . " /CheckSum <" . md5($duplicateCryptNamePayload) . "> >> /Length " . strlen($duplicateCryptNameEncoded) . " >>\nstream\n{$duplicateCryptNameEncoded}\nendstream\nendobj\n"
+    . "14 0 obj\n<< /Type /Filespec /F (valid-after-parameter-duplicates.csv) /Desc (Valid attachment after duplicate DecodeParms parameters) /AFRelationship /Source /EF << /F 15 0 R >> >>\nendobj\n"
+    . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validAfterParameterDuplicatesPayload) . " /CheckSum <" . md5($validAfterParameterDuplicatesPayload) . "> >> /Length " . strlen($validAfterParameterDuplicatesEncoded) . " >>\nstream\n{$validAfterParameterDuplicatesEncoded}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$duplicateParameterSummary = (new PdfAttachmentExtractor())->attachmentSummary($duplicateParameterPdf);
+$duplicateParameterFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($duplicateParameterPdf);
+$duplicateParameterText = (new PdfTextExtractor())->extractPlainText($duplicateParameterPdf);
+$duplicateParameterSummaryJson = json_encode($duplicateParameterSummary, JSON_UNESCAPED_SLASHES);
+$duplicateParameterFilesJson = json_encode($duplicateParameterFiles, JSON_UNESCAPED_SLASHES);
+if ($duplicateParameterSummaryJson === false || $duplicateParameterFilesJson === false) {
+    throw new RuntimeException('Expected duplicate DecodeParms parameter attachment summary JSON.');
+}
+
 $indirectOperandVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Indirect Operand Review) Tj ET';
 $indirectOperandPayload = "Title,Status\nIndirect Filter Operand Attachment,Ready\n";
 $indirectOperandPredicted = "\0" . $indirectOperandPayload;
@@ -418,6 +449,21 @@ $metadata = [
         && !str_contains($extraDecodeParmsText, 'Extra DecodeParms Attachment Leak'),
     'valid_attachment_after_extra_decodeparms_preserved' => ($extraDecodeParmsSummary['attachments'][0]['checksum_matches'] ?? false) === true
         && (($extraDecodeParmsFiles[0]['computed_checksum'] ?? null) === md5($validAfterDecodeParmsPayload)),
+    'duplicate_decodeparms_parameter_attachments_rejected' => ($duplicateParameterSummary['attachment_count'] ?? null) === 1
+        && ($duplicateParameterSummary['attachments'][0]['filename'] ?? null) === 'valid-after-parameter-duplicates.csv'
+        && count($duplicateParameterFiles) === 1
+        && (($duplicateParameterFiles[0]['content'] ?? null) === $validAfterParameterDuplicatesPayload),
+    'duplicate_predictor_parameter_rejected' => !str_contains($duplicateParameterSummaryJson, 'duplicate-predictor-parameter.csv')
+        && !str_contains($duplicateParameterFilesJson, 'duplicate-predictor-parameter.csv'),
+    'duplicate_crypt_name_parameter_rejected' => !str_contains($duplicateParameterSummaryJson, 'duplicate-crypt-name.csv')
+        && !str_contains($duplicateParameterFilesJson, 'duplicate-crypt-name.csv'),
+    'duplicate_decodeparms_parameter_payload_excluded' => !str_contains($duplicateParameterSummaryJson, 'Duplicate Predictor Parameter Attachment Smoke Leak')
+        && !str_contains($duplicateParameterSummaryJson, 'Duplicate Crypt Name Attachment Smoke Leak')
+        && !str_contains($duplicateParameterFilesJson, 'Duplicate Predictor Parameter Attachment Smoke Leak')
+        && !str_contains($duplicateParameterFilesJson, 'Duplicate Crypt Name Attachment Smoke Leak')
+        && !str_contains($duplicateParameterText, 'Duplicate Predictor Parameter Attachment Smoke Leak')
+        && !str_contains($duplicateParameterText, 'Duplicate Crypt Name Attachment Smoke Leak'),
+    'duplicate_decodeparms_parameter_visible_text_preserved' => $duplicateParameterText === 'Visible Attachment DecodeParms Parameter Review',
     'indirect_operand_attachment_decoded' => ($indirectOperandSummary['attachment_count'] ?? null) === 1
         && ($indirectOperandSummary['attachments'][0]['filename'] ?? null) === 'indirect-filter-stack.csv'
         && ($indirectOperandSummary['attachments'][0]['checksum_matches'] ?? false) === true

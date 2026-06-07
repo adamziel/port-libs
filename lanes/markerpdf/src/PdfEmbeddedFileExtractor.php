@@ -25,6 +25,15 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
+    private const STREAM_DECODE_PARMS_BOUNDARY_KEYS = [
+        'Predictor',
+        'Columns',
+        'Colors',
+        'BitsPerComponent',
+        'EarlyChange',
+        'Name',
+    ];
+
     private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
@@ -6573,6 +6582,10 @@ final class PdfEmbeddedFileExtractor
             return true;
         }
 
+        if ($this->decodeParmsHasDuplicateTopLevelParameter($decodeParms)) {
+            return false;
+        }
+
         if ($filter === 'Crypt') {
             return $this->decodeCryptIdentityStream('', $decodeParms, $objects) !== null;
         }
@@ -6627,6 +6640,11 @@ final class PdfEmbeddedFileExtractor
         }
 
         return true;
+    }
+
+    private function decodeParmsHasDuplicateTopLevelParameter(string $decodeParms): bool
+    {
+        return $this->dictionaryHasDuplicateKeys($decodeParms, self::STREAM_DECODE_PARMS_BOUNDARY_KEYS);
     }
 
     /**

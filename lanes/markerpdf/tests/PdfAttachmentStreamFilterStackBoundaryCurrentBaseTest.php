@@ -334,6 +334,41 @@ $attachmentStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf = static func
         . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment DecodeParms Parameter Review) Tj ET';
+    $duplicatePredictorPayload = "Title,Status\nDuplicate Predictor Parameter Attachment Leak,Blocked\n";
+    $duplicateCryptPayload = "Title,Status\nDuplicate Crypt Name Attachment Leak,Blocked\n";
+    $validPayload = "Title,Status\nValid Attachment After Parameter Duplicates,Ready\n";
+
+    $duplicatePredictorEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(
+        gzcompress($duplicatePredictorPayload)
+    );
+    $duplicateCryptEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($duplicateCryptPayload));
+    $validEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85(gzcompress($validPayload));
+
+    return [
+        'duplicate_predictor_payload' => $duplicatePredictorPayload,
+        'duplicate_crypt_payload' => $duplicateCryptPayload,
+        'valid_payload' => $validPayload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(duplicate-predictor-parameter.csv) 10 0 R (duplicate-crypt-name.csv) 12 0 R (valid-after-parameter-duplicates.csv) 14 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (duplicate-predictor-parameter.csv) /Desc (Duplicate predictor parameter attachment) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null << /Predictor 99 /Predictor 1 /Columns 1 >> ] /Params << /Size " . strlen($duplicatePredictorPayload) . " /CheckSum <" . md5($duplicatePredictorPayload) . "> >> /Length " . strlen($duplicatePredictorEncoded) . " >>\nstream\n{$duplicatePredictorEncoded}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /F (duplicate-crypt-name.csv) /Desc (Duplicate Crypt Name attachment) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /Crypt /ASCII85Decode /FlateDecode ] /DecodeParms [ << /Name /PrivateCF /Name /Identity >> null null ] /Params << /Size " . strlen($duplicateCryptPayload) . " /CheckSum <" . md5($duplicateCryptPayload) . "> >> /Length " . strlen($duplicateCryptEncoded) . " >>\nstream\n{$duplicateCryptEncoded}\nendstream\nendobj\n"
+            . "14 0 obj\n<< /Type /Filespec /F (valid-after-parameter-duplicates.csv) /Desc (Valid attachment after duplicate DecodeParms parameters) /AFRelationship /Source /EF << /F 15 0 R >> >>\nendobj\n"
+            . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($validPayload) . " /CheckSum <" . md5($validPayload) . "> >> /Length " . strlen($validEncoded) . " >>\nstream\n{$validEncoded}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 $attachmentStreamFilterStackBoundaryCurrentBaseIndirectOperandPdf = static function () use (
     $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
 ): array {
@@ -802,6 +837,60 @@ return [
         $t->true(!str_contains($plainText, 'Extra DecodeParms Attachment Leak'));
         $t->true(!str_contains($plainText, 'Valid Attachment After DecodeParms'));
         $t->true(!str_contains($plainText, 'DecodeParms'));
+    },
+    'rejects duplicate DecodeParms parameters in attachment filter stacks before summary or payload extraction' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf();
+        $pdf = $fixture['pdf'];
+        $duplicatePredictorPayload = $fixture['duplicate_predictor_payload'];
+        $duplicateCryptPayload = $fixture['duplicate_crypt_payload'];
+        $validPayload = $fixture['valid_payload'];
+        $checksum = md5($validPayload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['valid-after-parameter-duplicates.csv'], $summary['filenames']);
+        $t->same(strlen($validPayload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('valid-after-parameter-duplicates.csv', $attachment['filename'] ?? null);
+        $t->same('Valid attachment after duplicate DecodeParms parameters', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same('original_source', $attachment['relationship_role'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($validPayload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('valid-after-parameter-duplicates.csv', $files[0]['filename'] ?? null);
+        $t->same($validPayload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment DecodeParms Parameter Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'duplicate-predictor-parameter.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'duplicate-crypt-name.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $validPayload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $duplicatePredictorPayload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $duplicateCryptPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'duplicate-predictor-parameter.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'duplicate-crypt-name.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $duplicatePredictorPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $duplicateCryptPayload));
+        $t->true(!str_contains($plainText, 'Duplicate Predictor Parameter Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Duplicate Crypt Name Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Valid Attachment After Parameter Duplicates'));
     },
     'resolves chained indirect Filter and DecodeParms operands while failing closed on filter cycles' => static function (
         TestRunner $t

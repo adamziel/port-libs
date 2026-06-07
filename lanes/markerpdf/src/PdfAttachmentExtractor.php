@@ -47,6 +47,15 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Filter', 'DecodeParms', 'Params'];
 
+    private const STREAM_DECODE_PARMS_BOUNDARY_KEYS = [
+        'Predictor',
+        'Columns',
+        'Colors',
+        'BitsPerComponent',
+        'EarlyChange',
+        'Name',
+    ];
+
     private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
@@ -2966,7 +2975,9 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        return $this->decodedStreamBytesForDictionary($streamObject['stream'], $dict, $objects);
+        $dictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($streamObject['body']);
+
+        return $this->decodedStreamBytesForDictionary($streamObject['stream'], $dict, $objects, $dictionaryBody);
     }
 
     /**
@@ -2990,7 +3001,12 @@ final class PdfAttachmentExtractor
      * @param array<string, mixed> $dict
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      */
-    private function decodedStreamBytesForDictionary(string $bytes, array $dict, array $objects): ?string
+    private function decodedStreamBytesForDictionary(
+        string $bytes,
+        array $dict,
+        array $objects,
+        ?string $dictionaryBody = null
+    ): ?string
     {
         $filters = $this->filterSlots($dict['Filter'] ?? null, $objects);
         if ($filters === null) {
@@ -2999,6 +3015,13 @@ final class PdfAttachmentExtractor
 
         $decodeParms = [];
         if ($filters !== [] && array_key_exists('DecodeParms', $dict)) {
+            if (
+                $dictionaryBody !== null
+                && $this->streamDictionaryHasDuplicateDecodeParmsParameters($dictionaryBody, $objects, $filters)
+            ) {
+                return null;
+            }
+
             $decodeParms = $this->decodeParmsSlots($dict['DecodeParms'], $objects);
             if ($decodeParms === null || !$this->decodeParmsSupportedForFilters($decodeParms, $objects, $filters)) {
                 return null;
@@ -7153,6 +7176,142 @@ final class PdfAttachmentExtractor
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<string|null> $filters
+     */
+    private function streamDictionaryHasDuplicateDecodeParmsParameters(
+        string $dictionaryBody,
+        array $objects,
+        array $filters
+    ): bool
+    {
+        $decodeParms = $this->rawDictionaryEntryValue($dictionaryBody, 'DecodeParms');
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        foreach ($this->decodeParmsRawItemsForAppliedFilters($decodeParms, $objects, $filters) as $item) {
+            if ($this->decodeParmsValueHasDuplicateTopLevelParameter($item, $objects)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<string|null> $filters
+     * @param array<string, true> $seen
+     * @return list<string>
+     */
+    private function decodeParmsRawItemsForAppliedFilters(
+        string $value,
+        array $objects,
+        array $filters,
+        array $seen = []
+    ): array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed === 'null') {
+            return [];
+        }
+
+        $index = 0;
+        $parsed = $this->parseValue($trimmed, $index);
+        $reference = $this->refObjectReference($parsed);
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            $object = $this->objectForReference($parsed, $objects);
+            if ($object === null || isset($seen[$objectKey])) {
+                return [$trimmed];
+            }
+
+            $nextSeen = $seen;
+            $nextSeen[$objectKey] = true;
+            return $this->decodeParmsRawItemsForAppliedFilters($object['body'], $objects, $filters, $nextSeen);
+        }
+
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+        if ($nonNullFilterIndexes === []) {
+            return [];
+        }
+
+        if (!str_starts_with($trimmed, '[')) {
+            return count($nonNullFilterIndexes) === 1 ? [$trimmed] : [];
+        }
+
+        $rawItems = $this->rawArrayItemsFromValue($trimmed, $objects);
+        $compact = count($rawItems) === count($nonNullFilterIndexes)
+            && count($rawItems) !== count($filters);
+
+        $items = [];
+        foreach ($rawItems as $itemIndex => $item) {
+            $filterIndex = $compact ? ($nonNullFilterIndexes[$itemIndex] ?? null) : $itemIndex;
+            if ($filterIndex === null || !array_key_exists($filterIndex, $filters) || $filters[$filterIndex] === null) {
+                continue;
+            }
+
+            $items[] = $item;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<string, true> $seen
+     */
+    private function decodeParmsValueHasDuplicateTopLevelParameter(
+        string $value,
+        array $objects,
+        array $seen = []
+    ): bool {
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed === 'null') {
+            return false;
+        }
+
+        $index = 0;
+        $parsed = $this->parseValue($trimmed, $index);
+        $reference = $this->refObjectReference($parsed);
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            $object = $this->objectForReference($parsed, $objects);
+            if ($object === null || isset($seen[$objectKey])) {
+                return true;
+            }
+
+            $nextSeen = $seen;
+            $nextSeen[$objectKey] = true;
+            return $this->decodeParmsValueHasDuplicateTopLevelParameter($object['body'], $objects, $nextSeen);
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            foreach ($this->rawArrayItemsFromValue($trimmed, $objects) as $item) {
+                if ($this->decodeParmsValueHasDuplicateTopLevelParameter($item, $objects, $seen)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!str_starts_with($trimmed, '<<')) {
+            return false;
+        }
+
+        $dictionaryBody = $this->rawDictionaryBodyFromValue($trimmed, $objects);
+        return $dictionaryBody !== null
+            && $this->dictionaryHasDuplicateKeys($dictionaryBody, self::STREAM_DECODE_PARMS_BOUNDARY_KEYS);
     }
 
     /**
