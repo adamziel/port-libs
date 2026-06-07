@@ -364,6 +364,12 @@ if (!$typstCodeBlock instanceof PortLibs\Pandoc\AstNode || $typstCodeBlock->type
 }
 $typst = $highlighter->highlightCodeBlock($typstCodeBlock, 'haddock');
 $typstWordpressBlock = $highlighter->wordpressHtmlBlock($typstCodeBlock, 'haddock');
+$kotlinCodeBlock = $document->children[54] ?? null;
+if (!$kotlinCodeBlock instanceof PortLibs\Pandoc\AstNode || $kotlinCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Kotlin code block');
+}
+$kotlin = $highlighter->highlightCodeBlock($kotlinCodeBlock, 'breezedark');
+$kotlinWordpressBlock = $highlighter->wordpressHtmlBlock($kotlinCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1556,6 +1562,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($typstWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
         throw new RuntimeException('Expected Typst WordPress style metadata');
     }
+    if (($kotlin['language'] ?? '') !== 'kotlin') {
+        throw new RuntimeException('Expected Kotlin language handoff');
+    }
+    if (($kotlin['lineNumbering']['start'] ?? null) !== 720) {
+        throw new RuntimeException('Expected Kotlin source startFrom line-number handoff');
+    }
+    if (!str_contains($kotlin['html'], '<span class="ot">@Serializable</span>')) {
+        throw new RuntimeException('Expected Kotlin annotation token handoff');
+    }
+    if (!str_contains($kotlin['html'], '<span class="kw">data</span> <span class="kw">class</span> <span class="dt">ReviewPacket</span><span class="op">(</span>')) {
+        throw new RuntimeException('Expected Kotlin data class token handoff');
+    }
+    if (!str_contains($kotlin['html'], '<span class="kw">val</span> <span class="va">packet</span> <span class="op">=</span> <span class="dt">Json</span><span class="op">.</span><span class="fu">decodeFromString</span>')) {
+        throw new RuntimeException('Expected Kotlin generic decode function token handoff');
+    }
+    if (!str_contains($kotlin['html'], '<span class="op">?:</span> <span class="st">&quot;Untitled&quot;</span>')) {
+        throw new RuntimeException('Expected Kotlin Elvis operator token handoff');
+    }
+    if (!str_contains($kotlinWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Kotlin WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1633,6 +1660,7 @@ echo "liquidHighlightedHtml:\n" . $liquid['html'] . "\n";
 echo "elmHighlightedHtml:\n" . $elm['html'] . "\n";
 echo "jsoncHighlightedHtml:\n" . $jsonc['html'] . "\n";
 echo "typstHighlightedHtml:\n" . $typst['html'] . "\n";
+echo "kotlinHighlightedHtml:\n" . $kotlin['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1680,4 +1708,5 @@ echo "terraformWordpressBlock:\n" . $terraformWordpressBlock . "\n";
 echo "liquidWordpressBlock:\n" . $liquidWordpressBlock . "\n";
 echo "elmWordpressBlock:\n" . $elmWordpressBlock . "\n";
 echo "jsoncWordpressBlock:\n" . $jsoncWordpressBlock . "\n";
+echo "kotlinWordpressBlock:\n" . $kotlinWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

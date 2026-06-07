@@ -905,3 +905,25 @@ view model =
   [Source], [#source-id],
 )
 ```
+
+``` {.kt #kotlin-review .numberLines startFrom=720}
+// Android WordPress import review
+package org.wordpress.importer
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+@Serializable
+data class ReviewPacket(
+    val title: String?,
+    val sourceId: Long,
+    val media: List<String> = emptyList(),
+)
+
+fun normalizeTitle(raw: String): String {
+    val packet = Json.decodeFromString<ReviewPacket>(raw)
+    return packet.title?.trim()?.ifBlank { "Import ${packet.sourceId}" } ?: "Untitled"
+}
+
+val blocks = mapOf("core/paragraph" to true, "core/html" to false)
+```

@@ -70,6 +70,11 @@ return [
         $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json5'));
         $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('json-with-comments'));
         $t->same('jsonc', SyntaxHighlighter::normalizeLanguage('language-json.comments'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kotlin'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kt'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kts'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kotlin-script'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('language-kotlinscript'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('jsx'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('javascript-react'));
         $t->same('c', SyntaxHighlighter::normalizeLanguage('c'));
@@ -1514,6 +1519,51 @@ return [
         $t->same('typst', $directTypst['language']);
         $t->same('typ', $directTypst['requestedLanguage']);
         $t->contains('<span class="kw">#let</span> <span class="va">card</span> <span class="op">=</span> <span class="dt">rect</span><span class="op">(</span><span class="ot">fill</span><span class="op">:</span> <span class="fu">rgb</span><span class="op">(</span><span class="st">&quot;#fff&quot;</span><span class="op">))</span>', $directTypst['html']);
+    },
+    'highlights kotlin android review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[54] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Kotlin code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directKotlin = $highlighter->highlight('val block: String? = null; println(block ?: "Untitled")', 'kotlin-script');
+
+        $t->same('kt', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kt'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kts'));
+        $t->same('kotlin', SyntaxHighlighter::normalizeLanguage('kotlin-script'));
+        $t->same('kotlin', $highlighted['language']);
+        $t->same('kt', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(720, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource kt numberLines"><code class="sourceCode kotlin" style="counter-reset: source-line 719;">', $highlighted['html']);
+        $t->contains('<span id="kotlin-review-720"><a href="#kotlin-review-720"></a><span class="co">// Android WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">package</span> <span class="va">org</span><span class="op">.</span><span class="va">wordpress</span><span class="op">.</span><span class="va">importer</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">kotlinx</span><span class="op">.</span><span class="va">serialization</span><span class="op">.</span><span class="dt">Serializable</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@Serializable</span>', $highlighted['html']);
+        $t->contains('<span class="kw">data</span> <span class="kw">class</span> <span class="dt">ReviewPacket</span><span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="kw">val</span> <span class="va">title</span><span class="op">:</span> <span class="dt">String</span><span class="op">?,</span>', $highlighted['html']);
+        $t->contains('<span class="kw">val</span> <span class="va">media</span><span class="op">:</span> <span class="dt">List</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="fu">emptyList</span><span class="op">(),</span>', $highlighted['html']);
+        $t->contains('<span class="kw">fun</span> <span class="fu">normalizeTitle</span><span class="op">(</span><span class="va">raw</span><span class="op">:</span> <span class="dt">String</span><span class="op">):</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="kw">val</span> <span class="va">packet</span> <span class="op">=</span> <span class="dt">Json</span><span class="op">.</span><span class="fu">decodeFromString</span><span class="op">&lt;</span><span class="dt">ReviewPacket</span><span class="op">&gt;(</span><span class="va">raw</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">?.</span><span class="fu">trim</span><span class="op">()?.</span><span class="fu">ifBlank</span> <span class="op">{</span> <span class="st">&quot;Import ${packet.sourceId}&quot;</span> <span class="op">}</span> <span class="op">?:</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">val</span> <span class="va">blocks</span> <span class="op">=</span> <span class="fu">mapOf</span><span class="op">(</span><span class="st">&quot;core/paragraph&quot;</span> <span class="kw">to</span> <span class="cn">true</span><span class="op">,</span> <span class="st">&quot;core/html&quot;</span> <span class="kw">to</span> <span class="cn">false</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="fu">decodeFromString</span><span class="op">&lt;</span><span class="dt">ReviewPacket</span>', $wordpressBlock);
+        $t->same('kotlin', $directKotlin['language']);
+        $t->same('kotlin-script', $directKotlin['requestedLanguage']);
+        $t->contains('<span class="kw">val</span> <span class="va">block</span><span class="op">:</span> <span class="dt">String</span><span class="op">?</span> <span class="op">=</span> <span class="cn">null</span>', $directKotlin['html']);
+        $t->contains('<span class="fu">println</span><span class="op">(</span><span class="va">block</span> <span class="op">?:</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $directKotlin['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

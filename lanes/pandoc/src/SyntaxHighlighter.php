@@ -119,6 +119,11 @@ final class SyntaxHighlighter
         'json5' => 'jsonc',
         'jsonc' => 'jsonc',
         'kcfgc' => 'ini',
+        'kotlinscript' => 'kotlin',
+        'kotlin' => 'kotlin',
+        'kotlin-script' => 'kotlin',
+        'kt' => 'kotlin',
+        'kts' => 'kotlin',
         'latex' => 'tex',
         'lhs' => 'haskell',
         'html-liquid' => 'liquid',
@@ -670,6 +675,7 @@ final class SyntaxHighlighter
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
             'jsonc' => $this->tokenizeJsonWithComments($code),
+            'kotlin' => $this->tokenizeKotlin($code),
             'less' => $this->tokenizeLess($code),
             'liquid' => $this->tokenizeLiquid($code),
             'lua' => $this->tokenizeLua($code),
@@ -1052,6 +1058,30 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->|>>>?=?|<<=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeKotlin(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:actual|as|break|by|catch|class|companion|constructor|continue|data|do|dynamic|else|enum|expect|external|final|finally|for|fun|get|if|import|in|infix|init|inline|inner|interface|internal|is|lateinit|noinline|object|open|operator|out|override|package|private|protected|public|reified|return|sealed|set|super|suspend|tailrec|this|throw|to|try|typealias|val|var|vararg|when|where|while)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:Any|Array|Boolean|Byte|Char|CharSequence|Double|Float|Int|Iterable|Json|List|Long|Map|MutableList|MutableMap|Nothing|Pair|Result|Sequence|Set|Short|String|Unit)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)[fFlLuU]*\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\{)/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|\\.\\.|\\?\\.|\\?:|!!|->|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
         ]);
     }
 
