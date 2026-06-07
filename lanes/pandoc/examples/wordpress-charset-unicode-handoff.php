@@ -56,6 +56,9 @@ $windows1251Text = (string) $windows1251Source->children[1]->attr('text');
 $koi8RBytes = "# \xE9\xCD\xD0\xCF\xD2\xD4\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xD0\xD2\xC9\xD7\xC5\xD4; \xB3\xCC\xCB\xC1; \x82\x80\x83.";
 $koi8RSource = (new MarkdownReader())->readBytes($koi8RBytes, 'cskoi8r');
 $koi8RText = (string) $koi8RSource->children[1]->attr('text');
+$koi8UBytes = "# \xF5\xCB\xD2\xC1\xA7\xCE\xC1\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xEB\xC9\xA7\xD7; \xA7\xD6\xC1\xCB \xA6 \xAD\xC1\xCE\xCF\xCB; \xB4\xB6\xB7\xBD.";
+$koi8USource = (new MarkdownReader())->readBytes($koi8UBytes, 'koi8-u');
+$koi8UText = (string) $koi8USource->children[1]->attr('text');
 $iso88595Bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
 $iso88595Source = (new MarkdownReader())->readBytes($iso88595Bytes, 'iso-ir-144');
 $iso88595Text = (string) $iso88595Source->children[1]->attr('text');
@@ -415,6 +418,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8RSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8RText) . '/' . UnicodeText::displayWidth($koi8RText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'KOI8-U source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $koi8UText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8USource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8UText) . '/' . UnicodeText::displayWidth($koi8UText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-8859-5 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso88595Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88595Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88595Text)])]),
@@ -693,6 +701,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>KOI8-R source</td><td>Редактор привет; Ёлка; ┌─┐.</td><td>koi8-r:27/48</td>')) {
         throw new RuntimeException('charset handoff self-test missing KOI8-R decode audit row');
+    }
+    if (($koi8USource->attr('sourceEncoding')['encoding'] ?? '') !== 'koi8-u') {
+        throw new RuntimeException('charset handoff self-test missing KOI8-U source encoding');
+    }
+    if (!str_contains($blocks, '<td>KOI8-U source</td><td>Редактор Київ; їжак і ґанок; ЄІЇҐ.</td><td>koi8-u:34/52</td>')) {
+        throw new RuntimeException('charset handoff self-test missing KOI8-U Ukrainian decode audit row');
     }
     if (($iso88595Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-5') {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-5 source encoding');

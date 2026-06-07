@@ -539,6 +539,18 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const KOI8_U_OVERRIDES = [
+        0xa4 => 0x0454,
+        0xa6 => 0x0456,
+        0xa7 => 0x0457,
+        0xad => 0x0491,
+        0xb4 => 0x0404,
+        0xb6 => 0x0406,
+        0xb7 => 0x0407,
+        0xbd => 0x0490,
+    ];
+
+    /** @var array<int, int> */
     private const ISO_8859_2_REPLACEMENTS = [
         0xa1 => 0x0104,
         0xa2 => 0x02d8,
@@ -1497,6 +1509,7 @@ final class UnicodeText
             || $normalized === 'windows-1251'
             || $normalized === 'windows-1253'
             || $normalized === 'koi8-r'
+            || $normalized === 'koi8-u'
             || $normalized === 'iso-8859-1'
             || $normalized === 'iso-8859-2'
             || $normalized === 'iso-8859-3'
@@ -1985,6 +1998,7 @@ final class UnicodeText
             'windows1251', 'cp1251', 'microsoftcp1251', 'ms1251', 'xcp1251' => 'windows-1251',
             'windows1253', 'cp1253', 'microsoftcp1253', 'ms1253', 'xcp1253' => 'windows-1253',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
+            'koi8u', 'cskoi8u' => 'koi8-u',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
             'iso88593', 'iso88593:1988', 'latin3', 'latin-3', 'l3', 'isoir109', 'csisolatin3' => 'iso-8859-3',
@@ -2412,7 +2426,12 @@ final class UnicodeText
                 $repairs++;
                 continue;
             }
-            if ($encoding === 'koi8-r' && $byte >= 0x80) {
+            if (($encoding === 'koi8-r' || $encoding === 'koi8-u') && $byte >= 0x80) {
+                if ($encoding === 'koi8-u' && isset(self::KOI8_U_OVERRIDES[$byte])) {
+                    $out .= self::fromCodepoint(self::KOI8_U_OVERRIDES[$byte]);
+                    continue;
+                }
+
                 $out .= self::fromCodepoint(self::KOI8_R_REPLACEMENTS[$byte]);
                 continue;
             }

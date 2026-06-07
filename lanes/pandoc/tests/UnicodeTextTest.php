@@ -304,6 +304,27 @@ return [
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка; ┌─┐.</p>', $blocks);
     },
+    'decodes koi8 u ukrainian source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xF5\xCB\xD2\xC1\xA7\xCE\xC1\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xEB\xC9\xA7\xD7; \xA7\xD6\xC1\xCB \xA6 \xAD\xC1\xCE\xCF\xCB; \xB4\xB6\xB7\xBD.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'koi8-u');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cskoi8u');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA4\xA6\xA7\xAD\xB4\xB6\xB7\xBD", 'koi8-u');
+        $koi8RComparison = UnicodeText::decodeBytes("\xA4\xA6\xA7\xAD\xB4\xB6\xB7\xBD", 'koi8-r');
+
+        $t->same('koi8-u', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Україна\n\nРедактор Київ; їжак і ґанок; ЄІЇҐ.", $decoded['text']);
+        $t->same('єіїґЄІЇҐ', $specials['text']);
+        $t->same('╓╕╖╜╢╤╥╫', $koi8RComparison['text']);
+        $t->same(['encoding' => 'koi8-u', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Україна', $document->children[0]->attr('text'));
+        $t->same('Редактор Київ; їжак і ґанок; ЄІЇҐ.', $document->children[1]->attr('text'));
+        $t->same(34, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(52, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="україна">Україна</h1>', $blocks);
+        $t->contains('<p>Редактор Київ; їжак і ґанок; ЄІЇҐ.</p>', $blocks);
+    },
     'decodes iso 8859 5 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-144');
