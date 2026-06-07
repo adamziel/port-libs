@@ -961,6 +961,7 @@ final class PdfTextExtractor
      *     xref_selected_operand_count: int,
      *     unresolved_operand_count: int,
      *     invalid_filter_operand_count: int,
+     *     nested_unresolved_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
      *     duplicate_filter_declaration_count: int,
@@ -997,6 +998,7 @@ final class PdfTextExtractor
             'xref_selected_operand_count' => 0,
             'unresolved_operand_count' => 0,
             'invalid_filter_operand_count' => 0,
+            'nested_unresolved_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
             'duplicate_filter_declaration_count' => 0,
@@ -1094,6 +1096,7 @@ final class PdfTextExtractor
             $selectedOperandCount = $this->xrefStreamSelectedOperandCount($operands);
             $unresolvedOperandCount = $this->xrefStreamCMapUnresolvedOperandCount($operandGroups, $filters);
             $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
+            $nestedUnresolvedFilterOperandCount = $this->nestedUnresolvedStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
             $escapedFilterNameOperandCount = $this->escapedStreamFilterNameOperandCount($operandGroups['Filter']);
@@ -1137,6 +1140,7 @@ final class PdfTextExtractor
             $review['xref_selected_operand_count'] += $selectedOperandCount;
             $review['unresolved_operand_count'] += $unresolvedOperandCount;
             $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
+            $review['nested_unresolved_filter_operand_count'] += $nestedUnresolvedFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
             $review['duplicate_filter_declaration_count'] += $duplicateFilterDeclarationCount;
@@ -1166,6 +1170,7 @@ final class PdfTextExtractor
                 'filter_resolution_failed' => $filters === null,
                 'decodeparms_resolution_failed' => $decodeParms === null,
                 'invalid_filter_operand_count' => $invalidFilterOperandCount,
+                'nested_unresolved_filter_operand_count' => $nestedUnresolvedFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
@@ -29998,6 +30003,16 @@ final class PdfTextExtractor
                 $objects,
                 [$objectNumber . ':' . $generation => true]
             ) !== null;
+            $nestedUnresolvedCount = $this->filterOperandNestedUnresolvedReferenceCount(
+                $body,
+                $objects,
+                [$objectNumber . ':' . $generation => true]
+            );
+            if ($nestedUnresolvedCount > 0) {
+                $review['nested_unresolved_filter_operand'] = true;
+                $review['nested_unresolved_filter_operand_count'] = $nestedUnresolvedCount;
+                $review['valid_filter_operand'] = false;
+            }
             if ($extraFilterOperand !== null) {
                 $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraFilterOperand);
             }
@@ -30196,6 +30211,11 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if (($operand['nested_unresolved_filter_operand_count'] ?? 0) > 0) {
+                $count++;
+                continue;
+            }
+
             if ($this->streamFilterOperandIsDictionary($operand)) {
                 $count++;
                 continue;
@@ -30204,6 +30224,19 @@ final class PdfTextExtractor
             if ($this->streamFilterOperandIsMalformed($operand)) {
                 $count++;
             }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function nestedUnresolvedStreamFilterOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            $count += max(0, (int) ($operand['nested_unresolved_filter_operand_count'] ?? 0));
         }
 
         return $count;
@@ -30546,6 +30579,60 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<string, true> $seenObjects
      */
+    private function filterOperandNestedUnresolvedReferenceCount(
+        string $body,
+        array $objects,
+        array $seenObjects = []
+    ): int {
+        $body = trim($body);
+        if ($body === '') {
+            return 0;
+        }
+
+        $offset = $this->skipPdfWhitespace($body, 0);
+        if ($offset >= strlen($body)) {
+            return 0;
+        }
+
+        if ($body[$offset] === '[') {
+            $arrayBody = $this->readPdfArrayAt($body, $offset);
+            if ($arrayBody === null) {
+                return 0;
+            }
+
+            $count = 0;
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                $count += $this->filterOperandNestedUnresolvedReferenceCount($item, $objects, $seenObjects);
+            }
+
+            return $count;
+        }
+
+        $reference = $this->pdfIndirectReferenceTokenAt($body, $offset);
+        if ($reference === null || $this->skipPdfWhitespace($body, $reference['endOffset']) !== strlen($body)) {
+            return 0;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seenObjects[$objectKey])) {
+            return 1;
+        }
+
+        $referencedBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($referencedBody === null) {
+            return 1;
+        }
+
+        $seenObjects[$objectKey] = true;
+        return $this->filterOperandNestedUnresolvedReferenceCount($referencedBody, $objects, $seenObjects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
+     */
     private function filterOperandArrayContainsDictionary(
         string $body,
         array $objects = [],
@@ -30580,6 +30667,10 @@ final class PdfTextExtractor
      */
     private function streamFilterOperandIsMalformed(array $operand): bool
     {
+        if (($operand['nested_unresolved_filter_operand_count'] ?? 0) > 0) {
+            return false;
+        }
+
         $valid = $operand['valid_filter_operand'] ?? null;
         return $valid === false && !$this->streamFilterOperandIsDictionary($operand);
     }
@@ -30697,6 +30788,11 @@ final class PdfTextExtractor
                     && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
                 ) {
                     $count++;
+                    continue;
+                }
+
+                if ($name === 'Filter') {
+                    $count += max(0, (int) ($operand['nested_unresolved_filter_operand_count'] ?? 0));
                 }
             }
         }
@@ -31938,6 +32034,10 @@ final class PdfTextExtractor
     private function cMapFilterOperandReviewsHaveUnselectedIndirect(array $operands): bool
     {
         foreach ($operands as $operand) {
+            if (($operand['nested_unresolved_filter_operand_count'] ?? 0) > 0) {
+                return true;
+            }
+
             if (
                 ($operand['kind'] ?? null) !== 'direct'
                 && (($operand['resolved'] ?? false) !== true || ($operand['xref_selected'] ?? false) !== true)
@@ -31971,7 +32071,18 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($this->indirectObjectBodyForReference($objects, $reference['objectNumber'], $reference['generation']) === null) {
+            $body = $this->indirectObjectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body === null) {
+                return true;
+            }
+
+            if (
+                $this->filterOperandNestedUnresolvedReferenceCount(
+                    $body,
+                    $objects,
+                    [$reference['objectNumber'] . ':' . $reference['generation'] => true]
+                ) > 0
+            ) {
                 return true;
             }
         }
