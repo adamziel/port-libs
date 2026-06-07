@@ -257,6 +257,21 @@ $stwUser = static function (array $variables) use ($u16, $u32, $utf16le): string
 
     return $bytes;
 };
+$sttbSavedBy = static function (array $pairs) use ($u16, $utf16le): string {
+    $strings = [];
+    foreach ($pairs as $pair) {
+        $strings[] = (string) $pair['author'];
+        $strings[] = (string) $pair['path'];
+    }
+
+    $bytes = $u16(0xffff) . $u16(count($strings)) . $u16(0);
+    foreach ($strings as $string) {
+        $encoded = $utf16le($string);
+        $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+    }
+
+    return $bytes;
+};
 $buildPlcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     $bytes = '';
     foreach ($records as $record) {
@@ -746,6 +761,10 @@ $documentVariablesTable = $stwUser([
     ['name' => 'ReviewStatus', 'value' => 'needs editorial review'],
     ['name' => 'Sign', 'value' => 'opaque signature blob'],
 ]);
+$saveHistoryTable = $sttbSavedBy([
+    ['author' => 'Migration Desk', 'path' => 'C:\Legacy\packet-draft.doc'],
+    ['author' => 'Review Lead', 'path' => 'D:\Archive\legacy-doc-42-final.doc'],
+]);
 $fcDop = strlen($clx);
 $fcPlcfFldMom = $fcDop + strlen($dop);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
@@ -753,7 +772,8 @@ $fcPlcfFldEdn = $fcPlcfFldHdr + strlen($plcfldHdr);
 $fcPlcfHdd = $fcPlcfFldEdn + strlen($plcfldEdn);
 $fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
 $fcStwUser = $fcSttbfAssoc + strlen($associatedStringsTable);
-$fcSttbfBkmk = $fcStwUser + strlen($documentVariablesTable);
+$fcSttbSavedBy = $fcStwUser + strlen($documentVariablesTable);
+$fcSttbfBkmk = $fcSttbSavedBy + strlen($saveHistoryTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
 $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
@@ -769,7 +789,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -796,6 +816,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcSttbfAssoc), 0x019a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcStwUser), 0x027a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($documentVariablesTable)), 0x027e, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbSavedBy), 0x02d2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
@@ -1230,6 +1252,7 @@ $summary = [
     'associatedStrings' => $result['associatedStrings'],
     'documentProperties' => $result['documentProperties'],
     'documentVariables' => $result['documentVariables'],
+    'saveHistory' => $result['saveHistory'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
@@ -1287,6 +1310,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($summary['wordpressBlocks'], 'legacy-doc-42') || str_contains($summary['wordpressBlocks'], 'needs editorial review') || str_contains($summary['wordpressBlocks'], 'opaque signature blob')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered StwUser metadata into blocks');
+    }
+    if (($summary['metadata']['saveHistoryCount'] ?? null) !== 2 || count($summary['saveHistory'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbSavedBy save-history inventory');
+    }
+    if (($summary['metadata']['latestSavedBy'] ?? '') !== 'Review Lead' || ($summary['metadata']['latestSavedName'] ?? '') !== 'legacy-doc-42-final.doc') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing latest save-history metadata');
+    }
+    if (($summary['saveHistory'][0]['path'] ?? '') !== 'C:\Legacy\packet-draft.doc' || ($summary['saveHistory'][1]['basename'] ?? '') !== 'legacy-doc-42-final.doc') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing ordered save-history paths');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'packet-draft.doc') || str_contains($summary['wordpressBlocks'], 'Review Lead')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered SttbSavedBy metadata into blocks');
     }
     $documentProperties = $summary['documentProperties'] ?? null;
     $documentPolicyFlags = is_array($documentProperties) && is_array($documentProperties['policyFlags'] ?? null) ? $documentProperties['policyFlags'] : [];

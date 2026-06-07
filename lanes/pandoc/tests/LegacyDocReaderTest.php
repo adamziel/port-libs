@@ -628,6 +628,21 @@ $stwUser = static function (array $variables) use ($u16, $u32, $utf16le): string
 
     return $bytes;
 };
+$sttbSavedBy = static function (array $pairs) use ($u16, $utf16le): string {
+    $strings = [];
+    foreach ($pairs as $pair) {
+        $strings[] = (string) $pair['author'];
+        $strings[] = (string) $pair['path'];
+    }
+
+    $bytes = $u16(0xffff) . $u16(count($strings)) . $u16(0);
+    foreach ($strings as $string) {
+        $encoded = $utf16le($string);
+        $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+    }
+
+    return $bytes;
+};
 $plcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     $bytes = '';
     foreach ($records as $record) {
@@ -2253,6 +2268,74 @@ return [
         $t->true(!str_contains($blocks, 'opaque signature bytes'));
         $t->true(!str_contains($markdown, 'needs QA'));
         $t->true(!str_contains($markdown, 'opaque signature bytes'));
+    },
+    'extracts legacy DOC SttbSavedBy save history as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbSavedBy, $u16, $u32): void {
+        $saveHistoryTable = $sttbSavedBy([
+            ['author' => 'Migration Desk', 'path' => 'C:\Legacy\Drafts\packet-v1.doc'],
+            ['author' => 'Review Lead', 'path' => 'D:\Archive\Final import.doc'],
+        ]);
+        $wordDocument = $buildExtendedFibWordDocument("Save history review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x02d2, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $saveHistoryTable,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $saveHistory = $result['saveHistory'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(2, count($saveHistory));
+        $t->same(2, $metadata['saveHistoryCount']);
+        $t->same($saveHistory, $metadata['saveHistory']);
+        $t->same($saveHistory, $result['document']->attr('saveHistory'));
+        $t->same($saveHistory, $result['document']->attr('meta')['saveHistory']);
+        $t->same('Migration Desk', $saveHistory[0]['author']);
+        $t->same('C:\Legacy\Drafts\packet-v1.doc', $saveHistory[0]['path']);
+        $t->same('packet-v1.doc', $saveHistory[0]['basename']);
+        $t->same('Review Lead', $saveHistory[1]['author']);
+        $t->same('D:\Archive\Final import.doc', $saveHistory[1]['path']);
+        $t->same('Final import.doc', $saveHistory[1]['basename']);
+        $t->same('Review Lead', $metadata['latestSavedBy']);
+        $t->same('D:\Archive\Final import.doc', $metadata['latestSavedPath']);
+        $t->same('Final import.doc', $metadata['latestSavedName']);
+        $t->same('SttbSavedBy', $saveHistory[0]['sourceTable']);
+        $t->same('earliest-to-latest', $saveHistory[0]['order']);
+        $t->contains('<p>Save history review packet</p>', $blocks);
+        $t->contains('Save history review packet', $markdown);
+        $t->true(!str_contains($blocks, 'packet-v1.doc'));
+        $t->true(!str_contains($blocks, 'Review Lead'));
+        $t->true(!str_contains($markdown, 'Final import.doc'));
+
+        $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
+            $wordDocument = $buildExtendedFibWordDocument("Malformed save history packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x02d2, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($table)), 0x02d6, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $table,
+            ]);
+        };
+        foreach ([
+            'wrong extended marker' => substr_replace($saveHistoryTable, $u16(0), 0, 2),
+            'odd string count' => substr_replace($saveHistoryTable, $u16(3), 2, 2),
+            'too many strings' => substr_replace($saveHistoryTable, $u16(22), 2, 2),
+            'extra data' => substr_replace($saveHistoryTable, $u16(2), 4, 2),
+            'trailing bytes' => $saveHistoryTable . "\0",
+        ] as $table) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($table)));
+        }
+
+        $missingTableWordDocument = $buildExtendedFibWordDocument("Missing save history table stream packet\r");
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x02d2, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
     },
     'rejects malformed legacy DOC StwUser document variables before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $stwUser, $u16, $u32): void {
         $buildDocBytes = static function (string $documentVariablesTable) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {

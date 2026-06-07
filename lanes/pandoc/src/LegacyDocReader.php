@@ -47,6 +47,8 @@ final class LegacyDocReader
     private const FIB_LCB_STTBF_ASSOC = 0x019e;
     private const FIB_FC_STW_USER = 0x027a;
     private const FIB_LCB_STW_USER = 0x027e;
+    private const FIB_FC_STTB_SAVED_BY = 0x02d2;
+    private const FIB_LCB_STTB_SAVED_BY = 0x02d6;
     private const FIB_FC_GRPXST_ATN_OWNERS = 0x01ba;
     private const FIB_LCB_GRPXST_ATN_OWNERS = 0x01be;
     private const FIB_FC_PLCFEND_REF = 0x020a;
@@ -126,7 +128,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -134,7 +136,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -203,6 +205,15 @@ final class LegacyDocReader
                 $metadata['documentSignatureVariableCount'] = $signatureVariableCount;
                 $metadata['documentSignaturePolicy'] = 'signature-blob-metadata-only';
             }
+        }
+        $saveHistory = $this->saveHistoryReport($wordDocument, $tableStream);
+        if ($saveHistory !== []) {
+            $metadata['saveHistoryCount'] = count($saveHistory);
+            $metadata['saveHistory'] = $saveHistory;
+            $latestSaveHistory = $saveHistory[count($saveHistory) - 1];
+            $metadata['latestSavedBy'] = $latestSaveHistory['author'];
+            $metadata['latestSavedPath'] = $latestSaveHistory['path'];
+            $metadata['latestSavedName'] = $latestSaveHistory['basename'];
         }
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
@@ -383,6 +394,7 @@ final class LegacyDocReader
             'associatedStrings' => $associatedStrings,
             'documentProperties' => $documentProperties,
             'documentVariables' => $documentVariables,
+            'saveHistory' => $saveHistory,
         ];
 
         return [
@@ -420,6 +432,7 @@ final class LegacyDocReader
             'associatedStrings' => $associatedStrings,
             'documentProperties' => $documentProperties,
             'documentVariables' => $documentVariables,
+            'saveHistory' => $saveHistory,
         ];
     }
 
@@ -2313,6 +2326,103 @@ final class LegacyDocReader
         $normalized = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
 
         return in_array($normalized, ['sign', 'sigagile', 'sigv3'], true);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function saveHistoryReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STTB_SAVED_BY + 4) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STTB_SAVED_BY);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC save-history metadata requires the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STTB_SAVED_BY);
+
+        return $this->parseSttbSavedBy(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'SttbSavedBy save-history table')
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseSttbSavedBy(string $bytes): array
+    {
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('Legacy DOC save-history table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC save-history table must use extended strings');
+        }
+
+        $count = self::u16($bytes, 2);
+        if (($count % 2) !== 0 || $count > 0x0014) {
+            throw new \RuntimeException('Legacy DOC save-history table must contain an even count of at most 20 strings');
+        }
+        if (self::u16($bytes, 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC save-history table must not contain extra data');
+        }
+
+        $cursor = 6;
+        $strings = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC save-history table is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters > 4096) {
+                throw new \RuntimeException('Legacy DOC save-history string length exceeds the bounded native reader limit');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC save-history table points outside its string data');
+            }
+
+            $strings[] = $characters === 0 ? '' : $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+        }
+        if ($cursor !== strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC save-history table contains trailing bytes');
+        }
+
+        $history = [];
+        for ($index = 0, $pairIndex = 0; $index < count($strings); $index += 2, $pairIndex++) {
+            $path = $strings[$index + 1];
+            $history[] = [
+                'index' => $pairIndex,
+                'sourceTable' => 'SttbSavedBy',
+                'order' => 'earliest-to-latest',
+                'author' => $strings[$index],
+                'path' => $path,
+                'basename' => $this->legacyPathBasename($path),
+            ];
+        }
+
+        return $history;
+    }
+
+    private function legacyPathBasename(string $path): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $normalized = str_replace('\\', '/', $path);
+        $slash = strrpos($normalized, '/');
+
+        return $slash === false ? $path : substr($normalized, $slash + 1);
     }
 
     /**
