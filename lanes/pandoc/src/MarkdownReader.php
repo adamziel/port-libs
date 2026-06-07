@@ -1043,10 +1043,14 @@ final class MarkdownReader
         $keyValue = null;
         $quotedKey = false;
         $keyTagStart = count($this->yamlMetadataTagProvenance);
+        $startIndent = $this->countIndentColumns($line);
         if ($keySource === '') {
             $keyLines = [];
             $count = count($lines);
-            while ($cursor < $count && $this->parseYamlExplicitMappingValueLine(trim($lines[$cursor])) === null) {
+            while (
+                $cursor < $count
+                && !$this->isYamlExplicitMappingValueLineAtIndent($lines[$cursor], $startIndent)
+            ) {
                 $keyLines[] = $lines[$cursor];
                 $cursor++;
             }
@@ -1113,12 +1117,13 @@ final class MarkdownReader
         $keyTagStart = count($this->yamlMetadataTagProvenance);
         $cursor = $start + 1;
 
+        $startIndent = $this->countIndentColumns($line);
         if ($keySource === '') {
             $keyLines = [];
             $count = count($lines);
             while ($cursor < $count) {
                 $candidate = trim($lines[$cursor]);
-                if ($this->parseYamlExplicitMappingValueLine($candidate) !== null) {
+                if ($this->isYamlExplicitMappingValueLineAtIndent($lines[$cursor], $startIndent)) {
                     return null;
                 }
 
@@ -1195,6 +1200,12 @@ final class MarkdownReader
         }
 
         return rtrim($m[1] ?? '');
+    }
+
+    private function isYamlExplicitMappingValueLineAtIndent(string $line, int $indent): bool
+    {
+        return $this->countIndentColumns($line) <= $indent
+            && $this->parseYamlExplicitMappingValueLine(trim($line)) !== null;
     }
 
     private function normalizeYamlExplicitMappingKey(mixed $key): ?string
@@ -2477,13 +2488,21 @@ final class MarkdownReader
                 $keySource = trim(substr($trimmed, 1));
                 if ($keySource === '') {
                     $keyLines = [];
+                    $startIndent = $this->countIndentColumns($lines[$index]);
                     for ($cursor = $index + 1; $cursor < $count; $cursor++) {
                         $candidate = trim($lines[$cursor]);
-                        if ($this->isYamlExplicitMappingKeyLine($candidate) || $this->parseYamlExplicitMappingValueLine($candidate) !== null) {
+                        if (
+                            $this->countIndentColumns($lines[$cursor]) <= $startIndent
+                            && (
+                                $this->isYamlExplicitMappingKeyLine($candidate)
+                                || $this->parseYamlExplicitMappingValueLine($candidate) !== null
+                            )
+                        ) {
                             break;
                         }
                         $keyLines[] = $lines[$cursor];
                     }
+                    $index = max($index, $cursor - 1);
                     $keyValue = $keyLines === [] ? null : $this->parseYamlIndentedValue($keyLines);
                 } else {
                     $keyValue = $this->parseYamlScalarValue($keySource);

@@ -3231,6 +3231,55 @@ return [
         $t->same('map-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="map-key-yaml-body">Map key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml nested explicit mapping keys in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Nested explicit key **Packet**',
+            '?',
+            '  ? source',
+            '  : uri',
+            ': https://example.test/import#nested-explicit-key',
+            'review:',
+            '  ?',
+            '    ? owner',
+            '    : desk',
+            '  : queued',
+            '  labels: !!set',
+            '    ?',
+            '      ? source',
+            '      : label',
+            '    ? status',
+            'references:',
+            '  - id: nested-explicit-key-ref',
+            '    metadata:',
+            '      ?',
+            '        ? source',
+            '        : key',
+            '      : metadata value',
+            '...',
+            '',
+            '# Nested explicit key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Nested explicit key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('https://example.test/import#nested-explicit-key', $meta['{source: uri}']);
+        $t->same('queued', $meta['review']['{owner: desk}']);
+        $t->true(array_key_exists('{source: label}', $meta['review']['labels']) && $meta['review']['labels']['{source: label}'] === null);
+        $t->true(array_key_exists('status', $meta['review']['labels']) && $meta['review']['labels']['status'] === null);
+        $t->same('nested-explicit-key-ref', $meta['references'][0]['id']);
+        $t->same('metadata value', $meta['references'][0]['metadata']['{source: key}']);
+        $t->same(false, array_key_exists('{source: null}', $meta));
+        $t->same(false, array_key_exists('source', $meta['review']['labels']));
+        $t->same([], $document->attr('yamlMetadataDiagnostics', []));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('nested-explicit-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="nested-explicit-key-yaml-body">Nested explicit key YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit keys inside flow metadata maps' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

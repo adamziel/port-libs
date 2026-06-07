@@ -258,6 +258,27 @@ map-key-review:
 map-key-label-set: !!set
   ? {source: uri}
   ? {qa: true}
+?
+  ? nested
+  : source-uri
+: https://example.test/exports/packet#nested-explicit-key
+nested-explicit-key-review:
+  ?
+    ? owner
+    : desk
+  : queued
+  labels: !!set
+    ?
+      ? source
+      : label
+    ? status
+nested-explicit-reference:
+  id: nested-explicit-key-ref
+  metadata:
+    ?
+      ? source
+      : key
+    : metadata value
 flow-explicit-review: {? [source, uri]: https://example.test/exports/packet#flow-explicit-key, ? {owner: desk, ticket: 7}: queued, ? "source:key": "metadata: value"}
 flow-explicit-reference:
   id: flow-explicit-key-ref
@@ -1007,6 +1028,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!array_key_exists('{qa: true}', $meta['map-key-label-set'] ?? []) || $meta['map-key-label-set']['{qa: true}'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit map key in set metadata');
     }
+    if (($meta['{nested: source-uri}'] ?? '') !== 'https://example.test/exports/packet#nested-explicit-key') {
+        throw new RuntimeException('YAML metadata self-test missing nested explicit mapping source URI key');
+    }
+    if (($meta['nested-explicit-key-review']['{owner: desk}'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing nested explicit mapping owner key');
+    }
+    if (!array_key_exists('{source: label}', $meta['nested-explicit-key-review']['labels'] ?? []) || $meta['nested-explicit-key-review']['labels']['{source: label}'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing nested explicit mapping set key');
+    }
+    if (($meta['nested-explicit-reference']['metadata']['{source: key}'] ?? '') !== 'metadata value') {
+        throw new RuntimeException('YAML metadata self-test missing nested explicit mapping reference metadata');
+    }
+    if (array_key_exists('{nested: null}', $meta) || array_key_exists('nested', $meta['nested-explicit-key-review']['labels'] ?? [])) {
+        throw new RuntimeException('YAML metadata self-test leaked partial nested explicit mapping key');
+    }
     if (($meta['flow-explicit-review']['[source, uri]'] ?? '') !== 'https://example.test/exports/packet#flow-explicit-key') {
         throw new RuntimeException('YAML metadata self-test missing flow explicit sequence key metadata');
     }
@@ -1433,6 +1469,7 @@ echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? ''
 echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / ' . ($meta['explicit-review']['source:key'] ?? '') . "\n";
 echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ?? '') . ' / ' . ($meta['[sequence, source-uri]'] ?? '') . "\n";
 echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
+echo 'Nested explicit key review: ' . ($meta['nested-explicit-key-review']['{owner: desk}'] ?? '') . ' / ' . ($meta['{nested: source-uri}'] ?? '') . "\n";
 echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri]'] ?? '') . ' / ' . ($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Block explicit null key review: ' . ($meta['block-explicit-null-review']['status'] ?? '') . ' / '
     . (array_key_exists('[source, uri]', $meta['block-explicit-null-review'] ?? []) ? 'sequence-null' : 'missing')
