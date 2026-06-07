@@ -535,6 +535,56 @@ $buildSourceScopedHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildDuplicateSourceHeaderDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Duplicate source header id audit',
+            'alignments' => ['left', 'right', 'center'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Duplicate Header Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Document A',
+                        'htmlAttributes' => [
+                            'id' => 'duplicate-document',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Document A'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Document B',
+                        'htmlAttributes' => [
+                            'id' => 'duplicate-document',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Document B'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'htmlAttributes' => [
+                            'id' => 'duplicate-state',
+                            'scope' => 'col',
+                            'headers' => 'duplicate-document',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => '42',
+                        'htmlAttributes' => [
+                            'headers' => 'duplicate-document missing-document',
+                        ],
+                    ], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowspanOverlapDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -2056,6 +2106,64 @@ return [
         $t->same('body:0:0:0', $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetKey'] ?? null);
         $t->same('source-document', $associations['headerCells'][2]['sourceHeaderReferences'][0]['id'] ?? null);
         $t->same('head:0:0:0', $associations['headerCells'][2]['sourceHeaderReferences'][0]['targetKey'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'reports duplicate source header ids and ambiguous headers references' => static function (TestRunner $t) use ($buildDuplicateSourceHeaderDocument): void {
+        $document = $buildDuplicateSourceHeaderDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, [
+            'idPrefix' => 'Duplicate Header Grid',
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex', 'wordpress'],
+        ]);
+        $associations = $packet['headerAssociations'] ?? [];
+        $diagnostics = TableGeometry::diagnostics($table);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, $associations['summary']['duplicateHeaderIdCount'] ?? null);
+        $t->same(true, $associations['summary']['hasDuplicateHeaderIds'] ?? null);
+        $t->same(['duplicate-document'], $associations['summary']['duplicateHeaderIds'] ?? null);
+        $t->same(2, $associations['summary']['sourceHeaderReferencingCellCount'] ?? null);
+        $t->same(3, $associations['summary']['sourceHeaderReferenceCount'] ?? null);
+        $t->same(2, $associations['summary']['sourceHeaderResolvedReferenceCount'] ?? null);
+        $t->same(1, $associations['summary']['sourceHeaderUnresolvedReferenceCount'] ?? null);
+        $t->same(2, $associations['summary']['sourceHeaderAmbiguousReferenceCount'] ?? null);
+        $t->same(true, $associations['summary']['hasAmbiguousSourceHeaderReferences'] ?? null);
+        $t->same(['duplicate-document'], $associations['summary']['ambiguousSourceHeaderReferences'] ?? null);
+        $t->same(['missing-document'], $associations['summary']['unresolvedSourceHeaderReferences'] ?? null);
+        $t->same(1, $packet['summary']['duplicateHeaderIdCount'] ?? null);
+        $t->same(['duplicate-document'], $packet['summary']['duplicateHeaderIds'] ?? null);
+        $t->same(2, $packet['summary']['sourceHeaderAmbiguousReferenceCount'] ?? null);
+        $t->same(['duplicate-document'], $packet['summary']['ambiguousSourceHeaderReferences'] ?? null);
+        $t->same(['table-header-id-duplicated'], $packet['summary']['diagnosticCodes'] ?? null);
+
+        $t->same(['table-header-id-duplicated'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same('duplicate-document', $diagnostics[0]['id'] ?? null);
+        $t->same(2, $diagnostics[0]['headerCellCount'] ?? null);
+        $t->same(['head:0:0:0', 'head:0:1:1'], array_map(static fn (array $location): string => (string) ($location['key'] ?? ''), $diagnostics[0]['locations'] ?? []));
+
+        $headerReference = $associations['headerCells'][2]['sourceHeaderReferences'][0] ?? [];
+        $dataReferences = $associations['dataCells'][1]['sourceHeaderReferences'] ?? [];
+        $t->same(true, $headerReference['resolved'] ?? null);
+        $t->same(true, $headerReference['ambiguous'] ?? null);
+        $t->same(2, $headerReference['targetCount'] ?? null);
+        $t->same('head:0:0:0', $headerReference['targetKey'] ?? null);
+        $t->same(['head:0:0:0', 'head:0:1:1'], array_map(static fn (array $target): string => (string) ($target['targetKey'] ?? ''), $headerReference['targets'] ?? []));
+        $t->same('duplicate-document', $dataReferences[0]['id'] ?? null);
+        $t->same(true, $dataReferences[0]['ambiguous'] ?? null);
+        $t->same(2, $dataReferences[0]['targetCount'] ?? null);
+        $t->same('missing-document', $dataReferences[1]['id'] ?? null);
+        $t->same(false, $dataReferences[1]['resolved'] ?? null);
+
+        $t->same(['markdown-source-headers-require-raw-html'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same(2, $markdownDiagnostics[0]['ambiguousReferenceCount'] ?? null);
+        $t->same(true, $markdownDiagnostics[0]['hasAmbiguousReferences'] ?? null);
+        $t->same(['duplicate-document'], $markdownDiagnostics[0]['ambiguousReferences'] ?? null);
+        $t->same(['missing-document'], $markdownDiagnostics[0]['unresolvedReferences'] ?? null);
+        $t->same($markdownDiagnostics[0], $packet['writerDowngrades']['markdown'][0] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->contains('<th id="duplicate-document" scope="col" style="text-align:left">Document A</th><th id="duplicate-document" scope="col" style="text-align:right">Document B</th><th id="duplicate-state" scope="col" headers="duplicate-document" style="text-align:center">State</th>', $blocks);
+        $t->contains('<td headers="duplicate-document missing-document" style="text-align:right">42</td>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports source header reference writer handoff diagnostics' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {

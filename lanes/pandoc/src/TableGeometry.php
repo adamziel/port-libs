@@ -568,6 +568,12 @@ final class TableGeometry
                 'sourceHeaderUnresolvedReferenceCount' => $sourceHeaderReferenceSummary['unresolvedReferenceCount'],
                 'hasUnresolvedSourceHeaderReferences' => $sourceHeaderReferenceSummary['unresolvedReferenceCount'] > 0,
                 'unresolvedSourceHeaderReferences' => $sourceHeaderReferenceSummary['unresolvedReferences'],
+                'sourceHeaderAmbiguousReferenceCount' => $sourceHeaderReferenceSummary['ambiguousReferenceCount'],
+                'hasAmbiguousSourceHeaderReferences' => $sourceHeaderReferenceSummary['ambiguousReferenceCount'] > 0,
+                'ambiguousSourceHeaderReferences' => $sourceHeaderReferenceSummary['ambiguousReferences'],
+                'duplicateHeaderIdCount' => $sourceHeaderReferenceSummary['duplicateHeaderIdCount'],
+                'hasDuplicateHeaderIds' => $sourceHeaderReferenceSummary['duplicateHeaderIdCount'] > 0,
+                'duplicateHeaderIds' => $sourceHeaderReferenceSummary['duplicateHeaderIds'],
                 'headerAbbreviationCount' => $headerAbbreviationCount,
                 'hasHeaderAbbreviations' => $headerAbbreviationCount > 0,
             ],
@@ -594,6 +600,7 @@ final class TableGeometry
         array_push($diagnostics, ...self::emptyTableDiagnostics($table));
         array_push($diagnostics, ...self::widthDiagnostics($table, $diagnostics !== []));
         array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
+        array_push($diagnostics, ...self::duplicateHeaderIdDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
@@ -644,6 +651,93 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function duplicateHeaderIdDiagnostics(AstNode $table): array
+    {
+        $associations = self::headerAssociations($table);
+        $summary = is_array($associations['summary'] ?? null) ? $associations['summary'] : [];
+        $duplicateIds = self::stringList($summary['duplicateHeaderIds'] ?? []);
+        if ($duplicateIds === []) {
+            return [];
+        }
+
+        $headersById = [];
+        foreach (is_array($associations['headerCells'] ?? null) ? $associations['headerCells'] : [] as $headerCell) {
+            if (!is_array($headerCell)) {
+                continue;
+            }
+
+            $id = trim((string) ($headerCell['id'] ?? ''));
+            if ($id === '' || !in_array($id, $duplicateIds, true)) {
+                continue;
+            }
+
+            $headersById[$id][] = self::duplicateHeaderLocationRecord($headerCell);
+        }
+
+        $diagnostics = [];
+        foreach ($duplicateIds as $id) {
+            $locations = array_values($headersById[$id] ?? []);
+            if (count($locations) < 2) {
+                continue;
+            }
+
+            $diagnostics[] = [
+                'code' => 'table-header-id-duplicated',
+                'source' => 'html-table-headers',
+                'id' => $id,
+                'headerCellCount' => count($locations),
+                'locations' => $locations,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $headerCell
+     * @return array<string, mixed>
+     */
+    private static function duplicateHeaderLocationRecord(array $headerCell): array
+    {
+        $record = [];
+        foreach ([
+            'key',
+            'section',
+            'rowRole',
+            'scope',
+            'text',
+        ] as $attribute) {
+            $value = trim((string) ($headerCell[$attribute] ?? ''));
+            if ($value !== '') {
+                $record[$attribute] = $value;
+            }
+        }
+
+        foreach ([
+            'row',
+            'column',
+            'sourceCell',
+            'sourceColumn',
+            'colspan',
+            'rowspan',
+            'rowHeadColumns',
+        ] as $attribute) {
+            if (isset($headerCell[$attribute]) && is_numeric($headerCell[$attribute])) {
+                $record[$attribute] = (int) $headerCell[$attribute];
+            }
+        }
+
+        $columns = self::intList($headerCell['columns'] ?? []);
+        if ($columns !== []) {
+            $record['columns'] = $columns;
+        }
+
+        return $record;
     }
 
     /**
@@ -1609,6 +1703,12 @@ final class TableGeometry
                 'sourceHeaderUnresolvedReferenceCount' => 0,
                 'hasUnresolvedSourceHeaderReferences' => false,
                 'unresolvedSourceHeaderReferences' => [],
+                'sourceHeaderAmbiguousReferenceCount' => 0,
+                'hasAmbiguousSourceHeaderReferences' => false,
+                'ambiguousSourceHeaderReferences' => [],
+                'duplicateHeaderIdCount' => 0,
+                'hasDuplicateHeaderIds' => false,
+                'duplicateHeaderIds' => [],
                 'headerAbbreviationCount' => 0,
                 'hasHeaderAbbreviations' => false,
             ],
@@ -1836,20 +1936,33 @@ final class TableGeometry
      *     referenceCount:int,
      *     resolvedReferenceCount:int,
      *     unresolvedReferenceCount:int,
-     *     unresolvedReferences:list<string>
+     *     unresolvedReferences:list<string>,
+     *     ambiguousReferenceCount:int,
+     *     ambiguousReferences:list<string>,
+     *     duplicateHeaderIdCount:int,
+     *     hasDuplicateHeaderIds:bool,
+     *     duplicateHeaderIds:list<string>
      * }
      */
     private static function attachSourceHeaderReferences(array &$headerCells, array &$dataCells): array
     {
-        $headerById = [];
+        $headersById = [];
         foreach ($headerCells as $headerCell) {
             $id = trim((string) ($headerCell['id'] ?? ''));
             if ($id === '') {
                 continue;
             }
 
-            $headerById[$id] = self::sourceHeaderTargetRecord($headerCell);
+            $headersById[$id][] = self::sourceHeaderTargetRecord($headerCell);
         }
+
+        $duplicateHeaderIds = [];
+        foreach ($headersById as $id => $targets) {
+            if (count($targets) > 1) {
+                $duplicateHeaderIds[] = (string) $id;
+            }
+        }
+        sort($duplicateHeaderIds);
 
         $summary = [
             'referencingCellCount' => 0,
@@ -1857,6 +1970,11 @@ final class TableGeometry
             'resolvedReferenceCount' => 0,
             'unresolvedReferenceCount' => 0,
             'unresolvedReferences' => [],
+            'ambiguousReferenceCount' => 0,
+            'ambiguousReferences' => [],
+            'duplicateHeaderIdCount' => count($duplicateHeaderIds),
+            'hasDuplicateHeaderIds' => $duplicateHeaderIds !== [],
+            'duplicateHeaderIds' => $duplicateHeaderIds,
         ];
 
         foreach ($headerCells as &$headerCell) {
@@ -1866,7 +1984,7 @@ final class TableGeometry
             }
 
             $headerCell['sourceHeaders'] = $sourceHeaders;
-            $headerCell['sourceHeaderReferences'] = self::sourceHeaderReferenceRecords($sourceHeaders, $headerById, $summary);
+            $headerCell['sourceHeaderReferences'] = self::sourceHeaderReferenceRecords($sourceHeaders, $headersById, $summary);
         }
         unset($headerCell);
 
@@ -1876,11 +1994,12 @@ final class TableGeometry
                 continue;
             }
 
-            $dataCell['sourceHeaderReferences'] = self::sourceHeaderReferenceRecords($sourceHeaders, $headerById, $summary);
+            $dataCell['sourceHeaderReferences'] = self::sourceHeaderReferenceRecords($sourceHeaders, $headersById, $summary);
         }
         unset($dataCell);
 
         $summary['unresolvedReferences'] = array_values(array_unique($summary['unresolvedReferences']));
+        $summary['ambiguousReferences'] = array_values(array_unique($summary['ambiguousReferences']));
 
         return $summary;
     }
@@ -1931,17 +2050,19 @@ final class TableGeometry
 
     /**
      * @param list<string> $sourceHeaders
-     * @param array<string, array<string, mixed>> $headerById
+     * @param array<string, list<array<string, mixed>>> $headersById
      * @param array{
      *     referencingCellCount:int,
      *     referenceCount:int,
      *     resolvedReferenceCount:int,
      *     unresolvedReferenceCount:int,
-     *     unresolvedReferences:list<string>
+     *     unresolvedReferences:list<string>,
+     *     ambiguousReferenceCount:int,
+     *     ambiguousReferences:list<string>
      * } $summary
      * @return list<array<string, mixed>>
      */
-    private static function sourceHeaderReferenceRecords(array $sourceHeaders, array $headerById, array &$summary): array
+    private static function sourceHeaderReferenceRecords(array $sourceHeaders, array $headersById, array &$summary): array
     {
         $summary['referencingCellCount']++;
         $records = [];
@@ -1952,12 +2073,26 @@ final class TableGeometry
             }
 
             $summary['referenceCount']++;
-            if (isset($headerById[$id])) {
+            $targets = $headersById[$id] ?? [];
+            if ($targets !== []) {
                 $summary['resolvedReferenceCount']++;
+                if (count($targets) > 1) {
+                    $summary['ambiguousReferenceCount']++;
+                    $summary['ambiguousReferences'][] = $id;
+                    $records[] = array_merge([
+                        'id' => $id,
+                        'resolved' => true,
+                        'ambiguous' => true,
+                        'targetCount' => count($targets),
+                        'targets' => $targets,
+                    ], $targets[0]);
+                    continue;
+                }
+
                 $records[] = array_merge([
                     'id' => $id,
                     'resolved' => true,
-                ], $headerById[$id]);
+                ], $targets[0]);
                 continue;
             }
 
@@ -3038,6 +3173,12 @@ final class TableGeometry
             'sourceHeaderUnresolvedReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderUnresolvedReferenceCount'] ?? 0),
             'hasUnresolvedSourceHeaderReferences' => (bool) ($headerAssociationSummary['hasUnresolvedSourceHeaderReferences'] ?? false),
             'unresolvedSourceHeaderReferences' => self::stringList($headerAssociationSummary['unresolvedSourceHeaderReferences'] ?? []),
+            'sourceHeaderAmbiguousReferenceCount' => (int) ($headerAssociationSummary['sourceHeaderAmbiguousReferenceCount'] ?? 0),
+            'hasAmbiguousSourceHeaderReferences' => (bool) ($headerAssociationSummary['hasAmbiguousSourceHeaderReferences'] ?? false),
+            'ambiguousSourceHeaderReferences' => self::stringList($headerAssociationSummary['ambiguousSourceHeaderReferences'] ?? []),
+            'duplicateHeaderIdCount' => (int) ($headerAssociationSummary['duplicateHeaderIdCount'] ?? 0),
+            'hasDuplicateHeaderIds' => (bool) ($headerAssociationSummary['hasDuplicateHeaderIds'] ?? false),
+            'duplicateHeaderIds' => self::stringList($headerAssociationSummary['duplicateHeaderIds'] ?? []),
             'headerAbbreviationCount' => (int) ($headerAssociationSummary['headerAbbreviationCount'] ?? 0),
             'hasHeaderAbbreviations' => (bool) ($headerAssociationSummary['hasHeaderAbbreviations'] ?? false),
             'headerAssociationScopes' => array_values(array_map(
@@ -3580,6 +3721,9 @@ final class TableGeometry
             'unresolvedReferenceCount' => (int) ($summary['sourceHeaderUnresolvedReferenceCount'] ?? 0),
             'hasUnresolvedReferences' => (bool) ($summary['hasUnresolvedSourceHeaderReferences'] ?? false),
             'unresolvedReferences' => self::stringList($summary['unresolvedSourceHeaderReferences'] ?? []),
+            'ambiguousReferenceCount' => (int) ($summary['sourceHeaderAmbiguousReferenceCount'] ?? 0),
+            'hasAmbiguousReferences' => (bool) ($summary['hasAmbiguousSourceHeaderReferences'] ?? false),
+            'ambiguousReferences' => self::stringList($summary['ambiguousSourceHeaderReferences'] ?? []),
             'sourceHeaderOverrideCount' => (int) ($summary['sourceHeaderOverrideCount'] ?? 0),
             'hasSourceHeaderOverrides' => (bool) ($summary['hasSourceHeaderOverrides'] ?? false),
             'cells' => self::sourceHeaderReferenceCells($associations),

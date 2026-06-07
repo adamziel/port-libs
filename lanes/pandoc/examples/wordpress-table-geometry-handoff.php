@@ -479,6 +479,52 @@ $abbreviatedHeaderTable = new AstNode('table', [
     ]),
 ]);
 
+$duplicateHeaderTable = new AstNode('table', [
+    'caption' => 'Duplicate source header id audit',
+    'alignments' => ['left', 'right', 'center'],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Duplicate Header Grid',
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Document A',
+                'htmlAttributes' => [
+                    'id' => 'duplicate-document',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Document A'])]),
+            new AstNode('table_cell', [
+                'text' => 'Document B',
+                'htmlAttributes' => [
+                    'id' => 'duplicate-document',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Document B'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'htmlAttributes' => [
+                    'id' => 'duplicate-state',
+                    'scope' => 'col',
+                    'headers' => 'duplicate-document',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', [
+                'text' => '42',
+                'htmlAttributes' => [
+                    'headers' => 'duplicate-document missing-document',
+                ],
+            ], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $emptyReviewTable = new AstNode('table', [
     'caption' => 'Empty import table audit',
 ], [
@@ -794,6 +840,7 @@ $document = new AstNode('document', [], [
         ]),
     ]),
     $abbreviatedHeaderTable,
+    $duplicateHeaderTable,
     $emptyReviewTable,
     new AstNode('table', [
         'caption' => 'Implicit source shift review',
@@ -1299,6 +1346,43 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>')) {
         throw new RuntimeException('Table geometry self-test missing source scoped second-row headers output');
     }
+
+    $duplicateHeaderPacket = TableGeometry::reviewPacket($duplicateHeaderTable, [
+        'idPrefix' => 'Duplicate Header Grid',
+        'writers' => ['markdown', 'asciidoctor', 'xelatex', 'wordpress'],
+    ]);
+    if (
+        ($duplicateHeaderPacket['summary']['duplicateHeaderIdCount'] ?? null) !== 1
+        || ($duplicateHeaderPacket['summary']['duplicateHeaderIds'] ?? null) !== ['duplicate-document']
+        || ($duplicateHeaderPacket['summary']['sourceHeaderAmbiguousReferenceCount'] ?? null) !== 2
+        || ($duplicateHeaderPacket['summary']['ambiguousSourceHeaderReferences'] ?? null) !== ['duplicate-document']
+        || ($duplicateHeaderPacket['summary']['unresolvedSourceHeaderReferences'] ?? null) !== ['missing-document']
+        || ($duplicateHeaderPacket['summary']['diagnosticCodes'] ?? null) !== ['table-header-id-duplicated']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source header id audit summary');
+    }
+    if (
+        ($duplicateHeaderPacket['diagnostics'][0]['id'] ?? null) !== 'duplicate-document'
+        || ($duplicateHeaderPacket['diagnostics'][0]['headerCellCount'] ?? null) !== 2
+        || ($duplicateHeaderPacket['headerAssociations']['dataCells'][1]['sourceHeaderReferences'][0]['targetCount'] ?? null) !== 2
+        || ($duplicateHeaderPacket['headerAssociations']['dataCells'][1]['sourceHeaderReferences'][0]['ambiguous'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source header id target metadata');
+    }
+    if (
+        ($duplicateHeaderPacket['writerDowngrades']['markdown'][0]['ambiguousReferenceCount'] ?? null) !== 2
+        || ($duplicateHeaderPacket['writerDowngrades']['markdown'][0]['ambiguousReferences'] ?? null) !== ['duplicate-document']
+        || ($duplicateHeaderPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source header writer handoff metadata');
+    }
+    if (!str_contains($blocks, '<th id="duplicate-document" scope="col" style="text-align:left">Document A</th><th id="duplicate-document" scope="col" style="text-align:right">Document B</th><th id="duplicate-state" scope="col" headers="duplicate-document" style="text-align:center">State</th>')) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source header WordPress output');
+    }
+    if (!str_contains($blocks, '<td headers="duplicate-document missing-document" style="text-align:right">42</td>')) {
+        throw new RuntimeException('Table geometry self-test missing ambiguous source headers data-cell output');
+    }
+    json_encode($duplicateHeaderPacket, JSON_THROW_ON_ERROR);
 
     $nestedPacket = TableGeometry::reviewPacket($document->children[8], ['idPrefix' => 'Nested Packet']);
     if (($nestedPacket['summary']['nestedTableCount'] ?? null) !== 1 || ($nestedPacket['summary']['nestedTableCellCount'] ?? null) !== 1) {
