@@ -32829,7 +32829,7 @@ final class PdfTextExtractor
                     $sourceWidth,
                     $sameWidthCodeSpaceRanges
                 );
-                if ($mappedSourceCount === null || count($targets) < $mappedSourceCount) {
+                if ($mappedSourceCount === null || count($targets) !== $mappedSourceCount) {
                     continue;
                 }
                 $this->removeToUnicodeMappingsInSourceRange($map, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
