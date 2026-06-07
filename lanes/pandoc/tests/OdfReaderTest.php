@@ -3305,6 +3305,102 @@ XML;
         $t->contains('data-odf-chart-cell-range="Visits.A1:Visits.C5"', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'chart:line'), 'ODT chart class prefix should stay metadata-only, not rendered as raw chart XML');
     },
+    'maps ODT chart title axes and legend into sanitized review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithChartObject = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20Axes/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+  <manifest:file-entry manifest:full-path="Object%20Axes/content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $contentWithChartObject = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Quarterly chart"><svg:title>Quarterly revenue chart</svg:title><draw:object xlink:href="./Object%20Axes"/></draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $chartObjectXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:chart>
+      <chart:chart chart:class="chart:bar" chart:style-name="chQuarterly">
+        <chart:title chart:style-name="chart-title" svg:x="1cm" svg:y="0.5cm"><text:p>Quarterly revenue</text:p></chart:title>
+        <chart:legend chart:style-name="chart-legend" chart:legend-position="end" chart:legend-align="center"/>
+        <chart:plot-area table:cell-range-address="Revenue.A1:Revenue.C5" chart:data-source-has-labels="both">
+          <chart:axis chart:dimension="x" chart:name="primary-x" chart:style-name="axis-x">
+            <chart:title><text:p>Quarter</text:p></chart:title>
+          </chart:axis>
+          <chart:axis chart:dimension="y" chart:name="primary-y" chart:style-name="axis-y">
+            <chart:title><text:p>Revenue</text:p></chart:title>
+          </chart:axis>
+          <chart:categories table:cell-range-address="Revenue.A2:Revenue.A5"/>
+          <chart:series chart:values-cell-range-address="Revenue.B2:Revenue.B5" chart:label-cell-address="Revenue.B1" chart:attached-axis="primary-y"/>
+          <chart:series chart:values-cell-range-address="Revenue.C2:Revenue.C5" chart:label-cell-address="Revenue.C1" chart:attached-axis="primary-y"/>
+        </chart:plot-area>
+      </chart:chart>
+    </office:chart>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithChartObject,
+            $manifestWithChartObject,
+            null,
+            null,
+            [
+                ['name' => 'Object Axes/content.xml', 'data' => $chartObjectXml],
+            ]
+        ));
+
+        $chart = $result['document']->children[0];
+        $metadata = $chart->attr('chartMetadata');
+        $attributes = $chart->attr('attributes');
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same('div', $chart->type);
+        $t->same('chart', $chart->attr('objectType'));
+        $t->same('Quarterly revenue', $metadata['title']['text']);
+        $t->same('chart-title', $metadata['title']['styleName']);
+        $t->same('1cm', $metadata['title']['x']);
+        $t->same('0.5cm', $metadata['title']['y']);
+        $t->same(2, $metadata['axisCount']);
+        $t->same('x', $metadata['axes'][0]['dimension']);
+        $t->same('primary-x', $metadata['axes'][0]['name']);
+        $t->same('Quarter', $metadata['axes'][0]['title']['text']);
+        $t->same('y', $metadata['axes'][1]['dimension']);
+        $t->same('Revenue', $metadata['axes'][1]['title']['text']);
+        $t->same('end', $metadata['legend']['position']);
+        $t->same('center', $metadata['legend']['align']);
+        $t->same('chart-legend', $metadata['legend']['styleName']);
+        $t->same(2, $metadata['seriesCount']);
+        $t->same(1, $result['importReport']['content']['chartTitleCount']);
+        $t->same(2, $result['importReport']['content']['chartAxisCount']);
+        $t->same(1, $result['importReport']['content']['chartLegendCount']);
+        $t->same('Quarterly revenue', $attributes['data-odf-chart-title']);
+        $t->same('2', $attributes['data-odf-chart-axis-count']);
+        $t->same('end', $attributes['data-odf-chart-legend-position']);
+        $t->contains('data-odf-chart-title="Quarterly revenue"', $blocksHtml);
+        $t->contains('data-odf-chart-axis-count="2"', $blocksHtml);
+        $t->contains('data-odf-chart-legend-position="end"', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, '<chart:title'), 'ODT chart title XML must stay metadata-only, not render as raw chart XML');
+    },
     'maps ODT object-ole frames into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithOleObjects = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">

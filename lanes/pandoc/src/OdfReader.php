@@ -199,6 +199,9 @@ final class OdfReader
                     'missingEmbeddedObjectCount' => $contentStats['missingEmbeddedObjectCount'],
                     'chartObjectCount' => $contentStats['chartObjectCount'],
                     'chartMetadataCount' => $contentStats['chartMetadataCount'],
+                    'chartTitleCount' => $contentStats['chartTitleCount'],
+                    'chartAxisCount' => $contentStats['chartAxisCount'],
+                    'chartLegendCount' => $contentStats['chartLegendCount'],
                     'formControlCount' => $contentStats['formControlCount'],
                     'missingFormControlCount' => $contentStats['missingFormControlCount'],
                     'sectionCount' => $contentStats['sectionCount'],
@@ -3961,6 +3964,9 @@ final class OdfReader
 
         $plotArea = self::firstChildElement($chart, 'plot-area', self::CHART_NS);
         $chartClass = self::attr($chart, self::CHART_NS, 'class');
+        $title = $this->chartTitleMetadata($chart);
+        $axes = $this->chartAxesMetadata($chart);
+        $legend = $this->chartLegendMetadata($chart);
         $categories = $this->chartCategoriesMetadata($chart);
         $series = $this->chartSeriesMetadata($chart);
 
@@ -3969,14 +3975,91 @@ final class OdfReader
             'chartClass' => self::nullable($chartClass),
             'chartClassName' => self::nullable(self::chartClassName($chartClass)),
             'styleName' => self::nullable(self::attr($chart, self::CHART_NS, 'style-name')),
+            'title' => $title,
             'cellRangeAddress' => $plotArea instanceof \DOMElement ? self::nullable(self::attr($plotArea, self::TABLE_NS, 'cell-range-address')) : null,
             'dataSourceHasLabels' => $plotArea instanceof \DOMElement ? self::nullable(self::attr($plotArea, self::CHART_NS, 'data-source-has-labels')) : null,
+            'axisCount' => $axes === [] ? null : count($axes),
+            'axes' => $axes,
+            'legend' => $legend,
             'categories' => $categories,
             'seriesCount' => $series === [] ? null : count($series),
             'series' => $series,
         ]);
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function chartTitleMetadata(\DOMElement $container): array
+    {
+        $title = self::firstChildElement($container, 'title', self::CHART_NS);
+        if (!$title instanceof \DOMElement) {
+            return [];
+        }
+
+        $entry = self::withoutEmpty([
+            'text' => self::nullable(self::normalizedText($title)),
+            'styleName' => self::nullable(self::attr($title, self::CHART_NS, 'style-name')),
+            'x' => self::nullable(self::attr($title, self::SVG_NS, 'x')),
+            'y' => self::nullable(self::attr($title, self::SVG_NS, 'y')),
+            'width' => self::nullable(self::attr($title, self::SVG_NS, 'width')),
+            'height' => self::nullable(self::attr($title, self::SVG_NS, 'height')),
+        ]);
+
+        return array_map(static fn (mixed $value): string => (string) $value, $entry);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function chartAxesMetadata(\DOMElement $chart): array
+    {
+        $axes = [];
+        foreach ($chart->getElementsByTagNameNS(self::CHART_NS, 'axis') as $axis) {
+            if (!$axis instanceof \DOMElement) {
+                continue;
+            }
+
+            $title = $this->chartTitleMetadata($axis);
+            $categories = $this->chartCategoriesMetadata($axis);
+            $entry = self::withoutEmpty([
+                'dimension' => self::nullable(self::attr($axis, self::CHART_NS, 'dimension')),
+                'name' => self::nullable(self::attr($axis, self::CHART_NS, 'name')),
+                'styleName' => self::nullable(self::attr($axis, self::CHART_NS, 'style-name')),
+                'title' => $title,
+                'categories' => $categories,
+            ]);
+            if ($entry !== []) {
+                $axes[] = $entry;
+            }
+        }
+
+        return $axes;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function chartLegendMetadata(\DOMElement $chart): array
+    {
+        $legend = self::firstChildElement($chart, 'legend', self::CHART_NS);
+        if (!$legend instanceof \DOMElement) {
+            return [];
+        }
+
+        $entry = self::withoutEmpty([
+            'position' => self::nullable(self::attr($legend, self::CHART_NS, 'legend-position')),
+            'align' => self::nullable(self::attr($legend, self::CHART_NS, 'legend-align')),
+            'styleName' => self::nullable(self::attr($legend, self::CHART_NS, 'style-name')),
+            'x' => self::nullable(self::attr($legend, self::SVG_NS, 'x')),
+            'y' => self::nullable(self::attr($legend, self::SVG_NS, 'y')),
+            'width' => self::nullable(self::attr($legend, self::SVG_NS, 'width')),
+            'height' => self::nullable(self::attr($legend, self::SVG_NS, 'height')),
+        ]);
+
+        return array_map(static fn (mixed $value): string => (string) $value, $entry);
     }
 
     /**
@@ -4044,6 +4127,7 @@ final class OdfReader
             'cellRangeAddress' => 'data-odf-chart-cell-range',
             'dataSourceHasLabels' => 'data-odf-chart-data-source-has-labels',
             'seriesCount' => 'data-odf-chart-series-count',
+            'axisCount' => 'data-odf-chart-axis-count',
         ] as $name => $attributeName) {
             $value = $metadata[$name] ?? null;
             if (is_scalar($value) && (string) $value !== '') {
@@ -4051,6 +4135,25 @@ final class OdfReader
             }
         }
 
+        $title = $metadata['title'] ?? [];
+        if (is_array($title)) {
+            $text = $title['text'] ?? null;
+            if (is_scalar($text) && (string) $text !== '') {
+                $attributes['data-odf-chart-title'] = (string) $text;
+            }
+        }
+        $legend = $metadata['legend'] ?? [];
+        if (is_array($legend)) {
+            foreach ([
+                'position' => 'data-odf-chart-legend-position',
+                'align' => 'data-odf-chart-legend-align',
+            ] as $name => $attributeName) {
+                $value = $legend[$name] ?? null;
+                if (is_scalar($value) && (string) $value !== '') {
+                    $attributes[$attributeName] = (string) $value;
+                }
+            }
+        }
         $categories = $metadata['categories'] ?? [];
         if (is_array($categories) && is_array($categories[0] ?? null)) {
             $range = $categories[0]['cellRangeAddress'] ?? null;
@@ -4959,6 +5062,9 @@ final class OdfReader
             'missingEmbeddedObjectCount' => 0,
             'chartObjectCount' => 0,
             'chartMetadataCount' => 0,
+            'chartTitleCount' => 0,
+            'chartAxisCount' => 0,
+            'chartLegendCount' => 0,
             'formControlCount' => 0,
             'missingFormControlCount' => 0,
             'sectionCount' => 0,
@@ -5055,8 +5161,21 @@ final class OdfReader
                 }
                 if ($node->attr('objectType') === 'chart') {
                     $stats['chartObjectCount']++;
-                    if (is_array($node->attr('chartMetadata'))) {
+                    $chartMetadata = $node->attr('chartMetadata');
+                    if (is_array($chartMetadata)) {
                         $stats['chartMetadataCount']++;
+                        $title = $chartMetadata['title'] ?? null;
+                        if (is_array($title) && is_scalar($title['text'] ?? null) && (string) $title['text'] !== '') {
+                            $stats['chartTitleCount']++;
+                        }
+                        $axes = $chartMetadata['axes'] ?? [];
+                        if (is_array($axes)) {
+                            $stats['chartAxisCount'] += count($axes);
+                        }
+                        $legend = $chartMetadata['legend'] ?? null;
+                        if (is_array($legend) && $legend !== []) {
+                            $stats['chartLegendCount']++;
+                        }
                     }
                 }
             }

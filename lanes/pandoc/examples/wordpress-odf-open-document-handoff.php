@@ -269,11 +269,17 @@ $chartObjectXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0"
-  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
   <office:body>
     <office:chart>
-      <chart:chart chart:class="chart:bar">
+      <chart:chart chart:class="chart:bar" chart:style-name="ReviewChart">
+        <chart:title chart:style-name="ReviewChartTitle" svg:x="1cm" svg:y="0.5cm"><text:p>Review chart title</text:p></chart:title>
+        <chart:legend chart:style-name="ReviewChartLegend" chart:legend-position="end" chart:legend-align="center"/>
         <chart:plot-area table:cell-range-address="Review.A1:Review.B4" chart:data-source-has-labels="both">
+          <chart:axis chart:dimension="x" chart:name="primary-x" chart:style-name="ReviewAxisX"><chart:title><text:p>Review category</text:p></chart:title></chart:axis>
+          <chart:axis chart:dimension="y" chart:name="primary-y" chart:style-name="ReviewAxisY"><chart:title><text:p>Review value</text:p></chart:title></chart:axis>
           <chart:categories table:cell-range-address="Review.A2:Review.A4"/>
           <chart:series chart:values-cell-range-address="Review.B2:Review.B4" chart:label-cell-address="Review.B1" chart:attached-axis="primary-y"/>
         </chart:plot-area>
@@ -645,13 +651,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['content']['chartObjectCount'] ?? 0) !== 1 || ($result['importReport']['content']['chartMetadataCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT chart object metadata to be counted in the import report');
     }
+    if (($result['importReport']['content']['chartTitleCount'] ?? 0) !== 1
+        || ($result['importReport']['content']['chartAxisCount'] ?? 0) !== 2
+        || ($result['importReport']['content']['chartLegendCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT chart title, axis, and legend metadata to be counted in the import report');
+    }
     if (($result['importReport']['content']['missingEmbeddedObjectCount'] ?? 0) !== 0) {
         throw new RuntimeException('Expected ODT embedded object package parts to be present');
     }
     if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="./Object%202" data-odf-object-path="Object 2" data-odf-object-source-part="Object 2/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="10" data-odf-object-can-expose-bytes="false">Source spreadsheet</span>')) {
         throw new RuntimeException('Expected ODT object-ole frame to render as a WordPress review placeholder');
     }
-    if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%203" data-odf-object-path="Object 3" data-odf-object-source-part="Object 3/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object 3/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Review.A1:Review.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-categories-range="Review.A2:Review.A4">Source chart placeholder</span>')) {
+    if (!str_contains($blocks, '<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%203" data-odf-object-path="Object 3" data-odf-object-source-part="Object 3/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object 3/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Review.A1:Review.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-axis-count="2" data-odf-chart-title="Review chart title" data-odf-chart-legend-position="end" data-odf-chart-legend-align="center" data-odf-chart-categories-range="Review.A2:Review.A4">Source chart placeholder</span>')) {
         throw new RuntimeException('Expected ODT chart object frame to render as a WordPress review placeholder');
     }
     if (str_contains($blocks, 'OLEPAYLOAD')) {
