@@ -1040,8 +1040,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bodyHeadPacket['summary']['bodyHeadRowCount'] ?? null) !== 1 || ($bodyHeadPacket['summary']['rowHeadGroupCount'] ?? null) !== 1 || ($bodyHeadPacket['summary']['maxRowHeadColumns'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing body-local row-group counters');
     }
+    if (
+        ($bodyHeadPacket['summary']['rowGroupRanges'] ?? null) !== [
+            ['section' => 'head', 'kind' => 'table-head', 'rowRange' => [0, 1], 'rowCount' => 1],
+            ['section' => 'body', 'kind' => 'table-body', 'rowRange' => [1, 4], 'rowCount' => 3],
+        ]
+        || ($bodyHeadPacket['summary']['rowRoleCounts'] ?? null) !== ['head' => 1, 'body-head' => 1, 'body' => 2]
+        || ($bodyHeadPacket['summary']['headerLikeRowCount'] ?? null) !== 2
+        || ($bodyHeadPacket['summary']['dataLikeRowCount'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing row-group range summary metadata');
+    }
     if (($bodyHeadPacket['rowGroups'][1]['rowRoles'] ?? null) !== ['body-head', 'body'] || ($bodyHeadPacket['rowGroups'][1]['bodyHeadRowCount'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing body-local row-group roles');
+    }
+    if (
+        ($bodyHeadPacket['rowGroups'][1]['rowRange'] ?? null) !== [1, 4]
+        || ($bodyHeadPacket['rowGroups'][1]['globalRowStart'] ?? null) !== 1
+        || ($bodyHeadPacket['rowGroups'][1]['globalRowEnd'] ?? null) !== 4
+        || ($bodyHeadPacket['rowGroups'][1]['rowRoleCounts'] ?? null) !== ['body-head' => 1, 'body' => 2]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing body-local row-group range metadata');
     }
     if (
         ($bodyHeadPacket['writerDowngrades']['markdown'][1]['code'] ?? null) !== 'markdown-body-head-rows-flattened'

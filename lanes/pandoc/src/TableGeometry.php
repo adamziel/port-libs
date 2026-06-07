@@ -1089,6 +1089,8 @@ final class TableGeometry
         $columnCount = max(0, $columnCount ?? self::columnCount($table));
         $groups = [];
         $bodyIndex = 0;
+        $groupOrdinal = 0;
+        $globalRowOffset = 0;
         foreach ($table->children as $section) {
             if ($section->type === 'table_head') {
                 $rows = self::sectionRows($section);
@@ -1110,7 +1112,10 @@ final class TableGeometry
                 if ($sourceAttributes !== []) {
                     $record['sourceAttributes'] = $sourceAttributes;
                 }
+                $record = self::rowGroupRecordWithRange($record, $groupOrdinal, $globalRowOffset);
                 $groups[] = $record;
+                $groupOrdinal++;
+                $globalRowOffset = (int) $record['globalRowEnd'];
                 continue;
             }
 
@@ -1130,6 +1135,7 @@ final class TableGeometry
                     'section' => 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex),
                     'kind' => 'table-body',
                     'bodyIndex' => $bodyIndex,
+                    'bodyOrdinal' => $bodyIndex,
                     'rowCount' => count($bodyHeadRows) + count($bodyRows),
                     'headRowCount' => count($bodyHeadRows),
                     'bodyHeadRowCount' => count($bodyHeadRows),
@@ -1145,7 +1151,10 @@ final class TableGeometry
                 if ($sourceAttributes !== []) {
                     $record['sourceAttributes'] = $sourceAttributes;
                 }
+                $record = self::rowGroupRecordWithRange($record, $groupOrdinal, $globalRowOffset);
                 $groups[] = $record;
+                $groupOrdinal++;
+                $globalRowOffset = (int) $record['globalRowEnd'];
                 $bodyIndex++;
                 continue;
             }
@@ -1170,11 +1179,106 @@ final class TableGeometry
                 if ($sourceAttributes !== []) {
                     $record['sourceAttributes'] = $sourceAttributes;
                 }
+                $record = self::rowGroupRecordWithRange($record, $groupOrdinal, $globalRowOffset);
                 $groups[] = $record;
+                $groupOrdinal++;
+                $globalRowOffset = (int) $record['globalRowEnd'];
             }
         }
 
         return $groups;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    private static function rowGroupRecordWithRange(array $record, int $ordinal, int $globalRowStart): array
+    {
+        $kind = (string) ($record['kind'] ?? '');
+        $rowCount = max(0, (int) ($record['rowCount'] ?? 0));
+        $globalRowStart = max(0, $globalRowStart);
+        $globalRowEnd = $globalRowStart + $rowCount;
+        $headRowCount = max(0, (int) ($record['headRowCount'] ?? 0));
+        $bodyHeadRowCount = max(0, (int) ($record['bodyHeadRowCount'] ?? 0));
+        $bodyRowCount = max(0, (int) ($record['bodyRowCount'] ?? 0));
+        $footRowCount = max(0, (int) ($record['footRowCount'] ?? 0));
+
+        if ($kind === 'table-head') {
+            $headerLikeRowCount = $headRowCount > 0 ? $headRowCount : $rowCount;
+            $dataLikeRowCount = 0;
+        } elseif ($kind === 'table-body') {
+            $headerLikeRowCount = $bodyHeadRowCount;
+            $dataLikeRowCount = $bodyRowCount;
+        } elseif ($kind === 'table-foot') {
+            $headerLikeRowCount = 0;
+            $dataLikeRowCount = $footRowCount > 0 ? $footRowCount : $rowCount;
+        } else {
+            $headerLikeRowCount = 0;
+            $dataLikeRowCount = $rowCount;
+        }
+
+        $record['ordinal'] = max(0, $ordinal);
+        $record['globalRowStart'] = $globalRowStart;
+        $record['globalRowEnd'] = $globalRowEnd;
+        $record['rowRange'] = [$globalRowStart, $globalRowEnd];
+        $record['headerLikeRowCount'] = $headerLikeRowCount;
+        $record['dataLikeRowCount'] = $dataLikeRowCount;
+        $record['hasHeaderLikeRows'] = $headerLikeRowCount > 0;
+        $record['hasDataLikeRows'] = $dataLikeRowCount > 0;
+        $record['rowRoleCounts'] = self::rowRoleCountsForRowGroup(
+            $kind,
+            $headRowCount,
+            $bodyHeadRowCount,
+            $bodyRowCount,
+            $footRowCount,
+            $rowCount
+        );
+
+        return $record;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function rowRoleCountsForRowGroup(
+        string $kind,
+        int $headRowCount,
+        int $bodyHeadRowCount,
+        int $bodyRowCount,
+        int $footRowCount,
+        int $rowCount
+    ): array
+    {
+        $counts = [];
+        if ($kind === 'table-head') {
+            $count = $headRowCount > 0 ? $headRowCount : $rowCount;
+            if ($count > 0) {
+                $counts['head'] = $count;
+            }
+
+            return $counts;
+        }
+
+        if ($kind === 'table-body') {
+            if ($bodyHeadRowCount > 0) {
+                $counts['body-head'] = $bodyHeadRowCount;
+            }
+            if ($bodyRowCount > 0) {
+                $counts['body'] = $bodyRowCount;
+            }
+
+            return $counts;
+        }
+
+        if ($kind === 'table-foot') {
+            $count = $footRowCount > 0 ? $footRowCount : $rowCount;
+            if ($count > 0) {
+                $counts['foot'] = $count;
+            }
+        }
+
+        return $counts;
     }
 
     /**
@@ -2915,6 +3019,14 @@ final class TableGeometry
             'bodyHeadRowGroupCount' => $rowGroupSummary['bodyHeadRowGroupCount'],
             'rowHeadGroupCount' => $rowGroupSummary['rowHeadGroupCount'],
             'maxRowHeadColumns' => $rowGroupSummary['maxRowHeadColumns'],
+            'headerLikeRowCount' => $rowGroupSummary['headerLikeRowCount'],
+            'dataLikeRowCount' => $rowGroupSummary['dataLikeRowCount'],
+            'maxRowGroupRowCount' => $rowGroupSummary['maxRowGroupRowCount'],
+            'nonEmptyRowGroupCount' => $rowGroupSummary['nonEmptyRowGroupCount'],
+            'emptyRowGroupCount' => $rowGroupSummary['emptyRowGroupCount'],
+            'rowRoleCounts' => $rowGroupSummary['rowRoleCounts'],
+            'rowGroupSections' => $rowGroupSummary['rowGroupSections'],
+            'rowGroupRanges' => $rowGroupSummary['rowGroupRanges'],
             'headerAssociationCount' => (int) ($headerAssociationSummary['associationCount'] ?? 0),
             'associatedDataCellCount' => (int) ($headerAssociationSummary['associatedDataCellCount'] ?? 0),
             'unassociatedDataCellCount' => (int) ($headerAssociationSummary['unassociatedDataCellCount'] ?? 0),
@@ -2966,7 +3078,15 @@ final class TableGeometry
      *     hasBodyHeadRows:bool,
      *     bodyHeadRowGroupCount:int,
      *     rowHeadGroupCount:int,
-     *     maxRowHeadColumns:int
+     *     maxRowHeadColumns:int,
+     *     headerLikeRowCount:int,
+     *     dataLikeRowCount:int,
+     *     maxRowGroupRowCount:int,
+     *     nonEmptyRowGroupCount:int,
+     *     emptyRowGroupCount:int,
+     *     rowRoleCounts:array<string, int>,
+     *     rowGroupSections:list<string>,
+     *     rowGroupRanges:list<array{section:string,kind:string,rowRange:list<int>,rowCount:int}>
      * }
      */
     private static function rowGroupSummary(array $rowGroups): array
@@ -2979,8 +3099,46 @@ final class TableGeometry
         $bodyHeadRowGroupCount = 0;
         $rowHeadGroupCount = 0;
         $maxRowHeadColumns = 0;
+        $headerLikeRowCount = 0;
+        $dataLikeRowCount = 0;
+        $maxRowGroupRowCount = 0;
+        $nonEmptyRowGroupCount = 0;
+        $emptyRowGroupCount = 0;
+        $rowRoleCounts = [];
+        $rowGroupSections = [];
+        $rowGroupRanges = [];
         foreach ($rowGroups as $rowGroup) {
             $kind = (string) ($rowGroup['kind'] ?? '');
+            $section = (string) ($rowGroup['section'] ?? '');
+            $rowCount = max(0, (int) ($rowGroup['rowCount'] ?? 0));
+            $rowRange = self::rowGroupRange($rowGroup);
+            $rowGroupSections[] = $section;
+            $rowGroupRanges[] = [
+                'section' => $section,
+                'kind' => $kind,
+                'rowRange' => $rowRange,
+                'rowCount' => $rowCount,
+            ];
+            $maxRowGroupRowCount = max($maxRowGroupRowCount, $rowCount);
+            if ($rowCount > 0) {
+                $nonEmptyRowGroupCount++;
+            } else {
+                $emptyRowGroupCount++;
+            }
+
+            $headerLikeRowCount += max(0, (int) ($rowGroup['headerLikeRowCount'] ?? self::fallbackHeaderLikeRowCount($rowGroup)));
+            $dataLikeRowCount += max(0, (int) ($rowGroup['dataLikeRowCount'] ?? self::fallbackDataLikeRowCount($rowGroup)));
+            $groupRoleCounts = $rowGroup['rowRoleCounts'] ?? self::fallbackRowRoleCounts($rowGroup);
+            if (is_array($groupRoleCounts)) {
+                foreach ($groupRoleCounts as $role => $count) {
+                    $role = trim((string) $role);
+                    if ($role === '') {
+                        continue;
+                    }
+                    $rowRoleCounts[$role] = ($rowRoleCounts[$role] ?? 0) + max(0, (int) $count);
+                }
+            }
+
             if ($kind === 'table-head') {
                 $tableHeadRowCount += max(0, (int) ($rowGroup['headRowCount'] ?? $rowGroup['rowCount'] ?? 0));
                 continue;
@@ -3021,7 +3179,86 @@ final class TableGeometry
             'bodyHeadRowGroupCount' => $bodyHeadRowGroupCount,
             'rowHeadGroupCount' => $rowHeadGroupCount,
             'maxRowHeadColumns' => $maxRowHeadColumns,
+            'headerLikeRowCount' => $headerLikeRowCount,
+            'dataLikeRowCount' => $dataLikeRowCount,
+            'maxRowGroupRowCount' => $maxRowGroupRowCount,
+            'nonEmptyRowGroupCount' => $nonEmptyRowGroupCount,
+            'emptyRowGroupCount' => $emptyRowGroupCount,
+            'rowRoleCounts' => $rowRoleCounts,
+            'rowGroupSections' => $rowGroupSections,
+            'rowGroupRanges' => $rowGroupRanges,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroup
+     * @return list<int>
+     */
+    private static function rowGroupRange(array $rowGroup): array
+    {
+        $range = $rowGroup['rowRange'] ?? null;
+        if (is_array($range) && array_key_exists(0, $range) && array_key_exists(1, $range)) {
+            $start = max(0, (int) $range[0]);
+
+            return [$start, max($start, (int) $range[1])];
+        }
+
+        $start = max(0, (int) ($rowGroup['globalRowStart'] ?? 0));
+        $end = array_key_exists('globalRowEnd', $rowGroup)
+            ? max($start, (int) $rowGroup['globalRowEnd'])
+            : $start + max(0, (int) ($rowGroup['rowCount'] ?? 0));
+
+        return [$start, $end];
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroup
+     */
+    private static function fallbackHeaderLikeRowCount(array $rowGroup): int
+    {
+        $kind = (string) ($rowGroup['kind'] ?? '');
+        if ($kind === 'table-head') {
+            return max(0, (int) ($rowGroup['headRowCount'] ?? $rowGroup['rowCount'] ?? 0));
+        }
+
+        if ($kind === 'table-body') {
+            return max(0, (int) ($rowGroup['bodyHeadRowCount'] ?? 0));
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroup
+     */
+    private static function fallbackDataLikeRowCount(array $rowGroup): int
+    {
+        $kind = (string) ($rowGroup['kind'] ?? '');
+        if ($kind === 'table-body') {
+            return max(0, (int) ($rowGroup['bodyRowCount'] ?? 0));
+        }
+
+        if ($kind === 'table-foot') {
+            return max(0, (int) ($rowGroup['footRowCount'] ?? $rowGroup['rowCount'] ?? 0));
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroup
+     * @return array<string, int>
+     */
+    private static function fallbackRowRoleCounts(array $rowGroup): array
+    {
+        return self::rowRoleCountsForRowGroup(
+            (string) ($rowGroup['kind'] ?? ''),
+            max(0, (int) ($rowGroup['headRowCount'] ?? 0)),
+            max(0, (int) ($rowGroup['bodyHeadRowCount'] ?? 0)),
+            max(0, (int) ($rowGroup['bodyRowCount'] ?? 0)),
+            max(0, (int) ($rowGroup['footRowCount'] ?? 0)),
+            max(0, (int) ($rowGroup['rowCount'] ?? 0))
+        );
     }
 
     /**

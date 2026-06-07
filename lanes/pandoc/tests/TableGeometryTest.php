@@ -1697,18 +1697,29 @@ return [
         $t->same(['table-head', 'table-body', 'table-body', 'table-foot'], array_map(static fn (array $group): string => $group['kind'], $rowGroups));
         $t->same([1, 3, 1, 1], array_map(static fn (array $group): int => $group['rowCount'], $rowGroups));
         $t->same([3, 8, 3, 3], array_map(static fn (array $group): int => $group['cellCount'], $rowGroups));
+        $t->same([0, 1, 4, 5], array_map(static fn (array $group): int => $group['globalRowStart'], $rowGroups));
+        $t->same([1, 4, 5, 6], array_map(static fn (array $group): int => $group['globalRowEnd'], $rowGroups));
+        $t->same([[0, 1], [1, 4], [4, 5], [5, 6]], array_map(static fn (array $group): array => $group['rowRange'], $rowGroups));
+        $t->same([0, 1, 2, 3], array_map(static fn (array $group): int => $group['ordinal'], $rowGroups));
+        $t->same([1, 1, 0, 0], array_map(static fn (array $group): int => $group['headerLikeRowCount'], $rowGroups));
+        $t->same([0, 2, 1, 1], array_map(static fn (array $group): int => $group['dataLikeRowCount'], $rowGroups));
         $t->same(['body-head', 'body'], $rowGroups[1]['rowRoles'] ?? null);
         $t->same(0, $rowGroups[1]['bodyIndex'] ?? null);
+        $t->same(0, $rowGroups[1]['bodyOrdinal'] ?? null);
         $t->same(1, $rowGroups[1]['bodyHeadRowCount'] ?? null);
         $t->same(2, $rowGroups[1]['bodyRowCount'] ?? null);
+        $t->same(['body-head' => 1, 'body' => 2], $rowGroups[1]['rowRoleCounts'] ?? null);
         $t->same(1, $rowGroups[1]['rowHeadColumns'] ?? null);
         $t->same(true, $rowGroups[1]['hasBodyHeadRows'] ?? null);
         $t->same(true, $rowGroups[1]['hasRowHeadColumns'] ?? null);
         $t->same('posts', $rowGroups[1]['sourceAttributes']['htmlAttributes']['data-group'] ?? null);
         $t->same(1, $rowGroups[2]['bodyIndex'] ?? null);
+        $t->same(1, $rowGroups[2]['bodyOrdinal'] ?? null);
         $t->same(0, $rowGroups[2]['bodyHeadRowCount'] ?? null);
         $t->same(1, $rowGroups[2]['bodyRowCount'] ?? null);
+        $t->same(['body' => 1], $rowGroups[2]['rowRoleCounts'] ?? null);
         $t->same('pages-group', $rowGroups[2]['sourceAttributes']['id'] ?? null);
+        $t->same(['foot' => 1], $rowGroups[3]['rowRoleCounts'] ?? null);
         $t->same(4, $packet['summary']['rowGroupCount'] ?? null);
         $t->same(2, $packet['summary']['bodyGroupCount'] ?? null);
         $t->same(true, $packet['summary']['hasMultipleBodyGroups'] ?? null);
@@ -1721,6 +1732,19 @@ return [
         $t->same(1, $packet['summary']['bodyHeadRowGroupCount'] ?? null);
         $t->same(1, $packet['summary']['rowHeadGroupCount'] ?? null);
         $t->same(1, $packet['summary']['maxRowHeadColumns'] ?? null);
+        $t->same(2, $packet['summary']['headerLikeRowCount'] ?? null);
+        $t->same(4, $packet['summary']['dataLikeRowCount'] ?? null);
+        $t->same(3, $packet['summary']['maxRowGroupRowCount'] ?? null);
+        $t->same(4, $packet['summary']['nonEmptyRowGroupCount'] ?? null);
+        $t->same(0, $packet['summary']['emptyRowGroupCount'] ?? null);
+        $t->same(['head' => 1, 'body-head' => 1, 'body' => 3, 'foot' => 1], $packet['summary']['rowRoleCounts'] ?? null);
+        $t->same(['head', 'body', 'body1', 'foot'], $packet['summary']['rowGroupSections'] ?? null);
+        $t->same([
+            ['section' => 'head', 'kind' => 'table-head', 'rowRange' => [0, 1], 'rowCount' => 1],
+            ['section' => 'body', 'kind' => 'table-body', 'rowRange' => [1, 4], 'rowCount' => 3],
+            ['section' => 'body1', 'kind' => 'table-body', 'rowRange' => [4, 5], 'rowCount' => 1],
+            ['section' => 'foot', 'kind' => 'table-foot', 'rowRange' => [5, 6], 'rowCount' => 1],
+        ], $packet['summary']['rowGroupRanges'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports body-local head row writer handoff diagnostics' => static function (TestRunner $t): void {
