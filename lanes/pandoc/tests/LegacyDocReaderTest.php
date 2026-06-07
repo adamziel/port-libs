@@ -615,6 +615,19 @@ $sttbfAssoc = static function (array $values) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$stwUser = static function (array $variables) use ($u16, $u32, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($variables)) . $u16(4);
+    foreach ($variables as $variable) {
+        $nameBytes = $utf16le((string) $variable['name']);
+        $bytes .= $u16(intdiv(strlen($nameBytes), 2)) . $nameBytes . $u32((int) ($variable['extra'] ?? 0));
+    }
+    foreach ($variables as $variable) {
+        $valueBytes = $utf16le((string) $variable['value']);
+        $bytes .= $u16(intdiv(strlen($valueBytes), 2)) . $valueBytes;
+    }
+
+    return $bytes;
+};
 $plcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     $bytes = '';
     foreach ($records as $record) {
@@ -684,6 +697,16 @@ $buildSimpleWordDocument = static function (string $text, int $flags = 0, string
     $fib = substr_replace($fib, pack('v', $flags), 10, 2);
     $fib = substr_replace($fib, pack('V', 512), 24, 4);
     $fib = substr_replace($fib, pack('V', 512 + strlen($textBytes)), 28, 4);
+
+    return $fib . $textBytes;
+};
+$buildExtendedFibWordDocument = static function (string $text, int $flags = 0, string $encoding = 'Windows-1252//TRANSLIT') use ($buildSimpleWordDocument, $u32): string {
+    $wordDocument = $buildSimpleWordDocument($text, $flags, $encoding);
+    $textBytes = substr($wordDocument, 512);
+    $fibSize = 768;
+    $fib = str_pad(substr($wordDocument, 0, 512), $fibSize, "\0");
+    $fib = substr_replace($fib, $u32($fibSize), 24, 4);
+    $fib = substr_replace($fib, $u32($fibSize + strlen($textBytes)), 28, 4);
 
     return $fib . $textBytes;
 };
@@ -2160,6 +2183,99 @@ return [
         ] as $associatedStringsTable) {
             $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($associatedStringsTable)));
         }
+    },
+    'extracts legacy DOC StwUser document variables as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $stwUser, $u32): void {
+        $documentVariablesTable = $stwUser([
+            ['name' => 'MigrationBatch', 'value' => 'legacy-doc-2026'],
+            ['name' => 'Review Status', 'value' => 'needs QA'],
+            ['name' => 'Sign', 'value' => 'opaque signature bytes'],
+        ]);
+        $wordDocument = $buildExtendedFibWordDocument("Document variable review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x027a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($documentVariablesTable)), 0x027e, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $documentVariablesTable,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $documentVariables = $result['documentVariables'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(3, count($documentVariables));
+        $t->same(3, $metadata['documentVariableCount']);
+        $t->same($documentVariables, $metadata['documentVariables']);
+        $t->same($documentVariables, $result['document']->attr('documentVariables'));
+        $t->same($documentVariables, $result['document']->attr('meta')['documentVariables']);
+        $t->same([
+            'MigrationBatch' => 'legacy-doc-2026',
+            'Review Status' => 'needs QA',
+        ], $metadata['documentVariableValues']);
+        $t->same(1, $metadata['documentSignatureVariableCount']);
+        $t->same('signature-blob-metadata-only', $metadata['documentSignaturePolicy']);
+        $t->same(0, $documentVariables[0]['index']);
+        $t->same('MigrationBatch', $documentVariables[0]['name']);
+        $t->same('legacy-doc-2026', $documentVariables[0]['value']);
+        $t->same(15, $documentVariables[0]['valueCharacterCount']);
+        $t->same(32, $documentVariables[0]['valueByteCount']);
+        $t->same(1, $documentVariables[1]['index']);
+        $t->same('Review Status', $documentVariables[1]['name']);
+        $t->same('needs QA', $documentVariables[1]['value']);
+        $t->same(8, $documentVariables[1]['valueCharacterCount']);
+        $t->same(18, $documentVariables[1]['valueByteCount']);
+        $t->same(2, $documentVariables[2]['index']);
+        $t->same('Sign', $documentVariables[2]['name']);
+        $t->same(true, $documentVariables[2]['signatureVariable']);
+        $t->same(true, $documentVariables[2]['redacted']);
+        $t->same(false, $documentVariables[2]['canExposeBytes']);
+        $t->same(22, $documentVariables[2]['valueCharacterCount']);
+        $t->same(46, $documentVariables[2]['valueByteCount']);
+        $t->same('signature-blob-metadata-only', $documentVariables[2]['extractionPolicy']);
+        $t->true(!array_key_exists('value', $documentVariables[2]));
+        $t->contains('<p>Document variable review packet</p>', $blocks);
+        $t->contains('Document variable review packet', $markdown);
+        $t->true(!str_contains($blocks, 'legacy-doc-2026'));
+        $t->true(!str_contains($blocks, 'opaque signature bytes'));
+        $t->true(!str_contains($markdown, 'needs QA'));
+        $t->true(!str_contains($markdown, 'opaque signature bytes'));
+    },
+    'rejects malformed legacy DOC StwUser document variables before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $stwUser, $u16, $u32): void {
+        $buildDocBytes = static function (string $documentVariablesTable) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
+            $wordDocument = $buildExtendedFibWordDocument("Malformed document variables packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x027a, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($documentVariablesTable)), 0x027e, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $documentVariablesTable,
+            ]);
+        };
+
+        $valid = $stwUser([
+            ['name' => 'ReviewStatus', 'value' => 'ready'],
+            ['name' => 'Owner', 'value' => 'migration desk'],
+        ]);
+        foreach ([
+            'wrong extended marker' => substr_replace($valid, $u16(0), 0, 2),
+            'wrong extra-data size' => substr_replace($valid, $u16(2), 4, 2),
+            'duplicate variable names' => $stwUser([
+                ['name' => 'ReviewStatus', 'value' => 'ready'],
+                ['name' => 'reviewstatus', 'value' => 'duplicate'],
+            ]),
+            'truncated value' => substr($valid, 0, -1),
+            'trailing bytes' => $valid . "\0",
+        ] as $documentVariablesTable) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($documentVariablesTable)));
+        }
+
+        $missingTableWordDocument = $buildExtendedFibWordDocument("Missing document variables table stream packet\r");
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x027a, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($valid)), 0x027e, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
     },
     'extracts legacy DOC DocumentSummaryInformation counters and booleans' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $typedI4, $typedBool): void {
         $docBytes = $buildCfb([

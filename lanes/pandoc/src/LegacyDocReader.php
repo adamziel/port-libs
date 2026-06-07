@@ -45,6 +45,8 @@ final class LegacyDocReader
     private const FIB_LCB_DOP = 0x0196;
     private const FIB_FC_STTBF_ASSOC = 0x019a;
     private const FIB_LCB_STTBF_ASSOC = 0x019e;
+    private const FIB_FC_STW_USER = 0x027a;
+    private const FIB_LCB_STW_USER = 0x027e;
     private const FIB_FC_GRPXST_ATN_OWNERS = 0x01ba;
     private const FIB_LCB_GRPXST_ATN_OWNERS = 0x01be;
     private const FIB_FC_PLCFEND_REF = 0x020a;
@@ -124,7 +126,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -132,7 +134,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -178,6 +180,29 @@ final class LegacyDocReader
             $metadata['documentPropertyByteCount'] = $documentProperties['byteCount'];
             $metadata['documentPolicyFlags'] = $documentProperties['policyFlags'];
             $metadata['documentProperties'] = $documentProperties;
+        }
+        $documentVariables = $this->documentVariableReport($wordDocument, $tableStream);
+        if ($documentVariables !== []) {
+            $metadata['documentVariableCount'] = count($documentVariables);
+            $metadata['documentVariables'] = $documentVariables;
+            $documentVariableValues = [];
+            $signatureVariableCount = 0;
+            foreach ($documentVariables as $documentVariable) {
+                if (($documentVariable['signatureVariable'] ?? false) === true) {
+                    $signatureVariableCount++;
+                    continue;
+                }
+                if (isset($documentVariable['name'], $documentVariable['value'])) {
+                    $documentVariableValues[(string) $documentVariable['name']] = (string) $documentVariable['value'];
+                }
+            }
+            if ($documentVariableValues !== []) {
+                $metadata['documentVariableValues'] = $documentVariableValues;
+            }
+            if ($signatureVariableCount > 0) {
+                $metadata['documentSignatureVariableCount'] = $signatureVariableCount;
+                $metadata['documentSignaturePolicy'] = 'signature-blob-metadata-only';
+            }
         }
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
@@ -357,6 +382,7 @@ final class LegacyDocReader
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
             'documentProperties' => $documentProperties,
+            'documentVariables' => $documentVariables,
         ];
 
         return [
@@ -393,6 +419,7 @@ final class LegacyDocReader
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
             'documentProperties' => $documentProperties,
+            'documentVariables' => $documentVariables,
         ];
     }
 
@@ -2126,6 +2153,166 @@ final class LegacyDocReader
 
         $offset = self::u32($wordDocument, self::FIB_FC_DOP);
         return $this->parseDop($this->tableStreamSlice($tableStream, $offset, $length, 'DOP document properties'));
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function documentVariableReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STW_USER + 4) {
+            return [];
+        }
+        $fcMin = self::u32($wordDocument, 24);
+        if ($fcMin > 0 && self::FIB_LCB_STW_USER + 4 > $fcMin) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STW_USER);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC document variables require the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STW_USER);
+        return $this->parseStwUser($this->tableStreamSlice($tableStream, $offset, $length, 'StwUser document variables'));
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseStwUser(string $bytes): array
+    {
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('Legacy DOC StwUser document variables are truncated');
+        }
+
+        $cursor = 0;
+        $names = $this->readStwUserNameTable($bytes, $cursor);
+        if ($names === []) {
+            if ($cursor !== strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC StwUser document variables contain trailing bytes');
+            }
+
+            return [];
+        }
+
+        $variables = [];
+        foreach ($names as $index => $name) {
+            $variables[] = $this->readStwUserValue($bytes, $cursor, $name, $index);
+        }
+        if ($cursor !== strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC StwUser document variables contain trailing bytes');
+        }
+
+        return $variables;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function readStwUserNameTable(string $bytes, int &$cursor): array
+    {
+        if ($cursor + 6 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC StwUser name table is truncated');
+        }
+        if (self::u16($bytes, $cursor) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC StwUser name table must use extended strings');
+        }
+        $cursor += 2;
+        $count = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($count > 4096) {
+            throw new \RuntimeException('Legacy DOC StwUser name table contains too many variables');
+        }
+        if (self::u16($bytes, $cursor) !== 4) {
+            throw new \RuntimeException('Legacy DOC StwUser name table must carry four-byte ignored extra data');
+        }
+        $cursor += 2;
+
+        $names = [];
+        $seen = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC StwUser variable name length is truncated');
+            }
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters === 0 || $characters > 255) {
+                throw new \RuntimeException('Legacy DOC StwUser variable name length is invalid');
+            }
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength + 4 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC StwUser variable name is truncated');
+            }
+            $name = $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+            $cursor += 4;
+            if ($name === '') {
+                throw new \RuntimeException('Legacy DOC StwUser variable name is empty');
+            }
+
+            $key = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+            if (isset($seen[$key])) {
+                throw new \RuntimeException('Legacy DOC StwUser variable names must be unique');
+            }
+            $seen[$key] = true;
+            $names[] = $name;
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function readStwUserValue(string $bytes, int &$cursor, string $name, int $index): array
+    {
+        if ($cursor + 2 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC StwUser variable value length is truncated');
+        }
+
+        $characters = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($characters > 4096) {
+            throw new \RuntimeException('Legacy DOC StwUser variable value length is invalid');
+        }
+
+        $byteLength = $characters * 2;
+        if ($cursor + $byteLength > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC StwUser variable value is truncated');
+        }
+
+        $valueBytes = substr($bytes, $cursor, $byteLength);
+        $cursor += $byteLength;
+        $record = [
+            'index' => $index,
+            'name' => $name,
+            'valueCharacterCount' => $characters,
+        ];
+        if ($this->isSignatureDocumentVariableName($name)) {
+            $record['signatureVariable'] = true;
+            $record['redacted'] = true;
+            $record['valueByteCount'] = 2 + $byteLength;
+            $record['extractionPolicy'] = 'signature-blob-metadata-only';
+            $record['canExposeBytes'] = false;
+
+            return $record;
+        }
+
+        $record['value'] = $this->decodeUtf16Le($valueBytes);
+        $record['valueByteCount'] = 2 + $byteLength;
+
+        return $record;
+    }
+
+    private function isSignatureDocumentVariableName(string $name): bool
+    {
+        $normalized = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+
+        return in_array($normalized, ['sign', 'sigagile', 'sigv3'], true);
     }
 
     /**

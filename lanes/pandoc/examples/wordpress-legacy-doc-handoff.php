@@ -244,6 +244,19 @@ $sttbfAssoc = static function (array $values) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$stwUser = static function (array $variables) use ($u16, $u32, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(count($variables)) . $u16(4);
+    foreach ($variables as $variable) {
+        $nameBytes = $utf16le((string) $variable['name']);
+        $bytes .= $u16(intdiv(strlen($nameBytes), 2)) . $nameBytes . $u32((int) ($variable['extra'] ?? 0));
+    }
+    foreach ($variables as $variable) {
+        $valueBytes = $utf16le((string) $variable['value']);
+        $bytes .= $u16(intdiv(strlen($valueBytes), 2)) . $valueBytes;
+    }
+
+    return $bytes;
+};
 $buildPlcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     $bytes = '';
     foreach ($records as $record) {
@@ -728,13 +741,19 @@ $associatedStringsTable = $sttbfAssoc([
     9 => 'C:\Data\legacy-header.doc',
     17 => 'review-lock',
 ]);
+$documentVariablesTable = $stwUser([
+    ['name' => 'MigrationBatch', 'value' => 'legacy-doc-42'],
+    ['name' => 'ReviewStatus', 'value' => 'needs editorial review'],
+    ['name' => 'Sign', 'value' => 'opaque signature blob'],
+]);
 $fcDop = strlen($clx);
 $fcPlcfFldMom = $fcDop + strlen($dop);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
 $fcPlcfFldEdn = $fcPlcfFldHdr + strlen($plcfldHdr);
 $fcPlcfHdd = $fcPlcfFldEdn + strlen($plcfldEdn);
 $fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
-$fcSttbfBkmk = $fcSttbfAssoc + strlen($associatedStringsTable);
+$fcStwUser = $fcSttbfAssoc + strlen($associatedStringsTable);
+$fcSttbfBkmk = $fcStwUser + strlen($documentVariablesTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
 $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
@@ -750,7 +769,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -775,6 +794,8 @@ $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfAssoc), 0x019a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcStwUser), 0x027a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($documentVariablesTable)), 0x027e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
@@ -1208,6 +1229,7 @@ $summary = [
     'macroProjects' => $result['macroProjects'],
     'associatedStrings' => $result['associatedStrings'],
     'documentProperties' => $result['documentProperties'],
+    'documentVariables' => $result['documentVariables'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
@@ -1243,6 +1265,28 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['associatedStrings'][8]['role'] ?? '') !== 'writeReservationPassword' || ($summary['associatedStrings'][8]['redacted'] ?? null) !== true || isset($summary['associatedStrings'][8]['value'])) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed write-reservation password value');
+    }
+    if (($summary['metadata']['documentVariableCount'] ?? null) !== 3 || count($summary['documentVariables'] ?? []) !== 3) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing StwUser document-variable inventory');
+    }
+    if (($summary['metadata']['documentVariableValues'] ?? []) !== [
+        'MigrationBatch' => 'legacy-doc-42',
+        'ReviewStatus' => 'needs editorial review',
+    ]) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing StwUser document-variable values');
+    }
+    if (($summary['metadata']['documentSignatureVariableCount'] ?? null) !== 1 || ($summary['metadata']['documentSignaturePolicy'] ?? '') !== 'signature-blob-metadata-only') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing StwUser signature-variable policy');
+    }
+    $signatureVariables = array_values(array_filter(
+        $summary['documentVariables'],
+        static fn (array $variable): bool => ($variable['signatureVariable'] ?? false) === true
+    ));
+    if (count($signatureVariables) !== 1 || ($signatureVariables[0]['name'] ?? '') !== 'Sign' || ($signatureVariables[0]['redacted'] ?? null) !== true || isset($signatureVariables[0]['value'])) {
+        throw new RuntimeException('Legacy DOC handoff self-test exposed StwUser signature variable bytes');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'legacy-doc-42') || str_contains($summary['wordpressBlocks'], 'needs editorial review') || str_contains($summary['wordpressBlocks'], 'opaque signature blob')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered StwUser metadata into blocks');
     }
     $documentProperties = $summary['documentProperties'] ?? null;
     $documentPolicyFlags = is_array($documentProperties) && is_array($documentProperties['policyFlags'] ?? null) ? $documentProperties['policyFlags'] : [];
