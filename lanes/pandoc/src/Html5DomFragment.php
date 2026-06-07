@@ -467,6 +467,10 @@ final class Html5DomFragment
             return self::normalizeHtmlMetaElement($node, $diagnostics, $baseUrl);
         }
 
+        if ($mode === 'html' && $name === 'title') {
+            return self::normalizeHtmlTitleElement($node, $diagnostics);
+        }
+
         if ($mode === 'html' && self::isBlockedElement($name)) {
             $diagnostics[] = [
                 'code' => 'blocked-tag',
@@ -1691,6 +1695,37 @@ final class Html5DomFragment
         }
 
         return $target;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>|null
+     */
+    private static function normalizeHtmlTitleElement(\DOMElement $element, array &$diagnostics): ?array
+    {
+        $diagnostics[] = [
+            'code' => 'blocked-tag',
+            'tag' => 'title',
+        ];
+
+        $title = self::cleanHtmlMetadataAttribute($element->textContent);
+        if ($title === '') {
+            return null;
+        }
+
+        return [[
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => [
+                'data-pandoc-meta-name' => 'title',
+                'data-pandoc-meta-source' => 'title',
+                'data-pandoc-meta-content' => $title,
+            ],
+            'children' => [[
+                'type' => 'text',
+                'text' => 'Title: ' . $title,
+            ]],
+        ]];
     }
 
     /**

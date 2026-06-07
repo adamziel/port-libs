@@ -1547,6 +1547,41 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe meta refresh URL to be stripped');
         $t->true(!str_contains($html, 'width=device-width'), 'Expected passive viewport metadata to stay out of review HTML');
     },
+    'converts document title elements into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<title>Legacy &amp; review <b>title</b></title>'
+            . '<title>   </title>'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/document-title-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Legacy &amp; review &lt;b&gt;title&lt;/b&gt;">Title: Legacy &amp; review &lt;b&gt;title&lt;/b&gt;</span><p>after</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Title: Legacy & review <b>title</b>after', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['title'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same([
+            'data-pandoc-meta-name' => 'title',
+            'data-pandoc-meta-source' => 'title',
+            'data-pandoc-meta-content' => 'Legacy & review <b>title</b>',
+        ], $nodes[0]['attrs']);
+        $t->same('Title: Legacy & review <b>title</b>', $nodes[0]['children'][0]['text']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('/migration/document-title-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<title'), 'Expected original title elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, '<b>title</b>'), 'Expected tag-looking title text to stay escaped');
+        $t->true(!str_contains($blocks, '<title'), 'Expected WordPress blocks to omit active title elements');
+    },
     'converts passive named metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
