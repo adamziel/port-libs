@@ -1351,7 +1351,7 @@ final class PdfActionReviewExtractor
 
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
         if ($section !== null) {
-            $previousOffset = $this->previousXrefStreamOffset($section);
+            $previousOffset = $this->previousXrefStreamOffset($section, $definitions, $offset);
             $entries = $this->repairCurrentUpdateXrefEntries(
                 $this->xrefStreamEntriesFromSection($section),
                 $definitions,
@@ -1375,7 +1375,7 @@ final class PdfActionReviewExtractor
             return [];
         }
 
-        $previousOffset = $this->previousXrefTableOffset($tableSection);
+        $previousOffset = $this->previousXrefTableOffset($tableSection, $definitions, $offset);
         $entries = $this->repairCurrentUpdateXrefEntries(
             $tableSection['entries'],
             $definitions,
@@ -1396,12 +1396,11 @@ final class PdfActionReviewExtractor
 
     /**
      * @param array{dictionary: array<string, mixed>, body: string} $section
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
      */
-    private function previousXrefStreamOffset(array $section): ?int
+    private function previousXrefStreamOffset(array $section, array $definitions, int $currentOffset): ?int
     {
-        $offset = $this->directIntegerValue($section['dictionary']['Prev'] ?? null);
-
-        return $offset !== null && $offset >= 0 ? $offset : null;
+        return $this->previousXrefOffsetFromValue($section['dictionary']['Prev'] ?? null, $definitions, $currentOffset);
     }
 
     /**
@@ -1459,12 +1458,85 @@ final class PdfActionReviewExtractor
 
     /**
      * @param array{trailer: array<string, mixed>} $section
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
      */
-    private function previousXrefTableOffset(array $section): ?int
+    private function previousXrefTableOffset(array $section, array $definitions, int $currentOffset): ?int
     {
-        $offset = $this->directIntegerValue($section['trailer']['Prev'] ?? null);
+        return $this->previousXrefOffsetFromValue($section['trailer']['Prev'] ?? null, $definitions, $currentOffset);
+    }
 
-        return $offset !== null && $offset >= 0 ? $offset : null;
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     */
+    private function previousXrefOffsetFromValue(mixed $value, array $definitions, int $currentOffset): ?int
+    {
+        $seenReferences = [];
+        for ($depth = 0; $depth < 8; $depth++) {
+            $offset = $this->directIntegerValue($value);
+            if ($offset !== null) {
+                return $offset >= 0 ? $offset : null;
+            }
+
+            $reference = $this->referenceObject($value);
+            if ($reference === null) {
+                return null;
+            }
+
+            $referenceKey = $this->referenceKey($reference['object'], $reference['generation']);
+            if (isset($seenReferences[$referenceKey])) {
+                return null;
+            }
+            $seenReferences[$referenceKey] = true;
+
+            $definition = $this->latestDefinitionForReferenceBeforeOffset(
+                $definitions,
+                $reference['object'],
+                $reference['generation'],
+                $currentOffset
+            );
+            if ($definition === null) {
+                return null;
+            }
+
+            $tokens = $this->tokens($this->firstObjectValue(trim($definition['body'])));
+            if ($tokens === []) {
+                return null;
+            }
+
+            $index = 0;
+            $value = $this->parseValue($tokens, $index);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @return array{object: int, generation: int, body: string, offset: int}|null
+     */
+    private function latestDefinitionForReferenceBeforeOffset(
+        array $definitions,
+        int $objectNumber,
+        int $generation,
+        int $currentOffset
+    ): ?array {
+        $selected = null;
+        foreach ($definitions as $definition) {
+            if (
+                $definition['object'] !== $objectNumber
+                || $definition['generation'] !== $generation
+                || $definition['offset'] < 0
+                || $definition['offset'] >= $currentOffset
+            ) {
+                continue;
+            }
+
+            if ($selected === null || $definition['offset'] > $selected['offset']) {
+                $selected = $definition;
+            }
+        }
+
+        return $selected;
     }
 
     /**
