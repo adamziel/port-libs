@@ -627,6 +627,50 @@ $plcfldMom = static function (array $records, int $finalCp) use ($u32): string {
 
     return $bytes;
 };
+$dttm = static function (int $year, int $month, int $day, int $hour, int $minute, int $weekday = 0): int {
+    return ($minute & 0x3f)
+        | (($hour & 0x1f) << 6)
+        | (($day & 0x1f) << 11)
+        | (($month & 0x0f) << 16)
+        | ((($year - 1900) & 0x01ff) << 20)
+        | (($weekday & 0x07) << 29);
+};
+$dopBase = static function () use ($u16, $u32, $dttm): string {
+    $flags1 = 0x00000001 | 0x00000004 | (2 << 5) | (1 << 16) | (5 << 18);
+    $flags2 = (1 << 6) | (1 << 8) | (1 << 10) | (1 << 12) | (1 << 14)
+        | (1 << 15) | (1 << 17) | (1 << 20) | (1 << 21) | (1 << 22)
+        | (1 << 25) | (1 << 27) | (1 << 29) | (1 << 31);
+    $flags3 = 2 | (7 << 2) | (3 << 16) | (1 << 26) | (1 << 27)
+        | (1 << 28) | (1 << 29) | (1 << 31);
+    $viewFlags = 5 | (125 << 3) | (2 << 12) | (1 << 15);
+
+    return $u32($flags1)
+        . $u32($flags2)
+        . $u16(0x0003)
+        . $u16(720)
+        . $u16(65001)
+        . $u16(360)
+        . $u16(3)
+        . $u16(0)
+        . $u32($dttm(2024, 4, 6, 7, 8, 6))
+        . $u32($dttm(2024, 4, 8, 9, 10, 1))
+        . $u32($dttm(2024, 4, 9, 11, 12, 2))
+        . $u16(4)
+        . $u32(125)
+        . $u32(2345)
+        . $u32(12345)
+        . $u16(12)
+        . $u32(67)
+        . $u32($flags3)
+        . $u32(890)
+        . $u32(2400)
+        . $u32(14000)
+        . $u16(13)
+        . $u32(72)
+        . $u32(901)
+        . $u32(0x0a0b0c0d)
+        . $u16($viewFlags);
+};
 
 $buildSimpleWordDocument = static function (string $text, int $flags = 0, string $encoding = 'Windows-1252//TRANSLIT'): string {
     $textBytes = iconv('UTF-8', $encoding, $text);
@@ -1895,6 +1939,121 @@ return [
         $t->same(true, $fibBase['readOnlyRecommended']);
         $t->same(true, $fibBase['writeReservation']);
         $t->same(true, $fibBase['loadOverride']);
+    },
+    'extracts legacy DOC DOP document properties as metadata-only review policy' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $dopBase, $u32): void {
+        $dop = $dopBase();
+        $wordDocument = $buildSimpleWordDocument("DOP metadata review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x0192, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($dop)), 0x0196, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $dop,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $documentProperties = $result['documentProperties'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $expectedPolicyFlags = [
+            'facing-pages',
+            'mail-merge-main-document',
+            'spelling-checked',
+            'spelling-errors-hidden',
+            'label-document',
+            'auto-hyphenation',
+            'link-styles',
+            'track-revisions',
+            'exact-word-counts',
+            'comments-locked',
+            'mirror-margins',
+            'word97-compatibility',
+            'forms-protection-enabled',
+            'revision-markup-view',
+            'vba-project-locked',
+            'embed-fonts',
+            'print-form-data-only',
+            'save-form-data-only',
+            'shade-form-fields',
+            'shade-merge-fields',
+            'include-subdocuments-in-statistics',
+            'gutter-at-top',
+        ];
+
+        $t->same($documentProperties, $metadata['documentProperties']);
+        $t->same($documentProperties, $result['document']->attr('documentProperties'));
+        $t->same($documentProperties, $result['document']->attr('meta')['documentProperties']);
+        $t->same(84, $metadata['documentPropertyByteCount']);
+        $t->same(84, $documentProperties['byteCount']);
+        $t->same(84, $documentProperties['baseByteCount']);
+        $t->same($expectedPolicyFlags, $documentProperties['policyFlags']);
+        $t->same($expectedPolicyFlags, $metadata['documentPolicyFlags']);
+        $t->same('beneath-text', $documentProperties['footnotePlacement']);
+        $t->same('section', $documentProperties['footnoteNumberingRestart']);
+        $t->same(5, $documentProperties['footnoteStartingNumber']);
+        $t->same(0x0003, $documentProperties['compatibilityOptions']);
+        $t->same(720, $documentProperties['defaultTabStopTwips']);
+        $t->same(65001, $documentProperties['htmlCodePage']);
+        $t->same(360, $documentProperties['hyphenationZoneTwips']);
+        $t->same(3, $documentProperties['consecutiveHyphenLimit']);
+        $t->same('2024-04-06T07:08:00', $documentProperties['createdAt']);
+        $t->same('2024-04-08T09:10:00', $documentProperties['revisedAt']);
+        $t->same('2024-04-09T11:12:00', $documentProperties['lastPrintedAt']);
+        $t->same(4, $documentProperties['revisionNumber']);
+        $t->same(125, $documentProperties['editMinutes']);
+        $t->same('page', $documentProperties['endnoteNumberingRestart']);
+        $t->same(7, $documentProperties['endnoteStartingNumber']);
+        $t->same('document-end', $documentProperties['endnotePlacement']);
+        $t->same('0a0b0c0d', $documentProperties['protectionHash']);
+        $t->same([
+            'wordCount' => 2345,
+            'characterCount' => 12345,
+            'pageCount' => 12,
+            'paragraphCount' => 67,
+            'lineCount' => 890,
+            'wordCountWithSubdocuments' => 2400,
+            'characterCountWithSubdocuments' => 14000,
+            'pageCountWithSubdocuments' => 13,
+            'paragraphCountWithSubdocuments' => 72,
+            'lineCountWithSubdocuments' => 901,
+        ], $documentProperties['statistics']);
+        $t->same([
+            'kind' => 'web',
+            'zoomPercent' => 125,
+            'zoomKind' => 'best-fit',
+            'gutterAtTop' => true,
+        ], $documentProperties['view']);
+        $t->contains('<p>DOP metadata review packet</p>', $blocks);
+        $t->true(!str_contains($blocks, 'auto-hyphenation'));
+        $t->true(!str_contains($blocks, '0a0b0c0d'));
+    },
+    'rejects malformed legacy DOC DOP document properties before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $dopBase, $u16, $u32): void {
+        $buildDocBytes = static function (string $dop) use ($buildCfb, $buildSimpleWordDocument, $u32): string {
+            $wordDocument = $buildSimpleWordDocument("Malformed DOP metadata packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x0192, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($dop)), 0x0196, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $dop,
+            ]);
+        };
+
+        $valid = $dopBase();
+        foreach ([
+            'truncated base' => substr($valid, 0, 83),
+            'nonzero wSpare2' => substr_replace($valid, $u16(1), 18, 2),
+            'reserved form flag' => substr_replace($valid, $u32(1 << 30), 52, 4),
+            'negative revision count' => substr_replace($valid, $u16(0xffff), 32, 2),
+        ] as $dop) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($dop)));
+        }
+
+        $missingTableWordDocument = $buildSimpleWordDocument("Missing DOP table stream packet\r");
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x0192, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($valid)), 0x0196, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
     },
     'decodes legacy DOC LPSTR metadata using the property-set code page' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstrBytes, $typedI2): void {
         $titleBytes = hex2bin('c8ecefeef0f220eef2e7fbe2eee2');

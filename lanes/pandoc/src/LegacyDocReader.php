@@ -41,6 +41,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCF_BKF = 0x014e;
     private const FIB_FC_PLCF_BKL = 0x0152;
     private const FIB_LCB_PLCF_BKL = 0x0156;
+    private const FIB_FC_DOP = 0x0192;
+    private const FIB_LCB_DOP = 0x0196;
     private const FIB_FC_STTBF_ASSOC = 0x019a;
     private const FIB_LCB_STTBF_ASSOC = 0x019e;
     private const FIB_FC_GRPXST_ATN_OWNERS = 0x01ba;
@@ -122,7 +124,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -130,7 +132,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -170,6 +172,12 @@ final class LegacyDocReader
             $metadata = $this->applyAssociatedStringMetadata($metadata, $associatedStrings);
             $metadata['associatedStringCount'] = count($associatedStrings);
             $metadata['associatedStrings'] = $associatedStrings;
+        }
+        $documentProperties = $this->documentPropertyReport($wordDocument, $tableStream);
+        if ($documentProperties !== []) {
+            $metadata['documentPropertyByteCount'] = $documentProperties['byteCount'];
+            $metadata['documentPolicyFlags'] = $documentProperties['policyFlags'];
+            $metadata['documentProperties'] = $documentProperties;
         }
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
@@ -348,6 +356,7 @@ final class LegacyDocReader
             'pictureReferences' => $pictureReferences,
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
+            'documentProperties' => $documentProperties,
         ];
 
         return [
@@ -383,6 +392,7 @@ final class LegacyDocReader
             'pictureReferences' => $pictureReferences,
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
+            'documentProperties' => $documentProperties,
         ];
     }
 
@@ -2095,6 +2105,234 @@ final class LegacyDocReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function documentPropertyReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_DOP + 4) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_DOP);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC DOP document properties require the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_DOP);
+        return $this->parseDop($this->tableStreamSlice($tableStream, $offset, $length, 'DOP document properties'));
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function parseDop(string $bytes): array
+    {
+        $byteCount = strlen($bytes);
+        if ($byteCount < 84) {
+            throw new \RuntimeException('Legacy DOC DOP document properties are truncated');
+        }
+        if (self::u16($bytes, 18) !== 0) {
+            throw new \RuntimeException('Legacy DOC DOP document properties contain nonzero reserved wSpare2');
+        }
+
+        $flags1 = self::u32($bytes, 0);
+        $flags2 = self::u32($bytes, 4);
+        $flags3 = self::u32($bytes, 52);
+        if (($flags3 & (1 << 30)) !== 0) {
+            throw new \RuntimeException('Legacy DOC DOP document properties contain nonzero reserved form-data flag');
+        }
+
+        $revisionNumber = self::signed16(self::u16($bytes, 32));
+        if ($revisionNumber < 0) {
+            throw new \RuntimeException('Legacy DOC DOP document properties contain an invalid revision count');
+        }
+
+        $viewFlags = self::u16($bytes, 82);
+        $statistics = [
+            'wordCount' => self::signed32(self::u32($bytes, 38)),
+            'characterCount' => self::signed32(self::u32($bytes, 42)),
+            'pageCount' => self::signed16(self::u16($bytes, 46)),
+            'paragraphCount' => self::signed32(self::u32($bytes, 48)),
+            'lineCount' => self::signed32(self::u32($bytes, 56)),
+            'wordCountWithSubdocuments' => self::signed32(self::u32($bytes, 60)),
+            'characterCountWithSubdocuments' => self::signed32(self::u32($bytes, 64)),
+            'pageCountWithSubdocuments' => self::signed16(self::u16($bytes, 68)),
+            'paragraphCountWithSubdocuments' => self::signed32(self::u32($bytes, 70)),
+            'lineCountWithSubdocuments' => self::signed32(self::u32($bytes, 74)),
+        ];
+
+        $properties = [
+            'byteCount' => $byteCount,
+            'baseByteCount' => 84,
+            'policyFlags' => $this->documentPropertyFlagNames($flags1, $flags2, $flags3, $viewFlags),
+            'footnotePlacement' => $this->dopFootnotePlacement(($flags1 >> 5) & 0x03),
+            'footnoteNumberingRestart' => $this->dopNumberingRestart(($flags1 >> 16) & 0x03),
+            'footnoteStartingNumber' => ($flags1 >> 18) & 0x3fff,
+            'compatibilityOptions' => self::u16($bytes, 8),
+            'defaultTabStopTwips' => self::u16($bytes, 10),
+            'htmlCodePage' => self::u16($bytes, 12),
+            'hyphenationZoneTwips' => self::u16($bytes, 14),
+            'consecutiveHyphenLimit' => self::u16($bytes, 16),
+            'createdAt' => $this->readDttm($bytes, 20),
+            'revisedAt' => $this->readDttm($bytes, 24),
+            'lastPrintedAt' => $this->readDttm($bytes, 28),
+            'revisionNumber' => $revisionNumber,
+            'editMinutes' => self::signed32(self::u32($bytes, 34)),
+            'statistics' => $statistics,
+            'endnoteNumberingRestart' => $this->dopNumberingRestart($flags3 & 0x03),
+            'endnoteStartingNumber' => ($flags3 >> 2) & 0x3fff,
+            'endnotePlacement' => $this->dopEndnotePlacement(($flags3 >> 16) & 0x03),
+            'protectionHash' => sprintf('%08x', self::u32($bytes, 78)),
+            'view' => [
+                'kind' => $this->dopViewKind($viewFlags & 0x07),
+                'zoomPercent' => ($viewFlags >> 3) & 0x01ff,
+                'zoomKind' => $this->dopZoomKind(($viewFlags >> 12) & 0x03),
+                'gutterAtTop' => (($viewFlags >> 15) & 0x01) === 1,
+            ],
+        ];
+        if ($byteCount > 84) {
+            $properties['extendedByteCount'] = $byteCount - 84;
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function documentPropertyFlagNames(int $flags1, int $flags2, int $flags3, int $viewFlags): array
+    {
+        $names = [];
+        foreach ([
+            [0, 'facing-pages'],
+            [2, 'mail-merge-main-document'],
+        ] as [$bit, $name]) {
+            if (($flags1 & (1 << $bit)) !== 0) {
+                $names[] = $name;
+            }
+        }
+        foreach ([
+            [6, 'spelling-checked'],
+            [7, 'spelling-clean'],
+            [8, 'spelling-errors-hidden'],
+            [9, 'grammar-errors-hidden'],
+            [10, 'label-document'],
+            [11, 'hyphenate-caps'],
+            [12, 'auto-hyphenation'],
+            [13, 'form-no-fields'],
+            [14, 'link-styles'],
+            [15, 'track-revisions'],
+            [17, 'exact-word-counts'],
+            [20, 'comments-locked'],
+            [21, 'mirror-margins'],
+            [22, 'word97-compatibility'],
+            [25, 'forms-protection-enabled'],
+            [26, 'display-form-field-selection'],
+            [27, 'revision-markup-view'],
+            [28, 'print-revision-markup'],
+            [29, 'vba-project-locked'],
+            [30, 'revisions-locked'],
+            [31, 'embed-fonts'],
+        ] as [$bit, $name]) {
+            if (($flags2 & (1 << $bit)) !== 0) {
+                $names[] = $name;
+            }
+        }
+        foreach ([
+            [26, 'print-form-data-only'],
+            [27, 'save-form-data-only'],
+            [28, 'shade-form-fields'],
+            [29, 'shade-merge-fields'],
+            [31, 'include-subdocuments-in-statistics'],
+        ] as [$bit, $name]) {
+            if (($flags3 & (1 << $bit)) !== 0) {
+                $names[] = $name;
+            }
+        }
+        if (($viewFlags & (1 << 15)) !== 0) {
+            $names[] = 'gutter-at-top';
+        }
+
+        return $names;
+    }
+
+    private function dopFootnotePlacement(int $value): string
+    {
+        return [
+            0 => 'section-end',
+            1 => 'page-bottom',
+            2 => 'beneath-text',
+            3 => 'document-end',
+        ][$value];
+    }
+
+    private function dopNumberingRestart(int $value): string
+    {
+        return [
+            0 => 'continuous',
+            1 => 'section',
+            2 => 'page',
+            3 => 'manual',
+        ][$value];
+    }
+
+    private function dopEndnotePlacement(int $value): string
+    {
+        return [
+            0 => 'section-end',
+            1 => 'page-bottom',
+            2 => 'beneath-text',
+            3 => 'document-end',
+        ][$value];
+    }
+
+    private function dopViewKind(int $value): string
+    {
+        return [
+            0 => 'none',
+            1 => 'print',
+            2 => 'outline',
+            3 => 'master-pages',
+            4 => 'normal',
+            5 => 'web',
+            6 => 'reserved',
+            7 => 'reserved',
+        ][$value];
+    }
+
+    private function dopZoomKind(int $value): string
+    {
+        return [
+            0 => 'none',
+            1 => 'full-page',
+            2 => 'best-fit',
+            3 => 'text-fit',
+        ][$value];
+    }
+
+    private function readDttm(string $bytes, int $offset): ?string
+    {
+        $value = self::u32($bytes, $offset);
+        if ($value === 0) {
+            return null;
+        }
+
+        $minute = $value & 0x3f;
+        $hour = ($value >> 6) & 0x1f;
+        $day = ($value >> 11) & 0x1f;
+        $month = ($value >> 16) & 0x0f;
+        $year = (($value >> 20) & 0x01ff) + 1900;
+        if ($minute > 59 || $hour > 23 || $day < 1 || $day > 31 || $month < 1 || $month > 12) {
+            throw new \RuntimeException('Legacy DOC DOP document properties contain an invalid DTTM timestamp');
+        }
+
+        return sprintf('%04d-%02d-%02dT%02d:%02d:00', $year, $month, $day, $hour, $minute);
     }
 
     /**

@@ -256,6 +256,50 @@ $buildPlcfldMom = static function (array $records, int $finalCp) use ($u32): str
 
     return $bytes;
 };
+$dttm = static function (int $year, int $month, int $day, int $hour, int $minute, int $weekday = 0): int {
+    return ($minute & 0x3f)
+        | (($hour & 0x1f) << 6)
+        | (($day & 0x1f) << 11)
+        | (($month & 0x0f) << 16)
+        | ((($year - 1900) & 0x01ff) << 20)
+        | (($weekday & 0x07) << 29);
+};
+$dopBase = static function () use ($u16, $u32, $dttm): string {
+    $flags1 = 0x00000001 | 0x00000004 | (2 << 5) | (1 << 16) | (5 << 18);
+    $flags2 = (1 << 6) | (1 << 8) | (1 << 10) | (1 << 12) | (1 << 14)
+        | (1 << 15) | (1 << 17) | (1 << 20) | (1 << 21) | (1 << 22)
+        | (1 << 25) | (1 << 27) | (1 << 29) | (1 << 31);
+    $flags3 = 2 | (7 << 2) | (3 << 16) | (1 << 26) | (1 << 27)
+        | (1 << 28) | (1 << 29) | (1 << 31);
+    $viewFlags = 5 | (125 << 3) | (2 << 12) | (1 << 15);
+
+    return $u32($flags1)
+        . $u32($flags2)
+        . $u16(0x0003)
+        . $u16(720)
+        . $u16(65001)
+        . $u16(360)
+        . $u16(3)
+        . $u16(0)
+        . $u32($dttm(2024, 4, 6, 7, 8, 6))
+        . $u32($dttm(2024, 4, 8, 9, 10, 1))
+        . $u32($dttm(2024, 4, 9, 11, 12, 2))
+        . $u16(4)
+        . $u32(125)
+        . $u32(2345)
+        . $u32(12345)
+        . $u16(12)
+        . $u32(67)
+        . $u32($flags3)
+        . $u32(890)
+        . $u32(2400)
+        . $u32(14000)
+        . $u16(13)
+        . $u32(72)
+        . $u32(901)
+        . $u32(0x0a0b0c0d)
+        . $u16($viewFlags);
+};
 $ole10NativeStream = static function (
     string $label,
     string $sourcePath,
@@ -557,6 +601,7 @@ $plcfHdd = $u32(0)
     . $u32($headerSubdocumentCharacters - 1)
     . $u32($headerSubdocumentCharacters - 1)
     . $u32(0);
+$dop = $dopBase();
 $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
 $wordDocument = substr_replace($wordDocument, $u32($totalPieceCharacters), 0x004c, 4);
 $wordDocument = substr_replace($wordDocument, $u32($footnoteSubdocumentCharacters), 0x0050, 4);
@@ -683,7 +728,8 @@ $associatedStringsTable = $sttbfAssoc([
     9 => 'C:\Data\legacy-header.doc',
     17 => 'review-lock',
 ]);
-$fcPlcfFldMom = strlen($clx);
+$fcDop = strlen($clx);
+$fcPlcfFldMom = $fcDop + strlen($dop);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
 $fcPlcfFldEdn = $fcPlcfFldHdr + strlen($plcfldHdr);
 $fcPlcfHdd = $fcPlcfFldEdn + strlen($plcfldEdn);
@@ -704,7 +750,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfHdd . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -743,6 +789,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcDop), 0x0192, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($dop)), 0x0196, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcGrpXstAtnOwners), 0x01ba, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($commentAuthors)), 0x01be, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlfLst), 0x02e2, 4);
@@ -1159,6 +1207,7 @@ $summary = [
     'pictureReferences' => $result['pictureReferences'],
     'macroProjects' => $result['macroProjects'],
     'associatedStrings' => $result['associatedStrings'],
+    'documentProperties' => $result['documentProperties'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
@@ -1194,6 +1243,29 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['associatedStrings'][8]['role'] ?? '') !== 'writeReservationPassword' || ($summary['associatedStrings'][8]['redacted'] ?? null) !== true || isset($summary['associatedStrings'][8]['value'])) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed write-reservation password value');
+    }
+    $documentProperties = $summary['documentProperties'] ?? null;
+    $documentPolicyFlags = is_array($documentProperties) && is_array($documentProperties['policyFlags'] ?? null) ? $documentProperties['policyFlags'] : [];
+    if (!is_array($documentProperties) || ($summary['metadata']['documentPropertyByteCount'] ?? null) !== 84 || ($documentProperties['byteCount'] ?? null) !== 84) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP document-property byte counts');
+    }
+    if (!in_array('auto-hyphenation', $documentPolicyFlags, true) || !in_array('include-subdocuments-in-statistics', $documentPolicyFlags, true) || !in_array('gutter-at-top', $documentPolicyFlags, true)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP policy flags');
+    }
+    if (($documentProperties['defaultTabStopTwips'] ?? null) !== 720 || ($documentProperties['htmlCodePage'] ?? null) !== 65001) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP tab/codepage metadata');
+    }
+    if (($documentProperties['createdAt'] ?? '') !== '2024-04-06T07:08:00' || ($documentProperties['lastPrintedAt'] ?? '') !== '2024-04-09T11:12:00') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP DTTM timestamps');
+    }
+    if (($documentProperties['statistics']['wordCount'] ?? null) !== 2345 || ($documentProperties['statistics']['wordCountWithSubdocuments'] ?? null) !== 2400) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP document statistics');
+    }
+    if (($documentProperties['view']['kind'] ?? '') !== 'web' || ($documentProperties['view']['zoomPercent'] ?? null) !== 125 || ($documentProperties['view']['zoomKind'] ?? '') !== 'best-fit') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP saved view metadata');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'auto-hyphenation') || str_contains($summary['wordpressBlocks'], '0a0b0c0d')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered DOP policy metadata into blocks');
     }
     if (($summary['metadata']['pageCount'] ?? null) !== 2 || ($summary['metadata']['wordCount'] ?? null) !== 12) {
         throw new RuntimeException('Legacy DOC handoff self-test missing SummaryInformation counts');
