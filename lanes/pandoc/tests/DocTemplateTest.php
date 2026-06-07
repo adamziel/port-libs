@@ -442,6 +442,26 @@ TPL;
         ]), $output);
     },
 
+    'automatically nests CR-only pandoc doctemplate variable and partial lines' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $template = "<section class=\"wp-import-body\">\r  " . '$body$' . "\r  " . '${ review-note() }' . "\r</section>";
+
+        $output = $renderer->render($template, [
+            'body' => "<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->\r<!-- wp:paragraph --><p>Needs review.</p><!-- /wp:paragraph -->",
+        ], [
+            'review-note' => "<aside>Legacy CR template</aside>\r<aside>Partial second line</aside>\r",
+        ]);
+
+        $t->same(implode("\r", [
+            '<section class="wp-import-body">',
+            '  <!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->',
+            '  <!-- wp:paragraph --><p>Needs review.</p><!-- /wp:paragraph -->',
+            '  <aside>Legacy CR template</aside>',
+            '  <aside>Partial second line</aside>',
+            '</section>',
+        ]), $output);
+    },
+
     'omits a single final newline from interpolated pandoc doctemplate variables' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

@@ -1870,6 +1870,25 @@ CSS;
         return max($lastLf, $lastCr);
     }
 
+    private function firstLineEndingByteOffset(string $buffer): ?int
+    {
+        $firstLf = strpos($buffer, "\n");
+        $firstCr = strpos($buffer, "\r");
+        if ($firstLf === false && $firstCr === false) {
+            return null;
+        }
+
+        if ($firstLf === false) {
+            return $firstCr;
+        }
+
+        if ($firstCr === false) {
+            return $firstLf;
+        }
+
+        return min($firstLf, $firstCr);
+    }
+
     /**
      * @param list<array<string, mixed>> $tokens
      * @param array<string, mixed> $context
@@ -3248,8 +3267,8 @@ CSS;
      */
     private function automaticNestPrefix(array $tokens, int $index, int $end, string $output): ?string
     {
-        $lineStart = strrpos($output, "\n");
-        $prefix = $lineStart === false ? $output : substr($output, $lineStart + 1);
+        $lineStart = $this->lastLineEndingByteOffset($output);
+        $prefix = $lineStart === null ? $output : substr($output, $lineStart + 1);
         if (trim($prefix, " \t") !== '') {
             return null;
         }
@@ -3260,13 +3279,13 @@ CSS;
                 return null;
             }
 
-            $newline = strpos($token['value'], "\n");
-            $beforeNewline = $newline === false ? $token['value'] : substr($token['value'], 0, $newline);
+            $newline = $this->firstLineEndingByteOffset($token['value']);
+            $beforeNewline = $newline === null ? $token['value'] : substr($token['value'], 0, $newline);
             if (trim($beforeNewline, " \t\r") !== '') {
                 return null;
             }
 
-            if ($newline !== false) {
+            if ($newline !== null) {
                 return $prefix;
             }
         }

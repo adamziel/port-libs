@@ -181,6 +181,18 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $crOnlyNestingPacket = (new DocTemplate())->render(
+        "<section class=\"legacy-cr-review\">\r  " . '$body$' . "\r</section>",
+        [
+            'body' => "<!-- wp:paragraph --><p>Legacy CR body.</p><!-- /wp:paragraph -->\r"
+                . '<!-- wp:paragraph --><p>Nested CR line.</p><!-- /wp:paragraph -->',
+        ],
+    );
+    if ($crOnlyNestingPacket !== "<section class=\"legacy-cr-review\">\r  <!-- wp:paragraph --><p>Legacy CR body.</p><!-- /wp:paragraph -->\r  <!-- wp:paragraph --><p>Nested CR line.</p><!-- /wp:paragraph -->\r</section>") {
+        fwrite(STDERR, "Unexpected doctemplate CR-only automatic nesting output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\n\n</section>")) {
         fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
         exit(1);
