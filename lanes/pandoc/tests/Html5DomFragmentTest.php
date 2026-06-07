@@ -1582,6 +1582,66 @@ return [
         $t->true(!str_contains($html, '<b>title</b>'), 'Expected tag-looking title text to stay escaped');
         $t->true(!str_contains($blocks, '<title'), 'Expected WordPress blocks to omit active title elements');
     },
+    'converts html document language and direction into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<html lang=" PT-br " dir="RTL" data-pandoc-meta-name="source-spoof"><head><title>Localized packet</title></head><body><p>Review copy</p></body></html>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/document-language-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-name="language" data-pandoc-meta-source="html" data-pandoc-meta-content="pt-BR">Language: pt-BR</span>'
+            . '<span data-pandoc-meta-name="direction" data-pandoc-meta-source="html" data-pandoc-meta-content="rtl">Direction: rtl</span>'
+            . '<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Localized packet">Title: Localized packet</span>'
+            . '<p>Review copy</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Language: pt-BRDirection: rtlTitle: Localized packetReview copy', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['title'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['document-metadata-review', 'document-metadata-review', 'blocked-tag'], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-meta-name' => 'language',
+            'data-pandoc-meta-source' => 'html',
+            'data-pandoc-meta-content' => 'pt-BR',
+        ], $nodes[0]['attrs']);
+        $t->same('Language: pt-BR', $nodes[0]['children'][0]['text']);
+        $t->same([
+            'data-pandoc-meta-name' => 'direction',
+            'data-pandoc-meta-source' => 'html',
+            'data-pandoc-meta-content' => 'rtl',
+        ], $nodes[1]['attrs']);
+        $t->same('Direction: rtl', $nodes[1]['children'][0]['text']);
+        $t->same('title', $nodes[2]['attrs']['data-pandoc-meta-name']);
+        $t->same('p', $nodes[3]['name']);
+        $t->same('/migration/document-language-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<html'), 'Expected original html wrapper to be stripped from sanitized output');
+        $t->true(!str_contains($html, '<body'), 'Expected original body wrapper to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned Pandoc metadata on html to stay hidden');
+        $t->true(!str_contains($blocks, '<html'), 'Expected WordPress blocks to omit document wrapper elements');
+
+        $invalid = Html5DomFragment::fromHtml('<html lang="bad lang" dir="sideways"><body><p>after</p></body></html>');
+        $invalidHtml = $invalid->serialize();
+        $invalidPolicyDiagnostics = array_values(array_filter(
+            $invalid->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same('<p>after</p>', $invalidHtml);
+        $t->same(['unsafe-attribute', 'unsafe-attribute'], $invalidPolicyDiagnostics);
+        $t->true(!str_contains($invalidHtml, 'Language:'), 'Expected invalid language metadata to stay hidden');
+        $t->true(!str_contains($invalidHtml, 'Direction:'), 'Expected invalid direction metadata to stay hidden');
+    },
     'converts passive named metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

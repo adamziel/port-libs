@@ -129,10 +129,14 @@ final class Html5DomFragment
         }
 
         $resolvedBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
+        $documentMetadataNodes = self::htmlDocumentElementMetadataNodes($html, $diagnostics);
 
         return new self(
             'html',
-            self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $resolvedBaseUrl),
+            [
+                ...$documentMetadataNodes,
+                ...self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $resolvedBaseUrl),
+            ],
             $diagnostics,
             $resolvedBaseUrl
         );
@@ -2042,6 +2046,166 @@ final class Html5DomFragment
             'twitter:title' => 'Twitter title',
             default => 'Metadata',
         };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlDocumentElementMetadataNodes(string $html, array &$diagnostics): array
+    {
+        if (preg_match('/^\s*<html(?:\s|>|\/)/i', $html) !== 1) {
+            return [];
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        libxml_clear_errors();
+
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML($html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $htmlElement = $loaded ? $dom->documentElement : null;
+        if (!$htmlElement instanceof \DOMElement || strtolower($htmlElement->tagName) !== 'html') {
+            return [];
+        }
+
+        $nodes = [];
+        $language = self::htmlDocumentLanguage($htmlElement, $diagnostics);
+        if ($language !== null) {
+            $nodes[] = self::htmlDocumentMetadataSpan('language', $language, 'Language');
+        }
+
+        $direction = self::htmlDocumentDirection($htmlElement, $diagnostics);
+        if ($direction !== null) {
+            $nodes[] = self::htmlDocumentMetadataSpan('direction', $direction, 'Direction');
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function htmlDocumentLanguage(\DOMElement $htmlElement, array &$diagnostics): ?string
+    {
+        $attributeName = $htmlElement->hasAttribute('lang') ? 'lang' : ($htmlElement->hasAttribute('xml:lang') ? 'xml:lang' : '');
+        if ($attributeName === '') {
+            return null;
+        }
+
+        $language = self::normalizeHtmlLanguageTag($htmlElement->getAttribute($attributeName));
+        if ($language === null) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'html',
+                'attribute' => $attributeName,
+            ];
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'document-metadata-review',
+            'tag' => 'html',
+            'attribute' => $attributeName,
+            'name' => 'language',
+        ];
+
+        return $language;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function htmlDocumentDirection(\DOMElement $htmlElement, array &$diagnostics): ?string
+    {
+        if (!$htmlElement->hasAttribute('dir')) {
+            return null;
+        }
+
+        $direction = strtolower(self::cleanHtmlMetadataAttribute($htmlElement->getAttribute('dir')));
+        if (!in_array($direction, ['ltr', 'rtl', 'auto'], true)) {
+            if ($direction !== '') {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'html',
+                    'attribute' => 'dir',
+                    'value' => $direction,
+                ];
+            }
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'document-metadata-review',
+            'tag' => 'html',
+            'attribute' => 'dir',
+            'name' => 'direction',
+        ];
+
+        return $direction;
+    }
+
+    private static function normalizeHtmlLanguageTag(string $value): ?string
+    {
+        $tag = self::cleanHtmlMetadataAttribute($value);
+        if ($tag === '' || strlen($tag) > 64 || preg_match('/\s/u', $tag) === 1) {
+            return null;
+        }
+
+        if (preg_match('/^[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*$/', $tag) !== 1) {
+            return null;
+        }
+
+        $parts = explode('-', $tag);
+        if (count($parts) === 1 && strlen($parts[0]) === 1) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($parts as $index => $part) {
+            if ($index === 0 || strtolower($parts[0]) === 'x') {
+                $normalized[] = strtolower($part);
+                continue;
+            }
+
+            if (preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
+                $normalized[] = ucfirst(strtolower($part));
+                continue;
+            }
+
+            if (preg_match('/^[A-Za-z]{2}$/', $part) === 1) {
+                $normalized[] = strtoupper($part);
+                continue;
+            }
+
+            $normalized[] = strtolower($part);
+        }
+
+        return implode('-', $normalized);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlDocumentMetadataSpan(string $name, string $content, string $label): array
+    {
+        return [
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => [
+                'data-pandoc-meta-name' => $name,
+                'data-pandoc-meta-source' => 'html',
+                'data-pandoc-meta-content' => $content,
+            ],
+            'children' => [[
+                'type' => 'text',
+                'text' => $label . ': ' . $content,
+            ]],
+        ];
     }
 
     /**
