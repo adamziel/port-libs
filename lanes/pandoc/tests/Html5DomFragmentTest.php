@@ -821,6 +821,54 @@ return [
         $t->true(!str_contains($html, 'onclick='), 'Expected active summary handlers to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside closed details to be stripped');
     },
+    'marks hidden and inert content as visible reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<section hidden data-pandoc-hidden-state="source-spoof"><h2>Hidden note</h2>'
+            . '<p>Source <a href="./hidden.html">packet</a><a href="java&#10;script:alert(1)">bad</a></p></section>'
+            . '<aside hidden="until-found" inert><p>Search reveal note</p></aside><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/hidden-inert-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<section data-pandoc-hidden-state="hidden"><h2>Hidden note</h2>'
+            . '<p>Source <a href="https://source.example.test/import/posts/hidden.html">packet</a><a>bad</a></p></section>'
+            . '<aside data-pandoc-hidden-state="until-found" data-pandoc-inert-state="true"><p>Search reveal note</p></aside><p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Hidden noteSource packetbadSearch reveal noteafter', $fragment->textContent());
+        $t->same(['a', 'aside', 'h2', 'p', 'section'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['data-pandoc-hidden-state', 'hidden', 'href', 'inert'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'unsafe-url', 'hidden-content-review', 'hidden-content-review', 'inert-content-review'], $policyDiagnostics);
+        $t->same('section', $nodes[0]['name']);
+        $t->same(['data-pandoc-hidden-state' => 'hidden'], $nodes[0]['attrs']);
+        $t->same('https://source.example.test/import/posts/hidden.html', $nodes[0]['children'][1]['children'][1]['attrs']['href']);
+        $t->same([], $nodes[0]['children'][1]['children'][2]['attrs']);
+        $t->same('aside', $nodes[1]['name']);
+        $t->same([
+            'data-pandoc-hidden-state' => 'until-found',
+            'data-pandoc-inert-state' => 'true',
+        ], $nodes[1]['attrs']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/hidden-inert-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, ' hidden'), 'Expected hidden source attributes to be replaced with visible review metadata');
+        $t->true(!str_contains($html, ' inert'), 'Expected inert source attributes to be replaced with visible review metadata');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned data-pandoc hidden metadata to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside hidden content to be stripped');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();

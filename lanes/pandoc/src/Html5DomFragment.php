@@ -238,7 +238,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -487,6 +487,9 @@ final class Html5DomFragment
         if ($mode === 'html' && $name === 'details') {
             self::markClosedHtmlDetailsReviewMetadata($node, $attrs, $children, $diagnostics);
         }
+        if ($mode === 'html') {
+            self::markHtmlHiddenInertReviewMetadata($node, $name, $attrs, $diagnostics);
+        }
 
         if ($mode === 'html' && self::isEmptyHtmlPictureSourceElement($node, $name, $attrs)) {
             $diagnostics[] = [
@@ -514,6 +517,46 @@ final class Html5DomFragment
         }
 
         return [$element];
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlHiddenInertReviewMetadata(
+        \DOMElement $element,
+        string $tagName,
+        array &$attrs,
+        array &$diagnostics
+    ): void {
+        if ($element->hasAttribute('hidden')) {
+            unset($attrs['hidden']);
+            $attrs['data-pandoc-hidden-state'] = self::normalizeHtmlHiddenState($element->getAttribute('hidden'));
+            $diagnostics[] = [
+                'code' => 'hidden-content-review',
+                'tag' => $tagName,
+                'attribute' => 'hidden',
+                'reason' => 'hidden-content-preserved',
+            ];
+        }
+
+        if ($element->hasAttribute('inert')) {
+            unset($attrs['inert']);
+            $attrs['data-pandoc-inert-state'] = 'true';
+            $diagnostics[] = [
+                'code' => 'inert-content-review',
+                'tag' => $tagName,
+                'attribute' => 'inert',
+                'reason' => 'inert-content-preserved',
+            ];
+        }
+    }
+
+    private static function normalizeHtmlHiddenState(string $value): string
+    {
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return $state === 'until-found' ? 'until-found' : 'hidden';
     }
 
     /**

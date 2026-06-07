@@ -49,6 +49,8 @@ $source = <<<HTML
   <p style="color: #222; font-weight: 600; background-image:url(javascript:alert(1))">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
   <details><summary>Collapsed migration notes</summary><p>Hidden packet <a href="./details/source.html">details source</a><a href="java&#10;script:alert(1)">bad details</a></p></details>
   <details open><summary>Open import note</summary><p>Visible disclosure text</p></details>
+  <section hidden data-pandoc-hidden-state="source-spoof"><h2>Hidden migration note</h2><p>Hidden packet <a href="./hidden/source.html">hidden source</a><a href="java&#10;script:alert(1)">bad hidden</a></p></section>
+  <aside hidden="until-found" inert><p>Search reveal import note</p></aside>
   <iframe srcdoc="$srcdoc"></iframe>
   <iframe src="./frames/source.html?review=1" title="Embedded frame source" sandbox="allow-scripts allow-same-origin" allow="fullscreen; clipboard-write" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
   <iframe src="java&#10;script:alert(1)" title="Bad frame"></iframe>
@@ -68,7 +70,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -100,6 +102,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p data-pandoc-style="color: #222; font-weight: 600">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href="https://source.example.test/import/media/source.html#note">source note</a>.</p>',
         '<details data-pandoc-details-state="closed"><summary data-pandoc-details-summary="true">Collapsed migration notes</summary><p>Hidden packet <a href="https://source.example.test/import/posts/details/source.html">details source</a><a>bad details</a></p></details>',
         '<details open><summary>Open import note</summary><p>Visible disclosure text</p></details>',
+        '<section data-pandoc-hidden-state="hidden"><h2>Hidden migration note</h2><p>Hidden packet <a href="https://source.example.test/import/posts/hidden/source.html">hidden source</a><a>bad hidden</a></p></section>',
+        '<aside data-pandoc-hidden-state="until-found" data-pandoc-inert-state="true"><p>Search reveal import note</p></aside>',
         '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
         '<a href="https://source.example.test/import/posts/frames/source.html?review=1" data-pandoc-iframe-src="true" title="Embedded frame source" data-pandoc-iframe-sandbox="allow-scripts allow-same-origin" data-pandoc-iframe-allow="fullscreen; clipboard-write" data-pandoc-iframe-referrerpolicy="strict-origin-when-cross-origin" data-pandoc-iframe-allowfullscreen="true">Embedded frame source</a>',
         '<svg><desc>Legacy &lt;source&gt; &amp; review notes</desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path="url(#review-clip)" mask="url(https://source.example.test/import/posts/masks/review.svg#mask)"><path d="M0 0" fill="url(#paint)"></path></g></svg>',
@@ -117,7 +121,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', 'http://www.w3.org/1999/xhtml'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
