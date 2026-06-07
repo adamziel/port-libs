@@ -29180,6 +29180,9 @@ final class PdfTextExtractor
         if ($name === 'Filter' && $body !== null) {
             $body = trim($body);
             $review['token_type'] = $this->pdfOperandTokenType($body);
+            if ($this->indirectFilterScalarValueShouldBeExposed($body, $review['token_type'])) {
+                $review['value'] = $this->xrefStreamDirectOperandValue($body);
+            }
             $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary(
                 $body,
                 $objects,
@@ -29209,6 +29212,16 @@ final class PdfTextExtractor
         }
 
         return $review;
+    }
+
+    private function indirectFilterScalarValueShouldBeExposed(string $body, string $tokenType): bool
+    {
+        if (!in_array($tokenType, ['null', 'boolean', 'number'], true)) {
+            return false;
+        }
+
+        $endOffset = $this->skipPdfValueAt($body, 0);
+        return $endOffset > 0 && $this->skipPdfWhitespace($body, $endOffset) === strlen($body);
     }
 
     /**
