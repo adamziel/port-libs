@@ -76,7 +76,7 @@ $opfXml = <<<'XML'
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources" media-overlay="mo-chapter"/>
-    <item id="slideshow" href="slides/source-slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler"/>
+    <item id="slideshow" href="slides/source-slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler" fallback-style="style"/>
     <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="bound-tour" href="interactive/tour.bin" media-type="application/x-bound-tour"/>
     <item id="bound-tour-handler" href="text/bound-tour-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
@@ -518,6 +518,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['assets']['fallbackItems'][0]['id'] ?? null) !== 'slideshow') {
         throw new RuntimeException('Expected EPUB import report to summarize asset fallback chains');
+    }
+    if (($assetsById['slideshow']['fallbackStyleId'] ?? null) !== 'style') {
+        throw new RuntimeException('Expected EPUB non-spine asset report to expose OPF fallback-style id');
+    }
+    if (($assetsById['slideshow']['fallbackStyleContentPart'] ?? null) !== '/EPUB/styles/review.css') {
+        throw new RuntimeException('Expected EPUB non-spine asset report to resolve fallback-style CSS part');
+    }
+    if (($assetsById['slideshow']['fallbackStyleByteSha256'] ?? null) !== hash('sha256', $reviewCss)) {
+        throw new RuntimeException('Expected EPUB non-spine asset fallback-style to hash CSS bytes');
+    }
+    if (($result['importReport']['assets']['fallbackStyleItems'][0]['id'] ?? null) !== 'slideshow') {
+        throw new RuntimeException('Expected EPUB import report to summarize asset fallback-style chains');
+    }
+    if (($result['document']->attr('assets')['fallbackStyleCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose fallback-style asset metadata');
     }
     if (($result['nav']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB nav href to resolve to the chapter fragment');

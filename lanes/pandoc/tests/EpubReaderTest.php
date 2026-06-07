@@ -3167,6 +3167,88 @@ XML;
         $t->same('cyclic-widget-a', $assets['fallbackDiagnostics'][1]['id']);
         $t->same('cyclic-widget-b', $assets['fallbackDiagnostics'][2]['id']);
     },
+    'reports OPF asset fallback-style chains for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $styleCss = 'body { color: #333; }';
+        $opfWithFallbackStyles = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="interactive-map" href="widgets/map.bin" media-type="application/x-review-widget" fallback-style="map-style"/>'
+            . '<item id="map-style" href="styles/map.css" media-type="text/css"/>'
+            . '<item id="missing-style-widget" href="widgets/missing-style.bin" media-type="application/x-review-widget" fallback-style="missing-style"/>'
+            . '<item id="bad-style-widget" href="widgets/bad-style.bin" media-type="application/x-review-widget" fallback-style="cover-image"/>'
+            . '<item id="cyclic-style-a" href="widgets/style-a.bin" media-type="application/x-style-cycle" fallback-style="cyclic-style-b"/>'
+            . '<item id="cyclic-style-b" href="widgets/style-b.bin" media-type="application/x-style-cycle" fallback-style="cyclic-style-a"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFallbackStyles,
+            null,
+            [
+                ['name' => 'OEBPS/widgets/map.bin', 'data' => 'WIDGET-DATA'],
+                ['name' => 'OEBPS/styles/map.css', 'data' => $styleCss],
+                ['name' => 'OEBPS/widgets/missing-style.bin', 'data' => 'MISSING-STYLE'],
+                ['name' => 'OEBPS/widgets/bad-style.bin', 'data' => 'BAD-STYLE'],
+                ['name' => 'OEBPS/widgets/style-a.bin', 'data' => 'STYLE-A'],
+                ['name' => 'OEBPS/widgets/style-b.bin', 'data' => 'STYLE-B'],
+            ]
+        ));
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $assetById = [];
+        foreach ($result['importReport']['assets']['items'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $map = $assetById['interactive-map'];
+        $t->same('map-style', $manifestById['interactive-map']['fallbackStyle']);
+        $t->same('map-style', $map['fallbackStyleId']);
+        $t->same('map-style', $map['fallbackStyleContentId']);
+        $t->same('/OEBPS/styles/map.css', $map['fallbackStyleContentPart']);
+        $t->same('text/css', $map['fallbackStyleContentMediaType']);
+        $t->same(hash('sha256', $styleCss), $map['fallbackStyleByteSha256']);
+        $t->same([], $map['fallbackStyleDiagnostics']);
+        $t->same(1, count($map['fallbackStyleChain']));
+        $t->same('map-style', $map['fallbackStyleChain'][0]['id']);
+        $t->same('/OEBPS/styles/map.css', $map['fallbackStyleChain'][0]['part']);
+        $t->same(hash('sha256', $styleCss), $map['fallbackStyleChain'][0]['byteSha256']);
+
+        $missing = $assetById['missing-style-widget'];
+        $t->same('missing-style', $missing['fallbackStyleId']);
+        $t->same(null, $missing['fallbackStyleContentId']);
+        $t->same('missing-asset-fallback-style-manifest-item', $missing['fallbackStyleDiagnostics'][0]['type']);
+        $t->same('missing-style', $missing['fallbackStyleDiagnostics'][0]['fallbackStyle']);
+        $t->same($missing['fallbackStyleDiagnostics'], $missing['diagnostics']);
+
+        $badStyle = $assetById['bad-style-widget'];
+        $t->same('cover-image', $badStyle['fallbackStyleId']);
+        $t->same('cover-image', $badStyle['fallbackStyleContentId']);
+        $t->same('/OEBPS/images/cover.png', $badStyle['fallbackStyleContentPart']);
+        $t->same('image/png', $badStyle['fallbackStyleContentMediaType']);
+        $t->same('non-css-asset-fallback-style', $badStyle['fallbackStyleDiagnostics'][0]['type']);
+
+        $cycle = $assetById['cyclic-style-a'];
+        $t->same('cyclic-style-b', $cycle['fallbackStyleId']);
+        $t->same(1, count($cycle['fallbackStyleChain']));
+        $t->same('cyclic-style-b', $cycle['fallbackStyleChain'][0]['id']);
+        $t->same('cyclic-asset-fallback-style-chain', $cycle['fallbackStyleDiagnostics'][0]['type']);
+        $t->same('cyclic-style-a', $cycle['fallbackStyleDiagnostics'][0]['fallbackStyle']);
+
+        $assets = $result['importReport']['assets'];
+        $t->same(5, $assets['fallbackStyleCount']);
+        $t->same(5, count($assets['fallbackStyleItems']));
+        $t->same(4, $assets['fallbackStyleDiagnosticCount']);
+        $t->same('interactive-map', $assets['fallbackStyleItems'][0]['id']);
+        $t->same('missing-style-widget', $assets['fallbackStyleDiagnostics'][0]['id']);
+        $t->same('bad-style-widget', $assets['fallbackStyleDiagnostics'][1]['id']);
+        $t->same('cyclic-style-a', $assets['fallbackStyleDiagnostics'][2]['id']);
+        $t->same('cyclic-style-b', $assets['fallbackStyleDiagnostics'][3]['id']);
+        $t->same($assets, $result['assetReport']);
+        $t->same($assets, $result['document']->attr('assets'));
+    },
     'reports OCF encryption and obfuscated font resources without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $encryptionXml): void {
         $opfWithFont = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',

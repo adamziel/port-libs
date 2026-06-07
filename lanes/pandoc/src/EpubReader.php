@@ -117,6 +117,7 @@ final class EpubReader
             $opf['navigation'],
             $opf['xhtmlResourceReport'],
             $opf['cssResourceReport'],
+            $opf['assetReport'],
             $renditions,
             $ocf
         );
@@ -2342,6 +2343,7 @@ final class EpubReader
                     'resourceReviewFlags' => $resourceReviewFlags,
                     'refinements' => self::metadataRefinementsForId($refinementsById, $id),
                     'fallback' => self::nullableAttribute($item, 'fallback'),
+                    'fallbackStyle' => self::nullableAttribute($item, 'fallback-style'),
                     'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
                     'exists' => false,
                     'byteLength' => null,
@@ -2378,6 +2380,7 @@ final class EpubReader
                 'resourceReviewFlags' => $resourceReviewFlags,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $id),
                 'fallback' => self::nullableAttribute($item, 'fallback'),
+                'fallbackStyle' => self::nullableAttribute($item, 'fallback-style'),
                 'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
                 'exists' => $exists,
                 'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
@@ -3976,6 +3979,8 @@ final class EpubReader
         $foreignResource = !$core && !$exempt;
         $fallbackId = self::nullableManifestId($item['fallback'] ?? null);
         $hasManifestFallback = $fallbackId !== null;
+        $fallbackStyleId = self::nullableManifestId($item['fallbackStyle'] ?? null);
+        $hasFallbackStyle = $fallbackStyleId !== null;
         $bindingHandlerId = is_array($binding) && is_string($binding['handlerId'] ?? null) ? $binding['handlerId'] : null;
         $bindingHandled = is_array($binding)
             && ($binding['handlerExists'] ?? false) === true
@@ -4024,6 +4029,8 @@ final class EpubReader
             'exemptReason' => $exemptReason,
             'fallbackId' => $fallbackId,
             'hasManifestFallback' => $hasManifestFallback,
+            'fallbackStyleId' => $fallbackStyleId,
+            'hasFallbackStyle' => $hasFallbackStyle,
             'bindingHandlerId' => $bindingHandlerId,
             'bindingHandled' => $bindingHandled,
             'fallbackCoverage' => $fallbackCoverage,
@@ -8036,6 +8043,10 @@ final class EpubReader
             foreach ($fallback['diagnostics'] as $diagnostic) {
                 $diagnostics[] = $diagnostic;
             }
+            $fallbackStyle = $this->assetFallbackStyleReport($package, $item, $manifestById);
+            foreach ($fallbackStyle['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
             if (($item['exists'] ?? false) === true && $canExposeBytes && $exportCandidate) {
                 try {
                     $byteSha256 = hash('sha256', $package->read((string) $item['part']));
@@ -8090,6 +8101,15 @@ final class EpubReader
                 'fallbackAttachmentCandidate' => $fallback['content']['attachmentCandidate'] ?? false,
                 'fallbackAttachmentRole' => $fallback['content']['attachmentRole'] ?? null,
                 'fallbackByteSha256' => $fallback['content']['byteSha256'] ?? null,
+                'fallbackStyle' => $fallbackStyle['fallbackStyleId'],
+                'fallbackStyleId' => $fallbackStyle['fallbackStyleId'],
+                'fallbackStyleChain' => $fallbackStyle['chain'],
+                'fallbackStyleDiagnostics' => $fallbackStyle['diagnostics'],
+                'fallbackStyleContentId' => $fallbackStyle['content']['id'] ?? null,
+                'fallbackStyleContentTarget' => $fallbackStyle['content']['target'] ?? null,
+                'fallbackStyleContentPart' => $fallbackStyle['content']['part'] ?? null,
+                'fallbackStyleContentMediaType' => $fallbackStyle['content']['mediaType'] ?? null,
+                'fallbackStyleByteSha256' => $fallbackStyle['content']['byteSha256'] ?? null,
                 'diagnostics' => $diagnostics,
             ];
         }
@@ -8114,6 +8134,10 @@ final class EpubReader
             $assets,
             static fn (array $asset): bool => is_string($asset['fallbackId'] ?? null) && $asset['fallbackId'] !== '',
         ));
+        $fallbackStyleItems = array_values(array_filter(
+            $assets,
+            static fn (array $asset): bool => is_string($asset['fallbackStyleId'] ?? null) && $asset['fallbackStyleId'] !== '',
+        ));
         $fallbackDiagnostics = [];
         foreach ($fallbackItems as $asset) {
             foreach (($asset['fallbackDiagnostics'] ?? []) as $diagnostic) {
@@ -8124,6 +8148,19 @@ final class EpubReader
                 $fallbackDiagnostics[] = [
                     'id' => (string) $asset['id'],
                     'fallback' => $asset['fallbackId'],
+                ] + $diagnostic;
+            }
+        }
+        $fallbackStyleDiagnostics = [];
+        foreach ($fallbackStyleItems as $asset) {
+            foreach (($asset['fallbackStyleDiagnostics'] ?? []) as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $fallbackStyleDiagnostics[] = [
+                    'id' => (string) $asset['id'],
+                    'fallbackStyle' => $asset['fallbackStyleId'],
                 ] + $diagnostic;
             }
         }
@@ -8155,6 +8192,10 @@ final class EpubReader
             'fallbackItems' => $fallbackItems,
             'fallbackDiagnosticCount' => count($fallbackDiagnostics),
             'fallbackDiagnostics' => $fallbackDiagnostics,
+            'fallbackStyleCount' => count($fallbackStyleItems),
+            'fallbackStyleItems' => $fallbackStyleItems,
+            'fallbackStyleDiagnosticCount' => count($fallbackStyleDiagnostics),
+            'fallbackStyleDiagnostics' => $fallbackStyleDiagnostics,
             'unmanifestedCount' => count($unmanifestedItems),
             'unmanifestedItems' => $unmanifestedItems,
             'diagnostics' => $diagnostics,
@@ -8359,6 +8400,153 @@ final class EpubReader
             'canExposeBytes' => $canExposeBytes,
             'attachmentCandidate' => $attachmentCandidate,
             'attachmentRole' => $attachmentRole,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{fallbackStyleId:?string, chain:list<array<string, mixed>>, content:?array<string, mixed>, diagnostics:list<array<string, mixed>>}
+     */
+    private function assetFallbackStyleReport(ZipPackage $package, array $item, array $manifestById): array
+    {
+        $fallbackStyleId = self::nullableManifestId($item['fallbackStyle'] ?? null);
+        if ($fallbackStyleId === null) {
+            return [
+                'fallbackStyleId' => null,
+                'chain' => [],
+                'content' => null,
+                'diagnostics' => [],
+            ];
+        }
+
+        $chain = [];
+        $diagnostics = [];
+        $visited = [(string) ($item['id'] ?? '') => true];
+        $current = $item;
+        $nextFallbackStyle = $fallbackStyleId;
+
+        while ($nextFallbackStyle !== null) {
+            if (isset($visited[$nextFallbackStyle])) {
+                $diagnostics[] = [
+                    'type' => 'cyclic-asset-fallback-style-chain',
+                    'id' => (string) ($current['id'] ?? ''),
+                    'fallbackStyle' => $nextFallbackStyle,
+                    'message' => 'EPUB manifest asset fallback-style chain cycles before reaching a terminal CSS style resource',
+                ];
+                break;
+            }
+
+            if (!isset($manifestById[$nextFallbackStyle])) {
+                $diagnostics[] = [
+                    'type' => 'missing-asset-fallback-style-manifest-item',
+                    'id' => (string) ($current['id'] ?? ''),
+                    'fallbackStyle' => $nextFallbackStyle,
+                    'message' => 'EPUB manifest asset fallback-style references an item id that is not in the OPF manifest',
+                ];
+                break;
+            }
+
+            $visited[$nextFallbackStyle] = true;
+            $current = $manifestById[$nextFallbackStyle];
+            $chainItem = $this->assetFallbackStyleChainItem($package, $current);
+            foreach ($chainItem['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $chain[] = $chainItem;
+
+            if (($chainItem['cssStyle'] ?? false) === true) {
+                break;
+            }
+
+            $nextFallbackStyle = self::nullableManifestId($current['fallbackStyle'] ?? null);
+            if ($nextFallbackStyle === null) {
+                $diagnostics[] = [
+                    'type' => 'non-css-asset-fallback-style',
+                    'id' => (string) ($current['id'] ?? ''),
+                    'mediaType' => (string) ($current['mediaType'] ?? ''),
+                    'message' => 'EPUB manifest asset fallback-style should resolve to a CSS style resource',
+                ];
+                break;
+            }
+        }
+
+        return [
+            'fallbackStyleId' => $fallbackStyleId,
+            'chain' => $chain,
+            'content' => $chain === [] ? null : $chain[count($chain) - 1],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private function assetFallbackStyleChainItem(ZipPackage $package, array $item): array
+    {
+        $mediaType = (string) ($item['mediaType'] ?? '');
+        $part = is_string($item['part'] ?? null) ? (string) $item['part'] : null;
+        $parts = self::mediaTypeParts($mediaType);
+        $cssStyle = $parts['base'] === 'text/css';
+        $canExposeBytes = (bool) ($item['canExposeBytes'] ?? true);
+        $exists = ($item['exists'] ?? false) === true;
+        $encrypted = self::isEncryptedManifestItem($item);
+        $byteSha256 = null;
+        $diagnostics = [];
+
+        if (($item['external'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'external-asset-fallback-style-resource',
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'message' => 'EPUB manifest asset fallback-style points outside the package and was not fetched',
+            ];
+        } elseif (!$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-asset-fallback-style-part',
+                'id' => (string) ($item['id'] ?? ''),
+                'part' => $part,
+                'message' => 'EPUB manifest asset fallback-style target is missing from the package',
+            ];
+        } elseif ($encrypted) {
+            $diagnostics[] = [
+                'type' => 'encrypted-asset-fallback-style',
+                'id' => (string) ($item['id'] ?? ''),
+                'part' => $part,
+                'message' => 'EPUB manifest asset fallback-style target is encrypted and cannot expose package bytes',
+            ];
+        } elseif ($canExposeBytes && $part !== null && $part !== '') {
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'asset-fallback-style-bytes-unavailable',
+                    'id' => (string) ($item['id'] ?? ''),
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'target' => $item['target'] ?? null,
+            'part' => $part,
+            'external' => (bool) ($item['external'] ?? false),
+            'mediaType' => $mediaType,
+            'properties' => is_array($item['properties'] ?? null) ? $item['properties'] : [],
+            'exists' => $exists,
+            'byteLength' => $item['byteLength'] ?? null,
+            'crc32' => $item['crc32'] ?? null,
+            'byteSha256' => $byteSha256,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => $canExposeBytes,
+            'cssStyle' => $cssStyle,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -8610,6 +8798,7 @@ final class EpubReader
      * @param array<string, mixed> $navigation
      * @param array<string, mixed> $xhtmlResourceReport
      * @param array<string, mixed> $cssResourceReport
+     * @param array<string, mixed> $assetReport
      * @param array<string, mixed> $renditions
      * @param array<string, mixed> $ocf
      */
@@ -8631,6 +8820,7 @@ final class EpubReader
         array $navigation,
         array $xhtmlResourceReport,
         array $cssResourceReport,
+        array $assetReport,
         array $renditions,
         array $ocf
     ): AstNode {
@@ -8718,6 +8908,7 @@ final class EpubReader
             'navigation' => $navigation,
             'xhtmlResourceReport' => $xhtmlResourceReport,
             'cssResourceReport' => $cssResourceReport,
+            'assets' => $assetReport,
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,
             'renditions' => $renditions,
