@@ -1855,11 +1855,15 @@ final class MarkerAppPreview
         $seenPageIndexes = [];
         $lastSeenPageIndex = null;
         $count = count($elements);
-        for ($index = 0; $index + 1 < $count; $index += 2) {
+        for ($index = 0; $index + 1 < $count;) {
+            $valueIndex = $index + 1;
             $pageIndexValue = $this->pageLabelIndexOperand($elements[$index], $objects, $seen);
             if ($pageIndexValue === null) {
+                $index++;
                 continue;
             }
+
+            $index += 2;
 
             if ($lastSeenPageIndex !== null && $pageIndexValue < $lastSeenPageIndex) {
                 continue;
@@ -1869,7 +1873,7 @@ final class MarkerAppPreview
                 $lastSeenPageIndex = $pageIndexValue;
             }
 
-            $sectionValue = $elements[$index + 1];
+            $sectionValue = $elements[$valueIndex];
             if ($this->pageLabelNullValue($sectionValue, $objects, $seen)) {
                 if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
                     continue;

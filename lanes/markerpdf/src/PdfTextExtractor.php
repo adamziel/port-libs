@@ -13912,11 +13912,15 @@ final class PdfTextExtractor
         $items = $this->pdfArrayItems($arrayBody);
         $itemCount = count($items);
         $lastSeenPageIndex = null;
-        for ($index = 0; $index + 1 < $itemCount; $index += 2) {
+        for ($index = 0; $index + 1 < $itemCount;) {
+            $valueIndex = $index + 1;
             $pageIndex = $this->pageLabelPageIndexOperand($items[$index], $objects);
             if ($pageIndex === null) {
+                $index++;
                 continue;
             }
+
+            $index += 2;
 
             if ($lastSeenPageIndex !== null && $pageIndex < $lastSeenPageIndex) {
                 continue;
@@ -13926,7 +13930,7 @@ final class PdfTextExtractor
                 $lastSeenPageIndex = $pageIndex;
             }
 
-            $labelValue = $items[$index + 1];
+            $labelValue = $items[$valueIndex];
             if ($this->pageLabelNullValue($labelValue, $objects)) {
                 if (
                     $pageIndex >= 0
