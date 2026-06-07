@@ -1242,13 +1242,15 @@ final class PdfMetadataExtractor
      */
     private function metadataStreamDictionaryTypeBoundaryReview(string $dictionary, array $objects): array
     {
+        $typeRawValues = $this->dictionaryTopLevelRawValues($dictionary, 'Type');
+        $subtypeRawValues = $this->dictionaryTopLevelRawValues($dictionary, 'Subtype');
         $typeValues = $this->dictionaryTopLevelNameValues($dictionary, 'Type', $objects);
         $subtypeValues = $this->dictionaryTopLevelNameValues($dictionary, 'Subtype', $objects);
         $duplicateKeys = [];
-        if (count($typeValues) > 1) {
+        if (count($typeRawValues) > 1) {
             $duplicateKeys[] = 'Type';
         }
-        if (count($subtypeValues) > 1) {
+        if (count($subtypeRawValues) > 1) {
             $duplicateKeys[] = 'Subtype';
         }
 
@@ -1259,8 +1261,8 @@ final class PdfMetadataExtractor
         $review = [
             'status' => 'rejected_duplicate_metadata_stream_type_keys',
             'duplicate_keys' => $duplicateKeys,
-            'type_entry_count' => count($typeValues),
-            'subtype_entry_count' => count($subtypeValues),
+            'type_entry_count' => count($typeRawValues),
+            'subtype_entry_count' => count($subtypeRawValues),
         ];
 
         if ($typeValues !== []) {
