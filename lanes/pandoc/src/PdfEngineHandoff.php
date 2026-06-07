@@ -283,6 +283,8 @@ final class PdfEngineHandoff
      *     pdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfImageColorSpaces: array<string, int>,
      *     pdfImageFilters: array<string, int>,
+     *     pdfColorSpaces: list<array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}>,
+     *     pdfColorSpaceFamilies: array<string, int>,
      *     pdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfFormXObjectFilters: array<string, int>,
      *     pdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
@@ -712,6 +714,8 @@ final class PdfEngineHandoff
         $pdfImages = [];
         $pdfImageColorSpaces = [];
         $pdfImageFilters = [];
+        $pdfColorSpaces = [];
+        $pdfColorSpaceFamilies = [];
         $pdfFormXObjects = [];
         $pdfFormXObjectFilters = [];
         $pdfGraphicsStates = [];
@@ -799,6 +803,8 @@ final class PdfEngineHandoff
                 $pdfImages = $pdfInspection['images'];
                 $pdfImageColorSpaces = $pdfInspection['imageColorSpaces'];
                 $pdfImageFilters = $pdfInspection['imageFilters'];
+                $pdfColorSpaces = $pdfInspection['colorSpaces'];
+                $pdfColorSpaceFamilies = $pdfInspection['colorSpaceFamilies'];
                 $pdfFormXObjects = $pdfInspection['formXObjects'];
                 $pdfFormXObjectFilters = $pdfInspection['formXObjectFilters'];
                 $pdfGraphicsStates = $pdfInspection['graphicsStates'];
@@ -1091,6 +1097,43 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'pdf-byte-image-filters:' . count($pdfImageFilters);
                     foreach ($pdfImageFilters as $filter => $filterCount) {
                         $diagnostics[] = 'pdf-byte-image-filter:' . $filter . ':' . $filterCount;
+                    }
+                }
+                if ($pdfColorSpaces !== []) {
+                    $diagnostics[] = 'pdf-byte-color-spaces:' . count($pdfColorSpaces);
+                    $colorSpaceProfiles = 0;
+                    $colorSpaceTintTransforms = 0;
+                    $colorSpaceProfileSkips = [];
+                    foreach ($pdfColorSpaces as $colorSpace) {
+                        if (
+                            ($colorSpace['profileComponents'] ?? null) !== null
+                            || ($colorSpace['profileAlternate'] ?? null) !== null
+                            || ($colorSpace['profileBytes'] ?? null) !== null
+                            || ($colorSpace['profileSkipped'] ?? null) !== null
+                        ) {
+                            $colorSpaceProfiles++;
+                        }
+                        if (($colorSpace['tintTransform'] ?? null) !== null) {
+                            $colorSpaceTintTransforms++;
+                        }
+                        if (is_string($colorSpace['profileSkipped'] ?? null) && $colorSpace['profileSkipped'] !== '') {
+                            $colorSpaceProfileSkips[$colorSpace['profileSkipped']] = true;
+                        }
+                    }
+                    if ($colorSpaceProfiles > 0) {
+                        $diagnostics[] = 'pdf-byte-color-space-profiles:' . $colorSpaceProfiles;
+                    }
+                    if ($colorSpaceTintTransforms > 0) {
+                        $diagnostics[] = 'pdf-byte-color-space-tint-transforms:' . $colorSpaceTintTransforms;
+                    }
+                    foreach (array_keys($colorSpaceProfileSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-color-space-profile-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfColorSpaceFamilies !== []) {
+                    $diagnostics[] = 'pdf-byte-color-space-families:' . count($pdfColorSpaceFamilies);
+                    foreach ($pdfColorSpaceFamilies as $family => $familyCount) {
+                        $diagnostics[] = 'pdf-byte-color-space-family:' . $family . ':' . $familyCount;
                     }
                 }
                 if ($pdfFormXObjects !== []) {
@@ -2032,6 +2075,8 @@ final class PdfEngineHandoff
             'pdfImages' => $pdfImages,
             'pdfImageColorSpaces' => $pdfImageColorSpaces,
             'pdfImageFilters' => $pdfImageFilters,
+            'pdfColorSpaces' => $pdfColorSpaces,
+            'pdfColorSpaceFamilies' => $pdfColorSpaceFamilies,
             'pdfFormXObjects' => $pdfFormXObjects,
             'pdfFormXObjectFilters' => $pdfFormXObjectFilters,
             'pdfGraphicsStates' => $pdfGraphicsStates,
@@ -2132,6 +2177,8 @@ final class PdfEngineHandoff
      *     finalPdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfImageColorSpaces: array<string, int>,
      *     finalPdfImageFilters: array<string, int>,
+     *     finalPdfColorSpaces: list<array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}>,
+     *     finalPdfColorSpaceFamilies: array<string, int>,
      *     finalPdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfFormXObjectFilters: array<string, int>,
      *     finalPdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
@@ -2354,6 +2401,8 @@ final class PdfEngineHandoff
             'finalPdfImages' => is_array($finalRun) && is_array($finalRun['pdfImages'] ?? null) ? $finalRun['pdfImages'] : [],
             'finalPdfImageColorSpaces' => is_array($finalRun) && is_array($finalRun['pdfImageColorSpaces'] ?? null) ? $finalRun['pdfImageColorSpaces'] : [],
             'finalPdfImageFilters' => is_array($finalRun) && is_array($finalRun['pdfImageFilters'] ?? null) ? $finalRun['pdfImageFilters'] : [],
+            'finalPdfColorSpaces' => is_array($finalRun) && is_array($finalRun['pdfColorSpaces'] ?? null) ? $finalRun['pdfColorSpaces'] : [],
+            'finalPdfColorSpaceFamilies' => is_array($finalRun) && is_array($finalRun['pdfColorSpaceFamilies'] ?? null) ? $finalRun['pdfColorSpaceFamilies'] : [],
             'finalPdfFormXObjects' => is_array($finalRun) && is_array($finalRun['pdfFormXObjects'] ?? null) ? $finalRun['pdfFormXObjects'] : [],
             'finalPdfFormXObjectFilters' => is_array($finalRun) && is_array($finalRun['pdfFormXObjectFilters'] ?? null) ? $finalRun['pdfFormXObjectFilters'] : [],
             'finalPdfGraphicsStates' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStates'] ?? null) ? $finalRun['pdfGraphicsStates'] : [],
@@ -3471,6 +3520,8 @@ final class PdfEngineHandoff
      *     images:list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     imageColorSpaces:array<string, int>,
      *     imageFilters:array<string, int>,
+     *     colorSpaces:list<array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}>,
+     *     colorSpaceFamilies:array<string, int>,
      *     formXObjects:list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     formXObjectFilters:array<string, int>,
      *     outlineTitles:list<string>,
@@ -3539,6 +3590,7 @@ final class PdfEngineHandoff
         $pageContentStreams = $this->extractPdfPageContentStreams($pdfBytes, $catalog);
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
+        $colorSpaces = $this->extractPdfColorSpaces($pdfBytes, $catalog);
         $formXObjects = $this->extractPdfFormXObjects($pdfBytes, $catalog);
         $graphicsStates = $this->extractPdfGraphicsStates($pdfBytes, $catalog);
         $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
@@ -3583,6 +3635,8 @@ final class PdfEngineHandoff
             'images' => $images,
             'imageColorSpaces' => $this->summarizePdfImageColorSpaces($images),
             'imageFilters' => $this->summarizePdfImageFilters($images),
+            'colorSpaces' => $colorSpaces,
+            'colorSpaceFamilies' => $this->summarizePdfColorSpaceFamilies($colorSpaces),
             'formXObjects' => $formXObjects,
             'formXObjectFilters' => $this->summarizePdfFormXObjectFilters($formXObjects),
             'graphicsStates' => $graphicsStates,
@@ -10863,6 +10917,357 @@ final class PdfEngineHandoff
         ksort($filters);
 
         return $filters;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}>
+     */
+    private function extractPdfColorSpaces(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $colorSpaces = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfColorSpacesFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                null,
+                $visited,
+                $colorSpaces,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($colorSpaces === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $pageColorSpaces = $this->summarizePdfPageColorSpaces($body, $reference, null, $objects);
+                foreach ($pageColorSpaces as &$colorSpace) {
+                    $colorSpace['page'] = $pageNumber;
+                }
+                unset($colorSpace);
+                array_push($colorSpaces, ...$pageColorSpaces);
+            }
+        }
+
+        $colorSpaces = array_values($colorSpaces);
+        usort(
+            $colorSpaces,
+            static fn (array $a, array $b): int => [
+                $a['page'],
+                $a['resourceName'],
+                $a['colorSpaceObject'] ?? '',
+                $a['family'] ?? '',
+            ] <=> [
+                $b['page'],
+                $b['resourceName'],
+                $b['colorSpaceObject'] ?? '',
+                $b['family'] ?? '',
+            ]
+        );
+
+        return $colorSpaces;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}> $colorSpaces
+     */
+    private function collectPdfColorSpacesFromPageTree(
+        array $objects,
+        string $reference,
+        ?string $inheritedResources,
+        array &$visited,
+        array &$colorSpaces,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($body, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $pageColorSpaces = $this->summarizePdfPageColorSpaces($body, $reference, $ownResources === null ? $inheritedResources : null, $objects);
+            foreach ($pageColorSpaces as &$colorSpace) {
+                $colorSpace['page'] = $pageNumber;
+            }
+            unset($colorSpace);
+            array_push($colorSpaces, ...$pageColorSpaces);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfColorSpacesFromPageTree(
+                $objects,
+                $kidReference,
+                $resources,
+                $visited,
+                $colorSpaces,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}>
+     */
+    private function summarizePdfPageColorSpaces(string $pageDictionary, string $pageReference, ?string $inheritedResources, array $objects): array
+    {
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        if ($resources === null) {
+            return [];
+        }
+
+        $colorSpaceDictionary = $this->extractPdfDictionaryOrReferenceValue($resources, 'ColorSpace', $objects);
+        if ($colorSpaceDictionary === null) {
+            return [];
+        }
+
+        $colorSpaces = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($colorSpaceDictionary) as $entry) {
+            $colorSpace = $this->summarizePdfColorSpaceResource(
+                $entry['key'],
+                $entry['value'],
+                $objects,
+                $pageReference,
+                $ownResources === null,
+                null,
+                0
+            );
+            if ($colorSpace !== null) {
+                $colorSpaces[] = $colorSpace;
+            }
+        }
+
+        return $colorSpaces;
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}|null
+     */
+    private function summarizePdfColorSpaceResource(
+        string $resourceName,
+        array $value,
+        array $objects,
+        string $pageReference,
+        bool $inherited,
+        ?string $colorSpaceObject,
+        int $depth
+    ): ?array {
+        if ($depth > 8) {
+            return null;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $body = trim($objects[$reference] ?? '');
+            if ($body === '') {
+                return null;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved === null) {
+                return null;
+            }
+
+            return $this->summarizePdfColorSpaceResource(
+                $resourceName,
+                $resolved,
+                $objects,
+                $pageReference,
+                $inherited,
+                $reference . ' R',
+                $depth + 1
+            );
+        }
+
+        $summary = $this->emptyPdfColorSpaceSummary($resourceName, $pageReference, $inherited, $colorSpaceObject);
+        if (in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+            $family = trim($value['value']);
+            if ($family === '') {
+                return null;
+            }
+
+            $summary['family'] = $family;
+
+            return $summary;
+        }
+
+        if ($value['kind'] !== 'array') {
+            return null;
+        }
+
+        return $this->summarizePdfColorSpaceArray($summary, $value['value'], $objects);
+    }
+
+    /**
+     * @return array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}
+     */
+    private function emptyPdfColorSpaceSummary(string $resourceName, string $pageReference, bool $inherited, ?string $colorSpaceObject): array
+    {
+        return [
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'resourceName' => $resourceName,
+            'colorSpaceObject' => $colorSpaceObject,
+            'inherited' => $inherited,
+            'family' => null,
+            'colorantNames' => [],
+            'alternateColorSpace' => null,
+            'profileComponents' => null,
+            'profileAlternate' => null,
+            'profileBytes' => null,
+            'profileSha256' => null,
+            'profileSkipped' => null,
+            'tintTransform' => null,
+        ];
+    }
+
+    /**
+     * @param array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null} $summary
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, resourceName:string, colorSpaceObject:string|null, inherited:bool, family:string|null, colorantNames:list<string>, alternateColorSpace:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, tintTransform:string|null}|null
+     */
+    private function summarizePdfColorSpaceArray(array $summary, string $array, array $objects): ?array
+    {
+        $values = $this->pdfTopLevelArrayValues($array);
+        if ($values === [] || !in_array($values[0]['kind'], ['name', 'literal', 'hex'], true)) {
+            return null;
+        }
+
+        $family = trim($values[0]['value']);
+        if ($family === '') {
+            return null;
+        }
+
+        $summary['family'] = $family;
+        if ($family === 'ICCBased') {
+            $profile = $this->pdfProfileSummaryForColorSpaceValue($values[1] ?? null, $objects);
+            $summary['profileComponents'] = $profile['components'];
+            $summary['profileAlternate'] = $profile['alternate'];
+            $summary['profileBytes'] = $profile['bytes'];
+            $summary['profileSha256'] = $profile['sha256'];
+            $summary['profileSkipped'] = $profile['skipped'];
+            $summary['alternateColorSpace'] = $profile['alternate'];
+        } elseif ($family === 'Separation') {
+            $summary['colorantNames'] = $this->pdfColorantNamesFromValue($values[1] ?? null, $objects);
+            $summary['alternateColorSpace'] = isset($values[2]) ? $this->summarizePdfColorSpaceValue($values[2], $objects, 0) : null;
+            $summary['tintTransform'] = $this->pdfColorSpaceTintTransformName($values[3] ?? null);
+        } elseif ($family === 'DeviceN') {
+            $summary['colorantNames'] = $this->pdfColorantNamesFromValue($values[1] ?? null, $objects);
+            $summary['alternateColorSpace'] = isset($values[2]) ? $this->summarizePdfColorSpaceValue($values[2], $objects, 0) : null;
+            $summary['tintTransform'] = $this->pdfColorSpaceTintTransformName($values[3] ?? null);
+        } elseif (isset($values[1])) {
+            $summary['alternateColorSpace'] = $this->summarizePdfColorSpaceValue($values[1], $objects, 0);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function pdfColorantNamesFromValue(?array $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $names = $this->collectPdfNamesFromValue($value, $objects);
+        $names = array_values(array_filter($names, static fn (string $name): bool => $name !== ''));
+        sort($names);
+
+        return $names;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @return array{components:int|null, alternate:string|null, bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function pdfProfileSummaryForColorSpaceValue(?array $value, array $objects): array
+    {
+        if ($value === null) {
+            return $this->summarizePdfOutputProfile(null);
+        }
+
+        if ($value['kind'] === 'reference') {
+            return $this->summarizePdfOutputProfile($objects[$this->pdfReferenceKey($value['value'])] ?? null);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfOutputProfile($value['value']);
+        }
+
+        return $this->summarizePdfOutputProfile(null);
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     */
+    private function pdfColorSpaceTintTransformName(?array $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value['kind'] === 'reference') {
+            return $value['value'];
+        }
+        if ($value['kind'] === 'dictionary') {
+            return 'inline';
+        }
+        if (in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+            $name = trim($value['value']);
+
+            return $name === '' ? null : $name;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{family:string|null}> $colorSpaces
+     * @return array<string, int>
+     */
+    private function summarizePdfColorSpaceFamilies(array $colorSpaces): array
+    {
+        $families = [];
+        foreach ($colorSpaces as $colorSpace) {
+            $family = $colorSpace['family'] ?? null;
+            if (!is_string($family) || $family === '') {
+                continue;
+            }
+
+            $families[$family] = ($families[$family] ?? 0) + 1;
+        }
+
+        ksort($families);
+
+        return $families;
     }
 
     /**

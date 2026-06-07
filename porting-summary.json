@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 03:08:06 UTC",
-    "sourceCommit": "dc9a4938f30fec1da7e1ec2e278d038f31d61a82",
-    "sourceCommitShort": "dc9a4938f30f",
+    "generated": "2026-06-07 03:08:16 UTC",
+    "sourceCommit": "2a582a74a69fac1c3deba47d85262e2861e9d3e3",
+    "sourceCommitShort": "2a582a74a69f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "dc9a4938f30fec1da7e1ec2e278d038f31d61a82",
-    "dashboardCommitShort": "dc9a4938f30f",
+    "dashboardCommit": "2a582a74a69fac1c3deba47d85262e2861e9d3e3",
+    "dashboardCommitShort": "2a582a74a69f",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "1,860 / 2,276 (81.7%)",
             "mapPercent": "81.7%",
             "unmapped": "416",
-            "php": "1,443 pass / 0 fail",
+            "php": "1,444 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-07 UTC ZIP package current-base control-byte name slice on ac...",
+            "audit": "2026-06-07 UTC PDF engine current-base color-space resource slice on...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For ZIP package follow-up, keep work bounded to non-overlappi...",
-            "remainingGate": "No new support component is needed for this slice: it reuses native P...",
+            "nextTarget": "For PDF-engine follow-up, keep support-library work bounded t...",
+            "remainingGate": "No new support component is needed for this slice: it reuses the nati...",
             "commit": "pending fast ac..."
         },
         {

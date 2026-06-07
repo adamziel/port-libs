@@ -1734,6 +1734,135 @@ MARKDOWN);
         $t->same(['DCTDecode' => 2, 'FlateDecode' => 1], $sequence['finalPdfImageFilters']);
     },
 
+    'fake runner extracts bounded pdf color space resources from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/color-spaces.pdf']);
+        $profileBytes = "fake CMYK profile bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Resources << /ColorSpace << /CSBase /DeviceRGB /CSPrint [/ICCBased 8 0 R] >> >> /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /ColorSpace << /CSSpot [/Separation /PANTONE#20123#20C /DeviceCMYK 9 0 R] /CSDeviceN [/DeviceN [/Spot#201 /Spot#202] /DeviceCMYK 10 0 R] >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /N 4 /Alternate /DeviceCMYK /Length ' . strlen($profileBytes) . ' >>',
+            'stream',
+            $profileBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.4 1 0] /N 1 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1 0 1] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/color-spaces.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/color-spaces.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'CSBase',
+                'colorSpaceObject' => null,
+                'inherited' => true,
+                'family' => 'DeviceRGB',
+                'colorantNames' => [],
+                'alternateColorSpace' => null,
+                'profileComponents' => null,
+                'profileAlternate' => null,
+                'profileBytes' => null,
+                'profileSha256' => null,
+                'profileSkipped' => null,
+                'tintTransform' => null,
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'CSPrint',
+                'colorSpaceObject' => null,
+                'inherited' => true,
+                'family' => 'ICCBased',
+                'colorantNames' => [],
+                'alternateColorSpace' => 'DeviceCMYK',
+                'profileComponents' => 4,
+                'profileAlternate' => 'DeviceCMYK',
+                'profileBytes' => strlen($profileBytes),
+                'profileSha256' => hash('sha256', $profileBytes),
+                'profileSkipped' => null,
+                'tintTransform' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'CSDeviceN',
+                'colorSpaceObject' => null,
+                'inherited' => false,
+                'family' => 'DeviceN',
+                'colorantNames' => ['Spot 1', 'Spot 2'],
+                'alternateColorSpace' => 'DeviceCMYK',
+                'profileComponents' => null,
+                'profileAlternate' => null,
+                'profileBytes' => null,
+                'profileSha256' => null,
+                'profileSkipped' => null,
+                'tintTransform' => '10 0 R',
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'CSSpot',
+                'colorSpaceObject' => null,
+                'inherited' => false,
+                'family' => 'Separation',
+                'colorantNames' => ['PANTONE 123 C'],
+                'alternateColorSpace' => 'DeviceCMYK',
+                'profileComponents' => null,
+                'profileAlternate' => null,
+                'profileBytes' => null,
+                'profileSha256' => null,
+                'profileSkipped' => null,
+                'tintTransform' => '9 0 R',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfColorSpaces']);
+        $t->same(['DeviceN' => 1, 'DeviceRGB' => 1, 'ICCBased' => 1, 'Separation' => 1], $result['pdfColorSpaceFamilies']);
+        $t->contains('pdf-byte-color-spaces:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-color-space-families:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-color-space-family:ICCBased:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-color-space-profiles:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-color-space-tint-transforms:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfColorSpaces']);
+        $t->same(['DeviceN' => 1, 'DeviceRGB' => 1, 'ICCBased' => 1, 'Separation' => 1], $sequence['finalPdfColorSpaceFamilies']);
+    },
+
     'fake runner extracts bounded pdf form xobject metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms-xobject.pdf']);
