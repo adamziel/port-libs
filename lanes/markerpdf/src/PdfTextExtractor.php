@@ -418,6 +418,7 @@ final class PdfTextExtractor
      *     invalid_member_offset_rejection_count: int,
      *     malformed_xref_stream_width_count: int,
      *     malformed_xref_stream_index_count: int,
+     *     malformed_xref_stream_row_alignment_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
      *     suppressed_hybrid_type2_entry_count: int,
      *     hybrid_table_free_owner_count: int,
@@ -426,6 +427,7 @@ final class PdfTextExtractor
      *     entries: list<array<string, mixed>>,
      *     malformed_xref_stream_width_entries: list<array<string, mixed>>,
      *     malformed_xref_stream_index_entries: list<array<string, mixed>>,
+     *     malformed_xref_stream_row_alignment_entries: list<array<string, mixed>>,
      *     suppressed_hybrid_entries: list<array<string, mixed>>,
      *     free_entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -455,6 +457,7 @@ final class PdfTextExtractor
             'invalid_member_offset_rejection_count' => 0,
             'malformed_xref_stream_width_count' => 0,
             'malformed_xref_stream_index_count' => 0,
+            'malformed_xref_stream_row_alignment_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
             'suppressed_hybrid_type2_entry_count' => 0,
             'hybrid_table_free_owner_count' => 0,
@@ -463,6 +466,7 @@ final class PdfTextExtractor
             'entries' => [],
             'malformed_xref_stream_width_entries' => [],
             'malformed_xref_stream_index_entries' => [],
+            'malformed_xref_stream_row_alignment_entries' => [],
             'suppressed_hybrid_entries' => [],
             'free_entries' => [],
             'executes_python_or_models' => false,
@@ -492,6 +496,12 @@ final class PdfTextExtractor
             $definitions
         );
         $review['malformed_xref_stream_index_count'] = count($review['malformed_xref_stream_index_entries']);
+        $review['malformed_xref_stream_row_alignment_entries'] = $this->xrefStreamMalformedRowAlignmentEntries(
+            $pdfBytes,
+            $preliminaryObjects,
+            $definitions
+        );
+        $review['malformed_xref_stream_row_alignment_count'] = count($review['malformed_xref_stream_row_alignment_entries']);
         if ($xrefEntries === []) {
             return $review;
         }
@@ -26305,7 +26315,12 @@ final class PdfTextExtractor
             return false;
         }
 
-        return $this->decodeStream($entry['dict'], $entry['stream'], $streamObjects) === null;
+        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $streamObjects);
+        if ($decoded === null) {
+            return true;
+        }
+
+        return $this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded);
     }
 
     /**
@@ -26336,6 +26351,21 @@ final class PdfTextExtractor
         }
 
         return $this->xrefStreamMalformedIndexEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamMalformedRowAlignmentEntries(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->xrefStreamMalformedRowAlignmentEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
     }
 
     /**
@@ -26520,6 +26550,108 @@ final class PdfTextExtractor
             $entries = array_merge(
                 $entries,
                 $this->xrefStreamMalformedIndexEntriesFromOffsetChain(
+                    $pdfBytes,
+                    $previousOffset,
+                    $objects,
+                    $definitions,
+                    $seenOffsets
+                )
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamMalformedRowAlignmentEntriesFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $entries = [];
+            $trailer = $tableSection['trailer'];
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamMalformedRowAlignmentEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $hybridStreamOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects);
+            if ($previousOffset !== null && $previousOffset >= 0) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamMalformedRowAlignmentEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $previousOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            return $entries;
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
+        if ($streamSection === null) {
+            return [];
+        }
+
+        $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners(
+            $objects,
+            $streamSection['definition']['body'],
+            $definitions,
+            $streamSection['definition']['offset']
+        );
+        $dictionary = $this->dictionaryObjectBody($streamSection['body']) ?? $streamSection['body'];
+        $decoded = $this->decodeStreamObject($streamSection['definition']['body'], $streamObjects);
+        $problem = $decoded === null
+            ? null
+            : $this->xrefStreamRowAlignmentProblem($dictionary, $streamObjects, $decoded);
+        $entries = [];
+        if ($problem !== null) {
+            $entries[] = [
+                'xref_offset' => $streamSection['definition']['offset'],
+                'selected_generation' => $streamSection['definition']['generation'],
+                'widths' => $problem['widths'],
+                'entry_width' => $problem['entry_width'],
+                'decoded_length' => $problem['decoded_length'],
+                'complete_row_count' => $problem['complete_row_count'],
+                'trailing_byte_count' => $problem['trailing_byte_count'],
+                'owner_policy' => $problem['owner_policy'],
+                'rejected_before_row_decode' => true,
+                'review_only' => true,
+            ];
+        }
+
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body'], $streamObjects);
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $entries = array_merge(
+                $entries,
+                $this->xrefStreamMalformedRowAlignmentEntriesFromOffsetChain(
                     $pdfBytes,
                     $previousOffset,
                     $objects,
@@ -30491,8 +30623,11 @@ final class PdfTextExtractor
         if ($decoded === null) {
             return $entries;
         }
+        if ($this->xrefStreamRowsAreUnaligned($dictionary, $streamObjects, $decoded)) {
+            return $entries;
+        }
 
-        $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
+        $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
         $previousOffset = $definitions === null
             ? null
             : $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'Prev', $streamObjects);
@@ -30727,6 +30862,46 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function xrefStreamRowsAreUnaligned(string $dictionary, array $objects, string $decoded): bool
+    {
+        return $this->xrefStreamRowAlignmentProblem($dictionary, $objects, $decoded) !== null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{widths: list<int>, entry_width: int, decoded_length: int, complete_row_count: int, trailing_byte_count: int, owner_policy: string}|null
+     */
+    private function xrefStreamRowAlignmentProblem(string $dictionary, array $objects, string $decoded): ?array
+    {
+        $widths = $this->xrefStreamFieldWidths($dictionary, $objects);
+        if ($widths === null) {
+            return null;
+        }
+
+        $entryWidth = array_sum($widths);
+        if ($entryWidth <= 0) {
+            return null;
+        }
+
+        $decodedLength = strlen($decoded);
+        $trailingByteCount = $decodedLength % $entryWidth;
+        if ($trailingByteCount === 0) {
+            return null;
+        }
+
+        return [
+            'widths' => $widths,
+            'entry_width' => $entryWidth,
+            'decoded_length' => $decodedLength,
+            'complete_row_count' => intdiv($decodedLength, $entryWidth),
+            'trailing_byte_count' => $trailingByteCount,
+            'owner_policy' => 'unaligned_xref_stream_row_width',
+        ];
     }
 
     /**
