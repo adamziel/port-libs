@@ -1051,7 +1051,7 @@ final class TableRecognizer
     /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
-     * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>, recognized_tables: list<array<string, mixed>>, coordinate_space_reviews: list<array<string, mixed>|null>, assigned_crop_boundary_reviews: list<array<string, mixed>|null>, assigned_band_boundary_reviews: list<array<string, mixed>|null>}
+     * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>, recognized_tables: list<array<string, mixed>>, coordinate_space_reviews: list<array<string, mixed>|null>, assigned_source_boundary_reviews: list<array<string, mixed>|null>, assigned_crop_boundary_reviews: list<array<string, mixed>|null>, assigned_band_boundary_reviews: list<array<string, mixed>|null>}
      */
     public function formatRecognizedTables(array $recognizedTables, array $imageSizes): array
     {
@@ -1076,11 +1076,14 @@ final class TableRecognizer
 
         $assigned = [];
         $markdown = [];
+        $assignedSourceBoundaryReviews = [];
         $assignedCropBoundaryReviews = [];
         $assignedBandBoundaryReviews = [];
         foreach ($recognizedTables as $idx => $table) {
-            $assignedCells = $this->assignedCellsFromRecognizedTable($table);
-            if ($assignedCells !== null) {
+            $assignedSourceBoundary = $this->assignedCellsFromRecognizedTable($table);
+            if ($assignedSourceBoundary !== null) {
+                $assignedCells = $assignedSourceBoundary['cells'];
+                $assignedSourceBoundaryReviews[] = $assignedSourceBoundary['review'];
                 $assignedCropBoundaryReview = $this->assignedCellCropBoundaryReview(
                     $assignedCells,
                     $recognitionImageSizes[$idx]
@@ -1095,6 +1098,7 @@ final class TableRecognizer
                 $assignedBandBoundaryReviews[] = $bounded['review'];
             } else {
                 $tableCells = $this->assignRowsColumns($table, $recognitionImageSizes[$idx]);
+                $assignedSourceBoundaryReviews[] = null;
                 $assignedCropBoundaryReviews[] = null;
                 $assignedBandBoundaryReviews[] = null;
             }
@@ -1114,6 +1118,7 @@ final class TableRecognizer
             'markdown_tables' => $markdown,
             'recognized_tables' => $recognizedTables,
             'coordinate_space_reviews' => $coordinateSpaceReviews,
+            'assigned_source_boundary_reviews' => $assignedSourceBoundaryReviews,
             'assigned_crop_boundary_reviews' => $assignedCropBoundaryReviews,
             'assigned_band_boundary_reviews' => $assignedBandBoundaryReviews,
         ];
@@ -1433,7 +1438,7 @@ final class TableRecognizer
      * arbitrary detector band ids survive crop/band boundary review.
      *
      * @param array<string, mixed> $table
-     * @return list<array<string, mixed>>|null
+     * @return array{cells: list<array<string, mixed>>, review: array<string, mixed>|null}|null
      */
     private function assignedCellsFromRecognizedTable(array $table): ?array
     {
@@ -1444,10 +1449,30 @@ final class TableRecognizer
         }
 
         $cells = array_values($cells);
-        foreach ($cells as $cell) {
-            if (!is_array($cell) || !$this->hasAssignedGridAnchor($cell)) {
-                return null;
+        $assignedCells = [];
+        $assignedIndexes = [];
+        $rejectedCells = [];
+        foreach ($cells as $cellIndex => $cell) {
+            if (!is_array($cell)) {
+                $rejectedCells[] = [
+                    'cell_index' => $cellIndex,
+                    'status' => 'rejected_non_array_cell',
+                    'active' => false,
+                ];
+                continue;
             }
+
+            if ($this->hasAssignedGridAnchor($cell)) {
+                $assignedIndexes[] = $cellIndex;
+                $assignedCells[] = $cell;
+                continue;
+            }
+
+            $rejectedCells[] = $this->rejectedAssignedSourceCellReview($cell, $cellIndex);
+        }
+
+        if ($assignedCells === []) {
+            return null;
         }
 
         $rows = isset($table['rows']) && is_array($table['rows'])
@@ -1457,7 +1482,25 @@ final class TableRecognizer
             ? $this->normalizeRowsOrCols($table['cols'], 'col_id')
             : [];
 
-        return $this->normalizeAssignedCells($cells, $rows, $cols);
+        $review = null;
+        if ($rejectedCells !== []) {
+            $review = [
+                'review_target' => 'table_assigned_cell_source_boundary',
+                'upstream_boundary' => 'tabled.schema.ExtractPageResult.cells_after_assign_rows_columns',
+                'cell_count' => count($cells),
+                'assigned_cell_count' => count($assignedCells),
+                'rejected_cell_count' => count($rejectedCells),
+                'assigned_cell_indexes' => $assignedIndexes,
+                'rejected_cells' => $rejectedCells,
+                'assignment_source_retained' => true,
+                'detector_reassignment_blocked' => true,
+            ];
+        }
+
+        return [
+            'cells' => $this->normalizeAssignedCells($assignedCells, $rows, $cols),
+            'review' => $review,
+        ];
     }
 
     /**
@@ -1465,20 +1508,93 @@ final class TableRecognizer
      */
     private function hasAssignedGridAnchor(array $cell): bool
     {
-        $rowIds = $cell['row_ids'] ?? null;
-        $colIds = $cell['col_ids'] ?? null;
+        return $this->hasAssignedRowAnchor($cell) && $this->hasAssignedColAnchor($cell);
+    }
 
-        if (is_array($rowIds)
-            && is_array($colIds)
-            && array_key_exists(0, $rowIds)
-            && array_key_exists(0, $colIds)
-            && $rowIds[0] !== null
-            && $colIds[0] !== null) {
-            return true;
+    /**
+     * @param array<string, mixed> $cell
+     * @return array<string, mixed>
+     */
+    private function rejectedAssignedSourceCellReview(array $cell, int $cellIndex): array
+    {
+        $hasRow = $this->hasAssignedRowAnchor($cell);
+        $hasCol = $this->hasAssignedColAnchor($cell);
+        if (!$hasRow && !$hasCol) {
+            $status = 'rejected_missing_row_and_column_assignment_anchors';
+        } elseif (!$hasRow) {
+            $status = 'rejected_missing_row_assignment_anchor';
+        } else {
+            $status = 'rejected_missing_column_assignment_anchor';
         }
 
-        return $this->nullableInteger($cell['row_id'] ?? null) !== null
-            && $this->nullableInteger($cell['col_id'] ?? null) !== null;
+        $review = [
+            'cell_index' => $cellIndex,
+            'text' => (string) ($cell['text'] ?? ''),
+            'status' => $status,
+            'active' => false,
+            'assignment_excluded_before_markdown' => true,
+            'has_row_assignment_anchor' => $hasRow,
+            'has_col_assignment_anchor' => $hasCol,
+        ];
+        $bbox = $this->nullableBboxFromRecord($cell);
+        if ($bbox !== null) {
+            $review['bbox'] = $bbox;
+        }
+        if (array_key_exists('row_ids', $cell)) {
+            $review['row_ids'] = $this->rawAssignmentIdList($cell['row_ids']);
+        } elseif (array_key_exists('row_id', $cell)) {
+            $review['row_id'] = $this->nullableInteger($cell['row_id']);
+        }
+        if (array_key_exists('col_ids', $cell)) {
+            $review['col_ids'] = $this->rawAssignmentIdList($cell['col_ids']);
+        } elseif (array_key_exists('col_id', $cell)) {
+            $review['col_id'] = $this->nullableInteger($cell['col_id']);
+        }
+
+        return $this->withSourceGeometryReviewFields($review, $cell);
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function hasAssignedRowAnchor(array $cell): bool
+    {
+        return ($this->assignedRowIds($cell, [])[0] ?? null) !== null;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function hasAssignedColAnchor(array $cell): bool
+    {
+        return ($this->assignedColIds($cell, [])[0] ?? null) !== null;
+    }
+
+    /**
+     * @return list<int|null|string>
+     */
+    private function rawAssignmentIdList(mixed $ids): array
+    {
+        if (!is_array($ids)) {
+            return [];
+        }
+
+        $out = [];
+        foreach (array_values($ids) as $id) {
+            if ($id === null || is_int($id)) {
+                $out[] = $id;
+                continue;
+            }
+            if (is_float($id) || (is_string($id) && preg_match('/^-?\d+$/', $id) === 1)) {
+                $out[] = (int) $id;
+                continue;
+            }
+            if (is_scalar($id)) {
+                $out[] = (string) $id;
+            }
+        }
+
+        return $out;
     }
 
     /**

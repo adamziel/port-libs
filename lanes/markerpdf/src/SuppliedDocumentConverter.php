@@ -277,6 +277,10 @@ final class SuppliedDocumentConverter
             if ($coordinateSpaceReviews !== []) {
                 $metadata['table_coordinate_space_reviews'] = $coordinateSpaceReviews;
             }
+            $assignedSourceBoundaryReviews = $this->tableAssignedSourceBoundaryReviews($recognition['assigned_source_boundary_reviews'] ?? []);
+            if ($assignedSourceBoundaryReviews !== []) {
+                $metadata['table_assigned_source_boundary_reviews'] = $assignedSourceBoundaryReviews;
+            }
             $assignedCropBoundaryReviews = $this->tableAssignedCropBoundaryReviews($recognition['assigned_crop_boundary_reviews'] ?? []);
             if ($assignedCropBoundaryReviews !== []) {
                 $metadata['table_assigned_crop_boundary_reviews'] = $assignedCropBoundaryReviews;
@@ -894,6 +898,31 @@ final class SuppliedDocumentConverter
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param mixed $reviews
+     * @return list<array<string, mixed>|null>
+     */
+    private function tableAssignedSourceBoundaryReviews(mixed $reviews): array
+    {
+        if (!is_array($reviews)) {
+            return [];
+        }
+
+        $normalized = [];
+        $hasReview = false;
+        foreach ($reviews as $review) {
+            if (is_array($review)) {
+                $normalized[] = $review;
+                $hasReview = true;
+                continue;
+            }
+
+            $normalized[] = null;
+        }
+
+        return $hasReview ? $normalized : [];
     }
 
     /**
