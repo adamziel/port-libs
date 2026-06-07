@@ -8,6 +8,8 @@ final class OpcRelationshipGraph
 {
     public const OFFICE_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     public const CORE_PROPERTIES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    public const EXTENDED_PROPERTIES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
+    public const CUSTOM_PROPERTIES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
     public const THUMBNAIL_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
@@ -25,6 +27,8 @@ final class OpcRelationshipGraph
 
     private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CORE_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-package.core-properties+xml';
+    private const EXTENDED_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
+    private const CUSTOM_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
     private const DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
     private const EMBEDDED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.package';
@@ -1196,6 +1200,113 @@ final class OpcRelationshipGraph
             ),
             'issues' => $issues,
             'relationships' => $relationships,
+        ];
+    }
+
+    /**
+     * @return array{valid:bool, roles:array<string,array{role:string, relationshipType:string, expectedContentType:string, relationshipCount:int, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}>}
+     */
+    public function preflightDocumentProperties(): array
+    {
+        $definitions = [
+            'core' => [
+                'relationshipType' => self::CORE_PROPERTIES_RELATIONSHIP_TYPE,
+                'expectedContentType' => self::CORE_PROPERTIES_CONTENT_TYPE,
+                'multipleIssue' => 'multiple-core-properties-relationships',
+                'externalIssue' => 'external-core-properties-target',
+                'invalidContentTypeIssue' => 'invalid-core-properties-content-type',
+            ],
+            'extended' => [
+                'relationshipType' => self::EXTENDED_PROPERTIES_RELATIONSHIP_TYPE,
+                'expectedContentType' => self::EXTENDED_PROPERTIES_CONTENT_TYPE,
+                'multipleIssue' => 'multiple-extended-properties-relationships',
+                'externalIssue' => 'external-extended-properties-target',
+                'invalidContentTypeIssue' => 'invalid-extended-properties-content-type',
+            ],
+            'custom' => [
+                'relationshipType' => self::CUSTOM_PROPERTIES_RELATIONSHIP_TYPE,
+                'expectedContentType' => self::CUSTOM_PROPERTIES_CONTENT_TYPE,
+                'multipleIssue' => 'multiple-custom-properties-relationships',
+                'externalIssue' => 'external-custom-properties-target',
+                'invalidContentTypeIssue' => 'invalid-custom-properties-content-type',
+            ],
+        ];
+
+        $roles = [];
+        foreach ($definitions as $role => $definition) {
+            $targets = $this->preflightTargetsForSource('/', $definition['relationshipType']);
+            $relationshipCount = count($targets);
+            $issues = [];
+
+            if ($relationshipCount > 1) {
+                $issues[] = $definition['multipleIssue'];
+            }
+
+            $relationships = [];
+            foreach ($targets as $target) {
+                $targetIssues = $target['issues'];
+                if ($target['external']) {
+                    $targetIssues[] = $definition['externalIssue'];
+                }
+
+                if (
+                    !$target['external']
+                    && $target['contentType'] !== null
+                    && !self::contentTypeMatches($target['contentType'], $definition['expectedContentType'])
+                ) {
+                    $targetIssues[] = $definition['invalidContentTypeIssue'];
+                }
+
+                $targetIssues = array_values(array_unique($targetIssues));
+                $relationships[] = [
+                    'source' => '/',
+                    'id' => $target['id'],
+                    'type' => $target['type'],
+                    'relationshipTypeKind' => $target['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $target['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                    'target' => $target['target'],
+                    'targetPart' => self::targetPartFromPreflightTarget($target),
+                    'contentType' => $target['contentType'],
+                    'external' => $target['external'],
+                    'exists' => $target['exists'],
+                    'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'externalTargetKind' => $target['externalTargetKind'],
+                    'externalTargetScheme' => $target['externalTargetScheme'],
+                    'externalTargetAllowed' => $target['externalTargetAllowed'],
+                    'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                    'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
+                    'valid' => $targetIssues === [],
+                    'issues' => $targetIssues,
+                ];
+            }
+
+            $relationshipsValid = array_reduce(
+                $relationships,
+                static fn (bool $valid, array $relationship): bool => $valid && $relationship['valid'],
+                true,
+            );
+
+            $roles[$role] = [
+                'role' => $role,
+                'relationshipType' => $definition['relationshipType'],
+                'expectedContentType' => $definition['expectedContentType'],
+                'relationshipCount' => $relationshipCount,
+                'valid' => $issues === [] && $relationshipsValid,
+                'issues' => $issues,
+                'relationships' => $relationships,
+            ];
+        }
+
+        return [
+            'valid' => array_reduce(
+                $roles,
+                static fn (bool $valid, array $role): bool => $valid && $role['valid'],
+                true,
+            ),
+            'roles' => $roles,
         ];
     }
 

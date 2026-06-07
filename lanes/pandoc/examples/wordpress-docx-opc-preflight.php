@@ -29,6 +29,8 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
   <Override PartName="/word/media/stale%20source.png" ContentType="image/png"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
   <Override PartName="/docProps/thumbnail.png" ContentType="image/png"/>
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
@@ -48,6 +50,8 @@ $packageRelationshipsXml = <<<'XML'
     <review:Trace value="ignored"/>
   </Relationship>
   <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdExtended" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rIdCustomProperties" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
   <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>
   <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
 </Relationships>
@@ -326,6 +330,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/embeddings/source workbook.xlsx', 'data' => $embeddedWorkbookBytes],
     ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+    ['name' => 'docProps/app.xml', 'data' => '<Properties/>'],
+    ['name' => 'docProps/custom.xml', 'data' => '<Properties/>'],
     ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
@@ -1323,6 +1329,16 @@ $emptySignatureOriginGuard = [
 
 $corePropertiesPreflight = $graph->preflightCoreProperties();
 $corePropertiesPart = $corePropertiesPreflight['relationships'][0]['targetPart'] ?? null;
+$documentPropertiesPreflight = $graph->preflightDocumentProperties();
+$documentPropertyParts = [];
+foreach ($documentPropertiesPreflight['roles'] as $role) {
+    foreach ($role['relationships'] as $relationship) {
+        if ($relationship['targetPart'] !== null) {
+            $documentPropertyParts[] = $relationship['targetPart'];
+        }
+    }
+}
+$documentPropertyParts = array_values(array_unique($documentPropertyParts));
 $thumbnailPreflight = [];
 foreach ($graph->preflightThumbnails() as $thumbnail) {
     $thumbnailPreflight[$thumbnail['source'] . ':' . $thumbnail['id']] = [
@@ -1445,6 +1461,7 @@ $summary = [
         'contentType' => $corePropertiesPart === null ? null : $types->contentTypeForPart($corePropertiesPart),
         'preflight' => $corePropertiesPreflight,
     ],
+    'documentPropertiesPreflight' => $documentPropertiesPreflight,
     'thumbnailPreflight' => $thumbnailPreflight,
     'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
@@ -1532,6 +1549,7 @@ $summary = [
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
+        'documentPropertyParts' => $documentPropertyParts,
         'thumbnailParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $thumbnail): ?string => $thumbnail['targetPart'], $thumbnailPreflight),
             static fn (?string $target): bool => $target !== null
@@ -1681,6 +1699,23 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['coreProperties']['preflight']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
         || ($summary['coreProperties']['preflight']['relationships'][0]['valid'] ?? null) !== true
         || ($summary['coreProperties']['preflight']['relationships'][0]['issues'] ?? null) !== []
+        || ($summary['documentPropertiesPreflight']['valid'] ?? null) !== true
+        || array_keys($summary['documentPropertiesPreflight']['roles'] ?? []) !== ['core', 'extended', 'custom']
+        || ($summary['documentPropertiesPreflight']['roles']['core']['relationshipCount'] ?? null) !== 1
+        || ($summary['documentPropertiesPreflight']['roles']['core']['relationships'][0]['targetPart'] ?? null) !== '/docProps/core.xml'
+        || ($summary['documentPropertiesPreflight']['roles']['extended']['relationshipCount'] ?? null) !== 1
+        || ($summary['documentPropertiesPreflight']['roles']['extended']['relationships'][0]['id'] ?? null) !== 'rIdExtended'
+        || ($summary['documentPropertiesPreflight']['roles']['extended']['relationships'][0]['targetPart'] ?? null) !== '/docProps/app.xml'
+        || ($summary['documentPropertiesPreflight']['roles']['extended']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.extended-properties+xml'
+        || ($summary['documentPropertiesPreflight']['roles']['extended']['relationships'][0]['valid'] ?? null) !== true
+        || ($summary['documentPropertiesPreflight']['roles']['extended']['relationships'][0]['issues'] ?? null) !== []
+        || ($summary['documentPropertiesPreflight']['roles']['custom']['relationshipCount'] ?? null) !== 1
+        || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['id'] ?? null) !== 'rIdCustomProperties'
+        || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['targetPart'] ?? null) !== '/docProps/custom.xml'
+        || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.custom-properties+xml'
+        || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['valid'] ?? null) !== true
+        || ($summary['documentPropertiesPreflight']['roles']['custom']['relationships'][0]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['documentPropertyParts'] ?? null) !== ['/docProps/core.xml', '/docProps/app.xml', '/docProps/custom.xml']
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['source'] ?? null) !== '/'
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['targetPart'] ?? null) !== '/docProps/thumbnail.png'
         || ($summary['thumbnailPreflight']['/:rIdThumbnail']['contentType'] ?? null) !== 'image/png'
@@ -1753,7 +1788,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loadAction'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/_rels/.rels']['loadReason'] ?? null) !== 'loaded'
-        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 4
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 6
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipSource'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadAction'] ?? null) !== 'loaded'

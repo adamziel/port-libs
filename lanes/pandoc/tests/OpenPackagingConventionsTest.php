@@ -3968,6 +3968,146 @@ XML;
         $t->same(false, $badById['rIdExternalCore']['valid']);
         $t->same(['external-core-properties-target'], $badById['rIdExternalCore']['issues']);
     },
+    'preflights OPC document property relationship roles' => static function (TestRunner $t): void {
+        $validContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
+</Types>
+XML;
+        $validPackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdExtended" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rIdCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
+</Relationships>
+XML;
+        $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $validContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $validPackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/app.xml', 'data' => '<Properties/>'],
+            ['name' => 'docProps/custom.xml', 'data' => '<Properties/>'],
+        ]));
+
+        $valid = $validGraph->preflightDocumentProperties();
+        $t->same(true, $valid['valid']);
+        $t->same(['core', 'extended', 'custom'], array_keys($valid['roles']));
+
+        $t->same(1, $valid['roles']['core']['relationshipCount']);
+        $t->same(OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE, $valid['roles']['core']['relationshipType']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $valid['roles']['core']['expectedContentType']);
+        $t->same(true, $valid['roles']['core']['valid']);
+        $t->same([], $valid['roles']['core']['issues']);
+        $t->same('rIdCore', $valid['roles']['core']['relationships'][0]['id']);
+        $t->same('/docProps/core.xml', $valid['roles']['core']['relationships'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $valid['roles']['core']['relationships'][0]['contentType']);
+        $t->same(false, $valid['roles']['core']['relationships'][0]['external']);
+        $t->same(true, $valid['roles']['core']['relationships'][0]['exists']);
+        $t->same(true, $valid['roles']['core']['relationships'][0]['valid']);
+        $t->same([], $valid['roles']['core']['relationships'][0]['issues']);
+
+        $t->same(1, $valid['roles']['extended']['relationshipCount']);
+        $t->same(OpcRelationshipGraph::EXTENDED_PROPERTIES_RELATIONSHIP_TYPE, $valid['roles']['extended']['relationshipType']);
+        $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $valid['roles']['extended']['expectedContentType']);
+        $t->same(true, $valid['roles']['extended']['valid']);
+        $t->same([], $valid['roles']['extended']['issues']);
+        $t->same('rIdExtended', $valid['roles']['extended']['relationships'][0]['id']);
+        $t->same('/docProps/app.xml', $valid['roles']['extended']['relationships'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $valid['roles']['extended']['relationships'][0]['contentType']);
+        $t->same(false, $valid['roles']['extended']['relationships'][0]['external']);
+        $t->same(true, $valid['roles']['extended']['relationships'][0]['exists']);
+        $t->same(true, $valid['roles']['extended']['relationships'][0]['valid']);
+        $t->same([], $valid['roles']['extended']['relationships'][0]['issues']);
+
+        $t->same(1, $valid['roles']['custom']['relationshipCount']);
+        $t->same(OpcRelationshipGraph::CUSTOM_PROPERTIES_RELATIONSHIP_TYPE, $valid['roles']['custom']['relationshipType']);
+        $t->same('application/vnd.openxmlformats-officedocument.custom-properties+xml', $valid['roles']['custom']['expectedContentType']);
+        $t->same(true, $valid['roles']['custom']['valid']);
+        $t->same([], $valid['roles']['custom']['issues']);
+        $t->same('rIdCustom', $valid['roles']['custom']['relationships'][0]['id']);
+        $t->same('/docProps/custom.xml', $valid['roles']['custom']['relationships'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.custom-properties+xml', $valid['roles']['custom']['relationships'][0]['contentType']);
+        $t->same(false, $valid['roles']['custom']['relationships'][0]['external']);
+        $t->same(true, $valid['roles']['custom']['relationships'][0]['exists']);
+        $t->same(true, $valid['roles']['custom']['relationships'][0]['valid']);
+        $t->same([], $valid['roles']['custom']['relationships'][0]['issues']);
+
+        $badContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/app-copy.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $badPackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdExtended" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rIdExtendedCopy" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app-copy.xml"/>
+  <Relationship Id="rIdCustomWrong" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
+  <Relationship Id="rIdCustomExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="https://example.test/wp-admin/custom-properties.xml" TargetMode="External"/>
+</Relationships>
+XML;
+        $badGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $badContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $badPackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/app.xml', 'data' => '<Properties/>'],
+            ['name' => 'docProps/app-copy.xml', 'data' => '<Properties/>'],
+            ['name' => 'docProps/custom.xml', 'data' => '<Properties/>'],
+        ]));
+
+        $bad = $badGraph->preflightDocumentProperties();
+        $badExtendedById = [];
+        foreach ($bad['roles']['extended']['relationships'] as $relationship) {
+            $badExtendedById[$relationship['id']] = $relationship;
+        }
+
+        $badCustomById = [];
+        foreach ($bad['roles']['custom']['relationships'] as $relationship) {
+            $badCustomById[$relationship['id']] = $relationship;
+        }
+
+        $t->same(false, $bad['valid']);
+        $t->same(true, $bad['roles']['core']['valid']);
+        $t->same(1, $bad['roles']['core']['relationshipCount']);
+        $t->same([], $bad['roles']['core']['issues']);
+        $t->same(2, $bad['roles']['extended']['relationshipCount']);
+        $t->same(false, $bad['roles']['extended']['valid']);
+        $t->same(['multiple-extended-properties-relationships'], $bad['roles']['extended']['issues']);
+        $t->same(['rIdExtended', 'rIdExtendedCopy'], array_keys($badExtendedById));
+        $t->same(true, $badExtendedById['rIdExtended']['valid']);
+        $t->same([], $badExtendedById['rIdExtended']['issues']);
+        $t->same('/docProps/app-copy.xml', $badExtendedById['rIdExtendedCopy']['targetPart']);
+        $t->same(true, $badExtendedById['rIdExtendedCopy']['valid']);
+        $t->same([], $badExtendedById['rIdExtendedCopy']['issues']);
+        $t->same(2, $bad['roles']['custom']['relationshipCount']);
+        $t->same(false, $bad['roles']['custom']['valid']);
+        $t->same(['multiple-custom-properties-relationships'], $bad['roles']['custom']['issues']);
+        $t->same(['rIdCustomWrong', 'rIdCustomExternal'], array_keys($badCustomById));
+        $t->same('/docProps/custom.xml', $badCustomById['rIdCustomWrong']['targetPart']);
+        $t->same('application/xml', $badCustomById['rIdCustomWrong']['contentType']);
+        $t->same(false, $badCustomById['rIdCustomWrong']['valid']);
+        $t->same(['invalid-custom-properties-content-type'], $badCustomById['rIdCustomWrong']['issues']);
+        $t->same(true, $badCustomById['rIdCustomExternal']['external']);
+        $t->same(null, $badCustomById['rIdCustomExternal']['targetPart']);
+        $t->same('https', $badCustomById['rIdCustomExternal']['externalTargetScheme']);
+        $t->same(false, $badCustomById['rIdCustomExternal']['valid']);
+        $t->same(['external-custom-properties-target'], $badCustomById['rIdCustomExternal']['issues']);
+    },
     'preflights OPC package and part thumbnail relationships' => static function (TestRunner $t): void {
         $thumbnailType = OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE;
         $contentTypesXml = <<<'XML'
