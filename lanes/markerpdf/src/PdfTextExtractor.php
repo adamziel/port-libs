@@ -8193,7 +8193,11 @@ final class PdfTextExtractor
                 }
 
                 $reference = $this->objectReferenceAfterName($dictionary, 'Image');
-                $defaultForPrinting = $this->pdfBooleanValueAfterName($dictionary, 'DefaultForPrinting');
+                $defaultForPrinting = $this->pdfBooleanValueAfterNameResolvingObjects(
+                    $dictionary,
+                    'DefaultForPrinting',
+                    $objects
+                );
             } else {
                 $reference = $this->objectReferencePairs($item)[0] ?? null;
             }
@@ -8202,20 +8206,20 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $objectBody = $this->objectBodyForExactReference(
+            $resolved = $this->resolvedExactResourceReference(
                 $objects,
                 $reference['objectNumber'],
                 $reference['generation']
             );
-            if ($objectBody === null) {
+            if ($resolved === null) {
                 continue;
             }
 
             $review = $this->imageXObjectAlternateStreamReview(
-                $reference['objectNumber'],
-                $reference['generation'],
+                $resolved['object'],
+                $resolved['generation'],
                 $defaultForPrinting,
-                $objectBody,
+                $resolved['body'],
                 $objects
             );
             if ($review !== null) {
