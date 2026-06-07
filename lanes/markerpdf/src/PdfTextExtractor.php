@@ -29039,8 +29039,17 @@ final class PdfTextExtractor
 
     private function xrefStreamDirectOperandValue(string $item): mixed
     {
+        $item = trim($item);
         if ($item === 'null') {
             return null;
+        }
+
+        if ($item === 'true') {
+            return true;
+        }
+
+        if ($item === 'false') {
+            return false;
         }
 
         if (str_starts_with($item, '/')) {
@@ -29049,6 +29058,10 @@ final class PdfTextExtractor
 
         if (preg_match('/^[+-]?\d+$/', $item) === 1) {
             return (int) $item;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $item) === 1) {
+            return (float) $item;
         }
 
         return $item;
