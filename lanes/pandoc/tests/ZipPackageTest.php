@@ -1436,6 +1436,31 @@ return [
         ]));
 
         $t->true($directoryPackage->entry('word/media/')->isDirectory());
+        $t->same('00000000', $directoryPackage->entry('word/media/')->crc32Hex());
+        $t->same('', $directoryPackage->read('word/media/'));
+    },
+
+    'rejects zip directory entries with nonzero crc before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'centralCrc' => 0x7b,
+                'localCrc' => 0x7b,
+            ],
+        ])));
+
+        $directoryPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+
+        $t->true($directoryPackage->entry('word/media/')->isDirectory());
+        $t->same('00000000', $directoryPackage->entry('word/media/')->crc32Hex());
         $t->same('', $directoryPackage->read('word/media/'));
     },
 

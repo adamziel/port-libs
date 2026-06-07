@@ -3105,6 +3105,10 @@ final class ZipPackage
         if ($entry->compressedSize !== 0 || $entry->uncompressedSize !== 0) {
             throw new \RuntimeException("ZIP package directory entry {$entry->name} must not contain file data");
         }
+
+        if ($entry->crc32 !== 0) {
+            throw new \RuntimeException("ZIP package directory entry {$entry->name} must have a zero CRC32");
+        }
     }
 
     private static function assertDirectoryAttributeConsistency(ZipPackageEntry $entry): void

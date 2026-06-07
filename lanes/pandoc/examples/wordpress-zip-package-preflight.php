@@ -916,6 +916,52 @@ $buildDirectoryPayloadBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildDirectoryCrcBackedPackage = static function (): string {
+    $name = 'word/media/';
+    $crc = 0x7b;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        0,
+        0,
+        strlen($name),
+        0
+    );
+    $body .= $name;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        0,
+        0,
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x10,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildOverlappingLocalEntryBackedPackage = static function () use ($crc32): string {
     $documentName = 'word/document.xml';
     $documentData = '<w:document><w:body><w:p>Overlapping layout should stay blocked</w:p></w:body></w:document>';
@@ -2745,6 +2791,13 @@ try {
 } catch (RuntimeException $exception) {
     $directoryPayloadRejected = str_contains($exception->getMessage(), 'directory entry');
 }
+$directoryCrcRejected = false;
+try {
+    ZipPackage::fromString($buildDirectoryCrcBackedPackage());
+} catch (RuntimeException $exception) {
+    $directoryCrcRejected = str_contains($exception->getMessage(), 'directory entry')
+        && str_contains($exception->getMessage(), 'zero CRC32');
+}
 $localEntryOverlapRejected = false;
 try {
     ZipPackage::fromString($buildOverlappingLocalEntryBackedPackage());
@@ -4104,6 +4157,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP directory entries with payload bytes to be rejected before media import');
     }
 
+    if (!$directoryCrcRejected) {
+        throw new RuntimeException('Expected ZIP directory entries with nonzero CRC32 metadata to be rejected before media import');
+    }
+
     if (!$dosDirectoryAttributeMismatchRejected) {
         throw new RuntimeException('Expected ZIP non-directory names with directory attributes to be rejected before media import');
     }
@@ -4380,6 +4437,7 @@ echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-reject
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipControlNamePolicy=' . ($zipControlNameRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDirectoryCrcPolicy=' . ($directoryCrcRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDosDirectoryAttributePolicy=' . ($dosDirectoryAttributeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnixFileTypeNamePolicy=' . ($unixFileTypeNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
