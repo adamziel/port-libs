@@ -1560,6 +1560,9 @@ final class CslStyle
 
                 $seenElse = true;
                 $else = self::renderingElements($child, $scope);
+                if ($else === []) {
+                    throw new \InvalidArgumentException('CSL ' . $scope . ' choose else branch must contain at least one rendering element');
+                }
                 continue;
             }
 

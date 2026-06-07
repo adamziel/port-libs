@@ -11226,6 +11226,64 @@ XML);
 </style>
 XML));
     },
+    'rejects bounded csl choose else branches without rendering elements' => static function (TestRunner $t): void {
+        $valid = CitationCslProcessor::fromItems([
+            [
+                'id' => 'fallback-packet',
+                'type' => 'report',
+                'title' => 'Fallback Packet',
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Valid Else Branch Review</title>
+    <id>https://example.test/styles/valid-else-branch-review</id>
+    <updated>2026-06-07T15:29:14+00:00</updated>
+  </info>
+  <citation>
+    <layout>
+      <choose>
+        <if variable="DOI">
+          <text variable="DOI"/>
+        </if>
+        <else>
+          <text variable="title"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+</style>
+XML);
+
+        $summary = $valid->cslStyleSummary();
+        $t->same('choose', $summary['citationRendering'][0]['type'] ?? null);
+        $t->same('Fallback Packet', $valid->renderCitationCluster([
+            new AstNode('citation', ['id' => 'fallback-packet', 'text' => '[@fallback-packet]']),
+        ]));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Invalid Empty Else Branch Review</title>
+    <id>https://example.test/styles/invalid-empty-else-branch-review</id>
+    <updated>2026-06-07T15:29:14+00:00</updated>
+  </info>
+  <citation>
+    <layout>
+      <choose>
+        <if variable="title">
+          <text variable="title"/>
+        </if>
+        <else/>
+      </choose>
+    </layout>
+  </citation>
+</style>
+XML));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
