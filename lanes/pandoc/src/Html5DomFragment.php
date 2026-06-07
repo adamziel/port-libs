@@ -1584,6 +1584,27 @@ final class Html5DomFragment
                 ]];
             }
 
+            $policyMetadata = self::htmlMetaPolicyMetadata($element, $diagnostics);
+            if ($policyMetadata !== null) {
+                [$kind, $name, $content] = $policyMetadata;
+                $metadataAttributeName = $kind === 'http-equiv'
+                    ? 'data-pandoc-meta-http-equiv'
+                    : 'data-pandoc-meta-name';
+
+                return [[
+                    'type' => 'element',
+                    'name' => 'span',
+                    'attrs' => [
+                        $metadataAttributeName => $name,
+                        'data-pandoc-meta-content' => $content,
+                    ],
+                    'children' => [[
+                        'type' => 'text',
+                        'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
+                    ]],
+                ]];
+            }
+
             $reviewMetadata = self::htmlMetaReviewMetadata($element);
             if ($reviewMetadata === null) {
                 return null;
@@ -1707,6 +1728,134 @@ final class Html5DomFragment
         $charset = self::normalizeHtmlCharsetLabel($label);
 
         return $charset === null ? null : ['content-type', $charset];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string, 2:string}|null
+     */
+    private static function htmlMetaPolicyMetadata(\DOMElement $element, array &$diagnostics): ?array
+    {
+        if (!$element->hasAttribute('content')) {
+            return null;
+        }
+
+        $httpEquiv = strtolower(self::cleanHtmlMetadataAttribute($element->getAttribute('http-equiv')));
+        if ($httpEquiv === 'content-security-policy') {
+            $policy = self::normalizeHtmlContentSecurityPolicy($element->getAttribute('content'), $diagnostics);
+
+            return $policy === null ? null : ['http-equiv', 'content-security-policy', $policy];
+        }
+
+        $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
+        if ($name === 'referrer') {
+            $policy = self::normalizeHtmlReferrerMetaPolicy($element->getAttribute('content'), $diagnostics);
+
+            return $policy === null ? null : ['name', 'referrer', $policy];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlContentSecurityPolicy(string $value, array &$diagnostics): ?string
+    {
+        $content = self::cleanHtmlMetadataAttribute($value);
+        if ($content === '') {
+            return null;
+        }
+
+        $directives = [];
+        foreach (explode(';', $content) as $directive) {
+            $directive = trim(preg_replace('/[\t\r\n\f ]+/u', ' ', $directive) ?? $directive);
+            if ($directive === '') {
+                continue;
+            }
+
+            [$name, $sources] = self::splitHtmlContentSecurityPolicyDirective($directive);
+            if (!self::isReviewableHtmlContentSecurityPolicyDirective($name, $sources)) {
+                $diagnostics[] = [
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'meta',
+                    'attribute' => 'content',
+                    'directive' => $name,
+                ];
+                continue;
+            }
+
+            $directives[] = $name . ($sources === '' ? '' : ' ' . $sources);
+        }
+
+        return $directives === [] ? null : implode('; ', $directives);
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function splitHtmlContentSecurityPolicyDirective(string $directive): array
+    {
+        $parts = preg_split('/[\t\r\n\f ]+/', $directive, 2);
+        if (!is_array($parts) || $parts === []) {
+            return ['', ''];
+        }
+
+        $name = strtolower((string) $parts[0]);
+        $sources = isset($parts[1])
+            ? trim(preg_replace('/[\t\r\n\f ]+/u', ' ', (string) $parts[1]) ?? (string) $parts[1])
+            : '';
+
+        return [$name, $sources];
+    }
+
+    private static function isReviewableHtmlContentSecurityPolicyDirective(string $name, string $sources): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9-]*$/', $name) !== 1) {
+            return false;
+        }
+
+        if (in_array($name, ['report-to', 'report-uri'], true)) {
+            return false;
+        }
+
+        $lowerCompact = strtolower(preg_replace('/[\x00-\x20]+/', '', $sources) ?? $sources);
+        if ($lowerCompact !== '' && preg_match('/(?:java|vb)script:/', $lowerCompact) === 1) {
+            return false;
+        }
+
+        return preg_match('/[<>{}`]/', $sources) !== 1;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlReferrerMetaPolicy(string $value, array &$diagnostics): ?string
+    {
+        $policy = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if (in_array($policy, [
+            'no-referrer',
+            'no-referrer-when-downgrade',
+            'origin',
+            'origin-when-cross-origin',
+            'same-origin',
+            'strict-origin',
+            'strict-origin-when-cross-origin',
+            'unsafe-url',
+        ], true)) {
+            return $policy;
+        }
+
+        if ($policy !== '') {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => 'meta',
+                'attribute' => 'content',
+                'value' => $policy,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -1845,11 +1994,13 @@ final class Html5DomFragment
             'description' => 'Description',
             'generator' => 'Generator',
             'keywords' => 'Keywords',
+            'content-security-policy' => 'Content security policy',
             'og:image' => 'Open Graph image',
             'og:image:secure_url' => 'Open Graph secure image',
             'og:image:url' => 'Open Graph image',
             'og:description' => 'Open Graph description',
             'og:title' => 'Open Graph title',
+            'referrer' => 'Referrer policy',
             'twitter:description' => 'Twitter description',
             'twitter:image' => 'Twitter image',
             'twitter:image:src' => 'Twitter image',

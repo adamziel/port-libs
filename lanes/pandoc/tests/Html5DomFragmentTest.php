@@ -1655,6 +1655,54 @@ return [
         $t->true(!str_contains($html, 'bad charset value'), 'Expected invalid charset labels to remain hidden');
         $t->true(!str_contains($html, 'nosniff'), 'Expected unrelated http-equiv metadata to remain hidden');
     },
+    'converts document policy metadata into inert reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<meta http-equiv="Content-Security-Policy" content=" default-src &#039;self&#039; ; img-src https: data: ; report-uri https://tracker.example.test/csp ; script-src &#039;none&#039; ">'
+            . '<meta http-equiv="content-security-policy" content="script-src java&#10;script:alert(1)">'
+            . '<meta name="referrer" content=" Strict-Origin-When-Cross-Origin ">'
+            . '<meta name="referrer" content="bad policy">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-http-equiv="content-security-policy" data-pandoc-meta-content="default-src &#039;self&#039;; img-src https: data:; script-src &#039;none&#039;">Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'</span>'
+            . '<span data-pandoc-meta-name="referrer" data-pandoc-meta-content="strict-origin-when-cross-origin">Referrer policy: strict-origin-when-cross-origin</span>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'Referrer policy: strict-origin-when-cross-originafter', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['meta'], $summary['blockedTags']);
+        $t->same(['content'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'unsafe-attribute', 'blocked-tag', 'unsafe-attribute', 'blocked-tag', 'blocked-tag', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-meta-http-equiv' => 'content-security-policy',
+            'data-pandoc-meta-content' => 'default-src \'self\'; img-src https: data:; script-src \'none\'',
+        ], $nodes[0]['attrs']);
+        $t->same('Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', $nodes[0]['children'][0]['text']);
+        $t->same([
+            'data-pandoc-meta-name' => 'referrer',
+            'data-pandoc-meta-content' => 'strict-origin-when-cross-origin',
+        ], $nodes[1]['attrs']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/meta-policy-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<meta'), 'Expected original policy meta elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'report-uri'), 'Expected CSP report endpoints to stay out of inert review metadata');
+        $t->true(!str_contains($html, 'tracker.example.test'), 'Expected CSP report target URL to stay hidden');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe CSP source tokens to be stripped');
+        $t->true(!str_contains($html, 'bad policy'), 'Expected invalid referrer policy to stay hidden');
+    },
     'converts passive property metadata into reviewer spans and links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

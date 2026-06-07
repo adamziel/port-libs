@@ -23,6 +23,10 @@ $source = <<<HTML
 <meta name="author" content="Migration Desk">
 <meta name="keywords" content="wordpress, html import">
 <meta name="generator" content="Legacy CMS">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data:; report-uri https://tracker.example.test/csp; script-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="script-src java&#10;script:alert(1)">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="referrer" content="bad policy">
 <meta property="og:title" content="Legacy social title">
 <meta property="og:description" content="Legacy social description">
 <meta property="article:published_time" content="2026-06-06T10:00:00Z">
@@ -70,7 +74,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -86,6 +90,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span data-pandoc-meta-name="author" data-pandoc-meta-content="Migration Desk">Author: Migration Desk</span>',
         '<span data-pandoc-meta-name="keywords" data-pandoc-meta-content="wordpress, html import">Keywords: wordpress, html import</span>',
         '<span data-pandoc-meta-name="generator" data-pandoc-meta-content="Legacy CMS">Generator: Legacy CMS</span>',
+        '<span data-pandoc-meta-http-equiv="content-security-policy" data-pandoc-meta-content="default-src &#039;self&#039;; img-src https: data:; script-src &#039;none&#039;">Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'</span>',
+        '<span data-pandoc-meta-name="referrer" data-pandoc-meta-content="strict-origin-when-cross-origin">Referrer policy: strict-origin-when-cross-origin</span>',
         '<span data-pandoc-meta-property="og:title" data-pandoc-meta-content="Legacy social title">Open Graph title: Legacy social title</span>',
         '<span data-pandoc-meta-property="og:description" data-pandoc-meta-content="Legacy social description">Open Graph description: Legacy social description</span>',
         '<span data-pandoc-meta-property="article:published_time" data-pandoc-meta-content="2026-06-06T10:00:00Z">Article published time: 2026-06-06T10:00:00Z</span>',
@@ -121,7 +127,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
