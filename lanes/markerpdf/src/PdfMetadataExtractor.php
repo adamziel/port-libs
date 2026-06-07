@@ -5260,6 +5260,7 @@ final class PdfMetadataExtractor
             'Next',
             'F',
             'C',
+            'Metadata',
             'SE',
         ]);
         if ($duplicateKeyReview !== []) {

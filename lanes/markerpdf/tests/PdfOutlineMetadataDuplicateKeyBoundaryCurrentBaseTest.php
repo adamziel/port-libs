@@ -82,6 +82,28 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unselected outline metadata stream should stay review only'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'Nested outline metadata decoy'));
     },
+    'surfaces duplicate outline Metadata keys in the outline-wide duplicate key summary' => static function (
+        TestRunner $t
+    ) use ($outlineMetadataDuplicateKeyBoundaryPdf): void {
+        [$pdf] = $outlineMetadataDuplicateKeyBoundaryPdf();
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $outline = $metadata['document_outline'] ?? [];
+        $item = $outline['items'][0] ?? [];
+        $review = $item['duplicate_key_review'] ?? [];
+
+        $t->same(1, $outline['duplicate_item_key_count'] ?? null);
+        $t->same(['Metadata'], $outline['duplicate_item_keys'] ?? null);
+        $t->same(true, $outline['duplicate_item_key_review_only'] ?? null);
+        $t->same(false, $outline['duplicate_item_key_payload_included'] ?? null);
+        $t->same('outline_item_duplicate_keys', $review['source'] ?? null);
+        $t->same(['Metadata'], $review['keys'] ?? null);
+        $t->same(['Metadata' => 2], $review['declared_entry_counts'] ?? null);
+        $t->same(['Metadata' => 1], $review['selected_entry_indexes'] ?? null);
+        $t->same(true, $review['review_only'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same(false, $review['visible_text_source'] ?? null);
+    },
     'keeps duplicate outline Metadata streams out of TOC navigation and visible WordPress text' => static function (
         TestRunner $t
     ) use ($outlineMetadataDuplicateKeyBoundaryPdf): void {

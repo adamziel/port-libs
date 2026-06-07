@@ -53,6 +53,12 @@ if (($outline['titles'] ?? []) !== ['WordPress Duplicate Metadata Chapter']) {
 if (($review['declared_entry_count'] ?? null) !== 2 || ($review['duplicate_entries'] ?? null) !== true) {
     throw new RuntimeException('Expected duplicate top-level /Metadata declarations to be recorded.');
 }
+if (($outline['duplicate_item_key_count'] ?? null) !== 1 || ($outline['duplicate_item_keys'] ?? []) !== ['Metadata']) {
+    throw new RuntimeException('Expected duplicate top-level /Metadata declarations to be summarized as outline duplicate keys.');
+}
+if (($item['duplicate_key_review']['keys'] ?? []) !== ['Metadata']) {
+    throw new RuntimeException('Expected item duplicate-key review to identify /Metadata.');
+}
 if (($review['selected_entry_index'] ?? null) !== 1 || ($review['object_number'] ?? null) !== 9) {
     throw new RuntimeException('Expected the last top-level /Metadata stream to be selected for review.');
 }
@@ -94,6 +100,9 @@ echo '<!-- markerpdf-outline-metadata-duplicate-key-boundary-currentbase ' . $ht
     'metadata_selected_object' => $review['object_number'] ?? null,
     'metadata_selected_sha256' => $review['sha256'] ?? null,
     'metadata_payload_included' => $review['payload_included'] ?? null,
+    'duplicate_item_key_count' => $outline['duplicate_item_key_count'] ?? null,
+    'duplicate_item_keys' => $outline['duplicate_item_keys'] ?? [],
+    'item_duplicate_key_review' => $item['duplicate_key_review'] ?? [],
     'navigation_titles' => array_column($navigation['outline'] ?? [], 'title'),
     'visible_text_excludes_outline_metadata_payloads' => !str_contains($plainText, 'WordPress selected outline metadata stream')
         && !str_contains($plainText, 'WordPress stale outline metadata stream')
