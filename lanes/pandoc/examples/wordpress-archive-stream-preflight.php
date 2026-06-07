@@ -151,6 +151,7 @@ $duplicatePaxContentBytes = "# Duplicate PAX source packet\n\nReady for WordPres
 $lz4DictionaryPayload = 'packet/word/document.xml needs an external LZ4 dictionary';
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
+$archiveBombContentBytes = str_repeat('A', 4096);
 
 $archive = TarArchive::fromEntries([
     [
@@ -506,6 +507,25 @@ $nestedInspection = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
     strlen($nestedArchiveBytes),
     2
 );
+$archiveBombBytes = TarArchive::fromEntries([
+    [
+        'name' => 'packet/content.md',
+        'data' => $archiveBombContentBytes,
+    ],
+])->bytes();
+$archiveBombGzip = GzipStream::build($archiveBombBytes, [
+    'filename' => 'wordpress-compressed-review.tar',
+    'comment' => 'bounded expansion-ratio preflight',
+    'compressionLevel' => 9,
+]);
+$archiveBombInspection = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
+    $archiveBombGzip,
+    strlen($archiveBombBytes),
+    strlen($archiveBombContentBytes),
+    4.0,
+    4.0,
+    4.0
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -590,6 +610,15 @@ if (in_array('--self-test', $argv, true)) {
         'nestedFirstPath' => 'packet/nested/review.tar.gz',
         'nestedDeeperPath' => 'packet/nested/review.tar.gz!packet/deeper/document.docx',
         'nestedBrokenPath' => 'packet/nested/broken.zip',
+        'archiveBombKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'archiveBombFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'archiveBombPolicy' => 'review-before-conversion',
+        'archiveBombDiagnostics' => [
+            'archive-stream-compression-ratio-exceeds-threshold',
+            'archive-total-expansion-ratio-exceeds-threshold',
+        ],
+        'archiveBombFilename' => 'wordpress-compressed-review.tar',
+        'archiveBombContentSize' => strlen($archiveBombContentBytes),
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -719,6 +748,14 @@ if (in_array('--self-test', $argv, true)) {
         || ($nestedInspection['entries'][2]['candidateReasons'] ?? []) !== ['extension:zip-package', 'signature:zip']
         || ($nestedInspection['entries'][3]['path'] ?? null) !== $expected['nestedBrokenPath']
         || ($nestedInspection['entries'][3]['status'] ?? null) !== 'unreadable'
+        || $archiveBombInspection['kind'] !== $expected['archiveBombKind']
+        || $archiveBombInspection['format'] !== $expected['archiveBombFormat']
+        || $archiveBombInspection['handoffPolicy'] !== $expected['archiveBombPolicy']
+        || $archiveBombInspection['diagnostics'] !== $expected['archiveBombDiagnostics']
+        || ($archiveBombInspection['stream']['members'][0]['filename'] ?? null) !== $expected['archiveBombFilename']
+        || $archiveBombInspection['entryUncompressedSize'] !== $expected['archiveBombContentSize']
+        || $archiveBombInspection['streamCompressionRatio'] <= 4.0
+        || $archiveBombInspection['totalExpansionRatio'] <= 4.0
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -801,3 +838,9 @@ echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";
 echo 'nested.packageCount=' . $nestedInspection['packageCount'] . "\n";
 echo 'nested.diagnosticCount=' . $nestedInspection['diagnosticCount'] . "\n";
 echo 'nested.paths=' . implode(',', array_map(static fn (array $entry): string => $entry['path'], $nestedInspection['entries'])) . "\n";
+echo 'archiveBomb.kind=' . $archiveBombInspection['kind'] . "\n";
+echo 'archiveBomb.format=' . $archiveBombInspection['format'] . "\n";
+echo 'archiveBomb.handoffPolicy=' . $archiveBombInspection['handoffPolicy'] . "\n";
+echo 'archiveBomb.diagnostics=' . implode(',', $archiveBombInspection['diagnostics']) . "\n";
+echo 'archiveBomb.streamRatio=' . number_format($archiveBombInspection['streamCompressionRatio'], 2, '.', '') . "\n";
+echo 'archiveBomb.totalRatio=' . number_format($archiveBombInspection['totalExpansionRatio'], 2, '.', '') . "\n";

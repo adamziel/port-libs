@@ -218,6 +218,103 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     kind:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     decodedPackageSize:int,
+     *     entryUncompressedSize:int,
+     *     entryCount:int,
+     *     streamCompressionRatio:float,
+     *     packageExpansionRatio:float,
+     *     totalExpansionRatio:float,
+     *     maxStreamCompressionRatio:float,
+     *     maxPackageExpansionRatio:float,
+     *     maxTotalExpansionRatio:float,
+     *     diagnosticCount:int,
+     *     diagnostics:list<string>,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectArchiveBombPolicyAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null,
+        float $maxStreamCompressionRatio = 100.0,
+        float $maxPackageExpansionRatio = 100.0,
+        float $maxTotalExpansionRatio = 100.0
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        self::assertPositiveRatio($maxStreamCompressionRatio, 'archive stream compression-ratio threshold');
+        self::assertPositiveRatio($maxPackageExpansionRatio, 'archive package expansion-ratio threshold');
+        self::assertPositiveRatio($maxTotalExpansionRatio, 'archive total expansion-ratio threshold');
+
+        $candidate = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+        $kind = $candidate['kind'];
+        $format = $candidate['format'];
+        $compressedSize = strlen($bytes);
+
+        if ($kind === self::PACKAGE_KIND_TAR) {
+            $archive = $candidate['archive'];
+            if (!$archive instanceof TarArchive) {
+                throw new \RuntimeException('Detected TAR archive candidate is missing archive metadata');
+            }
+
+            $decodedPackageSize = strlen($candidate['tarBytes']);
+            $entryUncompressedSize = self::archiveUnpackedSize($archive);
+            $entryCount = count($archive->names());
+        } else {
+            $package = $candidate['package'];
+            if (!$package instanceof ZipPackage) {
+                throw new \RuntimeException('Detected ZIP package candidate is missing package metadata');
+            }
+
+            $decodedPackageSize = strlen($candidate['zipBytes']);
+            $entryUncompressedSize = self::zipPackageUncompressedSize($package);
+            $entryCount = count($package->names());
+        }
+
+        $streamCompressionRatio = self::expansionRatio($decodedPackageSize, $compressedSize);
+        $packageExpansionRatio = self::expansionRatio($entryUncompressedSize, $decodedPackageSize);
+        $totalExpansionRatio = self::expansionRatio($entryUncompressedSize, $compressedSize);
+        $diagnostics = [];
+        if ($streamCompressionRatio > $maxStreamCompressionRatio) {
+            $diagnostics[] = 'archive-stream-compression-ratio-exceeds-threshold';
+        }
+
+        if ($packageExpansionRatio > $maxPackageExpansionRatio) {
+            $diagnostics[] = 'archive-package-expansion-ratio-exceeds-threshold';
+        }
+
+        if ($totalExpansionRatio > $maxTotalExpansionRatio) {
+            $diagnostics[] = 'archive-total-expansion-ratio-exceeds-threshold';
+        }
+
+        return [
+            'kind' => $kind,
+            'format' => $format,
+            'compressedSize' => $compressedSize,
+            'decodedPackageSize' => $decodedPackageSize,
+            'entryUncompressedSize' => $entryUncompressedSize,
+            'entryCount' => $entryCount,
+            'streamCompressionRatio' => $streamCompressionRatio,
+            'packageExpansionRatio' => $packageExpansionRatio,
+            'totalExpansionRatio' => $totalExpansionRatio,
+            'maxStreamCompressionRatio' => $maxStreamCompressionRatio,
+            'maxPackageExpansionRatio' => $maxPackageExpansionRatio,
+            'maxTotalExpansionRatio' => $maxTotalExpansionRatio,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
      *     format:string,
      *     type:string,
      *     compressedSize:int,
@@ -1035,6 +1132,26 @@ final class ArchiveCompressionStream
         }
 
         return $size;
+    }
+
+    private static function expansionRatio(int $expandedBytes, int $baseBytes): float
+    {
+        if ($expandedBytes === 0) {
+            return 0.0;
+        }
+
+        if ($baseBytes <= 0) {
+            return INF;
+        }
+
+        return $expandedBytes / $baseBytes;
+    }
+
+    private static function assertPositiveRatio(float $value, string $label): void
+    {
+        if (!is_finite($value) || $value <= 0.0) {
+            throw new \RuntimeException("{$label} must be a positive finite number");
+        }
     }
 
     /**

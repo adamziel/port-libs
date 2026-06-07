@@ -2541,6 +2541,108 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectNestedPackageStreamsAuto($upload, null, null, -1));
     },
 
+    'preflights archive expansion ratios before conversion handoff' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"archive-bomb-policy","target":"wordpress"}';
+        $contentTypeBytes = '<Types><Default Extension="md" ContentType="text/markdown"/></Types>';
+        $largeMarkdown = str_repeat('A', 4096);
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $largeMarkdown,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $gzip = GzipStream::build($tarBytes, [
+            'filename' => 'wordpress-compressed-review.tar',
+            'comment' => 'bounded expansion-ratio preflight',
+            'compressionLevel' => 9,
+        ]);
+        $tarPolicy = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($largeMarkdown),
+            4.0,
+            4.0,
+            4.0
+        );
+        $tarDefaultPolicy = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($largeMarkdown)
+        );
+
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypeBytes,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $largeMarkdown,
+            ],
+        ]);
+        $zipBytes = $zipPackage->bytes();
+        $zipPolicy = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
+            $zipBytes,
+            null,
+            null,
+            4.0,
+            4.0,
+            4.0
+        );
+        $zipDefaultPolicy = ArchiveCompressionStream::inspectArchiveBombPolicyAuto($zipBytes);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $tarPolicy['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $tarPolicy['format']);
+        $t->same(strlen($gzip), $tarPolicy['compressedSize']);
+        $t->same(strlen($tarBytes), $tarPolicy['decodedPackageSize']);
+        $t->same(strlen($manifestBytes) + strlen($largeMarkdown), $tarPolicy['entryUncompressedSize']);
+        $t->same(2, $tarPolicy['entryCount']);
+        $t->true($tarPolicy['streamCompressionRatio'] > 4.0);
+        $t->true($tarPolicy['totalExpansionRatio'] > 4.0);
+        $t->true($tarPolicy['packageExpansionRatio'] < 4.0);
+        $t->same([
+            'archive-stream-compression-ratio-exceeds-threshold',
+            'archive-total-expansion-ratio-exceeds-threshold',
+        ], $tarPolicy['diagnostics']);
+        $t->same(2, $tarPolicy['diagnosticCount']);
+        $t->same('review-before-conversion', $tarPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $tarPolicy['extractionPolicy']);
+        $t->same('gzip', $tarPolicy['stream']['type']);
+        $t->same('wordpress-compressed-review.tar', $tarPolicy['stream']['members'][0]['filename']);
+        $t->same('bounded expansion-ratio preflight', $tarPolicy['stream']['members'][0]['comment']);
+        $t->same('within-thresholds', $tarDefaultPolicy['handoffPolicy']);
+        $t->same([], $tarDefaultPolicy['diagnostics']);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zipPolicy['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $zipPolicy['format']);
+        $t->same(strlen($zipBytes), $zipPolicy['compressedSize']);
+        $t->same(strlen($zipBytes), $zipPolicy['decodedPackageSize']);
+        $t->same(strlen($contentTypeBytes) + strlen($largeMarkdown), $zipPolicy['entryUncompressedSize']);
+        $t->same(2, $zipPolicy['entryCount']);
+        $t->same(1.0, $zipPolicy['streamCompressionRatio']);
+        $t->true($zipPolicy['packageExpansionRatio'] > 4.0);
+        $t->true($zipPolicy['totalExpansionRatio'] > 4.0);
+        $t->same([
+            'archive-package-expansion-ratio-exceeds-threshold',
+            'archive-total-expansion-ratio-exceeds-threshold',
+        ], $zipPolicy['diagnostics']);
+        $t->same('review-before-conversion', $zipPolicy['handoffPolicy']);
+        $t->same('plain-zip', $zipPolicy['stream']['type']);
+        $t->same('within-thresholds', $zipDefaultPolicy['handoffPolicy']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($largeMarkdown),
+            0.0
+        ));
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
