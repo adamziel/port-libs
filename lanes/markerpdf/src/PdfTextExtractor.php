@@ -20267,7 +20267,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W', $objects);
+            $widthArray = $this->topLevelPdfLastSingleArrayValueAfterNameResolvingObjects($body, 'W', $objects);
             if ($widthArray !== null) {
                 $hasWidthArray = true;
                 foreach ($this->cidWidthsFromWArray($widthArray, $objects) as $cid => $width) {
@@ -20280,7 +20280,7 @@ final class PdfTextExtractor
                 $defaultWidth = $bodyDefaultWidth;
             }
 
-            $verticalWidthArray = $this->pdfArrayValueAfterNameResolvingObjects($body, 'W2', $objects);
+            $verticalWidthArray = $this->topLevelPdfLastSingleArrayValueAfterNameResolvingObjects($body, 'W2', $objects);
             if ($verticalWidthArray !== null) {
                 $hasVerticalWidthArray = true;
                 foreach ($this->cidVerticalDisplacementsFromW2Array($verticalWidthArray, $objects) as $cid => $displacement) {
@@ -20288,7 +20288,7 @@ final class PdfTextExtractor
                 }
             }
 
-            $verticalDefaultMetrics = $this->pdfArrayValueAfterNameResolvingObjects($body, 'DW2', $objects);
+            $verticalDefaultMetrics = $this->topLevelPdfLastSingleArrayValueAfterNameResolvingObjects($body, 'DW2', $objects);
             if ($verticalDefaultMetrics !== null) {
                 $metrics = $this->numbersFromPdfArrayResolvingObjects($verticalDefaultMetrics, $objects);
                 if (count($metrics) >= 2) {
@@ -21507,7 +21507,7 @@ final class PdfTextExtractor
                 break;
             }
 
-            $widthList = $this->pdfArrayFromValue($next, $objects);
+            $widthList = $this->pdfSingleArrayFromValue($next, $objects);
             if ($widthList !== null) {
                 if ($firstCid < 0 || $firstCid > 0xffff) {
                     $index++;
@@ -21605,7 +21605,7 @@ final class PdfTextExtractor
                 break;
             }
 
-            $metricsList = $this->pdfArrayFromValue($next, $objects);
+            $metricsList = $this->pdfSingleArrayFromValue($next, $objects);
             if ($metricsList !== null) {
                 if ($firstCid < 0 || $firstCid > 0xffff) {
                     $index++;
