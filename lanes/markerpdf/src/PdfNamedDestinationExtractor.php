@@ -79,11 +79,12 @@ final class PdfNamedDestinationExtractor
         }
 
         $cache = [];
-        $catalog = $this->catalogDictionary($pdfBytes, $objects, $cache);
-        if ($catalog === null) {
+        $catalogDetails = $this->catalogDictionaryDetails($pdfBytes, $objects, $cache);
+        if ($catalogDetails === null) {
             return [];
         }
 
+        $catalog = $catalogDetails['dictionary'];
         $pageIndexes = $this->pageIndexesByObjectId($objects, $cache, $catalog);
         $destinations = [];
         $seenNames = [];
@@ -95,7 +96,7 @@ final class PdfNamedDestinationExtractor
         if (
             $this->isDictionary($namesDictionary)
             && array_key_exists('Dests', $namesDictionary)
-            && !$this->valueDictionaryHasDuplicateKeys($namesValue, $objects, ['Dests'])
+            && !$this->catalogNamesDictionaryHasDuplicateDests($catalogDetails['body'], $namesValue, $objects)
         ) {
             foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache) as $entry) {
                 $nameTreeEntries[] = $entry;
@@ -871,23 +872,35 @@ final class PdfNamedDestinationExtractor
     /**
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @return array<string, mixed>|null
+     * @return array{dictionary: array<string, mixed>, body: string, object_id: int, generation: int}|null
      */
-    private function catalogDictionary(string $pdfBytes, array $objects, array &$cache): ?array
+    private function catalogDictionaryDetails(string $pdfBytes, array $objects, array &$cache): ?array
     {
         $rootRef = $this->currentTrailerRootRef($pdfBytes);
         $rootObjectId = $this->validRefObjectId($rootRef, $objects);
         if ($rootObjectId !== null) {
-            $dictionary = $this->objectDictionary($rootObjectId, $objects, $cache, $this->refGeneration($rootRef));
+            $generation = $this->refGeneration($rootRef);
+            $dictionary = $this->objectDictionary($rootObjectId, $objects, $cache, $generation);
+            $body = $this->objectBody($rootObjectId, $objects, $generation);
             if ($dictionary !== null && $this->nameValue($dictionary['Type'] ?? null) === 'Catalog') {
-                return $dictionary;
+                return [
+                    'dictionary' => $dictionary,
+                    'body' => $body ?? '',
+                    'object_id' => $rootObjectId,
+                    'generation' => $generation,
+                ];
             }
         }
 
         foreach (array_keys($objects) as $objectId) {
             $dictionary = $this->objectDictionary($objectId, $objects, $cache);
             if ($dictionary !== null && $this->nameValue($dictionary['Type'] ?? null) === 'Catalog') {
-                return $dictionary;
+                return [
+                    'dictionary' => $dictionary,
+                    'body' => $this->objectBody($objectId, $objects) ?? '',
+                    'object_id' => $objectId,
+                    'generation' => $objects[$objectId]['generation'],
+                ];
             }
         }
 
@@ -2199,6 +2212,69 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function catalogNamesDictionaryHasDuplicateDests(string $catalogBody, mixed $namesValue, array $objects): bool
+    {
+        if ($this->valueDictionaryHasDuplicateKeys($namesValue, $objects, ['Dests'])) {
+            return true;
+        }
+
+        if (!$this->isDictionary($namesValue)) {
+            return false;
+        }
+
+        $rawNamesDictionary = $this->dictionaryTopLevelRawValue($catalogBody, 'Names');
+
+        return $rawNamesDictionary !== null
+            && $this->dictionaryBodyHasDuplicateKeys($rawNamesDictionary, ['Dests']);
+    }
+
+    private function dictionaryTopLevelRawValue(string $body, string $targetKey): ?string
+    {
+        $tokens = $this->tokens($body);
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            if (($tokens[$index]['type'] ?? null) !== 'dict-start') {
+                continue;
+            }
+
+            $index++;
+            $rawValue = null;
+            while (isset($tokens[$index]) && ($tokens[$index]['type'] ?? null) !== 'dict-end') {
+                $key = $tokens[$index];
+                $index++;
+                if (($key['type'] ?? null) !== 'name') {
+                    continue;
+                }
+
+                $name = (string) $key['value'];
+                $valueStartIndex = $index;
+                $valueEndIndex = $index;
+                $this->parseValue($tokens, $valueEndIndex);
+                if ($valueEndIndex === $valueStartIndex) {
+                    $index++;
+                    continue;
+                }
+
+                if (
+                    $name === $targetKey
+                    && isset($tokens[$valueStartIndex]['start'], $tokens[$valueEndIndex - 1]['end'])
+                ) {
+                    $start = (int) $tokens[$valueStartIndex]['start'];
+                    $end = (int) $tokens[$valueEndIndex - 1]['end'];
+                    $rawValue = substr($body, $start, max(0, $end - $start));
+                }
+
+                $index = $valueEndIndex;
+            }
+
+            return $rawValue;
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<string> $keys
      */
     private function dictionaryBodyHasDuplicateKeys(string $body, array $keys): bool
@@ -2280,53 +2356,72 @@ final class PdfNamedDestinationExtractor
                 continue;
             }
             if (substr($source, $offset, 2) === '<<') {
-                $tokens[] = ['type' => 'dict-start'];
+                $tokens[] = ['type' => 'dict-start', 'start' => $offset, 'end' => $offset + 2];
                 $offset += 2;
                 continue;
             }
             if (substr($source, $offset, 2) === '>>') {
-                $tokens[] = ['type' => 'dict-end'];
+                $tokens[] = ['type' => 'dict-end', 'start' => $offset, 'end' => $offset + 2];
                 $offset += 2;
                 continue;
             }
             if ($char === '[') {
-                $tokens[] = ['type' => 'array-start'];
+                $tokens[] = ['type' => 'array-start', 'start' => $offset, 'end' => $offset + 1];
                 $offset++;
                 continue;
             }
             if ($char === ']') {
-                $tokens[] = ['type' => 'array-end'];
+                $tokens[] = ['type' => 'array-end', 'start' => $offset, 'end' => $offset + 1];
                 $offset++;
                 continue;
             }
             if ($char === '/') {
+                $start = $offset;
                 [$name, $offset] = $this->readName($source, $offset + 1);
-                $tokens[] = ['type' => 'name', 'value' => $this->decodePdfName($name)];
+                $tokens[] = ['type' => 'name', 'value' => $this->decodePdfName($name), 'start' => $start, 'end' => $offset];
                 continue;
             }
             if ($char === '(') {
+                $start = $offset;
                 [$string, $offset] = $this->readLiteralString($source, $offset + 1);
-                $tokens[] = ['type' => 'string', 'value' => $this->decodeTextString($string), 'bytes' => $string];
+                $tokens[] = [
+                    'type' => 'string',
+                    'value' => $this->decodeTextString($string),
+                    'bytes' => $string,
+                    'start' => $start,
+                    'end' => $offset,
+                ];
                 continue;
             }
             if ($char === '<') {
+                $start = $offset;
                 [$string, $offset] = $this->readHexString($source, $offset + 1);
-                $tokens[] = ['type' => 'string', 'value' => $this->decodeTextString($string), 'bytes' => $string];
+                $tokens[] = [
+                    'type' => 'string',
+                    'value' => $this->decodeTextString($string),
+                    'bytes' => $string,
+                    'start' => $start,
+                    'end' => $offset,
+                ];
                 continue;
             }
             if (preg_match('/[+-]?(?:\d+\.\d*|\.\d+|\d+)/A', substr($source, $offset), $match) === 1) {
+                $start = $offset;
                 $raw = $match[0];
                 $tokens[] = [
                     'type' => 'number',
                     'value' => str_contains($raw, '.') ? (float) $raw : (int) $raw,
+                    'start' => $start,
+                    'end' => $offset + strlen($raw),
                 ];
                 $offset += strlen($raw);
                 continue;
             }
 
+            $start = $offset;
             [$word, $offset] = $this->readKeyword($source, $offset);
             if ($word !== '') {
-                $tokens[] = ['type' => 'keyword', 'value' => $word];
+                $tokens[] = ['type' => 'keyword', 'value' => $word, 'start' => $start, 'end' => $offset];
                 continue;
             }
 
