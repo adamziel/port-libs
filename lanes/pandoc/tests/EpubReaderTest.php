@@ -796,6 +796,51 @@ XML;
         $t->same($result['spine'][0]['spineItemProperties'], $result['document']->children[0]->attr('spineItemProperties'));
         $t->same('center', $result['document']->children[1]->attr('pageSpread'));
     },
+    'reports OPF spine rendition flow and alignment itemref properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithRenditionProperties = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref idref="chapter-1" properties="rendition:flow-paginated rendition:align-x-center"/>',
+            $opfXml
+        );
+        $opfWithRenditionProperties = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="chapter-2" linear="no" properties="rendition:flow-scrolled-continuous rendition:flow-scrolled-doc"/>',
+            $opfWithRenditionProperties
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithRenditionProperties));
+        $spineProperties = $result['spineProperties'];
+
+        $first = $result['spine'][0];
+        $t->same('paginated', $first['flow']);
+        $t->same(['rendition:flow-paginated'], $first['flowProperties']);
+        $t->same('paginated', $first['spineItemProperties']['flow']['value']);
+        $t->same(false, $first['spineItemProperties']['flow']['conflicting']);
+        $t->same('center', $first['alignX']);
+        $t->same(['rendition:align-x-center'], $first['alignXProperties']);
+        $t->same('center', $first['spineItemProperties']['alignX']['value']);
+        $t->same([], $first['spineItemDiagnostics']);
+
+        $second = $result['spine'][1];
+        $t->same('scrolled-continuous', $second['flow']);
+        $t->same(['rendition:flow-scrolled-continuous', 'rendition:flow-scrolled-doc'], $second['flowProperties']);
+        $t->same(true, $second['spineItemProperties']['flow']['conflicting']);
+        $t->same(['scrolled-continuous', 'scrolled-doc'], $second['spineItemProperties']['flow']['values']);
+        $t->same('conflicting-spine-flow-properties', $second['spineItemDiagnostics'][0]['type']);
+        $t->same(['rendition:flow-scrolled-continuous', 'rendition:flow-scrolled-doc'], $second['spineItemDiagnostics'][0]['properties']);
+
+        $t->same(1, count($spineProperties['itemDiagnostics']));
+        $t->same('conflicting-spine-flow-properties', $spineProperties['itemDiagnostics'][0]['type']);
+        $t->same(1, $spineProperties['itemDiagnostics'][0]['index']);
+        $t->same('chapter-2', $spineProperties['itemDiagnostics'][0]['idref']);
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+
+        $t->same('paginated', $result['document']->children[0]->attr('flow'));
+        $t->same('center', $result['document']->children[0]->attr('alignX'));
+        $t->same($first['spineItemProperties'], $result['document']->children[0]->attr('spineItemProperties'));
+        $t->same('scrolled-continuous', $result['document']->children[1]->attr('flow'));
+        $t->same($second['spineItemDiagnostics'], $result['document']->children[1]->attr('spineItemDiagnostics'));
+    },
     'reports invalid OPF spine progression and conflicting spread diagnostics' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithInvalidSpineProperties = str_replace(
             '<spine toc="toc">',

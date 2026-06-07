@@ -4650,6 +4650,10 @@ final class EpubReader
                 'spineItemDiagnostics' => $itemDiagnostics,
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
                 'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
+                'flow' => $itemProperties['flow']['value'],
+                'flowProperties' => $itemProperties['flow']['properties'],
+                'alignX' => $itemProperties['alignX']['value'],
+                'alignXProperties' => $itemProperties['alignX']['properties'],
                 'mediaOverlay' => $manifestItem['mediaOverlay'],
                 'mediaOverlayReference' => $manifestItem['mediaOverlayReference'] ?? null,
                 'mediaOverlayDiagnostics' => $manifestItem['mediaOverlayDiagnostics'] ?? [],
@@ -4789,12 +4793,16 @@ final class EpubReader
     /**
      * @param list<string> $properties
      *
-     * @return array{pageSpread:array<string, mixed>, diagnostics:list<array<string, mixed>>}
+     * @return array{pageSpread:array<string, mixed>, flow:array<string, mixed>, alignX:array<string, mixed>, diagnostics:list<array<string, mixed>>}
      */
     private static function spineItemPropertyReport(array $properties): array
     {
         $matches = [];
         $placements = [];
+        $flowMatches = [];
+        $flowValues = [];
+        $alignXMatches = [];
+        $alignXValues = [];
         foreach ($properties as $property) {
             $placement = match ($property) {
                 'page-spread-left', 'rendition:page-spread-left' => 'left',
@@ -4803,15 +4811,42 @@ final class EpubReader
                 default => null,
             };
 
-            if ($placement === null) {
-                continue;
+            if ($placement !== null) {
+                $matches[] = [
+                    'property' => $property,
+                    'placement' => $placement,
+                ];
+                $placements[$placement] = true;
             }
 
-            $matches[] = [
-                'property' => $property,
-                'placement' => $placement,
-            ];
-            $placements[$placement] = true;
+            $flow = match ($property) {
+                'rendition:flow-auto' => 'auto',
+                'rendition:flow-paginated' => 'paginated',
+                'rendition:flow-scrolled-continuous' => 'scrolled-continuous',
+                'rendition:flow-scrolled-doc' => 'scrolled-doc',
+                default => null,
+            };
+
+            if ($flow !== null) {
+                $flowMatches[] = [
+                    'property' => $property,
+                    'value' => $flow,
+                ];
+                $flowValues[$flow] = true;
+            }
+
+            $alignX = match ($property) {
+                'rendition:align-x-center' => 'center',
+                default => null,
+            };
+
+            if ($alignX !== null) {
+                $alignXMatches[] = [
+                    'property' => $property,
+                    'value' => $alignX,
+                ];
+                $alignXValues[$alignX] = true;
+            }
         }
 
         $spreadProperties = array_map(
@@ -4820,6 +4855,18 @@ final class EpubReader
         );
         $spreadPlacements = array_keys($placements);
         $conflicting = count($spreadPlacements) > 1;
+        $flowProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $flowMatches
+        );
+        $flowValuesList = array_keys($flowValues);
+        $flowConflicting = count($flowValuesList) > 1;
+        $alignXProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $alignXMatches
+        );
+        $alignXValuesList = array_keys($alignXValues);
+        $alignXConflicting = count($alignXValuesList) > 1;
         $diagnostics = [];
 
         if ($conflicting) {
@@ -4831,12 +4878,44 @@ final class EpubReader
             ];
         }
 
+        if ($flowConflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-flow-properties',
+                'properties' => $flowProperties,
+                'values' => $flowValuesList,
+                'message' => 'EPUB spine itemref declares more than one rendition flow value',
+            ];
+        }
+
+        if ($alignXConflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-align-x-properties',
+                'properties' => $alignXProperties,
+                'values' => $alignXValuesList,
+                'message' => 'EPUB spine itemref declares more than one rendition horizontal alignment value',
+            ];
+        }
+
         return [
             'pageSpread' => [
                 'placement' => $matches[0]['placement'] ?? null,
                 'properties' => $spreadProperties,
                 'matches' => $matches,
                 'conflicting' => $conflicting,
+            ],
+            'flow' => [
+                'value' => $flowMatches[0]['value'] ?? null,
+                'properties' => $flowProperties,
+                'matches' => $flowMatches,
+                'values' => $flowValuesList,
+                'conflicting' => $flowConflicting,
+            ],
+            'alignX' => [
+                'value' => $alignXMatches[0]['value'] ?? null,
+                'properties' => $alignXProperties,
+                'matches' => $alignXMatches,
+                'values' => $alignXValuesList,
+                'conflicting' => $alignXConflicting,
             ],
             'diagnostics' => $diagnostics,
         ];
@@ -9356,6 +9435,10 @@ final class EpubReader
                 'pageProgressionDirection' => $spineProperties['pageProgressionDirection'] ?? 'default',
                 'pageSpread' => $item['pageSpread'] ?? null,
                 'pageSpreadProperties' => $item['pageSpreadProperties'] ?? [],
+                'flow' => $item['flow'] ?? null,
+                'flowProperties' => $item['flowProperties'] ?? [],
+                'alignX' => $item['alignX'] ?? null,
+                'alignXProperties' => $item['alignXProperties'] ?? [],
                 'spineItemProperties' => $item['spineItemProperties'] ?? [],
                 'spineItemDiagnostics' => $item['spineItemDiagnostics'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],

@@ -102,7 +102,7 @@ $opfXml = <<<'XML'
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
   <spine id="source-spine" toc="toc" page-progression-direction="rtl">
-    <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right"/>
+    <itemref id="chapter-spine" idref="chapter" linear="maybe" properties="rendition:page-spread-right page-spread-right rendition:flow-paginated rendition:align-x-center"/>
     <itemref idref="slideshow" linear="no" properties="page-spread-left"/>
     <itemref idref="bound-tour" linear="no"/>
   </spine>
@@ -488,8 +488,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['spine'][0]['pageSpread'] ?? null) !== 'right' || ($result['spine'][1]['pageSpread'] ?? null) !== 'left') {
         throw new RuntimeException('Expected EPUB spine itemrefs to preserve package-declared page-spread placement');
     }
+    if (($result['spine'][0]['flow'] ?? null) !== 'paginated' || ($result['spine'][0]['alignX'] ?? null) !== 'center') {
+        throw new RuntimeException('Expected EPUB spine itemrefs to preserve package-declared rendition flow and align-x metadata');
+    }
+    if (($result['spine'][0]['spineItemProperties']['flow']['value'] ?? null) !== 'paginated') {
+        throw new RuntimeException('Expected EPUB spine item property report to expose rendition flow metadata');
+    }
     if (($result['document']->children[0]->attr('pageProgressionDirection') ?? null) !== 'rtl' || ($result['document']->children[0]->attr('pageSpread') ?? null) !== 'right') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB reading-order metadata');
+    }
+    if (($result['document']->children[0]->attr('flow') ?? null) !== 'paginated' || ($result['document']->children[0]->attr('alignX') ?? null) !== 'center') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB rendition flow and align-x metadata');
     }
     if (($result['spine'][0]['linearRaw'] ?? null) !== 'maybe' || ($result['spine'][0]['linearValid'] ?? null) !== false) {
         throw new RuntimeException('Expected invalid EPUB spine linear value to remain visible for review');
