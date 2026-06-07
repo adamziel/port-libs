@@ -4369,6 +4369,10 @@ final class PdfMetadataExtractor
             $metadata[$key] = $value;
         }
 
+        foreach ($this->documentOutlineRootTraversalDuplicateKeySummary($outlineRoot['body']) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         foreach ($this->documentOutlineDuplicateKeySummary($items) as $key => $value) {
             $metadata[$key] = $value;
         }
@@ -4641,6 +4645,53 @@ final class PdfMetadataExtractor
             'duplicate_outline_root_review_only' => true,
             'duplicate_outline_root_payload_included' => false,
             'outline_root_duplicate_key_review' => $review,
+        ];
+    }
+
+    /**
+     * Selected outline roots can contain duplicate traversal keys. Keep the
+     * last top-level selection behavior stable while exposing the boundary as
+     * payload-free review metadata.
+     *
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootTraversalDuplicateKeySummary(string $dictionary): array
+    {
+        $duplicateKeys = [];
+        $declaredEntryCounts = [];
+        $selectedEntryIndexes = [];
+
+        foreach (['First', 'Last', 'Count'] as $key) {
+            $values = $this->dictionaryTopLevelRawValues($dictionary, $key);
+            $count = count($values);
+            if ($count < 2) {
+                continue;
+            }
+
+            $duplicateKeys[] = $key;
+            $declaredEntryCounts[$key] = $count;
+            $selectedEntryIndexes[$key] = array_key_last($values);
+        }
+
+        if ($duplicateKeys === []) {
+            return [];
+        }
+
+        return [
+            'duplicate_outline_root_traversal_key_count' => count($duplicateKeys),
+            'duplicate_outline_root_traversal_keys' => $duplicateKeys,
+            'duplicate_outline_root_traversal_key_review_only' => true,
+            'duplicate_outline_root_traversal_key_payload_included' => false,
+            'outline_root_traversal_duplicate_key_review' => [
+                'source' => 'outline_root_traversal_duplicate_keys',
+                'review_only' => true,
+                'payload_included' => false,
+                'visible_text_source' => false,
+                'selected_entry_policy' => 'last_top_level_entry',
+                'keys' => $duplicateKeys,
+                'declared_entry_counts' => $declaredEntryCounts,
+                'selected_entry_indexes' => $selectedEntryIndexes,
+            ],
         ];
     }
 
@@ -5384,7 +5435,7 @@ final class PdfMetadataExtractor
             'object_number' => $objectNumber,
             'object_generation' => $reference['generation'],
         ];
-        $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
+        $objectBody = $this->selectedObjectBodyFromReferenceValue($value, $objects);
         if ($objectBody === null) {
             return $base + $referenceReview + [
                 'status' => 'unresolved_metadata_reference',
@@ -18284,6 +18335,33 @@ final class PdfMetadataExtractor
         }
 
         return $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+    }
+
+    /**
+     * Outline-local metadata streams are review payloads, not graph-repair
+     * targets. Resolve only the currently selected object generation.
+     *
+     * @param array<int, string> $objects
+     */
+    private function selectedObjectBodyFromReferenceValue(string $value, array $objects): ?string
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        if ($objectNumber <= 0 || $generation < 0 || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+        if ($owner !== null && $objects[$objectNumber] === $owner['body']) {
+            return $owner['generation'] === $generation ? $owner['body'] : null;
+        }
+
+        return $generation === 0 ? $objects[$objectNumber] : null;
     }
 
     /**
