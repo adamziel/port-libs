@@ -3372,9 +3372,15 @@ final class PdfOutlineExtractor
     {
         $rawDestinations = [];
 
-        $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null, $objects);
+        $legacyDestsValue = $this->resolveValue($catalog['Dests'] ?? null, $objects);
+        $legacyDuplicateNames = $this->dictionaryDuplicateKeySet($legacyDestsValue);
+        $legacyDests = $this->dictionaryItems($legacyDestsValue);
         if ($legacyDests !== null) {
             foreach ($legacyDests as $name => $destination) {
+                if (isset($legacyDuplicateNames[$name])) {
+                    continue;
+                }
+
                 $rawDestinations[$name] = $destination;
             }
         }
@@ -3408,9 +3414,15 @@ final class PdfOutlineExtractor
     {
         $destinations = [];
 
-        $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null, $objects);
+        $legacyDestsValue = $this->resolveValue($catalog['Dests'] ?? null, $objects);
+        $legacyDuplicateNames = $this->dictionaryDuplicateKeySet($legacyDestsValue);
+        $legacyDests = $this->dictionaryItems($legacyDestsValue);
         if ($legacyDests !== null) {
             foreach ($legacyDests as $name => $destination) {
+                if (isset($legacyDuplicateNames[$name])) {
+                    continue;
+                }
+
                 if ($this->destinationActionValueAllowedForMap($destination, $objects)) {
                     $destinations[$name] = $destination;
                 }
@@ -6192,6 +6204,8 @@ final class PdfOutlineExtractor
         if ($token === '<<') {
             $index++;
             $items = [];
+            $entryCounts = [];
+            $selectedEntryIndexes = [];
             while (($tokens[$index] ?? null) !== null && $tokens[$index] !== '>>') {
                 $key = $tokens[$index] ?? '';
                 $index++;
@@ -6199,13 +6213,43 @@ final class PdfOutlineExtractor
                     continue;
                 }
 
-                $items[$this->decodePdfName(substr($key, 1))] = $this->parseValue($tokens, $index);
+                $decodedKey = $this->decodePdfName(substr($key, 1));
+                $entryIndex = $entryCounts[$decodedKey] ?? 0;
+                $entryCounts[$decodedKey] = $entryIndex + 1;
+                $selectedEntryIndexes[$decodedKey] = $entryIndex;
+                $items[$decodedKey] = $this->parseValue($tokens, $index);
             }
             if (($tokens[$index] ?? null) === '>>') {
                 $index++;
             }
 
-            return ['pdfType' => 'dict', 'items' => $items];
+            $dictionary = ['pdfType' => 'dict', 'items' => $items];
+            $duplicateKeys = [];
+            $duplicateEntryCounts = [];
+            $duplicateSelectedEntryIndexes = [];
+            foreach ($entryCounts as $key => $count) {
+                if ($count <= 1) {
+                    continue;
+                }
+
+                $duplicateKeys[] = $key;
+                $duplicateEntryCounts[$key] = $count;
+                $duplicateSelectedEntryIndexes[$key] = $selectedEntryIndexes[$key];
+            }
+            if ($duplicateKeys !== []) {
+                $dictionary['duplicateKeyReview'] = [
+                    'source' => 'dictionary_duplicate_keys',
+                    'review_only' => true,
+                    'payload_included' => false,
+                    'visible_text_source' => false,
+                    'selected_entry_policy' => 'last_top_level_entry',
+                    'keys' => $duplicateKeys,
+                    'declared_entry_counts' => $duplicateEntryCounts,
+                    'selected_entry_indexes' => $duplicateSelectedEntryIndexes,
+                ];
+            }
+
+            return $dictionary;
         }
 
         if ($token === '[') {
@@ -6364,6 +6408,30 @@ final class PdfOutlineExtractor
         return is_array($value) && ($value['pdfType'] ?? null) === 'dict' && is_array($value['items'] ?? null)
             ? $value['items']
             : null;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function dictionaryDuplicateKeySet(mixed $value): array
+    {
+        if (
+            !is_array($value)
+            || ($value['pdfType'] ?? null) !== 'dict'
+            || !is_array($value['duplicateKeyReview'] ?? null)
+            || !is_array($value['duplicateKeyReview']['keys'] ?? null)
+        ) {
+            return [];
+        }
+
+        $keys = [];
+        foreach ($value['duplicateKeyReview']['keys'] as $key) {
+            if (is_string($key)) {
+                $keys[$key] = true;
+            }
+        }
+
+        return $keys;
     }
 
     /**

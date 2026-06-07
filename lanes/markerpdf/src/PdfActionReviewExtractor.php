@@ -2309,23 +2309,38 @@ final class PdfActionReviewExtractor
      */
     private function resolvedDictionaryHasDuplicateKeys(mixed $value, array $keys): bool
     {
-        $resolved = $this->resolveValue($value);
+        $duplicateKeys = $this->dictionaryDuplicateKeySet($this->resolveValue($value));
+        foreach ($keys as $key) {
+            if (isset($duplicateKeys[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function dictionaryDuplicateKeySet(mixed $resolved): array
+    {
         if (
             !is_array($resolved)
             || ($resolved['pdfType'] ?? null) !== 'dict'
             || !is_array($resolved['duplicateKeyReview'] ?? null)
             || !is_array($resolved['duplicateKeyReview']['keys'] ?? null)
         ) {
-            return false;
+            return [];
         }
 
-        foreach ($keys as $key) {
-            if (in_array($key, $resolved['duplicateKeyReview']['keys'], true)) {
-                return true;
+        $keys = [];
+        foreach ($resolved['duplicateKeyReview']['keys'] as $key) {
+            if (is_string($key)) {
+                $keys[$key] = true;
             }
         }
 
-        return false;
+        return $keys;
     }
 
     /**
@@ -2436,9 +2451,15 @@ final class PdfActionReviewExtractor
     {
         $destinations = [];
 
-        $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null);
+        $legacyDestsValue = $this->resolveValue($catalog['Dests'] ?? null);
+        $legacyDuplicateNames = $this->dictionaryDuplicateKeySet($legacyDestsValue);
+        $legacyDests = $this->dictionaryItems($legacyDestsValue);
         if ($legacyDests !== null) {
             foreach ($legacyDests as $name => $destination) {
+                if (isset($legacyDuplicateNames[$name])) {
+                    continue;
+                }
+
                 if ($this->destinationValueAllowedForMap($destination)) {
                     $destinations[$name] = $destination;
                 }

@@ -103,9 +103,15 @@ final class PdfNamedDestinationExtractor
             }
         }
 
-        $legacyDests = $this->resolve($catalog['Dests'] ?? null, $objects, $cache);
+        $legacyDestsValue = $catalog['Dests'] ?? null;
+        $legacyDuplicateNames = $this->legacyDestsDuplicateNames($catalogDetails['body'], $legacyDestsValue, $objects);
+        $legacyDests = $this->resolve($legacyDestsValue, $objects, $cache);
         if ($this->isDictionary($legacyDests)) {
             foreach ($legacyDests as $name => $value) {
+                if (isset($legacyDuplicateNames[(string) $name])) {
+                    continue;
+                }
+
                 $legacyDestinationValues[(string) $name] = $value;
             }
         }
@@ -2230,6 +2236,28 @@ final class PdfNamedDestinationExtractor
             && $this->dictionaryBodyHasDuplicateKeys($rawNamesDictionary, ['Dests']);
     }
 
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @return array<string, true>
+     */
+    private function legacyDestsDuplicateNames(string $catalogBody, mixed $destsValue, array $objects): array
+    {
+        $objectId = $this->validRefObjectId($destsValue, $objects);
+        if ($objectId !== null) {
+            $body = $this->objectBody($objectId, $objects, $this->refGeneration($destsValue));
+
+            return $body === null ? [] : $this->dictionaryBodyDuplicateKeys($body);
+        }
+
+        if (!$this->isDictionary($destsValue)) {
+            return [];
+        }
+
+        $rawDestsDictionary = $this->dictionaryTopLevelRawValue($catalogBody, 'Dests');
+
+        return $rawDestsDictionary === null ? [] : $this->dictionaryBodyDuplicateKeys($rawDestsDictionary);
+    }
+
     private function dictionaryTopLevelRawValue(string $body, string $targetKey): ?string
     {
         $tokens = $this->tokens($body);
@@ -2279,6 +2307,21 @@ final class PdfNamedDestinationExtractor
      */
     private function dictionaryBodyHasDuplicateKeys(string $body, array $keys): bool
     {
+        $duplicateKeys = $this->dictionaryBodyDuplicateKeys($body);
+        foreach ($keys as $key) {
+            if (isset($duplicateKeys[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function dictionaryBodyDuplicateKeys(string $body): array
+    {
         $tokens = $this->tokens($body);
         for ($index = 0, $count = count($tokens); $index < $count; $index++) {
             if (($tokens[$index]['type'] ?? null) !== 'dict-start') {
@@ -2303,16 +2346,17 @@ final class PdfNamedDestinationExtractor
                 }
             }
 
-            foreach ($keys as $key) {
-                if (($counts[$key] ?? 0) > 1) {
-                    return true;
+            $duplicates = [];
+            foreach ($counts as $key => $count) {
+                if ($count > 1) {
+                    $duplicates[$key] = true;
                 }
             }
 
-            return false;
+            return $duplicates;
         }
 
-        return false;
+        return [];
     }
 
     private function isRefValue(mixed $value): bool

@@ -4188,7 +4188,12 @@ final class PdfMetadataExtractor
 
         $legacyDests = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Dests'), $objects);
         if ($legacyDests !== null) {
+            $legacyDuplicateNames = $this->dictionaryTopLevelDuplicateKeys($legacyDests['body']);
             foreach ($this->dictionaryTopLevelEntries($legacyDests['body']) as $name => $value) {
+                if (isset($legacyDuplicateNames[$name])) {
+                    continue;
+                }
+
                 $entries[] = [
                     'name' => $name,
                     'value' => $value,
@@ -4886,7 +4891,12 @@ final class PdfMetadataExtractor
 
         $legacyDests = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Dests'), $objects);
         if ($legacyDests !== null) {
+            $legacyDuplicateNames = $this->dictionaryTopLevelDuplicateKeys($legacyDests['body']);
             foreach ($this->dictionaryTopLevelEntries($legacyDests['body']) as $name => $value) {
+                if (isset($legacyDuplicateNames[$name])) {
+                    continue;
+                }
+
                 $entries[] = [
                     'name' => $name,
                     'value' => $value,
@@ -18867,13 +18877,60 @@ final class PdfMetadataExtractor
      */
     private function dictionaryTopLevelHasDuplicateKeys(string $dictionary, array $keys): bool
     {
+        $duplicateKeys = $this->dictionaryTopLevelDuplicateKeys($dictionary);
         foreach ($keys as $key) {
-            if (count($this->dictionaryTopLevelRawValues($dictionary, $key)) > 1) {
+            if (isset($duplicateKeys[$key])) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function dictionaryTopLevelDuplicateKeys(string $dictionary): array
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $counts = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $key = $this->decodePdfName($match[1]);
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+            $offset = $valueOffset + strlen($value);
+        }
+
+        $duplicates = [];
+        foreach ($counts as $key => $count) {
+            if ($count > 1) {
+                $duplicates[$key] = true;
+            }
+        }
+
+        return $duplicates;
     }
 
     /**
