@@ -153,6 +153,9 @@ return [
         $t->same('scss', SyntaxHighlighter::normalizeLanguage('scss'));
         $t->same('scss', SyntaxHighlighter::normalizeLanguage('language-scss'));
         $t->same('sass', SyntaxHighlighter::normalizeLanguage('sass'));
+        $t->same('less', SyntaxHighlighter::normalizeLanguage('less'));
+        $t->same('less', SyntaxHighlighter::normalizeLanguage('less-css'));
+        $t->same('less', SyntaxHighlighter::normalizeLanguage('language-lesscss'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('bash'));
@@ -1419,6 +1422,50 @@ return [
         $t->contains('<span class="ot">limit</span><span class="op">:</span> <span class="dv">+10</span>', $directJson5['html']);
         $t->contains('<span class="ot">ratio</span><span class="op">:</span> <span class="dv">.5</span>', $directJson5['html']);
         $t->contains('<span class="ot">value</span><span class="op">:</span> <span class="cn">NaN</span>', $directJson5['html']);
+    },
+    'highlights less block theme snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[52] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a LESS code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directLess = $highlighter->highlight('@width: 10px; .card { width: @width * 2; }', 'less-css');
+
+        $t->same('less', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('less', SyntaxHighlighter::normalizeLanguage('less'));
+        $t->same('less', SyntaxHighlighter::normalizeLanguage('less-css'));
+        $t->same('less', SyntaxHighlighter::normalizeLanguage('language-lesscss'));
+        $t->same('less', $highlighted['language']);
+        $t->same('less', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(680, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource less numberLines"><code class="sourceCode less" style="counter-reset: source-line 679;">', $highlighted['html']);
+        $t->contains('<span id="less-review-680"><a href="#less-review-680"></a><span class="co">// WordPress block theme LESS review</span></span>', $highlighted['html']);
+        $t->contains('<span class="va">@accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">@spacing</span><span class="op">:</span> <span class="dv">1.5rem</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.import-card</span><span class="op">(</span><span class="va">@selector</span><span class="op">,</span> <span class="va">@state</span><span class="op">:</span> hover<span class="op">)</span> <span class="kw">when</span>', $highlighted['html']);
+        $t->contains('<span class="va">@{selector}</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">--accent-color</span><span class="op">:</span> <span class="va">@accent-color</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">margin-block</span><span class="op">:</span> <span class="va">@spacing</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">color</span><span class="op">:</span> <span class="fu">darken</span><span class="op">(</span><span class="va">@accent-color</span><span class="op">,</span> <span class="dv">10%</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="op">&amp;</span><span class="fu">:hover</span> <span class="op">{</span> <span class="ot">color</span><span class="op">:</span> <span class="fu">lighten</span><span class="op">(</span><span class="va">@accent-color</span><span class="op">,</span> <span class="dv">8%</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@media</span> <span class="op">(</span><span class="ot">min-width</span><span class="op">:</span> <span class="dv">48rem</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="fu">lighten</span><span class="op">(</span><span class="va">@accent-color</span>', $wordpressBlock);
+        $t->same('less', $directLess['language']);
+        $t->same('less-css', $directLess['requestedLanguage']);
+        $t->contains('<span class="va">@width</span><span class="op">:</span> <span class="dv">10px</span>', $directLess['html']);
+        $t->contains('<span class="dt">.card</span> <span class="op">{</span> <span class="ot">width</span><span class="op">:</span> <span class="va">@width</span> <span class="op">*</span> <span class="dv">2</span><span class="op">;</span>', $directLess['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

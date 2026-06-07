@@ -122,6 +122,9 @@ final class SyntaxHighlighter
         'latex' => 'tex',
         'lhs' => 'haskell',
         'html-liquid' => 'liquid',
+        'less' => 'less',
+        'less-css' => 'less',
+        'lesscss' => 'less',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
         'liquid' => 'liquid',
@@ -664,6 +667,7 @@ final class SyntaxHighlighter
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
             'jsonc' => $this->tokenizeJsonWithComments($code),
+            'less' => $this->tokenizeLess($code),
             'liquid' => $this->tokenizeLiquid($code),
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
@@ -2326,6 +2330,37 @@ final class SyntaxHighlighter
             ['keyword', '/^\\b(?:auto|block|border-box|center|flex|grid|inherit|initial|inline|none|relative|repeat|solid|transparent|unset)\\b/i'],
             ['datatype', '/^[A-Za-z][A-Za-z0-9_-]*(?=(?:[#.:\\s,{>+~]|$))/'],
             ['operator', '/^(?:~=|\\|=|\\^=|\\$=|\\*=|::|[{}()[\\]:;,.#>+~=*!\\/|-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeLess(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^@(?:charset|color-profile|container|document|font-face|import|keyframes|media|namespace|page|plugin|supports)\\b/i'],
+            ['keyword', '/^!important\\b/i'],
+            ['variable', '/^@@[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['variable', '/^@\\{[A-Za-z_-][A-Za-z0-9_-]*\\}/'],
+            ['variable', '/^@[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['operator', '/^&/'],
+            ['constant', '/^#[0-9A-Fa-f]{3,8}\\b/'],
+            ['datatype', '/^\\.[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['datatype', '/^#[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['function', '/^::?[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['function', '/^(?:average|ceil|darken|data-uri|escape|fade|fadein|fadeout|floor|lighten|mix|percentage|spin|unit|url)(?=\\s*\\()/i'],
+            ['keyword', '/^\\b(?:and|auto|block|border-box|center|each|else|extend|flex|from|grid|if|in|inherit|initial|inline|none|not|only|or|relative|repeat|solid|through|to|transparent|when|unset)\\b/i'],
+            ['function', '/^[A-Za-z_-][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['attribute', '/^--[A-Za-z0-9_-]+|^[A-Za-z-]+(?=\\s*:\\s)/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/i'],
+            ['number', '/^-?(?:\\d+\\.\\d+|\\.\\d+|\\d+)(?:ch|cm|deg|dppx|em|ex|fr|in|mm|ms|pc|pt|px|rem|s|turn|vh|vmax|vmin|vw|%)?(?=$|[^A-Za-z0-9_])/i'],
+            ['datatype', '/^[A-Za-z][A-Za-z0-9_-]*(?=(?:[#.:\\s,{>+~]|$))/'],
+            ['operator', '/^(?:\\.\\.\\.|~=|\\|=|\\^=|\\$=|\\*=|==|!=|<=|>=|::|=>|[{}()[\\]:;,.#>+~=*!\\/|%-])/'],
         ]);
     }
 

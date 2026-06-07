@@ -352,6 +352,12 @@ if (!$jsoncCodeBlock instanceof PortLibs\Pandoc\AstNode || $jsoncCodeBlock->type
 }
 $jsonc = $highlighter->highlightCodeBlock($jsoncCodeBlock, 'kate');
 $jsoncWordpressBlock = $highlighter->wordpressHtmlBlock($jsoncCodeBlock, 'kate');
+$lessCodeBlock = $document->children[52] ?? null;
+if (!$lessCodeBlock instanceof PortLibs\Pandoc\AstNode || $lessCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a LESS code block');
+}
+$less = $highlighter->highlightCodeBlock($lessCodeBlock, 'espresso');
+$lessWordpressBlock = $highlighter->wordpressHtmlBlock($lessCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1498,6 +1504,30 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($jsoncWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
         throw new RuntimeException('Expected JSON-with-comments WordPress style metadata');
+    }
+    if (($less['language'] ?? '') !== 'less') {
+        throw new RuntimeException('Expected LESS fixture to normalize to LESS highlighting');
+    }
+    if (($less['lineNumbering']['start'] ?? null) !== 680) {
+        throw new RuntimeException('Expected LESS source startFrom line-number handoff');
+    }
+    if (!str_contains($less['html'], '<span class="va">@accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span>')) {
+        throw new RuntimeException('Expected LESS variable and color token handoff');
+    }
+    if (!str_contains($less['html'], '<span class="dt">.import-card</span><span class="op">(</span><span class="va">@selector</span>')) {
+        throw new RuntimeException('Expected LESS mixin selector and argument token handoff');
+    }
+    if (!str_contains($less['html'], '<span class="va">@{selector}</span> <span class="op">{</span>')) {
+        throw new RuntimeException('Expected LESS interpolation token handoff');
+    }
+    if (!str_contains($less['html'], '<span class="fu">darken</span><span class="op">(</span><span class="va">@accent-color</span><span class="op">,</span> <span class="dv">10%</span>')) {
+        throw new RuntimeException('Expected LESS color function token handoff');
+    }
+    if (!str_contains($less['html'], '<span class="kw">@media</span> <span class="op">(</span><span class="ot">min-width</span><span class="op">:</span> <span class="dv">48rem</span><span class="op">)</span>')) {
+        throw new RuntimeException('Expected LESS media query token handoff');
+    }
+    if (!str_contains($lessWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected LESS WordPress style metadata');
     }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');

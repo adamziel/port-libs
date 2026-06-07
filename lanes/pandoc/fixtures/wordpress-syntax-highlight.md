@@ -858,3 +858,23 @@ view model =
   },
 }
 ```
+
+``` {.less #less-review .numberLines startFrom=680}
+// WordPress block theme LESS review
+@accent-color: #005cc5;
+@spacing: 1.5rem;
+
+.import-card(@selector, @state: hover) when (@state = hover) {
+  @{selector} {
+    --accent-color: @accent-color;
+    margin-block: @spacing;
+    color: darken(@accent-color, 10%);
+    &:hover { color: lighten(@accent-color, 8%); }
+  }
+}
+
+.import-card(".wp-block-import-card");
+@media (min-width: 48rem) {
+  .wp-block-import-card { content: "Read more"; }
+}
+```
