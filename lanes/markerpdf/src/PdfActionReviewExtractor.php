@@ -350,6 +350,7 @@ final class PdfActionReviewExtractor
         if ($action !== null) {
             if ($actionObject !== null) {
                 $action['action_object'] = $actionObject;
+                $action['action_generation'] = $actionReference['generation'] ?? 0;
             }
             $action += $this->duplicateKeyReviewFields($resolved, 'action_dictionary_duplicate_keys');
             if ($depth > 0) {

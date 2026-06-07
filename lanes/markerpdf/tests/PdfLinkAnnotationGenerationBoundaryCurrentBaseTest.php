@@ -91,10 +91,14 @@ return [
         $t->same(7, $uriLink['annotation_object']);
         $t->same([72.0, 700.0, 158.0, 718.0], $uriLink['rect']);
         $t->same('https://example.com/current-generation-link', $uriLink['uri']);
+        $t->same([30, 32], array_column($uriLink['actions'], 'action_object'));
+        $t->same([1, 1], array_column($uriLink['actions'], 'action_generation'));
         $t->same(['review-uri', 'local-destination'], array_column($uriLink['actions'], 'safety'));
         $t->same('exact-target', $uriLink['actions'][1]['destination']);
         $t->same(1, $uriLink['actions'][1]['destination_page']);
         $t->same(['E'], array_column($uriLink['additional_actions'], 'event'));
+        $t->same(31, $uriLink['additional_actions'][0]['action_object']);
+        $t->same(1, $uriLink['additional_actions'][0]['action_generation']);
         $t->same('mailto:current-generation@example.test', $uriLink['additional_actions'][0]['uri']);
 
         $destinationLink = $links[0]['links'][1];
@@ -107,7 +111,11 @@ return [
         $linkedPages = $extractor->applyLinksToPages($generationBoundaryPages(), $pdf);
         $spans = $linkedPages[0]['blocks'][0]['lines'][0]['spans'];
         $t->same('https://example.com/current-generation-link', $spans[0]['link_uri']);
+        $t->same([30, 32], array_column($spans[0]['link_actions_review'], 'action_object'));
+        $t->same([1, 1], array_column($spans[0]['link_actions_review'], 'action_generation'));
         $t->same('exact-target', $spans[0]['link_actions_review'][1]['destination']);
+        $t->same(31, $spans[0]['link_additional_actions_review'][0]['action_object']);
+        $t->same(1, $spans[0]['link_additional_actions_review'][0]['action_generation']);
         $t->same(1, $spans[1]['link_destination_page']);
         $t->same('XYZ', $spans[1]['link_view_mode']);
         $t->true(!isset($spans[2]['link_uri']));

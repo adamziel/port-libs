@@ -80,6 +80,24 @@ $summary = [
         static fn (array $action): ?string => is_string($action['uri'] ?? null) ? $action['uri'] : null,
         $links[0]['links'][0]['additional_actions'] ?? []
     ))),
+    'action_objects' => array_values(array_filter(array_map(
+        static fn (array $action): ?int => is_int($action['action_object'] ?? null) ? $action['action_object'] : null,
+        $links[0]['links'][0]['actions'] ?? []
+    ), static fn (?int $objectNumber): bool => $objectNumber !== null)),
+    'action_generations' => array_values(array_filter(array_map(
+        static fn (array $action): ?int => is_int($action['action_generation'] ?? null) ? $action['action_generation'] : null,
+        $links[0]['links'][0]['actions'] ?? []
+    ), static fn (?int $generation): bool => $generation !== null)),
+    'additional_action_objects' => array_values(array_filter(array_map(
+        static fn (array $action): ?int => is_int($action['action_object'] ?? null) ? $action['action_object'] : null,
+        $links[0]['links'][0]['additional_actions'] ?? []
+    ), static fn (?int $objectNumber): bool => $objectNumber !== null)),
+    'additional_action_generations' => array_values(array_filter(array_map(
+        static fn (array $action): ?int => is_int($action['action_generation'] ?? null) ? $action['action_generation'] : null,
+        $links[0]['links'][0]['additional_actions'] ?? []
+    ), static fn (?int $generation): bool => $generation !== null)),
+    'preserves_action_generation_metadata' => array_column($links[0]['links'][0]['actions'] ?? [], 'action_generation') === [1, 1]
+        && array_column($links[0]['links'][0]['additional_actions'] ?? [], 'action_generation') === [1],
     'markdown' => $blocks[0]['text'] ?? '',
     'excludes_stale_generation_links' => !str_contains($encodedReview, 'stale-array-link')
         && !str_contains($encodedReview, 'stale-generation-link')
