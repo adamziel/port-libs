@@ -2894,6 +2894,26 @@ final class PdfOutlineExtractor
                     $previousOffset,
                     $currentXrefOffset
                 );
+                if (
+                    $definition === null
+                    && ($entries[$objectNumber]['state'] ?? null) === 'n'
+                    && $entries[$objectNumber]['generation'] === $generation
+                ) {
+                    $definition = $this->directObjectDefinitionForReferenceBetweenOffsets(
+                        $pdfBytes,
+                        $objectNumber,
+                        $generation,
+                        $previousOffset,
+                        $currentXrefOffset
+                    );
+                    if ($definition !== null) {
+                        $entries[$objectNumber] = [
+                            'offset' => $definition['offset'],
+                            'generation' => $definition['generation'],
+                            'state' => 'n',
+                        ];
+                    }
+                }
                 if ($definition !== null) {
                     foreach ($this->directObjectReferencePairs($definition['body']) as $nestedReference) {
                         $pending[] = $nestedReference;
