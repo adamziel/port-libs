@@ -257,6 +257,7 @@ final class PdfEngineHandoff
      *     pdfHeaderVersion: string|null,
      *     pdfCatalogVersion: string|null,
      *     pdfEffectiveVersion: string|null,
+     *     pdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
      *     pdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
      *     pdfTrailerComplete: bool,
      *     pdfTrailerCount: int,
@@ -686,6 +687,7 @@ final class PdfEngineHandoff
         $pdfHeaderVersion = null;
         $pdfCatalogVersion = null;
         $pdfEffectiveVersion = null;
+        $pdfLinearization = [];
         $pdfExtensionMetadata = [];
         $pdfTrailerCount = 0;
         $pdfTrailerRevisions = [];
@@ -772,6 +774,7 @@ final class PdfEngineHandoff
                 $pdfHeaderVersion = $pdfInspection['headerVersion'];
                 $pdfCatalogVersion = $pdfInspection['catalogVersion'];
                 $pdfEffectiveVersion = $pdfInspection['effectiveVersion'];
+                $pdfLinearization = $pdfInspection['linearization'];
                 $pdfExtensionMetadata = $pdfInspection['extensionMetadata'];
                 $pdfTrailerCount = $pdfInspection['trailerCount'];
                 $pdfTrailerRevisions = $pdfInspection['trailerRevisions'];
@@ -859,6 +862,21 @@ final class PdfEngineHandoff
                 }
                 if ($pdfEffectiveVersion !== null) {
                     $diagnostics[] = 'pdf-byte-effective-version:' . $pdfEffectiveVersion;
+                }
+                if ($pdfLinearization !== []) {
+                    $diagnostics[] = 'pdf-byte-linearized';
+                    if (($pdfLinearization['linearizedVersion'] ?? null) !== null) {
+                        $diagnostics[] = 'pdf-byte-linearized-version:' . $pdfLinearization['linearizedVersion'];
+                    }
+                    if (($pdfLinearization['pageCount'] ?? null) !== null) {
+                        $diagnostics[] = 'pdf-byte-linearized-page-count:' . $pdfLinearization['pageCount'];
+                    }
+                    if (isset($pdfLinearization['hintTables']) && is_array($pdfLinearization['hintTables']) && $pdfLinearization['hintTables'] !== []) {
+                        $diagnostics[] = 'pdf-byte-linearized-hint-tables:' . count($pdfLinearization['hintTables']);
+                    }
+                    if (($pdfLinearization['lengthMatches'] ?? null) === false && ($pdfLinearization['fileLength'] ?? null) !== null) {
+                        $diagnostics[] = 'pdf-byte-linearized-length-mismatch:' . $pdfLinearization['fileLength'] . ':' . strlen($pdfBytes);
+                    }
                 }
                 if ($pdfExtensionMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-extension-metadata:' . count($pdfExtensionMetadata);
@@ -1988,6 +2006,7 @@ final class PdfEngineHandoff
             'pdfHeaderVersion' => $pdfHeaderVersion,
             'pdfCatalogVersion' => $pdfCatalogVersion,
             'pdfEffectiveVersion' => $pdfEffectiveVersion,
+            'pdfLinearization' => $pdfLinearization,
             'pdfExtensionMetadata' => $pdfExtensionMetadata,
             'pdfTrailerComplete' => $pdfTrailerComplete,
             'pdfTrailerCount' => $pdfTrailerCount,
@@ -2096,6 +2115,7 @@ final class PdfEngineHandoff
      *     finalPdfHeaderVersion: string|null,
      *     finalPdfCatalogVersion: string|null,
      *     finalPdfEffectiveVersion: string|null,
+     *     finalPdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
      *     finalPdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
      *     finalPdfPageCount: int|null,
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
@@ -2317,6 +2337,7 @@ final class PdfEngineHandoff
             'finalPdfHeaderVersion' => is_array($finalRun) && is_string($finalRun['pdfHeaderVersion'] ?? null) ? $finalRun['pdfHeaderVersion'] : null,
             'finalPdfCatalogVersion' => is_array($finalRun) && is_string($finalRun['pdfCatalogVersion'] ?? null) ? $finalRun['pdfCatalogVersion'] : null,
             'finalPdfEffectiveVersion' => is_array($finalRun) && is_string($finalRun['pdfEffectiveVersion'] ?? null) ? $finalRun['pdfEffectiveVersion'] : null,
+            'finalPdfLinearization' => is_array($finalRun) && is_array($finalRun['pdfLinearization'] ?? null) ? $finalRun['pdfLinearization'] : [],
             'finalPdfExtensionMetadata' => is_array($finalRun) && is_array($finalRun['pdfExtensionMetadata'] ?? null) ? $finalRun['pdfExtensionMetadata'] : [],
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
@@ -3497,6 +3518,7 @@ final class PdfEngineHandoff
      *     headerVersion:string|null,
      *     catalogVersion:string|null,
      *     effectiveVersion:string|null,
+     *     linearization:array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
      *     extensionMetadata:list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>
      * }
      */
@@ -3611,7 +3633,53 @@ final class PdfEngineHandoff
             'headerVersion' => $headerVersion,
             'catalogVersion' => $catalogVersion,
             'effectiveVersion' => $this->effectivePdfVersion($headerVersion, $catalogVersion),
+            'linearization' => $this->extractPdfLinearizationMetadata($pdfBytes),
             'extensionMetadata' => $this->extractPdfExtensionMetadata($pdfBytes, $catalog),
+        ];
+    }
+
+    /**
+     * @return array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{}
+     */
+    private function extractPdfLinearizationMetadata(string $pdfBytes): array
+    {
+        if (preg_match('/\A%PDF-[^\r\n]*(?:\r\n|\r|\n)(?:%[^\r\n]*(?:\r\n|\r|\n))*\s*(\d+)\s+(\d+)\s+obj\s*(<<.*?>>)\s*endobj/s', $pdfBytes, $matches) !== 1) {
+            return [];
+        }
+
+        $dictionary = $matches[3];
+        if (!str_contains($dictionary, '/Linearized')) {
+            return [];
+        }
+
+        $version = $this->extractPdfNumberToken($dictionary, 'Linearized');
+        if ($version === null) {
+            return [];
+        }
+
+        $hintTables = [];
+        $hints = $this->extractPdfIntegerArrayToken($dictionary, 'H');
+        for ($i = 0; $i + 1 < count($hints) && count($hintTables) < 8; $i += 2) {
+            $hintTables[] = [
+                'offset' => $hints[$i],
+                'length' => $hints[$i + 1],
+            ];
+        }
+
+        $fileLength = $this->extractPdfIntegerToken($dictionary, 'L');
+
+        return [
+            'object' => $matches[1] . ' ' . $matches[2] . ' R',
+            'linearizedVersion' => $version,
+            'fileLength' => $fileLength,
+            'primaryHintOffset' => $hintTables[0]['offset'] ?? null,
+            'primaryHintLength' => $hintTables[0]['length'] ?? null,
+            'firstPageObject' => $this->extractPdfIntegerToken($dictionary, 'O'),
+            'firstPageEndOffset' => $this->extractPdfIntegerToken($dictionary, 'E'),
+            'pageCount' => $this->extractPdfIntegerToken($dictionary, 'N'),
+            'mainXrefOffset' => $this->extractPdfIntegerToken($dictionary, 'T'),
+            'hintTables' => $hintTables,
+            'lengthMatches' => $fileLength === null ? null : $fileLength === strlen($pdfBytes),
         ];
     }
 

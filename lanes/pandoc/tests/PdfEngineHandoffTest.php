@@ -5311,6 +5311,79 @@ MARKDOWN);
         $t->same($expectedExtensions, $sequence['finalPdfExtensionMetadata']);
     },
 
+    'fake runner extracts bounded pdf linearization dictionary metadata' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/linearized.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '% linearized PDFs may include a binary comment before the first object',
+            '42 0 obj',
+            '<< /Linearized 1.0 /L 9999 /H [128 256 512 64] /O 7 /E 4096 /N 3 /T 8192 >>',
+            'endobj',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R 5 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/linearized.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/linearized.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedLinearization = [
+            'object' => '42 0 R',
+            'linearizedVersion' => 1.0,
+            'fileLength' => 9999,
+            'primaryHintOffset' => 128,
+            'primaryHintLength' => 256,
+            'firstPageObject' => 7,
+            'firstPageEndOffset' => 4096,
+            'pageCount' => 3,
+            'mainXrefOffset' => 8192,
+            'hintTables' => [
+                ['offset' => 128, 'length' => 256],
+                ['offset' => 512, 'length' => 64],
+            ],
+            'lengthMatches' => false,
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedLinearization, $result['pdfLinearization']);
+        $t->contains('pdf-byte-linearized', $diagnostics);
+        $t->contains('pdf-byte-linearized-version:1', $diagnostics);
+        $t->contains('pdf-byte-linearized-page-count:3', $diagnostics);
+        $t->contains('pdf-byte-linearized-hint-tables:2', $diagnostics);
+        $t->contains('pdf-byte-linearized-length-mismatch:9999:' . strlen($pdfBytes), $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedLinearization, $sequence['finalPdfLinearization']);
+        $t->same(3, $sequence['finalPdfLinearization']['pageCount']);
+    },
+
     'rejects unsafe pdf handoff engine path and option inputs' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
 
