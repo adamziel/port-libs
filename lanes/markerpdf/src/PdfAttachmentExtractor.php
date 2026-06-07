@@ -45,6 +45,8 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
+    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Params'];
+
     private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
@@ -1221,6 +1223,9 @@ final class PdfAttachmentExtractor
         }
         $streamObject = $objects[$streamObjectId];
         if ($streamObject['stream'] === null) {
+            return null;
+        }
+        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject)) {
             return null;
         }
 
@@ -2523,6 +2528,9 @@ final class PdfAttachmentExtractor
         if ($streamObject['stream'] === null) {
             return null;
         }
+        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject)) {
+            return null;
+        }
 
         if ($this->attachmentPolicySuppressesEmbeddedPayload($encryptionPolicy)) {
             $row = [
@@ -2688,6 +2696,9 @@ final class PdfAttachmentExtractor
         if ($streamObjectId === null || $streamObject === null || $streamObject['stream'] === null) {
             return [];
         }
+        if ($this->embeddedFileStreamHasDuplicateBoundaryKeys($streamObject)) {
+            return [];
+        }
 
         $review = [
             'source' => 'embedded_file_params_mac_resource_fork',
@@ -2746,6 +2757,21 @@ final class PdfAttachmentExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * EmbeddedFile stream /Params carries Size, CheckSum, dates, and Mac
+     * resource-fork review metadata. Duplicate entries are ambiguous, so skip
+     * the stream before importing stale or conflicting attachment metadata.
+     *
+     * @param array{generation: int, body: string, value: mixed, stream: string|null} $streamObject
+     */
+    private function embeddedFileStreamHasDuplicateBoundaryKeys(array $streamObject): bool
+    {
+        $dictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($streamObject['body']);
+
+        return $dictionaryBody !== null
+            && $this->dictionaryHasDuplicateKeys($dictionaryBody, self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS);
     }
 
     /**

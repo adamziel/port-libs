@@ -23,6 +23,8 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
+    private const EMBEDDED_FILE_STREAM_BOUNDARY_KEYS = ['Params'];
+
     private const CATALOG_NAMES_BOUNDARY_KEYS = ['EmbeddedFiles'];
 
     private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
@@ -2105,6 +2107,9 @@ final class PdfEmbeddedFileExtractor
         if (preg_match('/<<(.*?)>>\s*stream\b/s', $body, $match) !== 1) {
             return null;
         }
+        if ($this->dictionaryHasDuplicateKeys($match[1], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)) {
+            return null;
+        }
         if (!$this->isEmbeddedFileStreamDictionary($match[1], $objects)) {
             return null;
         }
@@ -2129,6 +2134,9 @@ final class PdfEmbeddedFileExtractor
 
         $stream = $this->decodeStreamObject($body, $objects);
         if ($stream === null) {
+            return null;
+        }
+        if ($this->dictionaryHasDuplicateKeys($stream['dictionary'], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)) {
             return null;
         }
         if (!$this->isEmbeddedFileStreamDictionary($stream['dictionary'], $objects)) {
