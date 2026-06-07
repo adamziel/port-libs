@@ -2269,6 +2269,83 @@ XML;
         $t->same($metadata['titleDetails'], $result['importReport']['metadata']['titleDetails']);
         $t->same($metadata['titlesByType'], $result['document']->attr('metadata')['titlesByType']);
     },
+    'inherits OPF metadata language and direction for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithMetadataContext = preg_replace(
+            '~<metadata xmlns:dc="http://purl\.org/dc/elements/1\.1/">~',
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xml:lang="ar" dir="rtl">',
+            $opfXml,
+            1
+        );
+        if (!is_string($opfWithMetadataContext)) {
+            throw new RuntimeException('Failed to build EPUB metadata inheritance fixture');
+        }
+        $opfWithMetadataContext = str_replace(
+            '<dc:title>WordPress Import EPUB</dc:title>',
+            '<dc:title id="localized-title">WordPress Import EPUB</dc:title>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<dc:creator id="creator">Migration Desk</dc:creator>',
+            '<dc:creator id="creator" xml:lang="en">Migration Desk</dc:creator>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<dc:subject>Data Liberation</dc:subject>',
+            '<dc:subject dir="ltr">Data Liberation</dc:subject>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#localized-title" property="alternate-script">Migration import title</meta>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="cover-image"/>'
+            . '<link id="localized-review-record" rel="record" href="meta/localized-review.json" media-type="application/ld+json"/>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<collection id="series" role="series" xml:lang="en">',
+            '<collection id="series" role="series" xml:lang="en" dir="rtl">',
+            $opfWithMetadataContext
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithMetadataContext,
+            null,
+            [
+                ['name' => 'OEBPS/meta/localized-review.json', 'data' => '{"name":"localized review"}'],
+            ]
+        ));
+        $metadata = $result['metadata'];
+
+        $t->same('ar', $metadata['titleDetails'][0]['language']);
+        $t->same('rtl', $metadata['titleDetails'][0]['direction']);
+        $t->same('ar', $metadata['dc']['title'][0]['language']);
+        $t->same('rtl', $metadata['dc']['title'][0]['direction']);
+        $t->same('en', $metadata['creatorDetails'][0]['language']);
+        $t->same('rtl', $metadata['creatorDetails'][0]['direction']);
+        $t->same('ar', $metadata['dc']['subject'][0]['language']);
+        $t->same('ltr', $metadata['dc']['subject'][0]['direction']);
+        $t->same('ar', $metadata['metaProperties']['dcterms:modified'][0]['language']);
+        $t->same('rtl', $metadata['metaProperties']['dcterms:modified'][0]['direction']);
+        $t->same('Migration import title', $metadata['titleDetails'][0]['alternateScripts'][0]['text']);
+        $t->same('ar', $metadata['titleDetails'][0]['alternateScripts'][0]['language']);
+        $t->same('rtl', $metadata['titleDetails'][0]['alternateScripts'][0]['direction']);
+        $t->same('ar', $metadata['links'][0]['language']);
+        $t->same('rtl', $metadata['links'][0]['direction']);
+        $t->same('/OEBPS/meta/localized-review.json', $metadata['links'][0]['target']);
+
+        $series = $result['collections'][0];
+        $t->same('en', $series['metadata']['titleDetails'][0]['language']);
+        $t->same('rtl', $series['metadata']['titleDetails'][0]['direction']);
+        $t->same('en', $series['metadata']['metaProperties']['group-position'][0]['language']);
+        $t->same('rtl', $series['metadata']['metaProperties']['group-position'][0]['direction']);
+        $t->same($metadata['titleDetails'], $result['importReport']['metadata']['titleDetails']);
+        $t->same($series['metadata']['titleDetails'], $result['document']->attr('collections')[0]['metadata']['titleDetails']);
+    },
     'reports OPF contributor role metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithContributors = str_replace(
             '<dc:language>en</dc:language>',

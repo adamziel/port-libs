@@ -24,7 +24,7 @@ XML;
 
 $opfXml = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" id="source-package" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xml:lang="ar" dir="rtl">
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title id="main-title" dir="ltr">WordPress EPUB source packet</dc:title>
     <dc:title id="subtitle-title" xml:lang="ar-Latn" dir="rtl">Murajaat al-hijra</dc:title>
@@ -98,7 +98,7 @@ $opfXml = <<<'XML'
     <reference type="text" title="Begin source" href="text/chapter.xhtml#source"/>
     <reference type="cover" title="Cover image" href="images/cover.png"/>
   </guide>
-  <collection id="source-set" role="set" xml:lang="en">
+  <collection id="source-set" role="set" xml:lang="en" dir="rtl">
     <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
       <dc:title>WordPress source collection</dc:title>
       <meta property="group-position">1</meta>
@@ -382,6 +382,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['metadata']['mainTitle']['titleType'] ?? null) !== 'main' || ($result['metadata']['mainTitle']['fileAs'] ?? null) !== 'WordPress EPUB source packet') {
         throw new RuntimeException('Expected EPUB OPF main title refinements to be summarized');
+    }
+    if (($result['metadata']['mainTitle']['language'] ?? null) !== 'ar' || ($result['metadata']['mainTitle']['direction'] ?? null) !== 'ltr') {
+        throw new RuntimeException('Expected EPUB OPF main title to inherit metadata language while preserving title direction');
     }
     if (($result['metadata']['subtitle']['text'] ?? null) !== 'Murajaat al-hijra' || ($result['metadata']['subtitle']['direction'] ?? null) !== 'rtl') {
         throw new RuntimeException('Expected EPUB OPF subtitle direction metadata to be summarized');
@@ -695,6 +698,9 @@ XML;
     if (($result['collections'][0]['metadata']['title'] ?? null) !== 'WordPress source collection') {
         throw new RuntimeException('Expected EPUB OPF collection metadata title');
     }
+    if (($result['collections'][0]['metadata']['titleDetails'][0]['language'] ?? null) !== 'en' || ($result['collections'][0]['metadata']['titleDetails'][0]['direction'] ?? null) !== 'rtl') {
+        throw new RuntimeException('Expected EPUB OPF collection metadata to inherit collection language and direction');
+    }
     if (($result['collections'][0]['links'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB OPF collection internal link to resolve to the source chapter');
     }
@@ -706,6 +712,9 @@ XML;
     }
     if (($result['metadata']['links'][0]['byteSha256'] ?? null) !== hash('sha256', '{"@context":"https://schema.org","name":"WordPress EPUB review record"}')) {
         throw new RuntimeException('Expected EPUB OPF metadata linked record hash for review deduplication');
+    }
+    if (($result['metadata']['links'][0]['language'] ?? null) !== 'ar' || ($result['metadata']['links'][0]['direction'] ?? null) !== 'rtl') {
+        throw new RuntimeException('Expected EPUB OPF metadata linked record to inherit language and direction');
     }
     if (($result['metadata']['linksByRel']['record'][0]['id'] ?? null) !== 'review-record') {
         throw new RuntimeException('Expected EPUB OPF metadata links to be indexed by rel');
@@ -724,6 +733,9 @@ XML;
     }
     if (($result['metadata']['creatorDetails'][0]['linkedResources'][0]['rel'] ?? null) !== ['voicing']) {
         throw new RuntimeException('Expected EPUB OPF creator details to expose linked resource relations');
+    }
+    if (($result['metadata']['creatorDetails'][0]['language'] ?? null) !== 'ar' || ($result['metadata']['creatorDetails'][0]['direction'] ?? null) !== 'rtl') {
+        throw new RuntimeException('Expected EPUB OPF creator details to inherit language and direction');
     }
     if (($result['document']->attr('metadata')['linksByRefinedId']['creator'][0]['id'] ?? null) !== 'creator-voicing') {
         throw new RuntimeException('Expected WordPress EPUB AST metadata to retain linked resource subjects');
@@ -1142,6 +1154,8 @@ XML;
 echo "EPUB3 package handoff for WordPress import:\n";
 echo 'title=' . $result['metadata']['title'] . "\n";
 echo 'mainTitleType=' . ($result['metadata']['mainTitle']['titleType'] ?? '') . "\n";
+echo 'mainTitleLanguage=' . ($result['metadata']['mainTitle']['language'] ?? '') . "\n";
+echo 'mainTitleDirection=' . ($result['metadata']['mainTitle']['direction'] ?? '') . "\n";
 echo 'subtitleTitle=' . ($result['metadata']['subtitle']['text'] ?? '') . "\n";
 echo 'subtitleDirection=' . ($result['metadata']['subtitle']['direction'] ?? '') . "\n";
 echo 'titleTypes=' . implode(',', array_keys($result['metadata']['titlesByType'] ?? [])) . "\n";
@@ -1197,12 +1211,17 @@ echo 'firstSpinePageBreaks=' . ($result['document']->children[0]->attr('pageBrea
 echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
 echo 'guideTextTarget=' . ($result['guide']['items'][0]['target'] ?? '') . "\n";
 echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";
+echo 'collectionTitleLanguage=' . ($result['collections'][0]['metadata']['titleDetails'][0]['language'] ?? '') . "\n";
+echo 'collectionTitleDirection=' . ($result['collections'][0]['metadata']['titleDetails'][0]['direction'] ?? '') . "\n";
 echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target'] ?? '') . "\n";
 echo 'metadataLinks=' . count($result['metadata']['links'] ?? []) . "\n";
 echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '') . "\n";
+echo 'metadataRecordLanguage=' . ($result['metadata']['links'][0]['language'] ?? '') . "\n";
+echo 'metadataRecordDirection=' . ($result['metadata']['links'][0]['direction'] ?? '') . "\n";
 echo 'metadataRecordSha256=' . ($result['metadata']['links'][0]['byteSha256'] ?? '') . "\n";
 echo 'metadataLinkedResourceSubjects=' . ($result['metadata']['linkedResourceSummary']['subjectCount'] ?? 0) . "\n";
 echo 'metadataCreatorLinkedResources=' . count($result['metadata']['dc']['creator'][0]['linkedResources'] ?? []) . "\n";
+echo 'metadataCreatorDirection=' . ($result['metadata']['creatorDetails'][0]['direction'] ?? '') . "\n";
 echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";

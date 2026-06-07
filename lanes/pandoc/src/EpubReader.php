@@ -511,7 +511,14 @@ final class EpubReader
 
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
         $prefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
-        $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier, true, $prefixReport['bindingsByPrefix']);
+        $metadata = $this->readMetadata(
+            $metadataElement,
+            $uniqueIdentifier,
+            true,
+            $prefixReport['bindingsByPrefix'],
+            self::xmlLang($root),
+            self::direction($root)
+        );
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $packageId = self::nullableAttribute($root, 'id');
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement, $refinementsById);
@@ -736,7 +743,14 @@ final class EpubReader
 
         if ($metadataElement instanceof \DOMElement) {
             $alternatePrefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
-            $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier, true, $alternatePrefixReport['bindingsByPrefix']);
+            $metadata = $this->readMetadata(
+                $metadataElement,
+                $uniqueIdentifier,
+                true,
+                $alternatePrefixReport['bindingsByPrefix'],
+                self::xmlLang($root),
+                self::direction($root)
+            );
         } else {
             $summary['diagnostics'][] = [
                 'type' => 'missing-alternate-rendition-metadata',
@@ -901,9 +915,13 @@ final class EpubReader
         \DOMElement $metadataElement,
         string $uniqueIdentifier,
         bool $requireUniqueIdentifier = true,
-        array $prefixBindings = []
+        array $prefixBindings = [],
+        ?string $inheritedLanguage = null,
+        ?string $inheritedDirection = null
     ): array
     {
+        $metadataLanguage = self::xmlLang($metadataElement) ?? $inheritedLanguage;
+        $metadataDirection = self::direction($metadataElement) ?? $inheritedDirection;
         $dc = [];
         $metaProperties = [];
         $metaNames = [];
@@ -919,8 +937,8 @@ final class EpubReader
                     'text' => $text,
                     'id' => self::nullableAttribute($child, 'id'),
                     'scheme' => self::nullableAttribute($child, 'opf:scheme') ?? self::nullableAttribute($child, 'scheme'),
-                    'language' => self::xmlLang($child),
-                    'direction' => self::direction($child),
+                    'language' => self::xmlLang($child) ?? $metadataLanguage,
+                    'direction' => self::direction($child) ?? $metadataDirection,
                 ];
                 $dc[$name][] = $entry;
                 $raw[] = ['type' => 'dc'] + $entry;
@@ -941,7 +959,8 @@ final class EpubReader
                     'properties' => self::spaceDelimited($child->getAttribute('properties')),
                     'refines' => self::nullableAttribute($child, 'refines'),
                     'hreflang' => self::nullableAttribute($child, 'hreflang'),
-                    'direction' => self::direction($child),
+                    'language' => self::xmlLang($child) ?? $metadataLanguage,
+                    'direction' => self::direction($child) ?? $metadataDirection,
                 ];
                 $links[] = $entry;
                 $raw[] = ['type' => 'link'] + $entry;
@@ -962,8 +981,8 @@ final class EpubReader
                 'refines' => self::nullableAttribute($child, 'refines'),
                 'id' => self::nullableAttribute($child, 'id'),
                 'scheme' => self::nullableAttribute($child, 'scheme'),
-                'language' => self::xmlLang($child),
-                'direction' => self::direction($child),
+                'language' => self::xmlLang($child) ?? $metadataLanguage,
+                'direction' => self::direction($child) ?? $metadataDirection,
                 'text' => $text,
             ];
 
@@ -1676,6 +1695,7 @@ final class EpubReader
                 'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
                 'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
                 'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
                 'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
                 'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
                 'roles' => $roles,
@@ -1848,6 +1868,8 @@ final class EpubReader
                 'refines' => is_string($link['refines'] ?? null) ? $link['refines'] : null,
                 'subjectId' => self::metadataRefinementSubject($link['refines'] ?? null),
                 'hreflang' => is_string($link['hreflang'] ?? null) ? $link['hreflang'] : null,
+                'language' => is_string($link['language'] ?? null) ? $link['language'] : null,
+                'direction' => is_string($link['direction'] ?? null) ? $link['direction'] : null,
                 'encrypted' => $reference['encrypted'],
                 'canExposeBytes' => $reference['canExposeBytes'],
                 'diagnostics' => $diagnostics,
@@ -4753,13 +4775,17 @@ final class EpubReader
         }
 
         $metadataElement = self::firstChildElement($collectionElement, 'metadata', self::OPF_NS);
+        $collectionLanguage = self::xmlLang($collectionElement);
+        $collectionDirection = self::direction($collectionElement);
 
         return [
             'id' => self::nullableAttribute($collectionElement, 'id'),
             'role' => self::nullableAttribute($collectionElement, 'role'),
-            'language' => self::xmlLang($collectionElement),
-            'dir' => self::nullableAttribute($collectionElement, 'dir'),
-            'metadata' => $metadataElement instanceof \DOMElement ? $this->readMetadata($metadataElement, '', false, $prefixBindings) : [],
+            'language' => $collectionLanguage,
+            'dir' => $collectionDirection,
+            'metadata' => $metadataElement instanceof \DOMElement
+                ? $this->readMetadata($metadataElement, '', false, $prefixBindings, $collectionLanguage, $collectionDirection)
+                : [],
             'links' => $links,
             'children' => $children,
         ];
