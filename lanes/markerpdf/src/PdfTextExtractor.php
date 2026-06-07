@@ -9422,7 +9422,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (array_key_exists($decodeParmsIndex, $filters)) {
+            if (array_key_exists($decodeParmsIndex, $filters) && is_string($filters[$decodeParmsIndex])) {
                 continue;
             }
 
@@ -38143,6 +38143,7 @@ final class PdfTextExtractor
             if ($this->inlineImageFilterHasTokenizerBoundary($filter)) {
                 if (
                     ($hasDecodeParms && $decodeParms === null)
+                    || ($decodeParms !== null && $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms) !== [])
                     || ($decodeParms !== null && !$this->canApplyDecodeParms($filter, $filterDecodeParms, []))
                 ) {
                     $unsupported[] = $filter;

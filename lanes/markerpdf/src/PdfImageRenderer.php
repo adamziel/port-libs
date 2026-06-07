@@ -4389,6 +4389,7 @@ final class PdfImageRenderer
                     ?? $this->nativeImageDuplicateDecodeParmsDeclarationReview($filter, $dictionary)
                     ?? $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
+                    ?? $this->nativeImageUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->dctDecodeParmsOperandFailureReview($filter, $decodeParmsValue, $objects)
                     ?? $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
                     ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex)
@@ -4483,6 +4484,7 @@ final class PdfImageRenderer
         $unsupported = [];
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
         $duplicateDecodeParmsDeclarations = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms') > 0;
+        $unappliedDecodeParmsSlots = $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms);
         foreach ($filters as $index => $filter) {
             $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
@@ -4498,6 +4500,7 @@ final class PdfImageRenderer
                 if (
                     $duplicateDecodeParmsDeclarations
                     || $this->nativeImageDuplicateDecodeParmsDeclarationReview($filter, $dictionary) !== null
+                    || $unappliedDecodeParmsSlots !== []
                     || $this->imageDecodeParmsValueIsMalformed($decodeParmsValue, $objects)
                     || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)
                 ) {
@@ -4829,7 +4832,7 @@ final class PdfImageRenderer
                 continue;
             }
 
-            if (array_key_exists($decodeParmsIndex, $filters)) {
+            if (array_key_exists($decodeParmsIndex, $filters) && is_string($filters[$decodeParmsIndex])) {
                 continue;
             }
 
@@ -4979,6 +4982,34 @@ final class PdfImageRenderer
             'decode_parms_review' => 'duplicate_native_decodeparms_declaration_fail_closed',
             'duplicate_decode_parms_declaration_count' => $duplicateCount,
             'decode_parms_declaration_policy' => 'reject_duplicate_decodeparms_declarations',
+        ];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|list<int>|list<string>>|null
+     */
+    private function nativeImageUnappliedDecodeParmsReview(string $filter, array $filters, array $decodeParms): ?array
+    {
+        if (!$this->isNativeImageStreamFilter($filter)) {
+            return null;
+        }
+
+        $unappliedSlots = $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms);
+        if ($unappliedSlots === []) {
+            return null;
+        }
+
+        return [
+            'type' => $filter,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_native_decodeparms_fail_closed',
+            'decode_parms_alignment' => 'unapplied_filter_slot',
+            'filter_slot_count' => count($filters),
+            'decode_parms_slot_count' => count($decodeParms),
+            'unapplied_decode_parms_slots' => $unappliedSlots,
         ];
     }
 
@@ -7115,6 +7146,7 @@ final class PdfImageRenderer
 
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
         $duplicateDecodeParmsDeclarations = $this->duplicatePdfNameDeclarationCount($dictionary, 'DecodeParms') > 0;
+        $unappliedDecodeParmsSlots = $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms);
         $unsupportedFilters = [];
         $decodedNativeFilterCount = 0;
 
@@ -7126,7 +7158,11 @@ final class PdfImageRenderer
             $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
             $isPreviewOnlyFilter = $this->isPreviewOnlyStreamFilter($filter);
-            if (!$isPreviewOnlyFilter && $this->isNativeImageStreamFilter($filter) && $duplicateDecodeParmsDeclarations) {
+            if (
+                !$isPreviewOnlyFilter
+                && $this->isNativeImageStreamFilter($filter)
+                && ($duplicateDecodeParmsDeclarations || $unappliedDecodeParmsSlots !== [])
+            ) {
                 $unsupportedFilters[] = $filter;
 
                 return [
