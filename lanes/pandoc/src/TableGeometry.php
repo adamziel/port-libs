@@ -165,15 +165,25 @@ final class TableGeometry
     {
         $columnCount = self::columnCount($table);
         $sectionGrids = [];
+        $globalRowStart = 0;
 
         foreach (self::sectionRowGroups($table, $columnCount) as $group) {
+            $rowCount = count($group['rowEntries']);
+            $globalRowEnd = $globalRowStart + $rowCount;
             $sectionGrids[] = [
                 'section' => $group['section'],
                 'node' => $group['node'],
                 'columnCount' => $columnCount,
+                'globalRowStart' => $globalRowStart,
+                'globalRowEnd' => $globalRowEnd,
+                'rowRange' => [$globalRowStart, $globalRowEnd],
                 'rowEntries' => $group['rowEntries'],
-                'rows' => self::sectionGridForEntries($group['rowEntries'], $columnCount),
+                'rows' => self::sectionGridRowsWithGlobalCoordinates(
+                    self::sectionGridForEntries($group['rowEntries'], $columnCount),
+                    $globalRowStart
+                ),
             ];
+            $globalRowStart = $globalRowEnd;
         }
 
         return $sectionGrids;
@@ -277,10 +287,12 @@ final class TableGeometry
 
         $columnSpecs = self::columnSpecs($table, $columnCount);
         $coverage = [];
+        $globalRowStart = 0;
         foreach (self::sectionRowGroups($table, $columnCount) as $group) {
             $layoutRows = self::layoutRows($group['rows'], $columnCount);
             $sectionRowCount = count($layoutRows);
             foreach ($layoutRows as $rowIndex => $layoutRow) {
+                $globalRow = $globalRowStart + $rowIndex;
                 $rowEntry = $group['rowEntries'][$rowIndex] ?? [
                     'header' => false,
                     'rowHeadColumns' => 0,
@@ -316,6 +328,10 @@ final class TableGeometry
                     $record = [
                         'section' => $group['section'],
                         'row' => $rowIndex,
+                        'globalRow' => $globalRow,
+                        'globalRowEnd' => $globalRow + $cell['rowspan'],
+                        'globalRowRange' => [$globalRow, $globalRow + $cell['rowspan']],
+                        'globalRows' => self::integerRange($globalRow, $globalRow + $cell['rowspan']),
                         'column' => $cell['column'],
                         'endColumn' => $cell['column'] + $cell['colspan'],
                         'rawEndColumn' => $cell['column'] + $rawColspan,
@@ -358,6 +374,7 @@ final class TableGeometry
                     $coverage[] = $record;
                 }
             }
+            $globalRowStart += $sectionRowCount;
         }
 
         return $coverage;
@@ -2246,6 +2263,7 @@ final class TableGeometry
         $reports = [];
         foreach ($sections as $section) {
             $rows = [];
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
             foreach ($section['rowEntries'] as $rowIndex => $entry) {
                 $slots = [];
                 foreach ($section['rows'][$rowIndex] ?? [] as $slot) {
@@ -2254,6 +2272,7 @@ final class TableGeometry
 
                 $rowRecord = [
                     'row' => $rowIndex,
+                    'globalRow' => $globalRowStart + (int) $rowIndex,
                     'rowRole' => (string) $entry['rowRole'],
                     'header' => (bool) $entry['header'],
                     'rowHeadColumns' => (int) $entry['rowHeadColumns'],
@@ -2270,8 +2289,11 @@ final class TableGeometry
             $report = [
                 'section' => (string) $section['section'],
                 'columnCount' => (int) $section['columnCount'],
+                'globalRowStart' => $globalRowStart,
+                'globalRowEnd' => max($globalRowStart, (int) ($section['globalRowEnd'] ?? ($globalRowStart + count($rows)))),
+                'rowRange' => self::sectionGridRowRange($section, $globalRowStart, count($rows)),
                 'rowCount' => count($rows),
-                'summary' => self::sectionGridSummary($section['rows']),
+                'summary' => self::sectionGridSummary($section['rows'], $globalRowStart),
                 'rows' => $rows,
             ];
             $sourceAttributes = self::sourceAttributeSummary($section['node'] ?? null);
@@ -2283,6 +2305,26 @@ final class TableGeometry
         }
 
         return $reports;
+    }
+
+    /**
+     * @param array<string, mixed> $section
+     * @return list<int>
+     */
+    private static function sectionGridRowRange(array $section, int $globalRowStart, int $rowCount): array
+    {
+        $range = $section['rowRange'] ?? null;
+        if (is_array($range) && array_key_exists(0, $range) && array_key_exists(1, $range)) {
+            $start = max(0, (int) $range[0]);
+
+            return [$start, max($start, (int) $range[1])];
+        }
+
+        $globalRowEnd = array_key_exists('globalRowEnd', $section)
+            ? max($globalRowStart, (int) $section['globalRowEnd'])
+            : $globalRowStart + max(0, $rowCount);
+
+        return [$globalRowStart, $globalRowEnd];
     }
 
     /**
@@ -2712,8 +2754,9 @@ final class TableGeometry
      * @param list<list<array<string, mixed>>> $rows
      * @return array<string, mixed>
      */
-    private static function sectionGridSummary(array $rows): array
+    private static function sectionGridSummary(array $rows, int $globalRowStart = 0): array
     {
+        $globalRowStart = max(0, $globalRowStart);
         $cellCount = 0;
         $headerCellCount = 0;
         $coveredSlotCount = 0;
@@ -2741,6 +2784,7 @@ final class TableGeometry
             $rowCoveredSlotCount = 0;
             $rowMissingSlotCount = 0;
             $rowMaxOccupiedColumn = -1;
+            $globalRow = self::rowGlobalRow($slots, $globalRowStart + (int) $rowIndex);
 
             foreach ($slots as $column => $slot) {
                 $kind = (string) ($slot['kind'] ?? '');
@@ -2838,6 +2882,7 @@ final class TableGeometry
             $rowVisualWidths[] = $rowVisualWidth;
             $rowSummaries[] = [
                 'row' => (int) $rowIndex,
+                'globalRow' => $globalRow,
                 'slotCount' => count($slots),
                 'cellCount' => $rowCellCount,
                 'headerCellCount' => $rowHeaderCellCount,
@@ -2884,6 +2929,20 @@ final class TableGeometry
             'hasBlockContentCells' => $blockContentCellCount > 0,
             'cellBlockTypes' => array_values(array_unique($cellBlockTypes)),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $slots
+     */
+    private static function rowGlobalRow(array $slots, int $fallback): int
+    {
+        foreach ($slots as $slot) {
+            if (isset($slot['globalRow']) && is_numeric($slot['globalRow'])) {
+                return max(0, (int) $slot['globalRow']);
+            }
+        }
+
+        return max(0, $fallback);
     }
 
     /**
@@ -2955,14 +3014,26 @@ final class TableGeometry
         $coveredRowCount = 0;
         $missingRowCount = 0;
         $maxVisualWidth = 0;
+        $globalRows = [];
         foreach ($sections as $section) {
             $rowCount += count($section['rowEntries']);
-            $sectionSummary = self::sectionGridSummary($section['rows']);
+            $sectionSummary = self::sectionGridSummary(
+                $section['rows'],
+                max(0, (int) ($section['globalRowStart'] ?? 0))
+            );
             $completeRowCount += (int) ($sectionSummary['completeRowCount'] ?? 0);
             $incompleteRowCount += (int) ($sectionSummary['incompleteRowCount'] ?? 0);
             $coveredRowCount += (int) ($sectionSummary['coveredRowCount'] ?? 0);
             $missingRowCount += (int) ($sectionSummary['missingRowCount'] ?? 0);
             $maxVisualWidth = max($maxVisualWidth, (int) ($sectionSummary['maxVisualWidth'] ?? 0));
+            $sectionRowRange = self::sectionGridRowRange(
+                $section,
+                max(0, (int) ($section['globalRowStart'] ?? 0)),
+                count($section['rowEntries'])
+            );
+            for ($globalRow = $sectionRowRange[0]; $globalRow < $sectionRowRange[1]; $globalRow++) {
+                $globalRows[$globalRow] = true;
+            }
             foreach ($section['rows'] as $slots) {
                 foreach ($slots as $slot) {
                     if (($slot['kind'] ?? '') === 'covered') {
@@ -3076,10 +3147,17 @@ final class TableGeometry
         if (!is_array($rowHeaderScopes)) {
             $rowHeaderScopes = [];
         }
+        $globalRowIndexes = array_keys($globalRows);
+        sort($globalRowIndexes, SORT_NUMERIC);
 
         return [
             'sectionCount' => count($sections),
             'rowCount' => $rowCount,
+            'globalRowCount' => count($globalRowIndexes),
+            'globalRowRange' => $globalRowIndexes === []
+                ? [0, 0]
+                : [min($globalRowIndexes), max($globalRowIndexes) + 1],
+            'maxGlobalRow' => $globalRowIndexes === [] ? 0 : max($globalRowIndexes),
             'cellCount' => count($coverage),
             'headerCellCount' => $headerCellCount,
             'coveredSlotCount' => $coveredSlotCount,
@@ -4745,6 +4823,21 @@ final class TableGeometry
     }
 
     /**
+     * @return list<int>
+     */
+    private static function integerRange(int $start, int $end): array
+    {
+        $start = max(0, $start);
+        $end = max($start, $end);
+        $values = [];
+        for ($value = $start; $value < $end; $value++) {
+            $values[] = $value;
+        }
+
+        return $values;
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private static function nestedTableSummaries(AstNode $node): array
@@ -5484,6 +5577,41 @@ final class TableGeometry
         }
 
         return $grid;
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $rows
+     * @return list<list<array<string, mixed>>>
+     */
+    private static function sectionGridRowsWithGlobalCoordinates(array $rows, int $globalRowStart): array
+    {
+        $globalRowStart = max(0, $globalRowStart);
+        foreach ($rows as $rowIndex => $slots) {
+            $globalRow = $globalRowStart + (int) $rowIndex;
+            foreach ($slots as $column => $slot) {
+                $slot['globalRow'] = $globalRow;
+                if (isset($slot['anchorRow']) && is_numeric($slot['anchorRow'])) {
+                    $anchorGlobalRow = $globalRowStart + max(0, (int) $slot['anchorRow']);
+                    $anchorGlobalRowEnd = $anchorGlobalRow + max(1, (int) ($slot['rowspan'] ?? 1));
+                    $slot['anchorGlobalRow'] = $anchorGlobalRow;
+                    $slot['anchorGlobalRowEnd'] = $anchorGlobalRowEnd;
+                    $slot['anchorGlobalRowRange'] = [$anchorGlobalRow, $anchorGlobalRowEnd];
+                    $slot['anchorGlobalRows'] = self::integerRange($anchorGlobalRow, $anchorGlobalRowEnd);
+                }
+
+                if (($slot['kind'] ?? '') === 'cell') {
+                    $globalRowEnd = $globalRow + max(1, (int) ($slot['rowspan'] ?? 1));
+                    $slot['globalRowEnd'] = $globalRowEnd;
+                    $slot['globalRowRange'] = [$globalRow, $globalRowEnd];
+                    $slot['globalRows'] = self::integerRange($globalRow, $globalRowEnd);
+                }
+
+                $slots[$column] = $slot;
+            }
+            $rows[$rowIndex] = $slots;
+        }
+
+        return $rows;
     }
 
     /**

@@ -1475,6 +1475,7 @@ return [
         $t->same(false, $headSummary['completeRectangle'] ?? null);
         $t->same([
             'row' => 0,
+            'globalRow' => 0,
             'slotCount' => 4,
             'cellCount' => 2,
             'headerCellCount' => 2,
@@ -1795,6 +1796,91 @@ return [
             ['section' => 'body1', 'kind' => 'table-body', 'rowRange' => [4, 5], 'rowCount' => 1],
             ['section' => 'foot', 'kind' => 'table-foot', 'rowRange' => [5, 6], 'rowCount' => 1],
         ], $packet['summary']['rowGroupRanges'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'serializes global row coordinates for multi section table geometry packets' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Global row coordinate audit',
+            'alignments' => ['left', 'right', 'center'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Count'], [new AstNode('text', ['text' => 'Count'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'headRows' => [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                        new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                        new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                    ]),
+                ],
+                'rowHeadColumns' => 1,
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Import'], [new AstNode('text', ['text' => 'Import'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Pages'], [new AstNode('text', ['text' => 'Pages'])]),
+                    new AstNode('table_cell', ['text' => '5'], [new AstNode('text', ['text' => '5'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+            new AstNode('table_foot', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Total'], [new AstNode('text', ['text' => 'Total'])]),
+                    new AstNode('table_cell', ['text' => '54'], [new AstNode('text', ['text' => '54'])]),
+                    new AstNode('table_cell', ['text' => 'Complete'], [new AstNode('text', ['text' => 'Complete'])]),
+                ]),
+            ]),
+        ]);
+
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same([[0, 1], [1, 4], [4, 5], [5, 6]], array_map(
+            static fn (array $section): array => $section['rowRange'],
+            $packet['sections'] ?? []
+        ));
+        $t->same([0, 1, 4, 5], array_map(
+            static fn (array $section): int => $section['globalRowStart'],
+            $packet['sections'] ?? []
+        ));
+        $t->same([1, 4, 5, 6], array_map(
+            static fn (array $section): int => $section['globalRowEnd'],
+            $packet['sections'] ?? []
+        ));
+        $t->same([0, 1, 2, 3, 4, 5], array_merge(
+            array_map(static fn (array $row): int => $row['globalRow'], $packet['sections'][0]['rows'] ?? []),
+            array_map(static fn (array $row): int => $row['globalRow'], $packet['sections'][1]['rows'] ?? []),
+            array_map(static fn (array $row): int => $row['globalRow'], $packet['sections'][2]['rows'] ?? []),
+            array_map(static fn (array $row): int => $row['globalRow'], $packet['sections'][3]['rows'] ?? [])
+        ));
+        $t->same([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5], array_map(
+            static fn (array $cell): int => $cell['globalRow'],
+            $packet['coverage'] ?? []
+        ));
+        $t->same([2, 4], $packet['coverage'][6]['globalRowRange'] ?? null);
+        $t->same([2, 3], $packet['coverage'][6]['globalRows'] ?? null);
+        $t->same(2, $packet['sections'][1]['rows'][1]['slots'][0]['globalRow'] ?? null);
+        $t->same(2, $packet['sections'][1]['rows'][2]['slots'][0]['anchorGlobalRow'] ?? null);
+        $t->same([2, 4], $packet['sections'][1]['rows'][1]['slots'][0]['globalRowRange'] ?? null);
+        $t->same([2, 3], $packet['sections'][1]['rows'][1]['slots'][0]['globalRows'] ?? null);
+        $t->same([2, 4], $packet['sections'][1]['rows'][2]['slots'][0]['anchorGlobalRowRange'] ?? null);
+        $t->same([2, 3], $packet['sections'][1]['rows'][2]['slots'][0]['anchorGlobalRows'] ?? null);
+        $t->same(5, $packet['sections'][3]['summary']['rowSummaries'][0]['globalRow'] ?? null);
+        $t->same(5, $packet['summary']['maxGlobalRow'] ?? null);
+        $t->same(6, $packet['summary']['globalRowCount'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports body-local head row writer handoff diagnostics' => static function (TestRunner $t): void {

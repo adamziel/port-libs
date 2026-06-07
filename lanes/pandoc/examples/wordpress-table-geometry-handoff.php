@@ -1110,6 +1110,17 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing body-local row-group range metadata');
     }
     if (
+        ($bodyHeadPacket['sections'][1]['rowRange'] ?? null) !== [1, 4]
+        || ($bodyHeadPacket['sections'][1]['rows'][1]['globalRow'] ?? null) !== 2
+        || ($bodyHeadPacket['sections'][1]['rows'][2]['slots'][0]['anchorGlobalRow'] ?? null) !== 2
+        || ($bodyHeadPacket['coverage'][6]['globalRowRange'] ?? null) !== [2, 4]
+        || ($bodyHeadPacket['coverage'][6]['globalRows'] ?? null) !== [2, 3]
+        || ($bodyHeadPacket['summary']['globalRowCount'] ?? null) !== 4
+        || ($bodyHeadPacket['summary']['maxGlobalRow'] ?? null) !== 3
+    ) {
+        throw new RuntimeException('Table geometry self-test missing global row coordinate metadata');
+    }
+    if (
         ($bodyHeadPacket['writerDowngrades']['markdown'][1]['code'] ?? null) !== 'markdown-body-head-rows-flattened'
         || ($bodyHeadPacket['writerDowngrades']['markdown'][1]['requiredFeature'] ?? null) !== 'body-local-header-row-boundaries'
         || ($bodyHeadPacket['writerDowngrades']['markdown'][1]['bodyHeadRowCount'] ?? null) !== 1
