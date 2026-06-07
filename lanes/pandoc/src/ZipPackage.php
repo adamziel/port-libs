@@ -1640,6 +1640,119 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     diskNumber:int,
+     *     centralDirectoryDisk:int,
+     *     diskEntryCount:int,
+     *     totalEntryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     isSingleDisk:bool,
+     *     hasSplitArchiveMarkers:bool,
+     *     splitArchiveEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     splitArchiveEntries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>,
+     *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>
+     * }
+     */
+    public static function splitArchivePreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before split archive entries can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $splitArchiveEntries = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $diskStart = self::readUInt16($bytes, $cursor + 34);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            $issues = $diskStart === 0 ? [] : ['split-entry-disk-start'];
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'centralDirectoryIndex' => $index,
+                'diskStart' => $diskStart,
+                'localHeaderOffset' => $localHeaderOffset,
+                'issues' => $issues,
+            ];
+            $entries[] = $entry;
+            if ($issues !== []) {
+                $splitArchiveEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            throw new \RuntimeException('ZIP central directory size does not match scanned entry records');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($splitArchiveEntries !== []) {
+            $issues[] = 'split-entry-disk-start';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'diskNumber' => $archive['diskNumber'],
+            'centralDirectoryDisk' => $archive['centralDirectoryDisk'],
+            'diskEntryCount' => $archive['diskEntryCount'],
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'isSingleDisk' => $archive['isSingleDisk'],
+            'hasSplitArchiveMarkers' => $issues !== [],
+            'splitArchiveEntryCount' => count($splitArchiveEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'splitArchiveEntries' => $splitArchiveEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     eocdOffset:int,
      *     diskNumber:int,
      *     centralDirectoryDisk:int,

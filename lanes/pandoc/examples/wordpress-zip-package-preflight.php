@@ -2144,6 +2144,7 @@ $splitZipBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
     'diskEntryCount' => 2,
 ]);
 $splitZipArchivePreflight = ZipPackage::endOfCentralDirectoryPreflight($splitZipBytes);
+$splitZipDiskPreflight = ZipPackage::splitArchivePreflight($splitZipBytes);
 $splitZipArchiveRejected = false;
 try {
     ZipPackage::fromString($splitZipBytes);
@@ -3454,6 +3455,10 @@ if (in_array('--self-test', $argv, true)) {
     if (
         ($splitZipArchivePreflight['isSingleDisk'] ?? null) !== false
         || ($splitZipArchivePreflight['isArchiveLayoutSupported'] ?? null) !== false
+        || ($splitZipDiskPreflight['hasSplitArchiveMarkers'] ?? null) !== true
+        || ($splitZipDiskPreflight['splitArchiveEntryCount'] ?? null) !== 0
+        || ($splitZipDiskPreflight['isSupportedByBoundedReader'] ?? null) !== false
+        || ($splitZipDiskPreflight['issues'] ?? null) !== ['split-archive-eocd']
         || !$splitZipArchiveRejected
     ) {
         throw new RuntimeException('Expected split ZIP EOCD metadata to be reported and rejected before import');
@@ -4261,6 +4266,9 @@ echo 'packageArchive.singleDisk=' . ($packageArchivePreflight['isSingleDisk'] ? 
 echo 'packageArchive.layoutSupported=' . ($packageArchivePreflight['isArchiveLayoutSupported'] ? 'true' : 'false') . "\n";
 echo 'zipSplitArchivePolicy=' . ($splitZipArchiveRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipSplitArchiveSingleDisk=' . ($splitZipArchivePreflight['isSingleDisk'] ? 'true' : 'false') . "\n";
+echo 'zipSplitArchiveMarkerPolicy=' . ($splitZipDiskPreflight['hasSplitArchiveMarkers'] ? 'blocked' : 'supported') . "\n";
+echo 'zipSplitArchiveEntryCount=' . $splitZipDiskPreflight['splitArchiveEntryCount'] . "\n";
+echo 'zipSplitArchiveIssues=' . implode(',', $splitZipDiskPreflight['issues']) . "\n";
 echo 'zip64EocdPolicy=' . ($zip64EocdRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64EocdRequiresZip64=' . ($zip64EocdPreflight['requiresZip64'] ? 'true' : 'false') . "\n";
 echo 'zip64LocatorPolicy=' . ($zip64LocatorRejected ? 'rejected' : 'not-rejected') . "\n";

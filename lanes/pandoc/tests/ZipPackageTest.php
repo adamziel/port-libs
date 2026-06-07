@@ -1955,6 +1955,85 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip64MarkerZip));
     },
 
+    'preflights split zip archive disk markers before bounded package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>split disk preflight</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG review media\n",
+                'method' => 0,
+            ],
+        ]);
+        $summary = ZipPackage::splitArchivePreflight($zip);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['diskEntryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same(true, $summary['isSingleDisk']);
+        $t->same(false, $summary['hasSplitArchiveMarkers']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same(0, $summary['splitArchiveEntryCount']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($summary['entries'], 'name'));
+        $t->same([0, 0], array_column($summary['entries'], 'diskStart'));
+
+        $splitZip = $rewriteEndOfCentralDirectory($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>split EOCD preflight</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/split.png',
+                'data' => "split media payload\n",
+                'method' => 0,
+                'diskStart' => 2,
+            ],
+        ]), [
+            'diskNumber' => 1,
+            'centralDirectoryDisk' => 1,
+            'diskEntryCount' => 1,
+        ]);
+        $splitSummary = ZipPackage::splitArchivePreflight($splitZip);
+
+        $t->same(2, $splitSummary['entryCount']);
+        $t->same(1, $splitSummary['diskNumber']);
+        $t->same(1, $splitSummary['centralDirectoryDisk']);
+        $t->same(1, $splitSummary['diskEntryCount']);
+        $t->same(2, $splitSummary['totalEntryCount']);
+        $t->same(false, $splitSummary['isSingleDisk']);
+        $t->same(true, $splitSummary['hasSplitArchiveMarkers']);
+        $t->same(false, $splitSummary['isSupportedByBoundedReader']);
+        $t->same(['split-archive-eocd', 'split-entry-disk-start'], $splitSummary['issues']);
+        $t->same(1, $splitSummary['splitArchiveEntryCount']);
+        $t->same('word/media/split.png', $splitSummary['splitArchiveEntries'][0]['name']);
+        $t->same(2, $splitSummary['splitArchiveEntries'][0]['diskStart']);
+        $t->same(['split-entry-disk-start'], $splitSummary['splitArchiveEntries'][0]['issues']);
+        $t->same([0, 2], array_column($splitSummary['entries'], 'diskStart'));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($splitZip));
+
+        $entrySplitZip = $buildZipPackage([
+            [
+                'name' => 'word/split-entry.xml',
+                'data' => '<w:p>entry disk start marker</w:p>',
+                'diskStart' => 3,
+            ],
+        ]);
+        $entrySummary = ZipPackage::splitArchivePreflight($entrySplitZip);
+
+        $t->same(true, $entrySummary['isSingleDisk']);
+        $t->same(true, $entrySummary['hasSplitArchiveMarkers']);
+        $t->same(false, $entrySummary['isSupportedByBoundedReader']);
+        $t->same(['split-entry-disk-start'], $entrySummary['issues']);
+        $t->same(1, $entrySummary['splitArchiveEntryCount']);
+        $t->same('word/split-entry.xml', $entrySummary['splitArchiveEntries'][0]['name']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($entrySplitZip));
+    },
+
     'preflights zip64 end of central directory locator before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage): void {
         $zip = $buildZip64EndOfCentralDirectoryPackage();
         $summary = ZipPackage::endOfCentralDirectoryPreflight($zip);
