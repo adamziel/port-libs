@@ -2797,6 +2797,11 @@ final class OdfReader
             'expression',
             'conditional-text',
             'hidden-text',
+            'database-display',
+            'database-name',
+            'database-next',
+            'database-row-number',
+            'database-row-select',
             'page-number',
             'page-count',
             'page-variable-set',
@@ -2971,6 +2976,11 @@ final class OdfReader
             'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
             'condition' => self::nullable(self::attr($field, self::TEXT_NS, 'condition')),
             'display' => self::nullable(self::attr($field, self::TEXT_NS, 'display')),
+            'databaseName' => self::nullable(self::attr($field, self::TEXT_NS, 'database-name')),
+            'tableName' => self::nullable(self::attr($field, self::TEXT_NS, 'table-name')),
+            'tableType' => self::nullable(self::attr($field, self::TEXT_NS, 'table-type')),
+            'columnName' => self::nullable(self::attr($field, self::TEXT_NS, 'column-name')),
+            'rowNumber' => self::nullable(self::attr($field, self::TEXT_NS, 'row-number')),
             'outlineLevel' => self::nullableInt(self::attr($field, self::TEXT_NS, 'outline-level')),
             'valueType' => self::nullable(self::attr($field, self::OFFICE_NS, 'value-type')),
             'value' => self::nullable(self::attr($field, self::OFFICE_NS, 'value')),
@@ -3042,7 +3052,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
+        foreach (['stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_scalar($value) && (string) $value !== '') {
                 return (string) $value;

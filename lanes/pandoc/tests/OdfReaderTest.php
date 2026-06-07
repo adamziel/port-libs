@@ -2206,6 +2206,58 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
     },
+    'maps ODT database fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDatabaseFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Database field <text:database-display text:database-name="ImportDS" text:table-name="wp_posts" text:table-type="table" text:column-name="post_title">Imported post title</text:database-display> advanced <text:database-next text:database-name="ImportDS" text:table-name="wp_posts" text:condition="Status == &quot;ready&quot;">next record</text:database-next> row <text:database-row-number text:database-name="ImportDS" text:table-name="wp_posts" text:row-number="12"/> and source <text:database-name text:database-name="ImportDS"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDatabaseFields));
+        $paragraph = $result['document']->children[0];
+        $display = $paragraph->children[1];
+        $next = $paragraph->children[3];
+        $rowNumber = $paragraph->children[5];
+        $databaseName = $paragraph->children[7];
+
+        $t->same('Database field Imported post title advanced next record row 12 and source ImportDS.', $paragraph->attr('text'));
+        $t->same('database-display', $display->attr('fieldType'));
+        $t->same('ImportDS', $display->attr('fieldMetadata')['databaseName']);
+        $t->same('wp_posts', $display->attr('fieldMetadata')['tableName']);
+        $t->same('table', $display->attr('fieldMetadata')['tableType']);
+        $t->same('post_title', $display->attr('fieldMetadata')['columnName']);
+        $t->same('post_title', $display->attr('attributes')['data-odf-field-column-name']);
+        $t->same('Imported post title', $display->children[0]->attr('text'));
+
+        $t->same('database-next', $next->attr('fieldType'));
+        $t->same('Status == "ready"', $next->attr('fieldMetadata')['condition']);
+        $t->same('Status == "ready"', $next->attr('attributes')['data-odf-field-condition']);
+        $t->same('next record', $next->children[0]->attr('text'));
+
+        $t->same('database-row-number', $rowNumber->attr('fieldType'));
+        $t->same('12', $rowNumber->attr('fieldMetadata')['rowNumber']);
+        $t->same('12', $rowNumber->attr('attributes')['data-odf-field-row-number']);
+        $t->same('12', $rowNumber->children[0]->attr('text'));
+
+        $t->same('database-name', $databaseName->attr('fieldType'));
+        $t->same('ImportDS', $databaseName->attr('fieldMetadata')['databaseName']);
+        $t->same('ImportDS', $databaseName->children[0]->attr('text'));
+        $t->same(4, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Imported post title]{.odf-field .odf-field-database-display data-odf-field-type="database-display" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-table-type="table" data-odf-field-column-name="post_title"}', $markdown);
+        $t->contains('[12]{.odf-field .odf-field-database-row-number data-odf-field-type="database-row-number" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-row-number="12"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-database-display" data-odf-field-type="database-display" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-table-type="table" data-odf-field-column-name="post_title">Imported post title</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-database-next" data-odf-field-type="database-next" data-odf-field-condition="Status == &quot;ready&quot;" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts">next record</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-database-name" data-odf-field-type="database-name" data-odf-field-database-name="ImportDS">ImportDS</span>', $blocksHtml);
+    },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSourceMetadataFields = <<<'XML'
 <office:document-content
