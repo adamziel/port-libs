@@ -776,6 +776,22 @@ final class MarkdownReader
                 continue;
             }
 
+            $explicitNullMapping = $this->parseYamlExplicitNullMappingPair($lines, $index);
+            if ($explicitNullMapping !== null) {
+                [$key, $nextIndex, $quotedKey] = $explicitNullMapping;
+                if (array_key_exists($key, $seenKeys)) {
+                    $this->recordYamlDuplicateKeyDiagnostic($key);
+                }
+                $seenKeys[$key] = true;
+                $metadata[$key] = null;
+                if ($topLevel) {
+                    $fieldQuoteMap[(string) $key] = $quotedKey;
+                }
+
+                $index = $nextIndex;
+                continue;
+            }
+
             $mapping = $this->parseYamlMappingLine($trimmed);
             if ($this->countIndentColumns($line) > 0 || $mapping === null) {
                 $index++;
@@ -973,16 +989,19 @@ final class MarkdownReader
         }
 
         if (!isset($lines[$cursor])) {
+            array_splice($this->yamlMetadataTagProvenance, $keyTagStart);
             return null;
         }
 
         $sourceValue = $this->parseYamlExplicitMappingValueLine(trim($lines[$cursor]));
         if ($sourceValue === null) {
+            array_splice($this->yamlMetadataTagProvenance, $keyTagStart);
             return null;
         }
 
         $key = $this->normalizeYamlExplicitMappingKey($keyValue);
         if ($key === null || $key === '') {
+            array_splice($this->yamlMetadataTagProvenance, $keyTagStart);
             return null;
         }
 
@@ -990,6 +1009,74 @@ final class MarkdownReader
         [$children, $nextIndex] = $this->collectYamlChildLines($lines, $cursor + 1);
 
         return [$key, $sourceValue, $children, $nextIndex, $quotedKey];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int, 2:bool}|null
+     */
+    private function parseYamlExplicitNullMappingPair(array $lines, int $start): ?array
+    {
+        $line = $lines[$start] ?? '';
+        if ($this->countIndentColumns($line) > 0) {
+            return null;
+        }
+
+        $trimmed = trim($line);
+        if (!$this->isYamlExplicitMappingKeyLine($trimmed)) {
+            return null;
+        }
+
+        $keySource = trim(substr($trimmed, 1));
+        $keyValue = null;
+        $quotedKey = false;
+        $keyTagStart = count($this->yamlMetadataTagProvenance);
+        $cursor = $start + 1;
+
+        if ($keySource === '') {
+            $keyLines = [];
+            $count = count($lines);
+            while ($cursor < $count) {
+                $candidate = trim($lines[$cursor]);
+                if ($this->parseYamlExplicitMappingValueLine($candidate) !== null) {
+                    return null;
+                }
+
+                if (
+                    $candidate !== ''
+                    && $this->countIndentColumns($lines[$cursor]) === 0
+                    && (
+                        $this->parseYamlMappingLine($candidate) !== null
+                        || $this->isYamlExplicitMappingKeyLine($candidate)
+                    )
+                ) {
+                    break;
+                }
+
+                $keyLines[] = $lines[$cursor];
+                $cursor++;
+            }
+
+            if ($keyLines === []) {
+                return null;
+            }
+
+            $quotedKey = $this->yamlExplicitKeyLinesStartQuoted($keyLines);
+            $keyValue = $this->parseYamlIndentedValue($keyLines);
+        } else {
+            $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
+            $keyValue = $this->parseYamlScalarValue($keySource);
+        }
+
+        $key = $this->normalizeYamlExplicitMappingKey($keyValue);
+        if ($key === null || $key === '') {
+            array_splice($this->yamlMetadataTagProvenance, $keyTagStart);
+            return null;
+        }
+
+        $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+
+        return [$key, $cursor, $quotedKey];
     }
 
     /**

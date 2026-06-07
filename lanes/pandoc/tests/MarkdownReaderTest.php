@@ -3188,6 +3188,55 @@ return [
         $t->same('flow-implicit-null-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="flow-implicit-null-key-yaml-body">Flow implicit null key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit null keys inside block metadata maps' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Block explicit null key **Packet**',
+            'block-explicit-null-review:',
+            '  ? source',
+            '  ? "source:key"',
+            '  ? [source, uri]',
+            '  ? {owner: desk, ticket: 7}',
+            '  ? !wp-null tagged-source',
+            '  status: approved',
+            'references:',
+            '  - id: block-explicit-null-ref',
+            '    metadata:',
+            '      ? [source, key]',
+            '      ? {type: review}',
+            '      state: kept',
+            '? "15"',
+            '...',
+            '',
+            '# Block explicit null key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Block explicit null key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->true(array_key_exists('source', $meta['block-explicit-null-review']) && $meta['block-explicit-null-review']['source'] === null);
+        $t->true(array_key_exists('source:key', $meta['block-explicit-null-review']) && $meta['block-explicit-null-review']['source:key'] === null);
+        $t->true(array_key_exists('[source, uri]', $meta['block-explicit-null-review']) && $meta['block-explicit-null-review']['[source, uri]'] === null);
+        $t->true(array_key_exists('{owner: desk, ticket: 7}', $meta['block-explicit-null-review']) && $meta['block-explicit-null-review']['{owner: desk, ticket: 7}'] === null);
+        $t->true(array_key_exists('tagged-source', $meta['block-explicit-null-review']) && $meta['block-explicit-null-review']['tagged-source'] === null);
+        $t->same('approved', $meta['block-explicit-null-review']['status']);
+        $t->same(false, array_key_exists('? source', $meta['block-explicit-null-review']));
+        $t->same(false, array_key_exists('? [source, uri]', $meta['block-explicit-null-review']));
+        $t->same('block-explicit-null-ref', $meta['references'][0]['id']);
+        $t->true(array_key_exists('[source, key]', $meta['references'][0]['metadata']) && $meta['references'][0]['metadata']['[source, key]'] === null);
+        $t->true(array_key_exists('{type: review}', $meta['references'][0]['metadata']) && $meta['references'][0]['metadata']['{type: review}'] === null);
+        $t->same('kept', $meta['references'][0]['metadata']['state']);
+        $t->true(array_key_exists(15, $meta) && $meta[15] === null);
+        $t->same(['!wp-null'], array_column($provenance, 'tag'));
+        $t->same(['/block-explicit-null-review/tagged-source'], array_column($provenance, 'path'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('block-explicit-null-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="block-explicit-null-key-yaml-body">Block explicit null key YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit mapping keys in sequence metadata items' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

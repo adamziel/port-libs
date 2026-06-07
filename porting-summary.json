@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 03:47:05 UTC",
-    "sourceCommit": "b6751e8d16a369b3cb6f380d161ef10027ea4635",
-    "sourceCommitShort": "b6751e8d16a3",
+    "generated": "2026-06-07 03:47:12 UTC",
+    "sourceCommit": "fecaa88e1d2643f588863d8d8ccb77576f1bf1c2",
+    "sourceCommitShort": "fecaa88e1d26",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b6751e8d16a369b3cb6f380d161ef10027ea4635",
-    "dashboardCommitShort": "b6751e8d16a3",
+    "dashboardCommit": "fecaa88e1d2643f588863d8d8ccb77576f1bf1c2",
+    "dashboardCommitShort": "fecaa88e1d26",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1864",
-            "coverage": "1,864 / 2,276 (81.9%)",
+            "mapped": "1865",
+            "coverage": "1,865 / 2,276 (81.9%)",
             "mapPercent": "81.9%",
-            "unmapped": "412",
-            "php": "1,448 pass / 0 fail",
+            "unmapped": "411",
+            "php": "1,449 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
             "audit": "2026-06-07 UTC doctemplate current-base default man template fallback...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For doctemplate follow-up, keep support-library work bounded...",
+            "nextTarget": "For YAML/front-matter follow-up, keep parser work bounded to...",
             "remainingGate": "No new support component is needed for this slice: it reuses the nati...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

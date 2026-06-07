@@ -263,6 +263,19 @@ flow-implicit-null-review: {source, [source, uri], {owner: desk, ticket: 7}, "so
 flow-implicit-null-reference:
   id: flow-implicit-null-key-ref
   metadata: {[source, key], {type: review}, state: kept}
+block-explicit-null-review:
+  ? source
+  ? "source:key"
+  ? [source, uri]
+  ? {owner: desk, ticket: 7}
+  ? !wpd!key tagged-source
+  status: approved
+block-explicit-null-reference:
+  id: block-explicit-null-key-ref
+  metadata:
+    ? [source, key]
+    ? {type: review}
+    state: kept
 sequence-explicit-review-items:
   - ? [source, uri]
     : https://example.test/exports/packet#sequence-explicit-item
@@ -675,7 +688,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
     }
     $yamlTagPaths = array_column($yamlTagProvenance, 'path');
-    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/verbatim-tag-review/source-uri'] as $expectedPath) {
+    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/block-explicit-null-review/tagged-source', '/verbatim-tag-review/source-uri'] as $expectedPath) {
         if (!in_array($expectedPath, $yamlTagPaths, true)) {
             throw new RuntimeException('YAML metadata self-test missing custom tag provenance path ' . $expectedPath);
         }
@@ -983,6 +996,33 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!array_key_exists('{type: review}', $meta['flow-implicit-null-reference']['metadata'] ?? []) || $meta['flow-implicit-null-reference']['metadata']['{type: review}'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing nested flow implicit null map key metadata');
+    }
+    if (!array_key_exists('source', $meta['block-explicit-null-review'] ?? []) || $meta['block-explicit-null-review']['source'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing block explicit null scalar key metadata');
+    }
+    if (!array_key_exists('[source, uri]', $meta['block-explicit-null-review'] ?? []) || $meta['block-explicit-null-review']['[source, uri]'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing block explicit null sequence key metadata');
+    }
+    if (!array_key_exists('{owner: desk, ticket: 7}', $meta['block-explicit-null-review'] ?? []) || $meta['block-explicit-null-review']['{owner: desk, ticket: 7}'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing block explicit null map key metadata');
+    }
+    if (!array_key_exists('source:key', $meta['block-explicit-null-review'] ?? []) || $meta['block-explicit-null-review']['source:key'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing block explicit null quoted key metadata');
+    }
+    if (!array_key_exists('tagged-source', $meta['block-explicit-null-review'] ?? []) || $meta['block-explicit-null-review']['tagged-source'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing block explicit null tagged key metadata');
+    }
+    if (($meta['block-explicit-null-review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing block explicit null status metadata');
+    }
+    if (($meta['block-explicit-null-reference']['metadata']['state'] ?? '') !== 'kept') {
+        throw new RuntimeException('YAML metadata self-test missing nested block explicit null reference state');
+    }
+    if (!array_key_exists('[source, key]', $meta['block-explicit-null-reference']['metadata'] ?? []) || $meta['block-explicit-null-reference']['metadata']['[source, key]'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing nested block explicit null sequence key metadata');
+    }
+    if (!array_key_exists('{type: review}', $meta['block-explicit-null-reference']['metadata'] ?? []) || $meta['block-explicit-null-reference']['metadata']['{type: review}'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing nested block explicit null map key metadata');
     }
     if (($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') !== 'https://example.test/exports/packet#sequence-explicit-item') {
         throw new RuntimeException('YAML metadata self-test missing sequence item explicit sequence key metadata');
@@ -1303,6 +1343,9 @@ echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / 
 echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ?? '') . ' / ' . ($meta['[sequence, source-uri]'] ?? '') . "\n";
 echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
 echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri]'] ?? '') . ' / ' . ($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') . "\n";
+echo 'Block explicit null key review: ' . ($meta['block-explicit-null-review']['status'] ?? '') . ' / '
+    . (array_key_exists('[source, uri]', $meta['block-explicit-null-review'] ?? []) ? 'sequence-null' : 'missing')
+    . "\n";
 echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') . ' / ' . ($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
