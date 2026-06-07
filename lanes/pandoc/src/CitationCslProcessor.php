@@ -5133,7 +5133,7 @@ final class CitationCslProcessor
     private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null, ?AstNode $citation = null): string
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
-        $names = $this->namesForRenderingVariable($item, $variable);
+        [$names, $selectedVariable] = $this->namesForRenderingVariableWithSource($item, $variable);
         if ($names === []) {
             $substitute = $element['substitute'] ?? [];
             if (is_array($substitute) && $substitute !== []) {
@@ -5173,7 +5173,7 @@ final class CitationCslProcessor
             $bibliographyState
         );
 
-        return $rendered;
+        return $this->applyNamesLabel($rendered, $selectedVariable, $names, $options);
     }
 
     private function namesVariableAllowsTitleFallback(string $variable): bool
@@ -5437,6 +5437,7 @@ final class CitationCslProcessor
             'demoteNonDroppingParticle' => is_string($options['demoteNonDroppingParticle'] ?? null) ? $options['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
             'institution' => is_array($options['institution'] ?? null) ? $options['institution'] : ($defaults['institution'] ?? null),
+            'label' => is_array($options['label'] ?? null) ? $options['label'] : ($defaults['label'] ?? null),
         ];
     }
 
@@ -5960,6 +5961,15 @@ final class CitationCslProcessor
      */
     private function namesForRenderingVariable(array $item, string $variable): array
     {
+        return $this->namesForRenderingVariableWithSource($item, $variable)[0];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{0:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>, 1:string}
+     */
+    private function namesForRenderingVariableWithSource(array $item, string $variable): array
+    {
         $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
         if ($variables === []) {
             $variables = ['author', 'editor'];
@@ -5991,11 +6001,11 @@ final class CitationCslProcessor
                 default => [],
             };
             if (is_array($names) && $names !== []) {
-                return $names;
+                return [$names, $nameVariable];
             }
         }
 
-        return [];
+        return [[], ''];
     }
 
     /**
@@ -6413,6 +6423,59 @@ final class CitationCslProcessor
         }
 
         return '/';
+    }
+
+    /**
+     * @param list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
+     * @param array<string, mixed> $options
+     */
+    private function applyNamesLabel(string $renderedNames, string $selectedVariable, array $names, array $options): string
+    {
+        $label = $options['label'] ?? null;
+        if ($renderedNames === '' || $selectedVariable === '' || !is_array($label)) {
+            return $renderedNames;
+        }
+
+        $plural = match ((string) ($label['plural'] ?? 'contextual')) {
+            'always' => true,
+            'never' => false,
+            default => count($names) !== 1,
+        };
+        $term = $this->style->term(
+            $this->nameLabelTermName($selectedVariable),
+            (string) ($label['form'] ?? 'long'),
+            $plural
+        );
+        if (($label['stripPeriods'] ?? false) === true) {
+            $term = str_replace('.', '', $term);
+        }
+        $term = $this->applyNamePartTextCase($term, $label);
+        if ($term === '') {
+            return $renderedNames;
+        }
+
+        $prefix = (string) ($label['prefix'] ?? '');
+        $suffix = (string) ($label['suffix'] ?? '');
+        $renderedLabel = $prefix . $term . $suffix;
+        if (($label['position'] ?? 'after') === 'before') {
+            $separator = $suffix !== '' || preg_match('/^\s|^[.,;:!?]/u', $renderedNames) === 1 ? '' : ' ';
+
+            return trim($renderedLabel . $separator . $renderedNames);
+        }
+
+        $separator = $prefix !== '' || preg_match('/\s\z/u', $renderedNames) === 1 ? '' : ' ';
+
+        return trim($renderedNames . $separator . $renderedLabel);
+    }
+
+    private function nameLabelTermName(string $variable): string
+    {
+        return match (strtolower(trim($variable))) {
+            'short-author' => 'author',
+            'short-editor' => 'editor',
+            'event-organizer', 'organizer' => 'event-organizer',
+            default => strtolower(trim($variable)),
+        };
     }
 
     /**

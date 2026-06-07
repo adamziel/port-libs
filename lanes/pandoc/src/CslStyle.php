@@ -31,6 +31,14 @@ final class CslStyle
         'event-organizer|long' => ['single' => 'Event organizer', 'multiple' => 'Event organizers'],
         'event-place|long' => ['single' => 'Event place', 'multiple' => 'Event places'],
         'event-date|long' => ['single' => 'Event date', 'multiple' => 'Event dates'],
+        'editor|long' => ['single' => 'editor', 'multiple' => 'editors'],
+        'editor|short' => ['single' => 'ed.', 'multiple' => 'eds.'],
+        'editor|verb' => ['single' => 'edited by', 'multiple' => 'edited by'],
+        'editor|verb-short' => ['single' => 'ed.', 'multiple' => 'eds.'],
+        'translator|long' => ['single' => 'translator', 'multiple' => 'translators'],
+        'translator|short' => ['single' => 'trans.', 'multiple' => 'trans.'],
+        'translator|verb' => ['single' => 'translated by', 'multiple' => 'translated by'],
+        'translator|verb-short' => ['single' => 'trans.', 'multiple' => 'trans.'],
         'open-quote|long' => ['single' => "\u{201C}", 'multiple' => "\u{201C}"],
         'close-quote|long' => ['single' => "\u{201D}", 'multiple' => "\u{201D}"],
         'page|long' => ['single' => 'page', 'multiple' => 'pages'],
@@ -126,6 +134,7 @@ final class CslStyle
             'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
             'institution' => null,
+            'label' => null,
         ],
         'bibliography' => [
             'delimiter' => '; ',
@@ -154,6 +163,7 @@ final class CslStyle
             'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
             'institution' => null,
+            'label' => null,
         ],
     ];
 
@@ -806,6 +816,7 @@ final class CslStyle
             'demoteNonDroppingParticle' => is_string($overrides['demoteNonDroppingParticle'] ?? null) ? $overrides['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
             'institution' => is_array($overrides['institution'] ?? null) ? $overrides['institution'] : ($defaults['institution'] ?? null),
+            'label' => is_array($overrides['label'] ?? null) ? $overrides['label'] : ($defaults['label'] ?? null),
         ];
     }
 
@@ -951,8 +962,58 @@ final class CslStyle
         if ($institution !== []) {
             $overrides['institution'] = $institution;
         }
+        $label = self::namesLabelRenderingOptions($names, $name, $scope);
+        if ($label !== []) {
+            $overrides['label'] = $label;
+        }
 
         return $overrides;
+    }
+
+    /**
+     * @return array{position:string, form:string, plural:string, prefix:string, suffix:string, textCase:string, stripPeriods:bool}|array{}
+     */
+    private static function namesLabelRenderingOptions(\DOMElement $names, ?\DOMElement $name, string $scope): array
+    {
+        $labels = self::directChildren($names, 'label');
+        if ($labels === []) {
+            return [];
+        }
+
+        if (count($labels) > 1) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' names element may contain at most one label element');
+        }
+
+        $label = $labels[0];
+        if ($label->hasAttribute('variable') && trim($label->getAttribute('variable')) !== '') {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' names label must not declare a variable');
+        }
+
+        $form = strtolower(trim($label->getAttribute('form')));
+        if ($form === '') {
+            $form = 'long';
+        }
+        if (!in_array($form, ['long', 'short', 'verb', 'verb-short', 'symbol'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' names label form must be long, short, verb, verb-short, or symbol');
+        }
+
+        $plural = strtolower(trim($label->getAttribute('plural')));
+        if ($plural === '') {
+            $plural = 'contextual';
+        }
+        if (!in_array($plural, ['contextual', 'always', 'never'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' names label plural must be contextual, always, or never');
+        }
+
+        return [
+            'position' => $name instanceof \DOMElement && self::elementPrecedes($label, $name) ? 'before' : 'after',
+            'form' => $form,
+            'plural' => $plural,
+            'prefix' => self::optionalAttribute($label, 'prefix'),
+            'suffix' => self::optionalAttribute($label, 'suffix'),
+            'textCase' => self::textCaseAttribute($label, $scope),
+            'stripPeriods' => self::booleanRenderingAttribute($label, 'strip-periods', false, $scope),
+        ];
     }
 
     /**
@@ -1888,6 +1949,24 @@ final class CslStyle
         }
 
         return null;
+    }
+
+    private static function elementPrecedes(\DOMElement $left, \DOMElement $right): bool
+    {
+        if ($left->parentNode !== $right->parentNode || !($left->parentNode instanceof \DOMNode)) {
+            return false;
+        }
+
+        foreach ($left->parentNode->childNodes as $child) {
+            if ($child === $left) {
+                return true;
+            }
+            if ($child === $right) {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     private static function firstAuthorEditorNamesElement(\DOMElement $element): ?\DOMElement

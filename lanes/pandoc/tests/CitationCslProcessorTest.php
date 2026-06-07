@@ -4952,6 +4952,132 @@ XML
         $t->contains('<dt>Translator 2024</dt><dd>Translator, T. Translated Packet.</dd>', $blocks);
         $t->contains('<dt>Orphan Packet 2023</dt><dd>Orphan Packet. title-only source packet.</dd>', $blocks);
     },
+    'applies bounded csl names child label rendering for creator roles' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'editor-source',
+                'type' => 'book',
+                'title' => 'Edited Review Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'translator-source',
+                'type' => 'book',
+                'title' => 'Translated Review Packet',
+                'translator' => [
+                    ['family' => 'Translator', 'given' => 'Tia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Label Review Style</title>
+    <id>https://example.test/styles/bounded-name-label-review</id>
+    <updated>2026-06-07T02:24:56+00:00</updated>
+  </info>
+  <locale>
+    <terms>
+      <term name="editor" form="verb">edited by</term>
+      <term name="translator" form="verb">translated by</term>
+      <term name="translator" form="verb-short">trans.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="editor translator" delimiter=", ">
+          <label form="verb" suffix=" "/>
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <names variable="editor" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <label form="short" plural="always" prefix=", "/>
+      </names>
+      <names variable="translator">
+        <label form="verb-short" suffix=" "/>
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationLabel = $summary['citationRendering'][0]['children'][0]['nameRendering']['label'] ?? [];
+        $editorLabel = $summary['bibliographyRendering'][0]['nameRendering']['label'] ?? [];
+        $translatorLabel = $summary['bibliographyRendering'][1]['nameRendering']['label'] ?? [];
+        $t->same('Bounded Name Label Review Style', $summary['title'] ?? null);
+        $t->same('verb', $citationLabel['form'] ?? null);
+        $t->same('before', $citationLabel['position'] ?? null);
+        $t->same(' ', $citationLabel['suffix'] ?? null);
+        $t->same('short', $editorLabel['form'] ?? null);
+        $t->same('always', $editorLabel['plural'] ?? null);
+        $t->same('after', $editorLabel['position'] ?? null);
+        $t->same(', ', $editorLabel['prefix'] ?? null);
+        $t->same('verb-short', $translatorLabel['form'] ?? null);
+        $t->same('before', $translatorLabel['position'] ?? null);
+
+        $t->same('(edited by Curator and Ng 2026; translated by Translator 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'editor-source', 'text' => '[@editor-source]']),
+            new AstNode('citation', ['id' => 'translator-source', 'text' => '[@translator-source]']),
+        ]));
+        $t->same('Curator, E.; Ng, N., eds. | Edited Review Packet', $processor->renderBibliographyEntry('editor-source'));
+        $t->same('trans. Translator, T. | Translated Review Packet', $processor->renderBibliographyEntry('translator-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@editor-source; @translator-source] for role-sensitive source packets.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (edited by Curator and Ng 2026; translated by Translator 2025) for role-sensitive source packets.</p>', $blocks);
+        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds. | Edited Review Packet</dd>', $blocks);
+        $t->contains('<dt>Translator 2025</dt><dd>trans. Translator, T. | Translated Review Packet</dd>', $blocks);
+
+        $invalidVariable = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>Invalid Names Label Variable</title><id>https://example.test/styles/invalid-names-label-variable</id></info>
+  <citation><layout><names variable="editor"><label variable="editor"/><name/></names></layout></citation>
+  <bibliography><layout><names variable="editor"><name/></names></layout></bibliography>
+</style>
+XML;
+        try {
+            CitationCslProcessor::fromItems([])->withCslStyle($invalidVariable);
+            throw new RuntimeException('Expected invalid names label variable to be rejected');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('CSL citation names label must not declare a variable', $exception->getMessage());
+        }
+
+        $invalidForm = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>Invalid Names Label Form</title><id>https://example.test/styles/invalid-names-label-form</id></info>
+  <citation><layout><names variable="editor"><label form="alphabetic"/><name/></names></layout></citation>
+  <bibliography><layout><names variable="editor"><name/></names></layout></bibliography>
+</style>
+XML;
+        try {
+            CitationCslProcessor::fromItems([])->withCslStyle($invalidForm);
+            throw new RuntimeException('Expected invalid names label form to be rejected');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('CSL citation names label form must be long, short, verb, verb-short, or symbol', $exception->getMessage());
+        }
+    },
     'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
