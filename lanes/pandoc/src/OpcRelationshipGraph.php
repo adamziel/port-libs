@@ -1405,6 +1405,75 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, expanded:bool, nestedPackagePartCount:?int, nestedRelationshipSourceCount:?int, nestedSourcePartNames:list<string>, nestedOfficeDocument:?array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}, parseError:?string, valid:bool, issues:list<string>}>
+     */
+    public function preflightEmbeddedPackageGraphs(string $sourcePartName = '/'): array
+    {
+        $preflight = [];
+
+        foreach ($this->preflightEmbeddedPackages($sourcePartName) as $embeddedPackage) {
+            if ($embeddedPackage['kind'] !== 'embedded-package') {
+                continue;
+            }
+
+            $issues = $embeddedPackage['issues'];
+            $expanded = false;
+            $nestedPackagePartCount = null;
+            $nestedRelationshipSourceCount = null;
+            $nestedSourcePartNames = [];
+            $nestedOfficeDocument = null;
+            $parseError = null;
+
+            if ($embeddedPackage['external']) {
+                $issues[] = 'external-embedded-package-not-expanded';
+            } elseif (
+                $embeddedPackage['valid']
+                && $embeddedPackage['targetPart'] !== null
+                && $embeddedPackage['exists'] === true
+            ) {
+                try {
+                    $nestedPackage = ZipPackage::fromString($this->package->read($embeddedPackage['targetPart']));
+                    $nestedGraph = self::fromPackage($nestedPackage);
+                    $nestedSourcePartNames = $nestedGraph->sourcePartNames();
+                    $nestedOfficeDocument = $nestedGraph->preflightOfficeDocumentRoot();
+                    $nestedPackagePartCount = count($nestedPackage->names());
+                    $nestedRelationshipSourceCount = count($nestedSourcePartNames);
+                    $expanded = true;
+
+                    if (!$nestedOfficeDocument['valid']) {
+                        $issues[] = 'embedded-office-document-root-invalid';
+                    }
+                } catch (\Throwable $exception) {
+                    $issues[] = 'embedded-package-parse-error';
+                    $parseError = $exception->getMessage();
+                }
+            }
+
+            $issues = array_values(array_unique($issues));
+            $preflight[] = [
+                'source' => $embeddedPackage['source'],
+                'id' => $embeddedPackage['id'],
+                'type' => $embeddedPackage['type'],
+                'target' => $embeddedPackage['target'],
+                'targetPart' => $embeddedPackage['targetPart'],
+                'contentType' => $embeddedPackage['contentType'],
+                'external' => $embeddedPackage['external'],
+                'exists' => $embeddedPackage['exists'],
+                'expanded' => $expanded,
+                'nestedPackagePartCount' => $nestedPackagePartCount,
+                'nestedRelationshipSourceCount' => $nestedRelationshipSourceCount,
+                'nestedSourcePartNames' => $nestedSourcePartNames,
+                'nestedOfficeDocument' => $nestedOfficeDocument,
+                'parseError' => $parseError,
+                'valid' => $expanded && $issues === [],
+                'issues' => $issues,
+            ];
+        }
+
+        return $preflight;
+    }
+
+    /**
      * @param list<string> $sourceIds
      * @param list<string> $sourceTypes
      * @return array{source:string, sourceIds:list<string>, sourceTypes:list<string>, unmatchedSourceIds:list<string>, unmatchedSourceTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}

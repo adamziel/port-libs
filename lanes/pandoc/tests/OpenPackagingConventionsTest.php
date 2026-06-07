@@ -1876,6 +1876,99 @@ XML;
 
         $t->same([], $graph->preflightEmbeddedPackages('/word/missing.xml'));
     },
+    'preflights nested OPC graphs for embedded package relationships' => static function (TestRunner $t): void {
+        $nestedWorkbookBytes = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>
+XML],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdWorkbook" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="xl/workbook.xml"/></Relationships>'],
+            ['name' => 'xl/workbook.xml', 'data' => '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+            ['name' => 'xl/_rels/workbook.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdSheet1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
+            ['name' => 'xl/worksheets/sheet1.xml', 'data' => '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+        ]);
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/embeddings/malformed-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/embeddings/missing-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+  <Relationship Id="rIdMalformedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/malformed-workbook.xlsx"/>
+  <Relationship Id="rIdExternalWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="https://example.test/source-workbook.xlsx" TargetMode="External"/>
+  <Relationship Id="rIdMissingWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/missing-workbook.xlsx"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => $nestedWorkbookBytes],
+            ['name' => 'word/embeddings/malformed-workbook.xlsx', 'data' => 'not a zip package'],
+        ]));
+
+        $embeddedGraphs = [];
+        foreach ($graph->preflightEmbeddedPackageGraphs('/word/document.xml') as $embeddedGraph) {
+            $embeddedGraphs[$embeddedGraph['id']] = $embeddedGraph;
+        }
+
+        $t->same([
+            'rIdEmbeddedWorkbook',
+            'rIdMalformedWorkbook',
+            'rIdExternalWorkbook',
+            'rIdMissingWorkbook',
+        ], array_keys($embeddedGraphs));
+
+        $t->same('/word/embeddings/source-workbook.xlsx', $embeddedGraphs['rIdEmbeddedWorkbook']['targetPart']);
+        $t->same(true, $embeddedGraphs['rIdEmbeddedWorkbook']['expanded']);
+        $t->same(5, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedPackagePartCount']);
+        $t->same(2, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedRelationshipSourceCount']);
+        $t->same(['/', '/xl/workbook.xml'], $embeddedGraphs['rIdEmbeddedWorkbook']['nestedSourcePartNames']);
+        $t->same(1, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['relationshipCount'] ?? null);
+        $t->same(true, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['valid'] ?? null);
+        $t->same('/xl/workbook.xml', $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['relationships'][0]['targetPart'] ?? null);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml', $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['relationships'][0]['contentType'] ?? null);
+        $t->same(true, $embeddedGraphs['rIdEmbeddedWorkbook']['valid']);
+        $t->same([], $embeddedGraphs['rIdEmbeddedWorkbook']['issues']);
+
+        $t->same('/word/embeddings/malformed-workbook.xlsx', $embeddedGraphs['rIdMalformedWorkbook']['targetPart']);
+        $t->same(false, $embeddedGraphs['rIdMalformedWorkbook']['expanded']);
+        $t->same(null, $embeddedGraphs['rIdMalformedWorkbook']['nestedOfficeDocument']);
+        $t->same(false, $embeddedGraphs['rIdMalformedWorkbook']['valid']);
+        $t->same(['embedded-package-parse-error'], $embeddedGraphs['rIdMalformedWorkbook']['issues']);
+        $t->contains('ZIP', $embeddedGraphs['rIdMalformedWorkbook']['parseError'] ?? '');
+
+        $t->same(true, $embeddedGraphs['rIdExternalWorkbook']['external']);
+        $t->same(false, $embeddedGraphs['rIdExternalWorkbook']['expanded']);
+        $t->same(null, $embeddedGraphs['rIdExternalWorkbook']['targetPart']);
+        $t->same(false, $embeddedGraphs['rIdExternalWorkbook']['valid']);
+        $t->same(['external-embedded-package-not-expanded'], $embeddedGraphs['rIdExternalWorkbook']['issues']);
+
+        $t->same('/word/embeddings/missing-workbook.xlsx', $embeddedGraphs['rIdMissingWorkbook']['targetPart']);
+        $t->same(false, $embeddedGraphs['rIdMissingWorkbook']['expanded']);
+        $t->same(false, $embeddedGraphs['rIdMissingWorkbook']['valid']);
+        $t->same(['missing-in-package'], $embeddedGraphs['rIdMissingWorkbook']['issues']);
+    },
     'preflights OPC relationship selectors by SourceId and SourceType' => static function (TestRunner $t): void {
         $selectorContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

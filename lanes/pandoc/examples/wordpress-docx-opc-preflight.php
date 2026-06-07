@@ -289,6 +289,21 @@ $draftRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$embeddedWorkbookBytes = ZipPackage::build([
+    ['name' => '[Content_Types].xml', 'data' => <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>
+XML],
+    ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdWorkbook" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="xl/workbook.xml"/></Relationships>'],
+    ['name' => 'xl/workbook.xml', 'data' => '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+    ['name' => 'xl/_rels/workbook.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdSheet1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
+    ['name' => 'xl/worksheets/sheet1.xml', 'data' => '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+]);
+
 $package = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
     ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
@@ -306,7 +321,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/media/source diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
     ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
     ['name' => 'word/media/review source.png', 'data' => 'PNG'],
-    ['name' => 'word/embeddings/source workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
+    ['name' => 'word/embeddings/source workbook.xlsx', 'data' => $embeddedWorkbookBytes],
     ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
@@ -1206,6 +1221,7 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
 $digitalSignatures = $graph->preflightDigitalSignatures();
 $digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
 $embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
+$embeddedPackageGraphs = $graph->preflightEmbeddedPackageGraphs($documentPart);
 $embeddedPackageParts = [];
 $embeddedObjectParts = [];
 foreach ($embeddedPackages as $embeddedPackage) {
@@ -1221,6 +1237,23 @@ foreach ($embeddedPackages as $embeddedPackage) {
 }
 $embeddedPackageParts = array_values(array_unique($embeddedPackageParts));
 $embeddedObjectParts = array_values(array_unique($embeddedObjectParts));
+$nestedEmbeddedOfficeDocuments = [];
+foreach ($embeddedPackageGraphs as $embeddedPackageGraph) {
+    $officeRelationship = $embeddedPackageGraph['nestedOfficeDocument']['relationships'][0] ?? null;
+    if (!is_array($officeRelationship)) {
+        continue;
+    }
+
+    $nestedEmbeddedOfficeDocuments[] = [
+        'id' => $embeddedPackageGraph['id'],
+        'packagePart' => $embeddedPackageGraph['targetPart'],
+        'officeDocumentPart' => $officeRelationship['targetPart'],
+        'contentType' => $officeRelationship['contentType'],
+        'expanded' => $embeddedPackageGraph['expanded'],
+        'valid' => $embeddedPackageGraph['valid'],
+        'issues' => $embeddedPackageGraph['issues'],
+    ];
+}
 $digitalSignatureParts = [];
 foreach ($digitalSignatures as $origin) {
     if ($origin['targetPart'] !== null) {
@@ -1362,6 +1395,7 @@ $summary = [
     'digitalSignatures' => $digitalSignatures,
     'digitalSignatureMetadata' => $digitalSignatureMetadata,
     'embeddedPackages' => $embeddedPackages,
+    'embeddedPackageGraphs' => $embeddedPackageGraphs,
     'packageConsistency' => [
         'valid' => $packageConsistency['valid'],
         'packagePartsValid' => $packageConsistency['packagePartsValid'],
@@ -1470,6 +1504,7 @@ $summary = [
         'digitalSignatureTime' => $digitalSignatureMetadata['objects'][0]['signatureTimeValue'] ?? null,
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
+        'nestedEmbeddedOfficeDocuments' => $nestedEmbeddedOfficeDocuments,
         'internalSourceReferences' => array_values(array_map(
             static fn (array $target): array => [
                 'id' => $target['id'],
@@ -1560,6 +1595,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['embeddedPackages'][1]['kind'] ?? null) !== 'embedded-object'
         || ($summary['embeddedPackages'][1]['valid'] ?? null) !== true
         || ($summary['embeddedPackages'][1]['issues'] ?? null) !== []
+        || ($summary['embeddedPackageGraphs'][0]['id'] ?? null) !== 'rIdEmbeddedWorkbook'
+        || ($summary['embeddedPackageGraphs'][0]['targetPart'] ?? null) !== '/word/embeddings/source workbook.xlsx'
+        || ($summary['embeddedPackageGraphs'][0]['expanded'] ?? null) !== true
+        || ($summary['embeddedPackageGraphs'][0]['nestedPackagePartCount'] ?? null) !== 5
+        || ($summary['embeddedPackageGraphs'][0]['nestedSourcePartNames'] ?? null) !== ['/', '/xl/workbook.xml']
+        || ($summary['embeddedPackageGraphs'][0]['nestedOfficeDocument']['relationships'][0]['targetPart'] ?? null) !== '/xl/workbook.xml'
+        || ($summary['embeddedPackageGraphs'][0]['nestedOfficeDocument']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
+        || ($summary['embeddedPackageGraphs'][0]['valid'] ?? null) !== true
+        || ($summary['embeddedPackageGraphs'][0]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['id'] ?? null) !== 'rIdEmbeddedWorkbook'
+        || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['packagePart'] ?? null) !== '/word/embeddings/source workbook.xlsx'
+        || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['officeDocumentPart'] ?? null) !== '/xl/workbook.xml'
+        || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
         || ($summary['officeDocumentRoot']['relationshipCount'] ?? null) !== 1
         || ($summary['officeDocumentRoot']['valid'] ?? null) !== true
         || ($summary['officeDocumentRoot']['issues'] ?? null) !== []
