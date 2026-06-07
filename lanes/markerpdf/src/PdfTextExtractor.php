@@ -6979,7 +6979,7 @@ final class PdfTextExtractor
             : $this->decodeStream($stream['dict'], $stream['stream'], $objects, false, true, true);
         $colorSpaceReview = $this->imageColorSpaceReview($stream['dict'], $objects, $resourceOwnerBody);
         $colorSpace = $colorSpaceReview['family'];
-        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+        $bitsPerComponent = $this->topLevelPdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
             $objects
@@ -7148,8 +7148,8 @@ final class PdfTextExtractor
                 }
             }
         }
-        $imageWidth = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
-        $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
+        $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
+        $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
         $imageDimensionBoundary = $this->imageXObjectDimensionBoundaryReview(
             $stream['dict'],
             $objects,
@@ -7297,8 +7297,8 @@ final class PdfTextExtractor
             'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
             'rendering_intent' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Intent', $objects),
             'image_name' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Name', $objects),
-            'struct_parent' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParent', $objects),
-            'struct_parents' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParents', $objects),
+            'struct_parent' => $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParent', $objects),
+            'struct_parents' => $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParents', $objects),
             'metadata_stream' => $metadataStream,
             'opi_proxy_present' => $opiProxyReview !== null,
             'opi_proxy_review' => $opiProxyReview,
@@ -7613,11 +7613,13 @@ final class PdfTextExtractor
         $decoded = $filters === null
             ? null
             : $this->decodeStream($stream['dict'], $stream['stream'], $objects, false, true, true);
-        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+        $bitsPerComponent = $this->topLevelPdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
             $objects
         );
+        $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
+        $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
@@ -7631,8 +7633,8 @@ final class PdfTextExtractor
             $filters,
             $stream['dict'],
             $objects,
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            $imageWidth,
+            $imageHeight,
             $imageMask,
             $decode,
             $effectiveBits ?? 1
@@ -7662,8 +7664,8 @@ final class PdfTextExtractor
             'object_number' => $objectNumber,
             'object_generation' => $objectGeneration,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
-            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'width' => $imageWidth,
+            'height' => $imageHeight,
             'color_space' => $colorSpace,
             'bits_per_component' => $effectiveBits,
             'image_mask' => $imageMask,
@@ -7811,11 +7813,13 @@ final class PdfTextExtractor
         $decoded = $filters === null
             ? null
             : $this->decodeStream($stream['dict'], $stream['stream'], $objects, false, true, true);
-        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+        $bitsPerComponent = $this->topLevelPdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
             $objects
         );
+        $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
+        $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
@@ -7824,8 +7828,8 @@ final class PdfTextExtractor
             $filters,
             $stream['dict'],
             $objects,
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            $imageWidth,
+            $imageHeight,
             $imageMask,
             $decode,
             $effectiveBits ?? 1
@@ -7852,8 +7856,8 @@ final class PdfTextExtractor
             'object_number' => $objectNumber,
             'object_generation' => $objectGeneration,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
-            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'width' => $imageWidth,
+            'height' => $imageHeight,
             'color_space' => $colorSpace,
             'bits_per_component' => $effectiveBits,
             'image_mask' => $imageMask,
@@ -8107,11 +8111,13 @@ final class PdfTextExtractor
             );
             $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
         }
-        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+        $bitsPerComponent = $this->topLevelPdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
             $objects
         );
+        $imageWidth = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
+        $imageHeight = $this->topLevelPdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
@@ -8125,8 +8131,8 @@ final class PdfTextExtractor
             $filters,
             $stream['dict'],
             $objects,
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            $imageWidth,
+            $imageHeight,
             $imageMask,
             $decode,
             $effectiveBits ?? 1
@@ -8147,8 +8153,8 @@ final class PdfTextExtractor
             'object_generation' => $objectGeneration,
             'default_for_printing' => $defaultForPrinting,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
-            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'width' => $imageWidth,
+            'height' => $imageHeight,
             'color_space' => $colorSpace,
             'bits_per_component' => $effectiveBits,
             'image_mask' => $imageMask,
@@ -22358,6 +22364,19 @@ final class PdfTextExtractor
     private function pdfIntegerValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?int
     {
         $offset = $this->nameValueOffset($body, $name);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->streamLengthValueAt($body, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfIntegerValueAfterNameResolvingObjects(string $body, string $name, array $objects): ?int
+    {
+        $offset = $this->topLevelNameValueOffset($body, $name);
         if ($offset === null) {
             return null;
         }
