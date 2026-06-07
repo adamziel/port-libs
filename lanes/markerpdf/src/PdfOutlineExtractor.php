@@ -154,7 +154,7 @@ final class PdfOutlineExtractor
      * and reference metadata from pdftext/pypdfium; this keeps remote document
      * targets reviewable without treating them as same-document page rows.
      *
-     * @return list<array{title: string, level: int, file: string, destination: string|null, page: int|null, new_window: bool|null}>
+     * @return list<array<string, mixed>>
      */
     public function getRemoteGoToActions(string $pdfBytes, int $maxDepth = 15): array
     {
@@ -174,6 +174,7 @@ final class PdfOutlineExtractor
 
         $destinations = $this->destinationActionReviewMap($catalog, $objects)
             + $this->destinationMap($catalog, $objects);
+        $outlineReviewMetadataByObject = $this->outlineItemDocumentReviewMetadataByObject($pdfBytes);
 
         return $this->remoteGoToOutlineItems(
             $outlineRoot['First'] ?? null,
@@ -181,7 +182,10 @@ final class PdfOutlineExtractor
             $destinations,
             $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
             $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
-            max(1, $maxDepth)
+            max(1, $maxDepth),
+            1,
+            [],
+            $outlineReviewMetadataByObject
         );
     }
 
@@ -4341,7 +4345,8 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @param array<string, mixed> $destinations
      * @param array<int, true> $seen
-     * @return list<array{title: string, level: int, file: string, destination: string|null, page: int|null, new_window: bool|null}>
+     * @param array<int, array<string, mixed>> $outlineReviewMetadataByObject
+     * @return list<array<string, mixed>>
      */
     private function remoteGoToOutlineItems(
         mixed $firstItem,
@@ -4351,7 +4356,8 @@ final class PdfOutlineExtractor
         ?int $lastItemObject,
         int $maxDepth,
         int $level = 1,
-        array $seen = []
+        array $seen = [],
+        array $outlineReviewMetadataByObject = []
     ): array {
         if ($level > $maxDepth) {
             return [];
@@ -4392,7 +4398,7 @@ final class PdfOutlineExtractor
 
             $target = $this->remoteGoToActionTarget($dict, $objects, $destinations);
             if ($target !== null) {
-                $items[] = [
+                $row = [
                     'title' => $title,
                     'level' => $level,
                     'file' => $target['file'],
@@ -4400,10 +4406,26 @@ final class PdfOutlineExtractor
                     'page' => $target['page'],
                     'new_window' => $target['new_window'],
                 ];
+                if (isset($outlineReviewMetadataByObject[$current])) {
+                    $row['outline_object'] = $current;
+                    $row = $this->withOutlineItemDocumentReviewMetadata($row, $outlineReviewMetadataByObject, false);
+                }
+
+                $items[] = $row;
             }
 
             if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
-                foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
+                foreach ($this->remoteGoToOutlineItems(
+                    $dict['First'] ?? null,
+                    $objects,
+                    $destinations,
+                    $current,
+                    $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects),
+                    $maxDepth,
+                    $level + 1,
+                    $seen,
+                    $outlineReviewMetadataByObject
+                ) as $child) {
                     $items[] = $child;
                 }
             }
