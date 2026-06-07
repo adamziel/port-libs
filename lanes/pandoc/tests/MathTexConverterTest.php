@@ -366,6 +366,26 @@ return [
         $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignAtMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{alignat*}{2}f(x) &amp;= x^2 &amp; g(x) &amp;= x + 1\\end{alignat*}</annotation>', $alignAtMathml);
     },
+    'converts bounded tex optional ams environment positions to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignedTop = $converter->texToMathMl('\\begin{aligned}[t]p_i &= m_i \\\\ x &= y\\end{aligned}', true);
+        $gatheredBottom = $converter->texToMathMl('\\begin{gathered}[b]x+y \\\\ z\\end{gathered}');
+        $alignedAtCenter = $converter->texToMathMl('\\begin{alignedat}[c]{2}a &= b & c &= d\\end{alignedat}');
+        $multlinedBottom = $converter->texToMathMl('\\left(\\begin{multlined}[b]u+v \\\\ w\\end{multlined}\\right)');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alignedTop);
+        $t->contains('<mtable columnalign="right left" align="top" data-tex-env-position="top"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mi>x</mi></mtd><mtd><mo>=</mo><mi>y</mi></mtd></mtr></mtable>', $alignedTop);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{aligned}[t]p_i &amp;= m_i \\\\ x &amp;= y\\end{aligned}</annotation>', $alignedTop);
+        $t->contains('<mtable columnalign="center" align="bottom" data-tex-env-position="bottom"><mtr><mtd><mi>x</mi><mo>+</mo><mi>y</mi></mtd></mtr><mtr><mtd><mi>z</mi></mtd></mtr></mtable>', $gatheredBottom);
+        $t->contains('<mtable columnalign="right left right left" align="center" data-tex-env-position="center"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr></mtable>', $alignedAtCenter);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mtable columnalign="center" align="bottom" data-tex-env-position="bottom"><mtr><mtd><mi>u</mi><mo>+</mo><mi>v</mi></mtd></mtr><mtr><mtd><mi>w</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">)</mo>', $multlinedBottom);
+        $t->true(!str_contains($alignedTop, '<mo>[</mo><mi>t</mi>'));
+        $t->true(!str_contains($gatheredBottom, '<mo>[</mo><mi>b</mi>'));
+        $t->true(!str_contains($multlinedBottom, '<mo>[</mo><mi>b</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{aligned}[x]a &= b\\end{aligned}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{gathered}[]a\\end{gathered}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}[tb]{1}a &= b\\end{alignedat}'));
+    },
     'converts bounded tex eqnarray environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $eqnarrayMathml = $converter->texToMathMl('\\begin{eqnarray}p_i &=& m_i \\\\ x_i &=& y_i \\label{eq:eqn-row} \\tag{E-1}\\end{eqnarray}', true);

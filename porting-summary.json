@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 04:12:43 UTC",
-    "sourceCommit": "b869ef8574176aa955a384f238d6d723a164a0b8",
-    "sourceCommitShort": "b869ef857417",
+    "generated": "2026-06-07 04:12:54 UTC",
+    "sourceCommit": "763582d68d4e1a91976ee1d35a44fd6c446fd41c",
+    "sourceCommitShort": "763582d68d4e",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b869ef8574176aa955a384f238d6d723a164a0b8",
-    "dashboardCommitShort": "b869ef857417",
+    "dashboardCommit": "763582d68d4e1a91976ee1d35a44fd6c446fd41c",
+    "dashboardCommitShort": "763582d68d4e",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1865",
-            "coverage": "1,865 / 2,276 (81.9%)",
-            "mapPercent": "81.9%",
-            "unmapped": "411",
-            "php": "1,449 pass / 0 fail",
+            "mapped": "1866",
+            "coverage": "1,866 / 2,276 (82.0%)",
+            "mapPercent": "82.0%",
+            "unmapped": "410",
+            "php": "1,450 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-07 UTC doctemplate current-base default man template fallback...",
+            "audit": "2026-06-07 UTC math/TeX current-base optional AMS placement slice on...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For YAML/front-matter follow-up, keep parser work bounded to...",
+            "nextTarget": "For math/TeX follow-up, keep support-library work bounded to...",
             "remainingGate": "No new support component is needed for this slice: it reuses the nati...",
-            "commit": "pending pandoc-..."
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

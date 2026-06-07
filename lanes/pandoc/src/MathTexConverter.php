@@ -362,6 +362,17 @@ final class MathTexConverter
     ];
 
     /** @var array<string, true> */
+    private const AMS_OPTIONAL_POSITION_ENVIRONMENTS = [
+        'aligned' => true,
+        'alignedat' => true,
+        'alignedat*' => true,
+        'flaligned' => true,
+        'flaligned*' => true,
+        'gathered' => true,
+        'multlined' => true,
+    ];
+
+    /** @var array<string, true> */
     private const EQNARRAY_ENVIRONMENTS = [
         'eqnarray' => true,
         'eqnarray*' => true,
@@ -1687,6 +1698,7 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
 
+        $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $environment);
         $content = $this->readEnvironmentContent($source, $offset, $environment);
         $rows = $this->splitAlignmentRows($content, $environment);
         $spec = self::MATRIX_ENVIRONMENTS[$environment];
@@ -1694,6 +1706,7 @@ final class MathTexConverter
         if (isset($spec['columnalign'])) {
             $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
         }
+        $attributes .= $positionAttributes;
 
         $table = $this->environmentTable($rows, $attributes);
 
@@ -1967,6 +1980,7 @@ final class MathTexConverter
 
     private function parseAmsRowEnvironment(string $source, int &$offset, string $environment): string
     {
+        $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $environment);
         $content = $this->readEnvironmentContent($source, $offset, $environment);
         if ($this->endsWithTopLevelRowSeparator($content)) {
             throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
@@ -1976,11 +1990,12 @@ final class MathTexConverter
         $spec = self::AMS_ROW_ENVIRONMENTS[$environment];
         $this->validateAmsRowEnvironmentRows($rows, $environment, $spec['columns']);
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"', true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"' . $positionAttributes, true, $environment);
     }
 
     private function parseAmsAlignedAtEnvironment(string $source, int &$offset, string $environment): string
     {
+        $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $environment);
         $pairs = $this->normalizeAmsAlignedAtPairCount($this->readRequiredGroupText($source, $offset), $environment);
         $content = $this->readEnvironmentContent($source, $offset, $environment);
         if ($this->endsWithTopLevelRowSeparator($content)) {
@@ -1990,11 +2005,12 @@ final class MathTexConverter
         $rows = $this->splitAlignmentRows($content, $environment);
         $this->validateAmsRowEnvironmentRows($rows, $environment, $pairs * 2);
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"', true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"' . $positionAttributes, true, $environment);
     }
 
     private function parseAmsFlushAlignedEnvironment(string $source, int &$offset, string $environment): string
     {
+        $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $environment);
         $content = $this->readEnvironmentContent($source, $offset, $environment);
         if ($this->endsWithTopLevelRowSeparator($content)) {
             throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
@@ -2003,7 +2019,7 @@ final class MathTexConverter
         $rows = $this->splitAlignmentRows($content, $environment);
         $columns = $this->validateAmsFlushAlignedRows($rows, $environment);
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"', true, $environment);
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"' . $positionAttributes, true, $environment);
     }
 
     private function parseEqnarrayEnvironment(string $source, int &$offset, string $environment): string
@@ -2094,6 +2110,35 @@ final class MathTexConverter
         }
 
         return $pairs;
+    }
+
+    private function readOptionalAmsEnvironmentPositionAttributes(string $source, int &$offset, string $environment): string
+    {
+        if (!isset(self::AMS_OPTIONAL_POSITION_ENVIRONMENTS[$environment])) {
+            return '';
+        }
+
+        $this->skipWhitespace($source, $offset);
+        $argument = $this->readTexBracketArgument($source, $offset);
+        if ($argument === null) {
+            return '';
+        }
+
+        $position = trim($argument['value']);
+        $align = match ($position) {
+            't' => 'top',
+            'b' => 'bottom',
+            'c' => 'center',
+            default => null,
+        };
+
+        if ($align === null) {
+            throw new \InvalidArgumentException('Unsupported TeX ' . $environment . ' position ' . $position);
+        }
+
+        $offset = $argument['next'];
+
+        return ' align="' . $this->esc($align) . '" data-tex-env-position="' . $this->esc($align) . '"';
     }
 
     private function parseColorCommand(string $source, int &$offset, string $command): string
@@ -3648,6 +3693,7 @@ final class MathTexConverter
             $environmentOffset = $commandOffset;
             $environment = $this->readRequiredGroupText($source, $environmentOffset);
             $contentOffset = $environmentOffset;
+            $this->readOptionalAmsEnvironmentPositionAttributes($source, $contentOffset, $environment);
             $alignedAtPairs = null;
             if (isset(self::AMS_ALIGNEDAT_ENVIRONMENTS[$environment])) {
                 $alignedAtPairs = $this->normalizeAmsAlignedAtPairCount($this->readRequiredGroupText($source, $contentOffset), $environment);

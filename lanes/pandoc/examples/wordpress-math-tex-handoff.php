@@ -71,6 +71,8 @@ AMS layout audit $\begin{align}f(p_i) &= m_i \\ g(p_i) &= \frac{a_i}{b_i}\end{al
 
 Alignedat audit $\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\ x &= y & u &= v\end{alignedat}$ stays semantic.
 
+Optional AMS placement audit $\begin{aligned}[t]p_i &= m_i \\ x &= y\end{aligned} + \begin{gathered}[b]u+v \\ w\end{gathered} + \begin{alignedat}[c]{2}a &= b & c &= d\end{alignedat}$ stays semantic.
+
 Flush alignment audit $\begin{flalign}\text{source} && p_i &= m_i && \text{review} \\ \text{target} && x_i &= y_i \tag{WP-F}\end{flalign}$ stays semantic.
 
 Eqnarray audit $\begin{eqnarray}p_i &=& m_i \\ x_i &=& y_i \tag{WP-E}\end{eqnarray}$ stays semantic.
@@ -185,6 +187,7 @@ $summary = [
     'mathClassMathml' => $converter->texToMathMl('\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g'),
     'amsEnvironmentMathml' => $converter->texToMathMl('\\begin{align}f(p_i) &= m_i \\\\ g(p_i) &= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &= \\sum_{i=1}^{n} p_i \\\\ &= \\frac{a}{b}\\end{split}'),
     'alignedAtMathml' => $converter->texToMathMl('\\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\\\ x &= y & u &= v\\end{alignedat}'),
+    'optionalAmsPlacementMathml' => $converter->texToMathMl('\\begin{aligned}[t]p_i &= m_i \\\\ x &= y\\end{aligned} + \\begin{gathered}[b]u+v \\\\ w\\end{gathered} + \\begin{alignedat}[c]{2}a &= b & c &= d\\end{alignedat}'),
     'flalignMathml' => $converter->texToMathMl('\\begin{flalign}\\text{source} && p_i &= m_i && \\text{review} \\\\ \\text{target} && x_i &= y_i \\tag{WP-F}\\end{flalign}', true),
     'eqnarrayMathml' => $converter->texToMathMl('\\begin{eqnarray}p_i &=& m_i \\\\ x_i &=& y_i \\tag{WP-E}\\end{eqnarray}', true),
     'multlineMathml' => $converter->texToMathMl('\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)'),
@@ -272,6 +275,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q_i\\mathclose{]} + f\\mathpunct{,}g\\)</span>',
         '<span class="math inline">\\(\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}\\)</span>',
         '<span class="math inline">\\(\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}\\)</span>',
+        '<span class="math inline">\\(\\begin{aligned}[t]p_i &amp;= m_i \\\\ x &amp;= y\\end{aligned} + \\begin{gathered}[b]u+v \\\\ w\\end{gathered} + \\begin{alignedat}[c]{2}a &amp;= b &amp; c &amp;= d\\end{alignedat}\\)</span>',
         '<span class="math inline">\\(\\begin{flalign}\\text{source} &amp;&amp; p_i &amp;= m_i &amp;&amp; \\text{review} \\\\ \\text{target} &amp;&amp; x_i &amp;= y_i \\tag{WP-F}\\end{flalign}\\)</span>',
         '<span class="math inline">\\(\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}\\)</span>',
         '<span class="math inline">\\(\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)\\)</span>',
@@ -444,6 +448,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}</annotation>',
+        '<mtable columnalign="right left" align="top" data-tex-env-position="top"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mi>x</mi></mtd><mtd><mo>=</mo><mi>y</mi></mtd></mtr></mtable>',
+        '<mtable columnalign="center" align="bottom" data-tex-env-position="bottom"><mtr><mtd><mi>u</mi><mo>+</mo><mi>v</mi></mtd></mtr><mtr><mtd><mi>w</mi></mtd></mtr></mtable>',
+        '<mtable columnalign="right left right left" align="center" data-tex-env-position="center"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr></mtable>',
+        '<annotation encoding="application/x-tex">\\begin{aligned}[t]p_i &amp;= m_i \\\\ x &amp;= y\\end{aligned} + \\begin{gathered}[b]u+v \\\\ w\\end{gathered} + \\begin{alignedat}[c]{2}a &amp;= b &amp; c &amp;= d\\end{alignedat}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{flalign}\\text{source} &amp;&amp; p_i &amp;= m_i &amp;&amp; \\text{review} \\\\ \\text{target} &amp;&amp; x_i &amp;= y_i \\tag{WP-F}\\end{flalign}</annotation>',
         '<mtable columnalign="right center left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mlabeledtr><mtd><mtext>(WP-E)</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo></mtd><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>',
         '<annotation encoding="application/x-tex">\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}</annotation>',
