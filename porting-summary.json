@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 10:43:16 UTC",
-    "sourceCommit": "5e2402c219b552fa62c5c9b4c9aec909ae80b331",
-    "sourceCommitShort": "5e2402c219b5",
+    "generated": "2026-06-07 10:49:58 UTC",
+    "sourceCommit": "8885a37b7d4851ea3517a0cbdbd42a1673eae1fa",
+    "sourceCommitShort": "8885a37b7d48",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5e2402c219b552fa62c5c9b4c9aec909ae80b331",
-    "dashboardCommitShort": "5e2402c219b5",
+    "dashboardCommit": "8885a37b7d4851ea3517a0cbdbd42a1673eae1fa",
+    "dashboardCommitShort": "8885a37b7d48",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -91,9 +91,9 @@
             "coverage": "755 / 78 (967.9%)",
             "mapPercent": "967.9%",
             "unmapped": "0",
-            "php": "2,839 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; isolated XMP catalog Metadata comment-...",
-            "audit": "2026-06-07 UTC isolated markerpdf-xmp-metadata-boundary-current-base-...",
+            "php": "2,841 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; isolated CMap CID target-tail source-w...",
+            "audit": "2026-06-07 UTC isolated markerpdf-cmap-source-width-fallback-current-...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
             "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",

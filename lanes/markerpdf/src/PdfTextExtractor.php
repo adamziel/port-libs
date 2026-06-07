@@ -33488,7 +33488,7 @@ final class PdfTextExtractor
     ): void
     {
         $block = $this->cMapCidOperatorBlockData($block);
-        if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
+        if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)(?=$|[\x00\t\n\f\r \[\]\(\)<>\{\}%\/])/s', $block, $entries, PREG_SET_ORDER)) {
             return;
         }
 
@@ -33529,7 +33529,7 @@ final class PdfTextExtractor
     ): void
     {
         $block = $this->cMapCidOperatorBlockData($block);
-        if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)/s', $block, $ranges, PREG_SET_ORDER)) {
+        if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)(?=$|[\x00\t\n\f\r \[\]\(\)<>\{\}%\/])/s', $block, $ranges, PREG_SET_ORDER)) {
             return;
         }
 
