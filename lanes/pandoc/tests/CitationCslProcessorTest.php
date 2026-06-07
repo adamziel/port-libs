@@ -3594,6 +3594,82 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Secondary Review Role Dossier. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Secondary Introduction Packet. 2025. Introduction by Müller, Mia. Afterword by García, Gia.</dd>', $blocks);
     },
+    'maps bounded biblatex redactor secondary editor role into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{secondary-redactor-review,
+  author      = {Smith, Ada},
+  editora     = {Roe, Pat and {{Migration Desk}}},
+  editora+an  = {1=redacted source notes},
+  editoratype = {redactor},
+  title       = {Redacted Source Dossier},
+  date        = {2026},
+  publisher   = {Review Press}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('secondary-redactor-review', $items[0]['id']);
+        $t->same([
+            ['family' => 'Roe', 'given' => 'Pat', 'annotations' => [['part' => 'name', 'value' => 'redacted source notes']]],
+            ['literal' => 'Migration Desk'],
+        ], $items[0]['redactor']);
+        $t->same('editora', $items[0]['editorial-roles'][0]['field'] ?? null);
+        $t->same('redactor', $items[0]['editorial-roles'][0]['type'] ?? null);
+        $t->same('Redactor', $items[0]['editorial-roles'][0]['label'] ?? null);
+        $t->same('redacted source notes', $items[0]['editorial-roles'][0]['names'][0]['annotations'][0]['value'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('secondary-redactor-review');
+        $t->same('Roe', $item['redactors'][0]['family'] ?? null);
+        $t->same('Migration Desk', $item['redactors'][1]['literal'] ?? null);
+        $t->same('redacted source notes', $item['redactors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('redactor', $item['editorialRoles'][0]['type'] ?? null);
+        $t->same('Redactor', $item['editorialRoles'][0]['label'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('secondary-redactor-review', '[@secondary-redactor-review]')]));
+        $t->same(
+            'Smith, Ada. Redacted Source Dossier. Review Press, 2026. Name annotations: Redactor 1: redacted source notes. Redacted by Roe, Pat; Migration Desk.',
+            $processor->renderBibliographyEntry('secondary-redactor-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text value="redactor"/>
+        <names variable="redactor"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[redactor | Roe and Migration Desk | Redactor 1: redacted source notes]', $styled->renderCitationCluster([$citation('secondary-redactor-review', '[@secondary-redactor-review]')]));
+        $t->same('Redacted Source Dossier :: Redacted by Roe, Pat; Migration Desk. :: Redactor 1: redacted source notes', $styled->renderBibliographyEntry('secondary-redactor-review'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-redactor',
+            'title' => 'Manual Redactor Source',
+            'redactor' => [
+                ['family' => 'Roe', 'given' => 'Pat'],
+            ],
+        ]])->item('manual-redactor');
+        $t->same('Roe', $manual['redactors'][0]['family'] ?? null);
+
+        $document = (new MarkdownReader())->read('Redactor source @secondary-redactor-review preserves redactor role aliases.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Redactor source Smith (2026) preserves redactor role aliases.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Redacted Source Dossier. Review Press, 2026. Name annotations: Redactor 1: redacted source notes. Redacted by Roe, Pat; Migration Desk.</dd>', $blocks);
+    },
     'maps bounded biblatex name annotations and name addendum metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{name-annotation-review,
