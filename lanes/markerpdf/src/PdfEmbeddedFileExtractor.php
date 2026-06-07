@@ -153,7 +153,8 @@ final class PdfEmbeddedFileExtractor
 
         $limits = $this->nameTreeEffectiveLimits($nodeBody, $objects, $inheritedLimits);
         $childLimits = $limits;
-        $namesValue = $this->dictionaryRawValue($nodeBody, 'Names');
+        $kidsValue = $this->dictionaryRawValue($nodeBody, 'Kids');
+        $namesValue = $kidsValue === null ? $this->dictionaryRawValue($nodeBody, 'Names') : null;
         if ($namesValue !== null) {
             $names = $this->arrayItemsFromValue($namesValue, $objects);
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
@@ -185,7 +186,6 @@ final class PdfEmbeddedFileExtractor
             }
         }
 
-        $kidsValue = $this->dictionaryRawValue($nodeBody, 'Kids');
         if ($kidsValue === null) {
             return;
         }
