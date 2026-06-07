@@ -95,29 +95,163 @@ final class PdfXrefFreeObjectMap
     private static function startxrefOffsetWithClassicRebuild(string $pdfBytes): ?int
     {
         $entry = self::latestStartxrefEntry($pdfBytes);
+        $boundary = self::classicRebuildBoundaryOffset($pdfBytes, $entry);
         if ($entry === null) {
+            return self::latestClassicXrefTableOffset($pdfBytes, $boundary);
+        }
+
+        return self::classicRebuildOffsetForStartxref($pdfBytes, $entry['offset'], $boundary) ?? $entry['offset'];
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int}|null $entry
+     */
+    private static function classicRebuildBoundaryOffset(string $pdfBytes, ?array $entry): ?int
+    {
+        $boundary = $entry['tokenOffset'] ?? null;
+        $ignoredBoundary = self::latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes);
+        $eofBoundary = self::latestTopLevelEofOffset($pdfBytes);
+        if ($boundary === null) {
+            if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
+                $latestBeforeEof = $eofBoundary === null
+                    ? null
+                    : self::latestClassicXrefTableOffset($pdfBytes, $eofBoundary);
+
+                return $latestBeforeEof !== null
+                    && $latestBeforeEof > $ignoredBoundary
+                    && !self::hasTopLevelStartxrefTokenBetweenOffsets($pdfBytes, $latestBeforeEof, $eofBoundary)
+                    ? $eofBoundary
+                    : $ignoredBoundary;
+            }
+
+            return $eofBoundary;
+        }
+
+        if ($ignoredBoundary !== null && $ignoredBoundary > $boundary) {
+            $latestBeforeEof = $eofBoundary === null
+                ? null
+                : self::latestClassicXrefTableOffset($pdfBytes, $eofBoundary);
+            if (
+                $latestBeforeEof === null
+                || $latestBeforeEof <= $ignoredBoundary
+                || self::hasTopLevelStartxrefTokenBetweenOffsets($pdfBytes, $latestBeforeEof, $eofBoundary)
+            ) {
+                return $ignoredBoundary;
+            }
+        }
+
+        if ($eofBoundary !== null && $eofBoundary > $boundary) {
+            $latestBeforeEof = self::latestClassicXrefTableOffset($pdfBytes, $eofBoundary);
+            if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $boundary
+                && !self::hasTopLevelStartxrefTokenBetweenOffsets($pdfBytes, $latestBeforeEof, $eofBoundary)
+            ) {
+                return $eofBoundary;
+            }
+        }
+
+        return $boundary;
+    }
+
+    private static function latestTopLevelEofOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/%%EOF/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
-        $declaredOffset = $entry['offset'];
-        if (self::xrefStreamObjectStartsAt($pdfBytes, $declaredOffset)) {
-            return $declaredOffset;
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (!is_int($tokenOffset) || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            return $tokenOffset;
         }
 
-        $latestClassicOffset = self::latestClassicXrefTableOffsetBefore($pdfBytes, $entry['tokenOffset']);
+        return null;
+    }
+
+    private static function hasTopLevelStartxrefTokenBetweenOffsets(
+        string $pdfBytes,
+        int $afterOffset,
+        ?int $beforeOffset
+    ): bool {
+        if ($beforeOffset === null || preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return false;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (!is_int($tokenOffset) || $tokenOffset <= $afterOffset || $tokenOffset >= $beforeOffset) {
+                continue;
+            }
+
+            if (self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function latestIgnoredStartxrefRebuildBoundaryOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (!is_int($tokenOffset) || !self::keywordAt($pdfBytes, $tokenOffset, 'startxref')) {
+                continue;
+            }
+
+            if (self::tokenStartsInCommentLine($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            if (self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)) {
+                return $tokenOffset;
+            }
+        }
+
+        return null;
+    }
+
+    private static function classicRebuildOffsetForStartxref(
+        string $pdfBytes,
+        int $offset,
+        ?int $candidateBeforeOffset = null
+    ): ?int {
+        if (self::xrefStreamObjectStartsAt($pdfBytes, $offset)) {
+            return null;
+        }
+
+        $latestClassicOffset = self::latestClassicXrefTableOffset($pdfBytes, $candidateBeforeOffset);
         if ($latestClassicOffset === null) {
-            return $declaredOffset;
+            return null;
         }
 
-        if (self::xrefTableSectionAt($pdfBytes, $declaredOffset) === null) {
-            if ($declaredOffset < strlen($pdfBytes) && $latestClassicOffset <= $declaredOffset) {
-                return $declaredOffset;
+        if (self::xrefTableSectionAt($pdfBytes, $offset) === null) {
+            if (
+                $candidateBeforeOffset !== null
+                && $offset < $candidateBeforeOffset
+                && $latestClassicOffset < $candidateBeforeOffset
+            ) {
+                return $latestClassicOffset;
+            }
+
+            if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
+                return null;
             }
 
             return $latestClassicOffset;
         }
 
-        return $latestClassicOffset > $declaredOffset ? $latestClassicOffset : $declaredOffset;
+        return $latestClassicOffset > $offset ? $latestClassicOffset : null;
     }
 
     private static function xrefStreamObjectStartsAt(string $pdfBytes, int $offset): bool
@@ -127,12 +261,12 @@ final class PdfXrefFreeObjectMap
         return $definition !== null && preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1;
     }
 
-    private static function latestClassicXrefTableOffsetBefore(string $pdfBytes, int $beforeOffset): ?int
+    private static function latestClassicXrefTableOffset(string $pdfBytes, ?int $beforeOffset = null): ?int
     {
         $offsets = self::xrefTableKeywordOffsets($pdfBytes);
         for ($index = count($offsets) - 1; $index >= 0; $index--) {
             $offset = $offsets[$index];
-            if ($offset >= $beforeOffset) {
+            if ($beforeOffset !== null && $offset > $beforeOffset) {
                 continue;
             }
 
