@@ -475,6 +475,14 @@ final class OpcRelationshipGraph
                 $issues[] = 'missing-content-type';
             }
 
+            if (
+                $contentType !== null
+                && self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)
+                && !$relationshipPartTarget
+            ) {
+                $issues[] = 'relationship-content-type-on-non-relationship-part';
+            }
+
             if ($relationshipPartTarget) {
                 $issues[] = 'targets-relationship-part';
             }
@@ -563,6 +571,11 @@ final class OpcRelationshipGraph
                     ? 'loaded'
                     : 'skipped';
                 $relationshipPartLoadReason = self::relationshipPartLoadReason($issues, $relationshipSourceLoaded === true && $issues === []);
+            } elseif (
+                $contentType !== null
+                && self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)
+            ) {
+                $issues[] = 'relationship-content-type-on-non-relationship-part';
             }
 
             $preflight[] = [
@@ -629,6 +642,8 @@ final class OpcRelationshipGraph
                 if (!$sourceExists) {
                     $issues[] = 'relationship-override-source-missing';
                 }
+            } elseif (self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
+                $issues[] = 'relationship-content-type-on-non-relationship-part';
             }
 
             $preflight[] = [

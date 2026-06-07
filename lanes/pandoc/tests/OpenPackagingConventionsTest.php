@@ -3251,6 +3251,130 @@ XML;
         $t->same(['invalid-relationship-content-type', 'orphan-relationship-part'], $parts['/word/_rels/missing.xml.rels']['issues']);
         $t->same(false, $parts['/word/_rels/missing.xml.rels']['valid']);
     },
+    'rejects reserved OPC relationship content type on non relationship parts' => static function (TestRunner $t): void {
+        $relationshipContentType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/media/override-source.bin" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/media/missing.bin" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDefaultRels" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/default-source.rels"/>
+  <Relationship Id="rIdOverrideRels" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/override-source.bin"/>
+  <Relationship Id="rIdMissingOverride" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.bin"/>
+  <Relationship Id="rIdGoodImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/good.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/default-source.rels', 'data' => 'not relationship xml'],
+            ['name' => 'word/media/override-source.bin', 'data' => 'not relationship xml'],
+            ['name' => 'word/media/good.png', 'data' => 'PNG'],
+        ]));
+
+        $parts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $overrides = [];
+        foreach ($graph->preflightContentTypeOverrides() as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $inventory = [];
+        foreach ($graph->contentTypeInventory() as $entry) {
+            $inventory[$entry['contentType']] = $entry;
+        }
+
+        $references = [];
+        foreach ($graph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $reference) {
+            $references[$reference['partName']] = $reference;
+        }
+
+        $t->same(false, $parts['/word/media/default-source.rels']['relationshipPart']);
+        $t->same($relationshipContentType, $parts['/word/media/default-source.rels']['contentType']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $parts['/word/media/default-source.rels']['issues']);
+        $t->same(false, $parts['/word/media/default-source.rels']['valid']);
+        $t->same(false, $parts['/word/media/override-source.bin']['relationshipPart']);
+        $t->same($relationshipContentType, $parts['/word/media/override-source.bin']['contentType']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $parts['/word/media/override-source.bin']['issues']);
+        $t->same(false, $parts['/word/media/override-source.bin']['valid']);
+        $t->same(true, $parts['/word/media/good.png']['valid']);
+        $t->same([], $parts['/word/media/good.png']['issues']);
+
+        $t->same(true, $overrides['/word/media/override-source.bin']['exists']);
+        $t->same(false, $overrides['/word/media/override-source.bin']['relationshipPart']);
+        $t->same(false, $overrides['/word/media/override-source.bin']['valid']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $overrides['/word/media/override-source.bin']['issues']);
+        $t->same(false, $overrides['/word/media/missing.bin']['exists']);
+        $t->same(false, $overrides['/word/media/missing.bin']['valid']);
+        $t->same(['override-target-missing-part', 'relationship-content-type-on-non-relationship-part'], $overrides['/word/media/missing.bin']['issues']);
+
+        $t->same('/word/media/default-source.rels', $targets['rIdDefaultRels']['target']);
+        $t->same($relationshipContentType, $targets['rIdDefaultRels']['contentType']);
+        $t->same(true, $targets['rIdDefaultRels']['exists']);
+        $t->same(false, $targets['rIdDefaultRels']['relationshipPartTarget']);
+        $t->same(false, $targets['rIdDefaultRels']['valid']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $targets['rIdDefaultRels']['issues']);
+        $t->same('/word/media/override-source.bin', $targets['rIdOverrideRels']['target']);
+        $t->same($relationshipContentType, $targets['rIdOverrideRels']['contentType']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $targets['rIdOverrideRels']['issues']);
+        $t->same(false, $targets['rIdOverrideRels']['valid']);
+        $t->same('/word/media/missing.bin', $targets['rIdMissingOverride']['target']);
+        $t->same(false, $targets['rIdMissingOverride']['exists']);
+        $t->same(['missing-in-package', 'relationship-content-type-on-non-relationship-part'], $targets['rIdMissingOverride']['issues']);
+        $t->same(false, $targets['rIdMissingOverride']['valid']);
+        $t->same('image/png', $targets['rIdGoodImage']['contentType']);
+        $t->same([], $targets['rIdGoodImage']['issues']);
+        $t->same(true, $targets['rIdGoodImage']['valid']);
+
+        $consistency = $graph->preflightPackageConsistency();
+        $t->same(false, $consistency['valid']);
+        $t->same(false, $consistency['packagePartsValid']);
+        $t->same(false, $consistency['contentTypeOverridesValid']);
+        $t->same(false, $consistency['relationshipTargetsValid']);
+
+        $t->same(4, $inventory[$relationshipContentType]['packagePartCount']);
+        $t->same(2, $inventory[$relationshipContentType]['relationshipPartCount']);
+        $t->same(2, $inventory[$relationshipContentType]['invalidPackagePartCount']);
+        $t->same(2, $inventory[$relationshipContentType]['overrideCount']);
+        $t->same(1, $inventory[$relationshipContentType]['missingOverrideCount']);
+        $t->same(3, $inventory[$relationshipContentType]['relationshipTargetReferenceCount']);
+        $t->same(['/word/media/missing.bin'], $inventory[$relationshipContentType]['missingOverrideParts']);
+        $t->same(['missing-in-package', 'override-target-missing-part', 'relationship-content-type-on-non-relationship-part'], $inventory[$relationshipContentType]['issues']);
+
+        $t->same(false, $references['/word/media/default-source.rels']['valid']);
+        $t->same(1, $references['/word/media/default-source.rels']['directReferenceCount']);
+        $t->same(1, $references['/word/media/default-source.rels']['reachableReferenceCount']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $references['/word/media/default-source.rels']['issues']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $references['/word/media/default-source.rels']['directReferences'][0]['issues']);
+        $t->same(false, $references['/word/media/missing.bin']['exists']);
+        $t->same(false, $references['/word/media/missing.bin']['valid']);
+        $t->same(['missing-in-package', 'relationship-content-type-on-non-relationship-part'], $references['/word/media/missing.bin']['issues']);
+        $t->same(['missing-in-package', 'relationship-content-type-on-non-relationship-part'], $references['/word/media/missing.bin']['directReferences'][0]['issues']);
+    },
     'preflights package-wide OPC consistency across overrides and relationships' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

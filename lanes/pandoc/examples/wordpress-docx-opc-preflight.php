@@ -498,6 +498,36 @@ $fixedContentTypesItemPackage = ZipPackage::fromParts([
     ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
 ]);
 
+$reservedRelationshipContentTypeContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/media/reserved.bin" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+</Types>
+XML;
+
+$reservedRelationshipContentTypeRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+$reservedRelationshipContentTypeRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDefaultRels" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/default.rels"/>
+  <Relationship Id="rIdReservedOverride" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/reserved.bin"/>
+</Relationships>
+XML;
+
+$reservedRelationshipContentTypePackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $reservedRelationshipContentTypeContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $reservedRelationshipContentTypeRootRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $reservedRelationshipContentTypeRelationshipsXml],
+    ['name' => 'word/media/default.rels', 'data' => 'not relationship xml'],
+    ['name' => 'word/media/reserved.bin', 'data' => 'not relationship xml'],
+]);
+
 $caseCollisionContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -947,6 +977,41 @@ $fixedContentTypesItemGuard = [
     'packagePartsValid' => $fixedContentTypesItemConsistency['packagePartsValid'],
     'contentTypeOverridesValid' => $fixedContentTypesItemConsistency['contentTypeOverridesValid'],
     'relationshipTargetsValid' => $fixedContentTypesItemConsistency['relationshipTargetsValid'],
+];
+
+$reservedRelationshipContentTypeGraph = OpcRelationshipGraph::fromPackage($reservedRelationshipContentTypePackage);
+$reservedRelationshipContentTypeConsistency = $reservedRelationshipContentTypeGraph->preflightPackageConsistency();
+$reservedRelationshipContentTypeParts = [];
+foreach ($reservedRelationshipContentTypeConsistency['packageParts'] as $part) {
+    $reservedRelationshipContentTypeParts[$part['partName']] = $part;
+}
+$reservedRelationshipContentTypeOverrides = [];
+foreach ($reservedRelationshipContentTypeConsistency['contentTypeOverrides'] as $override) {
+    $reservedRelationshipContentTypeOverrides[$override['partName']] = $override;
+}
+$reservedRelationshipContentTypeTargets = [];
+foreach ($reservedRelationshipContentTypeConsistency['relationshipTargets'] as $target) {
+    $reservedRelationshipContentTypeTargets[$target['source'] . ':' . $target['id']] = $target;
+}
+$reservedRelationshipContentTypeGuard = [
+    'defaultPart' => $reservedRelationshipContentTypeParts['/word/media/default.rels']['partName'] ?? null,
+    'defaultPartValid' => $reservedRelationshipContentTypeParts['/word/media/default.rels']['valid'] ?? null,
+    'defaultPartIssues' => $reservedRelationshipContentTypeParts['/word/media/default.rels']['issues'] ?? null,
+    'overridePart' => $reservedRelationshipContentTypeOverrides['/word/media/reserved.bin']['partName'] ?? null,
+    'overrideExists' => $reservedRelationshipContentTypeOverrides['/word/media/reserved.bin']['exists'] ?? null,
+    'overrideValid' => $reservedRelationshipContentTypeOverrides['/word/media/reserved.bin']['valid'] ?? null,
+    'overrideIssues' => $reservedRelationshipContentTypeOverrides['/word/media/reserved.bin']['issues'] ?? null,
+    'overridePackagePartIssues' => $reservedRelationshipContentTypeParts['/word/media/reserved.bin']['issues'] ?? null,
+    'defaultTargetPart' => $reservedRelationshipContentTypeTargets['/word/document.xml:rIdDefaultRels']['targetPart'] ?? null,
+    'defaultTargetValid' => $reservedRelationshipContentTypeTargets['/word/document.xml:rIdDefaultRels']['valid'] ?? null,
+    'defaultTargetIssues' => $reservedRelationshipContentTypeTargets['/word/document.xml:rIdDefaultRels']['issues'] ?? null,
+    'overrideTargetPart' => $reservedRelationshipContentTypeTargets['/word/document.xml:rIdReservedOverride']['targetPart'] ?? null,
+    'overrideTargetValid' => $reservedRelationshipContentTypeTargets['/word/document.xml:rIdReservedOverride']['valid'] ?? null,
+    'overrideTargetIssues' => $reservedRelationshipContentTypeTargets['/word/document.xml:rIdReservedOverride']['issues'] ?? null,
+    'packageConsistencyValid' => $reservedRelationshipContentTypeConsistency['valid'],
+    'packagePartsValid' => $reservedRelationshipContentTypeConsistency['packagePartsValid'],
+    'contentTypeOverridesValid' => $reservedRelationshipContentTypeConsistency['contentTypeOverridesValid'],
+    'relationshipTargetsValid' => $reservedRelationshipContentTypeConsistency['relationshipTargetsValid'],
 ];
 
 $relationshipPartLoads = [];
@@ -1558,6 +1623,7 @@ $summary = [
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
     'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
+    'reservedRelationshipContentTypeGuard' => $reservedRelationshipContentTypeGuard,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
@@ -1977,6 +2043,24 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['fixedContentTypesItemGuard']['packagePartsValid'] ?? null) !== false
         || ($summary['fixedContentTypesItemGuard']['contentTypeOverridesValid'] ?? null) !== false
         || ($summary['fixedContentTypesItemGuard']['relationshipTargetsValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['defaultPart'] ?? null) !== '/word/media/default.rels'
+        || ($summary['reservedRelationshipContentTypeGuard']['defaultPartValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['defaultPartIssues'] ?? null) !== ['relationship-content-type-on-non-relationship-part']
+        || ($summary['reservedRelationshipContentTypeGuard']['overridePart'] ?? null) !== '/word/media/reserved.bin'
+        || ($summary['reservedRelationshipContentTypeGuard']['overrideExists'] ?? null) !== true
+        || ($summary['reservedRelationshipContentTypeGuard']['overrideValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['overrideIssues'] ?? null) !== ['relationship-content-type-on-non-relationship-part']
+        || ($summary['reservedRelationshipContentTypeGuard']['overridePackagePartIssues'] ?? null) !== ['relationship-content-type-on-non-relationship-part']
+        || ($summary['reservedRelationshipContentTypeGuard']['defaultTargetPart'] ?? null) !== '/word/media/default.rels'
+        || ($summary['reservedRelationshipContentTypeGuard']['defaultTargetValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['defaultTargetIssues'] ?? null) !== ['relationship-content-type-on-non-relationship-part']
+        || ($summary['reservedRelationshipContentTypeGuard']['overrideTargetPart'] ?? null) !== '/word/media/reserved.bin'
+        || ($summary['reservedRelationshipContentTypeGuard']['overrideTargetValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['overrideTargetIssues'] ?? null) !== ['relationship-content-type-on-non-relationship-part']
+        || ($summary['reservedRelationshipContentTypeGuard']['packageConsistencyValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['packagePartsValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['contentTypeOverridesValid'] ?? null) !== false
+        || ($summary['reservedRelationshipContentTypeGuard']['relationshipTargetsValid'] ?? null) !== false
         || array_keys($summary['partNameCaseCollisionGuards'] ?? []) !== [
             '/Word/Document.XML',
             '/word/document.xml',
