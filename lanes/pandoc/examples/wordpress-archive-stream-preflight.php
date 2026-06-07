@@ -93,6 +93,8 @@ $rewriteTarHeaderWithSignedChecksum = static function (string $archive): string 
     return $header . substr($archive, 512);
 };
 
+$tarOctalField = static fn (int $value): string => str_pad(decoct($value), 7, '0', STR_PAD_LEFT) . "\0";
+
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
 $legacyContentBytes = "# Legacy contiguous source packet\n\nReady for WordPress archive review.\n";
@@ -224,6 +226,41 @@ try {
     TarArchive::fromString($linkPolicyArchiveBytes);
 } catch (RuntimeException) {
     $linkPolicyExtractionBlocked = true;
+}
+$specialPolicyArchiveBytes = $rewriteTarHeaderFields(
+    $rawTarHeader('packet/dev/console', '3', '', 1780479078, false),
+    [
+        329 => $tarOctalField(5),
+        337 => $tarOctalField(1),
+    ]
+) . $rawTarHeader('PaxHeaders/block-device', 'x', $paxPayload([
+    'path' => 'packet/dev/disk0',
+    'devmajor' => '8',
+    'devminor' => '16',
+]), 0, false)
+    . $rewriteTarHeaderFields(
+        $rawTarHeader('placeholder-device', '4', '', 1780479079, false),
+        [
+            329 => $tarOctalField(0),
+            337 => $tarOctalField(0),
+        ]
+    )
+    . $rawTarHeader('packet/dev/import.fifo', '6', '', 1780479080, false)
+    . str_repeat("\0", 1024);
+$specialPolicyGzip = GzipStream::build($specialPolicyArchiveBytes, [
+    'filename' => 'wordpress-special-file-policy.tar',
+    'comment' => 'TAR special file extraction policy preflight',
+]);
+$specialPolicyInspection = ArchiveCompressionStream::inspectTarSpecialFilePolicy(
+    $specialPolicyGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($specialPolicyArchiveBytes)
+);
+$specialPolicyExtractionBlocked = false;
+try {
+    TarArchive::fromString($specialPolicyArchiveBytes);
+} catch (RuntimeException) {
+    $specialPolicyExtractionBlocked = true;
 }
 $sparsePolicyArchiveBytes = $rawTarHeader('packet/gnu-type-sparse.bin', 'S', $sparsePolicyTypePayload, 1780479080, false)
     . $rawTarHeader('PaxHeaders/sparse-policy', 'x', $paxPayload([
@@ -425,6 +462,13 @@ if (in_array('--self-test', $argv, true)) {
         'linkPolicyExtractionPolicy' => 'link-entries-blocked',
         'linkPolicyHardTarget' => 'packet/link-source.md',
         'linkPolicySymlinkTarget' => 'packet/media/review.png',
+        'specialPolicyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'specialPolicyEntryCount' => 3,
+        'specialPolicySpecialCount' => 3,
+        'specialPolicyExtractionPolicy' => 'special-file-entries-blocked',
+        'specialPolicyCharacterMajor' => 5,
+        'specialPolicyBlockMinor' => 16,
+        'specialPolicyFifoSource' => 'none',
         'sparsePolicyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'sparsePolicyEntryCount' => 2,
         'sparsePolicySparseCount' => 2,
@@ -503,6 +547,18 @@ if (in_array('--self-test', $argv, true)) {
         || ($linkPolicyInspection['entries'][1]['linkTargetSource'] ?? null) !== 'pax-linkpath'
         || ($linkPolicyInspection['entries'][1]['linkTarget'] ?? null) !== $expected['linkPolicySymlinkTarget']
         || ($linkPolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-link-policy.tar'
+        || $specialPolicyInspection['format'] !== $expected['specialPolicyFormat']
+        || $specialPolicyInspection['entryCount'] !== $expected['specialPolicyEntryCount']
+        || $specialPolicyInspection['specialFileEntryCount'] !== $expected['specialPolicySpecialCount']
+        || $specialPolicyInspection['extractionPolicy'] !== $expected['specialPolicyExtractionPolicy']
+        || !$specialPolicyExtractionBlocked
+        || ($specialPolicyInspection['entries'][0]['specialType'] ?? null) !== 'character-device'
+        || ($specialPolicyInspection['entries'][0]['deviceMajor'] ?? null) !== $expected['specialPolicyCharacterMajor']
+        || ($specialPolicyInspection['entries'][1]['name'] ?? null) !== 'packet/dev/disk0'
+        || ($specialPolicyInspection['entries'][1]['deviceMinor'] ?? null) !== $expected['specialPolicyBlockMinor']
+        || ($specialPolicyInspection['entries'][2]['specialType'] ?? null) !== 'fifo'
+        || ($specialPolicyInspection['entries'][2]['deviceNumberSource'] ?? null) !== $expected['specialPolicyFifoSource']
+        || ($specialPolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-special-file-policy.tar'
         || $sparsePolicyInspection['format'] !== $expected['sparsePolicyFormat']
         || $sparsePolicyInspection['entryCount'] !== $expected['sparsePolicyEntryCount']
         || $sparsePolicyInspection['sparseEntryCount'] !== $expected['sparsePolicySparseCount']
@@ -594,6 +650,13 @@ echo 'linkPolicy.extractionPolicy=' . $linkPolicyInspection['extractionPolicy'] 
 echo 'linkPolicy.linkEntryCount=' . $linkPolicyInspection['linkEntryCount'] . "\n";
 echo 'linkPolicy.hardTarget=' . $linkPolicyInspection['entries'][0]['linkTarget'] . "\n";
 echo 'linkPolicy.symlinkTarget=' . $linkPolicyInspection['entries'][1]['linkTarget'] . "\n";
+echo 'specialPolicy.format=' . $specialPolicyInspection['format'] . "\n";
+echo 'specialPolicy.extractionPolicy=' . $specialPolicyInspection['extractionPolicy'] . "\n";
+echo 'specialPolicy.specialFileEntryCount=' . $specialPolicyInspection['specialFileEntryCount'] . "\n";
+echo 'specialPolicy.characterDevice=' . $specialPolicyInspection['entries'][0]['name'] . ':' . $specialPolicyInspection['entries'][0]['deviceMajor'] . ':' . $specialPolicyInspection['entries'][0]['deviceMinor'] . "\n";
+echo 'specialPolicy.blockDevice=' . $specialPolicyInspection['entries'][1]['name'] . ':' . $specialPolicyInspection['entries'][1]['deviceMajor'] . ':' . $specialPolicyInspection['entries'][1]['deviceMinor'] . "\n";
+echo 'specialPolicy.fifoSource=' . $specialPolicyInspection['entries'][2]['deviceNumberSource'] . "\n";
+echo 'specialPolicy.extractionBlocked=' . ($specialPolicyExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'sparsePolicy.format=' . $sparsePolicyInspection['format'] . "\n";
 echo 'sparsePolicy.extractionPolicy=' . $sparsePolicyInspection['extractionPolicy'] . "\n";
 echo 'sparsePolicy.sparseEntryCount=' . $sparsePolicyInspection['sparseEntryCount'] . "\n";

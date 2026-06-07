@@ -13,6 +13,9 @@ final class TarArchive
     private const TYPE_DIRECTORY = '5';
     private const TYPE_HARD_LINK = '1';
     private const TYPE_SYMBOLIC_LINK = '2';
+    private const TYPE_CHARACTER_DEVICE = '3';
+    private const TYPE_BLOCK_DEVICE = '4';
+    private const TYPE_FIFO = '6';
     private const TYPE_PAX_EXTENDED = 'x';
     private const TYPE_PAX_GLOBAL = 'g';
     private const TYPE_GNU_LONG_NAME = 'L';
@@ -412,6 +415,224 @@ final class TarArchive
             'symbolicLinkCount' => $symbolicLinkCount,
             'extractionPolicy' => $linkEntries === [] ? 'no-link-entries' : 'link-entries-blocked',
             'entries' => $linkEntries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     specialFileEntryCount:int,
+     *     characterDeviceCount:int,
+     *     blockDeviceCount:int,
+     *     fifoCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         specialType:string,
+     *         typeFlag:string,
+     *         deviceMajor:?int,
+     *         deviceMinor:?int,
+     *         deviceNumberSource:string,
+     *         payloadSize:int,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function specialFilePolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entryCount = 0;
+        $specialEntries = [];
+        $characterDeviceCount = 0;
+        $blockDeviceCount = 0;
+        $fifoCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                self::assertSafePath(
+                    self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink),
+                    'TAR link target'
+                );
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $specialType = self::specialFileType($typeFlag);
+            if ($specialType !== null) {
+                if ($entrySize !== 0) {
+                    throw new \RuntimeException("TAR special file entry {$name} must not contain payload bytes");
+                }
+
+                $deviceMajor = null;
+                $deviceMinor = null;
+                $deviceNumberSource = 'none';
+                if ($typeFlag === self::TYPE_CHARACTER_DEVICE || $typeFlag === self::TYPE_BLOCK_DEVICE) {
+                    $deviceMajor = self::resolvedDeviceMajorFromHeader($header, $metadataHeaders, $name);
+                    $deviceMinor = self::resolvedDeviceMinorFromHeader($header, $metadataHeaders, $name);
+                    $deviceNumberSource = self::resolvedDeviceNumberSource($metadataHeaders);
+                }
+
+                if ($typeFlag === self::TYPE_CHARACTER_DEVICE) {
+                    $characterDeviceCount++;
+                } elseif ($typeFlag === self::TYPE_BLOCK_DEVICE) {
+                    $blockDeviceCount++;
+                } else {
+                    $fifoCount++;
+                }
+
+                $specialEntries[] = [
+                    'name' => $name,
+                    'specialType' => $specialType,
+                    'typeFlag' => $typeFlag,
+                    'deviceMajor' => $deviceMajor,
+                    'deviceMinor' => $deviceMinor,
+                    'deviceNumberSource' => $deviceNumberSource,
+                    'payloadSize' => $entrySize,
+                    'nameSource' => $nameSource,
+                    'headerOffset' => $headerOffset,
+                    'dataOffset' => $dataOffset,
+                    'policy' => 'blocked',
+                    'diagnostics' => [
+                        'tar-special-file-not-extracted',
+                        'tar-' . $specialType . '-not-extracted',
+                    ],
+                ];
+            }
+
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'specialFileEntryCount' => count($specialEntries),
+            'characterDeviceCount' => $characterDeviceCount,
+            'blockDeviceCount' => $blockDeviceCount,
+            'fifoCount' => $fifoCount,
+            'extractionPolicy' => $specialEntries === [] ? 'no-special-file-entries' : 'special-file-entries-blocked',
+            'entries' => $specialEntries,
         ];
     }
 
@@ -1215,6 +1436,49 @@ final class TarArchive
         return $groupName;
     }
 
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedDeviceMajorFromHeader(string $header, array $headers, string $name): int
+    {
+        if (isset($headers['devmajor']) && $headers['devmajor'] !== '') {
+            return self::parsePaxNonNegativeInteger($headers['devmajor'], "TAR PAX devmajor for {$name}");
+        }
+
+        return self::readNumericField(substr($header, 329, 8), "TAR device major for {$name}");
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedDeviceMinorFromHeader(string $header, array $headers, string $name): int
+    {
+        if (isset($headers['devminor']) && $headers['devminor'] !== '') {
+            return self::parsePaxNonNegativeInteger($headers['devminor'], "TAR PAX devminor for {$name}");
+        }
+
+        return self::readNumericField(substr($header, 337, 8), "TAR device minor for {$name}");
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedDeviceNumberSource(array $headers): string
+    {
+        $hasMajor = isset($headers['devmajor']) && $headers['devmajor'] !== '';
+        $hasMinor = isset($headers['devminor']) && $headers['devminor'] !== '';
+
+        if ($hasMajor && $hasMinor) {
+            return 'pax-device-numbers';
+        }
+
+        if ($hasMajor || $hasMinor) {
+            return 'mixed-device-numbers';
+        }
+
+        return 'header-device-numbers';
+    }
+
     private static function validateHeaderChecksum(string $header): void
     {
         $stored = self::readOctalField(substr($header, 148, 8), 'TAR header checksum');
@@ -1692,6 +1956,16 @@ final class TarArchive
         }
 
         return $segments;
+    }
+
+    private static function specialFileType(string $typeFlag): ?string
+    {
+        return match ($typeFlag) {
+            self::TYPE_CHARACTER_DEVICE => 'character-device',
+            self::TYPE_BLOCK_DEVICE => 'block-device',
+            self::TYPE_FIFO => 'fifo',
+            default => null,
+        };
     }
 
     /**

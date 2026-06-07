@@ -1292,6 +1292,84 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => TarArchive::linkPolicyPreflight($unsafeSymlink));
     },
 
+    'preflights tar special file policy without exposing device entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload, $rewriteTarHeaderFields): void {
+        $deviceField = static fn (int $value): string => str_pad(decoct($value), 7, '0', STR_PAD_LEFT) . "\0";
+        $characterDevice = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/dev/console', '3', '', 1780479087, false),
+            [
+                329 => $deviceField(5),
+                337 => $deviceField(1),
+            ]
+        );
+        $blockDevice = $rawTarHeader('PaxHeaders/block-device', 'x', $paxPayload([
+            'path' => 'packet/dev/disk0',
+            'devmajor' => '8',
+            'devminor' => '16',
+        ]), 0, false)
+            . $rewriteTarHeaderFields(
+                $rawTarHeader('placeholder-device', '4', '', 1780479088, false),
+                [
+                    329 => $deviceField(0),
+                    337 => $deviceField(0),
+                ]
+            );
+        $fifo = $rawTarHeader('packet/dev/import.fifo', '6', '', 1780479089, false);
+        $archiveBytes = $characterDevice . $blockDevice . $fifo . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-special-file-policy.tar',
+            'comment' => 'special file entries stay blocked for extraction',
+        ]);
+
+        $policy = TarArchive::specialFilePolicyPreflight($archiveBytes);
+        $streamPolicy = ArchiveCompressionStream::inspectTarSpecialFilePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+        $payloadDevice = $rawTarHeader('packet/dev/payload', '3', 'payload');
+        $invalidPaxDevice = $rawTarHeader('PaxHeaders/invalid-device', 'x', $paxPayload([
+            'path' => 'packet/dev/invalid',
+            'devmajor' => 'not-a-number',
+        ]), 0, false)
+            . $rawTarHeader('placeholder-device', '3', '', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->same(3, $policy['entryCount']);
+        $t->same(3, $policy['specialFileEntryCount']);
+        $t->same(1, $policy['characterDeviceCount']);
+        $t->same(1, $policy['blockDeviceCount']);
+        $t->same(1, $policy['fifoCount']);
+        $t->same('special-file-entries-blocked', $policy['extractionPolicy']);
+        $t->same('packet/dev/console', $policy['entries'][0]['name']);
+        $t->same('character-device', $policy['entries'][0]['specialType']);
+        $t->same('3', $policy['entries'][0]['typeFlag']);
+        $t->same(5, $policy['entries'][0]['deviceMajor']);
+        $t->same(1, $policy['entries'][0]['deviceMinor']);
+        $t->same('header-device-numbers', $policy['entries'][0]['deviceNumberSource']);
+        $t->same(['tar-special-file-not-extracted', 'tar-character-device-not-extracted'], $policy['entries'][0]['diagnostics']);
+        $t->same('packet/dev/disk0', $policy['entries'][1]['name']);
+        $t->same('block-device', $policy['entries'][1]['specialType']);
+        $t->same(8, $policy['entries'][1]['deviceMajor']);
+        $t->same(16, $policy['entries'][1]['deviceMinor']);
+        $t->same('pax-device-numbers', $policy['entries'][1]['deviceNumberSource']);
+        $t->same('pax-path', $policy['entries'][1]['nameSource']);
+        $t->same('packet/dev/import.fifo', $policy['entries'][2]['name']);
+        $t->same('fifo', $policy['entries'][2]['specialType']);
+        $t->same(null, $policy['entries'][2]['deviceMajor']);
+        $t->same(null, $policy['entries'][2]['deviceMinor']);
+        $t->same('none', $policy['entries'][2]['deviceNumberSource']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(strlen($archiveBytes), $streamPolicy['uncompressedSize']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-special-file-policy.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same(3, $streamPolicy['specialFileEntryCount']);
+        $t->same('packet/dev/disk0', $streamPolicy['entries'][1]['name']);
+        $t->same(16, $streamPolicy['entries'][1]['deviceMinor']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::specialFilePolicyPreflight($payloadDevice));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::specialFilePolicyPreflight($invalidPaxDevice));
+    },
+
     'rejects tar gnu long-link metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader): void {
         $gnuLongLink = $rawTarHeader('././@LongLink', 'K', 'packet/target.xml' . "\0", 0, false)
             . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
