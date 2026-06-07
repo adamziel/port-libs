@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 06:17:19 UTC",
-    "sourceCommit": "0b156309dc95b4072c2ccb7cc4b489a6967b1646",
-    "sourceCommitShort": "0b156309dc95",
+    "generated": "2026-06-07 06:17:37 UTC",
+    "sourceCommit": "98e179740f69c4b1b95582bb80fb4cd49805ade6",
+    "sourceCommitShort": "98e179740f69",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0b156309dc95b4072c2ccb7cc4b489a6967b1646",
-    "dashboardCommitShort": "0b156309dc95",
+    "dashboardCommit": "98e179740f69c4b1b95582bb80fb4cd49805ade6",
+    "dashboardCommitShort": "98e179740f69",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1876",
-            "coverage": "1,876 / 2,276 (82.4%)",
-            "mapPercent": "82.4%",
-            "unmapped": "400",
+            "mapped": "1877",
+            "coverage": "1,877 / 2,276 (82.5%)",
+            "mapPercent": "82.5%",
+            "unmapped": "399",
             "php": "1,459 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-07 UTC YAML current-base directive provenance slice on accept...",
+            "audit": "2026-06-07 UTC PDF engine current-base PDF/UA identification slice on...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For YAML follow-up, keep support-library work bounded to non-...",
+            "nextTarget": "For PDF-engine follow-up, keep support-library work bounded t...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

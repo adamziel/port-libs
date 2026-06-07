@@ -22,6 +22,8 @@ final class PdfEngineHandoff
     private const MAX_XREF_STREAM_BYTES = 262144;
     private const MAX_OBJECT_STREAM_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
+    private const XMP_PDF_A_ID_NAMESPACE = 'http://www.aiim.org/pdfa/ns/id/';
+    private const XMP_PDF_UA_ID_NAMESPACE = 'http://www.aiim.org/pdfua/ns/id/';
 
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
@@ -1318,6 +1320,26 @@ final class PdfEngineHandoff
                                 : '';
                             if ($part !== '' || $conformance !== '') {
                                 $diagnostics[] = 'pdf-byte-pdfa:' . $part . ':' . $conformance;
+                            }
+                        }
+                        if (isset($pdfXmpMetadata['pdfuaIdentification']) && is_array($pdfXmpMetadata['pdfuaIdentification'])) {
+                            $part = is_string($pdfXmpMetadata['pdfuaIdentification']['part'] ?? null)
+                                ? $pdfXmpMetadata['pdfuaIdentification']['part']
+                                : '';
+                            if ($part !== '') {
+                                $diagnostics[] = 'pdf-byte-pdfua:' . $part;
+                            }
+                            $amendment = is_string($pdfXmpMetadata['pdfuaIdentification']['amendment'] ?? null)
+                                ? $pdfXmpMetadata['pdfuaIdentification']['amendment']
+                                : '';
+                            if ($amendment !== '') {
+                                $diagnostics[] = 'pdf-byte-pdfua-amendment:' . $amendment;
+                            }
+                            $corrigendum = is_string($pdfXmpMetadata['pdfuaIdentification']['corrigendum'] ?? null)
+                                ? $pdfXmpMetadata['pdfuaIdentification']['corrigendum']
+                                : '';
+                            if ($corrigendum !== '') {
+                                $diagnostics[] = 'pdf-byte-pdfua-corrigendum:' . $corrigendum;
                             }
                         }
                     }
@@ -4255,12 +4277,23 @@ final class PdfEngineHandoff
             $metadata['creators'] = $creators;
         }
 
-        $pdfaPart = $this->xmpScalarText($xml, 'part');
-        $pdfaConformance = $this->xmpScalarText($xml, 'conformance');
+        $pdfaPart = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_A_ID_NAMESPACE, 'part', ['pdfaid']);
+        $pdfaConformance = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_A_ID_NAMESPACE, 'conformance', ['pdfaid']);
         if ($pdfaPart !== null || $pdfaConformance !== null) {
             $metadata['pdfaIdentification'] = [
                 'part' => $pdfaPart,
                 'conformance' => $pdfaConformance,
+            ];
+        }
+
+        $pdfuaPart = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_UA_ID_NAMESPACE, 'part', ['pdfuaid']);
+        $pdfuaAmendment = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_UA_ID_NAMESPACE, 'amd', ['pdfuaid']);
+        $pdfuaCorrigendum = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_UA_ID_NAMESPACE, 'corr', ['pdfuaid']);
+        if ($pdfuaPart !== null || $pdfuaAmendment !== null || $pdfuaCorrigendum !== null) {
+            $metadata['pdfuaIdentification'] = [
+                'part' => $pdfuaPart,
+                'amendment' => $pdfuaAmendment,
+                'corrigendum' => $pdfuaCorrigendum,
             ];
         }
 
@@ -5065,6 +5098,60 @@ final class PdfEngineHandoff
         return null;
     }
 
+    private function xmpQualifiedScalarText(string $xml, string $prefix, string $name): ?string
+    {
+        $block = $this->xmpQualifiedElementBlock($xml, $prefix, $name);
+        if ($block !== null) {
+            return $this->normalizeXmpText($block);
+        }
+
+        if (preg_match('/\b' . preg_quote($prefix, '/') . ':' . preg_quote($name, '/') . '\s*=\s*(["\'])(.*?)\1/s', $xml, $matches) === 1) {
+            return $this->normalizeXmpText($matches[2]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $fallbackPrefixes
+     */
+    private function xmpNamespaceScalarText(string $xml, string $namespaceUri, string $name, array $fallbackPrefixes): ?string
+    {
+        foreach ($this->xmpNamespacePrefixes($xml, $namespaceUri, $fallbackPrefixes) as $prefix) {
+            $value = $this->xmpQualifiedScalarText($xml, $prefix, $name);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $fallbackPrefixes
+     * @return list<string>
+     */
+    private function xmpNamespacePrefixes(string $xml, string $namespaceUri, array $fallbackPrefixes): array
+    {
+        $prefixes = [];
+        if (preg_match_all('/\bxmlns:([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*(["\'])(.*?)\2/s', $xml, $matches, PREG_SET_ORDER) >= 1) {
+            foreach ($matches as $match) {
+                $uri = html_entity_decode($match[3], ENT_QUOTES | ENT_XML1, 'UTF-8');
+                if ($uri === $namespaceUri) {
+                    $prefixes[] = $match[1];
+                }
+            }
+        }
+
+        foreach ($fallbackPrefixes as $prefix) {
+            if (is_string($prefix) && $prefix !== '') {
+                $prefixes[] = $prefix;
+            }
+        }
+
+        return array_values(array_unique($prefixes));
+    }
+
     /**
      * @return list<string>
      */
@@ -5091,6 +5178,15 @@ final class PdfEngineHandoff
     private function xmpElementBlock(string $xml, string $name): ?string
     {
         if (preg_match('/<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '\b[^>]*>(.*?)<\/(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($name, '/') . '>/s', $xml, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function xmpQualifiedElementBlock(string $xml, string $prefix, string $name): ?string
+    {
+        if (preg_match('/<' . preg_quote($prefix, '/') . ':' . preg_quote($name, '/') . '\b[^>]*>(.*?)<\/' . preg_quote($prefix, '/') . ':' . preg_quote($name, '/') . '>/s', $xml, $matches) !== 1) {
             return null;
         }
 

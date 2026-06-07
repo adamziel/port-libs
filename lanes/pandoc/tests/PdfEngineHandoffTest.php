@@ -2238,14 +2238,14 @@ MARKDOWN);
         $t->same('en-US', $sequence['finalPdfLanguage']);
     },
 
-    'fake runner extracts bounded pdf xmp metadata and pdfa identification from produced bytes' => static function (TestRunner $t) use ($document): void {
+    'fake runner extracts bounded pdf xmp metadata and pdfa pdfua identification from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xmp.pdf']);
         $xmp = implode("\n", [
             '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
             '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
             '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
-            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">',
+            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" xmlns:ua="http://www.aiim.org/pdfua/ns/id/">',
             '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">PDF Review Packet</rdf:li></rdf:Alt></dc:title>',
             '<dc:creator><rdf:Seq><rdf:li>Migration Desk</rdf:li><rdf:li>Content Reviewer</rdf:li></rdf:Seq></dc:creator>',
             '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Migration review metadata</rdf:li></rdf:Alt></dc:description>',
@@ -2258,6 +2258,8 @@ MARKDOWN);
             '<xmpMM:InstanceID>uuid:pdf-review-packet-v2</xmpMM:InstanceID>',
             '<pdfaid:part>2</pdfaid:part>',
             '<pdfaid:conformance>B</pdfaid:conformance>',
+            '<ua:part>1</ua:part>',
+            '<ua:amd>2024</ua:amd>',
             '</rdf:Description>',
             '</rdf:RDF>',
             '</x:xmpmeta>',
@@ -2316,12 +2318,19 @@ MARKDOWN);
                 'part' => '2',
                 'conformance' => 'B',
             ],
+            'pdfuaIdentification' => [
+                'part' => '1',
+                'amendment' => '2024',
+                'corrigendum' => null,
+            ],
         ];
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfXmpMetadata']);
-        $t->contains('pdf-byte-xmp-metadata:13', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-metadata:14', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-pdfa:2:B', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-pdfua:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-pdfua-amendment:2024', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },
