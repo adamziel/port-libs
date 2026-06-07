@@ -3139,6 +3139,94 @@ XML);
         $t->same('Manual note', $manual['note'] ?? null);
         $t->same('Manual addendum', $manual['addendum'] ?? null);
     },
+    'preserves bounded biblatex annotations separately from abstracts' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{annotated-source,
+  author     = {Roe, Pat},
+  title      = {Annotated Source Packet},
+  date       = {2026-06-05},
+  abstract   = {Public summary for imported source.},
+  annotation = {Internal migration reviewer note.},
+  annote     = {Legacy catalog note fallback.},
+  url        = {https://example.test/annotated-source}
+}
+
+@misc{annote-only-source,
+  author = {Ng, Nia},
+  title  = {Legacy Annote Packet},
+  date   = {2025},
+  annote = {Legacy annote visible as abstract fallback and annotation.}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Public summary for imported source.', $items[0]['abstract'] ?? null);
+        $t->same('Internal migration reviewer note.', $items[0]['annotation'] ?? null);
+        $t->same('Internal migration reviewer note.', $items[0]['rawBibtex']['fields']['annotation'] ?? null);
+        $t->same('Legacy annote visible as abstract fallback and annotation.', $items[1]['abstract'] ?? null);
+        $t->same('Legacy annote visible as abstract fallback and annotation.', $items[1]['annotation'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $annotated = $processor->item('annotated-source');
+        $annoteOnly = $processor->item('annote-only-source');
+        $t->same('Public summary for imported source.', $annotated['abstract'] ?? null);
+        $t->same('Internal migration reviewer note.', $annotated['annotation'] ?? null);
+        $t->same('Legacy annote visible as abstract fallback and annotation.', $annoteOnly['abstract'] ?? null);
+        $t->same('Legacy annote visible as abstract fallback and annotation.', $annoteOnly['annotation'] ?? null);
+        $t->same('(Roe 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('annotated-source', '[@annotated-source]'),
+            $citation('annote-only-source', '[@annote-only-source]'),
+        ]));
+        $t->same(
+            'Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.',
+            $processor->renderBibliographyEntry('annotated-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="abstract"/>
+        <text variable="annotation"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="abstract"/>
+      <text variable="annote"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Annotated Source Packet | Public summary for imported source. | Internal migration reviewer note.; Legacy Annote Packet | Legacy annote visible as abstract fallback and annotation. | Legacy annote visible as abstract fallback and annotation.]', $styled->renderCitationCluster([
+            $citation('annotated-source', '[@annotated-source]'),
+            $citation('annote-only-source', '[@annote-only-source]'),
+        ]));
+        $t->same('Annotated Source Packet :: Public summary for imported source. :: Internal migration reviewer note.', $styled->renderBibliographyEntry('annotated-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-annotation',
+            'title' => 'Manual Annotation Source',
+            'annotation' => 'Manual reviewer note',
+        ], [
+            'id' => 'manual-annote',
+            'title' => 'Manual Annote Source',
+            'annote' => 'Manual annote alias',
+        ]]);
+        $t->same('Manual reviewer note', $direct->item('manual-annotation')['annotation'] ?? null);
+        $t->same('Manual annote alias', $direct->item('manual-annote')['annotation'] ?? null);
+
+        $document = (new MarkdownReader())->read('Annotated source @annotated-source keeps private reviewer notes distinct from public abstracts.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Annotated source Roe (2026) keeps private reviewer notes distinct from public abstracts.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.</dd>', $blocks);
+    },
     'maps bounded biblatex entry subtype review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @report{review-subtype,

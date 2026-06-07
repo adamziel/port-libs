@@ -795,6 +795,7 @@ final class CitationCslProcessor
             'language' => $language,
             'languageList' => $languageList !== [] ? $languageList : ($language !== '' ? [$language] : []),
             'abstract' => self::stringField($item, 'abstract'),
+            'annotation' => self::firstStringField($item, ['annotation', 'annote']),
             'medium' => self::stringField($item, 'medium'),
             'note' => self::stringField($item, 'note'),
             'addendum' => self::stringField($item, 'addendum'),
@@ -4357,6 +4358,7 @@ final class CitationCslProcessor
             ['articleNumber', 'Article number'],
             ['entrySubtype', 'Entry subtype'],
             ['status', 'Status'],
+            ['annotation', 'Annotation'],
             ['note', 'Note'],
             ['addendum', 'Addendum'],
         ] as [$key, $label]) {
@@ -5875,6 +5877,7 @@ final class CitationCslProcessor
             'language' => (string) $item['language'],
             'language-list' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
             'abstract' => (string) $item['abstract'],
+            'annotation', 'annote' => (string) ($item['annotation'] ?? ''),
             'medium' => (string) $item['medium'],
             'note' => (string) $item['note'],
             'addendum' => (string) $item['addendum'],

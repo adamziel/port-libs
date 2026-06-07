@@ -29,6 +29,8 @@ The xref chapter @xref-chapter keeps see-also parent metadata visible without cr
 
 A review note source @review-note-source keeps import audit notes and publication medium attached.
 
+Annotated source @annotated-source keeps private reviewer notes distinct from public abstracts.
+
 A translated source @translated-manual preserves original publication metadata for source review.
 
 Original subtitle source @original-subtitle-manual keeps original-title addenda visible for source review.
@@ -251,6 +253,15 @@ $bibtex = <<<'BIB'
   note         = {Needs source-check before migration},
   addendum     = {Queue imported by handoff},
   url          = {https://example.test/review-packet}
+}
+
+@online{annotated-source,
+  author     = {Roe, Pat},
+  title      = {Annotated Source Packet},
+  date       = {2026-06-05},
+  abstract   = {Public summary for imported source.},
+  annotation = {Internal migration reviewer note.},
+  url        = {https://example.test/annotated-source}
 }
 
 @book{translated-manual,
@@ -907,6 +918,13 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($reviewNoteSource['addendum'] ?? null) !== 'Queue imported by handoff') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review-note source addendum metadata');
+    }
+    $annotatedSource = $processor->item('annotated-source');
+    if (($annotatedSource['abstract'] ?? null) !== 'Public summary for imported source.') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve annotated source abstract metadata');
+    }
+    if (($annotatedSource['annotation'] ?? null) !== 'Internal migration reviewer note.') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve annotated source reviewer annotation metadata');
     }
     $translatedManual = $processor->item('translated-manual');
     if (($translatedManual['originalTitle'] ?? null) !== 'Manual de Migración') {
@@ -1759,6 +1777,8 @@ XML);
         '<dt>Ng 2025</dt><dd>Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.</dd>',
         '<p>A review note source Ng (2026) keeps import audit notes and publication medium attached.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>',
+        '<p>Annotated source Roe (2026) keeps private reviewer notes distinct from public abstracts.</p>',
+        '<dt>Roe 2026</dt><dd>Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.</dd>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<p>Original subtitle source García (2026) keeps original-title addenda visible for source review.</p>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',

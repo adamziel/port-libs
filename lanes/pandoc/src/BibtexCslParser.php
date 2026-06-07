@@ -650,6 +650,7 @@ final class BibtexCslParser
             'call-number' => self::firstField($fields, ['callnumber', 'call-number', 'library']),
             'language' => self::literalListDisplay($languageList) ?: self::firstField($fields, ['langid', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
+            'annotation' => self::firstField($fields, ['annotation', 'annote']),
             'medium' => self::firstField($fields, ['howpublished', 'medium']),
             'note' => self::firstField($fields, ['note']),
             'addendum' => self::firstField($fields, ['addendum']),
