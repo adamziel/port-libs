@@ -5662,6 +5662,11 @@ final class PdfMetadataExtractor
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
+            $streamTailReview = $this->documentOutlineMetadataStreamTailReview($objectBody, $objects, $base, $referenceReview);
+            if ($streamTailReview !== []) {
+                return $streamTailReview;
+            }
+
             $review = $base + $referenceReview + [
                 'status' => 'unreadable_metadata_stream',
             ];
@@ -5688,6 +5693,10 @@ final class PdfMetadataExtractor
         if (!$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)) {
             $review = $base + $referenceReview + [
                 'status' => 'rejected_malformed_outline_item_metadata_stream',
+                'metadata_reference_resolved' => true,
+                'has_stream' => true,
+                'stream_tail_operand_rejected' => true,
+                'native_metadata_decode' => false,
                 'bytes' => strlen($stream['content']),
                 'sha256' => hash('sha256', $stream['content']),
             ];
@@ -5791,6 +5800,53 @@ final class PdfMetadataExtractor
         $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
         if ($xmpSummary !== []) {
             $review['xmp_summary'] = $xmpSummary;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $referenceReview
+     * @return array<string, mixed>
+     */
+    private function documentOutlineMetadataStreamTailReview(
+        string $objectBody,
+        array $objects,
+        array $base,
+        array $referenceReview
+    ): array {
+        if (
+            !$this->streamObjectHasStreamKeyword($objectBody)
+            || $this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)
+        ) {
+            return [];
+        }
+
+        $review = $base + $referenceReview + [
+            'status' => 'rejected_malformed_outline_item_metadata_stream',
+            'metadata_reference_resolved' => true,
+            'has_stream' => true,
+            'stream_tail_operand_rejected' => true,
+            'native_metadata_decode' => false,
+        ];
+
+        $dictionary = $this->dictionaryObjectBody($objectBody);
+        if ($dictionary !== null) {
+            foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                $review[$key] = $metadataValue;
+            }
+
+            $filters = $this->streamFilters($dictionary, $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $declaredLength = $this->streamLength($dictionary, $objects);
+            if ($declaredLength !== null) {
+                $review['declared_length'] = $declaredLength;
+            }
         }
 
         return $review;
