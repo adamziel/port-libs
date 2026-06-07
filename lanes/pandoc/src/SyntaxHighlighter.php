@@ -76,6 +76,8 @@ final class SyntaxHighlighter
         'graphviz' => 'dot',
         'gv' => 'dot',
         'h' => 'c',
+        'hcl' => 'hcl',
+        'hcl2' => 'hcl',
         'hh' => 'cpp',
         'hpp' => 'cpp',
         'hxx' => 'cpp',
@@ -196,7 +198,10 @@ final class SyntaxHighlighter
         'sqlite' => 'sql',
         'sqlite3' => 'sql',
         'svg' => 'xml',
+        'terraform' => 'hcl',
         'tex' => 'tex',
+        'tf' => 'hcl',
+        'tfvars' => 'hcl',
         'toml' => 'toml',
         'ts' => 'typescript',
         'tsx' => 'tsx',
@@ -637,6 +642,7 @@ final class SyntaxHighlighter
             'dockerfile' => $this->tokenizeDockerfile($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
+            'hcl' => $this->tokenizeHcl($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'ini' => $this->tokenizeIni($code),
@@ -1137,6 +1143,31 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|[{}()[\\]:,|=!.@])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeHcl(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^<<-?([A-Za-z_][A-Za-z0-9_]*)[\\s\\S]*?(?:\\r?\\n)[ \\t]*\\1\\b/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['keyword', '/^\\b(?:backend|check|data|dynamic|import|locals|module|moved|output|provider|provisioner|removed|resource|terraform|variable)\\b/'],
+            ['keyword', '/^\\b(?:content|for|for_each|if|in|lifecycle|postcondition|precondition)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:any|bool|list|map|number|object|optional|set|string|tuple)\\b/'],
+            ['function', '/^\\b(?:abspath|basename|can|coalesce|compact|concat|contains|csvdecode|dirname|element|file|fileset|flatten|format|jsondecode|jsonencode|length|lookup|lower|merge|regex|replace|setproduct|sort|split|templatefile|toset|try|upper|yamldecode|yamlencode|zipmap)\\b(?=\\s*\\()/'],
+            ['number', '/^-?\\b(?:0|[1-9]\\d*)(?:\\.\\d+)?\\b/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*=)/'],
+            ['variable', '/^\\b(?:count|data|each|local|module|path|self|terraform|var)\\.[A-Za-z0-9_.-]+\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)+\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|=>|==|!=|<=|>=|&&|\\|\\||\\$\\{|[{}()[\\],.=+*\\/%!<>?:|-])/'],
         ]);
     }
 

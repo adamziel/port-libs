@@ -328,6 +328,12 @@ if (!$phpdocCodeBlock instanceof PortLibs\Pandoc\AstNode || $phpdocCodeBlock->ty
 }
 $phpdoc = $highlighter->highlightCodeBlock($phpdocCodeBlock, 'pygments');
 $phpdocWordpressBlock = $highlighter->wordpressHtmlBlock($phpdocCodeBlock, 'pygments');
+$terraformCodeBlock = $document->children[48] ?? null;
+if (!$terraformCodeBlock instanceof PortLibs\Pandoc\AstNode || $terraformCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Terraform HCL code block');
+}
+$terraform = $highlighter->highlightCodeBlock($terraformCodeBlock, 'monochrome');
+$terraformWordpressBlock = $highlighter->wordpressHtmlBlock($terraformCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1388,6 +1394,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($phpdocWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
         throw new RuntimeException('Expected PHPDoc WordPress style metadata');
     }
+    if (($terraform['language'] ?? '') !== 'hcl') {
+        throw new RuntimeException('Expected Terraform fixture to normalize to HCL highlighting');
+    }
+    if (($terraform['lineNumbering']['start'] ?? null) !== 590) {
+        throw new RuntimeException('Expected Terraform source startFrom line-number handoff');
+    }
+    if (!str_contains($terraform['html'], '<span class="kw">resource</span> <span class="st">&quot;aws_s3_bucket&quot;</span> <span class="st">&quot;media&quot;</span>')) {
+        throw new RuntimeException('Expected Terraform resource token handoff');
+    }
+    if (!str_contains($terraform['html'], '<span class="ot">Source</span> <span class="op">=</span> <span class="va">var.source_id</span>')) {
+        throw new RuntimeException('Expected Terraform variable reference token handoff');
+    }
+    if (!str_contains($terraform['html'], '<span class="ot">value</span> <span class="op">=</span> <span class="fu">jsonencode</span><span class="op">({</span>')) {
+        throw new RuntimeException('Expected Terraform function call token handoff');
+    }
+    if (!str_contains($terraform['html'], '<span class="ot">bucket</span>  <span class="op">=</span> <span class="va">aws_s3_bucket.media.bucket</span>')) {
+        throw new RuntimeException('Expected Terraform resource reference token handoff');
+    }
+    if (!str_contains($terraformWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected Terraform WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1460,6 +1487,7 @@ echo "graphqlHighlightedHtml:\n" . $graphql['html'] . "\n";
 echo "phpAttributeHighlightedHtml:\n" . $phpAttribute['html'] . "\n";
 echo "asciidocHighlightedHtml:\n" . $asciidoc['html'] . "\n";
 echo "phpdocHighlightedHtml:\n" . $phpdoc['html'] . "\n";
+echo "terraformHighlightedHtml:\n" . $terraform['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1503,4 +1531,5 @@ echo "graphqlWordpressBlock:\n" . $graphqlWordpressBlock . "\n";
 echo "phpAttributeWordpressBlock:\n" . $phpAttributeWordpressBlock . "\n";
 echo "asciidocWordpressBlock:\n" . $asciidocWordpressBlock . "\n";
 echo "phpdocWordpressBlock:\n" . $phpdocWordpressBlock . "\n";
+echo "terraformWordpressBlock:\n" . $terraformWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

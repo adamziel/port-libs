@@ -759,3 +759,37 @@ function normalize_review_title(array $item, ?array $attachments = null): string
     return trim((string) ($item['title'] ?? 'Untitled'));
 }
 ```
+
+``` {.terraform #terraform-review .numberLines startFrom=590}
+# WordPress import infrastructure review
+terraform {
+  required_version = ">= 1.6.0"
+}
+
+variable "source_id" {
+  type    = string
+  default = "legacy-42"
+}
+
+locals {
+  review_tags = {
+    Source = var.source_id
+    System = "wordpress-import"
+  }
+}
+
+resource "aws_s3_bucket" "media" {
+  bucket = "wp-${var.source_id}-media"
+  tags   = merge(local.review_tags, {
+    Purpose = "attachment-review"
+  })
+}
+
+output "review_packet" {
+  value = jsonencode({
+    source  = var.source_id
+    bucket  = aws_s3_bucket.media.bucket
+    dry_run = true
+  })
+}
+```

@@ -102,6 +102,10 @@ return [
         $t->same('graphql', SyntaxHighlighter::normalizeLanguage('gql'));
         $t->same('graphql', SyntaxHighlighter::normalizeLanguage('graphql-schema'));
         $t->same('graphql', SyntaxHighlighter::normalizeLanguage('language-graphql-query'));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('hcl'));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('terraform'));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('tf'));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('language-tfvars'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-expr'));
         $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-shell'));
@@ -1211,6 +1215,58 @@ return [
         $t->same('php', $directDocblock['language']);
         $t->contains('<span class="ot" title="OtherTok">@var</span> <span class="dt" title="DataTypeTok">class-string</span><span class="op" title="OperatorTok">&lt;</span><span class="dt" title="DataTypeTok">WP_Post</span><span class="op" title="OperatorTok">&gt;</span> <span class="va" title="VariableTok">$postClass</span>', $directDocblock['html']);
         $t->contains('<span class="va" title="VariableTok">$postClass</span> <span class="op" title="OperatorTok">=</span> <span class="dt" title="DataTypeTok">WP_Post</span><span class="op" title="OperatorTok">::</span><span class="kw" title="KeywordTok">class</span>', $directDocblock['html']);
+    },
+    'highlights terraform hcl infrastructure review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[48] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Terraform HCL code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directTfvars = $highlighter->highlight(
+            "source_id = \"legacy-42\"\nenabled = true\nsites = toset(var.sites)",
+            'tfvars'
+        );
+
+        $t->same('terraform', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('terraform'));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('tf'));
+        $t->same('hcl', SyntaxHighlighter::normalizeLanguage('tfvars'));
+        $t->same('hcl', $highlighted['language']);
+        $t->same('terraform', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(590, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource terraform numberLines"><code class="sourceCode hcl" style="counter-reset: source-line 589;">', $highlighted['html']);
+        $t->contains('<span id="terraform-review-590"><a href="#terraform-review-590"></a><span class="co"># WordPress import infrastructure review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">terraform</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">required_version</span> <span class="op">=</span> <span class="st">&quot;&gt;= 1.6.0&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">variable</span> <span class="st">&quot;source_id&quot;</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">type</span>    <span class="op">=</span> <span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="kw">locals</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">Source</span> <span class="op">=</span> <span class="va">var.source_id</span>', $highlighted['html']);
+        $t->contains('<span class="kw">resource</span> <span class="st">&quot;aws_s3_bucket&quot;</span> <span class="st">&quot;media&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">bucket</span> <span class="op">=</span> <span class="st">&quot;wp-${var.source_id}-media&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">tags</span>   <span class="op">=</span> <span class="fu">merge</span><span class="op">(</span><span class="va">local.review_tags</span>', $highlighted['html']);
+        $t->contains('<span class="kw">output</span> <span class="st">&quot;review_packet&quot;</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">value</span> <span class="op">=</span> <span class="fu">jsonencode</span><span class="op">({</span>', $highlighted['html']);
+        $t->contains('<span class="ot">bucket</span>  <span class="op">=</span> <span class="va">aws_s3_bucket.media.bucket</span>', $highlighted['html']);
+        $t->contains('<span class="ot">dry_run</span> <span class="op">=</span> <span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="fu">jsonencode</span><span class="op">({</span>', $wordpressBlock);
+        $t->same('hcl', $directTfvars['language']);
+        $t->same('tfvars', $directTfvars['requestedLanguage']);
+        $t->contains('<span class="ot">source_id</span> <span class="op">=</span> <span class="st">&quot;legacy-42&quot;</span>', $directTfvars['html']);
+        $t->contains('<span class="ot">enabled</span> <span class="op">=</span> <span class="cn">true</span>', $directTfvars['html']);
+        $t->contains('<span class="ot">sites</span> <span class="op">=</span> <span class="fu">toset</span><span class="op">(</span><span class="va">var.sites</span><span class="op">)</span>', $directTfvars['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
