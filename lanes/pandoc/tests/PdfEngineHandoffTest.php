@@ -3880,6 +3880,98 @@ MARKDOWN);
         $t->same($expectedFiles, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner extracts bounded pdf artifact marked content metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/artifacts.pdf']);
+        $contentBytes = implode("\n", [
+            'q',
+            '/Artifact << /Type /Pagination /Subtype /Header /BBox [0 750 612 792] /Attached [/Top] /MCID 19 >> BDC',
+            'BT /F1 10 Tf (Draft header) Tj ET',
+            'EMC',
+            '/Artifact BMC',
+            'q 1 0 0 1 0 0 cm Q',
+            'EMC',
+            '/Figure << /MCID 20 >> BDC',
+            'EMC',
+            'Q',
+            '',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Length ' . strlen($contentBytes) . ' >>',
+            'stream',
+            $contentBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/artifacts.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/artifacts.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedArtifacts = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'contentObject' => '6 0 R',
+                'source' => 'page:3 0 R.Contents.Artifact[0]',
+                'operator' => 'BDC',
+                'type' => 'Pagination',
+                'subtype' => 'Header',
+                'bbox' => [0.0, 750.0, 612.0, 792.0],
+                'attached' => ['Top'],
+                'mcid' => 19,
+                'propertyName' => null,
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'contentObject' => '6 0 R',
+                'source' => 'page:3 0 R.Contents.Artifact[1]',
+                'operator' => 'BMC',
+                'type' => null,
+                'subtype' => null,
+                'bbox' => null,
+                'attached' => [],
+                'mcid' => null,
+                'propertyName' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedArtifacts, $result['pdfMarkedContentArtifacts'] ?? null);
+        $t->same([19, 20], $result['pdfPageContentStreams'][0]['mcidValues'] ?? null);
+        $t->contains('pdf-byte-marked-content-artifacts:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-marked-content-artifact-attached:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-marked-content-artifact-type:Pagination:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-marked-content-artifact-subtype:Header:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedArtifacts, $sequence['finalPdfMarkedContentArtifacts'] ?? null);
+    },
+
     'fake runner extracts bounded pdf page content stream operator metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-content.pdf']);
