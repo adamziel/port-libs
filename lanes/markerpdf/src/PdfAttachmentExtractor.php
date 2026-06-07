@@ -484,7 +484,19 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects) as $entry) {
+            $rawEmbeddedFilesValue = null;
+            $catalogDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
+            if ($catalogDictionaryBody !== null) {
+                $rawNamesValue = $this->rawDictionaryEntryValue($catalogDictionaryBody, 'Names');
+                $rawNamesBody = is_string($rawNamesValue)
+                    ? $this->rawDictionaryBodyFromValue($rawNamesValue, $objects)
+                    : null;
+                if ($rawNamesBody !== null) {
+                    $rawEmbeddedFilesValue = $this->rawDictionaryEntryValue($rawNamesBody, 'EmbeddedFiles');
+                }
+            }
+
+            foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects, [], null, 0, $rawEmbeddedFilesValue) as $entry) {
                 if ($portfolio !== []) {
                     $entry['portfolio'] = $portfolio;
                 }
@@ -557,7 +569,8 @@ final class PdfAttachmentExtractor
         array $objects,
         array $seen = [],
         ?array $inheritedLimits = null,
-        int $depth = 0
+        int $depth = 0,
+        ?string $rawValue = null
     ): array
     {
         if ($depth > 20) {
@@ -574,6 +587,8 @@ final class PdfAttachmentExtractor
             $seen[] = $objectId;
             $nodeDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
             $value = $object['value'];
+        } elseif ($rawValue !== null) {
+            $nodeDictionaryBody = $this->rawDictionaryBodyFromValue($rawValue, $objects);
         }
 
         $dict = $this->dict($value);
@@ -628,9 +643,29 @@ final class PdfAttachmentExtractor
 
         $kids = $this->arrayValue($this->resolveValue($dict['Kids'] ?? null, $objects));
         if ($kids !== null) {
+            $rawKidItems = [];
+            if ($nodeDictionaryBody !== null) {
+                $rawKidsValue = $this->rawDictionaryEntryValue($nodeDictionaryBody, 'Kids');
+                if ($rawKidsValue !== null) {
+                    $rawKidItems = $this->rawArrayItemsFromValue($rawKidsValue, $objects);
+                }
+            }
+            $rawKidValuesByKey = [];
+            foreach ($kids as $kidIndex => $kid) {
+                if (isset($rawKidItems[$kidIndex]) && is_string($rawKidItems[$kidIndex])) {
+                    $rawKidValuesByKey[serialize($kid)][] = $rawKidItems[$kidIndex];
+                }
+            }
+
             $kids = $this->nameTreeKidsSortedByLimits($kids, $objects, $childLimits);
             foreach ($kids as $kid) {
-                foreach ($this->nameTreeEntries($kid, $objects, $seen, $childLimits, $depth + 1) as $entry) {
+                $kidKey = serialize($kid);
+                $rawKidValue = null;
+                if (isset($rawKidValuesByKey[$kidKey]) && $rawKidValuesByKey[$kidKey] !== []) {
+                    $rawKidValue = array_shift($rawKidValuesByKey[$kidKey]);
+                }
+
+                foreach ($this->nameTreeEntries($kid, $objects, $seen, $childLimits, $depth + 1, $rawKidValue) as $entry) {
                     $entries[] = $entry;
                 }
             }
