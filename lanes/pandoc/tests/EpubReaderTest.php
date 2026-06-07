@@ -1077,6 +1077,41 @@ XML;
         $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['part']);
         $t->same(2, count($result['document']->children));
     },
+    'summarizes OPF fixed layout viewport metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithFixedLayout = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="cover-image"/>'
+            . '<meta property="rendition:layout">pre-paginated</meta>'
+            . '<meta property="rendition:orientation">landscape</meta>'
+            . '<meta property="rendition:spread">both</meta>'
+            . '<meta property="rendition:viewport">width=768, height=1024</meta>'
+            . '<meta property="rendition:viewport" id="invalid-viewport">width=cover,height=600,scale=1</meta>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithFixedLayout));
+        $renditionLayout = $result['metadata']['renditionLayout'];
+
+        $t->same(true, $renditionLayout['present']);
+        $t->same(true, $renditionLayout['fixedLayout']);
+        $t->same('pre-paginated', $renditionLayout['layout']);
+        $t->same('landscape', $renditionLayout['orientation']);
+        $t->same('both', $renditionLayout['spread']);
+        $t->same('width=768, height=1024', $renditionLayout['viewportRaw']);
+        $t->same(768, $renditionLayout['viewportWidth']);
+        $t->same(1024, $renditionLayout['viewportHeight']);
+        $t->same(2, $renditionLayout['viewportCount']);
+        $t->same(1, $renditionLayout['invalidViewportCount']);
+        $t->same(true, $renditionLayout['viewport']['valid']);
+        $t->same(['width' => '768', 'height' => '1024'], $renditionLayout['viewport']['parameters']);
+        $t->same('invalid-rendition-viewport-width', $renditionLayout['viewports'][1]['diagnostics'][0]['type']);
+        $t->same('cover', $renditionLayout['viewports'][1]['diagnostics'][0]['value']);
+        $t->same('unknown-rendition-viewport-parameter', $renditionLayout['viewports'][1]['diagnostics'][1]['type']);
+        $t->same($renditionLayout['viewports'][1]['diagnostics'], $renditionLayout['diagnostics']);
+        $t->same($renditionLayout, $result['package']['renditionLayout']);
+        $t->same($renditionLayout, $result['importReport']['metadata']['renditionLayout']);
+        $t->same($renditionLayout, $result['document']->attr('metadata')['renditionLayout']);
+    },
     'parses EPUB3 nav and legacy NCX table of contents targets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
 

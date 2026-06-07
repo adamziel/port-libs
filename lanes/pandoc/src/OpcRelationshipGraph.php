@@ -1448,11 +1448,14 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentType:?string, expectedContentTypePrefix:?string, expectedExternal:?bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, sourceContentType:?string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedContentType:?string, expectedContentTypePrefix:?string, expectedSourceContentTypes:?list<string>, expectedExternal:?bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function preflightWordprocessingDocumentRelationships(string $sourcePartName): array
     {
         $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
+        $sourceContentType = $sourcePartName === '/'
+            ? null
+            : $this->contentTypes->contentTypeForPart($sourcePartName);
         $definitions = self::wordprocessingDocumentRelationshipRoleDefinitions();
         $preflight = [];
 
@@ -1465,9 +1468,17 @@ final class OpcRelationshipGraph
             $role = $definition['role'];
             $expectedContentType = $definition['expectedContentType'] ?? null;
             $expectedContentTypePrefix = $definition['expectedContentTypePrefix'] ?? null;
+            $expectedSourceContentTypes = $definition['expectedSourceContentTypes'] ?? null;
             $expectedExternal = $definition['expectedExternal'] ?? null;
             $targetPart = self::targetPartFromPreflightTarget($target);
             $issues = $target['issues'];
+
+            if (
+                $expectedSourceContentTypes !== null
+                && !self::contentTypeMatchesAny($sourceContentType, $expectedSourceContentTypes)
+            ) {
+                $issues[] = 'invalid-' . $role . '-source-content-type';
+            }
 
             if ($expectedExternal !== null && $target['external'] !== $expectedExternal) {
                 $issues[] = ($target['external'] ? 'external-' : 'internal-') . $role . '-target';
@@ -1494,6 +1505,7 @@ final class OpcRelationshipGraph
             $issues = array_values(array_unique($issues));
             $preflight[] = [
                 'source' => $sourcePartName,
+                'sourceContentType' => $sourceContentType,
                 'id' => $target['id'],
                 'role' => $role,
                 'type' => $target['type'],
@@ -1502,6 +1514,7 @@ final class OpcRelationshipGraph
                 'contentType' => $target['contentType'],
                 'expectedContentType' => $expectedContentType,
                 'expectedContentTypePrefix' => $expectedContentTypePrefix,
+                'expectedSourceContentTypes' => $expectedSourceContentTypes,
                 'expectedExternal' => $expectedExternal,
                 'external' => $target['external'],
                 'exists' => $target['exists'],
@@ -2865,44 +2878,53 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array<string, array{role:string, expectedContentType?:string, expectedContentTypePrefix?:string, expectedExternal?:bool}>
+     * @return array<string, array{role:string, expectedContentType?:string, expectedContentTypePrefix?:string, expectedSourceContentTypes?:list<string>, expectedExternal?:bool}>
      */
     private static function wordprocessingDocumentRelationshipRoleDefinitions(): array
     {
+        $documentSourceContentTypes = self::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES;
+
         return [
             self::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE => [
                 'role' => 'styles',
                 'expectedContentType' => self::WORDPROCESSING_STYLES_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_NUMBERING_RELATIONSHIP_TYPE => [
                 'role' => 'numbering',
                 'expectedContentType' => self::WORDPROCESSING_NUMBERING_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_FOOTNOTES_RELATIONSHIP_TYPE => [
                 'role' => 'footnotes',
                 'expectedContentType' => self::WORDPROCESSING_FOOTNOTES_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_ENDNOTES_RELATIONSHIP_TYPE => [
                 'role' => 'endnotes',
                 'expectedContentType' => self::WORDPROCESSING_ENDNOTES_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE => [
                 'role' => 'comments',
                 'expectedContentType' => self::WORDPROCESSING_COMMENTS_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE => [
                 'role' => 'settings',
                 'expectedContentType' => self::WORDPROCESSING_SETTINGS_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_THEME_RELATIONSHIP_TYPE => [
                 'role' => 'theme',
                 'expectedContentType' => self::OFFICE_THEME_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE => [

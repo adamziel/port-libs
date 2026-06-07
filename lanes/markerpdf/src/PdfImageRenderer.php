@@ -905,6 +905,7 @@ final class PdfImageRenderer
     public function inlineImageReviewPlan(string $inlineImageDictionary, string $payload, array $objects = []): array
     {
         $decodeTrailingOperandInvalid = $this->inlineImageDecodeHasMalformedTrailingOperand($inlineImageDictionary);
+        $dictionaryOperandInvalid = $this->inlineImageDictionaryHasMalformedTailOperand($inlineImageDictionary);
         $canonical = $this->canonicalInlineImageDictionary($inlineImageDictionary);
         $plan = $this->imageColorSpaceSoftMaskPlan($canonical, $objects);
         if ($decodeTrailingOperandInvalid) {
@@ -932,6 +933,9 @@ final class PdfImageRenderer
         if ($geometryOperandInvalid) {
             $plan['image_filter_boundary']['native_raster_decode'] = false;
         }
+        if ($dictionaryOperandInvalid) {
+            $plan['image_filter_boundary']['native_raster_decode'] = false;
+        }
         $softMask = is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null;
         $softMaskBoundary = is_array($plan['soft_mask_filter_boundary'] ?? null) ? $plan['soft_mask_filter_boundary'] : null;
         $jpxSoftMaskInData = is_array($plan['jpx_soft_mask_in_data'] ?? null) ? $plan['jpx_soft_mask_in_data'] : null;
@@ -951,8 +955,10 @@ final class PdfImageRenderer
                 && $operandBoundaryFilters === []
                 && $unsupportedFilters === []
                 && !$decodeOperandInvalid
-                && !$geometryOperandInvalid,
+                && !$geometryOperandInvalid
+                && !$dictionaryOperandInvalid,
             'geometry_operand_invalid' => $geometryOperandInvalid,
+            'dictionary_operand_invalid' => $dictionaryOperandInvalid,
             'soft_mask_present' => $softMask !== null && ($softMask['present'] ?? false) === true,
             'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
             'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
@@ -965,10 +971,12 @@ final class PdfImageRenderer
         $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
         $plan['inline_image_payload_excluded_from_text'] = true;
         $plan['inline_image_geometry_operand_invalid'] = $geometryOperandInvalid;
+        $plan['inline_image_dictionary_operand_invalid'] = $dictionaryOperandInvalid;
         $plan['inline_image_review_only'] = $previewOnlyFilters !== []
             || $unsupportedFilters !== []
             || $decodeOperandInvalid
-            || $geometryOperandInvalid;
+            || $geometryOperandInvalid
+            || $dictionaryOperandInvalid;
         $plan['notes'][] = 'inline_image_dictionary_abbreviations_expanded';
         $plan['notes'][] = 'inline_image_payload_excluded_from_visible_text';
         if ($decodeOperandInvalid) {
@@ -976,6 +984,9 @@ final class PdfImageRenderer
         }
         if ($geometryOperandInvalid) {
             $plan['notes'][] = 'inline_image_geometry_operand_review_only';
+        }
+        if ($dictionaryOperandInvalid) {
+            $plan['notes'][] = 'inline_image_dictionary_operand_review_only';
         }
         if (in_array('JBIG2Decode', $filters, true)) {
             $plan['notes'][] = 'inline_jbig2_image_filter_review_only';
@@ -1037,6 +1048,18 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param array<string, mixed> $plan
+     */
+    private function assertInlineImageDictionaryValidForPreview(array $plan, string $context): void
+    {
+        if (($plan['inline_image_dictionary_operand_invalid'] ?? false) !== true) {
+            return;
+        }
+
+        throw new InvalidArgumentException($context . ' dictionary operands must be well formed before RGB preview.');
+    }
+
+    /**
      * @param array<int|string, mixed> $objects
      */
     private function inlineImageGeometryOperandInvalid(string $dictionary, array $objects): bool
@@ -1085,6 +1108,7 @@ final class PdfImageRenderer
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
         $this->assertInlineImageGeometryValidForPreview($plan, 'Inline ImageMask');
+        $this->assertInlineImageDictionaryValidForPreview($plan, 'Inline ImageMask');
         $imageMask = $plan['image_mask'] ?? null;
         if (!is_array($imageMask) || ($imageMask['present'] ?? false) !== true) {
             throw new InvalidArgumentException('Inline ImageMask preview requires /ImageMask true.');
@@ -1235,6 +1259,7 @@ final class PdfImageRenderer
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
         $this->assertInlineImageGeometryValidForPreview($plan, 'Inline Indexed image');
+        $this->assertInlineImageDictionaryValidForPreview($plan, 'Inline Indexed image');
         if (($plan['uses_indexed_color_space'] ?? false) !== true) {
             throw new InvalidArgumentException('Inline Indexed image preview requires an Indexed color-space image.');
         }
@@ -1739,6 +1764,7 @@ final class PdfImageRenderer
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
         $this->assertInlineImageGeometryValidForPreview($plan, 'Inline JPX ColorKey preview');
+        $this->assertInlineImageDictionaryValidForPreview($plan, 'Inline JPX ColorKey preview');
         if (!in_array('JPXDecode', $plan['image_filters'], true)) {
             throw new InvalidArgumentException('Inline JPX ColorKey preview requires a JPXDecode inline image.');
         }
@@ -1867,6 +1893,7 @@ final class PdfImageRenderer
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
         $this->assertInlineImageGeometryValidForPreview($plan, 'Inline image output preview');
+        $this->assertInlineImageDictionaryValidForPreview($plan, 'Inline image output preview');
         if (($plan['image_mask_applied_before_rgb'] ?? false) === true) {
             throw new InvalidArgumentException('Inline image output preview uses inlineImageMaskPreviewRows for /ImageMask stencil previews.');
         }
@@ -4303,6 +4330,74 @@ final class PdfImageRenderer
         }
 
         return false;
+    }
+
+    private function inlineImageDictionaryHasMalformedTailOperand(string $dictionary): bool
+    {
+        $body = trim($dictionary);
+        if (str_starts_with($body, '<<')) {
+            $read = $this->readBalancedDictionary($body, 0);
+            if ($read !== null) {
+                $body = trim(substr($read['value'], 2, -2));
+            }
+        }
+
+        $offset = 0;
+        $length = strlen($body);
+        $sawImageKey = false;
+        while ($offset < $length) {
+            $key = $this->readPdfValueWithOffset($body, $offset);
+            if ($key === null) {
+                return false;
+            }
+
+            $keyValue = trim($key['value']);
+            if (!str_starts_with($keyValue, '/')) {
+                return $sawImageKey && $this->inlineImageMalformedDictionaryTailOperandToken($keyValue);
+            }
+
+            $keyName = $this->pdfNameValue($keyValue);
+            $canonicalKey = $keyName === null
+                ? null
+                : (self::INLINE_IMAGE_KEY_ABBREVIATIONS[$keyName] ?? $keyName);
+            if (in_array($canonicalKey, [
+                'Width',
+                'Height',
+                'ColorSpace',
+                'BitsPerComponent',
+                'ImageMask',
+                'Filter',
+                'Decode',
+                'DecodeParms',
+            ], true)) {
+                $sawImageKey = true;
+            }
+
+            $value = $this->readPdfValueWithOffset($body, $key['next']);
+            if ($value === null) {
+                return false;
+            }
+
+            $offset = $value['next'];
+        }
+
+        return false;
+    }
+
+    private function inlineImageMalformedDictionaryTailOperandToken(string $token): bool
+    {
+        if (preg_match('/^[+-]?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?$/', $token) === 1) {
+            return true;
+        }
+
+        return $token === 'R'
+            || $token === 'null'
+            || $token === 'true'
+            || $token === 'false'
+            || str_starts_with($token, '[')
+            || str_starts_with($token, '<<')
+            || str_starts_with($token, '(')
+            || (str_starts_with($token, '<') && !str_starts_with($token, '<<'));
     }
 
     private function canonicalInlineImageKey(string $token): string

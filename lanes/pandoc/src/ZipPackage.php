@@ -790,6 +790,189 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     entryCount:int,
+     *     totalEntryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     mismatchedEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function localHeaderMetadataPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before local header metadata can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $mismatchedEntries = [];
+        $packageIssues = [];
+        if (!$archive['isSingleDisk']) {
+            $packageIssues[] = 'split-archive-eocd';
+        }
+
+        $cursor = $archive['centralDirectoryOffset'];
+        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $versionNeededToExtract = self::readUInt16($bytes, $cursor + 6);
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $modifiedTime = self::readUInt16($bytes, $cursor + 12);
+            $modifiedDate = self::readUInt16($bytes, $cursor + 14);
+            $crc32 = self::readUInt32($bytes, $cursor + 16);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+
+            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index);
+            $usesDataDescriptor = ($flags & 0x0008) !== 0;
+            $hasZeroLocalHeaderPlaceholders = null;
+            $issues = [];
+
+            if ($localHeader['versionNeededToExtract'] !== $versionNeededToExtract) {
+                $issues[] = 'local-header-version-needed-mismatch';
+            }
+
+            if ($localHeader['generalPurposeFlags'] !== $flags) {
+                $issues[] = 'local-header-flags-mismatch';
+            }
+
+            if ($localHeader['compressionMethod'] !== $method) {
+                $issues[] = 'local-header-compression-method-mismatch';
+            }
+
+            if (
+                $localHeader['modifiedDosTime'] !== $modifiedTime
+                || $localHeader['modifiedDosDate'] !== $modifiedDate
+            ) {
+                $issues[] = 'local-header-modification-time-mismatch';
+            }
+
+            if ($usesDataDescriptor) {
+                $hasZeroLocalHeaderPlaceholders = $localHeader['crc32'] === 0
+                    && $localHeader['compressedSize'] === 0
+                    && $localHeader['uncompressedSize'] === 0;
+                if (!$hasZeroLocalHeaderPlaceholders) {
+                    $issues[] = 'local-header-data-descriptor-placeholders-not-zero';
+                }
+            } else {
+                if ($localHeader['crc32'] !== $crc32) {
+                    $issues[] = 'local-header-crc32-mismatch';
+                }
+
+                if ($localHeader['compressedSize'] !== $compressedSize) {
+                    $issues[] = 'local-header-compressed-size-mismatch';
+                }
+
+                if ($localHeader['uncompressedSize'] !== $uncompressedSize) {
+                    $issues[] = 'local-header-uncompressed-size-mismatch';
+                }
+            }
+
+            foreach ($issues as $issue) {
+                if (!in_array($issue, $packageIssues, true)) {
+                    $packageIssues[] = $issue;
+                }
+            }
+
+            $summary = [
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'centralName' => $decodedName['text'],
+                'localName' => $localHeader['name'],
+                'centralRawName' => $rawName,
+                'localRawName' => $localHeader['rawName'],
+                'centralNameEncoding' => $decodedName['encoding'],
+                'localNameEncoding' => $localHeader['nameEncoding'],
+                'centralVersionNeededToExtract' => $versionNeededToExtract,
+                'localVersionNeededToExtract' => $localHeader['versionNeededToExtract'],
+                'centralGeneralPurposeFlags' => $flags,
+                'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
+                'centralCompressionMethod' => $method,
+                'localCompressionMethod' => $localHeader['compressionMethod'],
+                'centralModifiedDosTime' => $modifiedTime,
+                'localModifiedDosTime' => $localHeader['modifiedDosTime'],
+                'centralModifiedDosDate' => $modifiedDate,
+                'localModifiedDosDate' => $localHeader['modifiedDosDate'],
+                'centralCrc32' => $crc32,
+                'localCrc32' => $localHeader['crc32'],
+                'centralCompressedSize' => $compressedSize,
+                'localCompressedSize' => $localHeader['compressedSize'],
+                'centralUncompressedSize' => $uncompressedSize,
+                'localUncompressedSize' => $localHeader['uncompressedSize'],
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'hasZeroLocalHeaderPlaceholders' => $hasZeroLocalHeaderPlaceholders,
+                'hasMetadataMismatch' => $issues !== [],
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($issues !== []) {
+                $mismatchedEntries[] = $summary;
+            }
+
+            $cursor += 46 + $variableLength;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature === null || $signature['endOffset'] !== $archive['centralDirectoryEnd']) {
+                self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+            }
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'mismatchedEntryCount' => count($mismatchedEntries),
+            'isSupportedByBoundedReader' => $packageIssues === [],
+            'issues' => $packageIssues,
+            'mismatchedEntries' => $mismatchedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
      *     entryName:string,
      *     exists:bool,
      *     firstLocalEntryName:?string,
@@ -3992,7 +4175,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{name:string, rawName:string, nameEncoding:string, nameLength:int, extraFieldLength:int, localHeaderLength:int, generalPurposeFlags:int}
+     * @return array{name:string, rawName:string, nameEncoding:string, nameLength:int, extraFieldLength:int, localHeaderLength:int, versionNeededToExtract:int, generalPurposeFlags:int, compressionMethod:int, modifiedDosTime:int, modifiedDosDate:int, crc32:int, compressedSize:int, uncompressedSize:int}
      */
     private static function readLocalHeaderNameMetadata(string $bytes, int $localHeaderOffset, int $centralDirectoryIndex): array
     {
@@ -4001,7 +4184,14 @@ final class ZipPackage
             throw new \RuntimeException("Invalid ZIP local file header for central directory entry {$centralDirectoryIndex}");
         }
 
+        $versionNeededToExtract = self::readUInt16($bytes, $localHeaderOffset + 4);
         $flags = self::readUInt16($bytes, $localHeaderOffset + 6);
+        $method = self::readUInt16($bytes, $localHeaderOffset + 8);
+        $modifiedTime = self::readUInt16($bytes, $localHeaderOffset + 10);
+        $modifiedDate = self::readUInt16($bytes, $localHeaderOffset + 12);
+        $crc32 = self::readUInt32($bytes, $localHeaderOffset + 14);
+        $compressedSize = self::readUInt32($bytes, $localHeaderOffset + 18);
+        $uncompressedSize = self::readUInt32($bytes, $localHeaderOffset + 22);
         $nameLength = self::readUInt16($bytes, $localHeaderOffset + 26);
         $extraLength = self::readUInt16($bytes, $localHeaderOffset + 28);
         $nameStart = $localHeaderOffset + 30;
@@ -4031,7 +4221,14 @@ final class ZipPackage
             'nameLength' => $nameLength,
             'extraFieldLength' => $extraLength,
             'localHeaderLength' => 30 + $nameLength + $extraLength,
+            'versionNeededToExtract' => $versionNeededToExtract,
             'generalPurposeFlags' => $flags,
+            'compressionMethod' => $method,
+            'modifiedDosTime' => $modifiedTime,
+            'modifiedDosDate' => $modifiedDate,
+            'crc32' => $crc32,
+            'compressedSize' => $compressedSize,
+            'uncompressedSize' => $uncompressedSize,
         ];
     }
 

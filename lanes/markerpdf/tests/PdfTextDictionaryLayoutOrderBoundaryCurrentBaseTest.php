@@ -4162,6 +4162,201 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'uses nested pdftext pages map keys before selected pdftext order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5700, [
+                    ['text' => 'Nested pdftext pages cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5701, [
+                    ['text' => 'Second nested pdftext pages column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First nested pdftext pages column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'pdftext' => [
+                        'pages' => [
+                            '5701' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'nested selected pdftext pages row payload must stay hidden'],
+                                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ],
+                                'raw_payload' => 'nested selected pdftext pages order payload must stay hidden',
+                            ],
+                            '5700' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ],
+                                'raw_payload' => 'nested stale pdftext pages order payload must stay hidden',
+                            ],
+                        ],
+                    ],
+                    'raw_payload' => 'nested pdftext pages order wrapper payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                [
+                    'pdftext' => [
+                        'pages' => [
+                            '5701' => ['image' => 'nested-pdftext-pages-selected-order-render'],
+                            '5700' => ['image' => 'nested-pdftext-pages-stale-order-render'],
+                        ],
+                    ],
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5701, $result['pages'][0]['pnum']);
+        $t->same(['First nested pdftext pages column', 'Second nested pdftext pages column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First nested pdftext pages column Second nested pdftext pages column', $blocks[0]['text']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $order['image_bbox'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!array_key_exists('pdftext', $order));
+        $t->true(!str_contains($encoded, '__markerpdf_envelope_page_key_marker'));
+        $t->true(!str_contains($encoded, 'Nested pdftext pages cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'nested selected pdftext pages row payload'));
+        $t->true(!str_contains($encoded, 'nested selected pdftext pages order payload'));
+        $t->true(!str_contains($encoded, 'nested stale pdftext pages order payload'));
+        $t->true(!str_contains($encoded, 'nested pdftext pages order wrapper payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses nested pdftext pages map keys for WordPress layout and order imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-nested-pdftext-pages-map-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% nested pdftext pages map layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5710, [
+                        ['text' => 'Nested pdftext pages converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5711, [
+                        ['text' => 'Second converter nested pdftext pages body.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter nested pdftext pages heading.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [[
+                        'pdftext' => [
+                            'pages' => [
+                                '5711' => ['image' => 'nested-pdftext-pages-selected-layout-render'],
+                                '5710' => ['image' => 'nested-pdftext-pages-stale-layout-render'],
+                            ],
+                        ],
+                        'raw_payload' => 'nested pdftext pages image wrapper payload must stay hidden',
+                    ]],
+                    'layout_results' => [[
+                        'pdftext' => [
+                            'pages' => [
+                                '5711' => [
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0], 'raw_payload' => 'nested selected layout title payload must stay hidden'],
+                                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                    ],
+                                    'raw_payload' => 'nested selected layout payload must stay hidden',
+                                ],
+                                '5710' => [
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                        ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                    ],
+                                    'raw_payload' => 'nested stale layout payload must stay hidden',
+                                ],
+                            ],
+                        ],
+                        'raw_payload' => 'nested pdftext pages layout wrapper payload must stay hidden',
+                    ]],
+                    'order_images' => [[
+                        'pdftext' => [
+                            'pages' => [
+                                '5711' => ['image' => 'nested-pdftext-pages-selected-order-render'],
+                                '5710' => ['image' => 'nested-pdftext-pages-stale-order-render'],
+                            ],
+                        ],
+                        'raw_payload' => 'nested pdftext pages order image wrapper payload must stay hidden',
+                    ]],
+                    'order_results' => [[
+                        'pdftext' => [
+                            'pages' => [
+                                '5711' => [
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'nested selected order row payload must stay hidden'],
+                                    ],
+                                    'raw_payload' => 'nested selected order payload must stay hidden',
+                                ],
+                                '5710' => [
+                                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                    'bboxes' => [
+                                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ],
+                                    'raw_payload' => 'nested stale order payload must stay hidden',
+                                ],
+                            ],
+                        ],
+                        'raw_payload' => 'nested pdftext pages order wrapper payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# First Converter Nested Pdftext Pages Heading.', $text);
+        $t->contains('Second converter nested pdftext pages body.', $text);
+        $t->true(strpos($text, '# First Converter Nested Pdftext Pages Heading.') < strpos($text, 'Second converter nested pdftext pages body.'));
+        $t->true(!str_contains($text, 'Nested pdftext pages converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, '__markerpdf_envelope_page_key_marker'));
+        $t->true(!str_contains($encoded, 'nested pdftext pages image wrapper payload'));
+        $t->true(!str_contains($encoded, 'nested selected layout title payload'));
+        $t->true(!str_contains($encoded, 'nested selected layout payload'));
+        $t->true(!str_contains($encoded, 'nested stale layout payload'));
+        $t->true(!str_contains($encoded, 'nested pdftext pages layout wrapper payload'));
+        $t->true(!str_contains($encoded, 'nested pdftext pages order image wrapper payload'));
+        $t->true(!str_contains($encoded, 'nested selected order row payload'));
+        $t->true(!str_contains($encoded, 'nested selected order payload'));
+        $t->true(!str_contains($encoded, 'nested stale order payload'));
+        $t->true(!str_contains($encoded, 'nested pdftext pages order wrapper payload'));
+    },
     'rejects singleton source-key direct payload when key misses selected pdftext page' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

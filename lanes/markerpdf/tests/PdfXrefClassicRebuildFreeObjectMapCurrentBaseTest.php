@@ -273,6 +273,74 @@ $xrefClassicRebuildFreeObjectMapMissingFinalStartxrefPdf = static function (): a
     return [$pdf, $previousXrefOffset, $currentXrefOffset, $currentEofOffset, $postEofXrefOffset];
 };
 
+$xrefClassicRebuildFreeObjectMapMalformedFinalStartxrefPdf = static function (): array {
+    $previousContent = 'BT /F1 12 Tf 72 720 Td (Previous malformed-final-startxref free-map page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current malformed-final-startxref free-map page) Tj ET';
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation . ':' . count($offsets)] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf(
+        "%010d %05d %s \n",
+        $offset,
+        $generation,
+        $state
+    );
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [7 0 R] /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($previousContent) . " >>\nstream\n{$previousContent}\nendstream");
+    $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(7, 0, '<< /Type /Annot /Subtype /Link /Rect [72 700 385 718] /Contents (Stale malformed-final-startxref free annotation) /A << /S /URI /URI (https://stale.example.com/malformed-final-startxref-free-map) >> >>');
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 8\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets['1:0:0'])
+        . $xrefRow($offsets['2:0:1'])
+        . $xrefRow($offsets['3:0:2'])
+        . $xrefRow($offsets['4:0:3'])
+        . $xrefRow($offsets['5:0:4'])
+        . $xrefRow(0, 0, 'f')
+        . $xrefRow($offsets['7:0:5'])
+        . "trailer\n<< /Size 8 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [7 0 R] /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "3 2\n"
+        . $xrefRow($currentPageOffset)
+        . $xrefRow($currentContentOffset)
+        . "7 1\n"
+        . $xrefRow(0, 1, 'f')
+        . "trailer\n<< /Size 8 /Root 1 0 R /Prev {$previousXrefOffset} >>\n"
+        . "startxref\nnot-a-byte-offset\n%%EOF\n";
+    $currentEofOffset = (int) strrpos($pdf, '%%EOF');
+
+    $postEofXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "3 2\n"
+        . $xrefRow($currentPageOffset)
+        . $xrefRow($currentContentOffset)
+        . "7 1\n"
+        . $xrefRow($offsets['7:0:5'])
+        . "trailer\n<< /Size 8 /Root 1 0 R /Prev {$previousXrefOffset} >>\n"
+        . "%%EOF";
+
+    return [$pdf, $previousXrefOffset, $currentXrefOffset, $currentEofOffset, $postEofXrefOffset];
+};
+
 $xrefClassicRebuildFreeObjectMapCommentTrailerPdf = static function (): array {
     $previousContent = 'BT /F1 12 Tf 72 720 Td (Previous comment-trailer free-map page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current comment-trailer free-map page) Tj ET';
@@ -502,6 +570,52 @@ return [
         $t->true(!str_contains(substr($pdf, $currentXrefOffset), "\nstartxref\n"));
         $t->true(!str_contains($encodedReview, 'stale.example.com/missing-final-startxref-free-map'));
         $t->true(!str_contains($encodedReview, 'Stale missing-final-startxref free annotation'));
+    },
+    'bounds malformed final startxref free-object rebuild before post-EOF annotation decoys' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildFreeObjectMapMalformedFinalStartxrefPdf): void {
+        [$pdf, $previousXrefOffset, $currentXrefOffset, $currentEofOffset, $postEofXrefOffset] = $xrefClassicRebuildFreeObjectMapMalformedFinalStartxrefPdf();
+        $textExtractor = new PdfTextExtractor();
+        $linkExtractor = new PdfLinkAnnotationExtractor();
+        $annotationExtractor = new PdfAnnotationExtractor();
+        $freeObjects = PdfXrefFreeObjectMap::freeObjectNumbers($pdf);
+        $links = $linkExtractor->extractPageLinks($pdf);
+        $annotations = $annotationExtractor->extractPageAnnotations($pdf);
+
+        $t->true($previousXrefOffset > 0);
+        $t->true($currentXrefOffset > $previousXrefOffset);
+        $t->true($currentEofOffset > $currentXrefOffset);
+        $t->true($postEofXrefOffset > $currentEofOffset);
+        $t->same(['Current malformed-final-startxref free-map page'], $textExtractor->extractTextLines($pdf));
+        $t->true(isset($freeObjects[7]), 'Malformed final startxref repair must preserve current EOF-bounded free rows.');
+        $t->same(true, $freeObjects[7] ?? null);
+        $t->same([], $links, 'The stale malformed-final-startxref annotation URI must remain suppressed.');
+        $t->same([], $annotations, 'The stale malformed-final-startxref annotation review metadata must remain suppressed.');
+
+        $pages = [[
+            'pnum' => 0,
+            'blocks' => [[
+                'type' => 'Text',
+                'bbox' => [72.0, 700.0, 385.0, 718.0],
+                'lines' => [[
+                    'bbox' => [72.0, 700.0, 385.0, 718.0],
+                    'spans' => [[
+                        'text' => 'Current malformed-final-startxref free-map page',
+                        'bbox' => [72.0, 700.0, 385.0, 718.0],
+                        'font' => 'Helvetica',
+                    ]],
+                ]],
+            ]],
+        ]];
+        $linkedPages = $linkExtractor->applyLinksToPages($pages, $pdf);
+        $span = $linkedPages[0]['blocks'][0]['lines'][0]['spans'][0];
+        $encodedReview = json_encode([$freeObjects, $links, $annotations, $linkedPages], JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true(!isset($span['link_uri']));
+        $t->true(!isset($span['link_annotation_object']));
+        $t->true(str_contains($pdf, "startxref\nnot-a-byte-offset\n%%EOF"));
+        $t->true(!str_contains($encodedReview, 'stale.example.com/malformed-final-startxref-free-map'));
+        $t->true(!str_contains($encodedReview, 'Stale malformed-final-startxref free annotation'));
     },
     'skips commented trailer tokens while rebuilding the free-object map before annotation review' => static function (
         TestRunner $t

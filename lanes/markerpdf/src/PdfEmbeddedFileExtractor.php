@@ -194,7 +194,15 @@ final class PdfEmbeddedFileExtractor
             return;
         }
 
-        foreach ($this->nameTreeKidsSortedByLimits($this->arrayItemsFromValue($kidsValue, $objects), $objects, $childLimits) as $kidValue) {
+        $kidValues = [];
+        foreach ($this->arrayItemsFromValue($kidsValue, $objects) as $kidValue) {
+            if ($this->objectReferenceFromValue($kidValue) === null) {
+                continue;
+            }
+            $kidValues[] = $kidValue;
+        }
+
+        foreach ($this->nameTreeKidsSortedByLimits($kidValues, $objects, $childLimits) as $kidValue) {
             $reference = $this->objectReferenceFromValue($kidValue);
             if ($reference !== null) {
                 $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
@@ -6549,6 +6557,14 @@ final class PdfEmbeddedFileExtractor
 
         $dictionary = $match[1];
         $stream = $match[2];
+        $lengthValue = $this->dictionaryRawValue($dictionary, 'Length');
+        if ($this->objectReferenceFromValue($lengthValue) !== null) {
+            $declaredLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
+            if ($declaredLength !== null && $declaredLength >= 0 && $declaredLength <= strlen($stream)) {
+                $stream = substr($stream, 0, $declaredLength);
+            }
+        }
+
         $filterSlots = $this->streamFilterSlots($dictionary, $objects);
         if ($filterSlots === null) {
             return null;
@@ -7962,16 +7978,50 @@ final class PdfEmbeddedFileExtractor
             return $end === null ? null : ['raw' => substr($value, $offset, $end - $offset), 'end' => $end];
         }
 
-        $remaining = substr($value, $offset);
-        if (preg_match('/\d+\s+\d+\s+R\b/A', $remaining, $match) === 1) {
-            return ['raw' => $match[0], 'end' => $offset + strlen($match[0])];
+        $reference = $this->readPdfReferenceAt($value, $offset);
+        if ($reference !== null) {
+            return $reference;
         }
 
+        $remaining = substr($value, $offset);
         if (preg_match('/\/[^\s\[\]()<>{}\/%]+|[^\s\[\]()<>{}\/%]+/A', $remaining, $match) === 1) {
             return ['raw' => $match[0], 'end' => $offset + strlen($match[0])];
         }
 
         return null;
+    }
+
+    /**
+     * @return array{raw: string, end: int}|null
+     */
+    private function readPdfReferenceAt(string $value, int $offset): ?array
+    {
+        $cursor = $this->skipWhitespace($value, $offset);
+        if (preg_match('/\d+/A', substr($value, $cursor), $first) !== 1) {
+            return null;
+        }
+        $cursor += strlen($first[0]);
+        $cursor = $this->skipWhitespace($value, $cursor);
+
+        if (preg_match('/\d+/A', substr($value, $cursor), $second) !== 1) {
+            return null;
+        }
+        $cursor += strlen($second[0]);
+        $cursor = $this->skipWhitespace($value, $cursor);
+
+        if (($value[$cursor] ?? '') !== 'R') {
+            return null;
+        }
+        $end = $cursor + 1;
+        $after = $value[$end] ?? '';
+        if ($after !== '' && !$this->isDelimiter($after)) {
+            return null;
+        }
+
+        return [
+            'raw' => substr($value, $offset, $end - $offset),
+            'end' => $end,
+        ];
     }
 
     /**
@@ -8270,7 +8320,8 @@ final class PdfEmbeddedFileExtractor
 
     private function objectNumberFromReference(string $value): ?int
     {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+        $reference = $this->objectReferenceFromValue($value);
+        return $reference === null ? null : $reference['objectNumber'];
     }
 
     /**
@@ -8302,7 +8353,16 @@ final class PdfEmbeddedFileExtractor
      */
     private function objectReferenceFromValue(?string $value): ?array
     {
-        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($value), $match) !== 1) {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        $reference = $this->readPdfReferenceAt($trimmed, 0);
+        if ($reference === null || $this->skipWhitespace($trimmed, $reference['end']) !== strlen($trimmed)) {
+            return null;
+        }
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/s', preg_replace('/%[^\r\n]*(?:\r\n|\r|\n)?/', ' ', $trimmed) ?? '', $match) !== 1) {
             return null;
         }
 

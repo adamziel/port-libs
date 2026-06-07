@@ -2681,4 +2681,43 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'fails closed on malformed inline image dictionary tail operands before native raster metadata' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $payload = "\x7f EI BT /F1 12 Tf 72 690 Td (Malformed Tail Inline Noise) Tj ET rawtail";
+        $dictionary = '/W 1 /H 1 /CS /G /BPC 8 99 /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Malformed Inline Tail) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Malformed Inline Tail) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan($dictionary, "\x7f");
+
+        $t->same([
+            'Before Malformed Inline Tail',
+            'After Malformed Inline Tail',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Malformed Inline Tail\nAfter Malformed Inline Tail", $plainText);
+        foreach (['Malformed Tail Inline Noise', 'rawtail', '99 /D', "\x7f EI"] as $excludedText) {
+            $t->true(!str_contains($plainText, $excludedText));
+        }
+
+        $t->same(true, $review['inline_image_dictionary_operand_invalid']);
+        $t->same(true, $review['inline_image']['dictionary_operand_invalid']);
+        $t->same(true, $review['inline_image_review_only']);
+        $t->same(false, $review['inline_image']['native_raster_decode']);
+        $t->same(false, $review['image_filter_boundary']['native_raster_decode']);
+        $t->contains('inline_image_dictionary_operand_review_only', implode(',', $review['notes']));
+        $t->same(true, $review['inline_image_payload_excluded_from_text']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                $dictionary,
+                "\x7f",
+                [],
+                1
+            )
+        );
+    },
 ];

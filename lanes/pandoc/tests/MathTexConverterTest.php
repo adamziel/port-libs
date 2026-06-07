@@ -1062,6 +1062,18 @@ return [
         $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle><mo>+</mo><mstyle displaystyle="false"><mi>c</mi></mstyle>', $styleMathml);
         $t->contains('<mstyle scriptlevel="1"><msub><mi>d</mi><mi>i</mi></msub></mstyle><mo>+</mo><mstyle scriptlevel="2"><mi>e</mi></mstyle>', $styleMathml);
     },
+    'converts bounded tex overbracket and underbracket accents to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $bracketMathml = $converter->texToMathMl('\\overbracket{p_i + m_i}^{\\text{review}} + \\underbracket{q_i}_{0}', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\overbracket{x+y} + \\underbracket{z}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $bracketMathml);
+        $t->contains('<msup><mover><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>⎴</mo></mover><mtext>review</mtext></msup>', $bracketMathml);
+        $t->contains('<msub><munder><msub><mi>q</mi><mi>i</mi></msub><mo>⎵</mo></munder><mn>0</mn></msub>', $bracketMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overbracket{p_i + m_i}^{\\text{review}} + \\underbracket{q_i}_{0}</annotation>', $bracketMathml);
+        $t->contains('alttext="x plus y over over bracket plus z under under bracket"', $accessibleMathml);
+        $t->contains('intent="row(over(row(x,plus,y),over_bracket),plus,under(z,under_bracket))"', $accessibleMathml);
+    },
     'converts bounded tex color phantom and cancel commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $colorMathml = $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\color{review-blue}{x+y}', true);
@@ -1206,6 +1218,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underset{}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbrace'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underbrace_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbracket'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underbracket{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbracket_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\displaystyle'));
     },
     'rejects malformed bounded tex matrix environments without invoking a tex engine' => static function (TestRunner $t): void {

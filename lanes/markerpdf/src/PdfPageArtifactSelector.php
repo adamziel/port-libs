@@ -258,6 +258,20 @@ final class PdfPageArtifactSelector
             if (!self::hasDirectArtifactPayload($artifacts) && array_key_exists('pages', $artifacts)) {
                 $nested = self::normalizeSuppliedArtifactValue($artifacts['pages']);
                 if (is_array($nested)) {
+                    if (self::hasDirectArtifactPayload($nested)) {
+                        return null;
+                    }
+
+                    $singleKeyedPayload = self::singleKeyedDirectArtifactPayload($nested);
+                    if ($singleKeyedPayload !== null) {
+                        return self::hasPotentialPageMarker($value) ? null : [$singleKeyedPayload];
+                    }
+
+                    $keyedArtifacts = self::keyedEnvelopeArtifacts($nested);
+                    if ($keyedArtifacts !== null) {
+                        return $keyedArtifacts;
+                    }
+
                     return array_values($nested);
                 }
             }

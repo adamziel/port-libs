@@ -410,6 +410,35 @@ $attachmentStreamFilterStackBoundaryCurrentBaseIndirectOperandPdf = static funct
     ];
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseIndirectLengthPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Indirect Length Review) Tj ET';
+    $payload = "Title,Status\nIndirect Length Attachment,Ready\n";
+    $compressed = gzcompress($payload);
+    if (!is_string($compressed)) {
+        throw new RuntimeException('Unable to compress focused attachment indirect length fixture.');
+    }
+
+    $encoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85($compressed);
+    $tail = 'BT /F1 12 Tf 72 680 Td (Indirect length attachment fake tail) Tj ET';
+
+    return [
+        'payload' => $payload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(indirect-length-stack.csv) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (indirect-length-stack.csv) /Desc (Indirect Length attachment stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCII85Decode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($payload) . " /CheckSum <" . md5($payload) . "> >> /Length 40 % split attachment stream length reference\n 0 R >>\nstream\n{$encoded}{$tail}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "40 0 obj\n" . strlen($encoded) . "\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 return [
     'treats Identity Crypt as a byte-preserving attachment stream stack stage while rejecting private crypt filters' => static function (
         TestRunner $t
@@ -937,5 +966,53 @@ return [
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Cyclic Filter Operand Attachment Leak'));
         $t->true(!str_contains($plainText, 'Indirect Filter Operand Attachment'));
         $t->true(!str_contains($plainText, 'Cyclic Filter Operand Attachment Leak'));
+    },
+    'honors comment-split indirect Length operands before attachment stream-filter surplus checks' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseIndirectLengthPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseIndirectLengthPdf();
+        $pdf = $fixture['pdf'];
+        $payload = $fixture['payload'];
+        $checksum = md5($payload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['indirect-length-stack.csv'], $summary['filenames']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('indirect-length-stack.csv', $attachment['filename'] ?? null);
+        $t->same('Indirect Length attachment stack', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same('original_source', $attachment['relationship_role'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($payload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('indirect-length-stack.csv', $files[0]['filename'] ?? null);
+        $t->same($payload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same(strlen($payload), $files[0]['size'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Indirect Length Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $payload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'Indirect length attachment fake tail'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Indirect length attachment fake tail'));
+        $t->true(!str_contains($plainText, 'Indirect Length Attachment'));
+        $t->true(!str_contains($plainText, 'Indirect length attachment fake tail'));
+        $t->true(!str_contains($plainText, 'ASCII85Decode'));
+        $t->true(!str_contains($plainText, 'FlateDecode'));
     },
 ];

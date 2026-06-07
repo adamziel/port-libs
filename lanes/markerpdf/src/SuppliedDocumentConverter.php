@@ -424,9 +424,11 @@ final class SuppliedDocumentConverter
                     $table = $this->withPageResultRowsColsGeometryMetadata($table, $rowsCols, 'cols');
                 }
 
-                $bbox = $this->pageResultBboxValue($tableBboxes[$tableIndex] ?? null);
+                $tableBboxEntry = $tableBboxes[$tableIndex] ?? null;
+                $bbox = $this->pageResultBboxValue($tableBboxEntry);
                 if ($bbox !== null) {
                     $table['bbox'] = $bbox;
+                    $table = $this->withPageResultBboxEntryMetadata($table, $tableBboxEntry);
                 }
 
                 $imageBbox = $this->pageResultBboxValue($imageBboxes[$tableIndex] ?? null);
@@ -772,6 +774,199 @@ final class SuppliedDocumentConverter
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @return array<string, mixed>
+     */
+    private function withPageResultBboxEntryMetadata(array $table, mixed $bboxEntry): array
+    {
+        if (!is_array($bboxEntry) || array_is_list($bboxEntry) || !$this->pageResultBboxEntryHasTableMetadata($bboxEntry)) {
+            return $table;
+        }
+
+        $orderedBbox = $this->pageResultOrderedBboxValue($bboxEntry);
+        if ($orderedBbox !== null) {
+            $table['table_bbox'] = $orderedBbox;
+            $table['table_bbox_source'] = 'ExtractPageResult.bboxes';
+        }
+
+        foreach (['table_bbox_coordinate_space', 'bbox_coordinate_space', 'geometry_coordinate_space', 'coordinate_space', 'geometry_space'] as $key) {
+            if (array_key_exists('table_bbox_coordinate_space', $table) || !isset($bboxEntry[$key]) || !is_scalar($bboxEntry[$key])) {
+                continue;
+            }
+
+            $table['table_bbox_coordinate_space'] = (string) $bboxEntry[$key];
+            break;
+        }
+
+        foreach (['bbox_order', 'bbox_coordinate_order', 'bbox_coordinate_format', 'bbox_format', 'coordinate_order', 'table_bbox_order', 'table_bbox_coordinate_order'] as $key) {
+            if (array_key_exists('bbox_order', $table) || !isset($bboxEntry[$key]) || !is_scalar($bboxEntry[$key])) {
+                continue;
+            }
+
+            $table['bbox_order'] = (string) $bboxEntry[$key];
+            break;
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string|int, mixed> $bboxEntry
+     */
+    private function pageResultBboxEntryHasTableMetadata(array $bboxEntry): bool
+    {
+        foreach ([
+            'table_bbox_coordinate_space',
+            'bbox_coordinate_space',
+            'geometry_coordinate_space',
+            'coordinate_space',
+            'geometry_space',
+            'bbox_order',
+            'bbox_coordinate_order',
+            'bbox_coordinate_format',
+            'bbox_format',
+            'coordinate_order',
+            'table_bbox_order',
+            'table_bbox_coordinate_order',
+        ] as $key) {
+            if (isset($bboxEntry[$key]) && is_scalar($bboxEntry[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string|int, mixed> $bboxEntry
+     * @return list<float>|array<mixed>|null
+     */
+    private function pageResultOrderedBboxValue(array $bboxEntry): mixed
+    {
+        $bbox = $this->pageResultBboxValue($bboxEntry);
+        if (!is_array($bbox)) {
+            return $bbox;
+        }
+
+        $raw = $this->pageResultRawBboxCoordinates($bbox);
+        $order = $this->pageResultBboxCoordinateOrder($bboxEntry);
+        if ($raw === null || $order === null) {
+            return $bbox;
+        }
+
+        return $this->pageResultCanonicalBbox($this->pageResultApplyBboxCoordinateOrder($raw, $order));
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function pageResultBboxCoordinateOrder(array $record): ?string
+    {
+        foreach (['bbox_order', 'bbox_coordinate_order', 'bbox_coordinate_format', 'bbox_format', 'coordinate_order', 'table_bbox_order', 'table_bbox_coordinate_order'] as $key) {
+            if (!isset($record[$key]) || !is_scalar($record[$key])) {
+                continue;
+            }
+
+            $order = $this->pageResultCanonicalBboxCoordinateOrder((string) $record[$key]);
+            if ($order !== null) {
+                return $order;
+            }
+        }
+
+        return null;
+    }
+
+    private function pageResultCanonicalBboxCoordinateOrder(string $order): ?string
+    {
+        $normalized = strtolower(trim($order));
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? $normalized;
+        $normalized = trim($normalized, '_');
+
+        return match ($normalized) {
+            'xyxy',
+            'x1_y1_x2_y2',
+            'x0_y0_x1_y1',
+            'xmin_ymin_xmax_ymax',
+            'x_min_y_min_x_max_y_max',
+            'left_top_right_bottom' => 'xyxy',
+            'xxyy',
+            'x1_x2_y1_y2',
+            'x0_x1_y0_y1',
+            'xmin_xmax_ymin_ymax',
+            'x_min_x_max_y_min_y_max',
+            'left_right_top_bottom' => 'xxyy',
+            'yxyx',
+            'y1_x1_y2_x2',
+            'y0_x0_y1_x1',
+            'ymin_xmin_ymax_xmax',
+            'y_min_x_min_y_max_x_max',
+            'top_left_bottom_right' => 'yxyx',
+            'yyxx',
+            'y1_y2_x1_x2',
+            'y0_y1_x0_x1',
+            'ymin_ymax_xmin_xmax',
+            'y_min_y_max_x_min_x_max',
+            'top_bottom_left_right' => 'yyxx',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string|int, mixed> $bbox
+     * @return list<float>|null
+     */
+    private function pageResultRawBboxCoordinates(array $bbox): ?array
+    {
+        if (count($bbox) !== 4) {
+            return null;
+        }
+
+        $raw = [];
+        foreach (array_values($bbox) as $value) {
+            if (is_int($value) || is_float($value)) {
+                $raw[] = (float) $value;
+                continue;
+            }
+            if (is_string($value) && is_numeric($value)) {
+                $raw[] = (float) $value;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $raw;
+    }
+
+    /**
+     * @param list<float> $raw
+     * @return list<float>
+     */
+    private function pageResultApplyBboxCoordinateOrder(array $raw, string $order): array
+    {
+        return match ($order) {
+            'xxyy' => [$raw[0], $raw[2], $raw[1], $raw[3]],
+            'yxyx' => [$raw[1], $raw[0], $raw[3], $raw[2]],
+            'yyxx' => [$raw[2], $raw[0], $raw[3], $raw[1]],
+            default => $raw,
+        };
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function pageResultCanonicalBbox(array $bbox): array
+    {
+        return [
+            min($bbox[0], $bbox[2]),
+            min($bbox[1], $bbox[3]),
+            max($bbox[0], $bbox[2]),
+            max($bbox[1], $bbox[3]),
+        ];
     }
 
     private function pageResultSharedImageBboxValue(array $pageResult): mixed

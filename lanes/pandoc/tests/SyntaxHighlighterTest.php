@@ -34,6 +34,10 @@ return [
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Dockerfile'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Containerfile'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('language-docker'));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('dart'));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('dartlang'));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('flutter'));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('language-dartlang'));
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('dot'));
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('elm'));
         $t->same('elm', SyntaxHighlighter::normalizeLanguage('language-elm-module'));
@@ -1564,6 +1568,51 @@ return [
         $t->same('kotlin-script', $directKotlin['requestedLanguage']);
         $t->contains('<span class="kw">val</span> <span class="va">block</span><span class="op">:</span> <span class="dt">String</span><span class="op">?</span> <span class="op">=</span> <span class="cn">null</span>', $directKotlin['html']);
         $t->contains('<span class="fu">println</span><span class="op">(</span><span class="va">block</span> <span class="op">?:</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $directKotlin['html']);
+    },
+    'highlights dart flutter review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[55] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Dart code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directDart = $highlighter->highlight('const blocks = <String>["core/paragraph"];', 'flutter');
+
+        $t->same('dart', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('dart'));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('dartlang'));
+        $t->same('dart', SyntaxHighlighter::normalizeLanguage('flutter'));
+        $t->same('dart', $highlighted['language']);
+        $t->same('dart', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(740, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource dart numberLines"><code class="sourceCode dart" style="counter-reset: source-line 739;">', $highlighted['html']);
+        $t->contains('<span id="dart-review-740"><a href="#dart-review-740"></a><span class="co">// Flutter WordPress import review card</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="st">&#039;package:flutter/widgets.dart&#039;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@immutable</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="dt">ReviewPacket</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">const</span> <span class="dt">ReviewPacket</span><span class="op">({</span><span class="kw">required</span> <span class="kw">this</span><span class="op">.</span><span class="va">title</span>', $highlighted['html']);
+        $t->contains('<span class="kw">final</span> <span class="dt">List</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;</span> <span class="va">media</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Future</span><span class="op">&lt;</span><span class="dt">Widget</span><span class="op">&gt;</span> <span class="fu">buildCard</span><span class="op">(</span><span class="dt">BuildContext</span> <span class="va">context</span><span class="op">)</span> <span class="kw">async</span>', $highlighted['html']);
+        $t->contains('<span class="kw">final</span> <span class="va">safeTitle</span> <span class="op">=</span> <span class="va">title</span><span class="op">.</span><span class="fu">trim</span><span class="op">().</span><span class="va">isEmpty</span> <span class="op">?</span> <span class="st">&#039;Untitled&#039;</span> <span class="op">:</span> <span class="va">title</span><span class="op">.</span><span class="fu">trim</span><span class="op">();</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="dt">Column</span><span class="op">(</span>', $highlighted['html']);
+        $t->contains('<span class="va">children</span><span class="op">:</span> <span class="op">&lt;</span><span class="dt">Widget</span><span class="op">&gt;[</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Text</span><span class="op">(</span><span class="st">&#039;Import $sourceId: $safeTitle&#039;</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="va">media</span><span class="op">.</span><span class="va">isNotEmpty</span><span class="op">)</span> <span class="dt">Text</span><span class="op">(</span><span class="st">&#039;${media.length} attachments&#039;</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="fu">buildCard</span><span class="op">(</span><span class="dt">BuildContext</span>', $wordpressBlock);
+        $t->same('dart', $directDart['language']);
+        $t->same('flutter', $directDart['requestedLanguage']);
+        $t->contains('<span class="kw">const</span> <span class="va">blocks</span> <span class="op">=</span> <span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">];</span>', $directDart['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

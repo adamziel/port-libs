@@ -503,6 +503,8 @@ final class MathTexConverter
         '‖' => 'double vertical bar',
         '⏞' => 'over brace',
         '⏟' => 'under brace',
+        '⎴' => 'over bracket',
+        '⎵' => 'under bracket',
         '´' => 'acute',
         '¯' => 'bar',
         '′' => 'prime',
@@ -1551,6 +1553,20 @@ final class MathTexConverter
             return '<munder>'
                 . $this->parseRequiredNonEmptyGroup($source, $offset, 'underbrace base')
                 . '<mo>⏟</mo>'
+                . '</munder>';
+        }
+
+        if ($command === 'overbracket') {
+            return '<mover>'
+                . $this->parseRequiredNonEmptyGroup($source, $offset, 'overbracket base')
+                . '<mo>⎴</mo>'
+                . '</mover>';
+        }
+
+        if ($command === 'underbracket') {
+            return '<munder>'
+                . $this->parseRequiredNonEmptyGroup($source, $offset, 'underbracket base')
+                . '<mo>⎵</mo>'
                 . '</munder>';
         }
 

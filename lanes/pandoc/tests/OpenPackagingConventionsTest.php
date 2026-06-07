@@ -4375,7 +4375,7 @@ XML;
   <Override PartName="/word/numbering.xml" ContentType="application/xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/endnotes.xml" ContentType="application/xml"/>
-  <Override PartName="/word/comments.xml" ContentType="application/xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
   <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
@@ -4406,6 +4406,13 @@ XML;
 </Relationships>
 XML;
 
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
@@ -4416,6 +4423,7 @@ XML;
             ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes/>'],
             ['name' => 'word/endnotes.xml', 'data' => '<w:endnotes/>'],
             ['name' => 'word/comments.xml', 'data' => '<w:comments/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
             ['name' => 'word/settings.xml', 'data' => '<w:settings/>'],
             ['name' => 'word/theme/theme1.xml', 'data' => '<a:theme/>'],
             ['name' => 'word/media/hero.png', 'data' => 'PNG'],
@@ -4446,10 +4454,12 @@ XML;
         $t->same('styles', $roles['rIdStyles']['role']);
         $t->same(OpcRelationshipGraph::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE, $roles['rIdStyles']['type']);
         $t->same('/word/document.xml', $roles['rIdStyles']['source']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $roles['rIdStyles']['sourceContentType']);
         $t->same('/word/styles.xml', $roles['rIdStyles']['targetPart']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $roles['rIdStyles']['contentType']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $roles['rIdStyles']['expectedContentType']);
         $t->same(null, $roles['rIdStyles']['expectedContentTypePrefix']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $roles['rIdStyles']['expectedSourceContentTypes']);
         $t->same(false, $roles['rIdStyles']['expectedExternal']);
         $t->same(false, $roles['rIdStyles']['external']);
         $t->same(true, $roles['rIdStyles']['exists']);
@@ -4502,6 +4512,7 @@ XML;
         $t->same('image/png', $roles['rIdImage']['contentType']);
         $t->same(null, $roles['rIdImage']['expectedContentType']);
         $t->same('image/', $roles['rIdImage']['expectedContentTypePrefix']);
+        $t->same(null, $roles['rIdImage']['expectedSourceContentTypes']);
         $t->same(null, $roles['rIdImage']['expectedExternal']);
         $t->same(true, $roles['rIdImage']['valid']);
         $t->same([], $roles['rIdImage']['issues']);
@@ -4544,6 +4555,30 @@ XML;
         $t->same(false, isset($roles['rIdCustomXml']));
         $t->same(true, $basePreflight['rIdHyperlinkInternal']['valid']);
         $t->same([], $basePreflight['rIdHyperlinkInternal']['issues']);
+
+        $commentRoles = [];
+        foreach ($graph->preflightWordprocessingDocumentRelationships('/word/comments.xml') as $role) {
+            $commentRoles[$role['id']] = $role;
+        }
+
+        $t->same(['rIdCommentStyles', 'rIdCommentImage'], array_keys($commentRoles));
+        $t->same('styles', $commentRoles['rIdCommentStyles']['role']);
+        $t->same('/word/comments.xml', $commentRoles['rIdCommentStyles']['source']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $commentRoles['rIdCommentStyles']['sourceContentType']);
+        $t->same('/word/styles.xml', $commentRoles['rIdCommentStyles']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $commentRoles['rIdCommentStyles']['contentType']);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES, $commentRoles['rIdCommentStyles']['expectedSourceContentTypes']);
+        $t->same(false, $commentRoles['rIdCommentStyles']['valid']);
+        $t->same(['invalid-styles-source-content-type'], $commentRoles['rIdCommentStyles']['issues']);
+
+        $t->same('image', $commentRoles['rIdCommentImage']['role']);
+        $t->same('/word/comments.xml', $commentRoles['rIdCommentImage']['source']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $commentRoles['rIdCommentImage']['sourceContentType']);
+        $t->same('/word/media/hero.png', $commentRoles['rIdCommentImage']['targetPart']);
+        $t->same('image/png', $commentRoles['rIdCommentImage']['contentType']);
+        $t->same(null, $commentRoles['rIdCommentImage']['expectedSourceContentTypes']);
+        $t->same(true, $commentRoles['rIdCommentImage']['valid']);
+        $t->same([], $commentRoles['rIdCommentImage']['issues']);
     },
     'preflights OPC package and part thumbnail relationships' => static function (TestRunner $t): void {
         $thumbnailType = OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE;

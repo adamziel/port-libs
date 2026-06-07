@@ -220,12 +220,12 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unreadable Metadata XMP Leak Title'));
         $t->true(!str_contains($plainText, 'Unreadable Metadata XMP Leak Title'));
     },
-    'accepts catalog XMP metadata streams with omitted optional Type entry' => static function (
+    'rejects catalog XMP metadata streams with omitted Type entry before promotion' => static function (
         TestRunner $t
     ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
         $xmp = $xmpMetadataBoundaryPacket(
-            'Omitted Type XMP Title',
-            'Catalog metadata streams may omit the optional Type entry when Subtype XML is present',
+            'Omitted Type Hidden XMP Title',
+            'A catalog XML stream without the Metadata Type role must stay review-only',
             '2026-06-07T08:02:02Z'
         );
         $compressedXmp = gzcompress($xmp);
@@ -245,27 +245,33 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
         $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+        $summary = $review['xmp_summary'] ?? [];
 
-        $t->same(['xmp', 'info'], $metadata['source']);
-        $t->same('Omitted Type XMP Title', $metadata['title']);
-        $t->same(
-            'Catalog metadata streams may omit the optional Type entry when Subtype XML is present',
-            $metadata['description']
-        );
-        $t->same(['Duplicate Metadata Editor'], $metadata['authors']);
-        $t->same(['wordpress', 'xmp-duplicate-metadata'], $metadata['keywords']);
-        $t->same('Duplicate Metadata Tool', $metadata['creator_tool']);
-        $t->same('Duplicate Metadata Producer', $metadata['producer']);
-        $t->same('2026-06-07T08:02:02Z', $metadata['created_at']);
-        $t->same('2026-06-07T08:02:02Z', $metadata['created_at_utc']);
-        $t->same('2026-06-05T23:30:38Z', $metadata['metadata_date_utc']);
-        $t->same('UTF-8', $metadata['xmp']['packet_encoding'] ?? null);
-        $t->same(true, $metadata['xmp']['packet_boundary_applied'] ?? null);
-        $t->same('Metadata Boundary Info Title', $metadata['info']['Title'] ?? null);
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same(['Metadata Boundary Author'], $metadata['authors']);
         $t->same('Omitted Type Metadata Boundary Body', $plainText);
-        $t->same(false, isset($metadata['catalog']['metadata_stream_review']));
-        $t->true(is_string($encoded) && !str_contains($encoded, 'catalog_metadata_stream_boundary'));
-        $t->true(!str_contains($plainText, 'Omitted Type XMP Title'));
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_missing_metadata_stream_type', $review['status'] ?? null);
+        $t->same(5, $review['object_number'] ?? null);
+        $t->same(0, $review['type_entry_count'] ?? null);
+        $t->same(1, $review['subtype_entry_count'] ?? null);
+        $t->same('XML', $review['subtype'] ?? null);
+        $t->same(['XML'], $review['subtype_values'] ?? null);
+        $t->same(['FlateDecode'], $review['filters'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same(['title', 'description', 'creator_tool', 'producer', 'created_at', 'metadata_date', 'authors', 'keywords'], $summary['field_names'] ?? null);
+        $t->same(true, $summary['packet_boundary_applied'] ?? null);
+        $t->same(false, $summary['payload_included'] ?? null);
+        $t->same(true, $summary['text_values_redacted'] ?? null);
+        $t->same('2026-06-07T08:02:02Z', $summary['dates_utc']['created_at'] ?? null);
+        $t->same('2026-06-05T23:30:38Z', $summary['dates_utc']['metadata_date'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Omitted Type Hidden XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Metadata Type role'));
+        $t->true(!str_contains($plainText, 'Omitted Type Hidden XMP Title'));
     },
     'rejects duplicate catalog Metadata entries before XMP promotion' => static function (
         TestRunner $t

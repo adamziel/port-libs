@@ -4892,6 +4892,10 @@ final class DocxReader
         ];
 
         $fieldName = strtoupper(array_shift($tokens));
+        if ($fieldName === 'SEQ') {
+            return $this->sequenceFieldSpanAttrs($tokens, $instruction);
+        }
+
         if (isset($crossReferenceFieldNames[$fieldName])) {
             return $this->crossReferenceFieldSpanAttrs($crossReferenceFieldNames[$fieldName], $tokens, $instruction);
         }
@@ -4913,6 +4917,71 @@ final class DocxReader
 
         return [
             'classes' => ['docx-field', 'docx-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function sequenceFieldSpanAttrs(array $tokens, string $instruction): array
+    {
+        $classes = ['docx-field', 'docx-field-seq'];
+        $attributes = [
+            'data-docx-field' => 'seq',
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+        ];
+
+        $sequence = $this->fieldTargetToken($tokens);
+        if ($sequence !== null && $sequence !== '') {
+            $attributes['data-docx-field-sequence'] = $sequence;
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-docx-field-format'] = $format;
+        }
+
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if (!str_starts_with($token, '\\')) {
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === 'c') {
+                $classes[] = 'docx-field-current-sequence';
+                $attributes['data-docx-field-current-sequence'] = 'true';
+                continue;
+            }
+
+            if ($switch === 'h') {
+                $classes[] = 'docx-field-hidden';
+                $attributes['data-docx-field-hidden'] = 'true';
+                continue;
+            }
+
+            if ($switch === 'n') {
+                $classes[] = 'docx-field-next-sequence';
+                $attributes['data-docx-field-next-sequence'] = 'true';
+                continue;
+            }
+
+            if ($switch === 'r' && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $classes[] = 'docx-field-reset-number';
+                $attributes['data-docx-field-reset-number'] = $tokens[++$index];
+                continue;
+            }
+
+            if ($switch === 's' && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $classes[] = 'docx-field-reset-heading-level';
+                $attributes['data-docx-field-reset-heading-level'] = $tokens[++$index];
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
     }

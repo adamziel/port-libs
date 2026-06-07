@@ -947,6 +947,96 @@ BIB;
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'maps bounded biblatex translated title metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{translated-title-source,
+  author           = {Garc{\'i}a, Gia},
+  title            = {Manual de Migraci{\'o}n},
+  subtitle         = {Archivo de fuentes},
+  titletranslation = {Migration Manual},
+  date             = {2026},
+  publisher        = {Archivo Press},
+  translator       = {Curator, Eli},
+  url              = {https://example.test/translated-title}
+}
+
+@article{translated-title-alias,
+  author          = {Ng, Nia},
+  title           = {Revue des sources},
+  translatedtitle = {Source Review},
+  journaltitle    = {Journal des Imports},
+  date            = {2025},
+  pages           = {12--14}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Migration Manual', $items[0]['translated-title'] ?? null);
+        $t->same('Source Review', $items[1]['translated-title'] ?? null);
+        $t->same('Migration Manual', $items[0]['rawBibtex']['fields']['titletranslation'] ?? null);
+        $t->same('Source Review', $items[1]['rawBibtex']['fields']['translatedtitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('translated-title-source');
+        $alias = $processor->item('translated-title-alias');
+        $t->same('Migration Manual', $source['translatedTitle'] ?? null);
+        $t->same('Source Review', $alias['translatedTitle'] ?? null);
+        $t->same('(García 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('translated-title-source', '[@translated-title-source]'),
+            $citation('translated-title-alias', '[@translated-title-alias]'),
+        ]));
+        $t->same(
+            'García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.',
+            $processor->renderBibliographyEntry('translated-title-source')
+        );
+        $t->same(
+            'Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.',
+            $processor->renderBibliographyEntry('translated-title-alias')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title"/>
+        <text variable="translated-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="titletranslation"/>
+      <text variable="title-translation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[García | Manual de Migración: Archivo de fuentes | Migration Manual; Ng | Revue des sources | Source Review]', $styled->renderCitationCluster([
+            $citation('translated-title-source', '[@translated-title-source]'),
+            $citation('translated-title-alias', '[@translated-title-alias]'),
+        ]));
+        $t->same('Manual de Migración: Archivo de fuentes :: Migration Manual :: Migration Manual', $styled->renderBibliographyEntry('translated-title-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-translated-title',
+            'title' => 'Manual source',
+            'translated-title' => 'Manual Source Translation',
+        ]]);
+        $directItem = $direct->item('manual-translated-title');
+        $t->same('Manual Source Translation', $directItem['translatedTitle'] ?? null);
+        $t->same('Manual source. Translated title: Manual Source Translation.', $direct->renderBibliographyEntry('manual-translated-title'));
+
+        $document = (new MarkdownReader())->read('Translated-title source @translated-title-source and alias [@translated-title-alias] keep reviewer translations visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Translated Title Sources'));
+        $t->contains('<p>Translated-title source García (2026) and alias (Ng 2025) keep reviewer translations visible.</p>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.</dd>', $blocks);
+    },
     'applies bounded csl text variable rendering for original dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

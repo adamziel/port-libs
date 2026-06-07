@@ -673,6 +673,130 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
     },
 
+    'preflights zip local header metadata mismatches before entry exposure' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $safeDocumentXml = '<w:document><w:p>safe local metadata</w:p></w:document>';
+        $safeCommentsXml = '<w:comments><w:comment>safe descriptor metadata</w:comment></w:comments>';
+        $safeZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $safeDocumentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $safeCommentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+        $safeSummary = ZipPackage::localHeaderMetadataPreflight($safeZip);
+
+        $t->same(2, $safeSummary['entryCount']);
+        $t->same(2, $safeSummary['totalEntryCount']);
+        $t->same(0, $safeSummary['mismatchedEntryCount']);
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same([], $safeSummary['issues']);
+        $t->same([], $safeSummary['mismatchedEntries']);
+        $t->same('word/document.xml', $safeSummary['entries'][0]['centralName']);
+        $t->same('word/document.xml', $safeSummary['entries'][0]['localName']);
+        $t->same(20, $safeSummary['entries'][0]['centralVersionNeededToExtract']);
+        $t->same(20, $safeSummary['entries'][0]['localVersionNeededToExtract']);
+        $t->same(8, $safeSummary['entries'][0]['centralCompressionMethod']);
+        $t->same(8, $safeSummary['entries'][0]['localCompressionMethod']);
+        $t->same($crc32($safeDocumentXml), $safeSummary['entries'][0]['localCrc32']);
+        $t->same(strlen(gzdeflate($safeDocumentXml)), $safeSummary['entries'][0]['localCompressedSize']);
+        $t->same(strlen($safeDocumentXml), $safeSummary['entries'][0]['localUncompressedSize']);
+        $t->same(false, $safeSummary['entries'][0]['usesDataDescriptor']);
+        $t->same(null, $safeSummary['entries'][0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(false, $safeSummary['entries'][0]['hasMetadataMismatch']);
+        $t->same('word/comments.xml', $safeSummary['entries'][1]['centralName']);
+        $t->same(true, $safeSummary['entries'][1]['usesDataDescriptor']);
+        $t->same(0, $safeSummary['entries'][1]['localCrc32']);
+        $t->same(0, $safeSummary['entries'][1]['localCompressedSize']);
+        $t->same(0, $safeSummary['entries'][1]['localUncompressedSize']);
+        $t->same(true, $safeSummary['entries'][1]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(false, $safeSummary['entries'][1]['hasMetadataMismatch']);
+        $t->same($safeDocumentXml, ZipPackage::fromString($safeZip)->read('/word/document.xml'));
+        $t->same($safeCommentsXml, ZipPackage::fromString($safeZip)->read('/word/comments.xml'));
+
+        $mediaBytes = "mismatched media metadata\n";
+        $descriptorXml = '<w:comments><w:comment>descriptor placeholder mismatch</w:comment></w:comments>';
+        $mismatchedZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>version mismatch</w:p></w:document>',
+                'method' => 8,
+                'centralVersionNeeded' => 20,
+                'localVersionNeeded' => 10,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+                'localMethod' => 8,
+                'modifiedTime' => 0x4a21,
+                'modifiedDate' => 0x5b63,
+                'localModifiedTime' => 0x4a22,
+                'localModifiedDate' => 0x5b64,
+                'localCrc' => 0x12345678,
+                'localCompressedSize' => strlen($mediaBytes) + 2,
+                'localUncompressedSize' => strlen($mediaBytes) + 3,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $descriptorXml,
+                'method' => 8,
+                'descriptor' => true,
+                'localCrc' => 1,
+            ],
+        ]);
+        $summary = ZipPackage::localHeaderMetadataPreflight($mismatchedZip);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['totalEntryCount']);
+        $t->same(3, $summary['mismatchedEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'local-header-version-needed-mismatch',
+            'local-header-compression-method-mismatch',
+            'local-header-modification-time-mismatch',
+            'local-header-crc32-mismatch',
+            'local-header-compressed-size-mismatch',
+            'local-header-uncompressed-size-mismatch',
+            'local-header-data-descriptor-placeholders-not-zero',
+        ], $summary['issues']);
+        $t->same('word/document.xml', $summary['mismatchedEntries'][0]['centralName']);
+        $t->same(['local-header-version-needed-mismatch'], $summary['mismatchedEntries'][0]['issues']);
+        $t->same(20, $summary['mismatchedEntries'][0]['centralVersionNeededToExtract']);
+        $t->same(10, $summary['mismatchedEntries'][0]['localVersionNeededToExtract']);
+        $t->same('word/media/review.txt', $summary['mismatchedEntries'][1]['centralName']);
+        $t->same([
+            'local-header-compression-method-mismatch',
+            'local-header-modification-time-mismatch',
+            'local-header-crc32-mismatch',
+            'local-header-compressed-size-mismatch',
+            'local-header-uncompressed-size-mismatch',
+        ], $summary['mismatchedEntries'][1]['issues']);
+        $t->same(0, $summary['mismatchedEntries'][1]['centralCompressionMethod']);
+        $t->same(8, $summary['mismatchedEntries'][1]['localCompressionMethod']);
+        $t->same(0x4a21, $summary['mismatchedEntries'][1]['centralModifiedDosTime']);
+        $t->same(0x4a22, $summary['mismatchedEntries'][1]['localModifiedDosTime']);
+        $t->same(0x5b63, $summary['mismatchedEntries'][1]['centralModifiedDosDate']);
+        $t->same(0x5b64, $summary['mismatchedEntries'][1]['localModifiedDosDate']);
+        $t->same($crc32($mediaBytes), $summary['mismatchedEntries'][1]['centralCrc32']);
+        $t->same(0x12345678, $summary['mismatchedEntries'][1]['localCrc32']);
+        $t->same(strlen($mediaBytes), $summary['mismatchedEntries'][1]['centralCompressedSize']);
+        $t->same(strlen($mediaBytes) + 2, $summary['mismatchedEntries'][1]['localCompressedSize']);
+        $t->same(strlen($mediaBytes), $summary['mismatchedEntries'][1]['centralUncompressedSize']);
+        $t->same(strlen($mediaBytes) + 3, $summary['mismatchedEntries'][1]['localUncompressedSize']);
+        $t->same('word/comments.xml', $summary['mismatchedEntries'][2]['centralName']);
+        $t->same(['local-header-data-descriptor-placeholders-not-zero'], $summary['mismatchedEntries'][2]['issues']);
+        $t->same(true, $summary['mismatchedEntries'][2]['usesDataDescriptor']);
+        $t->same(false, $summary['mismatchedEntries'][2]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(1, $summary['mismatchedEntries'][2]['localCrc32']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
+    },
+
     'preflights stored first mimetype entries for ODT and EPUB containers' => static function (TestRunner $t) use ($buildZipPackage): void {
         $odtMimetype = 'application/vnd.oasis.opendocument.text';
         $package = ZipPackage::fromString($buildZipPackage([

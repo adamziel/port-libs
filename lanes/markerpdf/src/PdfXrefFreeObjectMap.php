@@ -111,6 +111,12 @@ final class PdfXrefFreeObjectMap
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = self::latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes);
         $eofBoundary = self::latestTopLevelEofOffset($pdfBytes);
+        if ($entry !== null && !self::startxrefEntryHasNumericOperand($pdfBytes, $entry)) {
+            $entryEofBoundary = self::firstTopLevelEofOffsetAfter($pdfBytes, $entry['tokenOffset']);
+            if ($entryEofBoundary !== null) {
+                $eofBoundary = $entryEofBoundary;
+            }
+        }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -152,6 +158,42 @@ final class PdfXrefFreeObjectMap
         }
 
         return $boundary;
+    }
+
+    /**
+     * @param array{offset: int, tokenOffset: int} $entry
+     */
+    private static function startxrefEntryHasNumericOperand(string $pdfBytes, array $entry): bool
+    {
+        $offset = $entry['tokenOffset'] + strlen('startxref');
+        $length = strlen($pdfBytes);
+        while ($offset < $length && self::isPdfWhitespace($pdfBytes[$offset])) {
+            $offset++;
+        }
+
+        return preg_match('/\G[+-]?\d+/s', $pdfBytes, $match, 0, $offset) === 1;
+    }
+
+    private static function firstTopLevelEofOffsetAfter(string $pdfBytes, int $afterOffset): ?int
+    {
+        if (preg_match_all('/%%EOF/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        foreach ($matches[0] as $match) {
+            $tokenOffset = $match[1] ?? null;
+            if (!is_int($tokenOffset) || $tokenOffset <= $afterOffset) {
+                continue;
+            }
+
+            if (self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)) {
+                continue;
+            }
+
+            return $tokenOffset;
+        }
+
+        return null;
     }
 
     private static function latestTopLevelEofOffset(string $pdfBytes): ?int

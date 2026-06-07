@@ -927,3 +927,27 @@ fun normalizeTitle(raw: String): String {
 
 val blocks = mapOf("core/paragraph" to true, "core/html" to false)
 ```
+
+``` {.dart #dart-review .numberLines startFrom=740}
+// Flutter WordPress import review card
+import 'package:flutter/widgets.dart';
+
+@immutable
+class ReviewPacket {
+  const ReviewPacket({required this.title, required this.sourceId, this.media = const []});
+
+  final String title;
+  final int sourceId;
+  final List<String> media;
+
+  Future<Widget> buildCard(BuildContext context) async {
+    final safeTitle = title.trim().isEmpty ? 'Untitled' : title.trim();
+    return Column(
+      children: <Widget>[
+        Text('Import $sourceId: $safeTitle'),
+        if (media.isNotEmpty) Text('${media.length} attachments'),
+      ],
+    );
+  }
+}
+```

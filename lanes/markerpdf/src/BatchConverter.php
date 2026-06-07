@@ -1665,15 +1665,24 @@ final class BatchConverter
         $records = [];
         $tupleRows = [];
         $recordsByResolvedTarget = [];
+        $recordsByFileIdentity = [];
         foreach ($taskArgs as $taskArg) {
             $filepath = (string) $taskArg['filepath'];
             $resolvedTarget = realpath($filepath);
+            $stat = @stat($filepath);
+            $device = is_array($stat) && array_key_exists('dev', $stat) ? (string) $stat['dev'] : null;
+            $inode = is_array($stat) && array_key_exists('ino', $stat) ? (string) $stat['ino'] : null;
+            $fileIdentityKey = $device !== null && $inode !== null ? $device . ':' . $inode : null;
             $record = [
                 'filename' => basename($filepath),
                 'filepath' => $filepath,
                 'is_symlink' => is_link($filepath),
                 'resolved_target' => is_string($resolvedTarget) ? $resolvedTarget : $filepath,
                 'resolved_target_available' => is_string($resolvedTarget),
+                'device' => $device,
+                'inode' => $inode,
+                'file_identity_key' => $fileIdentityKey,
+                'file_identity_available' => $fileIdentityKey !== null,
             ];
             $records[] = $record;
             $tupleRows[] = [
@@ -1683,6 +1692,9 @@ final class BatchConverter
                 $taskArg['min_length'],
             ];
             $recordsByResolvedTarget[$record['resolved_target']][] = $record;
+            if ($fileIdentityKey !== null) {
+                $recordsByFileIdentity[$fileIdentityKey][] = $record;
+            }
         }
 
         $duplicateGroups = [];
@@ -1712,6 +1724,54 @@ final class BatchConverter
             ];
         }
 
+        $duplicateFileIdentityGroups = [];
+        $duplicateFileIdentityFilenames = [];
+        $hardlinkFileIdentityGroups = [];
+        $hardlinkFileIdentityFilenames = [];
+        foreach ($recordsByFileIdentity as $fileIdentityKey => $groupRecords) {
+            if (count($groupRecords) < 2) {
+                continue;
+            }
+
+            $filenames = array_map(static fn (array $record): string => (string) $record['filename'], $groupRecords);
+            $filepaths = array_map(static fn (array $record): string => (string) $record['filepath'], $groupRecords);
+            $resolvedTargets = array_values(array_unique(array_map(
+                static fn (array $record): string => (string) $record['resolved_target'],
+                $groupRecords
+            )));
+            $symlinkFilenames = array_values(array_map(
+                static fn (array $record): string => (string) $record['filename'],
+                array_filter($groupRecords, static fn (array $record): bool => (bool) $record['is_symlink'])
+            ));
+            $hardlinkCandidate = count($resolvedTargets) > 1 && $symlinkFilenames === [];
+
+            $duplicateFileIdentityFilenames = array_merge($duplicateFileIdentityFilenames, $filenames);
+
+            $group = [
+                'file_identity_key' => $fileIdentityKey,
+                'device' => $groupRecords[0]['device'],
+                'inode' => $groupRecords[0]['inode'],
+                'entry_count' => count($groupRecords),
+                'filenames' => $filenames,
+                'filepaths' => $filepaths,
+                'resolved_targets' => $resolvedTargets,
+                'resolved_target_count' => count($resolvedTargets),
+                'contains_symlink' => $symlinkFilenames !== [],
+                'symlink_filenames' => $symlinkFilenames,
+                'hardlink_candidate' => $hardlinkCandidate,
+                'queued_separately' => true,
+                'deduplicated_by_file_identity' => false,
+                'deduplicated_by_inode' => false,
+            ];
+
+            $duplicateFileIdentityGroups[] = $group;
+
+            if ($hardlinkCandidate) {
+                $hardlinkFileIdentityGroups[] = $group;
+                $hardlinkFileIdentityFilenames = array_merge($hardlinkFileIdentityFilenames, $filenames);
+            }
+        }
+
         $reviewReached = $taskArgs !== [];
 
         return [
@@ -1735,7 +1795,15 @@ final class BatchConverter
             'duplicate_resolved_target_group_count' => count($duplicateGroups),
             'duplicate_resolved_target_groups' => $duplicateGroups,
             'duplicate_resolved_target_filenames' => array_values($duplicateFilenames),
-            'no_dedupe_before_task_args' => $duplicateGroups !== [],
+            'duplicate_file_identities_found' => $duplicateFileIdentityGroups !== [],
+            'duplicate_file_identity_group_count' => count($duplicateFileIdentityGroups),
+            'duplicate_file_identity_groups' => $duplicateFileIdentityGroups,
+            'duplicate_file_identity_filenames' => array_values($duplicateFileIdentityFilenames),
+            'hardlink_file_identity_found' => $hardlinkFileIdentityGroups !== [],
+            'hardlink_file_identity_group_count' => count($hardlinkFileIdentityGroups),
+            'hardlink_file_identity_groups' => $hardlinkFileIdentityGroups,
+            'hardlink_file_identity_filenames' => array_values($hardlinkFileIdentityFilenames),
+            'no_dedupe_before_task_args' => $duplicateGroups !== [] || $duplicateFileIdentityGroups !== [],
             'metadata_lookup' => 'metadata.get(os.path.basename(f))',
             'metadata_lookup_uses_entry_basename' => true,
             'target_basename_metadata_fallback' => false,

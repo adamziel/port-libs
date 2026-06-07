@@ -595,6 +595,7 @@ final class BibtexCslParser
             'title' => self::composedTitle($fields, ['title'], ['subtitle']),
             'short-title' => self::firstField($fields, ['shorttitle']),
             'title-addon' => self::firstField($fields, ['titleaddon']),
+            'translated-title' => self::firstField($fields, ['titletranslation', 'title-translation', 'translatedtitle', 'translated-title']),
             'reviewed-title' => self::composedTitle($fields, ['reviewtitle', 'reviewedtitle', 'reviewed-title'], ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle']),
             'container-title' => self::composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']),
             'container-title-short' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation']),

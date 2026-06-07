@@ -1289,6 +1289,74 @@ XML;
         $t->contains('<ol start="4" type="a">', $blocksHtml);
         $t->contains('<ol start="4">', $blocksHtml);
     },
+    'honors explicit ODT list start values before continued numbering' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithExplicitStartLists = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="ExplicitStartSteps">
+      <text:list-level-style-number text:level="1" style:num-format="a" text:start-value="2"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithExplicitStartLists = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="ExplicitStartSteps" text:start-value="7">
+        <text:list-item><text:p>Explicit source item</text:p></text:list-item>
+        <text:list-item><text:p>Second explicit source item</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="ExplicitStartSteps" text:continue-numbering="true">
+        <text:list-item><text:p>Continued after explicit source start</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="ExplicitStartSteps">
+        <text:list-item><text:p>Reset to style start</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithExplicitStartLists, null, $stylesWithExplicitStartLists));
+        $blocks = $result['document']->children;
+        $explicitList = $blocks[0];
+        $continuedList = $blocks[1];
+        $resetList = $blocks[2];
+
+        $t->same('ordered_list', $explicitList->type);
+        $t->same(7, $explicitList->attr('start'));
+        $t->same(7, $explicitList->attr('explicitStartValue'));
+        $t->same('list-start-value', $explicitList->attr('startSource'));
+        $t->same(2, $explicitList->attr('styleStart'));
+        $t->same('lower_alpha', $explicitList->attr('style'));
+        $t->same('Explicit source item', $explicitList->children[0]->children[0]->attr('text'));
+        $t->same('Second explicit source item', $explicitList->children[1]->children[0]->attr('text'));
+        $t->same('ordered_list', $continuedList->type);
+        $t->same(true, $continuedList->attr('continued'));
+        $t->same(9, $continuedList->attr('start'));
+        $t->same('Continued after explicit source start', $continuedList->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $resetList->type);
+        $t->same(2, $resetList->attr('start'));
+        $t->same('style-start-value', $resetList->attr('startSource'));
+        $t->same('Reset to style start', $resetList->children[0]->children[0]->attr('text'));
+        $t->same(1, $result['importReport']['content']['continuedListCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('g.  Explicit source item', $markdown);
+        $t->contains('h.  Second explicit source item', $markdown);
+        $t->contains('i.  Continued after explicit source start', $markdown);
+        $t->contains('b.  Reset to style start', $markdown);
+        $t->contains('<ol start="7" type="a"><li>Explicit source item</li><li>Second explicit source item</li></ol>', $blocksHtml);
+        $t->contains('<ol start="9" type="a"><li>Continued after explicit source start</li></ol>', $blocksHtml);
+        $t->contains('<ol start="2" type="a"><li>Reset to style start</li></ol>', $blocksHtml);
+    },
     'inherits parent ODT list style for styleless nested lists' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithInheritedList = <<<'XML'
 <office:document-styles

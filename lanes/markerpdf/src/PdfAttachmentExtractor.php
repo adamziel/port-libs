@@ -681,10 +681,24 @@ final class PdfAttachmentExtractor
                     $rawKidItems = $this->rawArrayItemsFromValue($rawKidsValue, $objects);
                 }
             }
-            $rawKidValuesByKey = [];
+            $kidPairs = [];
             foreach ($kids as $kidIndex => $kid) {
-                if (isset($rawKidItems[$kidIndex]) && is_string($rawKidItems[$kidIndex])) {
-                    $rawKidValuesByKey[serialize($kid)][] = $rawKidItems[$kidIndex];
+                if ($this->refObjectReference($kid) === null) {
+                    continue;
+                }
+
+                $kidPairs[] = [
+                    'kid' => $kid,
+                    'raw' => isset($rawKidItems[$kidIndex]) && is_string($rawKidItems[$kidIndex])
+                        ? $rawKidItems[$kidIndex]
+                        : null,
+                ];
+            }
+            $kids = array_column($kidPairs, 'kid');
+            $rawKidValuesByKey = [];
+            foreach ($kidPairs as $kidPair) {
+                if (is_string($kidPair['raw'])) {
+                    $rawKidValuesByKey[serialize($kidPair['kid'])][] = $kidPair['raw'];
                 }
             }
 
@@ -3094,8 +3108,15 @@ final class PdfAttachmentExtractor
         }
 
         $dictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($streamObject['body']);
+        $streamBytes = $streamObject['stream'];
+        if ($this->refObjectReference($dict['Length'] ?? null) !== null) {
+            $index = 0;
+            $streamValue = $this->parseValue($streamObject['body'], $index);
+            $streamBytes = $this->streamBytesFromBody($streamObject['body'], $index, $streamValue, $objects)
+                ?? $streamObject['stream'];
+        }
 
-        return $this->decodedStreamBytesForDictionary($streamObject['stream'], $dict, $objects, $dictionaryBody);
+        return $this->decodedStreamBytesForDictionary($streamBytes, $dict, $objects, $dictionaryBody);
     }
 
     /**
@@ -7419,7 +7440,10 @@ final class PdfAttachmentExtractor
         return false;
     }
 
-    private function streamBytesFromBody(string $body, int $index, mixed $value): ?string
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function streamBytesFromBody(string $body, int $index, mixed $value, array $objects = []): ?string
     {
         $dict = $this->dict($value);
         if ($dict === null) {
@@ -7445,6 +7469,9 @@ final class PdfAttachmentExtractor
 
         $stream = substr($body, $index, $end - $index);
         $length = $this->intValue($dict['Length'] ?? null);
+        if ($length === null && $objects !== []) {
+            $length = $this->intValue($this->resolveValue($dict['Length'] ?? null, $objects));
+        }
         $streamWithoutTrailingLineEnding = preg_replace("/\r\n$|\n$|\r$/", '', $stream) ?? $stream;
         if ($length !== null && $length >= 0 && $length <= strlen($stream)) {
             $declaredStream = substr($stream, 0, $length);

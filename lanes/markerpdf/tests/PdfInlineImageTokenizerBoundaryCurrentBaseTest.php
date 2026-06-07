@@ -823,6 +823,28 @@ $inlineImageTokenizerDeviceNTintStrayEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerWideDeviceNTintStrayEiPdf = static function (): string {
+    $tints = implode(' ', array_map(static fn (int $index): string => sprintf('%.2f', $index / 20), range(1, 17)));
+    $colorants = implode(' ', array_map(static fn (int $index): string => '/C' . $index, range(1, 17)));
+    $domain = trim(str_repeat('0 1 ', 17));
+    $content = "BT /F1 12 Tf 72 720 Td (Before Wide DeviceN Tint Stray) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI\n"
+        . "/CS17 cs\n"
+        . "{$tints} scn\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible Wide DeviceN Tint Before Stray) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Wide DeviceN Tint Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /ColorSpace << /CS17 [/DeviceN [{$colorants}] /DeviceCMYK << /FunctionType 4 /Domain [{$domain}] /Range [0 1 0 1 0 1 0 1] /Length 0 >>] >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerShadingStrayEiPdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before Shading Stray) Tj ET\n"
         . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
@@ -2094,6 +2116,29 @@ return [
         $t->true(str_contains($plainText, 'Visible After DeviceN Tint Stray'));
         $t->true(!str_contains($plainText, 'CS10'));
         $t->true(!str_contains($plainText, '0.1 0.2 0.3'));
+        $t->true(!str_contains($plainText, "\x80 EI"));
+        $t->true(!str_contains($plainText, 'JBIG2Decode'));
+    },
+    'closes preview-only fallback before 17-component DeviceN tint operands followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerWideDeviceNTintStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerWideDeviceNTintStrayEiPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Wide DeviceN Tint Stray',
+            'Visible Wide DeviceN Tint Before Stray',
+            'Visible After Wide DeviceN Tint Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Wide DeviceN Tint Before Stray'));
+        $t->true(str_contains($plainText, 'Visible After Wide DeviceN Tint Stray'));
+        $t->true(!str_contains($plainText, 'CS17'));
+        $t->true(!str_contains($plainText, '0.05 0.10 0.15'));
         $t->true(!str_contains($plainText, "\x80 EI"));
         $t->true(!str_contains($plainText, 'JBIG2Decode'));
     },

@@ -4212,6 +4212,72 @@ return [
         $t->contains('<span class="legacy-doc-field legacy-doc-symbol-field legacy-doc-field-symbol" data-legacy-doc-field="symbol" data-legacy-doc-field-instruction="SYMBOL 183 \f &quot;Symbol&quot; \s 12 \u" data-legacy-doc-symbol-code="183" data-legacy-doc-symbol-font="Symbol" data-legacy-doc-symbol-size="12" data-legacy-doc-symbol-switches="u">·</span>', $blocks);
         $t->true(!str_contains(strip_tags($blocks), 'SYMBOL'), 'Legacy DOC symbol field instructions should not render as visible text');
     },
+    'preserves legacy DOC generated table and index field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Generated '
+                . $fieldBegin . ' TOC \o "1-3" \h \z \u ' . $fieldSeparator . 'Introduction	1' . $fieldEnd
+                . ' and '
+                . $fieldBegin . ' INDEX \c "2" \h "A" ' . $fieldSeparator . 'Legacy term, 4' . $fieldEnd
+                . ' plus '
+                . $fieldBegin . ' TOA \c "1" \p ' . $fieldSeparator . 'Case One 2' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $toc = $paragraph->children[1];
+        $t->same('span', $toc->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-generated-field', 'legacy-doc-field-toc'], $toc->attr('classes'));
+        $t->same('toc', $toc->attr('attributes')['data-legacy-doc-field']);
+        $t->same('TOC \o "1-3" \h \z \u', $toc->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('table-of-contents', $toc->attr('attributes')['data-legacy-doc-generated-field-type']);
+        $t->same('o h z u', $toc->attr('attributes')['data-legacy-doc-generated-field-switches']);
+        $t->same('1-3', $toc->attr('attributes')['data-legacy-doc-generated-field-switch-o']);
+        $t->same('true', $toc->attr('attributes')['data-legacy-doc-generated-field-switch-h']);
+        $t->same('true', $toc->attr('attributes')['data-legacy-doc-generated-field-switch-z']);
+        $t->same('true', $toc->attr('attributes')['data-legacy-doc-generated-field-switch-u']);
+        $t->same('Introduction	1', $toc->children[0]->attr('text'));
+
+        $index = $paragraph->children[3];
+        $t->same('span', $index->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-generated-field', 'legacy-doc-field-index'], $index->attr('classes'));
+        $t->same('index', $index->attr('attributes')['data-legacy-doc-field']);
+        $t->same('INDEX \c "2" \h "A"', $index->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('index', $index->attr('attributes')['data-legacy-doc-generated-field-type']);
+        $t->same('c h', $index->attr('attributes')['data-legacy-doc-generated-field-switches']);
+        $t->same('2', $index->attr('attributes')['data-legacy-doc-generated-field-switch-c']);
+        $t->same('A', $index->attr('attributes')['data-legacy-doc-generated-field-switch-h']);
+        $t->same('Legacy term, 4', $index->children[0]->attr('text'));
+
+        $toa = $paragraph->children[5];
+        $t->same('span', $toa->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-generated-field', 'legacy-doc-field-toa'], $toa->attr('classes'));
+        $t->same('toa', $toa->attr('attributes')['data-legacy-doc-field']);
+        $t->same('TOA \c "1" \p', $toa->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('table-of-authorities', $toa->attr('attributes')['data-legacy-doc-generated-field-type']);
+        $t->same('c p', $toa->attr('attributes')['data-legacy-doc-generated-field-switches']);
+        $t->same('1', $toa->attr('attributes')['data-legacy-doc-generated-field-switch-c']);
+        $t->same('true', $toa->attr('attributes')['data-legacy-doc-generated-field-switch-p']);
+        $t->same('Case One 2', $toa->children[0]->attr('text'));
+
+        $t->contains('[Introduction	1]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toc data-legacy-doc-field="toc"', $markdown);
+        $t->contains('[Legacy term, 4]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-index data-legacy-doc-field="index"', $markdown);
+        $t->contains('[Case One 2]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toa data-legacy-doc-field="toa"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toc" data-legacy-doc-field="toc" data-legacy-doc-field-instruction="TOC \o &quot;1-3&quot; \h \z \u" data-legacy-doc-generated-field-type="table-of-contents" data-legacy-doc-generated-field-switches="o h z u" data-legacy-doc-generated-field-switch-o="1-3" data-legacy-doc-generated-field-switch-h="true" data-legacy-doc-generated-field-switch-z="true" data-legacy-doc-generated-field-switch-u="true">Introduction	1</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-index" data-legacy-doc-field="index" data-legacy-doc-field-instruction="INDEX \c &quot;2&quot; \h &quot;A&quot;" data-legacy-doc-generated-field-type="index" data-legacy-doc-generated-field-switches="c h" data-legacy-doc-generated-field-switch-c="2" data-legacy-doc-generated-field-switch-h="A">Legacy term, 4</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toa" data-legacy-doc-field="toa" data-legacy-doc-field-instruction="TOA \c &quot;1&quot; \p" data-legacy-doc-generated-field-type="table-of-authorities" data-legacy-doc-generated-field-switches="c p" data-legacy-doc-generated-field-switch-c="1" data-legacy-doc-generated-field-switch-p="true">Case One 2</span>', $blocks);
+        foreach (['TOC', 'INDEX', 'TOA'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC generated field instructions should not render as visible text');
+        }
+    },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 

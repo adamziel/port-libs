@@ -889,9 +889,10 @@ final class OdfReader
         $ordered = $definition['type'] === 'number';
         $continueNumbering = strtolower(self::attr($list, self::TEXT_NS, 'continue-numbering')) === 'true';
         $defaultStart = max(1, (int) ($definition['start'] ?? 1));
+        $explicitStart = self::nullableInt(self::attr($list, self::TEXT_NS, 'start-value'));
         $start = $continueNumbering
             ? max(1, $this->listContinuationStartCounters[$level] ?? $defaultStart)
-            : $defaultStart;
+            : ($explicitStart === null ? $defaultStart : max(1, $explicitStart));
         $attrs = [
             'sourceFormat' => 'odt',
             'listLevel' => $level,
@@ -907,6 +908,11 @@ final class OdfReader
         if ($ordered) {
             $attrs['style'] = $this->orderedListStyle((string) ($definition['format'] ?? '1'));
             $attrs['start'] = $start;
+            $attrs['styleStart'] = $defaultStart;
+            $attrs['startSource'] = $explicitStart === null || $continueNumbering ? 'style-start-value' : 'list-start-value';
+            if ($explicitStart !== null && !$continueNumbering) {
+                $attrs['explicitStartValue'] = max(1, $explicitStart);
+            }
             $numPrefix = (string) ($definition['numPrefix'] ?? '');
             $numSuffix = (string) ($definition['numSuffix'] ?? '');
             $delimiter = $this->orderedListDelimiter($numPrefix, $numSuffix);

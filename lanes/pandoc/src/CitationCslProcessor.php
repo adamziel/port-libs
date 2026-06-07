@@ -737,6 +737,7 @@ final class CitationCslProcessor
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::stringField($item, 'title-addon'),
+            'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
             'reviewedTitle' => self::firstStringField($item, ['reviewed-title', 'reviewedTitle', 'reviewtitle']),
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
             'containerTitle' => self::stringField($item, 'container-title'),
@@ -4436,6 +4437,7 @@ final class CitationCslProcessor
         foreach ([
             ['reviewedTitle', 'Reviewed title'],
             ['reprintTitle', 'Reprint title'],
+            ['translatedTitle', 'Translated title'],
             ['references', 'References'],
             ['dimensions', 'Dimensions'],
             ['scale', 'Scale'],
@@ -5897,6 +5899,7 @@ final class CitationCslProcessor
             'title' => (string) $item['title'],
             'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
+            'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => (string) ($item['translatedTitle'] ?? ''),
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'original-title', 'origtitle' => (string) ($item['originalTitle'] ?? ''),

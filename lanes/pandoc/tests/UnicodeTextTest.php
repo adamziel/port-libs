@@ -229,6 +229,30 @@ return [
         $t->contains('<h1 id="latin7-import">Latin7 Import</h1>', $blocks);
         $t->contains('<p>Baltic Āā Ńń Ņņ Ųų Śś Żż ž; quotes „“text”’.</p>', $blocks);
     },
+    'decodes windows 1257 baltic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Windows Baltic\n\nCena \x8020; \x93R\xEEga\x94 \x97 \xC0\xE0 \xC1\xE1 \xC6\xE6 \xCC\xEC \xD8\xF8 \xDA\xFA \xDD\xFD; \x8D\x8E\x8F\x9D\x9E.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp1257');
+        $document = (new MarkdownReader())->readBytes($bytes, 'microsoft-cp1257');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x82\x84\x85\x86\x87\x89\x8B\x8D\x8E\x8F\x91\x92\x93\x94\x95\x96\x97\x99\x9B\x9D\x9E\xA8\xAA\xAF\xB8\xBA\xBF\xFF", 'windows-1257');
+        $controls = UnicodeText::decodeBytes("\x81\x83\x88\x8A\x8C\x90\x98\x9A\x9C\x9F", 'windows-1257');
+        $undefined = UnicodeText::decodeBytes("A\xA1B\xA5C", 'windows-1257');
+
+        $t->same('windows-1257', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Windows Baltic\n\nCena €20; “Rīga” — Ąą Įį Ęę Ģģ Ųų Śś Żż; ¨ˇ¸¯˛.", $decoded['text']);
+        $t->same("€‚„…†‡‰‹¨ˇ¸‘’“”•–—™›¯˛ØŖÆøŗæ˙", $specials['text']);
+        $t->same("\u{0081}\u{0083}\u{0088}\u{008A}\u{008C}\u{0090}\u{0098}\u{009A}\u{009C}\u{009F}", $controls['text']);
+        $t->same(0, UnicodeText::displayWidth($controls['text']));
+        $t->same("A\u{FFFD}B\u{FFFD}C", $undefined['text']);
+        $t->same(2, $undefined['repairs']);
+        $t->same(['encoding' => 'windows-1257', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Windows Baltic', $document->children[0]->attr('text'));
+        $t->same('Cena €20; “Rīga” — Ąą Įį Ęę Ģģ Ųų Śś Żż; ¨ˇ¸¯˛.', $document->children[1]->attr('text'));
+        $t->same(47, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="windows-baltic">Windows Baltic</h1>', $blocks);
+        $t->contains('<p>Cena €20; “Rīga” — Ąą Įį Ęę Ģģ Ųų Śś Żż; ¨ˇ¸¯˛.</p>', $blocks);
+    },
     'decodes iso 8859 14 latin8 celtic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Latin8 Import\n\nCeltic \xC0\xE0 \xD0\xF0 \xDE\xFE; dotted \xA1\xA2 \xA4\xA5 \xAA\xBA \xBB\xBF; Welsh \xD7\xF7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-199');

@@ -10,7 +10,7 @@ final class PdfTextExtractor
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
     private const MAX_FONT_ADVANCE_METRIC = 100000.0;
     private const MAX_CMAP_RANGE_ENTRIES = 4096;
-    private const MAX_GRAPHICS_COLOR_OPERANDS = 16;
+    private const MAX_GRAPHICS_COLOR_OPERANDS = 32;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
         'CS' => 'ColorSpace',
@@ -13581,6 +13581,10 @@ final class PdfTextExtractor
      */
     private function isImageStreamDictionary(string $dict, array $objects): bool
     {
+        if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Subtype') > 0) {
+            return false;
+        }
+
         $subtype = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Subtype');
         if ($subtype !== null) {
             $subtypeName = $this->pdfNameValueAt($subtype, 0, $objects);
@@ -13916,7 +13920,7 @@ final class PdfTextExtractor
     {
         $catalog = $this->catalogObjectBody($objects);
         if ($catalog !== null) {
-            $pagesReference = $this->objectReferenceAfterName($catalog, 'Pages');
+            $pagesReference = $this->catalogPagesReference($catalog);
             if ($pagesReference === null) {
                 return [];
             }
@@ -13949,7 +13953,7 @@ final class PdfTextExtractor
     private function hasCatalogPageTreeReference(array $objects): bool
     {
         foreach ($objects as $body) {
-            if ($this->isCatalogObject($body) && $this->objectReferenceAfterName($body, 'Pages') !== null) {
+            if ($this->isCatalogObject($body) && $this->catalogPagesReference($body) !== null) {
                 return true;
             }
         }
@@ -13967,7 +13971,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $pagesReference = $this->objectReferenceAfterName($body, 'Pages');
+            $pagesReference = $this->catalogPagesReference($body);
             if ($pagesReference === null) {
                 continue;
             }
@@ -20003,7 +20007,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        $pagesReference = $this->objectReferenceAfterName($catalog, 'Pages');
+        $pagesReference = $this->catalogPagesReference($catalog);
         if ($pagesReference === null) {
             return [];
         }
@@ -20977,11 +20981,18 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/s', $fontBody, $nameMatch) === 1) {
-            return $this->cidEncodingMapFromNamedCMap($this->decodePdfName($nameMatch[1]), $namedCMapBodies);
+        $encodingValue = $this->topLevelPdfValueAfterName($fontBody, 'Encoding');
+        if ($encodingValue === null) {
+            return null;
         }
 
-        $encodingReference = $this->objectReferenceAfterName($fontBody, 'Encoding');
+        $encodingName = $this->pdfNameValueAt($encodingValue, 0, $objects);
+        if ($encodingName !== null) {
+            return $this->cidEncodingMapFromNamedCMap($encodingName, $namedCMapBodies);
+        }
+
+        $referenceOffset = 0;
+        $encodingReference = $this->readPdfIndirectReferenceToken($encodingValue, $referenceOffset);
         if ($encodingReference === null) {
             return null;
         }
@@ -21756,7 +21767,10 @@ final class PdfTextExtractor
         $graphicsStateDepth = 0;
         $markedContentDepth = 0;
 
-        foreach ($this->contentTokens($charProc, true) as $token) {
+        $tokens = $this->contentTokens($charProc, true);
+        $tokenCount = count($tokens);
+        for ($tokenIndex = 0; $tokenIndex < $tokenCount; $tokenIndex++) {
+            $token = $tokens[$tokenIndex];
             if ($token === 'BX') {
                 $compatibilityDepth++;
                 $operands = [];
@@ -21777,6 +21791,16 @@ final class PdfTextExtractor
                     return null;
                 }
 
+                if (!$this->type3CharProcOpenScopesCloseAfterMetric(
+                    $tokens,
+                    $tokenIndex + 1,
+                    $graphicsStateDepth,
+                    $markedContentDepth,
+                    $compatibilityDepth
+                )) {
+                    return null;
+                }
+
                 $wx = $this->numericOperand($operands[0]);
                 $wy = $this->numericOperand($operands[1]);
 
@@ -21785,6 +21809,16 @@ final class PdfTextExtractor
 
             if ($token === 'd1') {
                 if (!$this->type3CharProcHasNumericOperands($operands, 6)) {
+                    return null;
+                }
+
+                if (!$this->type3CharProcOpenScopesCloseAfterMetric(
+                    $tokens,
+                    $tokenIndex + 1,
+                    $graphicsStateDepth,
+                    $markedContentDepth,
+                    $compatibilityDepth
+                )) {
                     return null;
                 }
 
@@ -21830,6 +21864,69 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function type3CharProcOpenScopesCloseAfterMetric(
+        array $tokens,
+        int $startIndex,
+        int $graphicsStateDepth,
+        int $markedContentDepth,
+        int $compatibilityDepth
+    ): bool {
+        $graphicsStateDepth = max(0, $graphicsStateDepth);
+        $markedContentDepth = max(0, $markedContentDepth);
+        $compatibilityDepth = max(0, $compatibilityDepth);
+        if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
+            return true;
+        }
+
+        $insideTextObject = false;
+        $count = count($tokens);
+        for ($index = $startIndex; $index < $count; $index++) {
+            $token = $tokens[$index];
+
+            if ($insideTextObject) {
+                if ($token === 'ET') {
+                    $insideTextObject = false;
+                }
+
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                continue;
+            }
+
+            if ($token === 'q') {
+                $graphicsStateDepth++;
+            } elseif ($token === 'Q') {
+                if ($graphicsStateDepth > 0) {
+                    $graphicsStateDepth--;
+                }
+            } elseif ($token === 'BMC' || $token === 'BDC') {
+                $markedContentDepth++;
+            } elseif ($token === 'EMC') {
+                if ($markedContentDepth > 0) {
+                    $markedContentDepth--;
+                }
+            } elseif ($token === 'BX') {
+                $compatibilityDepth++;
+            } elseif ($token === 'EX') {
+                if ($compatibilityDepth > 0) {
+                    $compatibilityDepth--;
+                }
+            }
+
+            if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -22168,13 +22265,18 @@ final class PdfTextExtractor
      */
     private function simpleFontExplicitWidths(string $fontBody, array $objects): array
     {
-        $firstChar = $this->topLevelPdfLastNumberValueAfterName($fontBody, 'FirstChar', $objects);
+        $firstChar = $this->simpleFontWidthRangeNumberValue($fontBody, 'FirstChar', $objects);
         $firstCode = $this->simpleFontWidthRangeCode($firstChar);
         if ($firstCode === null) {
             return [];
         }
 
-        $lastChar = $this->topLevelPdfLastNumberValueAfterName($fontBody, 'LastChar', $objects);
+        $lastCharValuePresent = $this->topLevelPdfLastValueAfterName($fontBody, 'LastChar') !== null;
+        $lastChar = $this->simpleFontWidthRangeNumberValue($fontBody, 'LastChar', $objects);
+        if ($lastCharValuePresent && $lastChar === null) {
+            return [];
+        }
+
         $lastCode = $lastChar === null ? null : $this->simpleFontWidthRangeCode($lastChar);
         if ($lastChar !== null && ($lastCode === null || $lastCode < $firstCode)) {
             return [];
@@ -22217,6 +22319,23 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function simpleFontWidthRangeNumberValue(string $fontBody, string $name, array $objects): ?float
+    {
+        if ($this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, $name)) {
+            return null;
+        }
+
+        $value = $this->topLevelPdfLastValueAfterName($fontBody, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfSingleNumberFromValue($value, $objects);
     }
 
     private function simpleFontWidthArrayHasMalformedDeclaredToken(string $arrayBody, ?int $declaredCount): bool
@@ -23861,6 +23980,16 @@ final class PdfTextExtractor
 
         $referenceOffset = $offset;
         return $this->readPdfIndirectReferenceToken($body, $referenceOffset);
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function catalogPagesReference(string $catalog): ?array
+    {
+        $value = $this->topLevelPdfLastValueAfterName($catalog, 'Pages');
+
+        return $value === null ? null : $this->pdfIndirectReferenceValue($value);
     }
 
     /**
@@ -26044,7 +26173,7 @@ final class PdfTextExtractor
             return $objects;
         }
 
-        $pagesReference = $this->objectReferenceAfterName($catalogBody, 'Pages');
+        $pagesReference = $this->catalogPagesReference($catalogBody);
         if ($pagesReference === null || isset($objects[$pagesReference['objectNumber']])) {
             return $objects;
         }
@@ -27853,8 +27982,10 @@ final class PdfTextExtractor
                 'widths' => $problem['widths'],
                 'entry_width' => $problem['entry_width'],
                 'decoded_length' => $problem['decoded_length'],
+                'decoded_entry_count' => $problem['decoded_entry_count'],
                 'complete_row_count' => $problem['complete_row_count'],
                 'trailing_byte_count' => $problem['trailing_byte_count'],
+                'expected_entry_count' => $problem['expected_entry_count'],
                 'owner_policy' => $problem['owner_policy'],
                 'rejected_before_row_decode' => true,
                 'review_only' => true,
@@ -32500,7 +32631,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{widths: list<int>, entry_width: int, decoded_length: int, complete_row_count: int, trailing_byte_count: int, owner_policy: string}|null
+     * @return array{widths: list<int>, entry_width: int, decoded_length: int, decoded_entry_count: int, complete_row_count: int, trailing_byte_count: int, expected_entry_count: int|null, owner_policy: string}|null
      */
     private function xrefStreamRowAlignmentProblem(string $dictionary, array $objects, string $decoded): ?array
     {
@@ -32516,18 +32647,67 @@ final class PdfTextExtractor
 
         $decodedLength = strlen($decoded);
         $trailingByteCount = $decodedLength % $entryWidth;
+        $decodedEntryCount = intdiv($decodedLength, $entryWidth);
         if ($trailingByteCount === 0) {
-            return null;
+            $expectedEntryCount = $this->xrefStreamExplicitIndexEntryCount($dictionary, $objects);
+            if ($expectedEntryCount === null || $expectedEntryCount <= $decodedEntryCount) {
+                return null;
+            }
+
+            return [
+                'widths' => $widths,
+                'entry_width' => $entryWidth,
+                'decoded_length' => $decodedLength,
+                'decoded_entry_count' => $decodedEntryCount,
+                'complete_row_count' => $decodedEntryCount,
+                'trailing_byte_count' => 0,
+                'expected_entry_count' => $expectedEntryCount,
+                'owner_policy' => 'truncated_xref_stream_index_rows',
+            ];
         }
 
         return [
             'widths' => $widths,
             'entry_width' => $entryWidth,
             'decoded_length' => $decodedLength,
-            'complete_row_count' => intdiv($decodedLength, $entryWidth),
+            'decoded_entry_count' => $decodedEntryCount,
+            'complete_row_count' => $decodedEntryCount,
             'trailing_byte_count' => $trailingByteCount,
+            'expected_entry_count' => $this->xrefStreamExplicitIndexEntryCount($dictionary, $objects),
             'owner_policy' => 'unaligned_xref_stream_row_width',
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function xrefStreamExplicitIndexEntryCount(string $dictionary, array $objects): ?int
+    {
+        $indexArray = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'Index', $objects);
+        if ($indexArray === null) {
+            return null;
+        }
+
+        $indexValues = $this->xrefStreamIntegerArrayValues($indexArray, $objects);
+        if ($indexValues['malformed_indexes'] !== []) {
+            return null;
+        }
+
+        $values = $indexValues['values'];
+        if ((count($values) % 2) !== 0) {
+            return null;
+        }
+
+        $entryCount = 0;
+        for ($index = 1, $count = count($values); $index < $count; $index += 2) {
+            if ($values[$index] < 0) {
+                return null;
+            }
+
+            $entryCount += $values[$index];
+        }
+
+        return $entryCount;
     }
 
     /**
@@ -39307,7 +39487,7 @@ final class PdfTextExtractor
                 if ($malformedTailBoundary !== null) {
                     $consumeDataPrefixWhitespace = $malformedTailBoundary['consumeDataPrefixWhitespace'];
                     $index = $malformedTailBoundary['offset'];
-                    return $dictionary;
+                    return $dictionary . ' /Filter /' . self::MALFORMED_IMAGE_FILTER_OPERAND;
                 }
 
                 return null;
@@ -39370,10 +39550,28 @@ final class PdfTextExtractor
             }
 
             $token = $this->readInlineImageToken($stream, $index);
-            if ($token === null || !$this->inlineImageMalformedDictionaryTailOperandToken($token)) {
+            if ($token === null) {
                 return null;
             }
 
+            if ($sawMalformedOperand && str_starts_with($token, '/')) {
+                $this->skipContentWhitespaceAndComments($stream, $index);
+                if ($index >= $length) {
+                    return null;
+                }
+
+                $valueToken = $this->readInlineImageToken($stream, $index);
+                if ($valueToken === null || $valueToken === 'ID') {
+                    return null;
+                }
+
+                $this->readInlineImageIndirectReferenceValue($stream, $index, $valueToken);
+                continue;
+            }
+
+            if (!$this->inlineImageMalformedDictionaryTailOperandToken($token)) {
+                return null;
+            }
             $sawMalformedOperand = true;
         }
 

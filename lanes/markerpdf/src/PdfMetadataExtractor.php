@@ -1225,11 +1225,10 @@ final class PdfMetadataExtractor
      */
     private function isDocumentXmpMetadataStream(string $dictionary, array $objects): bool
     {
-        $typeValue = $this->dictionaryTopLevelRawValue($dictionary, 'Type');
         $typeName = $this->dictionaryNameValue($dictionary, 'Type', $objects);
 
         return $this->metadataStreamDictionaryTypeBoundaryReview($dictionary, $objects) === []
-            && ($typeValue === null || $typeName === 'Metadata')
+            && $typeName === 'Metadata'
             && $this->dictionaryNameValue($dictionary, 'Subtype', $objects) === 'XML';
     }
 
@@ -1256,6 +1255,39 @@ final class PdfMetadataExtractor
         }
 
         if ($duplicateKeys === []) {
+            if ($typeRawValues === []) {
+                $review = [
+                    'status' => 'rejected_missing_metadata_stream_type',
+                    'type_entry_count' => 0,
+                    'subtype_entry_count' => count($subtypeRawValues),
+                ];
+
+                if ($subtypeValues !== []) {
+                    $review['subtype'] = $subtypeValues[count($subtypeValues) - 1];
+                    $review['subtype_values'] = $this->uniqueStrings($subtypeValues);
+                }
+
+                return $review;
+            }
+
+            if ($typeValues === []) {
+                $typeOperand = $typeRawValues[0] ?? '';
+                $review = [
+                    'status' => 'rejected_non_name_metadata_stream_type',
+                    'type_entry_count' => count($typeRawValues),
+                    'subtype_entry_count' => count($subtypeRawValues),
+                    'type_operand_type' => $this->metadataStreamFilterOperandTokenType($typeOperand),
+                    'type_operand_preview' => $this->metadataStreamFilterOperandPreview($typeOperand),
+                ];
+
+                if ($subtypeValues !== []) {
+                    $review['subtype'] = $subtypeValues[count($subtypeValues) - 1];
+                    $review['subtype_values'] = $this->uniqueStrings($subtypeValues);
+                }
+
+                return $review;
+            }
+
             return [];
         }
 

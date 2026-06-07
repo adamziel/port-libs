@@ -68,6 +68,8 @@ final class SyntaxHighlighter
         'console' => 'bash',
         'containerfile' => 'dockerfile',
         'css' => 'css',
+        'dart' => 'dart',
+        'dartlang' => 'dart',
         'diff' => 'diff',
         'docker' => 'dockerfile',
         'dockerfile' => 'dockerfile',
@@ -75,6 +77,7 @@ final class SyntaxHighlighter
         'elm' => 'elm',
         'elm-module' => 'elm',
         'elm-source' => 'elm',
+        'flutter' => 'dart',
         'git-diff' => 'diff',
         'graphviz' => 'dot',
         'gv' => 'dot',
@@ -660,6 +663,7 @@ final class SyntaxHighlighter
             'cmake' => $this->tokenizeCMake($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
+            'dart' => $this->tokenizeDart($code),
             'diff' => $this->tokenizeDiff($code),
             'dot' => $this->tokenizeDot($code),
             'dockerfile' => $this->tokenizeDockerfile($code),
@@ -1082,6 +1086,30 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\{)/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|\\.\\.|\\?\\.|\\?:|!!|->|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeDart(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^r?"""[\\s\\S]*?"""/'],
+            ['string', "/^r?'''[\\s\\S]*?'''/"],
+            ['string', '/^r?"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^r?'(?:\\\\.|[^'\\\\])*'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:abstract|as|assert|async|await|base|break|case|catch|class|const|continue|covariant|default|deferred|do|else|enum|export|extends|extension|external|factory|final|finally|for|get|hide|if|implements|import|in|interface|is|late|library|mixin|new|of|on|operator|part|required|rethrow|return|sealed|set|show|static|super|switch|sync|this|throw|try|typedef|var|when|while|with|yield)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:BuildContext|Column|DateTime|Duration|Future|Iterable|Key|List|Map|Never|Object|Set|State|StatefulWidget|StatelessWidget|Stream|String|Text|Uri|Widget|bool|double|dynamic|int|num|void)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\?\\?=|\\?\\?|\\?\\.|\\.\\.\\.?|=>|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|~\\/|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
         ]);
     }
 

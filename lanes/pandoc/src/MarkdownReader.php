@@ -1234,6 +1234,7 @@ final class MarkdownReader
         $keyValue = null;
         $quotedKey = false;
         $keyTagStart = count($this->yamlMetadataTagProvenance);
+        $separatorComments = [];
         $startIndent = $this->countIndentColumns($line);
         if ($keySource === '') {
             $keyLines = [];
@@ -1261,6 +1262,10 @@ final class MarkdownReader
                 isset($lines[$cursor])
                 && (trim($lines[$cursor]) === '' || str_starts_with(trim($lines[$cursor]), '#'))
             ) {
+                $candidate = trim($lines[$cursor]);
+                if (str_starts_with($candidate, '#')) {
+                    $separatorComments[] = [$candidate, $sourceLines[$cursor] ?? null];
+                }
                 $cursor++;
             }
         }
@@ -1283,6 +1288,15 @@ final class MarkdownReader
         }
 
         $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+        foreach ($separatorComments as [$comment, $commentSourceLine]) {
+            $this->withYamlMetadataPathSegment(
+                $key,
+                fn (): mixed => $this->withYamlMetadataSourceLine(
+                    $commentSourceLine,
+                    fn (): mixed => $this->recordYamlStandaloneCommentProvenance($comment)
+                )
+            );
+        }
         [$children, $nextIndex, $childrenSourceLines] = $this->collectYamlChildLines($lines, $cursor + 1, $sourceLines);
 
         return [$key, $sourceValue, $children, $childrenSourceLines, $nextIndex, $quotedKey];

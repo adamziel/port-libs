@@ -1363,8 +1363,15 @@ final class PdfLinkAnnotationExtractor
             return [];
         }
 
-        $value = $this->resolveIndirectObjectValue($value, $objects);
-        if (!str_starts_with(trim($value), '[')) {
+        if ($this->dictionaryValueHasTrailingOperand($annotationBody, 'QuadPoints')) {
+            return [];
+        }
+
+        $value = trim($this->resolveIndirectObjectValue($value, $objects));
+        if (!str_starts_with($value, '[')) {
+            return [];
+        }
+        if ($this->arrayValueHasTrailingOperand($value)) {
             return [];
         }
 

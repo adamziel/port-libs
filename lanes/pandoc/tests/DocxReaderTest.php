@@ -1420,6 +1420,19 @@ $fieldMetadataDocumentXml = <<<'XML'
       <w:fldSimple w:instr=' NOTEREF source_footnote \h \n '><w:r><w:t>3</w:t></w:r></w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Figure </w:t></w:r>
+      <w:fldSimple w:instr=' SEQ Figure \* ARABIC '><w:r><w:t>4</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> repeats as </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> SEQ Figure \c </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>4</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> and table </w:t></w:r>
+      <w:fldSimple w:instr=' SEQ Table \* roman \r 3 \s 2 '><w:r><w:t>iii</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -4917,6 +4930,56 @@ return [
         $t->contains('<span class="docx-field docx-field-ref docx-field-hyperlink" data-docx-field="ref" data-docx-field-instruction="REF &quot;source_packet&quot; \h \* MERGEFORMAT" data-docx-field-target="source_packet" data-docx-field-format="MERGEFORMAT" data-docx-field-hyperlink="true">Source packet target</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-pageref docx-field-hyperlink docx-field-relative-position" data-docx-field="pageref" data-docx-field-instruction="PAGEREF source_packet_page \h \p" data-docx-field-target="source_packet_page" data-docx-field-hyperlink="true" data-docx-field-relative-position="true">12</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-noteref docx-field-hyperlink docx-field-number" data-docx-field="noteref" data-docx-field-instruction="NOTEREF source_footnote \h \n" data-docx-field-target="source_footnote" data-docx-field-hyperlink="true" data-docx-field-number="true">3</span>', $blocks);
+    },
+    'preserves DOCX sequence field provenance around displayed results' => static function (TestRunner $t) use ($buildFieldMetadataPackage): void {
+        $document = (new DocxReader())->readDocument($buildFieldMetadataPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[2];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Figure ', $paragraph->children[0]->attr('text'));
+
+        $figure = $paragraph->children[1];
+        $t->same('span', $figure->type);
+        $t->same(['docx-field', 'docx-field-seq'], $figure->attr('classes'));
+        $figureAttrs = $figure->attr('attributes');
+        $t->same('seq', $figureAttrs['data-docx-field']);
+        $t->same('SEQ Figure \* ARABIC', $figureAttrs['data-docx-field-instruction']);
+        $t->same('Figure', $figureAttrs['data-docx-field-sequence']);
+        $t->same('ARABIC', $figureAttrs['data-docx-field-format']);
+        $t->same('4', $figure->children[0]->attr('text'));
+
+        $t->same(' repeats as ', $paragraph->children[2]->attr('text'));
+        $current = $paragraph->children[3];
+        $t->same('span', $current->type);
+        $t->same(['docx-field', 'docx-field-seq', 'docx-field-current-sequence'], $current->attr('classes'));
+        $currentAttrs = $current->attr('attributes');
+        $t->same('SEQ Figure \c', $currentAttrs['data-docx-field-instruction']);
+        $t->same('Figure', $currentAttrs['data-docx-field-sequence']);
+        $t->same('true', $currentAttrs['data-docx-field-current-sequence']);
+        $t->same('4', $current->children[0]->attr('text'));
+
+        $t->same(' and table ', $paragraph->children[4]->attr('text'));
+        $table = $paragraph->children[5];
+        $t->same('span', $table->type);
+        $t->same(['docx-field', 'docx-field-seq', 'docx-field-reset-number', 'docx-field-reset-heading-level'], $table->attr('classes'));
+        $tableAttrs = $table->attr('attributes');
+        $t->same('SEQ Table \* roman \r 3 \s 2', $tableAttrs['data-docx-field-instruction']);
+        $t->same('Table', $tableAttrs['data-docx-field-sequence']);
+        $t->same('roman', $tableAttrs['data-docx-field-format']);
+        $t->same('3', $tableAttrs['data-docx-field-reset-number']);
+        $t->same('2', $tableAttrs['data-docx-field-reset-heading-level']);
+        $t->same('iii', $table->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[4]{.docx-field .docx-field-seq data-docx-field="seq" data-docx-field-instruction="SEQ Figure \\\\* ARABIC" data-docx-field-sequence="Figure" data-docx-field-format="ARABIC"}', $markdown);
+        $t->contains('[4]{.docx-field .docx-field-seq .docx-field-current-sequence data-docx-field="seq" data-docx-field-instruction="SEQ Figure \\\\c" data-docx-field-sequence="Figure" data-docx-field-current-sequence="true"}', $markdown);
+        $t->contains('[iii]{.docx-field .docx-field-seq .docx-field-reset-number .docx-field-reset-heading-level data-docx-field="seq" data-docx-field-instruction="SEQ Table \\\\* roman \\\\r 3 \\\\s 2" data-docx-field-sequence="Table" data-docx-field-format="roman" data-docx-field-reset-number="3" data-docx-field-reset-heading-level="2"}', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-seq" data-docx-field="seq" data-docx-field-instruction="SEQ Figure \* ARABIC" data-docx-field-sequence="Figure" data-docx-field-format="ARABIC">4</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-seq docx-field-current-sequence" data-docx-field="seq" data-docx-field-instruction="SEQ Figure \c" data-docx-field-sequence="Figure" data-docx-field-current-sequence="true">4</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-seq docx-field-reset-number docx-field-reset-heading-level" data-docx-field="seq" data-docx-field-instruction="SEQ Table \* roman \r 3 \s 2" data-docx-field-sequence="Table" data-docx-field-format="roman" data-docx-field-reset-number="3" data-docx-field-reset-heading-level="2">iii</span>', $blocks);
     },
     'preserves DOCX proof-error and permission ranges as reviewer spans' => static function (TestRunner $t) use ($buildProofPermissionRangePackage): void {
         $document = (new DocxReader())->readDocument($buildProofPermissionRangePackage());

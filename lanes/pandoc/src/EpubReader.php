@@ -577,6 +577,7 @@ final class EpubReader
                 'prefixes' => $prefixReport['bindingsByPrefix'],
                 'prefixBindings' => $prefixReport['bindings'],
                 'prefixDiagnostics' => $prefixReport['diagnostics'],
+                'renditionLayout' => $metadata['renditionLayout'],
             ],
             'manifest' => $manifest,
             'spine' => $spine,
@@ -681,6 +682,9 @@ final class EpubReader
             'manifestCount' => is_array($opf['manifest'] ?? null) ? count($opf['manifest']) : null,
             'spineCount' => is_array($opf['spine'] ?? null) ? count($opf['spine']) : null,
             'diagnostics' => [],
+            'renditionLayout' => is_array($metadata['renditionLayout'] ?? null)
+                ? $metadata['renditionLayout']
+                : self::metadataRenditionLayoutReport($metadata),
         ];
     }
 
@@ -700,6 +704,7 @@ final class EpubReader
             'package' => null,
             'metadata' => self::renditionMetadataSummary([]),
             'renditionProperties' => [],
+            'renditionLayout' => self::metadataRenditionLayoutReport([]),
             'manifestCount' => null,
             'spineCount' => null,
             'diagnostics' => [],
@@ -781,6 +786,9 @@ final class EpubReader
         ];
         $summary['metadata'] = self::renditionMetadataSummary($metadata);
         $summary['renditionProperties'] = self::renditionProperties($metadata);
+        $summary['renditionLayout'] = is_array($metadata['renditionLayout'] ?? null)
+            ? $metadata['renditionLayout']
+            : self::metadataRenditionLayoutReport($metadata);
         $summary['manifestCount'] = $manifestElement instanceof \DOMElement
             ? count(self::childElements($manifestElement, 'item', self::OPF_NS))
             : null;
@@ -1057,6 +1065,7 @@ final class EpubReader
         $metadata['vendorMetadata'] = self::vendorMetadataReport($metadata);
         $metadata['collectionMembership'] = self::metadataCollectionMembershipReport($metadata);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
+        $metadata['renditionLayout'] = self::metadataRenditionLayoutReport($metadata);
 
         return $metadata;
     }
@@ -2558,6 +2567,288 @@ final class EpubReader
         }
 
         return trim((string) ($entry['content'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataRenditionLayoutReport(array $metadata): array
+    {
+        $metaProperties = is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : [];
+        $layout = self::renditionMetadataScalarReport($metaProperties, 'layout', ['reflowable', 'pre-paginated']);
+        $orientation = self::renditionMetadataScalarReport($metaProperties, 'orientation', ['auto', 'landscape', 'portrait']);
+        $spread = self::renditionMetadataScalarReport($metaProperties, 'spread', ['auto', 'none', 'both', 'landscape', 'portrait']);
+        $viewportEntries = is_array($metaProperties['rendition:viewport'] ?? null) ? $metaProperties['rendition:viewport'] : [];
+        $viewports = [];
+        $diagnostics = array_merge($layout['diagnostics'], $orientation['diagnostics'], $spread['diagnostics']);
+        foreach ($viewportEntries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $viewport = self::renditionViewportReport($entry, (int) $index);
+            foreach ($viewport['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $viewports[] = $viewport;
+        }
+
+        $validViewports = array_values(array_filter(
+            $viewports,
+            static fn (array $viewport): bool => ($viewport['valid'] ?? false) === true,
+        ));
+        $invalidViewports = array_values(array_filter(
+            $viewports,
+            static fn (array $viewport): bool => ($viewport['valid'] ?? true) !== true,
+        ));
+        $selectedViewport = $validViewports[0] ?? ($viewports[0] ?? self::emptyRenditionViewportReport());
+        $present = $layout['present']
+            || $orientation['present']
+            || $spread['present']
+            || $viewports !== [];
+
+        return [
+            'present' => $present,
+            'fixedLayout' => ($layout['value'] ?? null) === 'pre-paginated',
+            'layout' => $layout['value'],
+            'layoutRaw' => $layout['raw'],
+            'layoutProperty' => $layout,
+            'orientation' => $orientation['value'],
+            'orientationRaw' => $orientation['raw'],
+            'orientationProperty' => $orientation,
+            'spread' => $spread['value'],
+            'spreadRaw' => $spread['raw'],
+            'spreadProperty' => $spread,
+            'viewport' => $selectedViewport,
+            'viewports' => $viewports,
+            'viewportCount' => count($viewports),
+            'validViewportCount' => count($validViewports),
+            'invalidViewportCount' => count($invalidViewports),
+            'viewportRaw' => $selectedViewport['raw'],
+            'viewportWidth' => $selectedViewport['width'],
+            'viewportHeight' => $selectedViewport['height'],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $metaProperties
+     * @param list<string> $allowedValues
+     *
+     * @return array<string, mixed>
+     */
+    private static function renditionMetadataScalarReport(array $metaProperties, string $name, array $allowedValues): array
+    {
+        $property = 'rendition:' . $name;
+        $entries = is_array($metaProperties[$property] ?? null) ? $metaProperties[$property] : [];
+        $items = [];
+        $diagnostics = [];
+        $validValues = [];
+        $selected = null;
+
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $raw = self::metadataEntryValue($entry);
+            $value = strtolower(trim($raw));
+            $valid = in_array($value, $allowedValues, true);
+            $itemDiagnostics = [];
+            if ($raw === '' || !$valid) {
+                $itemDiagnostics[] = [
+                    'type' => 'invalid-rendition-' . $name . '-value',
+                    'property' => $property,
+                    'index' => (int) $index,
+                    'value' => $raw,
+                    'allowedValues' => $allowedValues,
+                    'message' => 'EPUB OPF rendition metadata value is not recognized for bounded package review',
+                ];
+            }
+
+            $item = [
+                'index' => (int) $index,
+                'property' => $property,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'raw' => $raw,
+                'value' => $valid ? $value : null,
+                'normalized' => $value,
+                'valid' => $valid,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'propertyVocabulary' => is_array($entry['propertyVocabulary'] ?? null) ? $entry['propertyVocabulary'] : null,
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            if ($valid) {
+                $validValues[$value] = $value;
+                if ($selected === null) {
+                    $selected = $item;
+                }
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $items[] = $item;
+        }
+
+        if (count($validValues) > 1) {
+            $diagnostics[] = [
+                'type' => 'conflicting-rendition-' . $name . '-values',
+                'property' => $property,
+                'values' => array_values($validValues),
+                'message' => 'EPUB OPF rendition metadata declares more than one valid value for the same package property',
+            ];
+        }
+
+        return [
+            'present' => $items !== [],
+            'property' => $property,
+            'value' => is_array($selected) ? $selected['value'] : null,
+            'raw' => is_array($selected) ? $selected['raw'] : ($items[0]['raw'] ?? null),
+            'selected' => $selected,
+            'entries' => $items,
+            'count' => count($items),
+            'validCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => ($item['valid'] ?? false) === true,
+            )),
+            'invalidCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => ($item['valid'] ?? true) !== true,
+            )),
+            'valid' => $items === [] || $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     *
+     * @return array<string, mixed>
+     */
+    private static function renditionViewportReport(array $entry, int $index): array
+    {
+        $raw = self::metadataEntryValue($entry);
+        $parameters = [];
+        $diagnostics = [];
+        $unknownParameterDiagnostics = [];
+        $segments = $raw === '' ? [] : preg_split('/\s*,\s*/', $raw);
+        foreach ($segments ?: [] as $segment) {
+            $segment = trim((string) $segment);
+            if ($segment === '') {
+                continue;
+            }
+
+            if (preg_match('/^([A-Za-z][A-Za-z0-9_-]*)\s*=\s*(.+)$/', $segment, $matches) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-rendition-viewport-parameter',
+                    'property' => 'rendition:viewport',
+                    'index' => $index,
+                    'segment' => $segment,
+                    'message' => 'EPUB OPF rendition viewport parameters must be key=value pairs',
+                ];
+                continue;
+            }
+
+            $key = strtolower($matches[1]);
+            $value = trim($matches[2]);
+            if (isset($parameters[$key])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-rendition-viewport-parameter',
+                    'property' => 'rendition:viewport',
+                    'index' => $index,
+                    'parameter' => $key,
+                    'message' => 'EPUB OPF rendition viewport repeats a parameter; first value is retained',
+                ];
+                continue;
+            }
+
+            $parameters[$key] = $value;
+            if (!in_array($key, ['width', 'height'], true)) {
+                $unknownParameterDiagnostics[] = [
+                    'type' => 'unknown-rendition-viewport-parameter',
+                    'property' => 'rendition:viewport',
+                    'index' => $index,
+                    'parameter' => $key,
+                    'value' => $value,
+                    'message' => 'EPUB OPF rendition viewport parameter is preserved but not used by the bounded package review parser',
+                ];
+            }
+        }
+
+        if ($raw === '') {
+            $diagnostics[] = [
+                'type' => 'empty-rendition-viewport',
+                'property' => 'rendition:viewport',
+                'index' => $index,
+                'message' => 'EPUB OPF rendition viewport metadata is empty',
+            ];
+        }
+
+        foreach (['width', 'height'] as $dimension) {
+            $value = $parameters[$dimension] ?? null;
+            if ($value === null || preg_match('/^[1-9][0-9]*$/', $value) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-rendition-viewport-' . $dimension,
+                    'property' => 'rendition:viewport',
+                    'index' => $index,
+                    'parameter' => $dimension,
+                    'value' => $value,
+                    'message' => 'EPUB OPF rendition viewport width and height must be positive integer CSS pixels',
+                ];
+            }
+        }
+        $diagnostics = array_merge($diagnostics, $unknownParameterDiagnostics);
+
+        return [
+            'present' => true,
+            'index' => $index,
+            'property' => 'rendition:viewport',
+            'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+            'raw' => $raw,
+            'parameters' => $parameters,
+            'widthRaw' => $parameters['width'] ?? null,
+            'heightRaw' => $parameters['height'] ?? null,
+            'width' => isset($parameters['width']) && preg_match('/^[1-9][0-9]*$/', $parameters['width']) === 1
+                ? (int) $parameters['width']
+                : null,
+            'height' => isset($parameters['height']) && preg_match('/^[1-9][0-9]*$/', $parameters['height']) === 1
+                ? (int) $parameters['height']
+                : null,
+            'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+            'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+            'propertyVocabulary' => is_array($entry['propertyVocabulary'] ?? null) ? $entry['propertyVocabulary'] : null,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyRenditionViewportReport(): array
+    {
+        return [
+            'present' => false,
+            'index' => null,
+            'property' => 'rendition:viewport',
+            'id' => null,
+            'raw' => null,
+            'parameters' => [],
+            'widthRaw' => null,
+            'heightRaw' => null,
+            'width' => null,
+            'height' => null,
+            'language' => null,
+            'direction' => null,
+            'propertyVocabulary' => null,
+            'valid' => false,
+            'diagnostics' => [],
+        ];
     }
 
     /**

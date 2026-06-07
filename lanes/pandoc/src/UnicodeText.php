@@ -614,6 +614,91 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const WINDOWS_1257_REPLACEMENTS = [
+        0x80 => 0x20ac,
+        0x82 => 0x201a,
+        0x84 => 0x201e,
+        0x85 => 0x2026,
+        0x86 => 0x2020,
+        0x87 => 0x2021,
+        0x89 => 0x2030,
+        0x8b => 0x2039,
+        0x8d => 0x00a8,
+        0x8e => 0x02c7,
+        0x8f => 0x00b8,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+        0x99 => 0x2122,
+        0x9b => 0x203a,
+        0x9d => 0x00af,
+        0x9e => 0x02db,
+        0xa8 => 0x00d8,
+        0xaa => 0x0156,
+        0xaf => 0x00c6,
+        0xb8 => 0x00f8,
+        0xba => 0x0157,
+        0xbf => 0x00e6,
+        0xc0 => 0x0104,
+        0xc1 => 0x012e,
+        0xc2 => 0x0100,
+        0xc3 => 0x0106,
+        0xc6 => 0x0118,
+        0xc7 => 0x0112,
+        0xc8 => 0x010c,
+        0xca => 0x0179,
+        0xcb => 0x0116,
+        0xcc => 0x0122,
+        0xcd => 0x0136,
+        0xce => 0x012a,
+        0xcf => 0x013b,
+        0xd0 => 0x0160,
+        0xd1 => 0x0143,
+        0xd2 => 0x0145,
+        0xd4 => 0x014c,
+        0xd8 => 0x0172,
+        0xd9 => 0x0141,
+        0xda => 0x015a,
+        0xdb => 0x016a,
+        0xdd => 0x017b,
+        0xde => 0x017d,
+        0xe0 => 0x0105,
+        0xe1 => 0x012f,
+        0xe2 => 0x0101,
+        0xe3 => 0x0107,
+        0xe6 => 0x0119,
+        0xe7 => 0x0113,
+        0xe8 => 0x010d,
+        0xea => 0x017a,
+        0xeb => 0x0117,
+        0xec => 0x0123,
+        0xed => 0x0137,
+        0xee => 0x012b,
+        0xef => 0x013c,
+        0xf0 => 0x0161,
+        0xf1 => 0x0144,
+        0xf2 => 0x0146,
+        0xf4 => 0x014d,
+        0xf8 => 0x0173,
+        0xf9 => 0x0142,
+        0xfa => 0x015b,
+        0xfb => 0x016b,
+        0xfd => 0x017c,
+        0xfe => 0x017e,
+        0xff => 0x02d9,
+    ];
+
+    /** @var array<int, true> */
+    private const WINDOWS_1257_UNDEFINED = [
+        0xa1 => true,
+        0xa5 => true,
+    ];
+
+    /** @var array<int, int> */
     private const WINDOWS_1258_REPLACEMENTS = [
         0x80 => 0x20ac,
         0x81 => 0x0081,
@@ -1767,6 +1852,7 @@ final class UnicodeText
             || $normalized === 'windows-1254'
             || $normalized === 'windows-1255'
             || $normalized === 'windows-1256'
+            || $normalized === 'windows-1257'
             || $normalized === 'windows-1258'
             || $normalized === 'koi8-r'
             || $normalized === 'koi8-u'
@@ -2260,6 +2346,7 @@ final class UnicodeText
             'windows1254', 'cp1254', 'microsoftcp1254', 'ms1254', 'xcp1254' => 'windows-1254',
             'windows1255', 'cp1255', 'microsoftcp1255', 'ms1255', 'xcp1255' => 'windows-1255',
             'windows1256', 'cp1256', 'microsoftcp1256', 'ms1256', 'xcp1256' => 'windows-1256',
+            'windows1257', 'cp1257', 'microsoftcp1257', 'ms1257', 'xcp1257' => 'windows-1257',
             'windows1258', 'cp1258', 'microsoftcp1258', 'ms1258', 'xcp1258' => 'windows-1258',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'koi8u', 'cskoi8u' => 'koi8-u',
@@ -2724,6 +2811,20 @@ final class UnicodeText
             }
             if ($encoding === 'windows-1256' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::WINDOWS_1256_REPLACEMENTS[$byte] ?? $byte);
+                continue;
+            }
+            if ($encoding === 'windows-1257' && $byte >= 0x80) {
+                if (isset(self::WINDOWS_1257_UNDEFINED[$byte])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+                if (isset(self::WINDOWS_1257_REPLACEMENTS[$byte])) {
+                    $out .= self::fromCodepoint(self::WINDOWS_1257_REPLACEMENTS[$byte]);
+                    continue;
+                }
+
+                $out .= self::fromCodepoint($byte);
                 continue;
             }
             if ($encoding === 'windows-1258' && $byte >= 0x80) {

@@ -2471,9 +2471,13 @@ final class TableRecognizer
     {
         foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
             if (isset($table[$key])) {
+                $source = $key;
+                if ($key === 'table_bbox' && isset($table['table_bbox_source']) && is_scalar($table['table_bbox_source'])) {
+                    $source = (string) $table['table_bbox_source'];
+                }
                 $candidate = $this->tableCropBboxCandidateFromValue(
                     $table[$key],
-                    $key,
+                    $source,
                     $table,
                     $key,
                     $table,

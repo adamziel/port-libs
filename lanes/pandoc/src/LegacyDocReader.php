@@ -1361,6 +1361,11 @@ final class LegacyDocReader
             return $promptFieldAttrs;
         }
 
+        $generatedFieldAttrs = $this->generatedFieldAttrs($fieldName, $tokens, $instruction);
+        if ($generatedFieldAttrs !== null) {
+            return $generatedFieldAttrs;
+        }
+
         $fieldNames = [
             'PAGE' => 'page',
             'NUMPAGES' => 'numpages',
@@ -1685,6 +1690,93 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-prompt-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function generatedFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
+    {
+        $fieldTypes = [
+            'TOC' => 'table-of-contents',
+            'INDEX' => 'index',
+            'TOA' => 'table-of-authorities',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-generated-field-type' => $fieldTypes[$fieldName],
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        $arguments = [];
+        $switches = [];
+        $switchValues = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_starts_with($token, '\\')) {
+                $arguments[] = $token;
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                $switchValues[$switch][] = $tokens[$index];
+            } else {
+                $switchValues[$switch] ??= [];
+            }
+        }
+
+        if ($arguments !== []) {
+            $attributes['data-legacy-doc-generated-field-arguments'] = implode(' ', $arguments);
+        }
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-generated-field-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $values = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $switchValues[$switch] ?? []
+                )));
+                $attributes['data-legacy-doc-generated-field-switch-' . $attributeSwitch] = $values === []
+                    ? 'true'
+                    : implode('; ', $values);
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-generated-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }

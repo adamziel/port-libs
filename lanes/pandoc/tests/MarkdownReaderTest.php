@@ -2235,6 +2235,58 @@ return [
         $t->same('comment-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="comment-provenance-body">Comment provenance body</h1>', $blocks);
     },
+    'records pandoc yaml explicit key separator comments as review provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Explicit comment **Packet**',
+            '? review',
+            '# explicit review key source comment',
+            ':',
+            '  ? owner',
+            '  # explicit owner key source comment',
+            '  : Import Desk',
+            '  ? [source, key]',
+            '  # structured source key source comment',
+            '  : metadata value',
+            'references:',
+            '  - id: explicit-comment-ref',
+            '    metadata:',
+            '      ? source note',
+            '      # explicit nested source note comment',
+            '      : Reviewer metadata',
+            '...',
+            '',
+            '# Explicit comment body',
+        ]));
+        $meta = $document->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Explicit comment **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('metadata value', $meta['review']['[source, key]']);
+        $t->same('explicit-comment-ref', $meta['references'][0]['id']);
+        $t->same('Reviewer metadata', $meta['references'][0]['metadata']['source note']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->same(4, count($comments));
+        $t->same(array_fill(0, 4, 'yaml-comment'), array_column($comments, 'type'));
+        $t->same(array_fill(0, 4, 'standalone'), array_column($comments, 'context'));
+        $t->same([
+            'explicit review key source comment',
+            'explicit owner key source comment',
+            'structured source key source comment',
+            'explicit nested source note comment',
+        ], array_column($comments, 'comment'));
+        $t->same([
+            '/review',
+            '/review/owner',
+            '/review/[source, key]',
+            '/references/0/metadata/source note',
+        ], array_column($comments, 'path'));
+        $t->same(['4', '7', '10', '16'], array_column($comments, 'sourceLine'));
+        $t->same('explicit-comment-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="explicit-comment-body">Explicit comment body</h1>', $blocks);
+    },
     'maps pandoc yaml folded block scalars with more indented metadata lines' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
