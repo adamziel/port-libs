@@ -188,6 +188,32 @@ $compactXobjectParms = $compactXobjectEntry['filter_details'][1]['decode_parms']
 $compactXobjectFilterBoundary = $compactXobjectEntry['ccitt_fax_filter_boundary'] ?? [];
 $compactXobjectBoundary = $compactXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
 $compactXobjectPolarityBoundary = $compactXobjectEntry['ccitt_fax_imagemask_polarity_boundary'] ?? [];
+$nullDecodeParmsRendererDictionary = '<< /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCF] /DecodeParms null /Decode [1 0] >>';
+$nullDecodeParmsRendererReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan($nullDecodeParmsRendererDictionary);
+$nullDecodeParmsIndirectRendererReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
+    str_replace('/DecodeParms null', '/DecodeParms 8 0 R', $nullDecodeParmsRendererDictionary),
+    [8 => 'null']
+);
+$nullDecodeParmsRendererDetails = $nullDecodeParmsRendererReview['image_filter_details'] ?? [];
+$nullDecodeParmsRendererBoundary = $nullDecodeParmsRendererReview['ccitt_fax_decode_boundary'] ?? [];
+$nullDecodeParmsIndirectRendererDetails = $nullDecodeParmsIndirectRendererReview['image_filter_details'] ?? [];
+$nullDecodeParmsIndirectRendererBoundary = $nullDecodeParmsIndirectRendererReview['ccitt_fax_decode_boundary'] ?? [];
+$nullDecodeParmsBefore = 'BT /F1 12 Tf 72 720 Td (Before null DecodeParms CCITT import) Tj ET';
+$nullDecodeParmsAfter = 'BT /F1 12 Tf 72 680 Td (After null DecodeParms CCITT import) Tj ET';
+$nullDecodeParmsFaxBytes = "\x00\x10\x01\x00\x10\x01\x00\x10\x01";
+$nullDecodeParmsPayload = strtoupper(bin2hex($nullDecodeParmsFaxBytes)) . '>';
+$nullDecodeParmsPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Null#20Parms#20Fax 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($nullDecodeParmsBefore) . " >>\nstream\n{$nullDecodeParmsBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCF] /DecodeParms null /Decode [1 0] /Length " . strlen($nullDecodeParmsPayload) . " >>\nstream\n{$nullDecodeParmsPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($nullDecodeParmsAfter) . " >>\nstream\n{$nullDecodeParmsAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$nullDecodeParmsLines = $boundaryExtractor->extractTextLines($nullDecodeParmsPdf);
+$nullDecodeParmsReview = $boundaryExtractor->extractImageXObjectBoundaryReview($nullDecodeParmsPdf);
+$nullDecodeParmsEntry = $nullDecodeParmsReview['entries'][0] ?? [];
+$nullDecodeParmsBoundary = $nullDecodeParmsEntry['ccitt_fax_decode_boundary'] ?? [];
 $postCcittFilterReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
     '<< /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 '
     . '/Filter [/CCF /ASCIIHexDecode /FlateDecode /DCTDecode] '
@@ -515,6 +541,25 @@ if (
     throw new RuntimeException('XObject compact CCITT DecodeParms boundary smoke failed.');
 }
 if (
+    ($nullDecodeParmsRendererBoundary['decode_parms_present'] ?? null) !== false
+    || ($nullDecodeParmsRendererBoundary['invalid_decode_parms'] ?? null) !== false
+    || ($nullDecodeParmsRendererDetails[1]['filter'] ?? null) !== 'CCF'
+    || !array_key_exists('decode_parms', $nullDecodeParmsRendererDetails[1] ?? [])
+    || $nullDecodeParmsRendererDetails[1]['decode_parms'] !== null
+    || $nullDecodeParmsIndirectRendererDetails !== $nullDecodeParmsRendererDetails
+    || $nullDecodeParmsIndirectRendererBoundary !== $nullDecodeParmsRendererBoundary
+    || $nullDecodeParmsLines !== ['Before null DecodeParms CCITT import', 'After null DecodeParms CCITT import']
+    || ($nullDecodeParmsEntry['resource_name'] ?? null) !== 'Null Parms Fax'
+    || ($nullDecodeParmsEntry['filters'] ?? null) !== ['ASCIIHexDecode', 'CCF']
+    || ($nullDecodeParmsEntry['preview_only_filters'] ?? null) !== ['CCF']
+    || ($nullDecodeParmsBoundary['decode_parms_present'] ?? null) !== false
+    || ($nullDecodeParmsBoundary['invalid_decode_parms'] ?? null) !== false
+    || str_contains($boundaryExtractor->extractPlainText($nullDecodeParmsPdf), 'Null DecodeParms CCITT leak')
+    || str_contains(json_encode($nullDecodeParmsReview, JSON_UNESCAPED_SLASHES) ?: '', $nullDecodeParmsPayload)
+) {
+    throw new RuntimeException('Explicit null CCITT DecodeParms boundary smoke failed.');
+}
+if (
     ($postCcittFilterBoundary['declared_filter'] ?? null) !== 'CCF'
     || ($postCcittFilterBoundary['filters_after_ccitt'] ?? null) !== ['ASCIIHexDecode', 'FlateDecode', 'DCTDecode']
     || ($postCcittFilterBoundary['native_filters_after_ccitt'] ?? null) !== ['ASCIIHexDecode', 'FlateDecode']
@@ -694,6 +739,11 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
         && ($nullFilterInlineParms['rows'] ?? null) === 2,
     'inline_null_filter_payload_excluded_from_review' => !str_contains(json_encode($nullFilterInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $nullFilterInlinePayload),
     'inline_null_filter_dimension_mismatch' => $nullFilterInlineBoundary['dimension_mismatch'] ?? null,
+    'renderer_explicit_null_decode_parms_present' => $nullDecodeParmsRendererBoundary['decode_parms_present'] ?? null,
+    'renderer_explicit_null_decode_parms_invalid' => $nullDecodeParmsRendererBoundary['invalid_decode_parms'] ?? null,
+    'renderer_explicit_null_decode_parms_defaults_applied' => $nullDecodeParmsRendererBoundary['defaults_applied'] ?? [],
+    'renderer_indirect_null_decode_parms_matches_direct' => $nullDecodeParmsIndirectRendererDetails === $nullDecodeParmsRendererDetails
+        && $nullDecodeParmsIndirectRendererBoundary === $nullDecodeParmsRendererBoundary,
     'xobject_compact_decode_parms' => [
         'k' => $compactXobjectParms['k'] ?? null,
         'columns' => $compactXobjectParms['columns'] ?? null,
@@ -747,6 +797,10 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'xobject_compact_payload_excluded_from_review' => !str_contains(json_encode($compactXobjectReview, JSON_UNESCAPED_SLASHES) ?: '', $compactXobjectPayload),
     'xobject_compact_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($compactXobjectPdf), 'WordPress compact CCITT DecodeParms leak'),
     'xobject_compact_dimension_mismatch' => $compactXobjectBoundary['dimension_mismatch'] ?? null,
+    'xobject_explicit_null_decode_parms_present' => $nullDecodeParmsBoundary['decode_parms_present'] ?? null,
+    'xobject_explicit_null_decode_parms_invalid' => $nullDecodeParmsBoundary['invalid_decode_parms'] ?? null,
+    'xobject_explicit_null_decode_parms_payload_excluded_from_review' => !str_contains(json_encode($nullDecodeParmsReview, JSON_UNESCAPED_SLASHES) ?: '', $nullDecodeParmsPayload),
+    'xobject_explicit_null_decode_parms_payload_excluded_from_text' => $nullDecodeParmsLines === ['Before null DecodeParms CCITT import', 'After null DecodeParms CCITT import'],
     'xobject_unresolved_decode_parms_valid' => $unresolvedXobjectParms['valid_decode_parms'] ?? null,
     'xobject_unresolved_decode_parms_review' => $unresolvedXobjectParms['decode_parms_review'] ?? null,
     'xobject_unresolved_decode_parms_operand' => $unresolvedXobjectParms['decode_parms_operand'] ?? null,

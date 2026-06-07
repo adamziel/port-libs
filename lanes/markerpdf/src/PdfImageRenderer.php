@@ -4653,6 +4653,10 @@ final class PdfImageRenderer
         }
 
         $resolved = trim($this->resolvePdfValue($value, $objects));
+        if ($resolved === 'null') {
+            return [];
+        }
+
         if (str_starts_with($resolved, '[')) {
             return array_map(
                 static fn (string $entry): ?string => trim($entry) === 'null' ? null : $entry,
@@ -4900,6 +4904,10 @@ final class PdfImageRenderer
         $slots = [];
         foreach ($decodeParms as $decodeParmsIndex => $value) {
             if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            if (array_key_exists($decodeParmsIndex, $filters) && $filters[$decodeParmsIndex] === null) {
                 continue;
             }
 
