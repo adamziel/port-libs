@@ -6802,7 +6802,8 @@ final class TableRecognizer
                 continue;
             }
 
-            $bbox = $this->bboxFromNamedFields($value)
+            $bbox = $this->bboxFromWrappedExplicitCoordinateOrder($record, $value)
+                ?? $this->bboxFromNamedFields($value)
                 ?? $this->nullableBbox($value)
                 ?? $this->polygonBboxFromRecord($value)
                 ?? $this->polygonBbox($value)
@@ -7362,6 +7363,11 @@ final class TableRecognizer
                 continue;
             }
 
+            $orderDetails = $this->bboxWrappedCoordinateOrderDetails($record, $value);
+            if ($orderDetails !== null && $this->rawBboxCoordinatesFromWrappedExplicitCoordinateOrder($record, $value) !== null) {
+                return $key . '.bbox_array_' . $orderDetails['source'] . '_order';
+            }
+
             $source = $this->bboxNamedFieldSource($value);
             if ($source !== null) {
                 return $key . '.' . $source;
@@ -7418,7 +7424,8 @@ final class TableRecognizer
                 continue;
             }
 
-            $raw = $this->rawBboxCoordinatesFromNamedFields($value)
+            $raw = $this->rawBboxCoordinatesFromWrappedExplicitCoordinateOrder($record, $value)
+                ?? $this->rawBboxCoordinatesFromNamedFields($value)
                 ?? $this->rawPolygonBboxCoordinates($value)
                 ?? $this->rawSourceBboxCoordinatesFromRecord($value)
                 ?? $this->rawBboxCoordinates(array_values($value));
@@ -7428,6 +7435,60 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @param array<string|int, mixed> $value
+     * @return list<float>|null
+     */
+    private function bboxFromWrappedExplicitCoordinateOrder(array $record, array $value): ?array
+    {
+        $raw = $this->rawBboxCoordinatesFromWrappedExplicitCoordinateOrder($record, $value);
+
+        return $raw === null ? null : $this->canonicalBbox($raw);
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @param array<string|int, mixed> $value
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromWrappedExplicitCoordinateOrder(array $record, array $value): ?array
+    {
+        $orderDetails = $this->bboxWrappedCoordinateOrderDetails($record, $value);
+        if ($orderDetails === null) {
+            return null;
+        }
+
+        $raw = null;
+        if (array_is_list($value)) {
+            $raw = $this->rawBboxCoordinates(array_values($value));
+        } elseif (isset($value['bbox']) && is_array($value['bbox']) && array_is_list($value['bbox'])) {
+            $raw = $this->rawBboxCoordinates(array_values($value['bbox']));
+        }
+        if ($raw === null) {
+            return null;
+        }
+
+        return $this->applyBboxCoordinateOrder($raw, $orderDetails['order']);
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @param array<string|int, mixed> $value
+     * @return array{order: string, source: string}|null
+     */
+    private function bboxWrappedCoordinateOrderDetails(array $record, array $value): ?array
+    {
+        $valueHasRawBbox = array_is_list($value)
+            || (isset($value['bbox']) && is_array($value['bbox']) && array_is_list($value['bbox']));
+        if (!$valueHasRawBbox) {
+            return null;
+        }
+
+        return $this->bboxCoordinateOrderDetails($value)
+            ?? $this->bboxCoordinateOrderDetails($record);
     }
 
     /**
