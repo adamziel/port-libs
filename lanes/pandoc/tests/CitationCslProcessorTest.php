@@ -2022,6 +2022,92 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl date form date-parts precision limits' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'month-precision-source',
+                'type' => 'report',
+                'title' => 'Month Precision Packet',
+                'author' => [
+                    ['literal' => 'Date Parts Desk'],
+                ],
+                'issued' => ['date-parts' => [[2027, 3, 9]]],
+                'accessed' => ['date-parts' => [[2027, 3, 10], [2027, 3, 11]]],
+                'event-date' => ['date-parts' => [[2026, 12, 15]]],
+            ],
+            [
+                'id' => 'range-precision-source',
+                'type' => 'report',
+                'title' => 'Range Precision Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2020, 5, 9], [2021, 6, 11]]],
+                'accessed' => ['date-parts' => [[2025, 1, 2]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Date Form Date Parts Review Style</title>
+    <id>https://example.test/styles/bounded-date-form-date-parts-review</id>
+    <updated>2026-06-07T12:39:39+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued" form="text" date-parts="year-month"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued" form="text" date-parts="year"/>
+      <date variable="accessed" form="numeric" date-parts="year-month" prefix="checked "/>
+      <date variable="event-date" form="text" date-parts="year-month-day" prefix="event "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Date Form Date Parts Review Style', $summary['title'] ?? null);
+        $t->same('year-month', $summary['citationRendering'][0]['children'][1]['datePartsSelection'] ?? null);
+        $t->same('year', $summary['bibliographyRendering'][1]['datePartsSelection'] ?? null);
+        $t->same('year-month', $summary['bibliographyRendering'][2]['datePartsSelection'] ?? null);
+        $t->same('year-month-day', $summary['bibliographyRendering'][3]['datePartsSelection'] ?? null);
+
+        $t->same('(Date Parts Desk March 2027; Ng May 2020/June 2021)', $processor->renderCitationCluster([
+            $citation('month-precision-source', '[@month-precision-source]'),
+            $citation('range-precision-source', '[@range-precision-source]'),
+        ]));
+        $t->same('Month Precision Packet :: 2027 :: checked 3/2027 :: event December 15, 2026', $processor->renderBibliographyEntry('month-precision-source'));
+        $t->same('Range Precision Packet :: 2020/2021 :: checked 1/2025', $processor->renderBibliographyEntry('range-precision-source'));
+
+        $document = (new MarkdownReader())->read('Date precision [@month-precision-source] and range precision [@range-precision-source] stay reviewable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Date precision (Date Parts Desk March 2027) and range precision (Ng May 2020/June 2021) stay reviewable.', $markdown);
+        $t->contains('Date Parts Desk 2027' . "\n" . ':   Month Precision Packet :: 2027 :: checked 3/2027 :: event December 15, 2026', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Date precision (Date Parts Desk March 2027) and range precision (Ng May 2020/June 2021) stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Date Parts Desk 2027</dt><dd>Month Precision Packet :: 2027 :: checked 3/2027 :: event December 15, 2026</dd>', $blocks);
+        $t->contains('<dt>Ng 2020/2021</dt><dd>Range Precision Packet :: 2020/2021 :: checked 1/2025</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <date variable="issued" form="text" date-parts="month-day"/>
+    </layout>
+  </citation>
+</style>
+XML));
+    },
     'applies bounded csl locale limit day ordinals option' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [

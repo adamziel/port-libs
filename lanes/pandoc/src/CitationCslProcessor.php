@@ -5132,8 +5132,13 @@ final class CitationCslProcessor
         }
 
         $form = strtolower(trim((string) ($element['form'] ?? '')));
+        $datePartsSelection = strtolower(trim((string) ($element['datePartsSelection'] ?? '')));
         if ($form === 'text' || $form === 'numeric') {
-            return $this->renderDateForm($date, $form, $scope, $variable);
+            return $this->renderDateForm($date, $form, $scope, $variable, $datePartsSelection);
+        }
+
+        if ($datePartsSelection !== '') {
+            return $this->renderDateForm($date, 'text', $scope, $variable, $datePartsSelection);
         }
 
         return $this->renderDateVariable($date, $scope, $variable);
@@ -6286,7 +6291,7 @@ final class CitationCslProcessor
     /**
      * @param array{year:?int, parts:list<int>, display:string, literal:string, openEnded?:string, rangeParts?:list<list<int>>} $date
      */
-    private function renderDateForm(array $date, string $form, string $scope, string $variable): string
+    private function renderDateForm(array $date, string $form, string $scope, string $variable, string $datePartsSelection = ''): string
     {
         $rangeParts = is_array($date['rangeParts'] ?? null) ? $date['rangeParts'] : [];
         $singleParts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
@@ -6301,6 +6306,7 @@ final class CitationCslProcessor
                 continue;
             }
 
+            $dateParts = $this->dateFormPartsForSelection($dateParts, $datePartsSelection);
             $value = $form === 'numeric'
                 ? $this->renderNumericDateFormParts($dateParts)
                 : $this->renderTextDateFormParts($dateParts);
@@ -6314,6 +6320,19 @@ final class CitationCslProcessor
         }
 
         return $this->applyOpenEndedDateBoundary(implode('/', array_values(array_unique($values))), $date);
+    }
+
+    /**
+     * @param list<int> $parts
+     * @return list<int>
+     */
+    private function dateFormPartsForSelection(array $parts, string $datePartsSelection): array
+    {
+        return match ($datePartsSelection) {
+            'year' => array_slice($parts, 0, 1),
+            'year-month' => array_slice($parts, 0, 2),
+            default => array_slice($parts, 0, 3),
+        };
     }
 
     /**

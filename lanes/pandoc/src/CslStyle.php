@@ -1308,7 +1308,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, prefix:string, suffix:string, variable:string, form:string, delimiter:string, dateParts:list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>}
+     * @return array{type:string, prefix:string, suffix:string, variable:string, form:string, datePartsSelection:string, delimiter:string, dateParts:list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>}
      */
     private static function dateRenderingElement(\DOMElement $date, string $scope): array
     {
@@ -1320,6 +1320,11 @@ final class CslStyle
         $form = strtolower(trim($date->getAttribute('form')));
         if ($form !== '' && !in_array($form, ['text', 'numeric'], true)) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' date form must be text or numeric');
+        }
+
+        $datePartsSelection = strtolower(trim($date->getAttribute('date-parts')));
+        if ($datePartsSelection !== '' && !in_array($datePartsSelection, ['year', 'year-month', 'year-month-day'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' date-parts must be year, year-month, or year-month-day');
         }
 
         $dateParts = [];
@@ -1351,6 +1356,7 @@ final class CslStyle
             'suffix' => self::optionalAttribute($date, 'suffix'),
             'variable' => $variable,
             'form' => $form,
+            'datePartsSelection' => $datePartsSelection,
             'delimiter' => self::optionalAttribute($date, 'delimiter'),
             'dateParts' => $dateParts,
             'textCase' => self::textCaseAttribute($date, $scope),
