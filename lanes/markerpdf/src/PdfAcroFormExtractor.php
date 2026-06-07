@@ -104,6 +104,28 @@ final class PdfAcroFormExtractor
         14 => 'embed_form',
     ];
 
+    private const ACTION_DICTIONARY_TYPES = [
+        'GoTo' => true,
+        'GoToR' => true,
+        'GoToE' => true,
+        'GoTo3DView' => true,
+        'Launch' => true,
+        'Thread' => true,
+        'URI' => true,
+        'Sound' => true,
+        'Movie' => true,
+        'Hide' => true,
+        'Named' => true,
+        'SubmitForm' => true,
+        'ResetForm' => true,
+        'ImportData' => true,
+        'JavaScript' => true,
+        'SetOCGState' => true,
+        'Rendition' => true,
+        'Trans' => true,
+        'RichMediaExecute' => true,
+    ];
+
     private const MAX_ACTION_CHAIN_DEPTH = 8;
 
     /**
@@ -10033,6 +10055,11 @@ final class PdfAcroFormExtractor
     {
         if ($this->isWidget($body)) {
             return false;
+        }
+
+        $actionType = $this->pdfNameValueAfterName($body, 'S');
+        if ($actionType !== null && isset(self::ACTION_DICTIONARY_TYPES[$actionType])) {
+            return true;
         }
 
         $type = $this->pdfNameValueAfterName($body, 'Type');
