@@ -145,6 +145,8 @@ $paxInheritedContentBytes = "# PAX inherited packet\n\nReady for WordPress archi
 $linkPolicySourceBytes = "# Link target source\n\nReady for WordPress archive link policy review.\n";
 $sparsePolicyTypePayload = 'gnu sparse payload fragment';
 $sparsePolicyPaxPayload = 'schily sparse payload fragment';
+$multiVolumePolicyTypePayload = 'gnu multi-volume payload fragment';
+$multiVolumePolicyPaxPayload = 'pax multi-volume payload fragment';
 $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
 $charsetContentBytes = "# PAX charset source packet\n\nReady for WordPress archive charset review.\n";
 $duplicatePaxContentBytes = "# Duplicate PAX source packet\n\nReady for WordPress archive duplicate-key review.\n";
@@ -343,6 +345,51 @@ try {
     );
 } catch (RuntimeException) {
     $sparseMalformedMapBlocked = true;
+}
+$multiVolumePolicyArchiveBytes = $rawTarHeader('PaxHeaders/volume-type', 'x', $paxPayload([
+    'path' => 'packet/volume-fragment.md',
+    'GNU.volume.filename' => 'packet/full-document.md',
+    'GNU.volume.size' => '8192',
+]), 0, false)
+    . $rewriteTarHeaderFields(
+        $rawTarHeader('placeholder-volume.md', 'M', $multiVolumePolicyTypePayload, 1780479082, false),
+        [369 => str_pad(decoct(4096), 11, '0', STR_PAD_LEFT) . "\0"]
+    )
+    . $rawTarHeader('PaxHeaders/volume-pax', 'x', $paxPayload([
+        'path' => 'packet/pax-volume-fragment.md',
+        'GNU.volume.offset' => '2048',
+        'GNU.volume.filename' => 'packet/pax-full-document.md',
+        'GNU.volume.size' => '4096',
+    ]), 0, false)
+    . $rawTarHeader('placeholder-pax-volume.md', '0', $multiVolumePolicyPaxPayload, 1780479083, false)
+    . str_repeat("\0", 1024);
+$multiVolumePolicyGzip = GzipStream::build($multiVolumePolicyArchiveBytes, [
+    'filename' => 'wordpress-multivolume-policy.tar',
+    'comment' => 'TAR multi-volume extraction policy preflight',
+]);
+$multiVolumePolicyInspection = ArchiveCompressionStream::inspectTarMultiVolumePolicy(
+    $multiVolumePolicyGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($multiVolumePolicyArchiveBytes)
+);
+$multiVolumePolicyExtractionBlocked = false;
+try {
+    TarArchive::fromString($multiVolumePolicyArchiveBytes);
+} catch (RuntimeException) {
+    $multiVolumePolicyExtractionBlocked = true;
+}
+$multiVolumeMalformedOffsetBlocked = false;
+try {
+    TarArchive::multiVolumePolicyPreflight(
+        $rawTarHeader('PaxHeaders/malformed-volume', 'x', $paxPayload([
+            'path' => 'packet/malformed-volume.md',
+            'GNU.volume.offset' => 'not-a-number',
+        ]), 0, false)
+        . $rawTarHeader('placeholder-volume.md', '0', 'volume payload fragment', 0, false)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException) {
+    $multiVolumeMalformedOffsetBlocked = true;
 }
 $signedChecksumArchiveBytes = $rewriteTarHeaderWithSignedChecksum($rawTarHeader(
     "packet/signed-\u{2603}-checksum.md",
@@ -580,6 +627,20 @@ if (in_array('--self-test', $argv, true)) {
         'sparsePolicyMapSource' => 'SCHILY.sparse.map',
         'sparsePolicyMapSegmentCount' => 2,
         'sparsePolicyMapPayloadBytes' => 32,
+        'multiVolumePolicyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'multiVolumePolicyEntryCount' => 2,
+        'multiVolumePolicyCount' => 2,
+        'multiVolumePolicyTypeCount' => 1,
+        'multiVolumePolicyPaxCount' => 2,
+        'multiVolumePolicyExtractionPolicy' => 'multi-volume-entries-blocked',
+        'multiVolumePolicyTypeName' => 'packet/volume-fragment.md',
+        'multiVolumePolicyPaxName' => 'packet/pax-volume-fragment.md',
+        'multiVolumePolicyTypeOffset' => 4096,
+        'multiVolumePolicyPaxOffset' => 2048,
+        'multiVolumePolicyTypeOffsetSource' => 'oldgnu-offset-field',
+        'multiVolumePolicyPaxOffsetSource' => 'pax-gnu-volume-offset',
+        'multiVolumePolicyOriginalName' => 'packet/full-document.md',
+        'multiVolumePolicyDeclaredSize' => 8192,
         'signedChecksumFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'signedChecksumName' => "packet/signed-\u{2603}-checksum.md",
         'signedChecksumModifiedAt' => 1780479083,
@@ -695,6 +756,24 @@ if (in_array('--self-test', $argv, true)) {
         || ($sparsePolicyInspection['entries'][1]['sparseMapSegments'][1]['endOffset'] ?? null) !== $expected['sparsePolicyRealSize']
         || ($sparsePolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-sparse-policy.tar'
         || !$sparseMalformedMapBlocked
+        || $multiVolumePolicyInspection['format'] !== $expected['multiVolumePolicyFormat']
+        || $multiVolumePolicyInspection['entryCount'] !== $expected['multiVolumePolicyEntryCount']
+        || $multiVolumePolicyInspection['multiVolumeEntryCount'] !== $expected['multiVolumePolicyCount']
+        || $multiVolumePolicyInspection['typeflagEntryCount'] !== $expected['multiVolumePolicyTypeCount']
+        || $multiVolumePolicyInspection['paxMetadataEntryCount'] !== $expected['multiVolumePolicyPaxCount']
+        || $multiVolumePolicyInspection['extractionPolicy'] !== $expected['multiVolumePolicyExtractionPolicy']
+        || !$multiVolumePolicyExtractionBlocked
+        || ($multiVolumePolicyInspection['entries'][0]['name'] ?? null) !== $expected['multiVolumePolicyTypeName']
+        || ($multiVolumePolicyInspection['entries'][0]['volumeHeaderFamilies'] ?? []) !== ['gnu-typeflag', 'gnu-pax']
+        || ($multiVolumePolicyInspection['entries'][0]['continuationOffset'] ?? null) !== $expected['multiVolumePolicyTypeOffset']
+        || ($multiVolumePolicyInspection['entries'][0]['continuationOffsetSource'] ?? null) !== $expected['multiVolumePolicyTypeOffsetSource']
+        || ($multiVolumePolicyInspection['entries'][0]['originalName'] ?? null) !== $expected['multiVolumePolicyOriginalName']
+        || ($multiVolumePolicyInspection['entries'][0]['declaredVolumeSize'] ?? null) !== $expected['multiVolumePolicyDeclaredSize']
+        || ($multiVolumePolicyInspection['entries'][1]['name'] ?? null) !== $expected['multiVolumePolicyPaxName']
+        || ($multiVolumePolicyInspection['entries'][1]['continuationOffset'] ?? null) !== $expected['multiVolumePolicyPaxOffset']
+        || ($multiVolumePolicyInspection['entries'][1]['continuationOffsetSource'] ?? null) !== $expected['multiVolumePolicyPaxOffsetSource']
+        || ($multiVolumePolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-multivolume-policy.tar'
+        || !$multiVolumeMalformedOffsetBlocked
         || $signedChecksumInspection['format'] !== $expected['signedChecksumFormat']
         || ($signedChecksumInspection['entryNames'][0] ?? null) !== $expected['signedChecksumName']
         || ($signedChecksumInspection['entryLayouts'][0]['modifiedAt'] ?? null) !== $expected['signedChecksumModifiedAt']
@@ -812,6 +891,16 @@ echo 'sparsePolicy.mapSource=' . $sparsePolicyInspection['entries'][1]['sparseMa
 echo 'sparsePolicy.mapSegmentCount=' . $sparsePolicyInspection['entries'][1]['sparseMapSegmentCount'] . "\n";
 echo 'sparsePolicy.mapPayloadBytes=' . $sparsePolicyInspection['entries'][1]['sparseMapPayloadBytes'] . "\n";
 echo 'sparsePolicy.malformedMapBlocked=' . ($sparseMalformedMapBlocked ? 'yes' : 'no') . "\n";
+echo 'multiVolumePolicy.format=' . $multiVolumePolicyInspection['format'] . "\n";
+echo 'multiVolumePolicy.extractionPolicy=' . $multiVolumePolicyInspection['extractionPolicy'] . "\n";
+echo 'multiVolumePolicy.multiVolumeEntryCount=' . $multiVolumePolicyInspection['multiVolumeEntryCount'] . "\n";
+echo 'multiVolumePolicy.typeName=' . $multiVolumePolicyInspection['entries'][0]['name'] . "\n";
+echo 'multiVolumePolicy.paxName=' . $multiVolumePolicyInspection['entries'][1]['name'] . "\n";
+echo 'multiVolumePolicy.typeOffset=' . $multiVolumePolicyInspection['entries'][0]['continuationOffset'] . "\n";
+echo 'multiVolumePolicy.paxOffset=' . $multiVolumePolicyInspection['entries'][1]['continuationOffset'] . "\n";
+echo 'multiVolumePolicy.originalName=' . $multiVolumePolicyInspection['entries'][0]['originalName'] . "\n";
+echo 'multiVolumePolicy.extractionBlocked=' . ($multiVolumePolicyExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'multiVolumePolicy.malformedOffsetBlocked=' . ($multiVolumeMalformedOffsetBlocked ? 'yes' : 'no') . "\n";
 echo 'signedChecksum.format=' . $signedChecksumInspection['format'] . "\n";
 echo 'signedChecksum.entry=' . $signedChecksumInspection['entryNames'][0] . "\n";
 echo 'signedChecksum.modifiedAt=' . $signedChecksumInspection['entryLayouts'][0]['modifiedAt'] . "\n";

@@ -1209,6 +1209,131 @@ return [
         ));
     },
 
+    'rejects tar multi-volume metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $gnuMultiVolumeType = $rawTarHeader('packet/volume-fragment.md', 'M', 'continued fragment');
+        $paxMultiVolumeRegular = $rawTarHeader('PaxHeaders/volume-fragment', 'x', $paxPayload([
+            'path' => 'packet/pax-volume-fragment.md',
+            'GNU.volume.offset' => '2048',
+            'GNU.volume.filename' => 'packet/full-document.md',
+            'GNU.volume.size' => '8192',
+        ]), 0, false)
+            . $rawTarHeader('placeholder-volume.md', '0', 'pax volume fragment', 0, false)
+            . str_repeat("\0", 1024);
+        $globalMultiVolume = $rawTarHeader('GlobalHead/volume', 'g', $paxPayload([
+            'GNU.volume.offset' => '1',
+        ]), 0, false)
+            . $rawTarHeader('packet/content.md', '0', 'content', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuMultiVolumeType));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxMultiVolumeRegular));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($globalMultiVolume));
+    },
+
+    'preflights tar multi-volume policy without exposing split entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload, $rewriteTarHeaderFields): void {
+        $octal12 = static fn (int $value): string => str_pad(decoct($value), 11, '0', STR_PAD_LEFT) . "\0";
+        $typePayload = 'gnu multi-volume payload fragment';
+        $paxPayloadFragment = 'pax multi-volume payload fragment';
+        $archiveBytes = $rawTarHeader('PaxHeaders/volume-type', 'x', $paxPayload([
+            'path' => 'packet/volume-fragment.md',
+            'GNU.volume.filename' => 'packet/full-document.md',
+            'GNU.volume.size' => '8192',
+        ]), 0, false)
+            . $rewriteTarHeaderFields(
+                $rawTarHeader('placeholder-volume.md', 'M', $typePayload, 1780479082, false),
+                [369 => $octal12(4096)]
+            )
+            . $rawTarHeader('PaxHeaders/volume-pax', 'x', $paxPayload([
+                'path' => 'packet/pax-volume-fragment.md',
+                'GNU.volume.offset' => '2048',
+                'GNU.volume.filename' => 'packet/pax-full-document.md',
+                'GNU.volume.size' => '4096',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-pax-volume.md', '0', $paxPayloadFragment, 1780479083, false)
+            . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-multivolume-policy.tar',
+            'comment' => 'multi-volume entries stay blocked for extraction',
+        ]);
+
+        $policy = TarArchive::multiVolumePolicyPreflight($archiveBytes);
+        $streamPolicy = ArchiveCompressionStream::inspectTarMultiVolumePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+
+        $t->same(2, $policy['entryCount']);
+        $t->same(2, $policy['multiVolumeEntryCount']);
+        $t->same(1, $policy['typeflagEntryCount']);
+        $t->same(2, $policy['paxMetadataEntryCount']);
+        $t->same('multi-volume-entries-blocked', $policy['extractionPolicy']);
+        $t->same([
+            'packet/volume-fragment.md',
+            'packet/pax-volume-fragment.md',
+        ], array_map(static fn (array $entry): string => $entry['name'], $policy['entries']));
+        $t->same('gnu-multivolume-typeflag', $policy['entries'][0]['multiVolumeType']);
+        $t->same(['gnu-typeflag', 'gnu-pax'], $policy['entries'][0]['volumeHeaderFamilies']);
+        $t->same(['GNU.volume.filename', 'GNU.volume.size'], $policy['entries'][0]['volumeHeaderKeys']);
+        $t->same(4096, $policy['entries'][0]['continuationOffset']);
+        $t->same('oldgnu-offset-field', $policy['entries'][0]['continuationOffsetSource']);
+        $t->same('packet/full-document.md', $policy['entries'][0]['originalName']);
+        $t->same(8192, $policy['entries'][0]['declaredVolumeSize']);
+        $t->same(strlen($typePayload), $policy['entries'][0]['payloadSize']);
+        $t->same('pax-path', $policy['entries'][0]['nameSource']);
+        $t->same(['tar-multi-volume-entry-not-extracted', 'gnu-typeflag', 'gnu-pax'], $policy['entries'][0]['diagnostics']);
+        $t->same('pax-gnu-volume-metadata', $policy['entries'][1]['multiVolumeType']);
+        $t->same(['gnu-pax'], $policy['entries'][1]['volumeHeaderFamilies']);
+        $t->same(['GNU.volume.filename', 'GNU.volume.offset', 'GNU.volume.size'], $policy['entries'][1]['volumeHeaderKeys']);
+        $t->same(2048, $policy['entries'][1]['continuationOffset']);
+        $t->same('pax-gnu-volume-offset', $policy['entries'][1]['continuationOffsetSource']);
+        $t->same('packet/pax-full-document.md', $policy['entries'][1]['originalName']);
+        $t->same(4096, $policy['entries'][1]['declaredVolumeSize']);
+        $t->same(strlen($paxPayloadFragment), $policy['entries'][1]['payloadSize']);
+        $t->same(['tar-multi-volume-entry-not-extracted', 'gnu-pax'], $policy['entries'][1]['diagnostics']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
+        $t->same(strlen($archiveBytes), $streamPolicy['uncompressedSize']);
+        $t->same('gzip', $streamPolicy['stream']['type']);
+        $t->same('wordpress-multivolume-policy.tar', $streamPolicy['stream']['members'][0]['filename']);
+        $t->same(2, $streamPolicy['multiVolumeEntryCount']);
+        $t->same('packet/pax-volume-fragment.md', $streamPolicy['entries'][1]['name']);
+        $t->same('pax-gnu-volume-offset', $streamPolicy['entries'][1]['continuationOffsetSource']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarMultiVolumePolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes) - 1
+        ));
+    },
+
+    'rejects malformed tar multi-volume policy metadata before diagnostics are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $multiVolumeArchive = static function (array $headers) use ($rawTarHeader, $paxPayload): string {
+            return $rawTarHeader('PaxHeaders/volume', 'x', $paxPayload($headers), 0, false)
+                . $rawTarHeader('placeholder-volume.md', '0', 'volume payload fragment', 0, false)
+                . str_repeat("\0", 1024);
+        };
+
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::multiVolumePolicyPreflight($multiVolumeArchive([
+            'path' => 'packet/non-numeric-volume.md',
+            'GNU.volume.offset' => 'not-a-number',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::multiVolumePolicyPreflight($multiVolumeArchive([
+            'path' => 'packet/oversized-volume.md',
+            'GNU.volume.size' => '999999999999999999999999999999',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::multiVolumePolicyPreflight($multiVolumeArchive([
+            'path' => 'packet/unsafe-volume.md',
+            'GNU.volume.filename' => '../full-document.md',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::multiVolumePolicyPreflight(
+            $rawTarHeader('GlobalHead/volume', 'g', $paxPayload([
+                'GNU.volume.offset' => '1',
+            ]), 0, false)
+            . $rawTarHeader('packet/content.md', '0', 'content', 0, false)
+            . str_repeat("\0", 1024)
+        ));
+    },
+
     'rejects malformed tar sparse maps before policy metadata is exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $sparseArchive = static function (array $headers) use ($rawTarHeader, $paxPayload): string {
             return $rawTarHeader('PaxHeaders/sparse-map', 'x', $paxPayload($headers), 0, false)

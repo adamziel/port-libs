@@ -21,6 +21,7 @@ final class TarArchive
     private const TYPE_GNU_LONG_NAME = 'L';
     private const TYPE_GNU_LONG_LINK = 'K';
     private const TYPE_GNU_SPARSE = 'S';
+    private const TYPE_GNU_MULTIVOLUME = 'M';
     private const TYPE_CONTIGUOUS_FILE = '7';
     private const PAX_HDRCHARSET_BINARY = 'BINARY';
     private const PAX_HDRCHARSET_UTF8 = 'ISO-IR 10646 2000 UTF-8';
@@ -146,6 +147,10 @@ final class TarArchive
 
             if ($typeFlag === self::TYPE_GNU_SPARSE || self::hasSparsePaxHeaders($metadataHeaders)) {
                 throw new \RuntimeException("TAR sparse file entries are not supported by the pandoc archive reader: {$name}");
+            }
+
+            if ($typeFlag === self::TYPE_GNU_MULTIVOLUME || self::hasMultiVolumePaxHeaders($metadataHeaders)) {
+                throw new \RuntimeException("TAR multi-volume entries are not supported by the pandoc archive reader: {$name}");
             }
 
             if ($typeFlag !== self::TYPE_REGULAR
@@ -841,6 +846,216 @@ final class TarArchive
             'sparseEntryCount' => count($sparseEntries),
             'extractionPolicy' => $sparseEntries === [] ? 'no-sparse-entries' : 'sparse-entries-blocked',
             'entries' => $sparseEntries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     multiVolumeEntryCount:int,
+     *     typeflagEntryCount:int,
+     *     paxMetadataEntryCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         multiVolumeType:string,
+     *         volumeHeaderFamilies:list<string>,
+     *         volumeHeaderKeys:list<string>,
+     *         continuationOffset:?int,
+     *         continuationOffsetSource:?string,
+     *         originalName:?string,
+     *         declaredVolumeSize:?int,
+     *         payloadSize:int,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function multiVolumePolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entryCount = 0;
+        $multiVolumeEntries = [];
+        $typeflagEntryCount = 0;
+        $paxMetadataEntryCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                self::assertSafePath(
+                    self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink),
+                    'TAR link target'
+                );
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $isGnuMultiVolumeType = $typeFlag === self::TYPE_GNU_MULTIVOLUME;
+            $volumeHeaderKeys = self::multiVolumePaxHeaderKeys($metadataHeaders);
+            if ($isGnuMultiVolumeType || $volumeHeaderKeys !== []) {
+                if ($isGnuMultiVolumeType) {
+                    $typeflagEntryCount++;
+                }
+                if ($volumeHeaderKeys !== []) {
+                    $paxMetadataEntryCount++;
+                }
+
+                $families = self::multiVolumeHeaderFamilies($metadataHeaders, $isGnuMultiVolumeType);
+                $continuationOffset = self::multiVolumeContinuationOffset($header, $metadataHeaders);
+                $diagnostics = ['tar-multi-volume-entry-not-extracted'];
+                foreach ($families as $family) {
+                    $diagnostics[] = $family;
+                }
+
+                $multiVolumeEntries[] = [
+                    'name' => $name,
+                    'multiVolumeType' => $isGnuMultiVolumeType ? 'gnu-multivolume-typeflag' : 'pax-gnu-volume-metadata',
+                    'volumeHeaderFamilies' => $families,
+                    'volumeHeaderKeys' => $volumeHeaderKeys,
+                    'continuationOffset' => $continuationOffset['offset'],
+                    'continuationOffsetSource' => $continuationOffset['source'],
+                    'originalName' => self::multiVolumeOriginalName($metadataHeaders),
+                    'declaredVolumeSize' => self::multiVolumeDeclaredSize($metadataHeaders),
+                    'payloadSize' => $entrySize,
+                    'nameSource' => $nameSource,
+                    'headerOffset' => $headerOffset,
+                    'dataOffset' => $dataOffset,
+                    'policy' => 'blocked',
+                    'diagnostics' => $diagnostics,
+                ];
+            }
+
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'multiVolumeEntryCount' => count($multiVolumeEntries),
+            'typeflagEntryCount' => $typeflagEntryCount,
+            'paxMetadataEntryCount' => $paxMetadataEntryCount,
+            'extractionPolicy' => $multiVolumeEntries === [] ? 'no-multi-volume-entries' : 'multi-volume-entries-blocked',
+            'entries' => $multiVolumeEntries,
         ];
     }
 
@@ -1819,6 +2034,106 @@ final class TarArchive
 
     /**
      * @param array<string, string> $headers
+     */
+    private static function hasMultiVolumePaxHeaders(array $headers): bool
+    {
+        return self::multiVolumePaxHeaderKeys($headers) !== [];
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function multiVolumePaxHeaderKeys(array $headers): array
+    {
+        $keys = [];
+        foreach ($headers as $key => $value) {
+            if ($value !== '' && str_starts_with($key, 'GNU.volume.')) {
+                $keys[] = $key;
+            }
+        }
+
+        sort($keys);
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function multiVolumeHeaderFamilies(array $headers, bool $isGnuMultiVolumeType): array
+    {
+        $families = [];
+        if ($isGnuMultiVolumeType) {
+            $families['gnu-typeflag'] = true;
+        }
+
+        foreach ($headers as $key => $value) {
+            if ($value !== '' && str_starts_with($key, 'GNU.volume.')) {
+                $families['gnu-pax'] = true;
+            }
+        }
+
+        return array_keys($families);
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return array{offset:?int, source:?string}
+     */
+    private static function multiVolumeContinuationOffset(string $header, array $headers): array
+    {
+        if (isset($headers['GNU.volume.offset']) && $headers['GNU.volume.offset'] !== '') {
+            return [
+                'offset' => self::parsePaxNonNegativeInteger($headers['GNU.volume.offset'], 'TAR PAX GNU.volume.offset'),
+                'source' => 'pax-gnu-volume-offset',
+            ];
+        }
+
+        $oldGnuOffset = substr($header, 369, 12);
+        if (trim($oldGnuOffset, " \0") !== '') {
+            return [
+                'offset' => self::readNumericField($oldGnuOffset, 'TAR GNU multi-volume offset'),
+                'source' => 'oldgnu-offset-field',
+            ];
+        }
+
+        return [
+            'offset' => null,
+            'source' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function multiVolumeOriginalName(array $headers): ?string
+    {
+        if (!isset($headers['GNU.volume.filename']) || $headers['GNU.volume.filename'] === '') {
+            return null;
+        }
+
+        $name = $headers['GNU.volume.filename'];
+        self::assertSafePath($name, 'TAR PAX GNU.volume.filename metadata');
+
+        return $name;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function multiVolumeDeclaredSize(array $headers): ?int
+    {
+        if (!isset($headers['GNU.volume.size']) || $headers['GNU.volume.size'] === '') {
+            return null;
+        }
+
+        return self::parsePaxNonNegativeInteger($headers['GNU.volume.size'], 'TAR PAX GNU.volume.size');
+    }
+
+    /**
+     * @param array<string, string> $headers
      * @return list<string>
      */
     private static function sparsePaxHeaderKeys(array $headers): array
@@ -1985,6 +2300,10 @@ final class TarArchive
             if ($key === 'linkpath' && $value !== '') {
                 throw new \RuntimeException('TAR local PAX linkpath metadata is not supported by the pandoc archive reader');
             }
+
+            if ($key === 'GNU.volume.filename' && $value !== '') {
+                self::assertSafePath($value, 'TAR PAX GNU.volume.filename metadata');
+            }
         }
     }
 
@@ -2004,6 +2323,10 @@ final class TarArchive
 
             if ($key === 'linkpath' && $value !== '') {
                 self::assertSafePath($value, 'TAR PAX linkpath metadata');
+            }
+
+            if ($key === 'GNU.volume.filename' && $value !== '') {
+                self::assertSafePath($value, 'TAR PAX GNU.volume.filename metadata');
             }
         }
     }
@@ -2032,6 +2355,10 @@ final class TarArchive
 
             if ($key === 'SCHILY.filetype' && strtolower(trim($value)) === 'sparse') {
                 throw new \RuntimeException('TAR global PAX sparse file metadata is not supported');
+            }
+
+            if (str_starts_with($key, 'GNU.volume.')) {
+                throw new \RuntimeException("TAR global PAX multi-volume header {$key} is not supported");
             }
         }
     }

@@ -604,6 +604,54 @@ final class ArchiveCompressionStream
      *     tarBytes:string,
      *     uncompressedSize:int,
      *     entryCount:int,
+     *     multiVolumeEntryCount:int,
+     *     typeflagEntryCount:int,
+     *     paxMetadataEntryCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         multiVolumeType:string,
+     *         volumeHeaderFamilies:list<string>,
+     *         volumeHeaderKeys:list<string>,
+     *         continuationOffset:?int,
+     *         continuationOffsetSource:?string,
+     *         originalName:?string,
+     *         declaredVolumeSize:?int,
+     *         payloadSize:int,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarMultiVolumePolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = TarArchive::multiVolumePolicyPreflight($tarBytes);
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
+     *     entryCount:int,
      *     paxEntryCount:int,
      *     duplicatePaxEntryCount:int,
      *     duplicateKeywordCount:int,
