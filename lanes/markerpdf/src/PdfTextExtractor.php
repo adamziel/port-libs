@@ -13137,9 +13137,8 @@ final class PdfTextExtractor
             if ($subtypeName === 'Image') {
                 return true;
             }
-            if ($subtypeName !== null) {
-                return false;
-            }
+
+            return false;
         }
 
         if (!$this->hasPdfNumberishName($dict, 'Width') || !$this->hasPdfNumberishName($dict, 'Height')) {
