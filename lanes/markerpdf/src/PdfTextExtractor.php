@@ -22160,6 +22160,10 @@ final class PdfTextExtractor
      */
     private function pdfRectangleValueAfterName(string $body, string $name, array $objects): ?array
     {
+        if ($this->topLevelPdfNameHasTrailingTopLevelOperand($body, $name)) {
+            return null;
+        }
+
         $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($body, $name, $objects);
         if ($arrayBody === null) {
             return null;
@@ -22963,7 +22967,15 @@ final class PdfTextExtractor
 
     private function topLevelPdfNameHasTrailingTopLevelOperand(string $body, string $name): bool
     {
-        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $dictionary = ltrim($body);
+        if (str_starts_with($dictionary, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($dictionary, 0) ?? $dictionary;
+        } elseif (preg_match('/^\s*\d+\s+\d+\s+obj\b/', $body) === 1) {
+            $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        } else {
+            $dictionary = $body;
+        }
+
         $offset = 0;
         $length = strlen($dictionary);
 
