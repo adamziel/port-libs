@@ -105,6 +105,11 @@ final class PdfAttachmentExtractor
         0xa0 => 0x20ac,
     ];
 
+    private bool $objectSelectionHasXref = false;
+
+    /** @var array<int, array<int, array{generation: int, body: string, value: mixed, stream: string|null}>> */
+    private array $fallbackGenerationObjects = [];
+
     /**
      * Native PDF attachment preflight for embedded file streams referenced by
      * document EmbeddedFiles name trees or page FileAttachment annotations.
@@ -577,7 +582,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
-     * @param list<int> $seen
+     * @param array<string, true> $seen
      * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      * @return list<array{name: string, fileSpec: mixed, fileSpecRaw?: string}>
      */
@@ -594,14 +599,18 @@ final class PdfAttachmentExtractor
             return [];
         }
 
-        $objectId = $this->refObjectId($value);
+        $reference = $this->refObjectReference($value);
+        $objectId = $reference['objectNumber'] ?? null;
+        $objectKey = $reference === null ? null : $reference['objectNumber'] . ':' . $reference['generation'];
         $nodeDictionaryBody = null;
         if ($objectId !== null) {
             $object = $this->objectForReference($value, $objects);
-            if (in_array($objectId, $seen, true) || $object === null) {
+            if ($object === null || ($objectKey !== null && isset($seen[$objectKey]))) {
                 return [];
             }
-            $seen[] = $objectId;
+            if ($objectKey !== null) {
+                $seen[$objectKey] = true;
+            }
             $nodeDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
             $value = $object['value'];
         } elseif ($rawValue !== null) {
@@ -4048,12 +4057,18 @@ final class PdfAttachmentExtractor
     private function pdfObjects(string $pdfBytes): array
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
+        $this->objectSelectionHasXref = false;
+        $this->fallbackGenerationObjects = [];
         $definitions = $this->directObjectDefinitions($pdfBytes);
         if ($definitions === []) {
             return [];
         }
 
         $xrefEntries = $this->xrefEntriesFromLatestStartxref($pdfBytes, $definitions);
+        $this->objectSelectionHasXref = $xrefEntries !== [];
+        $this->fallbackGenerationObjects = $this->objectSelectionHasXref
+            ? []
+            : $this->fallbackGenerationObjectsFromDefinitions($definitions);
         $objects = [];
         foreach ($definitions as $objectNumber => $candidates) {
             $definition = $this->selectedDirectObjectDefinition($candidates, $xrefEntries[$objectNumber] ?? null);
@@ -4091,6 +4106,22 @@ final class PdfAttachmentExtractor
             'value' => $value,
             'stream' => $stream,
         ];
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, body: string}>> $definitions
+     * @return array<int, array<int, array{generation: int, body: string, value: mixed, stream: string|null}>>
+     */
+    private function fallbackGenerationObjectsFromDefinitions(array $definitions): array
+    {
+        $objects = [];
+        foreach ($definitions as $objectNumber => $candidates) {
+            foreach ($candidates as $definition) {
+                $objects[$objectNumber][$definition['generation']] = $this->parsedObjectFromDefinition($definition);
+            }
+        }
+
+        return $objects;
     }
 
     /**
@@ -7702,8 +7733,13 @@ final class PdfAttachmentExtractor
         }
 
         $object = $objects[$reference['objectNumber']] ?? null;
-        if ($object === null || $object['generation'] !== $reference['generation']) {
+        if ($object === null) {
             return null;
+        }
+        if ($object['generation'] !== $reference['generation']) {
+            return $this->objectSelectionHasXref
+                ? null
+                : ($this->fallbackGenerationObjects[$reference['objectNumber']][$reference['generation']] ?? null);
         }
 
         return $object;

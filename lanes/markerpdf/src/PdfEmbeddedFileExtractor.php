@@ -86,6 +86,11 @@ final class PdfEmbeddedFileExtractor
     /** @var array<int, int> */
     private array $objectGenerations = [];
 
+    private bool $objectSelectionHasXref = false;
+
+    /** @var array<int, array<int, string>> */
+    private array $fallbackGenerationObjects = [];
+
     /**
      * Native boundary for catalog /Names /EmbeddedFiles and /AF attachment lookup.
      *
@@ -124,7 +129,7 @@ final class PdfEmbeddedFileExtractor
      * @param array<string, mixed> $portfolioMetadata
      * @param array<string, mixed> $catalogPieceInfo
      * @param array<string, mixed>|null $encryptionPolicy
-     * @param array<int, true> $seen
+     * @param array<string, true> $seen
      * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      */
     private function collectNameTreeFiles(
@@ -186,12 +191,13 @@ final class PdfEmbeddedFileExtractor
         }
 
         foreach ($this->nameTreeKidsSortedByLimits($this->arrayItemsFromValue($kidsValue, $objects), $objects, $childLimits) as $kidValue) {
-            $objectNumber = $this->objectNumberFromReference($kidValue);
-            if ($objectNumber !== null) {
-                if (isset($seen[$objectNumber])) {
+            $reference = $this->objectReferenceFromValue($kidValue);
+            if ($reference !== null) {
+                $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+                if (isset($seen[$objectKey])) {
                     continue;
                 }
-                $seen[$objectNumber] = true;
+                $seen[$objectKey] = true;
             }
 
             $kid = $this->resolveDictionaryFromValue($kidValue, $objects);
@@ -3121,8 +3127,14 @@ final class PdfEmbeddedFileExtractor
             return [];
         }
 
+        $this->objectSelectionHasXref = false;
+        $this->fallbackGenerationObjects = [];
         $objects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntriesFromStartxrefChain($pdfBytes, $objects, $definitions);
+        $this->objectSelectionHasXref = $xrefEntries !== [];
+        $this->fallbackGenerationObjects = $this->objectSelectionHasXref
+            ? []
+            : $this->fallbackGenerationObjectsFromDefinitions($definitions);
         if ($xrefEntries !== []) {
             $objects = $this->liveDirectObjects($definitions, $xrefEntries);
             $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
@@ -3131,6 +3143,22 @@ final class PdfEmbeddedFileExtractor
         }
 
         ksort($objects, SORT_NUMERIC);
+        return $objects;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, body: string}>> $definitions
+     * @return array<int, array<int, string>>
+     */
+    private function fallbackGenerationObjectsFromDefinitions(array $definitions): array
+    {
+        $objects = [];
+        foreach ($definitions as $objectNumber => $candidates) {
+            foreach ($candidates as $definition) {
+                $objects[$objectNumber][$definition['generation']] = $definition['body'];
+            }
+        }
+
         return $objects;
     }
 
@@ -7915,7 +7943,9 @@ final class PdfEmbeddedFileExtractor
         }
 
         if (($this->objectGenerations[$objectNumber] ?? null) !== $reference['generation']) {
-            return null;
+            return $this->objectSelectionHasXref
+                ? null
+                : ($this->fallbackGenerationObjects[$objectNumber][$reference['generation']] ?? null);
         }
 
         return $objects[$objectNumber];
