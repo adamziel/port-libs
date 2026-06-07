@@ -214,7 +214,7 @@ $contentXml = <<<'XML'
       <text:list text:style-name="ReviewSteps" text:continue-numbering="true">
         <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
       </text:list>
-      <draw:frame draw:name="Source hero" svg:width="6cm" svg:height="3.5cm">
+      <draw:frame draw:name="Source hero" draw:style-name="HeroFrame" text:anchor-type="paragraph" text:anchor-page-number="2" svg:x="1.2cm" svg:y="2.4cm" svg:width="6cm" svg:height="3.5cm" draw:z-index="5">
         <draw:image xlink:href="../Pictures/source%20hero.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad">
           <svg:title>Source hero</svg:title>
           <svg:desc>ODT source hero alt</svg:desc>
@@ -329,6 +329,19 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!$imageNode instanceof \PortLibs\Pandoc\AstNode || $imageNode->attr('width') !== '6cm' || $imageNode->attr('height') !== '3.5cm') {
         throw new RuntimeException('Expected ODT frame image dimensions to survive AST handoff');
+    }
+    $frameMetadata = $imageNode->attr('odfFrameMetadata');
+    if (
+        !is_array($frameMetadata)
+        || ($frameMetadata['name'] ?? '') !== 'Source hero'
+        || ($frameMetadata['styleName'] ?? '') !== 'HeroFrame'
+        || ($frameMetadata['anchorType'] ?? '') !== 'paragraph'
+        || ($frameMetadata['anchorPageNumber'] ?? '') !== '2'
+        || ($frameMetadata['x'] ?? '') !== '1.2cm'
+        || ($frameMetadata['y'] ?? '') !== '2.4cm'
+        || ($frameMetadata['zIndex'] ?? '') !== '5'
+    ) {
+        throw new RuntimeException('Expected ODT image frame anchor metadata to survive AST handoff');
     }
     if (($result['importReport']['encryption']['encryptedParts'][0] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT encrypted media to be listed in the import report');
@@ -699,8 +712,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'chart:bar')) {
         throw new RuntimeException('Expected ODT chart object XML to stay out of WordPress output');
     }
-    if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>')) {
-        throw new RuntimeException('Expected ODT image dimensions and xlink review metadata to render in WordPress blocks');
+    if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad" data-odf-frame-name="Source hero" data-odf-frame-style-name="HeroFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="2" data-odf-frame-x="1.2cm" data-odf-frame-y="2.4cm" data-odf-frame-z-index="5"/>')) {
+        throw new RuntimeException('Expected ODT image dimensions, xlink metadata, and frame anchor metadata to render in WordPress blocks');
     }
     if (str_contains($blocks, '../Pictures/source%20hero.png')) {
         throw new RuntimeException('Expected ODT parent-relative image hrefs to normalize before WordPress output');

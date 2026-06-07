@@ -3632,6 +3632,15 @@ final class OdfReader
             }
             $attrs['attributes'] = $attributes + $linkMetadata['attributes'];
         }
+        $frameMetadata = $this->frameMetadata($frame);
+        if ($frameMetadata !== []) {
+            $attrs['odfFrameMetadata'] = $frameMetadata;
+            $attributes = $attrs['attributes'] ?? [];
+            if (!is_array($attributes)) {
+                $attributes = [];
+            }
+            $attrs['attributes'] = $attributes + $this->frameMetadataAttributes($frameMetadata);
+        }
         if (is_array($manifestItem)) {
             $attrs['mediaType'] = $manifestItem['mediaType'] ?? null;
             $attrs['encrypted'] = $encrypted;
@@ -3766,6 +3775,41 @@ final class OdfReader
             'metadata' => array_map(static fn (mixed $value): string => (string) $value, $metadata),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function frameMetadata(\DOMElement $frame): array
+    {
+        $metadata = self::withoutEmpty([
+            'name' => self::nullable(self::attr($frame, self::DRAW_NS, 'name')),
+            'styleName' => self::nullable(self::attr($frame, self::DRAW_NS, 'style-name')),
+            'anchorType' => self::nullable(self::attr($frame, self::TEXT_NS, 'anchor-type')),
+            'anchorPageNumber' => self::nullable(self::attr($frame, self::TEXT_NS, 'anchor-page-number')),
+            'x' => self::nullable(self::attr($frame, self::SVG_NS, 'x')),
+            'y' => self::nullable(self::attr($frame, self::SVG_NS, 'y')),
+            'zIndex' => self::nullable(self::attr($frame, self::DRAW_NS, 'z-index')),
+        ]);
+        if ($metadata === [] || array_keys($metadata) === ['name']) {
+            return [];
+        }
+
+        return array_map(static fn (mixed $value): string => (string) $value, $metadata);
+    }
+
+    /**
+     * @param array<string, string> $metadata
+     * @return array<string, string>
+     */
+    private function frameMetadataAttributes(array $metadata): array
+    {
+        $attributes = [];
+        foreach ($metadata as $name => $value) {
+            $attributes['data-odf-frame-' . self::kebabCase($name)] = $value;
+        }
+
+        return $attributes;
     }
 
     private function frameObjectMathNode(\DOMElement $frame, ?ZipPackage $package): ?AstNode

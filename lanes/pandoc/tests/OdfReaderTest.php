@@ -3893,6 +3893,57 @@ XML;
         $t->contains('![Linked hero alt](Pictures/hero.png "Linked hero title"){width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
     },
+    'preserves ODT image frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithAnchoredImage = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Anchored <draw:frame draw:name="Review image frame" draw:style-name="FrameStyle" text:anchor-type="paragraph" text:anchor-page-number="4" svg:x="1.25cm" svg:y="2cm" svg:width="4cm" draw:z-index="7"><draw:image xlink:href="Pictures/hero.png"><svg:title>Frame metadata title</svg:title><svg:desc>Frame metadata alt</svg:desc></draw:image></draw:frame> image.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithAnchoredImage));
+        $paragraph = $result['document']->children[0];
+        $image = $paragraph->children[1];
+        $metadata = $image->attr('odfFrameMetadata');
+        $attributes = $image->attr('attributes');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Anchored Frame metadata alt image.', $paragraph->attr('text'));
+        $t->same('image', $image->type);
+        $t->same('Frame metadata alt', $image->attr('alt'));
+        $t->same('Frame metadata title', $image->attr('title'));
+        $t->same('4cm', $image->attr('width'));
+        $t->same([
+            'name' => 'Review image frame',
+            'styleName' => 'FrameStyle',
+            'anchorType' => 'paragraph',
+            'anchorPageNumber' => '4',
+            'x' => '1.25cm',
+            'y' => '2cm',
+            'zIndex' => '7',
+        ], $metadata);
+        $t->same('4cm', $attributes['width']);
+        $t->same('Review image frame', $attributes['data-odf-frame-name']);
+        $t->same('FrameStyle', $attributes['data-odf-frame-style-name']);
+        $t->same('paragraph', $attributes['data-odf-frame-anchor-type']);
+        $t->same('4', $attributes['data-odf-frame-anchor-page-number']);
+        $t->same('1.25cm', $attributes['data-odf-frame-x']);
+        $t->same('2cm', $attributes['data-odf-frame-y']);
+        $t->same('7', $attributes['data-odf-frame-z-index']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('![Frame metadata alt](Pictures/hero.png "Frame metadata title"){width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"}', $markdown);
+        $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);
