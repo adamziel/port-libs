@@ -5119,6 +5119,46 @@ MD;
         $t->same('heading', $roundTripped->children[0]->type);
         $t->same('yaml-writer-body', $roundTripped->children[0]->attr('id'));
     },
+    'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Writer block **Packet**',
+                'abstract' => "First paragraph.\n\nSecond paragraph with *emphasis*.\n",
+                'review' => [
+                    'note' => "Line one\nLine two",
+                    'keep' => "Keep final blank lines\n\n",
+                    'steps' => [
+                        "Collect source\nmetadata",
+                        "Approve WordPress\nhandoff\n",
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-block-body'], [$text('YAML writer block body')]),
+        ]);
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains("abstract: |\n  First paragraph.\n\n  Second paragraph with *emphasis*.", $markdown);
+        $t->contains("  note: |-\n    Line one\n    Line two", $markdown);
+        $t->contains("  keep: |+\n    Keep final blank lines\n\n\n  steps:", $markdown);
+        $t->contains("    - |-\n      Collect source\n      metadata", $markdown);
+        $t->contains("    - |\n      Approve WordPress\n      handoff", $markdown);
+        $t->same(false, str_contains($markdown, 'First paragraph.\\n\\nSecond paragraph'));
+        $t->same(false, str_contains($markdown, 'Line one\\nLine two'));
+        $t->same('Writer block **Packet**', $meta['title']);
+        $t->same("First paragraph.\n\nSecond paragraph with *emphasis*.\n", $meta['abstract']);
+        $t->same("Line one\nLine two", $meta['review']['note']);
+        $t->same("Keep final blank lines\n\n", $meta['review']['keep']);
+        $t->same("Collect source\nmetadata", $meta['review']['steps'][0]);
+        $t->same("Approve WordPress\nhandoff\n", $meta['review']['steps'][1]);
+        $t->same('yaml-writer-block-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-writer-block-body">YAML writer block body</h1>', $blocks);
+    },
     'maps upstream markdown writer softbreak space option' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

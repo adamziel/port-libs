@@ -159,7 +159,7 @@ final class MarkdownWriter
     {
         $prefix = str_repeat(' ', $indent) . $this->formatYamlMetadataKey($key);
         if (!$this->isYamlMetadataCollection($value)) {
-            $lines[] = $prefix . ': ' . $this->formatYamlMetadataScalar($value);
+            $this->appendYamlMetadataScalarMappingLines($lines, $prefix . ':', $value, $indent + 2);
             return;
         }
 
@@ -178,7 +178,7 @@ final class MarkdownWriter
     private function appendYamlMetadataValueLines(array &$lines, mixed $value, int $indent): void
     {
         if (!$this->isYamlMetadataCollection($value)) {
-            $lines[] = str_repeat(' ', $indent) . $this->formatYamlMetadataScalar($value);
+            $this->appendYamlMetadataScalarValueLines($lines, $value, $indent);
             return;
         }
 
@@ -192,7 +192,7 @@ final class MarkdownWriter
         $prefix = str_repeat(' ', $indent);
         foreach ($value as $item) {
             if (!$this->isYamlMetadataCollection($item)) {
-                $lines[] = $prefix . '- ' . $this->formatYamlMetadataScalar($item);
+                $this->appendYamlMetadataScalarListItemLines($lines, $item, $indent);
                 continue;
             }
 
@@ -222,7 +222,12 @@ final class MarkdownWriter
         foreach ($map as $key => $value) {
             $field = $this->formatYamlMetadataKey((string) $key);
             if (!$this->isYamlMetadataCollection($value)) {
-                $lines[] = $prefix . ($first ? '- ' : '  ') . $field . ': ' . $this->formatYamlMetadataScalar($value);
+                $this->appendYamlMetadataScalarMappingLines(
+                    $lines,
+                    $prefix . ($first ? '- ' : '  ') . $field . ':',
+                    $value,
+                    $indent + 4
+                );
                 $first = false;
                 continue;
             }
@@ -244,6 +249,58 @@ final class MarkdownWriter
         return is_array($value);
     }
 
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataScalarValueLines(array &$lines, mixed $value, int $indent): void
+    {
+        if (is_string($value)) {
+            $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
+            if ($blockHeader !== null) {
+                $lines[] = str_repeat(' ', $indent) . $blockHeader;
+                $this->appendYamlMetadataBlockScalarLines($lines, $value, $indent + 2);
+                return;
+            }
+        }
+
+        $lines[] = str_repeat(' ', $indent) . $this->formatYamlMetadataScalar($value);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataScalarListItemLines(array &$lines, mixed $value, int $indent): void
+    {
+        $prefix = str_repeat(' ', $indent);
+        if (is_string($value)) {
+            $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
+            if ($blockHeader !== null) {
+                $lines[] = $prefix . '- ' . $blockHeader;
+                $this->appendYamlMetadataBlockScalarLines($lines, $value, $indent + 2);
+                return;
+            }
+        }
+
+        $lines[] = $prefix . '- ' . $this->formatYamlMetadataScalar($value);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataScalarMappingLines(array &$lines, string $mappingPrefix, mixed $value, int $blockIndent): void
+    {
+        if (is_string($value)) {
+            $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
+            if ($blockHeader !== null) {
+                $lines[] = $mappingPrefix . ' ' . $blockHeader;
+                $this->appendYamlMetadataBlockScalarLines($lines, $value, $blockIndent);
+                return;
+            }
+        }
+
+        $lines[] = $mappingPrefix . ' ' . $this->formatYamlMetadataScalar($value);
+    }
+
     private function formatYamlMetadataKey(string $key): string
     {
         if ($this->isPlainYamlMetadataKey($key)) {
@@ -260,6 +317,48 @@ final class MarkdownWriter
         }
 
         return !$this->isYamlMetadataAmbiguousPlainScalar($key);
+    }
+
+    private function yamlMetadataBlockScalarHeader(string $value): ?string
+    {
+        if (!str_contains($value, "\n") || rtrim($value, "\n") === '') {
+            return null;
+        }
+
+        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\r]/', $value) === 1) {
+            return null;
+        }
+
+        $trailingNewlines = strlen($value) - strlen(rtrim($value, "\n"));
+        if ($trailingNewlines === 0) {
+            return '|-';
+        }
+
+        if ($trailingNewlines === 1) {
+            return '|';
+        }
+
+        return '|+';
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataBlockScalarLines(array &$lines, string $value, int $indent): void
+    {
+        $prefix = str_repeat(' ', $indent);
+        $trailingNewlines = strlen($value) - strlen(rtrim($value, "\n"));
+        $body = rtrim($value, "\n");
+
+        foreach (explode("\n", $body) as $line) {
+            $lines[] = $line === '' ? '' : $prefix . $line;
+        }
+
+        if ($trailingNewlines > 1) {
+            for ($index = 0; $index < $trailingNewlines; $index++) {
+                $lines[] = '';
+            }
+        }
     }
 
     private function formatYamlMetadataScalar(mixed $value): string

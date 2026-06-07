@@ -1282,6 +1282,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($metadataMarkdown, "---\ntitle: \"Migration **Packet**\"")) {
         throw new RuntimeException('YAML metadata self-test missing writer YAML metadata block');
     }
+    if (!str_contains($metadataMarkdown, "abstract: |\n  Source abstract keeps **review** emphasis")) {
+        throw new RuntimeException('YAML metadata self-test did not write multiline abstract as a YAML block scalar');
+    }
+    if (!str_contains($metadataMarkdown, "source-review-log: |-\n  Review steps:\n    - preserve front matter")) {
+        throw new RuntimeException('YAML metadata self-test did not write multiline review log as a stripped YAML block scalar');
+    }
+    if (!str_contains($metadataMarkdown, "review-notes:\n  - |-\n    Preserve original front matter.")) {
+        throw new RuntimeException('YAML metadata self-test did not write sequence multiline note as a YAML block scalar');
+    }
+    if (str_contains($metadataMarkdown, 'Source abstract keeps **review** emphasis\\n\\n') || str_contains($metadataMarkdown, 'Review steps:\\n')) {
+        throw new RuntimeException('YAML metadata self-test leaked escaped newline metadata after writer block-scalar handoff');
+    }
     if (str_contains($metadataMarkdown, 'titleInlines') || str_contains($metadataMarkdown, 'authorInlines')) {
         throw new RuntimeException('YAML metadata self-test leaked derived inline metadata into writer front matter');
     }
