@@ -11855,6 +11855,14 @@ final class PdfMetadataExtractor
             $metadata['keywords'] = $keywords;
         }
 
+        $dates = $this->xmpListValues($document, self::NS_DC, 'date');
+        if ($dates !== []) {
+            $metadata['dates'] = $dates;
+            if (!isset($metadata['created_at'])) {
+                $metadata['created_at'] = $dates[0];
+            }
+        }
+
         $languages = $this->xmpLanguageValues($document);
         if ($languages !== []) {
             $metadata['languages'] = $languages;
@@ -11904,6 +11912,25 @@ final class PdfMetadataExtractor
         if ($languages !== []) {
             $row['languages'] = $languages;
             $row['language_count'] = count($languages);
+        }
+
+        $dates = is_array($metadata['dates'] ?? null)
+            ? $this->cleanList($metadata['dates'])
+            : [];
+        if ($dates !== []) {
+            $row['dates'] = $dates;
+            $row['date_count'] = count($dates);
+
+            $datesUtc = [];
+            foreach ($dates as $date) {
+                $normalized = $this->normalizedDateTimeUtc($date);
+                if ($normalized !== null) {
+                    $datesUtc[] = $normalized;
+                }
+            }
+            if ($datesUtc !== []) {
+                $row['dates_utc'] = $datesUtc;
+            }
         }
 
         return count($row) > 3 ? $row : [];
