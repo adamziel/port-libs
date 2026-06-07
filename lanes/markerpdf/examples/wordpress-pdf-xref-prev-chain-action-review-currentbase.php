@@ -8,8 +8,8 @@ use PortLibs\MarkerPDF\PdfLinkAnnotationExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$staleContent = 'BT /F1 12 Tf 72 720 Td (Stale action review link) Tj ET';
-$currentContent = 'BT /F1 12 Tf 72 720 Td (Current action docs) Tj ET';
+$staleContent = 'BT /F1 12 Tf 72 720 Td (Stale omitted action row link) Tj ET';
+$currentContent = 'BT /F1 12 Tf 72 720 Td (Current omitted action docs) Tj ET';
 
 $pdf = "%PDF-1.7\n";
 $offsets = [];
@@ -28,9 +28,9 @@ $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
 $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [7 0 R] /Contents 4 0 R >>');
 $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
 $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-$addObject(7, 0, '<< /Type /Annot /Subtype /Link /Rect [72 700 218 718] /F 4 /Contents (Action review link) /A 8 0 R /AA << /E 9 0 R >> >>');
-$addObject(8, 0, '<< /S /URI /URI (https://example.com/stale-prev-chain-action) >>');
-$addObject(9, 0, '<< /S /JavaScript /JS (stalePrevChainHover\(\)) >>');
+$addObject(7, 0, '<< /Type /Annot /Subtype /Link /Rect [72 700 252 718] /F 4 /Contents (Omitted action row link) /A 8 0 R /AA << /E 9 0 R >> >>');
+$addObject(8, 0, '<< /S /URI /URI (https://example.com/stale-omitted-action-row) >>');
+$addObject(9, 0, '<< /S /JavaScript /JS (staleOmittedActionRow()) >>');
 
 $previousXrefOffset = strlen($pdf);
 $pdf .= "xref\n"
@@ -52,9 +52,9 @@ $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
 $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
 $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [7 0 R] /Contents 4 0 R >>');
 $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
-$addObject(7, 0, '<< /Type /Annot /Subtype /Link /Rect [72 700 218 718] /F 4 /Contents (Action review link) /A 8 0 R /AA << /E 9 0 R >> >>');
-$addObject(8, 0, '<< /S /URI /URI (https://example.com/current-prev-chain-action) >>');
-$addObject(9, 0, '<< /S /URI /URI (mailto:current-prev-chain@example.test) >>');
+$addObject(7, 0, '<< /Type /Annot /Subtype /Link /Rect [72 700 252 718] /F 4 /Contents (Omitted action row link) /A 8 0 R /AA << /E 9 0 R >> >>');
+$addObject(8, 0, '<< /S /URI /URI (https://example.com/current-omitted-action-row) >>');
+$addObject(9, 0, '<< /S /URI /URI (mailto:current-omitted-action@example.test) >>');
 
 $rows = ''
     . $xrefStreamRow(1, $offsets['1:0'], 0)
@@ -62,11 +62,7 @@ $rows = ''
     . $xrefStreamRow(1, $offsets['3:0'], 0)
     . $xrefStreamRow(1, $offsets['4:0'], 0)
     . $xrefStreamRow(1, $offsets['5:0'], 0)
-    . $xrefStreamRow(1, $offsets['7:0'], 0)
-    . $xrefStreamRow(1, $offsets['8:0'], 0)
-    . $xrefStreamRow(1, $offsets['9:0'], 0)
-    . $xrefStreamRow(0, 0, 0)
-    . $xrefStreamRow(0, 0, 0);
+    . $xrefStreamRow(1, $offsets['7:0'], 0);
 $compressedRows = gzcompress($rows);
 if (!is_string($compressedRows)) {
     throw new RuntimeException('Unable to compress action-review xref-stream rows.');
@@ -74,7 +70,7 @@ if (!is_string($compressedRows)) {
 
 $currentXrefOffset = strlen($pdf);
 $pdf .= "20 0 obj\n"
-    . '<< /Type /XRef /Size 21 /Root 1 0 R /Prev ' . $previousXrefOffset . ' /Index [1 5 7 3 8 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
+    . '<< /Type /XRef /Size 21 /Root 1 0 R /Prev ' . $previousXrefOffset . ' /Index [1 5 7 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
     . "stream\n{$compressedRows}\nendstream\nendobj\n"
     . "startxref\n{$currentXrefOffset}\n%%EOF";
 
@@ -82,12 +78,12 @@ $pages = [[
     'pnum' => 0,
     'blocks' => [[
         'type' => 'Text',
-        'bbox' => [72.0, 700.0, 218.0, 718.0],
+        'bbox' => [72.0, 700.0, 252.0, 718.0],
         'lines' => [[
-            'bbox' => [72.0, 700.0, 218.0, 718.0],
+            'bbox' => [72.0, 700.0, 252.0, 718.0],
             'spans' => [[
-                'text' => 'Current action docs',
-                'bbox' => [72.0, 700.0, 218.0, 718.0],
+                'text' => 'Current omitted action docs',
+                'bbox' => [72.0, 700.0, 252.0, 718.0],
                 'font' => 'Helvetica',
             ]],
         ]],
@@ -104,25 +100,26 @@ $wordpressText = (string) ($blocks[0]['text'] ?? '');
 $encodedReview = json_encode([$annotations, $links, $linkedPages], JSON_UNESCAPED_SLASHES) ?: '';
 $summary = [
     'support_component' => 'native-pdf-xref-prev-chain-action-review',
-    'native_boundary' => 'xref-stream Prev incremental updates keep first current action rows before duplicate free rows in WordPress link promotion',
+    'native_boundary' => 'xref-stream Prev incremental updates repair omitted current action rows before stale action inheritance in WordPress link promotion',
     'previous_xref_offset' => $previousXrefOffset,
     'current_xref_offset' => $currentXrefOffset,
     'annotation_objects' => array_column($annotations[0]['annotations'] ?? [], 'annotation_object'),
     'promoted_link_objects' => array_column($links[0]['links'] ?? [], 'annotation_object'),
-    'current_uri_promoted' => str_contains($wordpressText, 'https://example.com/current-prev-chain-action'),
-    'current_additional_action_reviewed' => str_contains($encodedReview, 'mailto:current-prev-chain@example.test'),
-    'duplicate_free_rows_ignored' => str_contains($pdf, '/Index [1 5 7 3 8 2]')
-        && str_contains($encodedReview, 'https://example.com/current-prev-chain-action'),
-    'stale_prev_action_excluded' => !str_contains($encodedReview, 'stale-prev-chain-action') && !str_contains($encodedReview, 'stalePrevChainHover'),
+    'current_uri_promoted' => str_contains($wordpressText, 'https://example.com/current-omitted-action-row'),
+    'current_additional_action_reviewed' => str_contains($encodedReview, 'mailto:current-omitted-action@example.test'),
+    'omitted_current_action_rows_repaired' => str_contains($pdf, '/Index [1 5 7 1]')
+        && str_contains($encodedReview, 'https://example.com/current-omitted-action-row')
+        && str_contains($encodedReview, 'mailto:current-omitted-action@example.test'),
+    'stale_prev_action_excluded' => !str_contains($encodedReview, 'stale-omitted-action-row') && !str_contains($encodedReview, 'staleOmittedActionRow'),
     'executes_pdf_actions' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ];
 
 if (
-    $wordpressText !== '[Current action docs](https://example.com/current-prev-chain-action)'
+    $wordpressText !== '[Current omitted action docs](https://example.com/current-omitted-action-row)'
     || $summary['current_additional_action_reviewed'] !== true
-    || $summary['duplicate_free_rows_ignored'] !== true
+    || $summary['omitted_current_action_rows_repaired'] !== true
     || $summary['stale_prev_action_excluded'] !== true
 ) {
     throw new RuntimeException('Expected current xref Prev action review to win before WordPress link promotion.');

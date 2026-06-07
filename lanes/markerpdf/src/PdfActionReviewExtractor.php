@@ -1363,6 +1363,13 @@ final class PdfActionReviewExtractor
                 $previousOffset,
                 $offset
             );
+            $entries = $this->repairOmittedCurrentUpdateGraphEntries(
+                $entries,
+                $definitions,
+                $section['dictionary'],
+                $previousOffset,
+                $offset
+            );
 
             if ($previousOffset !== null && $previousOffset >= 0 && $previousOffset < $offset) {
                 foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $definitions, $visited) as $objectNumber => $entry) {
@@ -1384,6 +1391,13 @@ final class PdfActionReviewExtractor
         $entries = $this->repairCurrentUpdateXrefEntries(
             $tableSection['entries'],
             $definitions,
+            $previousOffset,
+            $offset
+        );
+        $entries = $this->repairOmittedCurrentUpdateGraphEntries(
+            $entries,
+            $definitions,
+            $tableSection['trailer'],
             $previousOffset,
             $offset
         );
@@ -1691,6 +1705,127 @@ final class PdfActionReviewExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}> $entries
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @param array<string, mixed> $sectionDictionary
+     * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
+     */
+    private function repairOmittedCurrentUpdateGraphEntries(
+        array $entries,
+        array $definitions,
+        array $sectionDictionary,
+        ?int $previousOffset,
+        int $currentOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0 || $previousOffset >= $currentOffset) {
+            return $entries;
+        }
+
+        $pending = [];
+        foreach (['Root', 'Info', 'Encrypt'] as $name) {
+            $reference = $this->referenceObject($sectionDictionary[$name] ?? null);
+            if ($reference !== null) {
+                $pending[] = $reference;
+            }
+        }
+
+        $seen = [];
+        while ($pending !== [] && count($seen) < 128) {
+            $reference = array_shift($pending);
+            if (!is_array($reference)) {
+                continue;
+            }
+
+            $objectNumber = $reference['object'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $definition = null;
+            $entry = $entries[$objectNumber] ?? null;
+            if ($entry !== null) {
+                if (($entry['type'] ?? null) !== 1 || ($entry['generation'] ?? 0) !== $generation) {
+                    continue;
+                }
+
+                $offset = $entry['offset'] ?? null;
+                $owner = is_int($offset) ? $this->definitionAtOffset($definitions, $offset) : null;
+                if (
+                    $owner !== null
+                    && $owner['object'] === $objectNumber
+                    && $owner['generation'] === $generation
+                    && $owner['offset'] > $previousOffset
+                    && $owner['offset'] < $currentOffset
+                ) {
+                    $definition = $owner;
+                }
+            } else {
+                $definition = $this->currentUpdateDefinitionForXrefEntry(
+                    $definitions,
+                    $objectNumber,
+                    $generation,
+                    $previousOffset,
+                    $currentOffset
+                );
+                if ($definition !== null) {
+                    $entries[$objectNumber] = [
+                        'type' => 1,
+                        'generation' => $definition['generation'],
+                        'offset' => $definition['offset'],
+                    ];
+                }
+            }
+
+            if ($definition === null) {
+                continue;
+            }
+
+            foreach ($this->objectReferencesInBody($definition['body']) as $nestedReference) {
+                $pending[] = $nestedReference;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     */
+    private function objectReferencesInBody(string $body): array
+    {
+        $tokens = $this->tokens($this->firstObjectValue(trim($body)));
+        if ($tokens === []) {
+            return [];
+        }
+
+        $index = 0;
+        return $this->objectReferencesInValue($this->parseValue($tokens, $index));
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     */
+    private function objectReferencesInValue(mixed $value): array
+    {
+        $reference = $this->referenceObject($value);
+        if ($reference !== null) {
+            return [$reference];
+        }
+
+        $references = [];
+        foreach ($this->dictionaryItems($value) ?? $this->arrayItems($value) ?? [] as $child) {
+            foreach ($this->objectReferencesInValue($child) as $childReference) {
+                $references[] = $childReference;
+            }
+        }
+
+        return $references;
     }
 
     /**
