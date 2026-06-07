@@ -3724,6 +3724,84 @@ XML;
         $t->same(['/[Content_Types].xml'], $inventory['application/xml']['relationshipTargetParts']);
         $t->same(['content-types-override-target', 'targets-content-types-item'], $inventory['application/xml']['issues']);
     },
+    'preflights fixed OPC content types item relationship sources' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $contentTypesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdContentTypeAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => '_rels/[Content_Types].xml.rels', 'data' => $contentTypesRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]);
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::relationshipPartNameForSource('/[Content_Types].xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => new OpcRelationships('/[Content_Types].xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): bool => OpcRelationships::packageHasRelationshipsForSource($package, '/[Content_Types].xml'));
+
+        $loads = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $loads[$part['partName']] = $part;
+        }
+
+        $t->same(['/_rels/.rels', '/_rels/[Content_Types].xml.rels'], array_keys($loads));
+        $t->same(true, $loads['/_rels/.rels']['loaded']);
+        $t->same(1, $loads['/_rels/.rels']['relationshipCount']);
+        $t->same([], $loads['/_rels/.rels']['issues']);
+
+        $contentTypeSourceLoad = $loads['/_rels/[Content_Types].xml.rels'];
+        $t->same('/[Content_Types].xml', $contentTypeSourceLoad['relationshipSource']);
+        $t->same(false, $contentTypeSourceLoad['relationshipSourceIsRelationshipPart']);
+        $t->same(true, $contentTypeSourceLoad['sourceExists']);
+        $t->same(false, $contentTypeSourceLoad['loaded']);
+        $t->same('skipped', $contentTypeSourceLoad['loadAction']);
+        $t->same('content-types-item-source', $contentTypeSourceLoad['loadReason']);
+        $t->same(null, $contentTypeSourceLoad['relationshipCount']);
+        $t->same(false, $contentTypeSourceLoad['valid']);
+        $t->same(['content-types-item-source'], $contentTypeSourceLoad['issues']);
+
+        $graph = OpcRelationshipGraph::fromPackage($package);
+        $t->same(['/'], $graph->sourcePartNames());
+        $t->same(false, $graph->hasRelationshipsForSource('/[Content_Types].xml'));
+
+        $packageParts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $packageParts[$part['partName']] = $part;
+        }
+
+        $t->same(true, $packageParts['/_rels/[Content_Types].xml.rels']['relationshipPart']);
+        $t->same('/[Content_Types].xml', $packageParts['/_rels/[Content_Types].xml.rels']['relationshipSource']);
+        $t->same(false, $packageParts['/_rels/[Content_Types].xml.rels']['relationshipSourceIsRelationshipPart']);
+        $t->same(false, $packageParts['/_rels/[Content_Types].xml.rels']['relationshipSourceLoaded']);
+        $t->same(true, $packageParts['/_rels/[Content_Types].xml.rels']['sourceExists']);
+        $t->same('skipped', $packageParts['/_rels/[Content_Types].xml.rels']['relationshipPartLoadAction']);
+        $t->same('content-types-item-source', $packageParts['/_rels/[Content_Types].xml.rels']['relationshipPartLoadReason']);
+        $t->same(false, $packageParts['/_rels/[Content_Types].xml.rels']['valid']);
+        $t->same(['content-types-item-source'], $packageParts['/_rels/[Content_Types].xml.rels']['issues']);
+
+        $consistency = $graph->preflightPackageConsistency();
+        $t->same(false, $consistency['valid']);
+        $t->same(false, $consistency['packagePartsValid']);
+        $t->same(true, $consistency['contentTypeOverridesValid']);
+        $t->same(true, $consistency['relationshipTargetsValid']);
+    },
     'preflights DOCX officeDocument relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

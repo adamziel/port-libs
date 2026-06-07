@@ -83,6 +83,10 @@ final class OpcRelationshipGraph
                 continue;
             }
 
+            if ($sourcePartName !== '/' && self::isContentTypesItemName($sourcePartName)) {
+                continue;
+            }
+
             if ($sourcePartName !== '/' && !isset($packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($sourcePartName)])) {
                 continue;
             }
@@ -198,6 +202,10 @@ final class OpcRelationshipGraph
 
             if ($relationshipSourceIsRelationshipPart === true) {
                 $issues[] = 'relationship-part-source';
+            }
+
+            if ($relationshipSource !== null && $relationshipSource !== '/' && self::isContentTypesItemName($relationshipSource)) {
+                $issues[] = 'content-types-item-source';
             }
 
             if ($sourceExists === false) {
@@ -538,6 +546,10 @@ final class OpcRelationshipGraph
                     $issues[] = 'relationship-part-source';
                 }
 
+                if ($relationshipSource !== '/' && self::isContentTypesItemName($relationshipSource)) {
+                    $issues[] = 'content-types-item-source';
+                }
+
                 if (!$sourceExists) {
                     $issues[] = 'orphan-relationship-part';
                 }
@@ -603,6 +615,10 @@ final class OpcRelationshipGraph
 
                 if ($relationshipSourceIsRelationshipPart) {
                     $issues[] = 'relationship-part-source';
+                }
+
+                if ($relationshipSource !== '/' && self::isContentTypesItemName($relationshipSource)) {
+                    $issues[] = 'content-types-item-source';
                 }
 
                 if (!$sourceExists) {
@@ -2529,6 +2545,7 @@ final class OpcRelationshipGraph
             'missing-content-type',
             'invalid-relationship-content-type',
             'relationship-part-source',
+            'content-types-item-source',
             'orphan-relationship-part',
             'malformed-relationship-xml',
         ] as $issue) {

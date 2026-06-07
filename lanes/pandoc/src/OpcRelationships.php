@@ -334,6 +334,15 @@ final class OpcRelationships
         if ($sourcePartName !== '/' && self::isRelationshipPartName($sourcePartName)) {
             throw new \InvalidArgumentException('OPC relationship parts must not be relationship sources');
         }
+
+        if ($sourcePartName !== '/' && self::isContentTypesItemName($sourcePartName)) {
+            throw new \InvalidArgumentException('OPC content types item must not be a relationship source');
+        }
+    }
+
+    private static function isContentTypesItemName(string $partName): bool
+    {
+        return strtolower(OpcPackagePath::canonicalPartName($partName)) === '/[content_types].xml';
     }
 
     private static function assertRelationshipPartNameRawSegments(string $relationshipPartName): void

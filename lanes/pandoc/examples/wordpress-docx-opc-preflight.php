@@ -476,9 +476,16 @@ $fixedContentTypesItemRootRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$fixedContentTypesItemRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdContentTypeAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/document.xml"/>
+</Relationships>
+XML;
+
 $fixedContentTypesItemPackage = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $fixedContentTypesItemContentTypesXml],
     ['name' => '_rels/.rels', 'data' => $fixedContentTypesItemRootRelationshipsXml],
+    ['name' => '_rels/[Content_Types].xml.rels', 'data' => $fixedContentTypesItemRelationshipsXml],
     ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
 ]);
 
@@ -877,6 +884,13 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
 
 $fixedContentTypesItemGraph = OpcRelationshipGraph::fromPackage($fixedContentTypesItemPackage);
 $fixedContentTypesItemConsistency = $fixedContentTypesItemGraph->preflightPackageConsistency();
+$fixedContentTypesItemSourceLoad = null;
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($fixedContentTypesItemPackage) as $part) {
+    if ($part['partName'] === '/_rels/[Content_Types].xml.rels') {
+        $fixedContentTypesItemSourceLoad = $part;
+        break;
+    }
+}
 $fixedContentTypesItemOverride = null;
 foreach ($fixedContentTypesItemConsistency['contentTypeOverrides'] as $override) {
     if ($override['partName'] === '/[Content_Types].xml') {
@@ -891,6 +905,13 @@ foreach ($fixedContentTypesItemConsistency['relationshipTargets'] as $target) {
         break;
     }
 }
+$fixedContentTypesItemSourcePart = null;
+foreach ($fixedContentTypesItemConsistency['packageParts'] as $part) {
+    if ($part['partName'] === '/_rels/[Content_Types].xml.rels') {
+        $fixedContentTypesItemSourcePart = $part;
+        break;
+    }
+}
 $fixedContentTypesItemGuard = [
     'overridePart' => $fixedContentTypesItemOverride['partName'] ?? null,
     'overrideExists' => $fixedContentTypesItemOverride['exists'] ?? null,
@@ -902,7 +923,19 @@ $fixedContentTypesItemGuard = [
     'targetContentType' => $fixedContentTypesItemTarget['contentType'] ?? null,
     'targetValid' => $fixedContentTypesItemTarget['valid'] ?? null,
     'targetIssues' => $fixedContentTypesItemTarget['issues'] ?? null,
+    'sourceRelationshipPart' => $fixedContentTypesItemSourceLoad['partName'] ?? null,
+    'sourceRelationshipSource' => $fixedContentTypesItemSourceLoad['relationshipSource'] ?? null,
+    'sourceExists' => $fixedContentTypesItemSourceLoad['sourceExists'] ?? null,
+    'sourceLoaded' => $fixedContentTypesItemSourceLoad['loaded'] ?? null,
+    'sourceLoadReason' => $fixedContentTypesItemSourceLoad['loadReason'] ?? null,
+    'sourceRelationshipCount' => $fixedContentTypesItemSourceLoad['relationshipCount'] ?? null,
+    'sourceIssues' => $fixedContentTypesItemSourceLoad['issues'] ?? null,
+    'packagePartSourceLoaded' => $fixedContentTypesItemSourcePart['relationshipSourceLoaded'] ?? null,
+    'packagePartLoadAction' => $fixedContentTypesItemSourcePart['relationshipPartLoadAction'] ?? null,
+    'packagePartLoadReason' => $fixedContentTypesItemSourcePart['relationshipPartLoadReason'] ?? null,
+    'packagePartIssues' => $fixedContentTypesItemSourcePart['issues'] ?? null,
     'packageConsistencyValid' => $fixedContentTypesItemConsistency['valid'],
+    'packagePartsValid' => $fixedContentTypesItemConsistency['packagePartsValid'],
     'contentTypeOverridesValid' => $fixedContentTypesItemConsistency['contentTypeOverridesValid'],
     'relationshipTargetsValid' => $fixedContentTypesItemConsistency['relationshipTargetsValid'],
 ];
@@ -1821,7 +1854,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['fixedContentTypesItemGuard']['targetContentType'] ?? null) !== 'application/xml'
         || ($summary['fixedContentTypesItemGuard']['targetValid'] ?? null) !== false
         || ($summary['fixedContentTypesItemGuard']['targetIssues'] ?? null) !== ['targets-content-types-item']
+        || ($summary['fixedContentTypesItemGuard']['sourceRelationshipPart'] ?? null) !== '/_rels/[Content_Types].xml.rels'
+        || ($summary['fixedContentTypesItemGuard']['sourceRelationshipSource'] ?? null) !== '/[Content_Types].xml'
+        || ($summary['fixedContentTypesItemGuard']['sourceExists'] ?? null) !== true
+        || ($summary['fixedContentTypesItemGuard']['sourceLoaded'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['sourceLoadReason'] ?? null) !== 'content-types-item-source'
+        || ($summary['fixedContentTypesItemGuard']['sourceRelationshipCount'] ?? null) !== null
+        || ($summary['fixedContentTypesItemGuard']['sourceIssues'] ?? null) !== ['content-types-item-source']
+        || ($summary['fixedContentTypesItemGuard']['packagePartSourceLoaded'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['packagePartLoadAction'] ?? null) !== 'skipped'
+        || ($summary['fixedContentTypesItemGuard']['packagePartLoadReason'] ?? null) !== 'content-types-item-source'
+        || ($summary['fixedContentTypesItemGuard']['packagePartIssues'] ?? null) !== ['content-types-item-source']
         || ($summary['fixedContentTypesItemGuard']['packageConsistencyValid'] ?? null) !== false
+        || ($summary['fixedContentTypesItemGuard']['packagePartsValid'] ?? null) !== false
         || ($summary['fixedContentTypesItemGuard']['contentTypeOverridesValid'] ?? null) !== false
         || ($summary['fixedContentTypesItemGuard']['relationshipTargetsValid'] ?? null) !== false
         || array_keys($summary['partNameCaseCollisionGuards'] ?? []) !== [
