@@ -20099,6 +20099,10 @@ final class PdfTextExtractor
             return ['state' => 'inherit'];
         }
 
+        if ($this->topLevelDirectDictionaryValueHasTrailingNonName($objectBody, 'Resources')) {
+            return ['state' => 'blocked'];
+        }
+
         $value = trim($value);
         if ($value === '' || $value === 'null') {
             return ['state' => 'inherit'];
@@ -20191,8 +20195,7 @@ final class PdfTextExtractor
             if ($key === $name) {
                 $afterOffset = $nextOffset;
                 $this->skipContentWhitespaceAndComments($dictionary, $afterOffset);
-                $invalid = substr($dictionary, $valueOffset, 2) === '<<'
-                    && $afterOffset < $length
+                $invalid = $afterOffset < $length
                     && ($dictionary[$afterOffset] ?? '') !== '/';
             }
 
@@ -28852,7 +28855,7 @@ final class PdfTextExtractor
         foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
             $entry = $entries[$objectNumber] ?? null;
             if ($entry === null) {
-                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                     $definitions[$objectNumber] ?? [],
                     $previousOffset ?? -1,
                     $currentXrefOffset
@@ -28871,7 +28874,7 @@ final class PdfTextExtractor
             }
 
             if (($entry['type'] ?? null) === 0) {
-                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                     $definitions[$objectNumber] ?? [],
                     $previousOffset ?? -1,
                     $currentXrefOffset
@@ -28897,7 +28900,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+            $definition = $this->uniqueDirectObjectStreamDefinitionBetweenOffsets(
                 $definitions[$objectNumber] ?? [],
                 $previousOffset ?? -1,
                 $currentXrefOffset
@@ -29364,6 +29367,31 @@ final class PdfTextExtractor
         }
 
         return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * A damaged carrier xref row can be repaired only when the current
+     * revision window contains one possible direct object-stream carrier.
+     * Multiple same-number /ObjStm candidates are ambiguous without a valid
+     * direct carrier row, so fail closed instead of guessing by file order.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function uniqueDirectObjectStreamDefinitionBetweenOffsets(array $definitions, int $afterOffset, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if (
+                $definition['offset'] > $afterOffset
+                && $definition['offset'] < $beforeOffset
+                && $this->objectBodyHasTypeName($definition['body'], 'ObjStm')
+            ) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return count($candidates) === 1 ? $candidates[0] : null;
     }
 
     /**
@@ -34019,9 +34047,15 @@ final class PdfTextExtractor
             }
 
             if ($target['type'] === 'array') {
+                $targetTokens = $this->cMapTopLevelBfRangeTokens($target['value']);
+                if (!$this->cMapBfRangeTargetArrayTokensAreWellFormed($targetTokens)) {
+                    $index += 3;
+                    continue;
+                }
+
                 $targets = [];
                 $targetKinds = [];
-                foreach ($this->cMapTopLevelBfRangeTokens($target['value']) as $targetToken) {
+                foreach ($targetTokens as $targetToken) {
                     $targetType = $targetToken['type'] ?? null;
                     if ($targetType === 'hex') {
                         $normalized = $this->normalizeHexKey($targetToken['value']);
@@ -34069,6 +34103,33 @@ final class PdfTextExtractor
                 || ($tokens[$index + 1]['type'] ?? null) !== 'hex'
                 || !in_array($tokens[$index + 2]['type'] ?? null, ['hex', 'literal', 'array'], true)
             ) {
+                return false;
+            }
+
+            if (
+                ($tokens[$index + 2]['type'] ?? null) === 'array'
+                && !$this->cMapBfRangeTargetArrayTokensAreWellFormed(
+                    $this->cMapTopLevelBfRangeTokens($tokens[$index + 2]['value'])
+                )
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'literal'|'array'|'other', value: string}> $tokens
+     */
+    private function cMapBfRangeTargetArrayTokensAreWellFormed(array $tokens): bool
+    {
+        if ($tokens === []) {
+            return false;
+        }
+
+        foreach ($tokens as $token) {
+            if (!in_array($token['type'] ?? null, ['hex', 'literal'], true)) {
                 return false;
             }
         }
@@ -35042,7 +35103,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{pairs: list<array{0: string, 1: string}>, hasMalformedRows: bool}
+     * @return array{pairs: list<array{0: string, 1: string}>, hasMalformedRows: bool, rowSlots: int}
      */
     private function cMapTopLevelHexPairRows(string $source, ?int $declaredCount = null): array
     {
@@ -35055,6 +35116,7 @@ final class PdfTextExtractor
             return [
                 'pairs' => [],
                 'hasMalformedRows' => false,
+                'rowSlots' => 0,
             ];
         }
 
@@ -35100,6 +35162,7 @@ final class PdfTextExtractor
         return [
             'pairs' => $pairs,
             'hasMalformedRows' => $hasMalformedRows,
+            'rowSlots' => $rowsSeen,
         ];
     }
 

@@ -519,6 +519,35 @@ $pageResourceObjectTrailingTokenCurrentBasePdf = static function () use ($pageRe
         . "%%EOF";
 };
 
+$pageResourceReferenceTailCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /InheritedTailForm Do Q q /RootForm Do Q';
+    $tailedForm = 'BT /F1 12 Tf 12 24 Td (Tailed inherited resource form leak) Tj ET';
+    $rootForm = 'BT /F1 12 Tf 12 24 Td (Root fallback resource form leak) Tj ET';
+    $tailedCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Tailed inherited resource font leak',
+    ]);
+    $rootCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Root fallback resource font leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [10 0 R] /Count 1 /Resources 30 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 1 /Resources 20 0 R 99 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 10 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /TailedInheritedResource /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($tailedCMap) . " >>\nstream\n{$tailedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 240 80] /Length " . strlen($tailedForm) . " >>\nstream\n{$tailedForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /RootFallbackResource /Encoding /Identity-H /ToUnicode 9 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($rootCMap) . " >>\nstream\n{$rootCMap}\nendstream\nendobj\n"
+        . "11 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 240 80] /Length " . strlen($rootForm) . " >>\nstream\n{$rootForm}\nendstream\nendobj\n"
+        . "20 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /InheritedTailForm 7 0 R >> >>\nendobj\n"
+        . "30 0 obj\n<< /Font << /F1 8 0 R >> /XObject << /RootForm 11 0 R >> >>\nendobj\n"
+        . "99 0 obj\n<< /Font << /F1 8 0 R >> /XObject << /RootForm 11 0 R >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 $pageResourceEntryTailCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
     $content = 'BT /Ftailed 12 Tf 72 720 Td <41> Tj T* '
         . '/Fvalid 12 Tf <42> Tj T* '
@@ -1024,6 +1053,32 @@ return [
         $t->same(false, str_contains($plainText, 'Trailing token resource font leak'));
         $t->same(false, str_contains($plainText, 'Trailing token resource form leak'));
         $t->same(false, str_contains($plainText, 'TailForm'));
+    },
+    'rejects tailed inherited page Resources references before root fallback or Form lookup' => static function (TestRunner $t) use ($pageResourceReferenceTailCurrentBasePdf): void {
+        $pdf = $pageResourceReferenceTailCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resources = $boundary[0]['resources'] ?? [];
+
+        $t->same(['A'], $extractor->extractTextLines($pdf));
+        $t->same(['A'], $extractor->extractTextRuns($pdf));
+        $t->same('A', $plainText);
+        $t->same("A\n", $extractor->naiveGetText($pdf));
+        $t->same('unresolved_or_malformed', $resources['status'] ?? null);
+        $t->same(false, $resources['resolved'] ?? null);
+        $t->same(10, $resources['resource_owner_object'] ?? null);
+        $t->same(20, $resources['resource_object'] ?? null);
+        $t->same(0, $resources['resource_generation'] ?? null);
+        $t->same(true, $resources['inherited'] ?? null);
+        $t->same([3, 10], $resources['resource_lookup_objects'] ?? null);
+        $t->same([], $resources['categories'] ?? null);
+        $t->same(false, str_contains($plainText, 'Tailed inherited resource font leak'));
+        $t->same(false, str_contains($plainText, 'Tailed inherited resource form leak'));
+        $t->same(false, str_contains($plainText, 'Root fallback resource font leak'));
+        $t->same(false, str_contains($plainText, 'Root fallback resource form leak'));
+        $t->same(false, str_contains($plainText, 'InheritedTailForm'));
+        $t->same(false, str_contains($plainText, 'RootForm'));
     },
     'rejects tailed inherited resource entry references before font or ActualText lookup' => static function (TestRunner $t) use ($pageResourceEntryTailCurrentBasePdf): void {
         $pdf = $pageResourceEntryTailCurrentBasePdf();

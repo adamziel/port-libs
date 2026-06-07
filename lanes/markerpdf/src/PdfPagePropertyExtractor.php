@@ -1431,8 +1431,7 @@ final class PdfPagePropertyExtractor
 
             if ($this->decodePdfName($match[1]) === $key) {
                 $afterOffset = $this->skipWhitespace($dictionary, $value['end']);
-                $invalid = str_starts_with($value['raw'], '<<')
-                    && $afterOffset < $length
+                $invalid = $afterOffset < $length
                     && ($dictionary[$afterOffset] ?? '') !== '/';
             }
 

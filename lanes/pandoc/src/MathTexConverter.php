@@ -2910,7 +2910,7 @@ final class MathTexConverter
                 continue;
             }
 
-            if ($char === '>' || $char === '<' || $char === '@') {
+            if ($char === '>' || $char === '<' || $char === '@' || $char === '!') {
                 if (!$allowWidthColumns) {
                     throw new \InvalidArgumentException('Unsupported TeX array column specifier ' . $char . ' at offset ' . $offset);
                 }
@@ -2924,10 +2924,16 @@ final class MathTexConverter
                     }
 
                     $columnHooks[] = 'post-' . count($alignments) . ':' . $hook['source'];
+                } elseif ($char === '@') {
+                    if ($alignments === []) {
+                        $columnHooks[] = 'gap-before-1:' . $hook['source'];
+                    } else {
+                        $columnHooks[] = 'gap-after-' . count($alignments) . ':' . $hook['source'];
+                    }
                 } elseif ($alignments === []) {
-                    $columnHooks[] = 'gap-before-1:' . $hook['source'];
+                    $columnHooks[] = 'separator-before-1:' . $hook['source'];
                 } else {
-                    $columnHooks[] = 'gap-after-' . count($alignments) . ':' . $hook['source'];
+                    $columnHooks[] = 'separator-after-' . count($alignments) . ':' . $hook['source'];
                 }
 
                 $offset = $hook['next'] - 1;

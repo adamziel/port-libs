@@ -964,6 +964,19 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\text{src}}}a\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sum_{\\begin{subarray}{>{\\text{src}}c}i=1\\end{subarray}}^{n} a_i'));
     },
+    'converts bounded tex array bang separator hooks to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $separatorMathml = $converter->texToMathMl('\\begin{array}{l!{\\quad}c|!{\\text{review}}r}p_i & m_i & q_i \\\\ a & b & c\\end{array}', true);
+        $leadingSeparatorMathml = $converter->texToMathMl('\\begin{array}{!{\\mspace{2mu}}r!{\\hspace{.25em}}l}a & b\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $separatorMathml);
+        $t->contains('<mtable columnalign="left center right" columnlines="none solid" data-tex-column-hooks="separator-after-1:\\quad | separator-after-2:\\text{review}"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd><mtd><mi>c</mi></mtd></mtr></mtable>', $separatorMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l!{\\quad}c|!{\\text{review}}r}p_i &amp; m_i &amp; q_i \\\\ a &amp; b &amp; c\\end{array}</annotation>', $separatorMathml);
+        $t->contains('<mtable columnalign="right left" data-tex-column-hooks="separator-before-1:\\mspace{2mu} | separator-after-1:\\hspace{.25em}"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr></mtable>', $leadingSeparatorMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{l!{}c}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{l!{\\input{secret}}c}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sum_{\\begin{subarray}{!{\\quad}c}i=1\\end{subarray}}^{n} a_i'));
+    },
     'converts bounded tex array multicolumn cells to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $multicolumnMathml = $converter->texToMathMl('\\begin{array}{lcr}p_i & \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a & b & c\\end{array}', true);

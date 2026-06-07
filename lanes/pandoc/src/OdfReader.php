@@ -214,6 +214,8 @@ final class OdfReader
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
+                    'tableColumnDefinitionCount' => $contentStats['tableColumnDefinitionCount'],
+                    'hiddenTableColumnCount' => $contentStats['hiddenTableColumnCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                 ],
             ],
@@ -1512,7 +1514,8 @@ final class OdfReader
      */
     private function tableNode(\DOMElement $table, ZipPackage $package, array $catalog): AstNode
     {
-        $columnWidths = $this->tableColumnWidths($table, $catalog);
+        $columnDefinitions = $this->tableColumnDefinitions($table, $catalog);
+        $columnWidths = $this->tableColumnWidths($columnDefinitions);
         $children = [];
         $headerRows = [];
         $bodyRows = [];
@@ -1587,6 +1590,18 @@ final class OdfReader
         }
         if ($columnWidths !== []) {
             $attrs['widths'] = $columnWidths;
+        }
+        if ($columnDefinitions !== []) {
+            $summary = $this->tableColumnSummary($columnDefinitions);
+            $attrs['odfTableColumns'] = $columnDefinitions;
+            $attrs['odfTableColumnSummary'] = $summary;
+            $attrs['htmlAttributes']['data-odf-table-column-count'] = (string) $summary['count'];
+            if ($summary['hiddenCount'] > 0) {
+                $attrs['htmlAttributes']['data-odf-table-hidden-column-count'] = (string) $summary['hiddenCount'];
+            }
+            if ($summary['repeatedColumnCount'] > 0) {
+                $attrs['htmlAttributes']['data-odf-table-repeated-column-count'] = (string) $summary['repeatedColumnCount'];
+            }
         }
 
         return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children), [
@@ -1736,20 +1751,60 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
-     * @return list<float>
+     * @return list<array<string, mixed>>
      */
-    private function tableColumnWidths(\DOMElement $table, array $catalog): array
+    private function tableColumnDefinitions(\DOMElement $table, array $catalog): array
     {
-        $widths = [];
+        $columns = [];
+        $sourceIndex = 0;
         foreach (self::childElements($table, 'table-column', self::TABLE_NS) as $column) {
-            $repeat = min(32, max(1, self::intAttr($column, self::TABLE_NS, 'number-columns-repeated', 1)));
-            $style = $this->resolveStyle(self::attr($column, self::TABLE_NS, 'style-name'), $catalog);
-            $width = $this->lengthToPoints((string) ($style['tableColumnProperties']['columnWidth'] ?? ''));
+            $sourceIndex++;
+            $declaredRepeat = max(1, self::intAttr($column, self::TABLE_NS, 'number-columns-repeated', 1));
+            $repeat = min(32, $declaredRepeat);
+            $styleName = self::attr($column, self::TABLE_NS, 'style-name');
+            $style = $this->resolveStyle($styleName, $catalog);
+            $columnProperties = is_array($style['tableColumnProperties'] ?? null) ? $style['tableColumnProperties'] : [];
+            $width = (string) ($columnProperties['columnWidth'] ?? '');
+            $widthPoints = $this->lengthToPoints($width);
+            $visibility = self::attr($column, self::TABLE_NS, 'visibility');
+            $defaultCellStyleName = self::attr($column, self::TABLE_NS, 'default-cell-style-name');
+            $hidden = in_array(strtolower($visibility), ['collapse', 'filter'], true);
+
             for ($index = 0; $index < $repeat; $index++) {
-                $widths[] = $width;
+                $columns[] = self::withoutEmpty([
+                    'index' => count($columns) + 1,
+                    'sourceIndex' => $sourceIndex,
+                    'repeatIndex' => $repeat > 1 ? $index + 1 : null,
+                    'sourceRepeat' => $repeat > 1 ? $repeat : null,
+                    'declaredRepeat' => $declaredRepeat > $repeat ? $declaredRepeat : null,
+                    'repeatTruncated' => $declaredRepeat > $repeat ? true : null,
+                    'styleName' => self::nullable($styleName),
+                    'defaultCellStyleName' => self::nullable($defaultCellStyleName),
+                    'visibility' => self::nullable($visibility),
+                    'hidden' => $hidden,
+                    'width' => $width === '' ? null : $width,
+                    'widthPoints' => $widthPoints,
+                    'relativeWidth' => $columnProperties['relativeColumnWidth'] ?? null,
+                    'useOptimalWidth' => $columnProperties['useOptimalColumnWidth'] ?? null,
+                ]);
             }
         }
 
+        return $columns;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return list<float>
+     */
+    private function tableColumnWidths(array $columns): array
+    {
+        $widths = array_map(
+            static fn (array $column): ?float => isset($column['widthPoints']) && is_numeric($column['widthPoints'])
+                ? (float) $column['widthPoints']
+                : null,
+            $columns
+        );
         $positive = array_values(array_filter($widths, static fn (?float $width): bool => $width !== null && $width > 0.0));
         if ($positive === []) {
             return [];
@@ -1761,6 +1816,40 @@ final class OdfReader
         }
 
         return array_map(static fn (float $width): float => $width / $total, $positive);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return array{count:int, sourceCount:int, hiddenCount:int, repeatedColumnCount:int, truncatedRepeatCount:int}
+     */
+    private function tableColumnSummary(array $columns): array
+    {
+        $sourceIndexes = [];
+        $hiddenCount = 0;
+        $repeatedColumnCount = 0;
+        $truncatedRepeatCount = 0;
+        foreach ($columns as $column) {
+            if (isset($column['sourceIndex']) && is_scalar($column['sourceIndex'])) {
+                $sourceIndexes[(string) $column['sourceIndex']] = true;
+            }
+            if (($column['hidden'] ?? false) === true) {
+                $hiddenCount++;
+            }
+            if (isset($column['sourceRepeat']) && is_numeric($column['sourceRepeat']) && (int) $column['sourceRepeat'] > 1) {
+                $repeatedColumnCount++;
+            }
+            if (($column['repeatTruncated'] ?? false) === true) {
+                $truncatedRepeatCount++;
+            }
+        }
+
+        return [
+            'count' => count($columns),
+            'sourceCount' => count($sourceIndexes),
+            'hiddenCount' => $hiddenCount,
+            'repeatedColumnCount' => $repeatedColumnCount,
+            'truncatedRepeatCount' => $truncatedRepeatCount,
+        ];
     }
 
     /**
@@ -4557,9 +4646,11 @@ final class OdfReader
 
         $columnProperties = self::firstChildElement($style, 'table-column-properties', self::STYLE_NS);
         if ($columnProperties instanceof \DOMElement) {
-            $definition['tableColumnProperties'] = [
+            $definition['tableColumnProperties'] = self::withoutEmpty([
                 'columnWidth' => self::nullable(self::attr($columnProperties, self::STYLE_NS, 'column-width')),
-            ];
+                'relativeColumnWidth' => self::nullable(self::attr($columnProperties, self::STYLE_NS, 'rel-column-width')),
+                'useOptimalColumnWidth' => self::nullableBool(self::attr($columnProperties, self::STYLE_NS, 'use-optimal-column-width')),
+            ]);
         }
 
         return $definition;
@@ -5136,7 +5227,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -5176,6 +5267,8 @@ final class OdfReader
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
             'tableTemplateReferenceCount' => 0,
+            'tableColumnDefinitionCount' => 0,
+            'hiddenTableColumnCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -5210,6 +5303,17 @@ final class OdfReader
             }
             if ($node->type === 'table' && (string) $node->attr('templateName', '') !== '') {
                 $stats['tableTemplateReferenceCount']++;
+            }
+            if ($node->type === 'table') {
+                $columns = $node->attr('odfTableColumns', []);
+                if (is_array($columns)) {
+                    $stats['tableColumnDefinitionCount'] += count($columns);
+                    foreach ($columns as $column) {
+                        if (is_array($column) && ($column['hidden'] ?? false) === true) {
+                            $stats['hiddenTableColumnCount']++;
+                        }
+                    }
+                }
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
                 $stats['bookmarkCount']++;

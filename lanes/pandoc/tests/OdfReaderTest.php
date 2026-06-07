@@ -954,6 +954,102 @@ XML;
         $t->contains(': Templated Review', $markdown);
         $t->contains('<table class="odf-table-template" data-odf-table-name="Templated Review" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9">', $blocksHtml);
     },
+    'maps ODT table column repeats visibility and widths into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithColumnMetadata = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="ReviewNarrowColumn" style:family="table-column">
+      <style:table-column-properties style:column-width="2cm" style:rel-column-width="1*" style:use-optimal-column-width="false"/>
+    </style:style>
+    <style:style style:name="ReviewWideColumn" style:family="table-column">
+      <style:table-column-properties style:column-width="4cm" style:rel-column-width="2*" style:use-optimal-column-width="true"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithColumnMetadata = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Column Review">
+        <table:table-column table:style-name="ReviewNarrowColumn" table:number-columns-repeated="2" table:default-cell-style-name="ReviewInputCell"/>
+        <table:table-column table:style-name="ReviewWideColumn" table:visibility="collapse"/>
+        <table:table-row>
+          <table:table-cell><text:p>Owner</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+          <table:table-cell><text:p>Reviewer notes</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Migration desk</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+          <table:table-cell><text:p>Hidden source column remains auditable.</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithColumnMetadata, null, $stylesWithColumnMetadata));
+        $table = $result['document']->children[0];
+        $columns = $table->attr('odfTableColumns');
+        $summary = $table->attr('odfTableColumnSummary');
+        $widths = $table->attr('widths');
+
+        $t->same('table', $table->type);
+        $t->true(is_array($columns));
+        $columns = is_array($columns) ? $columns : [];
+        $t->same(3, count($columns));
+        $t->same(1, $columns[0]['index']);
+        $t->same(1, $columns[0]['sourceIndex']);
+        $t->same(1, $columns[0]['repeatIndex']);
+        $t->same(2, $columns[0]['sourceRepeat']);
+        $t->same('ReviewNarrowColumn', $columns[0]['styleName']);
+        $t->same('ReviewInputCell', $columns[0]['defaultCellStyleName']);
+        $t->same(false, $columns[0]['hidden']);
+        $t->same('2cm', $columns[0]['width']);
+        $t->same('1*', $columns[0]['relativeWidth']);
+        $t->same(false, $columns[0]['useOptimalWidth']);
+        $t->true(abs($columns[0]['widthPoints'] - 56.69291338582677) < 0.000001);
+        $t->same(2, $columns[1]['repeatIndex']);
+        $t->same(2, $columns[1]['sourceRepeat']);
+        $t->same(3, $columns[2]['index']);
+        $t->same(2, $columns[2]['sourceIndex']);
+        $t->same('ReviewWideColumn', $columns[2]['styleName']);
+        $t->same('collapse', $columns[2]['visibility']);
+        $t->same(true, $columns[2]['hidden']);
+        $t->same('4cm', $columns[2]['width']);
+        $t->same('2*', $columns[2]['relativeWidth']);
+        $t->same(true, $columns[2]['useOptimalWidth']);
+
+        $t->same([
+            'count' => 3,
+            'sourceCount' => 2,
+            'hiddenCount' => 1,
+            'repeatedColumnCount' => 2,
+            'truncatedRepeatCount' => 0,
+        ], $summary);
+        $t->same('3', $table->attr('htmlAttributes')['data-odf-table-column-count']);
+        $t->same('1', $table->attr('htmlAttributes')['data-odf-table-hidden-column-count']);
+        $t->same('2', $table->attr('htmlAttributes')['data-odf-table-repeated-column-count']);
+        $t->true(is_array($widths));
+        $widths = is_array($widths) ? $widths : [];
+        $t->true(abs($widths[0] - 0.25) < 0.000001);
+        $t->true(abs($widths[1] - 0.25) < 0.000001);
+        $t->true(abs($widths[2] - 0.5) < 0.000001);
+        $t->same(3, $result['importReport']['content']['tableColumnDefinitionCount']);
+        $t->same(1, $result['importReport']['content']['hiddenTableColumnCount']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<table data-odf-table-name="Column Review" data-odf-table-column-count="3" data-odf-table-hidden-column-count="1" data-odf-table-repeated-column-count="2">', $blocksHtml);
+        $t->contains('<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:50%"/></colgroup>', $blocksHtml);
+        $t->contains('<td><p>Hidden source column remains auditable.</p></td>', $blocksHtml);
+    },
     'maps ODT text-position styles into superscript and subscript spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithVerticalText = <<<'XML'
 <office:document-styles
