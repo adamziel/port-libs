@@ -9872,33 +9872,51 @@ final class PdfMetadataExtractor
      */
     private function encryptedPermissionValidationMetadata(string $dictionary, array $objects): ?array
     {
-        $values = $this->dictionaryTopLevelRawValues($dictionary, 'Perms');
-        if ($values === []) {
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, 'Perms');
+        if ($valueReviews === []) {
             return null;
         }
 
         $entries = [];
-        foreach ($values as $index => $value) {
+        foreach ($valueReviews as $index => $valueReview) {
+            $value = (string) $valueReview['value'];
             $resolved = $this->resolvePdfValue($value, $objects);
-            $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+            $resolvedValue = $resolved ?? $value;
+            $valueForReview = $this->firstPdfValueToken($resolvedValue);
             $operandShape = $this->standardPermissionDigestOperandShape($valueForReview);
-            $bytes = $this->pdfStringBytesFromValue($value, $objects);
-            $entries[] = [
+            $singleValue = ($valueReview['single_value'] ?? true) === true
+                && $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
+            $bytes = $singleValue ? $this->pdfStringBytesFromValue($value, $objects) : null;
+            $entry = [
                 'source' => 'standard_permissions_validation_ciphertext_entry',
                 'index' => $index,
                 'present' => true,
                 'operand_shape' => $operandShape,
+                'single_value' => $singleValue,
                 'bytes_resolved' => $bytes !== null,
                 'bytes' => $bytes === null ? null : strlen($bytes),
                 'sha256' => $bytes === null ? null : hash('sha256', $bytes),
-                'status' => $this->standardPermissionDigestEntryStatus(
+                'raw_bytes_exposed' => false,
+            ];
+
+            if (!$singleValue) {
+                $entry = array_merge(
+                    $entry,
+                    ($valueReview['single_value'] ?? true) !== true
+                        ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                        : $this->topLevelTrailingOperandReview($resolvedValue, $valueForReview),
+                    ['status' => 'permission_digest_trailing_operand_review']
+                );
+            } else {
+                $entry['status'] = $this->standardPermissionDigestEntryStatus(
                     $value,
                     $operandShape,
                     $bytes !== null,
                     $resolved !== null
-                ),
-                'raw_bytes_exposed' => false,
-            ];
+                );
+            }
+
+            $entries[] = $entry;
         }
 
         $selectedIndex = count($entries) - 1;
@@ -9908,8 +9926,8 @@ final class PdfMetadataExtractor
             'bytes_resolved' => (bool) ($selected['bytes_resolved'] ?? false),
             'bytes' => $selected['bytes'] ?? null,
             'sha256' => $selected['sha256'] ?? null,
-            'declared_entry_count' => count($values),
-            'duplicate_entries' => count($values) > 1,
+            'declared_entry_count' => count($valueReviews),
+            'duplicate_entries' => count($valueReviews) > 1,
             'selected_entry_index' => $selectedIndex,
             'selected_entry_status' => $selected['status'] ?? null,
             'selected_entry_operand_shape' => $selected['operand_shape'] ?? null,
@@ -10135,29 +10153,45 @@ final class PdfMetadataExtractor
         ?int $expectedBytes,
         bool $required
     ): array {
-        $values = $this->dictionaryTopLevelRawValues($dictionary, $pdfName);
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, $pdfName);
         $entries = [];
-        foreach ($values as $index => $value) {
+        foreach ($valueReviews as $index => $valueReview) {
+            $value = (string) $valueReview['value'];
             $resolved = $this->resolvePdfValue($value, $objects);
-            $operandShape = $this->standardAuthenticationOperandShape(
-                $this->trimPdfWhitespaceAndComments($resolved ?? $value)
-            );
-            $entryBytes = $this->pdfStringBytesFromValue($value, $objects);
+            $resolvedValue = $resolved ?? $value;
+            $valueForReview = $this->firstPdfValueToken($resolvedValue);
+            $operandShape = $this->standardAuthenticationOperandShape($valueForReview);
+            $singleValue = ($valueReview['single_value'] ?? true) === true
+                && $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
+            $entryBytes = $singleValue ? $this->pdfStringBytesFromValue($value, $objects) : null;
             $entryLength = $entryBytes === null ? null : strlen($entryBytes);
             $entryLengthValid = $entryLength !== null && $expectedBytes !== null
                 ? $entryLength === $expectedBytes
                 : ($entryLength === null ? null : true);
-            $entries[] = [
+            $entry = [
                 'source' => 'standard_authentication_entry_declaration_review',
                 'index' => $index,
                 'present' => true,
                 'operand_shape' => $operandShape,
+                'single_value' => $singleValue,
                 'bytes_resolved' => $entryBytes !== null,
                 'bytes' => $entryLength,
                 'expected_bytes' => $expectedBytes,
                 'length_valid' => $entryLengthValid,
                 'sha256' => $entryBytes === null ? null : hash('sha256', $entryBytes),
-                'status' => $this->standardAuthenticationEntryStatus(
+                'raw_bytes_exposed' => false,
+            ];
+
+            if (!$singleValue) {
+                $entry = array_merge(
+                    $entry,
+                    ($valueReview['single_value'] ?? true) !== true
+                        ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                        : $this->topLevelTrailingOperandReview($resolvedValue, $valueForReview),
+                    ['status' => 'authentication_entry_trailing_operand_review']
+                );
+            } else {
+                $entry['status'] = $this->standardAuthenticationEntryStatus(
                     true,
                     $entryBytes !== null,
                     $entryLengthValid,
@@ -10165,42 +10199,29 @@ final class PdfMetadataExtractor
                     $operandShape,
                     $resolved !== null,
                     $value
-                ),
-                'raw_bytes_exposed' => false,
-            ];
+                );
+            }
+
+            $entries[] = $entry;
         }
 
         $selectedIndex = count($entries) - 1;
         $selectedEntry = $selectedIndex >= 0 ? $entries[$selectedIndex] : null;
-        $value = $selectedIndex >= 0 ? $values[$selectedIndex] : null;
-        $resolved = $value === null ? null : $this->resolvePdfValue($value, $objects);
-        $operandShape = $value === null ? null : $this->standardAuthenticationOperandShape(
-            $this->trimPdfWhitespaceAndComments($resolved ?? $value)
-        );
-        $bytes = $value === null ? null : $this->pdfStringBytesFromValue($value, $objects);
-        $length = $bytes === null ? null : strlen($bytes);
-        $lengthValid = $length !== null && $expectedBytes !== null ? $length === $expectedBytes : ($length === null ? null : true);
-        $selectedStatus = $this->standardAuthenticationEntryStatus(
-            $value !== null,
-            $bytes !== null,
-            $lengthValid,
-            $required,
-            $operandShape,
-            $resolved !== null,
-            $value
-        );
-        $duplicateEntries = count($values) > 1;
+        $duplicateEntries = count($valueReviews) > 1;
+        $selectedStatus = is_array($selectedEntry) && is_string($selectedEntry['status'] ?? null)
+            ? $selectedEntry['status']
+            : $this->standardAuthenticationEntryStatus(false, false, null, $required);
 
         return [
             'pdf_name' => $pdfName,
             'purpose' => $purpose,
             'required_for_revision' => $required,
-            'present' => $value !== null,
-            'declared_entry_count' => count($values),
+            'present' => $selectedEntry !== null,
+            'declared_entry_count' => count($valueReviews),
             'duplicate_entries' => $duplicateEntries,
             'selected_entry_index' => $selectedIndex >= 0 ? $selectedIndex : null,
-            'selected_entry_status' => $selectedEntry['status'] ?? $selectedStatus,
-            'selected_entry_operand_shape' => $selectedEntry['operand_shape'] ?? $operandShape,
+            'selected_entry_status' => $selectedStatus,
+            'selected_entry_operand_shape' => $selectedEntry['operand_shape'] ?? null,
             'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
                 array_map(
                     static fn (array $entry): mixed => $entry['status'] ?? null,
@@ -10216,12 +10237,12 @@ final class PdfMetadataExtractor
                 static fn (mixed $shape): bool => is_string($shape)
             ))),
             'entry_reviews' => $entries,
-            'operand_shape' => $operandShape,
-            'bytes_resolved' => $bytes !== null,
-            'bytes' => $length,
+            'operand_shape' => $selectedEntry['operand_shape'] ?? null,
+            'bytes_resolved' => (bool) ($selectedEntry['bytes_resolved'] ?? false),
+            'bytes' => $selectedEntry['bytes'] ?? null,
             'expected_bytes' => $expectedBytes,
-            'length_valid' => $lengthValid,
-            'sha256' => $bytes === null ? null : hash('sha256', $bytes),
+            'length_valid' => $selectedEntry['length_valid'] ?? null,
+            'sha256' => $selectedEntry['sha256'] ?? null,
             'status' => $duplicateEntries ? 'authentication_entry_duplicate_entries_review' : $selectedStatus,
             'raw_bytes_exposed' => false,
             'validated' => false,
@@ -10308,6 +10329,7 @@ final class PdfMetadataExtractor
         if (in_array($selectedStatus, [
             'permission_digest_composite_operand_review',
             'permission_digest_non_string_operand_review',
+            'permission_digest_trailing_operand_review',
         ], true)) {
             return $selectedStatus;
         }
@@ -19586,6 +19608,14 @@ final class PdfMetadataExtractor
      */
     private function standardPermissionWordTrailingOperandReviewFromValueReview(array $valueReview): array
     {
+        return $this->topLevelTrailingOperandReviewFromValueReview($valueReview);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function topLevelTrailingOperandReviewFromValueReview(array $valueReview): array
+    {
         $review = [
             'trailing_operand' => true,
             'trailing_operand_shape' => $valueReview['trailing_operand_shape'] ?? 'malformed',
@@ -19609,6 +19639,14 @@ final class PdfMetadataExtractor
      * @return array<string, mixed>
      */
     private function standardPermissionWordTrailingOperandReview(string $value, string $firstToken): array
+    {
+        return $this->topLevelTrailingOperandReview($value, $firstToken);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function topLevelTrailingOperandReview(string $value, string $firstToken): array
     {
         $offset = $this->skipPdfWhitespace($value, 0);
         $after = $this->skipPdfWhitespace($value, $offset + strlen($firstToken));
