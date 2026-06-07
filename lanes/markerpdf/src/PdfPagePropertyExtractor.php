@@ -1310,12 +1310,14 @@ final class PdfPagePropertyExtractor
      */
     private function effectivePageResourcesMetadata(int $pageObjectNumber, array $objects, string $catalog): ?array
     {
+        $resourceLookupObjects = [];
         foreach ($this->pageObjectLineage($pageObjectNumber, $objects, $catalog) as $objectNumber) {
             $objectDictionary = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
             if ($objectDictionary === null) {
                 continue;
             }
 
+            $resourceLookupObjects[] = $objectNumber;
             $resourceValue = $this->topLevelDictionaryRawValue($objectDictionary, 'Resources');
             if ($resourceValue === null) {
                 continue;
@@ -1325,7 +1327,8 @@ final class PdfPagePropertyExtractor
                 return $this->malformedPageResourcesMetadata(
                     $pageObjectNumber,
                     $objectNumber,
-                    $resourceValue
+                    $resourceValue,
+                    $resourceLookupObjects
                 );
             }
 
@@ -1345,7 +1348,8 @@ final class PdfPagePropertyExtractor
                 return $this->malformedPageResourcesMetadata(
                     $pageObjectNumber,
                     $objectNumber,
-                    $resourceValue
+                    $resourceValue,
+                    $resourceLookupObjects
                 );
             }
 
@@ -1354,7 +1358,8 @@ final class PdfPagePropertyExtractor
                 return $this->malformedPageResourcesMetadata(
                     $pageObjectNumber,
                     $objectNumber,
-                    $resourceValue
+                    $resourceValue,
+                    $resourceLookupObjects
                 );
             }
 
@@ -1367,6 +1372,7 @@ final class PdfPagePropertyExtractor
                 'resource_object' => $resources['object'],
                 'resource_generation' => $resources['generation'],
                 'inherited' => $objectNumber !== $pageObjectNumber,
+                'resource_lookup_objects' => $resourceLookupObjects,
                 'categories' => $this->resourceDictionaryCategoryNames($resourceBody),
             ];
 
@@ -1539,9 +1545,15 @@ final class PdfPagePropertyExtractor
     }
 
     /**
+     * @param list<int> $resourceLookupObjects
      * @return array<string, mixed>
      */
-    private function malformedPageResourcesMetadata(int $pageObjectNumber, int $objectNumber, string $resourceValue): array
+    private function malformedPageResourcesMetadata(
+        int $pageObjectNumber,
+        int $objectNumber,
+        string $resourceValue,
+        array $resourceLookupObjects
+    ): array
     {
         return [
             'source' => 'page_tree_resources',
@@ -1551,6 +1563,7 @@ final class PdfPagePropertyExtractor
             'resource_object' => $this->objectNumberFromReference($resourceValue),
             'resource_generation' => $this->objectReferenceFromValue($resourceValue)['generation'] ?? null,
             'inherited' => $objectNumber !== $pageObjectNumber,
+            'resource_lookup_objects' => $resourceLookupObjects,
             'categories' => [],
         ];
     }
