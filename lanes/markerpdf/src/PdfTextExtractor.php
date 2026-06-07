@@ -31442,6 +31442,17 @@ final class PdfTextExtractor
             if ($mappingBlock['kind'] === 'char') {
                 $block = $this->cMapOperatorBlockData($mappingBlock['body']);
                 $entries = $this->cMapTopLevelHexPairs($block);
+                $rowEntries = $this->cMapTopLevelHexPairRows($block);
+                if (
+                    $rowEntries['hasMalformedRows']
+                    && $rowEntries['pairs'] !== []
+                    && (
+                        $mappingBlock['declaredCount'] === null
+                        || count($rowEntries['pairs']) >= min(max(0, $mappingBlock['declaredCount']), count($entries))
+                    )
+                ) {
+                    $entries = $rowEntries['pairs'];
+                }
                 if ($mappingBlock['declaredCount'] !== null) {
                     $entries = array_slice($entries, 0, max(0, $mappingBlock['declaredCount']));
                 }
@@ -32757,6 +32768,41 @@ final class PdfTextExtractor
         }
 
         return $pairs;
+    }
+
+    /**
+     * @return array{pairs: list<array{0: string, 1: string}>, hasMalformedRows: bool}
+     */
+    private function cMapTopLevelHexPairRows(string $source): array
+    {
+        $pairs = [];
+        $hasMalformedRows = false;
+        $lines = preg_split('/\R/', $source);
+        if ($lines === false) {
+            return [
+                'pairs' => [],
+                'hasMalformedRows' => false,
+            ];
+        }
+
+        foreach ($lines as $line) {
+            $tokens = $this->cMapTopLevelHexTokens($line);
+            if ($tokens === []) {
+                continue;
+            }
+            if (count($tokens) % 2 !== 0) {
+                $hasMalformedRows = true;
+            }
+
+            for ($index = 0, $count = count($tokens); $index + 1 < $count; $index += 2) {
+                $pairs[] = [$tokens[$index], $tokens[$index + 1]];
+            }
+        }
+
+        return [
+            'pairs' => $pairs,
+            'hasMalformedRows' => $hasMalformedRows,
+        ];
     }
 
     private function normalizeHexKey(string $hex): string
