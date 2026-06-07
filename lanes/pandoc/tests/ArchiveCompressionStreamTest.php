@@ -115,6 +115,48 @@ $paxPayload = static function (array $headers): string {
 };
 
 $lz4HeaderChecksum = static fn (string $descriptor): string => chr((intval(hash('xxh32', $descriptor), 16) >> 8) & 0xff);
+$lz4DictionaryMatchBlock = static function (string $dictionary, string $tail): string {
+    $matchLength = strlen($dictionary);
+    if ($matchLength < 19) {
+        throw new RuntimeException('LZ4 dictionary fixture must be at least 19 bytes');
+    }
+    if (strlen($tail) > 14) {
+        throw new RuntimeException('LZ4 dictionary fixture tail must fit in one literal token');
+    }
+
+    return chr(0x0f)
+        . pack('v', $matchLength)
+        . chr($matchLength - 19)
+        . chr(strlen($tail) << 4)
+        . $tail;
+};
+$lz4DictionaryCompressedFrame = static function (
+    int $dictionaryId,
+    string $decodedPayload,
+    array $rawBlocks,
+    bool $blockIndependent = true
+) use ($lz4HeaderChecksum): string {
+    $descriptor = chr(0x40 | ($blockIndependent ? 0x20 : 0x00) | 0x10 | 0x08 | 0x04 | 0x01)
+        . chr(0x40)
+        . pack('V2', strlen($decodedPayload), 0)
+        . pack('V', $dictionaryId);
+    $frame = pack('V', 0x184d2204)
+        . $descriptor
+        . $lz4HeaderChecksum($descriptor);
+
+    foreach ($rawBlocks as $rawBlock) {
+        if (!is_string($rawBlock)) {
+            throw new RuntimeException('LZ4 dictionary fixture blocks must be byte strings');
+        }
+        $frame .= pack('V', strlen($rawBlock))
+            . $rawBlock
+            . pack('V', intval(hash('xxh32', $rawBlock), 16));
+    }
+
+    return $frame
+        . pack('V', 0)
+        . pack('V', intval(hash('xxh32', $decodedPayload), 16));
+};
 
 return [
     'builds and reads bounded tar package fixture entries' => static function (TestRunner $t): void {
@@ -2835,6 +2877,65 @@ return [
         $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeTarBytes(
             $stream,
             ArchiveCompressionStream::FORMAT_LZ4_TAR
+        ));
+    },
+
+    'decodes dictionary backed lz4 archive streams with supplied fixture dictionaries' => static function (TestRunner $t) use ($lz4DictionaryMatchBlock, $lz4DictionaryCompressedFrame): void {
+        $dictionaryId = 0x01020304;
+        $dictionary = 'packet/word/document.xml:';
+        $decodedPayload = $dictionary . 'doc' . $dictionary . 'xml';
+        $stream = Lz4Frame::skippableFrame('dictionary-id:0x01020304', 12)
+            . $lz4DictionaryCompressedFrame($dictionaryId, $decodedPayload, [
+                $lz4DictionaryMatchBlock($dictionary, 'doc'),
+                $lz4DictionaryMatchBlock($dictionary, 'xml'),
+            ]);
+
+        $decodedFrames = Lz4Frame::framesWithDictionaries($stream, [
+            $dictionaryId => $dictionary,
+        ]);
+
+        $t->same($decodedPayload, Lz4Frame::decodeWithDictionaries($stream, [
+            $dictionaryId => $dictionary,
+        ]));
+        $t->same($decodedPayload, ArchiveCompressionStream::decodeTarBytesWithLz4Dictionaries(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$dictionaryId => $dictionary],
+            strlen($decodedPayload)
+        ));
+        $t->same($decodedPayload, ArchiveCompressionStream::decodeZipBytesWithLz4Dictionaries(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            [$dictionaryId => $dictionary],
+            strlen($decodedPayload)
+        ));
+        $t->same(2, count($decodedFrames));
+        $t->same('skippable', $decodedFrames[0]['type']);
+        $t->same('dictionary-id:0x01020304', $decodedFrames[0]['data']);
+        $t->same('frame', $decodedFrames[1]['type']);
+        $t->same($dictionaryId, $decodedFrames[1]['dictionaryId']);
+        $t->same(strlen($decodedPayload), $decodedFrames[1]['contentSize']);
+        $t->same(true, $decodedFrames[1]['blockIndependent']);
+        $t->same(true, $decodedFrames[1]['blockChecksum']);
+        $t->same(true, $decodedFrames[1]['contentChecksum']);
+        $t->same(2, $decodedFrames[1]['blockCount']);
+        $t->same(['compressed', 'compressed'], $decodedFrames[1]['blockTypes']);
+        $t->true($decodedFrames[1]['compressedSize'] < strlen($decodedPayload));
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($stream));
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decodeWithDictionaries($stream, []));
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decodeWithDictionaries($stream, [
+            $dictionaryId => substr($dictionary, 1),
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeZipBytesWithLz4Dictionaries(
+            $stream,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            [$dictionaryId => $dictionary]
+        ));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeTarBytesWithLz4Dictionaries(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$dictionaryId => $dictionary],
+            strlen($decodedPayload) - 1
         ));
     },
 

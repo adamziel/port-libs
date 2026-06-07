@@ -119,6 +119,24 @@ final class Lz4Frame
     }
 
     /**
+     * @param array<int|string, string> $dictionaries
+     */
+    public static function decodeWithDictionaries(
+        string $bytes,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): string {
+        $data = '';
+        foreach (self::framesWithDictionaries($bytes, $dictionaries, $maxUncompressedBytes) as $frame) {
+            if ($frame['type'] === 'frame') {
+                $data .= $frame['data'];
+            }
+        }
+
+        return $data;
+    }
+
+    /**
      * @return array{
      *     frameCount:int,
      *     dataFrameCount:int,
@@ -297,6 +315,7 @@ final class Lz4Frame
      *     frameSize:int,
      *     id?:int,
      *     contentSize?:?int,
+     *     dictionaryId?:?int,
      *     blockMaxSize?:int,
      *     blockIndependent?:bool,
      *     blockChecksum?:bool,
@@ -307,6 +326,49 @@ final class Lz4Frame
      * }>
      */
     public static function frames(string $bytes, ?int $maxUncompressedBytes = null): array
+    {
+        return self::parseFrames($bytes, $maxUncompressedBytes, null);
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return list<array{
+     *     type:string,
+     *     data:string,
+     *     frameSize:int,
+     *     id?:int,
+     *     contentSize?:?int,
+     *     dictionaryId?:?int,
+     *     blockMaxSize?:int,
+     *     blockIndependent?:bool,
+     *     blockChecksum?:bool,
+     *     contentChecksum?:bool,
+     *     blockCount?:int,
+     *     blockTypes?:list<string>,
+     *     compressedSize?:int
+     * }>
+     */
+    public static function framesWithDictionaries(
+        string $bytes,
+        array $dictionaries,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        return self::parseFrames(
+            $bytes,
+            $maxUncompressedBytes,
+            self::normalizeExternalDictionaries($dictionaries)
+        );
+    }
+
+    /**
+     * @param ?array<int, string> $dictionaryMap
+     * @return list<array<string, mixed>>
+     */
+    private static function parseFrames(
+        string $bytes,
+        ?int $maxUncompressedBytes,
+        ?array $dictionaryMap
+    ): array
     {
         if ($bytes === '') {
             throw new \RuntimeException('LZ4 frame stream is empty');
@@ -379,8 +441,10 @@ final class Lz4Frame
                 $cursor += 8;
             }
 
+            $dictionaryId = null;
             if (($flags & self::FLAG_DICTIONARY_ID) !== 0) {
                 self::assertRange($bytes, $cursor, 4, 'dictionary id');
+                $dictionaryId = self::readUInt32($bytes, $cursor);
                 $cursor += 4;
             }
 
@@ -392,8 +456,17 @@ final class Lz4Frame
             }
             $cursor++;
 
-            if (($flags & self::FLAG_DICTIONARY_ID) !== 0) {
-                throw new \RuntimeException('Dictionary-backed LZ4 frames are not supported by the pandoc archive reader');
+            $dictionaryBytes = '';
+            if ($dictionaryId !== null) {
+                if ($dictionaryMap === null) {
+                    throw new \RuntimeException('Dictionary-backed LZ4 frames are not supported by the pandoc archive reader');
+                }
+
+                if (!array_key_exists($dictionaryId, $dictionaryMap)) {
+                    throw new \RuntimeException("Missing LZ4 external dictionary for dictionary id {$dictionaryId}");
+                }
+
+                $dictionaryBytes = $dictionaryMap[$dictionaryId];
             }
 
             $data = '';
@@ -401,7 +474,7 @@ final class Lz4Frame
             $blockCount = 0;
             $compressedSize = 0;
             $blockChecksum = ($flags & self::FLAG_BLOCK_CHECKSUM) !== 0;
-            $blockHistory = '';
+            $blockHistory = $dictionaryBytes;
 
             while (true) {
                 self::assertRange($bytes, $cursor, 4, 'block size');
@@ -434,7 +507,11 @@ final class Lz4Frame
 
                 $decodedBlock = $uncompressedBlock
                     ? $blockPayload
-                    : self::decodeRawBlock($blockPayload, $blockMaxSize, $blockIndependent ? '' : $blockHistory);
+                    : self::decodeRawBlock(
+                        $blockPayload,
+                        $blockMaxSize,
+                        $blockIndependent ? $dictionaryBytes : $blockHistory
+                    );
                 if (strlen($decodedBlock) > $blockMaxSize) {
                     throw new \RuntimeException('LZ4 decoded block exceeds the configured frame maximum');
                 }
@@ -471,6 +548,7 @@ final class Lz4Frame
                 'data' => $data,
                 'frameSize' => $cursor - $frameStart,
                 'contentSize' => $contentSize,
+                'dictionaryId' => $dictionaryId,
                 'blockMaxSize' => $blockMaxSize,
                 'blockIndependent' => $blockIndependent,
                 'blockChecksum' => $blockChecksum,
@@ -482,6 +560,33 @@ final class Lz4Frame
         }
 
         return $frames;
+    }
+
+    /**
+     * @param array<int|string, string> $dictionaries
+     * @return array<int, string>
+     */
+    private static function normalizeExternalDictionaries(array $dictionaries): array
+    {
+        $normalized = [];
+        foreach ($dictionaries as $id => $dictionary) {
+            if (!is_string($dictionary)) {
+                throw new \RuntimeException('LZ4 external dictionaries must be byte strings');
+            }
+
+            if (is_int($id)) {
+                $dictionaryId = $id;
+            } elseif (is_string($id) && preg_match('/^(?:0|[1-9][0-9]*)$/', $id) === 1) {
+                $dictionaryId = (int) $id;
+            } else {
+                throw new \RuntimeException('LZ4 external dictionary ids must be unsigned 32-bit integers');
+            }
+
+            self::assertUInt32Value($dictionaryId, 'LZ4 external dictionary id');
+            $normalized[$dictionaryId] = $dictionary;
+        }
+
+        return $normalized;
     }
 
     private static function encodeRawBlock(string $payload, string $dependentHistory = ''): string

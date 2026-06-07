@@ -96,6 +96,45 @@ $rewriteTarHeaderWithSignedChecksum = static function (string $archive): string 
 
 $tarOctalField = static fn (int $value): string => str_pad(decoct($value), 7, '0', STR_PAD_LEFT) . "\0";
 $lz4HeaderChecksum = static fn (string $descriptor): string => chr((intval(hash('xxh32', $descriptor), 16) >> 8) & 0xff);
+$lz4DictionaryMatchBlock = static function (string $dictionary, string $tail): string {
+    $matchLength = strlen($dictionary);
+    if ($matchLength < 19 || strlen($tail) > 14) {
+        throw new RuntimeException('invalid LZ4 dictionary preflight fixture');
+    }
+
+    return chr(0x0f)
+        . pack('v', $matchLength)
+        . chr($matchLength - 19)
+        . chr(strlen($tail) << 4)
+        . $tail;
+};
+$lz4DictionaryCompressedFrame = static function (
+    int $dictionaryId,
+    string $decodedPayload,
+    array $rawBlocks,
+    bool $blockIndependent = true
+) use ($lz4HeaderChecksum): string {
+    $descriptor = chr(0x40 | ($blockIndependent ? 0x20 : 0x00) | 0x10 | 0x08 | 0x04 | 0x01)
+        . chr(0x40)
+        . pack('V2', strlen($decodedPayload), 0)
+        . pack('V', $dictionaryId);
+    $frame = pack('V', 0x184d2204)
+        . $descriptor
+        . $lz4HeaderChecksum($descriptor);
+
+    foreach ($rawBlocks as $rawBlock) {
+        if (!is_string($rawBlock)) {
+            throw new RuntimeException('invalid LZ4 dictionary preflight block');
+        }
+        $frame .= pack('V', strlen($rawBlock))
+            . $rawBlock
+            . pack('V', intval(hash('xxh32', $rawBlock), 16));
+    }
+
+    return $frame
+        . pack('V', 0)
+        . pack('V', intval(hash('xxh32', $decodedPayload), 16));
+};
 
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
@@ -396,6 +435,25 @@ try {
 } catch (RuntimeException) {
     $lz4DictionaryExtractionBlocked = true;
 }
+$lz4SuppliedDictionary = 'packet/word/document.xml:';
+$lz4SuppliedDecodedPayload = $lz4SuppliedDictionary . 'wp' . $lz4SuppliedDictionary . 'ok';
+$lz4SuppliedDictionaryStream = Lz4Frame::skippableFrame('dictionary-id:0x1a2b3c4d', 12)
+    . $lz4DictionaryCompressedFrame($lz4DictionaryId, $lz4SuppliedDecodedPayload, [
+        $lz4DictionaryMatchBlock($lz4SuppliedDictionary, 'wp'),
+        $lz4DictionaryMatchBlock($lz4SuppliedDictionary, 'ok'),
+    ]);
+$lz4SuppliedDecodedPayloadActual = Lz4Frame::decodeWithDictionaries($lz4SuppliedDictionaryStream, [
+    $lz4DictionaryId => $lz4SuppliedDictionary,
+]);
+$lz4SuppliedFrames = Lz4Frame::framesWithDictionaries($lz4SuppliedDictionaryStream, [
+    $lz4DictionaryId => $lz4SuppliedDictionary,
+]);
+$lz4SuppliedMissingDictionaryBlocked = false;
+try {
+    Lz4Frame::decodeWithDictionaries($lz4SuppliedDictionaryStream, []);
+} catch (RuntimeException) {
+    $lz4SuppliedMissingDictionaryBlocked = true;
+}
 $nestedZipPackage = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -521,6 +579,9 @@ if (in_array('--self-test', $argv, true)) {
         'lz4DictionaryId' => $lz4DictionaryId,
         'lz4DictionaryBlockCount' => 1,
         'lz4DictionaryPayloadSize' => strlen($lz4DictionaryPayload),
+        'lz4SuppliedDecodedPayload' => $lz4SuppliedDecodedPayload,
+        'lz4SuppliedFrameCount' => 2,
+        'lz4SuppliedBlockCount' => 2,
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'nestedCandidateCount' => 4,
@@ -637,6 +698,12 @@ if (in_array('--self-test', $argv, true)) {
         || ($lz4DictionaryInspection['stream']['frames'][1]['contentSize'] ?? null) !== $expected['lz4DictionaryPayloadSize']
         || ($lz4DictionaryInspection['stream']['frames'][1]['policy'] ?? null) !== 'blocked'
         || ($lz4DictionaryInspection['stream']['frames'][1]['diagnostics'] ?? []) !== ['lz4-dictionary-frame-not-decoded', 'lz4-external-dictionary-required']
+        || $lz4SuppliedDecodedPayloadActual !== $expected['lz4SuppliedDecodedPayload']
+        || count($lz4SuppliedFrames) !== $expected['lz4SuppliedFrameCount']
+        || !$lz4SuppliedMissingDictionaryBlocked
+        || ($lz4SuppliedFrames[1]['dictionaryId'] ?? null) !== $expected['lz4DictionaryId']
+        || ($lz4SuppliedFrames[1]['blockCount'] ?? null) !== $expected['lz4SuppliedBlockCount']
+        || ($lz4SuppliedFrames[1]['blockTypes'] ?? []) !== ['compressed', 'compressed']
         || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
