@@ -462,17 +462,19 @@ final class PdfImageRenderer
     {
         $colorSpace = $this->imageColorSpaceDetails($imageDictionary, $objects);
         $imageFilterDetails = $this->imageFilterDetails($imageDictionary, $objects);
-        $imageFilters = array_map(
+        $imageFilterValues = array_map(
             static fn (array $filter): string => $filter['filter'],
             $imageFilterDetails
         );
+        $imageFilters = $this->publicImageFilterList($imageFilterValues);
         $duplicateFilterDeclarationCount = $this->duplicatePdfNameDeclarationCount($imageDictionary, 'Filter');
-        $previewOnlyFilters = array_values(array_filter(
-            $imageFilters,
+        $previewOnlyFilterValues = array_values(array_filter(
+            $imageFilterValues,
             fn (string $filter): bool => $this->isPreviewOnlyImageFilter($filter)
         ));
-        $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($imageFilters);
-        $jpxSoftMaskInData = $this->jpxSoftMaskInDataDetails($imageDictionary, $imageFilters, $objects);
+        $previewOnlyFilters = $this->publicImageFilterList($previewOnlyFilterValues);
+        $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($imageFilterValues);
+        $jpxSoftMaskInData = $this->jpxSoftMaskInDataDetails($imageDictionary, $imageFilterValues, $objects);
         $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
             && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
         $imageMask = $this->imageMaskDetails($imageDictionary, $objects);
@@ -608,7 +610,7 @@ final class PdfImageRenderer
         } elseif ($colorKeyMaskMismatch) {
             $notes[] = 'color_key_mask_component_mismatch';
         }
-        foreach ($previewOnlyFilters as $filter) {
+        foreach ($previewOnlyFilterValues as $filter) {
             $notes[] = match ($filter) {
                 'DCTDecode', 'DCT' => 'dctdecode_image_filter_review_only',
                 'JBIG2Decode' => 'jbig2_image_filter_review_only',
@@ -4454,6 +4456,18 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param list<string> $filters
+     * @return list<string>
+     */
+    private function publicImageFilterList(array $filters): array
+    {
+        return array_values(array_map(
+            static fn (string $filter): string => $filter === 'DCT' ? 'DCTDecode' : $filter,
+            $filters
+        ));
+    }
+
+    /**
      * @param array<int, string> $objects
      * @return list<string|null>
      */
@@ -7084,9 +7098,9 @@ final class PdfImageRenderer
         $boundary = [
             'present' => true,
             'source_object' => $sourceObject,
-            'filters' => $filters,
-            'preview_only_filters' => $previewOnlyFilters,
-            'unsupported_filters' => array_values($unsupportedFilters),
+            'filters' => $this->publicImageFilterList($filters),
+            'preview_only_filters' => $this->publicImageFilterList($previewOnlyFilters),
+            'unsupported_filters' => $this->publicImageFilterList(array_values($unsupportedFilters)),
             'raw_length' => $stream === null ? null : strlen($stream),
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
@@ -7191,12 +7205,12 @@ final class PdfImageRenderer
 
         $filterDetails = $this->imageFilterDetails($dictionary, $objects);
         $boundary = [
-            'filters' => $filters,
+            'filters' => $this->publicImageFilterList($filters),
             'filter_details' => $filterDetails,
             'public_filter_details' => $requireExplicitFilterEndMarkers
                 && $this->filterDetailsContainDecodeParms($filterDetails),
-            'preview_only_filters' => $previewOnlyFilters,
-            'unsupported_filters' => array_values($unsupportedFilters),
+            'preview_only_filters' => $this->publicImageFilterList($previewOnlyFilters),
+            'unsupported_filters' => $this->publicImageFilterList(array_values($unsupportedFilters)),
             'raw_length' => $stream === null ? null : strlen($stream),
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),

@@ -1304,7 +1304,7 @@ final class PdfOutlineExtractor
                 continue;
             }
 
-            $outlineContext = $this->outlineActionStructureContext($dict, $objects);
+            $outlineContext = $this->outlineActionStructureContext($dict, $objects, $current);
             if (array_key_exists('A', $dict) && !$this->outlineObjectDictionaryKeyHasTrailingOperands($current, 'A')) {
                 $seenActions = [];
                 $actions = $this->reviewActionsFromValue($dict['A'], $objects, $pageIndexes, $destinations, $seenActions);
@@ -1656,6 +1656,7 @@ final class PdfOutlineExtractor
             && (
                 $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'First')
                 || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Last')
+                || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Count')
             )
         ) {
             return false;
@@ -1680,6 +1681,7 @@ final class PdfOutlineExtractor
             && (
                 $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'First')
                 || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'Last')
+                || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'Count')
             )
         ) {
             return false;
@@ -1818,7 +1820,7 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @return array<string, mixed>
      */
-    private function outlineActionStructureContext(array $outline, array $objects): array
+    private function outlineActionStructureContext(array $outline, array $objects, ?int $outlineObject = null): array
     {
         $context = [
             'outline_parent_object' => $this->referenceObjectNumber($outline['Parent'] ?? null),
@@ -1828,7 +1830,7 @@ final class PdfOutlineExtractor
             'outline_last_child_object' => $this->referenceObjectNumber($outline['Last'] ?? null),
         ];
 
-        foreach ($this->outlineStructureState($outline, $objects) as $key => $value) {
+        foreach ($this->outlineStructureState($outline, $objects, $outlineObject) as $key => $value) {
             $context[
                 match ($key) {
                     'has_children' => 'outline_has_children',
@@ -3390,6 +3392,24 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @param array<int, mixed> $objects
+     * @param list<string> $keys
+     */
+    private function catalogDictionaryHasDuplicateKeys(array $objects, array $keys): bool
+    {
+        foreach ($objects as $value) {
+            $dict = $this->dictionaryItems($value);
+            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
+                continue;
+            }
+
+            return $this->dictionaryHasDuplicateBoundaryKeys($value, $keys);
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, mixed> $catalog
      * @param array<int, mixed> $objects
      * @return array<string, mixed>|null
@@ -3554,10 +3574,12 @@ final class PdfOutlineExtractor
             }
         }
 
+        $catalogHasDuplicateNames = $this->catalogDictionaryHasDuplicateKeys($objects, ['Names']);
         $namesValue = $this->resolveValue($catalog['Names'] ?? null, $objects);
         $names = $this->dictionaryItems($namesValue);
         $nameTreeRootValue = $names['Dests'] ?? null;
-        $nameTreeRootRejected = $names === null
+        $nameTreeRootRejected = $catalogHasDuplicateNames
+            || $names === null
             || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
             || $this->resolvedDictionaryHasDuplicateBoundaryKeys($nameTreeRootValue, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS);
         $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue, $objects);
@@ -3603,10 +3625,12 @@ final class PdfOutlineExtractor
             }
         }
 
+        $catalogHasDuplicateNames = $this->catalogDictionaryHasDuplicateKeys($objects, ['Names']);
         $namesValue = $this->resolveValue($catalog['Names'] ?? null, $objects);
         $names = $this->dictionaryItems($namesValue);
         $nameTreeRootValue = $names['Dests'] ?? null;
-        $nameTreeRootRejected = $names === null
+        $nameTreeRootRejected = $catalogHasDuplicateNames
+            || $names === null
             || isset($this->dictionaryDuplicateKeySet($namesValue)['Dests'])
             || $this->resolvedDictionaryHasDuplicateBoundaryKeys($nameTreeRootValue, $objects, self::NAME_TREE_NODE_BOUNDARY_KEYS);
         $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue, $objects);
@@ -4339,7 +4363,7 @@ final class PdfOutlineExtractor
                     'first_child_object' => $this->referenceObjectNumber($dict['First'] ?? null),
                     'last_child_object' => $this->referenceObjectNumber($dict['Last'] ?? null),
                 ];
-                $row += $this->outlineStructureState($dict, $objects);
+                $row += $this->outlineStructureState($dict, $objects, $current);
                 $row += $this->outlineStyleMetadata($dict, $objects);
                 $row += $this->destinationAliasReview($destination['value'], $objects, $destinations);
                 $row = $this->withNavigationTargetMetadata(
@@ -4612,12 +4636,14 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @return array<string, mixed>
      */
-    private function outlineStructureState(array $outline, array $objects): array
+    private function outlineStructureState(array $outline, array $objects, ?int $outlineObject = null): array
     {
         $firstChild = $this->referenceObjectNumber($outline['First'] ?? null);
         $lastChild = $this->referenceObjectNumber($outline['Last'] ?? null);
         $hasChildren = $firstChild !== null || $lastChild !== null;
-        $count = $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
+        $count = $outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Count')
+            ? null
+            : $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
 
         $state = [
             'has_children' => $hasChildren,

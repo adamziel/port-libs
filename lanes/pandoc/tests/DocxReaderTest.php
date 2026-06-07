@@ -802,6 +802,30 @@ $tableCellWidthDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableGridColumnDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblGrid>
+        <w:gridCol w:w="1200"/>
+        <w:gridCol w:w="2400"/>
+        <w:gridCol w:w="1200"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Source</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Review status</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Owner</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>DOCX packet</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Needs media check</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Migration desk</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableCellBorderDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2543,6 +2567,14 @@ $buildTableCellWidthPackage = static function () use ($contentTypesXml, $package
     ]);
 };
 
+$buildTableGridColumnPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableGridColumnDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableGridColumnDocumentXml],
+    ]);
+};
+
 $buildTableCellBorderPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellBorderDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -3886,6 +3918,50 @@ return [
         $t->contains('<td class="docx-cell-width docx-cell-width-pct" data-docx-cell-width-type="pct" data-docx-cell-width-value="2500" data-docx-cell-width-percent="50" style="width:50%"><p>Half width review cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-width docx-cell-width-auto" data-docx-cell-width-type="auto" data-docx-cell-width-value="0"><p>Auto width cell</p></td><td><p>Nil width fallback</p></td>', $blocks);
         $t->contains('<td><p>Unknown width fallback</p></td>', $blocks);
+    },
+    'preserves DOCX table grid column widths as table geometry metadata' => static function (TestRunner $t) use ($buildTableGridColumnPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableGridColumnPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $t->same([0.25, 0.5, 0.25], $table->attr('widths'));
+
+        $columnSources = $table->attr('columnSources');
+        $t->same(3, count($columnSources));
+        $t->same([
+            'kind' => 'docx-tblGrid',
+            'column' => 0,
+            'gridIndex' => 0,
+            'widthTwips' => 1200,
+            'widthPercent' => 25.0,
+        ], $columnSources[0]);
+        $t->same(2400, $columnSources[1]['widthTwips']);
+        $t->same(50.0, $columnSources[1]['widthPercent']);
+        $t->same(1200, $columnSources[2]['widthTwips']);
+        $t->same(25.0, $columnSources[2]['widthPercent']);
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same(3, $geometry['declaredColumnCount']);
+        $t->same([0.25, 0.5, 0.25], $geometry['widthSummary']['normalizedWidths']);
+        $t->same([25.0, 50.0, 25.0], $geometry['widthSummary']['percentWidths']);
+        $t->same(true, $geometry['widthSummary']['hasCompleteWidths']);
+        $t->same([], $geometry['widthSummary']['missingColumns']);
+        $t->same(1200, $geometry['columns'][0]['source']['widthTwips']);
+        $t->same(50.0, $geometry['columns'][1]['source']['widthPercent']);
+        $t->same([0.25], $geometry['coverage'][0]['widths']);
+        $t->same([0.5], $geometry['coverage'][1]['widths']);
+        $t->same([0.25], $geometry['coverage'][2]['widths']);
+        $t->same([true], $geometry['coverage'][0]['declaredColumns']);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Source | Review status | Owner |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'docx-tblGrid'), 'Pipe-table Markdown handoff should not leak DOCX table grid provenance');
+        $t->contains('<colgroup><col style="width:25%"/><col style="width:50%"/><col style="width:25%"/></colgroup>', $blocks);
+        $t->contains('<td><p>DOCX packet</p></td><td><p>Needs media check</p></td><td><p>Migration desk</p></td>', $blocks);
     },
     'preserves DOCX table cell border metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellBorderPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellBorderPackage());

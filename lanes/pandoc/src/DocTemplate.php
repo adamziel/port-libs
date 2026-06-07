@@ -363,6 +363,7 @@ final class DocTemplate
             'jats' => 'jats_archiving',
             'markdown_strict', 'multimarkdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra' => 'markdown',
             'gfm', 'commonmark_x' => 'commonmark',
+            'bbcode_phpbb', 'bbcode_fluxbb', 'bbcode_steam', 'bbcode_hubzilla', 'bbcode_xenforo' => 'bbcode',
             'asciidoctor', 'asciidoc_legacy' => 'asciidoc',
             'native', 'csljson', 'json', 'xml', 'fb2', 'pptx', 'ipynb' => '',
             default => $format,
@@ -384,6 +385,7 @@ final class DocTemplate
             'default.html5' => $this->defaultHtml5Template(),
             'default.plain' => $this->defaultPlainTemplate(),
             'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
+            'default.bbcode' => $this->defaultBbcodeTemplate(),
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
@@ -417,6 +419,7 @@ final class DocTemplate
             'default.plain',
             'default.markdown',
             'default.commonmark',
+            'default.bbcode',
             'default.asciidoc',
             'default.latex',
             'default.beamer',
@@ -1944,6 +1947,11 @@ HTML;
         return <<<'PLAIN'
 $body$
 PLAIN;
+    }
+
+    private function defaultBbcodeTemplate(): string
+    {
+        return '$body$';
     }
 
     private function defaultHtmlStylesTemplate(): string

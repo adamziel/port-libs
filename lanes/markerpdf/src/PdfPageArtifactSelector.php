@@ -196,7 +196,9 @@ final class PdfPageArtifactSelector
     public static function normalizeSuppliedArtifacts(array $artifacts): array
     {
         $artifacts = self::normalizeSuppliedArtifactValue($artifacts);
-        $artifacts = self::artifactListFromEnvelope($artifacts) ?? $artifacts;
+        $artifacts = self::directKeyedArtifactMap($artifacts)
+            ?? self::artifactListFromEnvelope($artifacts)
+            ?? $artifacts;
 
         $normalized = [];
         foreach (array_values($artifacts) as $artifact) {
@@ -216,6 +218,36 @@ final class PdfPageArtifactSelector
         }
 
         return $normalized;
+    }
+
+    /**
+     * Adapter caches can serialize supplied images/layout/order predictions as
+     * a source-page keyed JSON object instead of a list. Preserve the object key
+     * as selector-only page identity before selected-page alignment.
+     *
+     * @param array<mixed> $value
+     * @return list<mixed>|null
+     */
+    private static function directKeyedArtifactMap(array $value): ?array
+    {
+        if (array_is_list($value) || self::hasDirectArtifactPayload($value)) {
+            return null;
+        }
+
+        $artifacts = [];
+        foreach ($value as $key => $candidate) {
+            $pageKey = self::integerArrayKey($key);
+            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate)) {
+                return null;
+            }
+
+            if (!self::hasPotentialPageMarker($candidate)) {
+                $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
+            }
+            $artifacts[] = $candidate;
+        }
+
+        return $artifacts !== [] ? $artifacts : null;
     }
 
     public static function normalizeSuppliedArtifactValue(mixed $value): mixed

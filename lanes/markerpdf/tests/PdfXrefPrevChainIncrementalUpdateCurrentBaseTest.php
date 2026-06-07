@@ -967,6 +967,93 @@ $xrefPrevChainClassicTableDirectPrevOwnerPdf = static function () use ($xrefPrev
     return $pdf;
 };
 
+$xrefPrevChainClassicTableCompressedPrevAttachmentSummaryPdf = static function (): string {
+    $stalePayload = '<wp-export><post id="stale-classic-compressed-prev">old</post></wp-export>';
+    $currentPayload = '<wp-export><post id="current-classic-compressed-prev">current-repaired</post></wp-export>';
+
+    $objectStream = static function (array $members): array {
+        $headerPairs = [];
+        $memberIndexes = [];
+        $objectData = '';
+        foreach ($members as $objectNumber => $body) {
+            $headerPairs[] = $objectNumber . ' ' . strlen($objectData);
+            $memberIndexes[$objectNumber] = count($memberIndexes);
+            $objectData .= $body . "\n";
+        }
+
+        $header = implode(' ', $headerPairs);
+        $plain = $header . "\n" . $objectData;
+        $compressed = gzcompress($plain);
+        if (!is_string($compressed)) {
+            throw new RuntimeException('Unable to compress classic xref-table compressed Prev helper object stream.');
+        }
+
+        return [
+            'first' => strlen($header) + 1,
+            'indexes' => $memberIndexes,
+            'content' => $compressed,
+            'count' => count($members),
+        ];
+    };
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [] /Count 0 >>');
+    $staleNameTreeOffset = $addObject(8, 0, '<< /Names [(stale-classic-compressed-prev.xml) 10 0 R] >>');
+    $staleFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (stale-classic-compressed-prev.xml) /Desc (Stale classic compressed Prev attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $staleEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($staleNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentNameTreeOffset = $addObject(8, 0, '<< /Names [(current-classic-compressed-prev.xml) 10 0 R] >>');
+    $currentFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (current-classic-compressed-prev.xml) /Desc (Current classic compressed Prev attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $prevHelperStream = $objectStream([30 => (string) $previousXrefOffset]);
+    $prevHelperCarrierOffset = $addObject(90, 0, '<< /Type /ObjStm /N ' . $prevHelperStream['count'] . ' /First ' . $prevHelperStream['first'] . ' /Filter /FlateDecode /Length ' . strlen($prevHelperStream['content']) . " >>\nstream\n{$prevHelperStream['content']}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "1 1\n"
+        . $xrefTableRow($currentCatalogOffset)
+        . "8 1\n"
+        . $xrefTableRow($currentNameTreeOffset)
+        . "10 2\n"
+        . $xrefTableRow($currentFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "90 1\n"
+        . $xrefTableRow($prevHelperCarrierOffset)
+        . "trailer\n<< /Size 91 /Root 1 0 R /Prev 30 0 R >>\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainStreamIndirectOperandsPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $previousContent = 'BT /F1 12 Tf 72 720 Td (Previous indirect xref operand page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current indirect xref operand page) Tj T* (Indirect W Index operands selected) Tj ET';
@@ -2543,6 +2630,29 @@ return [
         $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-classic-direct-prev-owner'));
         $t->true(!str_contains($text, 'Stale classic direct Prev owner page'));
         $t->true(!str_contains($text, "\0"));
+    },
+    'repairs attachment summary when classic xref-table Prev is a compressed object-stream numeric helper' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainClassicTableCompressedPrevAttachmentSummaryPdf): void {
+        $pdf = $xrefPrevChainClassicTableCompressedPrevAttachmentSummaryPdf();
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $payload = '<wp-export><post id="current-classic-compressed-prev">current-repaired</post></wp-export>';
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->true(str_contains($pdf, '/Prev 30 0 R'));
+        $t->true(str_contains($pdf, '/Type /ObjStm'));
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(['current-classic-compressed-prev.xml'], $summary['filenames']);
+        $t->same('current-classic-compressed-prev.xml', $summary['attachments'][0]['filename']);
+        $t->same('Current classic compressed Prev attachment', $summary['attachments'][0]['description']);
+        $t->same(strlen($payload), $summary['attachments'][0]['byte_length']);
+        $t->same(hash('sha256', $payload), $summary['attachments'][0]['sha256']);
+        $t->same(false, array_key_exists('bytes', $summary['attachments'][0]));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-classic-compressed-prev'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, hash('sha256', '<wp-export><post id="stale-classic-compressed-prev">old</post></wp-export>')));
     },
     'repairs current metadata and attachments when xref-stream Prev is a compressed object-stream numeric helper' => static function (
         TestRunner $t

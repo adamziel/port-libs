@@ -152,6 +152,42 @@ final class MathTexConverter
         'thinspace' => '0.1667em',
     ];
 
+    /** @var array<string, string> */
+    private const SI_UNIT_COMMANDS = [
+        'A' => 'A',
+        'celsius' => '°C',
+        'cm' => 'cm',
+        'degree' => '°',
+        'degreeCelsius' => '°C',
+        'g' => 'g',
+        'gram' => 'g',
+        'h' => 'h',
+        'Hz' => 'Hz',
+        'kg' => 'kg',
+        'kilogram' => 'kg',
+        'kilo' => 'k',
+        'm' => 'm',
+        'meter' => 'm',
+        'metre' => 'm',
+        'micro' => 'μ',
+        'milli' => 'm',
+        'mm' => 'mm',
+        'ms' => 'ms',
+        'ohm' => 'Ω',
+        'per' => '/',
+        'percent' => '%',
+        's' => 's',
+        'second' => 's',
+        'V' => 'V',
+        'W' => 'W',
+    ];
+
+    /** @var array<string, string> */
+    private const SI_UNIT_POWER_COMMANDS = [
+        'cubed' => '3',
+        'squared' => '2',
+    ];
+
     /** @var array<string, true> */
     private const ARRAY_HOOK_COMMANDS = [
         ' ' => true,
@@ -1326,6 +1362,23 @@ final class MathTexConverter
         return null;
     }
 
+    private function skipOptionalBracketArguments(string $source, int &$offset, string $command): void
+    {
+        while (true) {
+            $this->skipWhitespace($source, $offset);
+            if (($source[$offset] ?? '') !== '[') {
+                return;
+            }
+
+            $argument = $this->readTexBracketArgument($source, $offset);
+            if ($argument === null) {
+                throw new \InvalidArgumentException('Unterminated TeX \\' . $command . ' option at offset ' . $offset);
+            }
+
+            $offset = $argument['next'];
+        }
+    }
+
     /**
      * @param list<string> $args
      */
@@ -1503,6 +1556,10 @@ final class MathTexConverter
 
         if ($command === 'hyperref') {
             return $this->parseHyperrefCommand($source, $offset);
+        }
+
+        if (in_array($command, ['num', 'si', 'unit', 'SI', 'qty', 'ang'], true)) {
+            return $this->parseSiunitxCommand($source, $offset, $command);
         }
 
         if ($command === 'not') {
@@ -2594,6 +2651,220 @@ final class MathTexConverter
         }
 
         return $this->parseRequiredNonEmptyGroup($source, $offset, 'hyperref content');
+    }
+
+    private function parseSiunitxCommand(string $source, int &$offset, string $command): string
+    {
+        if ($command === 'num') {
+            $this->skipOptionalBracketArguments($source, $offset, $command);
+
+            return $this->parseSiNumberGroup($source, $offset, $command);
+        }
+
+        if ($command === 'si' || $command === 'unit') {
+            $this->skipOptionalBracketArguments($source, $offset, $command);
+
+            return $this->parseSiUnitGroup($source, $offset, $command);
+        }
+
+        if ($command === 'ang') {
+            $this->skipOptionalBracketArguments($source, $offset, $command);
+
+            return $this->parseSiAngleGroup($source, $offset);
+        }
+
+        $this->skipOptionalBracketArguments($source, $offset, $command);
+        $number = $this->parseSiNumberGroup($source, $offset, $command);
+        $prefix = $this->parseOptionalQuantityPrefix($source, $offset, $command);
+        $unit = $this->parseSiUnitGroup($source, $offset, $command);
+        $separator = '<mspace width="0.2222em"></mspace>';
+
+        if ($prefix !== null) {
+            return $this->row([$prefix, $separator, $number, $separator, $unit]);
+        }
+
+        return $this->row([$number, $separator, $unit]);
+    }
+
+    private function parseSiNumberGroup(string $source, int &$offset, string $command): string
+    {
+        $number = trim($this->readRequiredGroupText($source, $offset));
+        if ($number === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' number');
+        }
+
+        return $this->siNumberMathMl($number, $command);
+    }
+
+    private function siNumberMathMl(string $number, string $command): string
+    {
+        $compact = str_replace([' ', "\t", "\n", "\r", ','], '', $number);
+        if ($compact === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' number');
+        }
+
+        if (preg_match('/^([+\\-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))[eE]([+\\-]?\\d+)$/', $compact, $matches) === 1) {
+            $base = $this->normalizeSiNumberToken($matches[1], $command);
+            $exponent = $this->normalizeSiIntegerToken($matches[2], $command);
+
+            return '<mn>' . $this->esc($base) . '</mn>'
+                . '<mo>×</mo>'
+                . '<msup><mn>10</mn><mn>' . $this->esc($exponent) . '</mn></msup>';
+        }
+
+        return '<mn>' . $this->esc($this->normalizeSiNumberToken($compact, $command)) . '</mn>';
+    }
+
+    private function normalizeSiNumberToken(string $number, string $command): string
+    {
+        if (preg_match('/^[+\\-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$/', $number) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' number ' . $number);
+        }
+
+        return str_starts_with($number, '+') ? substr($number, 1) : $number;
+    }
+
+    private function normalizeSiIntegerToken(string $number, string $command): string
+    {
+        if (preg_match('/^[+\\-]?\\d+$/', $number) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX \\' . $command . ' exponent ' . $number);
+        }
+
+        return str_starts_with($number, '+') ? substr($number, 1) : $number;
+    }
+
+    private function parseOptionalQuantityPrefix(string $source, int &$offset, string $command): ?string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $argument = $this->readTexBracketArgument($source, $offset);
+        if ($argument === null) {
+            throw new \InvalidArgumentException('Unterminated TeX \\' . $command . ' quantity prefix at offset ' . $offset);
+        }
+
+        $offset = $argument['next'];
+        if (trim($argument['value']) === '') {
+            return null;
+        }
+
+        return $this->parseTexFragment($argument['value'], $command . ' quantity prefix');
+    }
+
+    private function parseSiUnitGroup(string $source, int &$offset, string $command): string
+    {
+        $unit = trim($this->readRequiredGroupText($source, $offset));
+        if ($unit === '') {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' unit');
+        }
+
+        return $this->parseSiUnitSequence($unit, $command);
+    }
+
+    private function parseSiUnitSequence(string $unit, string $command): string
+    {
+        $nodes = [];
+        $offset = 0;
+        $length = strlen($unit);
+
+        while ($offset < $length) {
+            while (($unit[$offset] ?? '') !== '' && ctype_space($unit[$offset])) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $unit[$offset];
+            if ($char === '\\') {
+                $offset++;
+                $unitCommand = $this->readCommandName($unit, $offset);
+                if (isset(self::SI_UNIT_POWER_COMMANDS[$unitCommand])) {
+                    if ($nodes === []) {
+                        throw new \InvalidArgumentException('Expected TeX siunitx unit before \\' . $unitCommand);
+                    }
+
+                    $base = array_pop($nodes);
+                    $nodes[] = '<msup>' . $base . '<mn>' . self::SI_UNIT_POWER_COMMANDS[$unitCommand] . '</mn></msup>';
+                    continue;
+                }
+
+                if ($unitCommand === 'tothe') {
+                    if ($nodes === []) {
+                        throw new \InvalidArgumentException('Expected TeX siunitx unit before \\tothe');
+                    }
+
+                    $power = $this->normalizeSiIntegerToken(trim($this->readRequiredGroupText($unit, $offset)), $command);
+                    $base = array_pop($nodes);
+                    $nodes[] = '<msup>' . $base . '<mn>' . $this->esc($power) . '</mn></msup>';
+                    continue;
+                }
+
+                if (!isset(self::SI_UNIT_COMMANDS[$unitCommand])) {
+                    throw new \InvalidArgumentException('Unsupported TeX siunitx unit \\' . $unitCommand);
+                }
+
+                $nodes[] = '<mtext>' . $this->esc(self::SI_UNIT_COMMANDS[$unitCommand]) . '</mtext>';
+                continue;
+            }
+
+            if (str_contains('/.%', $char)) {
+                $offset++;
+                $nodes[] = '<mtext>' . $this->esc($char) . '</mtext>';
+                continue;
+            }
+
+            if (ctype_alnum($char)) {
+                $start = $offset;
+                while (($unit[$offset] ?? '') !== '' && ctype_alnum($unit[$offset])) {
+                    $offset++;
+                }
+
+                $nodes[] = '<mtext>' . $this->esc(substr($unit, $start, $offset - $start)) . '</mtext>';
+                continue;
+            }
+
+            throw new \InvalidArgumentException('Unsupported TeX siunitx unit token at offset ' . $offset);
+        }
+
+        if ($nodes === []) {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' unit');
+        }
+
+        return $this->row($nodes);
+    }
+
+    private function parseSiAngleGroup(string $source, int &$offset): string
+    {
+        $angle = trim($this->readRequiredGroupText($source, $offset));
+        if ($angle === '') {
+            throw new \InvalidArgumentException('Expected TeX \\ang angle');
+        }
+
+        $parts = array_map('trim', explode(';', $angle));
+        if (count($parts) > 3) {
+            throw new \InvalidArgumentException('Unsupported TeX \\ang component count');
+        }
+
+        $symbols = ['°', '′', '″'];
+        $nodes = [];
+        foreach ($parts as $index => $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            $nodes[] = $this->siNumberMathMl($part, 'ang');
+            $nodes[] = '<mtext>' . $this->esc($symbols[$index]) . '</mtext>';
+        }
+
+        if ($nodes === []) {
+            throw new \InvalidArgumentException('Expected TeX \\ang angle component');
+        }
+
+        return $this->row($nodes);
     }
 
     private function parseNotCommand(string $source, int &$offset): string

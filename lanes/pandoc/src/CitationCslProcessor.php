@@ -720,8 +720,15 @@ final class CitationCslProcessor
             'original-date' => $originalDate,
             'event-date' => $eventDate,
         ]);
+        $dateSeasonSummary = self::dateSeasonSummary([
+            'issued' => $issuedDate,
+            'accessed' => $accessedDate,
+            'original-date' => $originalDate,
+            'event-date' => $eventDate,
+        ]);
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
         $biblatexCustomLists = self::biblatexCustomLists($item, $id);
+        $biblatexCustomNames = self::biblatexCustomNames($item, $id);
 
         return [
             'id' => $id,
@@ -829,10 +836,13 @@ final class CitationCslProcessor
             'eventDate' => $eventDate,
             'dateMarkerSummary' => $dateMarkerSummary,
             'dateTimeSummary' => $dateTimeSummary,
+            'dateSeasonSummary' => $dateSeasonSummary,
             'biblatexCustomFields' => $biblatexCustomFields,
             'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
             'biblatexCustomLists' => $biblatexCustomLists,
             'biblatexCustomListSummary' => self::biblatexCustomListSummary($biblatexCustomLists),
+            'biblatexCustomNames' => $biblatexCustomNames,
+            'biblatexCustomNameSummary' => self::biblatexCustomNameSummary($biblatexCustomNames),
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
@@ -1146,6 +1156,118 @@ final class CitationCslProcessor
         }
 
         return implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function biblatexCustomNames(array $item, string $id): array
+    {
+        $names = [];
+        $value = $item['biblatex-custom-names'] ?? $item['biblatexCustomNames'] ?? null;
+        if ($value !== null && $value !== []) {
+            if (!is_array($value) || array_is_list($value)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-names must be an object map');
+            }
+
+            foreach ($value as $field => $fieldValue) {
+                $field = strtolower(trim((string) $field));
+                if (!in_array($field, self::biblatexCustomNameNames(), true)) {
+                    throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-custom-names contains unsupported field ' . $field);
+                }
+
+                $fieldNames = self::names($fieldValue, $id, 'biblatex-custom-names.' . $field);
+                if ($fieldNames !== []) {
+                    $names[$field] = $fieldNames;
+                }
+            }
+        }
+
+        foreach (self::biblatexCustomNameNames() as $field) {
+            if (!array_key_exists($field, $item)) {
+                continue;
+            }
+
+            $fieldNames = self::names($item[$field], $id, $field);
+            if ($fieldNames !== []) {
+                $names[$field] = $fieldNames;
+            }
+        }
+
+        return self::orderedBiblatexCustomNames($names);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $names
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function orderedBiblatexCustomNames(array $names): array
+    {
+        $ordered = [];
+        foreach (self::biblatexCustomNameNames() as $field) {
+            if (isset($names[$field]) && $names[$field] !== []) {
+                $ordered[$field] = $names[$field];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function biblatexCustomNameNames(): array
+    {
+        return ['namea', 'nameb', 'namec'];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $names
+     */
+    private static function biblatexCustomNameSummary(array $names): string
+    {
+        $parts = [];
+        foreach (self::orderedBiblatexCustomNames($names) as $field => $fieldNames) {
+            $values = array_values(array_filter(
+                array_map(
+                    static fn (array $name): string => self::biblatexCustomNameDisplay($name),
+                    $fieldNames
+                ),
+                static fn (string $value): bool => $value !== ''
+            ));
+            if ($values !== []) {
+                $parts[] = $field . ': ' . implode('; ', $values);
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $name
+     */
+    private static function biblatexCustomNameDisplay(array $name): string
+    {
+        $literal = trim((string) ($name['literal'] ?? ''));
+        if ($literal !== '') {
+            return $literal;
+        }
+
+        $given = trim((string) ($name['given'] ?? ''));
+        $family = trim(implode(' ', array_values(array_filter([
+            trim((string) ($name['nonDroppingParticle'] ?? '')),
+            trim((string) ($name['family'] ?? '')),
+        ], static fn (string $part): bool => $part !== ''))));
+        $suffix = trim((string) ($name['suffix'] ?? ''));
+
+        if ($family !== '' && $given !== '') {
+            $display = $family . ', ' . $given;
+        } else {
+            $display = $family !== '' ? $family : $given;
+        }
+
+        return $suffix !== '' && $display !== '' ? $display . ', ' . $suffix : $display;
     }
 
     /**
@@ -1529,7 +1651,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, openEnded?:string, rangeParts?:list<list<int>>}
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, season?:int, seasonName?:string, openEnded?:string, rangeParts?:list<list<int>>}
      */
     private static function dateVariable(mixed $date, string $id, string $field): array
     {
@@ -1553,10 +1675,15 @@ final class CitationCslProcessor
         $circa = self::boolField($date, 'circa', false);
         $uncertain = self::boolField($date, 'uncertain', false);
         $openEnded = self::openEndedDateBoundary($date, $id, $field);
+        $season = self::dateSeasonField($date, $id, $field);
         $dateParts = $date['date-parts'] ?? null;
         if ($dateParts === null || $dateParts === []) {
             if ($openEnded !== '') {
                 throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' open-ended date must include date-parts');
+            }
+
+            if ($season !== null) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' season date must include date-parts');
             }
 
             $normalized = [
@@ -1602,12 +1729,25 @@ final class CitationCslProcessor
         }
 
         $parts = $rangeParts[0];
+        if ($season !== null) {
+            foreach ($rangeParts as $rangeIndex => $rangePart) {
+                if (count($rangePart) !== 1) {
+                    throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' season date-parts[' . $rangeIndex . '] must contain only a year');
+                }
+            }
+        }
+
         $normalized = [
             'year' => $parts[0],
             'parts' => $parts,
-            'display' => self::formatDatePartsRange($rangeParts),
+            'display' => self::formatDatePartsRange($rangeParts, $season),
             'literal' => '',
         ];
+        if ($season !== null) {
+            $normalized['season'] = $season;
+            $normalized['seasonName'] = self::dateSeasonName($season);
+        }
+
         if (count($rangeParts) > 1) {
             if ($openEnded !== '') {
                 throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' open-ended date-parts must contain one endpoint');
@@ -1618,7 +1758,7 @@ final class CitationCslProcessor
 
         if ($openEnded !== '') {
             $normalized['openEnded'] = $openEnded;
-            $normalized['display'] = self::formatOpenEndedDatePartsRange($rangeParts, $openEnded);
+            $normalized['display'] = self::formatOpenEndedDatePartsRange($rangeParts, $openEnded, $season);
         }
 
         if ($raw !== '') {
@@ -1667,6 +1807,28 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function dateSeasonField(array $date, string $id, string $field): ?int
+    {
+        if (!array_key_exists('season', $date) || $date['season'] === null || $date['season'] === '') {
+            return null;
+        }
+
+        $season = $date['season'];
+        if (!is_int($season) && !(is_string($season) && preg_match('/^\d+$/', $season) === 1)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' season must be numeric');
+        }
+
+        $number = (int) $season;
+        if ($number < 1 || $number > 4) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' season must be between 1 and 4');
+        }
+
+        return $number;
     }
 
     /**
@@ -1723,6 +1885,35 @@ final class CitationCslProcessor
         }
 
         return $parts === [] ? '' : 'Date times: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $dates
+     */
+    private static function dateSeasonSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            $season = $date['season'] ?? null;
+            if (!is_int($season)) {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . self::dateSeasonName($season);
+        }
+
+        return $parts === [] ? '' : 'Date seasons: ' . implode('; ', $parts);
+    }
+
+    private static function dateSeasonName(int $season): string
+    {
+        return match ($season) {
+            1 => 'Spring',
+            2 => 'Summer',
+            3 => 'Autumn',
+            4 => 'Winter',
+            default => '',
+        };
     }
 
     /**
@@ -1813,8 +2004,12 @@ final class CitationCslProcessor
     /**
      * @param list<int> $parts
      */
-    private static function formatDateParts(array $parts): string
+    private static function formatDateParts(array $parts, ?int $season = null): string
     {
+        if ($season !== null) {
+            return self::dateSeasonName($season) . ' ' . sprintf('%04d', $parts[0]);
+        }
+
         if (count($parts) >= 3) {
             return sprintf('%04d-%02d-%02d', $parts[0], $parts[1], $parts[2]);
         }
@@ -1829,10 +2024,10 @@ final class CitationCslProcessor
     /**
      * @param list<list<int>> $rangeParts
      */
-    private static function formatDatePartsRange(array $rangeParts): string
+    private static function formatDatePartsRange(array $rangeParts, ?int $season = null): string
     {
         $formatted = array_map(
-            static fn (array $parts): string => self::formatDateParts($parts),
+            static fn (array $parts): string => self::formatDateParts($parts, $season),
             $rangeParts
         );
 
@@ -1842,9 +2037,9 @@ final class CitationCslProcessor
     /**
      * @param list<list<int>> $rangeParts
      */
-    private static function formatOpenEndedDatePartsRange(array $rangeParts, string $boundary): string
+    private static function formatOpenEndedDatePartsRange(array $rangeParts, string $boundary, ?int $season = null): string
     {
-        $display = self::formatDatePartsRange($rangeParts);
+        $display = self::formatDatePartsRange($rangeParts, $season);
 
         return $boundary === 'start' ? '/' . $display : $display . '/';
     }
@@ -4475,6 +4670,11 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($dateTimeSummary);
         }
 
+        $dateSeasonSummary = trim((string) ($item['dateSeasonSummary'] ?? ''));
+        if ($dateSeasonSummary !== '') {
+            $parts[] = $this->withTerminalPunctuation($dateSeasonSummary);
+        }
+
         $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
         if ($customFieldSummary !== '') {
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
@@ -4483,6 +4683,11 @@ final class CitationCslProcessor
         $customListSummary = trim((string) ($item['biblatexCustomListSummary'] ?? ''));
         if ($customListSummary !== '') {
             $parts[] = 'BibLaTeX custom lists: ' . $this->withTerminalPunctuation($customListSummary);
+        }
+
+        $customNameSummary = trim((string) ($item['biblatexCustomNameSummary'] ?? ''));
+        if ($customNameSummary !== '') {
+            $parts[] = 'BibLaTeX custom names: ' . $this->withTerminalPunctuation($customNameSummary);
         }
 
         return $parts;
@@ -5971,6 +6176,7 @@ final class CitationCslProcessor
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
             'date-marker-summary', 'date-status', 'date-status-summary' => (string) ($item['dateMarkerSummary'] ?? ''),
             'date-time-summary', 'time-summary' => (string) ($item['dateTimeSummary'] ?? ''),
+            'date-season-summary', 'season-summary' => (string) ($item['dateSeasonSummary'] ?? ''),
             'issued-time', 'date-time' => $this->dateTimeForVariable($item, 'issued'),
             'issued-end-time', 'date-end-time' => $this->dateEndTimeForVariable($item, 'issued'),
             'accessed-time' => $this->dateTimeForVariable($item, 'accessed'),
@@ -5983,6 +6189,8 @@ final class CitationCslProcessor
             'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
             'biblatex-custom-lists', 'biblatex-custom-list-summary', 'biblatex-custom-lists-summary' => (string) ($item['biblatexCustomListSummary'] ?? ''),
             'lista', 'listb', 'listc', 'listd', 'liste', 'listf' => $this->biblatexCustomListValue($item, $normalized),
+            'biblatex-custom-names', 'biblatex-custom-name-summary', 'biblatex-custom-names-summary' => (string) ($item['biblatexCustomNameSummary'] ?? ''),
+            'namea', 'nameb', 'namec' => $this->biblatexCustomNameValue($item, $normalized),
             'issued-status', 'issued-date-status' => $this->dateMarkerStatusForVariable($item, 'issued'),
             'accessed-status', 'accessed-date-status' => $this->dateMarkerStatusForVariable($item, 'accessed'),
             'event-date-status' => $this->dateMarkerStatusForVariable($item, 'event-date'),
@@ -5991,6 +6199,14 @@ final class CitationCslProcessor
             'accessed-raw', 'accessed-date-raw' => $this->dateRawForVariable($item, 'accessed'),
             'event-date-raw' => $this->dateRawForVariable($item, 'event-date'),
             'original-date-raw' => $this->dateRawForVariable($item, 'original-date'),
+            'issued-season', 'date-season' => $this->dateSeasonForVariable($item, 'issued'),
+            'issued-season-name', 'date-season-name' => $this->dateSeasonNameForVariable($item, 'issued'),
+            'accessed-season' => $this->dateSeasonForVariable($item, 'accessed'),
+            'accessed-season-name' => $this->dateSeasonNameForVariable($item, 'accessed'),
+            'event-date-season' => $this->dateSeasonForVariable($item, 'event-date'),
+            'event-date-season-name' => $this->dateSeasonNameForVariable($item, 'event-date'),
+            'original-date-season' => $this->dateSeasonForVariable($item, 'original-date'),
+            'original-date-season-name' => $this->dateSeasonNameForVariable($item, 'original-date'),
             'related' => $this->relatedSummaryValues($item),
             'related-summary' => $this->relatedSummary($item),
             'related-keys' => implode(', ', is_array($item['relatedKeys'] ?? null) ? $item['relatedKeys'] : []),
@@ -6085,6 +6301,30 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
+    private function biblatexCustomNameValue(array $item, string $field): string
+    {
+        $namesByField = $item['biblatexCustomNames'] ?? [];
+        if (!is_array($namesByField)) {
+            return '';
+        }
+
+        $names = $namesByField[$field] ?? [];
+        if (!is_array($names)) {
+            return '';
+        }
+
+        return implode('; ', array_values(array_filter(
+            array_map(
+                static fn (mixed $name): string => is_array($name) ? self::biblatexCustomNameDisplay($name) : '',
+                $names
+            ),
+            static fn (string $value): bool => $value !== ''
+        )));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
     private function renderTextVariableValue(array $item, string $variable, string $form, string $scope, ?AstNode $citation = null): string
     {
         if (strtolower(trim($form)) !== 'short') {
@@ -6140,7 +6380,7 @@ final class CitationCslProcessor
             return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
         }
 
-        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'translator', 'chair', 'container-author', 'collection-editor', 'composer', 'contributor', 'editor-translator', 'event-organizer', 'organizer', 'original-author', 'recipient', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
+        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'translator', 'chair', 'container-author', 'collection-editor', 'composer', 'contributor', 'editor-translator', 'event-organizer', 'organizer', 'original-author', 'recipient', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword', 'namea', 'nameb', 'namec'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -6352,6 +6592,7 @@ final class CitationCslProcessor
                 'introduction' => $item['introductionAuthors'] ?? [],
                 'foreword' => $item['forewordAuthors'] ?? [],
                 'afterword' => $item['afterwordAuthors'] ?? [],
+                'namea', 'nameb', 'namec' => is_array($item['biblatexCustomNames'][$nameVariable] ?? null) ? $item['biblatexCustomNames'][$nameVariable] : [],
                 default => [],
             };
             if (is_array($names) && $names !== []) {
@@ -6413,7 +6654,33 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, openEnded?:string, rangeParts?:list<list<int>>}|null
+     */
+    private function dateSeasonForVariable(array $item, string $variable): string
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+        if (!is_array($date) || !is_int($date['season'] ?? null)) {
+            return '';
+        }
+
+        return (string) $date['season'];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function dateSeasonNameForVariable(array $item, string $variable): string
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+        if (!is_array($date) || !is_int($date['season'] ?? null)) {
+            return '';
+        }
+
+        return self::dateSeasonName((int) $date['season']);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, season?:int, seasonName?:string, openEnded?:string, rangeParts?:list<list<int>>}|null
      */
     private function dateVariableForRendering(array $item, string $variable): ?array
     {
@@ -6506,6 +6773,7 @@ final class CitationCslProcessor
         }
 
         $parts = $rangeParts !== [] ? $rangeParts : [$singleParts];
+        $season = is_int($date['season'] ?? null) && $datePartsSelection !== 'year' ? (int) $date['season'] : null;
         $values = [];
         foreach ($parts as $dateParts) {
             if (!is_array($dateParts)) {
@@ -6514,8 +6782,8 @@ final class CitationCslProcessor
 
             $dateParts = $this->dateFormPartsForSelection($dateParts, $datePartsSelection);
             $value = $form === 'numeric'
-                ? $this->renderNumericDateFormParts($dateParts)
-                : $this->renderTextDateFormParts($dateParts);
+                ? $this->renderNumericDateFormParts($dateParts, $season)
+                : $this->renderTextDateFormParts($dateParts, $season);
             if ($value !== '') {
                 $values[] = $value;
             }
@@ -6561,7 +6829,7 @@ final class CitationCslProcessor
     /**
      * @param list<int> $parts
      */
-    private function renderTextDateFormParts(array $parts): string
+    private function renderTextDateFormParts(array $parts, ?int $season = null): string
     {
         $year = $parts[0] ?? null;
         if ($year === null) {
@@ -6571,6 +6839,12 @@ final class CitationCslProcessor
         $month = $parts[1] ?? null;
         $day = $parts[2] ?? null;
         $yearText = $this->formatCslDateYearPart((int) $year, 'long');
+        if ($season !== null && $month === null) {
+            $seasonText = $this->localizedSeasonName($season);
+
+            return $seasonText === '' ? $yearText : $seasonText . ' ' . $yearText;
+        }
+
         if ($month === null) {
             return $yearText;
         }
@@ -6590,7 +6864,7 @@ final class CitationCslProcessor
     /**
      * @param list<int> $parts
      */
-    private function renderNumericDateFormParts(array $parts): string
+    private function renderNumericDateFormParts(array $parts, ?int $season = null): string
     {
         $year = $parts[0] ?? null;
         if ($year === null) {
@@ -6600,6 +6874,12 @@ final class CitationCslProcessor
         $month = $parts[1] ?? null;
         $day = $parts[2] ?? null;
         $yearText = $this->formatCslDateYearPart((int) $year, 'long');
+        if ($season !== null && $month === null) {
+            $seasonText = $this->localizedSeasonName($season);
+
+            return $seasonText === '' ? $yearText : $seasonText . ' ' . $yearText;
+        }
+
         if ($month === null) {
             return $yearText;
         }
@@ -6610,6 +6890,13 @@ final class CitationCslProcessor
         }
 
         return $monthText . '/' . $this->formatCslDateDayPart((int) $day, 'numeric') . '/' . $yearText;
+    }
+
+    private function localizedSeasonName(int $season): string
+    {
+        $term = $this->style->term(sprintf('season-%02d', $season));
+
+        return str_starts_with($term, 'season-') ? self::dateSeasonName($season) : $term;
     }
 
     /**

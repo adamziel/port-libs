@@ -1167,6 +1167,60 @@ XML;
         $t->contains('<sup><span data-odf-style-name="InheritedSuperscript">TM</span></sup>', $blocksHtml);
         $t->contains('<sub><span data-odf-style-name="SourceSubscript">2</span></sub>', $blocksHtml);
     },
+    'maps ODT numeric bold small-caps and strikeout text styles like upstream style diffs' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithReviewMarks = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="NumericBoldSmallCaps" style:family="text">
+      <style:text-properties fo:font-weight="500" fo:font-variant="small-caps"/>
+    </style:style>
+    <style:style style:name="DraftStrike" style:family="text">
+      <style:text-properties style:text-line-through-style="solid"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithReviewMarks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Review <text:span text:style-name="NumericBoldSmallCaps">Source Title</text:span> and <text:span text:style-name="DraftStrike">draft copy</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithReviewMarks, null, $stylesWithReviewMarks));
+        $paragraph = $result['document']->children[0];
+        $smallCaps = $paragraph->children[1];
+        $strikeout = $paragraph->children[3];
+
+        $t->same('Review Source Title and draft copy.', $paragraph->attr('text'));
+        $t->same(true, $result['styles']['NumericBoldSmallCaps']['textProperties']['bold']);
+        $t->same(true, $result['styles']['NumericBoldSmallCaps']['textProperties']['smallCaps']);
+        $t->same(true, $result['styles']['DraftStrike']['textProperties']['strikeout']);
+        $t->same('small_caps', $smallCaps->type);
+        $t->same('strong', $smallCaps->children[0]->type);
+        $t->same('span', $smallCaps->children[0]->children[0]->type);
+        $t->same('NumericBoldSmallCaps', $smallCaps->children[0]->children[0]->attr('styleName'));
+        $t->same('Source Title', $smallCaps->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('strikeout', $strikeout->type);
+        $t->same('span', $strikeout->children[0]->type);
+        $t->same('DraftStrike', $strikeout->children[0]->attr('styleName'));
+        $t->same('draft copy', $strikeout->children[0]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[**[Source Title]{data-odf-style-name="NumericBoldSmallCaps"}**]{.smallcaps}', $markdown);
+        $t->contains('~~[draft copy]{data-odf-style-name="DraftStrike"}~~', $markdown);
+        $t->contains('<span style="font-variant:small-caps"><strong><span data-odf-style-name="NumericBoldSmallCaps">Source Title</span></strong></span>', $blocksHtml);
+        $t->contains('<del><span data-odf-style-name="DraftStrike">draft copy</span></del>', $blocksHtml);
+    },
     'maps ODT ruby annotations into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithRuby = <<<'XML'
 <office:document-content

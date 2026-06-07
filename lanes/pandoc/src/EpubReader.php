@@ -81,6 +81,7 @@ final class EpubReader
      *     ocf:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
+     *     mediaOverlayStyles:array<string, mixed>,
      *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     xhtmlResourceReport:array<string, mixed>,
@@ -113,6 +114,7 @@ final class EpubReader
             $opf['mediaTypes'],
             $opf['remoteResources'],
             $opf['mediaDurations'],
+            $opf['mediaOverlayStyles'],
             $opf['pageBreaks'],
             $opf['navigation'],
             $opf['xhtmlResourceReport'],
@@ -146,6 +148,7 @@ final class EpubReader
             'ocf' => $ocf,
             'mediaOverlays' => $opf['mediaOverlays'],
             'mediaDurations' => $opf['mediaDurations'],
+            'mediaOverlayStyles' => $opf['mediaOverlayStyles'],
             'pageBreaks' => $opf['pageBreaks'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
@@ -191,6 +194,7 @@ final class EpubReader
                 'ocf' => $ocf,
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'mediaDurations' => $opf['mediaDurations'],
+                'mediaOverlayStyles' => $opf['mediaOverlayStyles'],
                 'pageBreaks' => $opf['pageBreaks'],
                 'assets' => $opf['assetReport'],
             ],
@@ -480,6 +484,7 @@ final class EpubReader
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
+     *     mediaOverlayStyles:array<string, mixed>,
      *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     xhtmlResourceReport:array<string, mixed>,
@@ -533,7 +538,9 @@ final class EpubReader
         $manifestById = self::attachManifestMediaTypeReports($manifestById, $bindings);
         $mediaDurations = self::mediaDurationReport($metadata, $manifestById);
         $metadata['mediaDurations'] = $mediaDurations;
-        $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations);
+        $mediaOverlayStyles = self::mediaOverlayStyleReport($metadata, $manifestById);
+        $metadata['mediaOverlayStyles'] = $mediaOverlayStyles;
+        $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations, $mediaOverlayStyles);
         $manifestById = self::attachMediaOverlayReferencesToManifest($manifestById, $mediaOverlays);
         $spineProperties = self::readSpineProperties($spineElement, $refinementsById, $linkedResourcesById);
         $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById, $linkedResourcesById);
@@ -595,6 +602,7 @@ final class EpubReader
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'mediaDurations' => $mediaDurations,
+            'mediaOverlayStyles' => $mediaOverlayStyles,
             'pageBreaks' => $pageBreaks,
             'xhtmlAssets' => $xhtmlAssets,
             'xhtmlResourceReport' => $xhtmlResourceReport,
@@ -4608,6 +4616,212 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, mixed>
+     */
+    private static function mediaOverlayStyleReport(array $metadata, array $manifestById): array
+    {
+        $styleProperties = [
+            'media:active-class' => 'active-class',
+            'media:playback-active-class' => 'playback-active-class',
+        ];
+        $entries = [];
+        foreach ((is_array($metadata['raw'] ?? null) ? $metadata['raw'] : []) as $rawIndex => $entry) {
+            if (!is_array($entry) || ($entry['type'] ?? null) !== 'meta') {
+                continue;
+            }
+
+            $property = is_string($entry['property'] ?? null) ? $entry['property'] : null;
+            if ($property === null || !isset($styleProperties[$property])) {
+                continue;
+            }
+
+            $entries[] = [
+                'index' => $rawIndex,
+                'property' => $property,
+                'kind' => $styleProperties[$property],
+                'entry' => $entry,
+            ];
+        }
+
+        $overlayReferences = self::mediaOverlayReferences($manifestById);
+        $publication = self::emptyMediaOverlayStyleSummary(null);
+        $overlaysById = [];
+        $items = [];
+        $diagnostics = [];
+
+        foreach ($entries as $entryRecord) {
+            $index = (int) $entryRecord['index'];
+            $property = (string) $entryRecord['property'];
+            $kind = (string) $entryRecord['kind'];
+            $entry = is_array($entryRecord['entry']) ? $entryRecord['entry'] : [];
+            $class = self::metadataEntryValue($entry);
+            $classTokens = self::spaceDelimited($class);
+            $refines = is_string($entry['refines'] ?? null) ? $entry['refines'] : null;
+            $subjectId = self::metadataRefinementSubject($refines);
+            $classField = $kind === 'active-class' ? 'activeClass' : 'playbackActiveClass';
+            $tokensField = $kind === 'active-class' ? 'activeClassTokens' : 'playbackActiveClassTokens';
+            $metadataField = $kind === 'active-class' ? 'activeClassMetadata' : 'playbackActiveClassMetadata';
+            $itemDiagnostics = [];
+            $item = [
+                'index' => $index,
+                'property' => $property,
+                'kind' => $kind,
+                'class' => $class,
+                'classTokens' => $classTokens,
+                'validClass' => $class !== '',
+                'scope' => $subjectId === null ? 'publication' : 'media-overlay',
+                'refines' => $refines,
+                'subjectId' => $subjectId,
+                'metadataId' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'manifestId' => null,
+                'manifestHref' => null,
+                'manifestTarget' => null,
+                'manifestPart' => null,
+                'manifestMediaType' => null,
+                'referencedBy' => [],
+                'diagnostics' => [],
+            ];
+
+            if ($class === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'empty-media-overlay-style-class',
+                    'property' => $property,
+                    'message' => 'EPUB media-overlay style class metadata must not be empty',
+                ];
+            }
+
+            $manifestItem = null;
+            $canAttachToOverlay = false;
+            if ($subjectId !== null) {
+                $manifestItem = $manifestById[$subjectId] ?? null;
+                $item['manifestId'] = $subjectId;
+                if (!is_array($manifestItem)) {
+                    $itemDiagnostics[] = [
+                        'type' => 'media-overlay-style-refines-missing-manifest-item',
+                        'subjectId' => $subjectId,
+                        'property' => $property,
+                        'message' => 'EPUB media-overlay style class refinement does not reference an OPF manifest item',
+                    ];
+                } else {
+                    $item['manifestHref'] = (string) ($manifestItem['href'] ?? '');
+                    $item['manifestTarget'] = is_string($manifestItem['target'] ?? null) ? $manifestItem['target'] : null;
+                    $item['manifestPart'] = is_string($manifestItem['part'] ?? null) ? $manifestItem['part'] : null;
+                    $item['manifestMediaType'] = (string) ($manifestItem['mediaType'] ?? '');
+                    $item['referencedBy'] = $overlayReferences[$subjectId] ?? [];
+
+                    if (($manifestItem['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
+                        $itemDiagnostics[] = [
+                            'type' => 'media-overlay-style-refines-non-overlay-manifest-item',
+                            'subjectId' => $subjectId,
+                            'mediaType' => (string) ($manifestItem['mediaType'] ?? ''),
+                            'property' => $property,
+                            'message' => 'EPUB media-overlay style class refinement should reference an OPF media-overlay SMIL item',
+                        ];
+                    } else {
+                        $canAttachToOverlay = true;
+                    }
+                }
+            }
+
+            if ($subjectId === null) {
+                if ($class !== '' && is_array($publication[$metadataField])) {
+                    $itemDiagnostics[] = [
+                        'type' => 'duplicate-publication-media-overlay-style-class',
+                        'property' => $property,
+                        'message' => 'EPUB package contains more than one publication-level media-overlay style class entry for this property',
+                    ];
+                }
+            } elseif ($canAttachToOverlay) {
+                if (!isset($overlaysById[$subjectId])) {
+                    $overlaysById[$subjectId] = self::emptyMediaOverlayStyleSummary($subjectId);
+                    $overlaysById[$subjectId]['manifestId'] = $subjectId;
+                    $overlaysById[$subjectId]['manifestHref'] = $item['manifestHref'];
+                    $overlaysById[$subjectId]['manifestTarget'] = $item['manifestTarget'];
+                    $overlaysById[$subjectId]['manifestPart'] = $item['manifestPart'];
+                    $overlaysById[$subjectId]['manifestMediaType'] = $item['manifestMediaType'];
+                    $overlaysById[$subjectId]['referencedBy'] = $item['referencedBy'];
+                }
+
+                if ($class !== '' && is_array($overlaysById[$subjectId][$metadataField])) {
+                    $itemDiagnostics[] = [
+                        'type' => 'duplicate-media-overlay-style-class',
+                        'subjectId' => $subjectId,
+                        'property' => $property,
+                        'message' => 'EPUB media-overlay manifest item has more than one style class entry for this property',
+                    ];
+                }
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+            $item['diagnostics'] = $itemDiagnostics;
+
+            if ($subjectId === null) {
+                if ($class !== '' && !is_array($publication[$metadataField])) {
+                    $publication[$classField] = $class;
+                    $publication[$tokensField] = $classTokens;
+                    $publication[$metadataField] = $item;
+                }
+                $publication['items'][] = $item;
+                array_push($publication['diagnostics'], ...$itemDiagnostics);
+            } elseif ($canAttachToOverlay) {
+                if ($class !== '' && !is_array($overlaysById[$subjectId][$metadataField])) {
+                    $overlaysById[$subjectId][$classField] = $class;
+                    $overlaysById[$subjectId][$tokensField] = $classTokens;
+                    $overlaysById[$subjectId][$metadataField] = $item;
+                }
+                $overlaysById[$subjectId]['items'][] = $item;
+                array_push($overlaysById[$subjectId]['diagnostics'], ...$itemDiagnostics);
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $entries !== [],
+            'publication' => $publication,
+            'activeClass' => $publication['activeClass'],
+            'activeClassTokens' => $publication['activeClassTokens'],
+            'activeClassMetadata' => $publication['activeClassMetadata'],
+            'playbackActiveClass' => $publication['playbackActiveClass'],
+            'playbackActiveClassTokens' => $publication['playbackActiveClassTokens'],
+            'playbackActiveClassMetadata' => $publication['playbackActiveClassMetadata'],
+            'overlaysById' => $overlaysById,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyMediaOverlayStyleSummary(?string $id): array
+    {
+        return [
+            'id' => $id,
+            'activeClass' => null,
+            'activeClassTokens' => [],
+            'activeClassMetadata' => null,
+            'playbackActiveClass' => null,
+            'playbackActiveClassTokens' => [],
+            'playbackActiveClassMetadata' => null,
+            'manifestId' => $id,
+            'manifestHref' => null,
+            'manifestTarget' => null,
+            'manifestPart' => null,
+            'manifestMediaType' => null,
+            'referencedBy' => [],
+            'items' => [],
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $manifestById
      *
      * @return array<string, list<string>>
@@ -4682,6 +4896,13 @@ final class EpubReader
                 'duration' => null,
                 'durationSeconds' => null,
                 'durationMetadata' => null,
+                'activeClass' => null,
+                'activeClassTokens' => [],
+                'activeClassMetadata' => null,
+                'playbackActiveClass' => null,
+                'playbackActiveClassTokens' => [],
+                'playbackActiveClassMetadata' => null,
+                'styleMetadata' => null,
                 'textRef' => null,
                 'textRefTarget' => null,
                 'textRefFragment' => null,
@@ -4712,6 +4933,13 @@ final class EpubReader
                 ? (float) $overlay['durationSeconds']
                 : null,
             'durationMetadata' => is_array($overlay['durationMetadata'] ?? null) ? $overlay['durationMetadata'] : null,
+            'activeClass' => is_string($overlay['activeClass'] ?? null) ? $overlay['activeClass'] : null,
+            'activeClassTokens' => is_array($overlay['activeClassTokens'] ?? null) ? array_values($overlay['activeClassTokens']) : [],
+            'activeClassMetadata' => is_array($overlay['activeClassMetadata'] ?? null) ? $overlay['activeClassMetadata'] : null,
+            'playbackActiveClass' => is_string($overlay['playbackActiveClass'] ?? null) ? $overlay['playbackActiveClass'] : null,
+            'playbackActiveClassTokens' => is_array($overlay['playbackActiveClassTokens'] ?? null) ? array_values($overlay['playbackActiveClassTokens']) : [],
+            'playbackActiveClassMetadata' => is_array($overlay['playbackActiveClassMetadata'] ?? null) ? $overlay['playbackActiveClassMetadata'] : null,
+            'styleMetadata' => is_array($overlay['styleMetadata'] ?? null) ? $overlay['styleMetadata'] : null,
             'textRef' => is_string($overlay['textRef'] ?? null) ? $overlay['textRef'] : null,
             'textRefTarget' => is_string($overlay['textRefTarget'] ?? null) ? $overlay['textRefTarget'] : null,
             'textRefFragment' => is_string($overlay['textRefFragment'] ?? null) ? $overlay['textRefFragment'] : null,
@@ -7370,8 +7598,12 @@ final class EpubReader
      *
      * @return array<string, array<string, mixed>>
      */
-    private function readMediaOverlays(ZipPackage $package, array $manifestById, array $mediaDurations): array
-    {
+    private function readMediaOverlays(
+        ZipPackage $package,
+        array $manifestById,
+        array $mediaDurations,
+        array $mediaOverlayStyles
+    ): array {
         $references = [];
         foreach ($manifestById as $item) {
             $mediaOverlay = $item['mediaOverlay'] ?? null;
@@ -7399,6 +7631,13 @@ final class EpubReader
                     'duration' => null,
                     'durationSeconds' => null,
                     'durationMetadata' => null,
+                    'activeClass' => null,
+                    'activeClassTokens' => [],
+                    'activeClassMetadata' => null,
+                    'playbackActiveClass' => null,
+                    'playbackActiveClassTokens' => [],
+                    'playbackActiveClassMetadata' => null,
+                    'styleMetadata' => null,
                     'textRef' => null,
                     'textRefTarget' => null,
                     'items' => [],
@@ -7414,7 +7653,10 @@ final class EpubReader
             $durationMetadata = is_array($mediaDurations['overlaysById'][$id] ?? null)
                 ? $mediaDurations['overlaysById'][$id]
                 : null;
-            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy, $durationMetadata);
+            $styleMetadata = is_array($mediaOverlayStyles['overlaysById'][$id] ?? null)
+                ? $mediaOverlayStyles['overlaysById'][$id]
+                : null;
+            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy, $durationMetadata, $styleMetadata);
         }
 
         return $overlays;
@@ -7426,8 +7668,13 @@ final class EpubReader
      *
      * @return array<string, mixed>
      */
-    private function readMediaOverlayItem(ZipPackage $package, array $item, array $referencedBy, ?array $durationMetadata): array
-    {
+    private function readMediaOverlayItem(
+        ZipPackage $package,
+        array $item,
+        array $referencedBy,
+        ?array $durationMetadata,
+        ?array $styleMetadata
+    ): array {
         $diagnostics = [];
         if (($item['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
             $diagnostics[] = [
@@ -7493,6 +7740,13 @@ final class EpubReader
             'duration' => is_array($durationMetadata) ? $durationMetadata['duration'] : null,
             'durationSeconds' => is_array($durationMetadata) ? $durationMetadata['durationSeconds'] : null,
             'durationMetadata' => $durationMetadata,
+            'activeClass' => is_array($styleMetadata) ? $styleMetadata['activeClass'] : null,
+            'activeClassTokens' => is_array($styleMetadata) ? $styleMetadata['activeClassTokens'] : [],
+            'activeClassMetadata' => is_array($styleMetadata) ? $styleMetadata['activeClassMetadata'] : null,
+            'playbackActiveClass' => is_array($styleMetadata) ? $styleMetadata['playbackActiveClass'] : null,
+            'playbackActiveClassTokens' => is_array($styleMetadata) ? $styleMetadata['playbackActiveClassTokens'] : [],
+            'playbackActiveClassMetadata' => is_array($styleMetadata) ? $styleMetadata['playbackActiveClassMetadata'] : null,
+            'styleMetadata' => $styleMetadata,
             'textRef' => $textRef,
             'textRefTarget' => $textRefTarget,
             'textRefFragment' => $textRefReference['fragment'] ?? null,
@@ -9786,6 +10040,7 @@ final class EpubReader
      * @param array<string, mixed> $mediaTypes
      * @param array<string, mixed> $remoteResources
      * @param array<string, mixed> $mediaDurations
+     * @param array<string, mixed> $mediaOverlayStyles
      * @param array<string, mixed> $pageBreaks
      * @param array<string, mixed> $navigation
      * @param array<string, mixed> $xhtmlResourceReport
@@ -9808,6 +10063,7 @@ final class EpubReader
         array $mediaTypes,
         array $remoteResources,
         array $mediaDurations,
+        array $mediaOverlayStyles,
         array $pageBreaks,
         array $navigation,
         array $xhtmlResourceReport,
@@ -9906,6 +10162,7 @@ final class EpubReader
             'cssResourceReport' => $cssResourceReport,
             'assets' => $assetReport,
             'mediaDurations' => $mediaDurations,
+            'mediaOverlayStyles' => $mediaOverlayStyles,
             'pageBreaks' => $pageBreaks,
             'renditions' => $renditions,
             'ocf' => $ocf,

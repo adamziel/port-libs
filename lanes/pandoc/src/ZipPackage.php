@@ -1795,6 +1795,99 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     collisionGroups:list<array{rawName:string, rawNameHex:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, rawName:string, rawNameHex:string, equivalentEntryNames:list<string>, hasRawNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, rawName:string, rawNameHex:string, equivalentEntryNames:list<string>, hasRawNameCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function rawNamePreflight(): array
+    {
+        $entryNamesByRawNameHex = [];
+        $rawNamesByHex = [];
+        foreach ($this->entries as $entry) {
+            $rawNameHex = bin2hex($entry->rawName);
+            $entryNamesByRawNameHex[$rawNameHex][] = $entry->name;
+            $rawNamesByHex[$rawNameHex] = $entry->rawName;
+        }
+
+        $collisionGroups = [];
+        foreach ($entryNamesByRawNameHex as $rawNameHex => $entryNames) {
+            if (count($entryNames) > 1) {
+                $collisionGroups[] = [
+                    'rawName' => $rawNamesByHex[$rawNameHex],
+                    'rawNameHex' => $rawNameHex,
+                    'entryNames' => $entryNames,
+                ];
+            }
+        }
+
+        $entries = [];
+        $collisionEntries = [];
+        foreach ($this->entries as $entry) {
+            $rawNameHex = bin2hex($entry->rawName);
+            $equivalentEntryNames = $entryNamesByRawNameHex[$rawNameHex] ?? [];
+            $hasCollision = count($equivalentEntryNames) > 1;
+            $issues = $hasCollision ? ['raw-name-collision'] : [];
+            $summary = [
+                'name' => $entry->name,
+                'rawName' => $entry->rawName,
+                'rawNameHex' => $rawNameHex,
+                'equivalentEntryNames' => $equivalentEntryNames,
+                'hasRawNameCollision' => $hasCollision,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($hasCollision) {
+                $collisionEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'collisionGroupCount' => count($collisionGroups),
+            'collisionEntryCount' => count($collisionEntries),
+            'collisionGroups' => $collisionGroups,
+            'collisionEntries' => $collisionEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     collisionGroups:list<array{rawName:string, rawNameHex:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, rawName:string, rawNameHex:string, equivalentEntryNames:list<string>, hasRawNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, rawName:string, rawNameHex:string, equivalentEntryNames:list<string>, hasRawNameCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoRawNameCollisions(): array
+    {
+        $summary = $this->rawNamePreflight();
+        if ($summary['collisionEntryCount'] > 0) {
+            $groups = implode(
+                ', ',
+                array_map(
+                    static fn (array $group): string => $group['rawNameHex'] . ' (' . implode(', ', $group['entryNames']) . ')',
+                    $summary['collisionGroups']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains raw ZIP entry name collisions that require explicit import review: '
+                . $groups
+            );
+        }
+
+        return $summary;
+    }
+
     public function has(string $partName): bool
     {
         return isset($this->entriesByName[$this->normalizeLookupPartName($partName)]);
@@ -3016,6 +3109,7 @@ final class ZipPackage
      *     extraFields:array<string, mixed>,
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
+     *     rawNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
@@ -3048,6 +3142,7 @@ final class ZipPackage
         $extraFields = $this->extraFieldPreflight();
         $pathHierarchy = $this->pathHierarchyPreflight();
         $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
+        $rawNames = $this->rawNamePreflight();
         $permissions = $this->permissionPreflight();
         $dosAttributes = $this->dosAttributePreflight();
         $creatorHostSystems = $this->creatorHostSystemPreflight();
@@ -3108,6 +3203,10 @@ final class ZipPackage
             $diagnostics[] = 'case-insensitive-name-collisions';
         }
 
+        if ($rawNames['collisionEntryCount'] > 0) {
+            $diagnostics[] = 'raw-name-collisions';
+        }
+
         if ($permissions['executableFileCount'] > 0) {
             $diagnostics[] = 'executable-file-entries';
         }
@@ -3161,6 +3260,7 @@ final class ZipPackage
             'extraFields' => $extraFields,
             'pathHierarchy' => $pathHierarchy,
             'caseInsensitiveNames' => $caseInsensitiveNames,
+            'rawNames' => $rawNames,
             'permissions' => $permissions,
             'dosAttributes' => $dosAttributes,
             'creatorHostSystems' => $creatorHostSystems,
@@ -3187,6 +3287,7 @@ final class ZipPackage
      *     extraFields:array<string, mixed>,
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
+     *     rawNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,

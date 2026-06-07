@@ -2596,6 +2596,47 @@ return [
         $t->true(!str_contains($html, 'viewBox="html attr"'), 'Expected SVG desc fallback attributes to stay in HTML casing');
         $t->true(!str_contains($html, '<textPath>'), 'Expected SVG desc fallback children to stay in HTML casing');
     },
+    'adds source line metadata to html fragment sanitizer diagnostics' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<p onclick=\"drop()\">review paragraph</p>\n"
+            . "<script>alert(1)</script>\n"
+            . "<img src=\"javascript:alert(1)\" alt=\"Bad source\">\n"
+            . "<table><tr><td>A</td></tr>loose table note</table>"
+            . '</article>'
+        );
+        $libxmlRepair = null;
+        foreach ($fragment->diagnostics() as $diagnostic) {
+            if (($diagnostic['code'] ?? '') === 'libxml-repair') {
+                $libxmlRepair = $diagnostic;
+                break;
+            }
+        }
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+        $html = $fragment->serialize();
+
+        $t->same(1, is_array($libxmlRepair) ? ($libxmlRepair['line'] ?? null) : null);
+        $t->true(is_array($libxmlRepair) && ($libxmlRepair['column'] ?? 0) > 0, 'Expected libxml repair diagnostics to include a source column');
+        $t->same(['unsafe-attribute', 'blocked-tag', 'unsafe-url', 'table-foster-parented-content'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+            $diagnostics
+        ));
+        $t->same(2, $diagnostics[0]['line'] ?? null);
+        $t->same('p', $diagnostics[0]['tag'] ?? null);
+        $t->same('onclick', $diagnostics[0]['attribute'] ?? null);
+        $t->same(3, $diagnostics[1]['line'] ?? null);
+        $t->same('script', $diagnostics[1]['tag'] ?? null);
+        $t->same(4, $diagnostics[2]['line'] ?? null);
+        $t->same('img', $diagnostics[2]['tag'] ?? null);
+        $t->same('src', $diagnostics[2]['attribute'] ?? null);
+        $t->same(5, $diagnostics[3]['line'] ?? null);
+        $t->same('table', $diagnostics[3]['context'] ?? null);
+        $t->same('text', $diagnostics[3]['nodeType'] ?? null);
+        $t->same('<article>' . "\n" . '<p>review paragraph</p>' . "\n\n" . '<img alt="Bad source">' . "\n" . 'loose table note<table><tr><td>A</td></tr></table></article>', $html);
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

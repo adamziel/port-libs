@@ -2552,6 +2552,31 @@ final class PdfActionReviewExtractor
 
     /**
      * @param array<int, mixed> $objects
+     * @param list<string> $keys
+     */
+    private function catalogDictionaryHasDuplicateKeys(array $objects, array $keys): bool
+    {
+        foreach ($objects as $value) {
+            $dict = $this->dictionaryItems($value);
+            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
+                continue;
+            }
+
+            $duplicateKeys = $this->dictionaryDuplicateKeySet($value);
+            foreach ($keys as $key) {
+                if (isset($duplicateKeys[$key])) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
      * @param array<string, mixed>|null $catalog
      * @return list<array{object: int, generation: int}>
      */
@@ -2657,10 +2682,12 @@ final class PdfActionReviewExtractor
             }
         }
 
+        $catalogHasDuplicateNames = $this->catalogDictionaryHasDuplicateKeys($objects, ['Names']);
         $namesValue = $catalog['Names'] ?? null;
         $names = $this->resolveDictionary($namesValue);
         $nameTreeRootValue = $names['Dests'] ?? null;
-        $nameTreeRootRejected = $names === null
+        $nameTreeRootRejected = $catalogHasDuplicateNames
+            || $names === null
             || $this->resolvedDictionaryHasDuplicateKeys($namesValue, ['Dests'])
             || $this->resolvedDictionaryHasDuplicateKeys($nameTreeRootValue, self::NAME_TREE_NODE_BOUNDARY_KEYS);
         $nameTreeRoot = $nameTreeRootRejected ? null : $this->resolveDictionary($nameTreeRootValue);

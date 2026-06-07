@@ -1631,16 +1631,42 @@ return [
         $t->true(str_contains($charSpans[0]['text'], $mojibakeEAcute), 'char_blocks preserve the pdftext dictionary source text for review.');
         $t->true(!str_contains($encoded, 'hidden mojibake payload must not cross dictionary_output'));
     },
-    'rejects invalid utf8 pdftext text bytes before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage, $pdftextMojibakePage): void {
+    'rejects invalid utf8 pdftext string metadata before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage, $pdftextMojibakePage): void {
+        $invalidBytes = chr(0xC3) . chr(0x28);
+
         $invalidSpanText = $pdftextLinkedPage();
-        $invalidSpanText['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Invalid ' . chr(0xC3) . chr(0x28) . " span\n";
+        $invalidSpanText['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Invalid ' . $invalidBytes . " span\n";
 
         $invalidCharText = $pdftextCharsPage();
-        $invalidCharText['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = chr(0xC3) . chr(0x28);
+        $invalidCharText['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = $invalidBytes;
+
+        $invalidSpanFontName = $pdftextLinkedPage();
+        $invalidSpanFontName['blocks'][0]['lines'][0]['spans'][0]['font']['name'] = 'Bad' . $invalidBytes;
+
+        $invalidCharFontName = $pdftextCharsPage();
+        $invalidCharFontName['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['name'] = 'Bad' . $invalidBytes;
+
+        $invalidSpanUrl = $pdftextLinkedPage();
+        $invalidSpanUrl['blocks'][0]['lines'][0]['spans'][1]['url'] = 'https://example.com/' . $invalidBytes;
+
+        $invalidRefUrl = $pdftextLinkedPage();
+        $invalidRefUrl['refs'][0]['url'] = '#page-' . $invalidBytes;
+
+        $invalidRefAnchor = $pdftextLinkedPage();
+        $invalidRefAnchor['refs'] = [[
+            'page' => 9,
+            'idx' => 2,
+            'ref' => 'page-' . $invalidBytes,
+        ]];
 
         $extractor = new PdfTextDocumentExtractor();
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidSpanText], maxPages: 1));
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidCharText], maxPages: 1, keepChars: true));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidSpanFontName], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidCharFontName], maxPages: 1, keepChars: true));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidSpanUrl], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidRefUrl], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidRefAnchor], maxPages: 1));
 
         $document = $extractor->getTextBlocks([$pdftextMojibakePage()], maxPages: 1);
         $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));

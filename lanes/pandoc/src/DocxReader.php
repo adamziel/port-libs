@@ -5764,7 +5764,9 @@ final class DocxReader
             $rows[] = new AstNode('table_row', $this->tableRowAttrs($rowElement), $cells);
         }
 
-        return TableGeometry::withReviewPacket(new AstNode('table', $this->tableAttrs($table), [
+        $tableAttrs = array_replace($this->tableAttrs($table), $this->tableGridAttrs($table));
+
+        return TableGeometry::withReviewPacket(new AstNode('table', $tableAttrs, [
             new AstNode('table_body', [], $rows),
         ]), ['idPrefix' => 'docx-table']);
     }
@@ -5799,6 +5801,86 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{widths?:list<?float>, columnSources?:list<array<string, mixed>>}
+     */
+    private function tableGridAttrs(\DOMElement $table): array
+    {
+        $grid = $this->firstChildElement($table, self::WORDPROCESSINGML_NS, 'tblGrid');
+        if (!$grid instanceof \DOMElement) {
+            return [];
+        }
+
+        $columns = [];
+        $totalTwips = 0;
+        foreach ($grid->childNodes as $node) {
+            if (!$node instanceof \DOMElement || $node->namespaceURI !== self::WORDPROCESSINGML_NS || $node->localName !== 'gridCol') {
+                continue;
+            }
+
+            $rawWidth = trim((string) ($this->wordAttr($node, 'w') ?? ''));
+            $widthTwips = null;
+            $issue = null;
+            if ($rawWidth === '') {
+                $issue = 'missing-width';
+            } elseif (preg_match('/^\d+$/D', $rawWidth) !== 1) {
+                $issue = 'invalid-width';
+            } else {
+                $candidate = (int) $rawWidth;
+                if ($candidate > 0) {
+                    $widthTwips = $candidate;
+                    $totalTwips += $candidate;
+                } else {
+                    $issue = 'non-positive-width';
+                }
+            }
+
+            $columns[] = [
+                'rawWidth' => $rawWidth,
+                'widthTwips' => $widthTwips,
+                'issue' => $issue,
+            ];
+        }
+
+        if ($columns === []) {
+            return [];
+        }
+
+        $widths = [];
+        $columnSources = [];
+        foreach ($columns as $index => $column) {
+            $widthTwips = $column['widthTwips'];
+            $source = [
+                'kind' => 'docx-tblGrid',
+                'column' => $index,
+                'gridIndex' => $index,
+                'widthTwips' => $widthTwips,
+            ];
+
+            if (is_int($widthTwips) && $totalTwips > 0) {
+                $width = $this->roundTableGridWidth($widthTwips / $totalTwips);
+                $widths[] = $width;
+                $source['widthPercent'] = $this->roundTableGridWidth($width * 100.0);
+            } else {
+                $widths[] = null;
+                $source['rawWidth'] = $column['rawWidth'];
+                $source['issue'] = $column['issue'];
+            }
+
+            $columnSources[] = $source;
+        }
+
+        return [
+            'widths' => $widths,
+            'columnSources' => $columnSources,
+        ];
+    }
+
+    private function roundTableGridWidth(float $value): float
+    {
+        return round($value, 6);
     }
 
     private function tablePropertyValue(\DOMElement $properties, string $localName): ?string

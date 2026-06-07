@@ -688,6 +688,74 @@ return [
         $t->same('<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
     },
 
+    'preflights pax filesystem metadata without applying xattrs or acls' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $localContent = "# Filesystem metadata packet\n\nReady for WordPress review.\n";
+        $inheritedContent = "# Inherited filesystem metadata packet\n\nReady for WordPress review.\n";
+        $archive = $rawTarHeader('GlobalHead/filesystem', 'g', $paxPayload([
+            'SCHILY.xattr.user.review' => 'global-review',
+            'SCHILY.acl.access' => "user::rw-\ngroup::r--\nother::---",
+            'SCHILY.fflags' => 'archived,nodump',
+        ]), 0, false)
+            . $rawTarHeader('PaxHeaders/local-filesystem', 'x', $paxPayload([
+                'path' => 'packet/filesystem/local.md',
+                'SCHILY.xattr.user.review' => '',
+                'LIBARCHIVE.xattr.user.wordpress-source' => 'post-42',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-local.md', '0', $localContent, 1780479084, false)
+            . $rawTarHeader('packet/filesystem/inherited.md', '0', $inheritedContent, 1780479085, false)
+            . str_repeat("\0", 1024);
+        $gzip = GzipStream::build($archive, [
+            'filename' => 'wordpress-pax-filesystem-metadata.tar',
+            'comment' => 'PAX xattr and ACL policy preflight',
+        ]);
+
+        $policy = TarArchive::paxFilesystemMetadataPolicyPreflight($archive);
+        $inspection = ArchiveCompressionStream::inspectTarFilesystemMetadataPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archive)
+        );
+        $roundTrip = TarArchive::fromString($archive);
+
+        $t->same('filesystem-pax-metadata-not-applied', $policy['extractionPolicy']);
+        $t->same(2, $policy['entryCount']);
+        $t->same(2, $policy['filesystemMetadataEntryCount']);
+        $t->same(6, $policy['metadataRecordCount']);
+        $t->same(2, $policy['extendedAttributeRecordCount']);
+        $t->same(2, $policy['accessControlListRecordCount']);
+        $t->same(2, $policy['fileFlagRecordCount']);
+        $t->same('packet/filesystem/local.md', $policy['entries'][0]['name']);
+        $t->same('pax-path', $policy['entries'][0]['nameSource']);
+        $t->same([
+            'SCHILY.acl.access',
+            'SCHILY.fflags',
+            'LIBARCHIVE.xattr.user.wordpress-source',
+        ], $policy['entries'][0]['metadataKeys']);
+        $t->same(['global-pax', 'global-pax', 'local-pax'], array_column($policy['entries'][0]['records'], 'source'));
+        $t->same(['access-control-list', 'file-flags', 'extended-attribute'], array_column($policy['entries'][0]['records'], 'category'));
+        $t->same(['access', 'SCHILY.fflags', 'user.wordpress-source'], array_column($policy['entries'][0]['records'], 'name'));
+        $t->same(['tar-pax-filesystem-metadata-not-applied'], $policy['entries'][0]['diagnostics']);
+        $t->same('packet/filesystem/inherited.md', $policy['entries'][1]['name']);
+        $t->same([
+            'SCHILY.xattr.user.review',
+            'SCHILY.acl.access',
+            'SCHILY.fflags',
+        ], $policy['entries'][1]['metadataKeys']);
+        $t->same(['global-pax', 'global-pax', 'global-pax'], array_column($policy['entries'][1]['records'], 'source'));
+        $t->same(['user.review', 'access', 'SCHILY.fflags'], array_column($policy['entries'][1]['records'], 'name'));
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same('filesystem-pax-metadata-not-applied', $inspection['extractionPolicy']);
+        $t->same(2, $inspection['filesystemMetadataEntryCount']);
+        $t->same(6, $inspection['metadataRecordCount']);
+        $t->same('gzip', $inspection['stream']['type']);
+        $t->same('wordpress-pax-filesystem-metadata.tar', $inspection['stream']['members'][0]['filename']);
+        $t->same($localContent, $roundTrip->read('/packet/filesystem/local.md'));
+        $t->same($inheritedContent, $roundTrip->read('/packet/filesystem/inherited.md'));
+        $t->same(false, isset($roundTrip->entry('/packet/filesystem/local.md')->paxHeaders['SCHILY.xattr.user.review']));
+        $t->same('post-42', $roundTrip->entry('/packet/filesystem/local.md')->paxHeaders['LIBARCHIVE.xattr.user.wordpress-source'] ?? null);
+        $t->same('global-review', $roundTrip->entry('/packet/filesystem/inherited.md')->paxHeaders['SCHILY.xattr.user.review'] ?? null);
+    },
+
     'enforces pax header charset policy before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $documentBytes = "# PAX header charset packet\n\nReady for WordPress archive review.\n";
         $archive = $rawTarHeader('GlobalHead/charset', 'g', $paxPayload([

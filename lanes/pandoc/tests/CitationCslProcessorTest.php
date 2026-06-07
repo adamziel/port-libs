@@ -2263,6 +2263,107 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl season date rendering for csl date variables' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'season-source',
+                'type' => 'report',
+                'title' => 'Seasonal Packet',
+                'author' => [
+                    ['literal' => 'Season Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]], 'season' => 2],
+                'accessed' => ['date-parts' => [[2026]], 'season' => '4'],
+                'original-date' => ['date-parts' => [[1999]], 'season' => 3],
+                'event-date' => ['date-parts' => [[2025]], 'season' => 1],
+            ],
+            [
+                'id' => 'winter-source',
+                'type' => 'report',
+                'title' => 'Winter Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2024]], 'season' => 4],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Season Date Review Style</title>
+    <id>https://example.test/styles/bounded-season-date-review</id>
+    <updated>2026-06-07T22:55:29+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="season-01">Spring Field</term>
+      <term name="season-02">Summer Field</term>
+      <term name="season-03">Autumn Field</term>
+      <term name="season-04">Winter Field</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued" form="text"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued" form="text"/>
+      <text variable="issued-season-name" prefix="season "/>
+      <text variable="date-season-summary"/>
+      <date variable="accessed" form="numeric" prefix="checked "/>
+      <date variable="original-date" form="text" prefix="original "/>
+      <date variable="event-date" form="text" prefix="event "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Season Date Review Style', $summary['title'] ?? null);
+        $t->same('text', $summary['citationRendering'][0]['children'][1]['form'] ?? null);
+        $t->same('issued-season-name', $summary['bibliographyRendering'][2]['variable'] ?? null);
+        $t->same('date-season-summary', $summary['bibliographyRendering'][3]['variable'] ?? null);
+
+        $t->same('(Season Desk Summer Field 2026; Ng Winter Field 2024)', $processor->renderCitationCluster([
+            $citation('season-source', '[@season-source]'),
+            $citation('winter-source', '[@winter-source]'),
+        ]));
+        $t->same('Seasonal Packet :: Summer Field 2026 :: season Summer :: Date seasons: issued Summer; accessed Winter; original-date Autumn; event-date Spring :: checked Winter Field 2026 :: original Autumn Field 1999 :: event Spring Field 2025', $processor->renderBibliographyEntry('season-source'));
+        $t->same('Winter Packet :: Winter Field 2024 :: season Winter :: Date seasons: issued Winter', $processor->renderBibliographyEntry('winter-source'));
+
+        $document = (new MarkdownReader())->read('Seasonal source [@season-source] and winter source [@winter-source] keep CSL season dates.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Seasonal source (Season Desk Summer Field 2026) and winter source (Ng Winter Field 2024) keep CSL season dates.', $markdown);
+        $t->contains('Season Desk 2026' . "\n" . ':   Seasonal Packet :: Summer Field 2026 :: season Summer :: Date seasons: issued Summer; accessed Winter; original-date Autumn; event-date Spring :: checked Winter Field 2026 :: original Autumn Field 1999 :: event Spring Field 2025', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Seasonal source (Season Desk Summer Field 2026) and winter source (Ng Winter Field 2024) keep CSL season dates.</p>', $blocks);
+        $t->contains('<dt>Season Desk 2026</dt><dd>Seasonal Packet :: Summer Field 2026 :: season Summer :: Date seasons: issued Summer; accessed Winter; original-date Autumn; event-date Spring :: checked Winter Field 2026 :: original Autumn Field 1999 :: event Spring Field 2025</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([
+            [
+                'id' => 'bad-season-source',
+                'type' => 'report',
+                'title' => 'Bad Season Packet',
+                'issued' => ['date-parts' => [[2026]], 'season' => 5],
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([
+            [
+                'id' => 'season-without-year-source',
+                'type' => 'report',
+                'title' => 'Season Without Year Packet',
+                'issued' => ['season' => 2],
+            ],
+        ]));
+    },
     'applies bounded csl locale limit day ordinals option' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
@@ -11417,6 +11518,113 @@ XML);
             'id' => 'bad-custom-list',
             'biblatex-custom-lists' => [
                 'lista' => [['not scalar']],
+            ],
+        ]]));
+    },
+    'maps bounded biblatex custom name fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@misc{custom-name-review,
+  author   = {Curator, Eli},
+  title    = {Custom Name Packet},
+  date     = {2026},
+  namea    = {Roe, Pat and {{Source Review Desk}}},
+  namea+an = {1=lead reviewer; 2:literal=desk name preserved},
+  namec    = {Ng, Nia}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same([
+            'namea' => [
+                [
+                    'family' => 'Roe',
+                    'given' => 'Pat',
+                    'annotations' => [
+                        [
+                            'part' => 'name',
+                            'value' => 'lead reviewer',
+                        ],
+                    ],
+                ],
+                [
+                    'literal' => 'Source Review Desk',
+                    'annotations' => [
+                        [
+                            'part' => 'literal',
+                            'value' => 'desk name preserved',
+                        ],
+                    ],
+                ],
+            ],
+            'namec' => [
+                [
+                    'family' => 'Ng',
+                    'given' => 'Nia',
+                ],
+            ],
+        ], $items[0]['biblatex-custom-names'] ?? null);
+        $t->same('Roe, Pat and {{Source Review Desk}}', $items[0]['rawBibtex']['fields']['namea'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('custom-name-review');
+        $t->same('Roe', $item['biblatexCustomNames']['namea'][0]['family'] ?? null);
+        $t->same('lead reviewer', $item['biblatexCustomNames']['namea'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Source Review Desk', $item['biblatexCustomNames']['namea'][1]['literal'] ?? null);
+        $t->same('Ng', $item['biblatexCustomNames']['namec'][0]['family'] ?? null);
+        $t->same('namea: Roe, Pat; Source Review Desk; namec: Ng, Nia', $item['biblatexCustomNameSummary'] ?? null);
+        $t->same('(Curator 2026)', $processor->renderCitationCluster([$citation('custom-name-review', '[@custom-name-review]')]));
+        $t->same(
+            'Curator, Eli. Custom Name Packet. 2026. BibLaTeX custom names: namea: Roe, Pat; Source Review Desk; namec: Ng, Nia.',
+            $processor->renderBibliographyEntry('custom-name-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <names variable="namea"/>
+        <names variable="namec"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-custom-name-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Curator | Roe and Source Review Desk | Ng', $styled->renderCitationCluster([$citation('custom-name-review', '[@custom-name-review]')]));
+        $t->same('Custom Name Packet :: namea: Roe, Pat; Source Review Desk; namec: Ng, Nia', $styled->renderBibliographyEntry('custom-name-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-custom-name',
+            'title' => 'Manual Custom Name Packet',
+            'biblatex-custom-names' => [
+                'nameb' => [
+                    ['family' => 'Direct', 'given' => 'Dana'],
+                    ['literal' => 'Manual Review Desk'],
+                ],
+            ],
+        ]]);
+        $directItem = $direct->item('manual-custom-name');
+        $t->same('Dana', $directItem['biblatexCustomNames']['nameb'][0]['given'] ?? null);
+        $t->same('Manual Custom Name Packet. BibLaTeX custom names: nameb: Direct, Dana; Manual Review Desk.', $direct->renderBibliographyEntry('manual-custom-name'));
+
+        $document = (new MarkdownReader())->read('Custom name source @custom-name-review preserves reviewer name fields.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Custom name source Curator (2026) preserves reviewer name fields.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Custom Name Packet. 2026. BibLaTeX custom names: namea: Roe, Pat; Source Review Desk; namec: Ng, Nia.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-custom-name',
+            'biblatex-custom-names' => [
+                'namea' => [['not a name']],
             ],
         ]]));
     },

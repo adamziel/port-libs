@@ -504,6 +504,9 @@ final class PdfTextDocumentExtractor
                 if (array_key_exists('font', $sanitizedSpan) && is_array($sanitizedSpan['font'])) {
                     $sanitizedSpan['font'] = $this->sanitizeDictionaryOutputFont($sanitizedSpan['font']);
                 }
+                if (array_key_exists('url', $sanitizedSpan) && is_string($sanitizedSpan['url'])) {
+                    $this->assertUtf8String($sanitizedSpan['url'], 'span.url');
+                }
                 if (array_key_exists('text', $span) && is_string($span['text'])) {
                     $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
                     if ($sanitizedSpan['text'] === '') {
@@ -623,6 +626,9 @@ final class PdfTextDocumentExtractor
             if (array_key_exists($key, $font)) {
                 $sanitizedFont[$key] = $font[$key];
             }
+        }
+        if (array_key_exists('name', $sanitizedFont) && is_string($sanitizedFont['name'])) {
+            $this->assertUtf8String($sanitizedFont['name'], 'font.name');
         }
         if (array_key_exists('flags', $sanitizedFont) && $sanitizedFont['flags'] !== null) {
             $sanitizedFont['flags'] = $this->dictionaryOutputUnsignedIntegerMetadata($sanitizedFont['flags'], 'font.flags');

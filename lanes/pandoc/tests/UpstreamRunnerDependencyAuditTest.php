@@ -639,9 +639,9 @@ return [
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, no unexpected direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal custom-setup/setup-depends, no unexpected direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files, and exact other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
-        $t->contains('no unexpected Cabal benchmark direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, extra-source-files, or data-files', $audit['nonMutatingPlan'][3]);
+        $t->contains('no unexpected Cabal benchmark direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, other-modules, extra-source-files, or data-files', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -1693,6 +1693,65 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing Cabal runner other-modules: test:test-pandoc (Tests.Readers.Docx, Tests.Writers.BBCode)', $blocked);
         $t->contains('runner other-modules closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks unexpected runner and benchmark other-modules before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "common common-executable\n  import: common-options",
+            "common common-executable\n  import: common-options\n  other-modules:\n    Tests.Generated.Runner,\n    Tests.Shared.Generated",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "  main-is: benchmark-pandoc.hs\n  hs-source-dirs: benchmark",
+            "  main-is: benchmark-pandoc.hs\n  other-modules:\n    Benchmark.Generated,\n    Benchmark.LegacyGenerated\n  hs-source-dirs: benchmark",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "common test-options\n  build-depends: base >= 4.12 && < 5",
+            "common test-options\n  other-modules: Tests.Lua.Generated\n  build-depends: base >= 4.12 && < 5",
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingDependencies']);
+        $t->same([
+            'Tests.Generated.Runner',
+            'Tests.Shared.Generated',
+        ], $audit['runnerDependencyClosure']['unexpectedOtherModules']['test:test-pandoc']);
+        $t->same([
+            'Tests.Lua.Generated',
+        ], $audit['runnerDependencyClosure']['unexpectedOtherModules']['test:test-pandoc-lua-engine']);
+        $t->same([
+            'Benchmark.Generated',
+            'Benchmark.LegacyGenerated',
+            'Tests.Generated.Runner',
+            'Tests.Shared.Generated',
+        ], $audit['benchmarkDependencyClosure']['unexpectedOtherModules'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal runner other-modules: test:test-pandoc (Tests.Generated.Runner, Tests.Shared.Generated); test:test-pandoc-lua-engine (Tests.Lua.Generated)', $blocked);
+        $t->contains('unexpected Cabal benchmark other-modules: benchmark:benchmark-pandoc (Benchmark.Generated, Benchmark.LegacyGenerated, Tests.Generated.Runner, Tests.Shared.Generated)', $blocked);
+        $t->contains('no unexpected runner or benchmark other-modules', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks lua engine library dependency drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

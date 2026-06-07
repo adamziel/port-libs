@@ -6800,14 +6800,36 @@ final class PdfAttachmentExtractor
             $reference['generation'],
             $beforeOffset
         );
-        if ($definition === null) {
-            return null;
+        $helper = $reference['generation'] === 0
+            ? $this->compressedObjectStreamHelperBodyBeforeOffset(
+                $definitions,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $beforeOffset
+            )
+            : null;
+
+        $helperBody = $helper === null ? null : trim($helper['body']);
+        if (
+            $helperBody !== null
+            && ($definition === null || $helper['carrierOffset'] > $definition['offset'])
+        ) {
+            $helperOffset = $this->intValue($this->parsedXrefPrevOperandHelperBody($helperBody));
+            if ($helperOffset !== null) {
+                return $helperOffset;
+            }
         }
 
-        $index = 0;
-        $value = $this->parseValue(trim($definition['body']), $index);
+        if ($definition !== null) {
+            $index = 0;
+            $value = $this->parseValue(trim($definition['body']), $index);
+            $directOffset = $this->intValue($value);
+            if ($directOffset !== null) {
+                return $directOffset;
+            }
+        }
 
-        return $this->intValue($value);
+        return $helperBody === null ? null : $this->intValue($this->parsedXrefPrevOperandHelperBody($helperBody));
     }
 
     /**

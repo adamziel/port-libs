@@ -1266,6 +1266,224 @@ final class TarArchive
     }
 
     /**
+     * @return array{
+     *     entryCount:int,
+     *     filesystemMetadataEntryCount:int,
+     *     metadataRecordCount:int,
+     *     extendedAttributeRecordCount:int,
+     *     accessControlListRecordCount:int,
+     *     fileFlagRecordCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         metadataRecordCount:int,
+     *         extendedAttributeRecordCount:int,
+     *         accessControlListRecordCount:int,
+     *         fileFlagRecordCount:int,
+     *         metadataKeys:list<string>,
+     *         records:list<array{keyword:string, category:string, name:string, source:string, value:string}>,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>
+     * }
+     */
+    public static function paxFilesystemMetadataPolicyPreflight(string $bytes): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('TAR archive is empty');
+        }
+
+        if (strlen($bytes) % self::BLOCK_SIZE !== 0) {
+            throw new \RuntimeException('TAR archive length must be aligned to 512-byte records');
+        }
+
+        $cursor = 0;
+        $length = strlen($bytes);
+        $pendingPaxHeaders = [];
+        $globalPaxHeaders = [];
+        $pendingGnuLongName = null;
+        $pendingGnuLongLink = null;
+        $entryCount = 0;
+        $metadataEntries = [];
+        $metadataRecordCount = 0;
+        $extendedAttributeRecordCount = 0;
+        $accessControlListRecordCount = 0;
+        $fileFlagRecordCount = 0;
+        $sawEndMarker = false;
+
+        while ($cursor < $length) {
+            $headerOffset = $cursor;
+            $header = substr($bytes, $cursor, self::BLOCK_SIZE);
+            if (self::isZeroBlock($header)) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
+                break;
+            }
+
+            self::validateHeaderChecksum($header);
+
+            $typeFlag = substr($header, 156, 1);
+            if ($typeFlag === "\0" || $typeFlag === '') {
+                $typeFlag = self::TYPE_REGULAR;
+            }
+
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
+            $dataOffset = $cursor + self::BLOCK_SIZE;
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_NAME) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+
+                $pendingGnuLongLink = self::parseGnuLongLink(substr($bytes, $dataOffset, $headerSize));
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongLink !== null) {
+                    throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+                }
+                if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLinkPolicyLocalPaxHeaders($headers);
+                    $pendingPaxHeaders = $headers;
+                } else {
+                    self::assertGlobalPaxHeaders($headers);
+                    $globalPaxHeaders = self::applyPaxHeaderRecords($globalPaxHeaders, $headers);
+                }
+                $cursor = $nextCursor;
+                continue;
+            }
+
+            $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
+            $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            self::assertSafePath($name, 'TAR entry name');
+            $entrySize = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $entrySize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($entrySize);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
+            $entryCount++;
+
+            if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
+                self::assertSafePath(
+                    self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink),
+                    'TAR link target'
+                );
+            } elseif ($pendingGnuLongLink !== null) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
+            }
+
+            $records = self::paxFilesystemMetadataRecords($metadataHeaders, $globalPaxHeaders, $pendingPaxHeaders);
+            if ($records !== []) {
+                $entryExtendedAttributeRecordCount = 0;
+                $entryAccessControlListRecordCount = 0;
+                $entryFileFlagRecordCount = 0;
+                foreach ($records as $record) {
+                    if ($record['category'] === 'extended-attribute') {
+                        $entryExtendedAttributeRecordCount++;
+                    } elseif ($record['category'] === 'access-control-list') {
+                        $entryAccessControlListRecordCount++;
+                    } elseif ($record['category'] === 'file-flags') {
+                        $entryFileFlagRecordCount++;
+                    }
+                }
+
+                $metadataRecordCount += count($records);
+                $extendedAttributeRecordCount += $entryExtendedAttributeRecordCount;
+                $accessControlListRecordCount += $entryAccessControlListRecordCount;
+                $fileFlagRecordCount += $entryFileFlagRecordCount;
+
+                $metadataEntries[] = [
+                    'name' => $name,
+                    'nameSource' => $nameSource,
+                    'headerOffset' => $headerOffset,
+                    'dataOffset' => $dataOffset,
+                    'metadataRecordCount' => count($records),
+                    'extendedAttributeRecordCount' => $entryExtendedAttributeRecordCount,
+                    'accessControlListRecordCount' => $entryAccessControlListRecordCount,
+                    'fileFlagRecordCount' => $entryFileFlagRecordCount,
+                    'metadataKeys' => array_map(
+                        static fn (array $record): string => $record['keyword'],
+                        $records
+                    ),
+                    'records' => $records,
+                    'policy' => 'metadata-only-not-applied',
+                    'diagnostics' => ['tar-pax-filesystem-metadata-not-applied'],
+                ];
+            }
+
+            $pendingPaxHeaders = [];
+            $pendingGnuLongName = null;
+            $pendingGnuLongLink = null;
+            $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
+        }
+
+        return [
+            'entryCount' => $entryCount,
+            'filesystemMetadataEntryCount' => count($metadataEntries),
+            'metadataRecordCount' => $metadataRecordCount,
+            'extendedAttributeRecordCount' => $extendedAttributeRecordCount,
+            'accessControlListRecordCount' => $accessControlListRecordCount,
+            'fileFlagRecordCount' => $fileFlagRecordCount,
+            'extractionPolicy' => $metadataEntries === [] ? 'no-filesystem-pax-metadata' : 'filesystem-pax-metadata-not-applied',
+            'entries' => $metadataEntries,
+        ];
+    }
+
+    /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
@@ -2281,6 +2499,70 @@ final class TarArchive
             self::TYPE_FIFO => 'fifo',
             default => null,
         };
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @param array<string, string> $globalHeaders
+     * @param array<string, string> $localHeaders
+     * @return list<array{keyword:string, category:string, name:string, source:string, value:string}>
+     */
+    private static function paxFilesystemMetadataRecords(array $headers, array $globalHeaders, array $localHeaders): array
+    {
+        $records = [];
+        foreach ($headers as $key => $value) {
+            $category = self::paxFilesystemMetadataCategory($key);
+            if ($category === null) {
+                continue;
+            }
+
+            $source = 'effective-pax';
+            if (array_key_exists($key, $localHeaders)) {
+                $source = 'local-pax';
+            } elseif (array_key_exists($key, $globalHeaders)) {
+                $source = 'global-pax';
+            }
+
+            $records[] = [
+                'keyword' => $key,
+                'category' => $category,
+                'name' => self::paxFilesystemMetadataName($key, $category),
+                'source' => $source,
+                'value' => $value,
+            ];
+        }
+
+        return $records;
+    }
+
+    private static function paxFilesystemMetadataCategory(string $key): ?string
+    {
+        if (str_starts_with($key, 'SCHILY.xattr.') || str_starts_with($key, 'LIBARCHIVE.xattr.')) {
+            return 'extended-attribute';
+        }
+
+        if (str_starts_with($key, 'SCHILY.acl.') || str_starts_with($key, 'LIBARCHIVE.acl.')) {
+            return 'access-control-list';
+        }
+
+        if ($key === 'SCHILY.fflags' || $key === 'LIBARCHIVE.fflags') {
+            return 'file-flags';
+        }
+
+        return null;
+    }
+
+    private static function paxFilesystemMetadataName(string $key, string $category): string
+    {
+        if ($category === 'extended-attribute') {
+            return preg_replace('/^(?:SCHILY|LIBARCHIVE)\.xattr\./', '', $key) ?? $key;
+        }
+
+        if ($category === 'access-control-list') {
+            return preg_replace('/^(?:SCHILY|LIBARCHIVE)\.acl\./', '', $key) ?? $key;
+        }
+
+        return $key;
     }
 
     /**

@@ -1638,6 +1638,63 @@ return [
             )
         );
     },
+    'keeps native-filter Identity Crypt suffix images without sample floors closed until real EI terminators' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $runLengthLiteralEncode): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $compressed = gzcompress('K', 0);
+        if (!is_string($compressed)) {
+            throw new RuntimeException('Unable to build Identity Crypt suffix Flate inline image fixture.');
+        }
+
+        $cases = [
+            'Flate' => [
+                '/W 1 /H 1 /F [/Fl /Crypt] /DP [null << /Name /Identity >>]',
+                $compressed,
+                'Before Flate Crypt Suffix No Floor',
+                'After Flate Crypt Suffix No Floor',
+                'Flate Crypt Suffix No Floor Inline Noise',
+            ],
+            'RunLength' => [
+                '/W 1 /H 1 /F [/RL /Crypt] /DP [null << /Name /Identity >>]',
+                $runLengthLiteralEncode('L', true),
+                'Before RunLength Crypt Suffix No Floor',
+                'After RunLength Crypt Suffix No Floor',
+                'RunLength Crypt Suffix No Floor Inline Noise',
+            ],
+        ];
+
+        $content = '';
+        $expected = [];
+        foreach ($cases as [$dictionary, $payloadPrefix, $before, $after, $leak]) {
+            $payload = $payloadPrefix . "ZZ EI BT /F1 12 Tf 72 690 Td ({$leak}) Tj ET rawtail";
+            $content .= "BT /F1 12 Tf 72 720 Td ({$before}) Tj ET\n"
+                . "BI {$dictionary} ID {$payload}\nEI\n"
+                . "BT /F1 12 Tf 72 704 Td ({$after}) Tj ET\n";
+            $expected[] = $before;
+            $expected[] = $after;
+            $t->true(str_contains($payload, ' EI '));
+        }
+
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        foreach ($cases as [$dictionary, $payloadPrefix, , , $leak]) {
+            $payload = $payloadPrefix . "ZZ EI BT /F1 12 Tf 72 690 Td ({$leak}) Tj ET rawtail";
+            $t->true(!str_contains($plainText, $leak));
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
+            );
+        }
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'keeps wrapped terminal Flate inline images without sample floors closed until real EI terminators' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $compressed = gzcompress('K', 0);

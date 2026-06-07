@@ -109,8 +109,18 @@ return [
             $t->same(hash('sha256', $upload['bytes']), $review['upload']['sha256']);
             $t->same(true, $review['upload']['raw_bytes_excluded']);
             $t->same($uploadPath, $review['upload']['temporary_path']);
+            $t->same('../wp paginated upload.pdf', $review['upload']['raw_filename']);
+            $t->same($uploadRoot . '/../wp paginated upload.pdf', $review['upload']['upstream_raw_temporary_path']);
+            $t->same('wp paginated upload.pdf', $review['upload']['native_safe_basename']);
+            $t->same($uploadPath, $review['upload']['native_basename_temporary_path']);
+            $t->same(true, $review['upload']['raw_filename_has_directory_segments']);
+            $t->same(true, $review['upload']['raw_filename_has_parent_segments']);
+            $t->same(true, $review['upload']['raw_upload_path_may_escape_upload_directory']);
+            $t->same(true, $review['upload']['native_wrapper_uses_basename_for_written_path']);
             $t->same(false, $review['upload']['temporary_upload_exists']);
             $t->same(true, $review['upload']['upload_removed']);
+            $t->same('markerpdf.server_upload_filename_boundary.v1', $review['upload_filename_boundary']['schema']);
+            $t->same(true, $review['upload_filename_boundary']['review_preserves_upstream_raw_path_without_using_it_for_native_write']);
 
             $t->same(2, $review['form_params']['max_pages']);
             $t->same('English,French', $review['form_params']['langs']);

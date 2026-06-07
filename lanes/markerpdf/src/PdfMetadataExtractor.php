@@ -4212,7 +4212,10 @@ final class PdfMetadataExtractor
         }
 
         $entries = [];
-        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        $catalogNamesAreAmbiguous = $this->dictionaryTopLevelHasDuplicateKeys($catalog, ['Names']);
+        $names = $catalogNamesAreAmbiguous
+            ? null
+            : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
         $nameTreeRoot = $names === null || $this->dictionaryTopLevelHasDuplicateKeys($names['body'], ['Dests'])
             ? null
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
@@ -4332,7 +4335,9 @@ final class PdfMetadataExtractor
 
         $firstItemObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First') ?? '');
         $lastItemObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? '');
-        $declaredCount = $this->dictionaryIntegerValue($outlineRoot['body'], 'Count', $objects);
+        $declaredCount = $this->dictionaryTopLevelSelectedValueHasTrailingOperands($outlineRoot['body'], 'Count')
+            ? null
+            : $this->dictionaryIntegerValue($outlineRoot['body'], 'Count', $objects);
         $hasChildren = $firstItemObject !== null || $lastItemObject !== null;
         $resolvedCount = count(array_filter(
             $items,
@@ -4900,7 +4905,9 @@ final class PdfMetadataExtractor
             $labels['last_item_object'] = $last;
         }
 
-        $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
+        $count = $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Count')
+            ? null
+            : $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
         if ($count !== null) {
             $labels['outline_count'] = $count;
         }
@@ -4915,7 +4922,10 @@ final class PdfMetadataExtractor
     private function documentDestinationRawMap(string $catalog, array $objects): array
     {
         $entries = [];
-        $names = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
+        $catalogNamesAreAmbiguous = $this->dictionaryTopLevelHasDuplicateKeys($catalog, ['Names']);
+        $names = $catalogNamesAreAmbiguous
+            ? null
+            : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Names'), $objects);
         $nameTreeRoot = $names === null || $this->dictionaryTopLevelHasDuplicateKeys($names['body'], ['Dests'])
             ? null
             : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($names['body'], 'Dests'), $objects);
@@ -5292,6 +5302,7 @@ final class PdfMetadataExtractor
         if (
             $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'First')
             || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Last')
+            || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Count')
         ) {
             return false;
         }
@@ -5312,6 +5323,7 @@ final class PdfMetadataExtractor
         if (
             $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'First')
             || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Last')
+            || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Count')
         ) {
             return false;
         }
@@ -5383,7 +5395,9 @@ final class PdfMetadataExtractor
     ): array {
         $firstChild = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'First') ?? '');
         $lastChild = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last') ?? '');
-        $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
+        $count = $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Count')
+            ? null
+            : $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
         $hasChildren = $firstChild !== null || $lastChild !== null;
         $destination = $this->documentOutlineItemDestination($dictionary, $objects);
         $destinationOperandBoundaryReview = $this->documentOutlineDestinationActionOperandBoundaryReview($dictionary, 'Dest');

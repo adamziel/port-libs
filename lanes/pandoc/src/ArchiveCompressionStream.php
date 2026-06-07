@@ -720,6 +720,54 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
+     *     entryCount:int,
+     *     filesystemMetadataEntryCount:int,
+     *     metadataRecordCount:int,
+     *     extendedAttributeRecordCount:int,
+     *     accessControlListRecordCount:int,
+     *     fileFlagRecordCount:int,
+     *     extractionPolicy:string,
+     *     entries:list<array{
+     *         name:string,
+     *         nameSource:string,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         metadataRecordCount:int,
+     *         extendedAttributeRecordCount:int,
+     *         accessControlListRecordCount:int,
+     *         fileFlagRecordCount:int,
+     *         metadataKeys:list<string>,
+     *         records:list<array{keyword:string, category:string, name:string, source:string, value:string}>,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarFilesystemMetadataPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = TarArchive::paxFilesystemMetadataPolicyPreflight($tarBytes);
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
      *     zipBytes:string,
      *     package:ZipPackage,
      *     entryNames:list<string>,

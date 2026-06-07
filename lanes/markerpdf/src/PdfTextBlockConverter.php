@@ -252,6 +252,9 @@ final class PdfTextBlockConverter
                     if (!array_key_exists('name', $span['font']) || ($span['font']['name'] !== null && !is_string($span['font']['name']))) {
                         throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} font.name must be a string or null.");
                     }
+                    if (is_string($span['font']['name'])) {
+                        $this->assertUtf8String($span['font']['name'], "span {$blockIndex}.{$lineIndex}.{$spanIndex} font.name");
+                    }
                     if (!array_key_exists('flags', $span['font'])) {
                         throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} font.flags is required.");
                     }
@@ -287,6 +290,9 @@ final class PdfTextBlockConverter
                     if (array_key_exists('url', $span) && $span['url'] !== null && !is_string($span['url'])) {
                         throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} url must be a string or null.");
                     }
+                    if (isset($span['url']) && is_string($span['url'])) {
+                        $this->assertUtf8String($span['url'], "span {$blockIndex}.{$lineIndex}.{$spanIndex} url");
+                    }
                 }
             }
         }
@@ -296,6 +302,13 @@ final class PdfTextBlockConverter
     {
         if ((!is_int($value) && !is_float($value)) || !is_finite((float) $value)) {
             throw new InvalidArgumentException("pdftext {$field} must be numeric.");
+        }
+    }
+
+    private function assertUtf8String(string $text, string $field): void
+    {
+        if (preg_match('//u', $text) !== 1) {
+            throw new InvalidArgumentException("pdftext {$field} must be valid UTF-8.");
         }
     }
 
@@ -350,6 +363,7 @@ final class PdfTextBlockConverter
                 if (!is_string($ref['url'])) {
                     throw new InvalidArgumentException("pdftext refs[{$index}].url must be a string when supplied.");
                 }
+                $this->assertUtf8String($ref['url'], "refs[{$index}].url");
                 if ($this->isSafeUri($ref['url'])) {
                     $row['url'] = $ref['url'];
                 }
@@ -373,6 +387,7 @@ final class PdfTextBlockConverter
                 if (!is_string($ref['ref'])) {
                     throw new InvalidArgumentException("pdftext refs[{$index}].ref must be a string when supplied.");
                 }
+                $this->assertUtf8String($ref['ref'], "refs[{$index}].ref");
                 if (trim($ref['ref']) !== '') {
                     $row['ref'] = $ref['ref'];
                 }

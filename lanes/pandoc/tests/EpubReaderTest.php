@@ -3972,6 +3972,81 @@ XML;
         $t->same($durations, $result['importReport']['mediaDurations']);
         $t->same($durations, $result['document']->attr('mediaDurations'));
     },
+    'reports OPF media overlay style class metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
+        $opfWithOverlayStyleClasses = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta property="media:active-class">publication-active global-speaking</meta>'
+            . '<meta property="media:playback-active-class" content="publication-playing"/>'
+            . '<meta property="media:active-class" refines="#mo-chapter-1">mo-active now-speaking</meta>'
+            . '<meta property="media:playback-active-class" refines="#mo-chapter-1">mo-playing</meta>'
+            . '<meta property="media:active-class" refines="#style">style-active</meta>'
+            . '<meta property="media:playback-active-class" refines="#missing-overlay">missing-playing</meta>',
+            $opfXml
+        );
+        $opfWithOverlayStyleClasses = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter-1"/><item id="mo-chapter-1" href="overlays/chapter1.smil" media-type="application/smil+xml"/>',
+            $opfWithOverlayStyleClasses
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlayStyleClasses,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/chapter1.smil', 'data' => $smilXml],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3-DATA'],
+            ]
+        ));
+
+        $styles = $result['mediaOverlayStyles'];
+        $t->same(true, $styles['present']);
+        $t->same('publication-active global-speaking', $styles['activeClass']);
+        $t->same(['publication-active', 'global-speaking'], $styles['activeClassTokens']);
+        $t->same('publication-playing', $styles['playbackActiveClass']);
+        $t->same(['publication-playing'], $styles['playbackActiveClassTokens']);
+        $t->same(6, count($styles['items']));
+        $t->same(2, count($styles['diagnostics']));
+        $t->same('media-overlay-style-refines-non-overlay-manifest-item', $styles['diagnostics'][0]['type']);
+        $t->same('style', $styles['diagnostics'][0]['subjectId']);
+        $t->same('media-overlay-style-refines-missing-manifest-item', $styles['diagnostics'][1]['type']);
+        $t->same('missing-overlay', $styles['diagnostics'][1]['subjectId']);
+
+        $overlayStyles = $styles['overlaysById']['mo-chapter-1'];
+        $t->same('mo-chapter-1', $overlayStyles['id']);
+        $t->same('mo-active now-speaking', $overlayStyles['activeClass']);
+        $t->same(['mo-active', 'now-speaking'], $overlayStyles['activeClassTokens']);
+        $t->same('mo-playing', $overlayStyles['playbackActiveClass']);
+        $t->same(['mo-playing'], $overlayStyles['playbackActiveClassTokens']);
+        $t->same('mo-chapter-1', $overlayStyles['manifestId']);
+        $t->same('/OEBPS/overlays/chapter1.smil', $overlayStyles['manifestPart']);
+        $t->same('application/smil+xml', $overlayStyles['manifestMediaType']);
+        $t->same(['chapter-1'], $overlayStyles['referencedBy']);
+        $t->same([], $overlayStyles['diagnostics']);
+
+        $overlay = $result['mediaOverlays']['mo-chapter-1'];
+        $t->same('mo-active now-speaking', $overlay['activeClass']);
+        $t->same(['mo-active', 'now-speaking'], $overlay['activeClassTokens']);
+        $t->same('mo-playing', $overlay['playbackActiveClass']);
+        $t->same(['mo-playing'], $overlay['playbackActiveClassTokens']);
+        $t->same($overlayStyles, $overlay['styleMetadata']);
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $chapterOverlay = $manifestById['chapter-1']['mediaOverlayReference'];
+        $t->same('mo-active now-speaking', $chapterOverlay['activeClass']);
+        $t->same(['mo-active', 'now-speaking'], $chapterOverlay['activeClassTokens']);
+        $t->same('mo-playing', $chapterOverlay['playbackActiveClass']);
+        $t->same(['mo-playing'], $chapterOverlay['playbackActiveClassTokens']);
+        $t->same($overlayStyles, $chapterOverlay['styleMetadata']);
+        $t->same($chapterOverlay, $result['spine'][0]['mediaOverlayReference']);
+        $t->same($chapterOverlay, $result['document']->children[0]->attr('mediaOverlayReference'));
+        $t->same($styles, $result['metadata']['mediaOverlayStyles']);
+        $t->same($styles, $result['importReport']['mediaOverlayStyles']);
+        $t->same($styles, $result['document']->attr('mediaOverlayStyles'));
+    },
     'reports OPF manifest media-overlay bindings for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
         $opfWithOverlayBindings = str_replace(
             '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',

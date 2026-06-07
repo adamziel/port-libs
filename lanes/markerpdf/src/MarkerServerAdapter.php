@@ -247,6 +247,66 @@ final class MarkerServerAdapter
     }
 
     /**
+     * Native no-execution boundary for marker_server.py upload filename joins.
+     *
+     * Upstream computes `upload_path = os.path.join(UPLOAD_DIRECTORY,
+     * file.filename)` before opening the temporary file. The executable PHP
+     * wrapper keeps using a basename-only path for WordPress-safe uploads; this
+     * review records the raw upstream path shape without writing it.
+     *
+     * @param array{filename?: string, content_type?: string, bytes?: string, content?: string, data?: string} $upload
+     * @return array<string, mixed>
+     */
+    public function serverUploadFilenameBoundaryPlan(
+        array $upload,
+        string $uploadDirectory = self::DEFAULT_UPLOAD_DIRECTORY
+    ): array {
+        $uploadDirectory = $this->serverString($uploadDirectory, 'upload_directory');
+        $rawFilename = (string) ($upload['filename'] ?? 'upload.pdf');
+        $safeBasename = basename($rawFilename);
+        $safeBasenameValid = $safeBasename !== '' && $safeBasename !== '.' && $safeBasename !== '..';
+        $nativeUploadPath = $safeBasenameValid
+            ? rtrim($uploadDirectory, '/\\') . DIRECTORY_SEPARATOR . $safeBasename
+            : null;
+        $hasDirectorySegments = str_contains($rawFilename, '/') || str_contains($rawFilename, '\\');
+        $hasParentSegments = in_array('..', $this->uploadFilenameSegments($rawFilename), true);
+        $isPosixAbsolute = str_starts_with($rawFilename, '/');
+        $isWindowsAbsolute = preg_match('/^[A-Za-z]:[\\\\\\/]/', $rawFilename) === 1;
+
+        return [
+            'schema' => 'markerpdf.server_upload_filename_boundary.v1',
+            'source' => 'sddai/markerPDF marker_server.py::convert_pdf_from_upload upload_path = os.path.join(UPLOAD_DIRECTORY, file.filename)',
+            'upload_directory' => $uploadDirectory,
+            'upload_directory_absolute' => $this->absoluteServerPath($uploadDirectory),
+            'raw_filename' => $rawFilename,
+            'content_type' => $upload['content_type'] ?? null,
+            'content_type_admitted_by_upstream_guard' => ($upload['content_type'] ?? null) === 'application/pdf',
+            'upstream_upload_path_expression' => 'os.path.join(UPLOAD_DIRECTORY, file.filename)',
+            'upstream_raw_upload_path' => $this->pythonPosixJoin($uploadDirectory, $rawFilename),
+            'upstream_uses_raw_upload_filename' => true,
+            'upstream_raw_filename_has_directory_segments' => $hasDirectorySegments,
+            'upstream_raw_filename_has_parent_segments' => $hasParentSegments,
+            'upstream_raw_filename_is_posix_absolute' => $isPosixAbsolute,
+            'upstream_raw_filename_is_windows_absolute' => $isWindowsAbsolute,
+            'upstream_raw_path_may_escape_upload_directory' => $hasParentSegments || $isPosixAbsolute || $isWindowsAbsolute,
+            'native_safe_basename' => $safeBasename,
+            'native_safe_basename_valid' => $safeBasenameValid,
+            'native_basename_upload_path' => $nativeUploadPath,
+            'native_wrapper_uses_basename_for_written_path' => true,
+            'native_wrapper_rejects_empty_dot_or_dotdot_basename' => true,
+            'native_wrapper_rejects_filename_before_write' => !$safeBasenameValid,
+            'review_preserves_upstream_raw_path_without_using_it_for_native_write' => true,
+            'raw_upload_bytes_excluded' => true,
+            'review_only' => true,
+            'executes_fastapi' => false,
+            'executes_uvicorn' => false,
+            'executes_live_http' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
      * Native boundary for marker_server.py::convert_pdf.
      *
      * @param callable(string, array{max_pages: int|null, langs: string|null, ocr_all_pages: bool}): mixed $localConverter
@@ -593,6 +653,7 @@ final class MarkerServerAdapter
         $uploadBytes = $this->uploadBytes($upload);
         $normalized = $this->normalizeParams($params);
         $routePlan = $this->uploadRoutePlan($params, $uploadDirectory, $local);
+        $filenameBoundary = $this->serverUploadFilenameBoundaryPlan($upload, $uploadDirectory);
         $markdown = $this->serverResponseMarkdown($serverResponse);
         if ($markdown === null) {
             throw new InvalidArgumentException('Marker server upload pagination review requires markdown text.');
@@ -616,14 +677,23 @@ final class MarkerServerAdapter
             'selected_route' => $routePlan['selected_route'],
             'upload' => [
                 'filename' => $filename,
+                'raw_filename' => $filenameBoundary['raw_filename'],
                 'content_type' => 'application/pdf',
                 'byte_length' => strlen($uploadBytes),
                 'sha256' => hash('sha256', $uploadBytes),
                 'raw_bytes_excluded' => true,
                 'temporary_path' => $uploadPath,
+                'upstream_raw_temporary_path' => $filenameBoundary['upstream_raw_upload_path'],
+                'native_safe_basename' => $filenameBoundary['native_safe_basename'],
+                'native_basename_temporary_path' => $filenameBoundary['native_basename_upload_path'],
+                'raw_filename_has_directory_segments' => $filenameBoundary['upstream_raw_filename_has_directory_segments'],
+                'raw_filename_has_parent_segments' => $filenameBoundary['upstream_raw_filename_has_parent_segments'],
+                'raw_upload_path_may_escape_upload_directory' => $filenameBoundary['upstream_raw_path_may_escape_upload_directory'],
+                'native_wrapper_uses_basename_for_written_path' => $filenameBoundary['native_wrapper_uses_basename_for_written_path'],
                 'temporary_upload_exists' => is_file($uploadPath),
                 'upload_removed' => !is_file($uploadPath),
             ],
+            'upload_filename_boundary' => $filenameBoundary,
             'form_params' => [
                 'max_pages' => $normalized['max_pages'],
                 'langs' => $normalized['langs'],
@@ -835,6 +905,28 @@ final class MarkerServerAdapter
         }
 
         throw new InvalidArgumentException('Uploaded PDF payload must provide bytes.');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function uploadFilenameSegments(string $filename): array
+    {
+        $segments = preg_split('/[\/\\\\]+/', $filename);
+        if (!is_array($segments)) {
+            return [];
+        }
+
+        return array_values(array_filter($segments, static fn (string $segment): bool => $segment !== ''));
+    }
+
+    private function pythonPosixJoin(string $base, string $path): string
+    {
+        if (str_starts_with($path, '/')) {
+            return $path;
+        }
+
+        return rtrim($base, '/') . '/' . $path;
     }
 
     private function imageBytes(mixed $image): string

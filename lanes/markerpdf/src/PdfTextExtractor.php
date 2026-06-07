@@ -2153,6 +2153,7 @@ final class PdfTextExtractor
         if (
             $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'First')
             || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Last')
+            || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Count')
         ) {
             return false;
         }
@@ -2175,6 +2176,7 @@ final class PdfTextExtractor
         if (
             $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'First')
             || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Last')
+            || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Count')
         ) {
             return false;
         }
@@ -7560,8 +7562,8 @@ final class PdfTextExtractor
             'mask_payload_in_visible_text' => false,
             'mask_review_only' => $maskReview !== null,
             'filters_resolved' => $filters !== null,
-            'filters' => $resolvedFilters,
-            'preview_only_filters' => $previewOnlyFilters,
+            'filters' => $this->publicImageXObjectFilterList($resolvedFilters),
+            'preview_only_filters' => $this->publicImageXObjectFilterList($previewOnlyFilters),
             'filter_details' => $filterDetails,
             ...($duplicateFilterDeclarationCount > 0 ? [
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
@@ -7915,8 +7917,8 @@ final class PdfTextExtractor
                 'matte_review' => $matteReview,
                 'matte_unblending_required' => ($matteReview['matches_image_components'] ?? false) === true,
             ]),
-            'filters' => $resolvedFilters,
-            'preview_only_filters' => $previewOnlyFilters,
+            'filters' => $this->publicImageXObjectFilterList($resolvedFilters),
+            'preview_only_filters' => $this->publicImageXObjectFilterList($previewOnlyFilters),
             ...$dctFilterReview,
             ...($dctStreamBoundary === null ? [] : ['dctdecode_stream_boundary' => $dctStreamBoundary]),
             ...$ccittFilterReview,
@@ -8102,8 +8104,8 @@ final class PdfTextExtractor
             'decode' => $decode,
             'opacity_for_zero' => $imageMask && $decode !== null ? $this->imageXObjectDecodedSampleValue(0, $decode, $effectiveBits ?? 1) : null,
             'opacity_for_one' => $imageMask && $decode !== null ? $this->imageXObjectDecodedSampleValue((2 ** min($effectiveBits ?? 1, 30)) - 1, $decode, $effectiveBits ?? 1) : null,
-            'filters' => $resolvedFilters,
-            'preview_only_filters' => $previewOnlyFilters,
+            'filters' => $this->publicImageXObjectFilterList($resolvedFilters),
+            'preview_only_filters' => $this->publicImageXObjectFilterList($previewOnlyFilters),
             ...$dctFilterReview,
             'dctdecode_stream_boundary' => $dctStreamBoundary,
             ...$ccittFilterReview,
@@ -8710,7 +8712,7 @@ final class PdfTextExtractor
             'object_generation' => $reference['generation'],
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
             ...$filterOperandBoundary,
-            'filters' => $resolvedFilters,
+            'filters' => $this->publicImageXObjectFilterList($resolvedFilters),
             'preview_only_filters' => $this->previewOnlyImageXObjectFilters($resolvedFilters),
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -8945,7 +8947,7 @@ final class PdfTextExtractor
             $nextSeenObjects
         ) !== null;
 
-        $extraOperand = $this->indirectFilterHelperExtraOperand($body);
+        $extraOperand = $this->indirectFilterHelperExtraOperand($body, $objects, $nextSeenObjects);
         if ($extraOperand !== null) {
             $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraOperand);
         }
@@ -9002,13 +9004,25 @@ final class PdfTextExtractor
      */
     private function previewOnlyImageXObjectFilters(array $filters): array
     {
-        return array_values(array_filter(
+        return $this->publicImageXObjectFilterList(array_values(array_filter(
             $filters,
             static fn (string $filter): bool => in_array(
                 $filter,
                 ['DCTDecode', 'DCT', 'CCITTFaxDecode', 'CCF', 'JPXDecode', 'JBIG2Decode'],
                 true
             )
+        )));
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return list<string>
+     */
+    private function publicImageXObjectFilterList(array $filters): array
+    {
+        return array_values(array_map(
+            static fn (string $filter): string => $filter === 'DCT' ? 'DCTDecode' : $filter,
+            $filters
         ));
     }
 
@@ -14481,7 +14495,11 @@ final class PdfTextExtractor
             }
         }
         foreach ($candidates as $candidate) {
-            if ($candidate['status'] === 'negative' || $candidate['status'] === 'reversed') {
+            if (
+                $candidate['status'] === 'negative'
+                || $candidate['status'] === 'reversed'
+                || $candidate['status'] === 'malformed_operand'
+            ) {
                 return true;
             }
         }
@@ -14501,7 +14519,7 @@ final class PdfTextExtractor
             }
         }
         foreach ($candidates as $candidate) {
-            if ($candidate['status'] === 'malformed') {
+            if ($candidate['status'] === 'malformed' || $candidate['status'] === 'malformed_operand') {
                 return true;
             }
         }
@@ -14532,7 +14550,17 @@ final class PdfTextExtractor
             $lower = $this->pageLabelLimitOperand($items[0], $objects);
             $upper = $this->pageLabelLimitOperand($items[1], $objects);
             if ($lower === null || $upper === null) {
-                $candidates[] = ['status' => 'malformed'];
+                $lowerStatus = $lower === null
+                    ? $this->pageLabelLimitOperandFailureStatus($items[0], $objects)
+                    : 'valid';
+                $upperStatus = $upper === null
+                    ? $this->pageLabelLimitOperandFailureStatus($items[1], $objects)
+                    : 'valid';
+                $candidates[] = [
+                    'status' => in_array('malformed_operand', [$lowerStatus, $upperStatus], true)
+                        ? 'malformed_operand'
+                        : 'malformed',
+                ];
                 continue;
             }
 
@@ -14553,6 +14581,38 @@ final class PdfTextExtractor
         }
 
         return $candidates;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelLimitOperandFailureStatus(string $value, array $objects, array $seen = []): string
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
+            return 'malformed';
+        }
+
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
+            return 'malformed_operand';
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$key])) {
+            return 'malformed_operand';
+        }
+
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return 'malformed_operand';
+        }
+
+        $seen[$key] = true;
+        return $this->pageLabelLimitOperandFailureStatus($body, $objects, $seen);
     }
 
     /**
@@ -17041,7 +17101,13 @@ final class PdfTextExtractor
         $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'Height', $objects);
         $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects, $imageHeight);
         if ($markers === []) {
-            return null;
+            return $this->directCcittFaxUnboundedEndstreamTerminatorOffset(
+                $value,
+                $streamStart,
+                $filterDecodeParms,
+                $objects,
+                $imageHeight
+            );
         }
 
         foreach ($markers as $marker) {
@@ -17061,6 +17127,106 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function directCcittFaxUnboundedEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight
+    ): ?int {
+        if (!$this->ccittFaxDecodeParmsNeedsUnboundedObjectBoundary($decodeParms, $objects, $imageHeight)) {
+            return null;
+        }
+
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if (
+                $this->endstreamTerminatorAt($value, $candidate, $streamStart)
+                && $this->ccittFaxUnboundedEndstreamClosesCurrentObject($value, $candidate)
+            ) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxDecodeParmsNeedsUnboundedObjectBoundary(
+        ?string $decodeParms,
+        array $objects,
+        ?int $imageHeight
+    ): bool {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return false;
+        }
+
+        if (!$this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            return false;
+        }
+
+        if ($this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects) !== false) {
+            return false;
+        }
+
+        return $this->ccittFaxEndOfLineMarkersForOwnership($decodeParms, $objects, $imageHeight) === []
+            && !$this->ccittFaxMalformedRowEndOwnershipNeedsTerminalFallback($decodeParms, $objects, $imageHeight);
+    }
+
+    private function ccittFaxUnboundedEndstreamClosesCurrentObject(string $value, int $candidate): bool
+    {
+        $afterStream = $this->skipPdfWhitespace($value, $candidate + strlen('endstream'));
+        if ($afterStream >= strlen($value)) {
+            return true;
+        }
+
+        if (!$this->pdfKeywordAt($value, $afterStream, 'endobj')) {
+            return false;
+        }
+
+        return $this->pdfTailAfterObjectBoundaryLooksTopLevel(
+            $value,
+            $afterStream + strlen('endobj')
+        );
+    }
+
+    private function pdfTailAfterObjectBoundaryLooksTopLevel(string $value, int $offset): bool
+    {
+        $length = strlen($value);
+        $offset = $this->skipPdfWhitespace($value, $offset);
+
+        while ($offset < $length) {
+            if (
+                $this->pdfKeywordAt($value, $offset, 'xref')
+                || $this->pdfKeywordAt($value, $offset, 'trailer')
+                || $this->pdfKeywordAt($value, $offset, 'startxref')
+                || substr($value, $offset, 5) === '%%EOF'
+            ) {
+                return true;
+            }
+
+            if (preg_match('/\G\d+\s+\d+\s+obj\b/s', $value, $match, 0, $offset) !== 1) {
+                return false;
+            }
+
+            $bodyStart = $offset + strlen($match[0]);
+            $bodyEnd = $this->pdfObjectEndOffset($value, $bodyStart);
+            if ($bodyEnd === null || $bodyEnd < $bodyStart) {
+                return false;
+            }
+
+            $offset = $this->skipPdfWhitespace($value, $bodyEnd + strlen('endobj'));
+        }
+
+        return true;
     }
 
     /**
@@ -21255,7 +21421,11 @@ final class PdfTextExtractor
         $wy = $widthVector[1] ?? 0.0;
         $advanceX = ($wx * ($fontMatrix[0] ?? 0.001)) + ($wy * ($fontMatrix[2] ?? 0.0));
         $advanceY = ($wx * ($fontMatrix[1] ?? 0.0)) + ($wy * ($fontMatrix[3] ?? 0.001));
-        if (abs($wy) <= 0.000001 && is_finite($advanceX) && is_finite($advanceY)) {
+        if (
+            is_finite($advanceX)
+            && is_finite($advanceY)
+            && (abs($wy) <= 0.000001 || (abs($wx) > 0.000001 && abs($advanceX) <= 0.000001))
+        ) {
             $advance = sqrt(($advanceX * $advanceX) + ($advanceY * $advanceY));
             if ($advance > 0.0) {
                 return $advance * 1000.0;
@@ -23498,12 +23668,12 @@ final class PdfTextExtractor
      */
     private function rectanglePathOperand(array $operands, array $matrix): ?array
     {
-        if (count($operands) < 4) {
+        if (count($operands) !== 4) {
             return null;
         }
 
         $numbers = [];
-        foreach (array_slice($operands, -4) as $operand) {
+        foreach ($operands as $operand) {
             $number = $this->numericOperand($operand);
             if ($number === null) {
                 return null;
@@ -23540,12 +23710,12 @@ final class PdfTextExtractor
      */
     private function pathPointOperand(array $operands, array $matrix): ?array
     {
-        if (count($operands) < 2) {
+        if (count($operands) !== 2) {
             return null;
         }
 
-        $x = $this->numericOperand($operands[count($operands) - 2]);
-        $y = $this->numericOperand($operands[count($operands) - 1]);
+        $x = $this->numericOperand($operands[0]);
+        $y = $this->numericOperand($operands[1]);
         if ($x === null || $y === null) {
             return null;
         }
@@ -23566,12 +23736,12 @@ final class PdfTextExtractor
         ?array $currentPathPoint
     ): array {
         $requiredOperands = $operator === 'c' ? 6 : 4;
-        if (count($operands) < $requiredOperands) {
+        if (count($operands) !== $requiredOperands) {
             return [];
         }
 
         $numbers = [];
-        foreach (array_slice($operands, -$requiredOperands) as $operand) {
+        foreach ($operands as $operand) {
             $number = $this->numericOperand($operand);
             if ($number === null) {
                 return [];
@@ -31233,7 +31403,11 @@ final class PdfTextExtractor
                 $objects,
                 [$objectNumber . ':' . $generation => true]
             );
-            $extraFilterOperand = $this->indirectFilterHelperExtraOperand($body);
+            $extraFilterOperand = $this->indirectFilterHelperExtraOperand(
+                $body,
+                $objects,
+                [$objectNumber . ':' . $generation => true]
+            );
             if ($review['token_type'] === 'name') {
                 $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
             }
@@ -31280,9 +31454,15 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
      * @return array{type: string, preview: string, name?: string}|null
      */
-    private function indirectFilterHelperExtraOperand(string $body): ?array
+    private function indirectFilterHelperExtraOperand(
+        string $body,
+        array $objects = [],
+        array $seenObjects = []
+    ): ?array
     {
         $offset = $this->skipPdfWhitespace($body, 0);
         if ($offset >= strlen($body)) {
@@ -31290,6 +31470,7 @@ final class PdfTextExtractor
         }
 
         $endOffset = null;
+        $reference = null;
         if ($body[$offset] === '[') {
             $arrayBody = $this->readPdfArrayAt($body, $offset);
             $endOffset = $arrayBody === null ? null : $offset + strlen($arrayBody) + 2;
@@ -31304,6 +31485,33 @@ final class PdfTextExtractor
 
         if ($endOffset === null || $endOffset <= $offset) {
             return null;
+        }
+
+        if (
+            $reference !== null
+            && $objects !== []
+            && $this->skipPdfWhitespace($body, $endOffset) === strlen($body)
+        ) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if ($reference['objectNumber'] > 0 && !isset($seenObjects[$objectKey])) {
+                $referencedBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($referencedBody !== null) {
+                    $nextSeenObjects = $seenObjects;
+                    $nextSeenObjects[$objectKey] = true;
+                    $extraOperand = $this->indirectFilterHelperExtraOperand(
+                        trim($referencedBody),
+                        $objects,
+                        $nextSeenObjects
+                    );
+                    if ($extraOperand !== null) {
+                        return $extraOperand;
+                    }
+                }
+            }
         }
 
         return $this->postDirectFilterExtraDecoderOperand($body, $endOffset);
@@ -34282,9 +34490,8 @@ final class PdfTextExtractor
         return null;
     }
 
-    private function firstCMapSourceMappingOperatorOffset(string $cmap): ?int
+    private function cMapHasSourceMappingOperatorSince(string $cmap, int $startOffset, int $endOffset): bool
     {
-        $firstOffset = null;
         foreach ([
             'begincodespacerange',
             'beginnotdefchar',
@@ -34294,13 +34501,29 @@ final class PdfTextExtractor
             'begincidchar',
             'begincidrange',
         ] as $operator) {
-            $offset = $this->nextCMapOperatorOffset($cmap, $operator, 0);
-            if ($offset !== null && ($firstOffset === null || $offset < $firstOffset)) {
-                $firstOffset = $offset;
+            $offset = $this->nextCMapOperatorOffset($cmap, $operator, $startOffset);
+            if ($offset !== null && $offset < $endOffset) {
+                return true;
             }
         }
 
-        return $firstOffset;
+        return false;
+    }
+
+    private function currentCMapProgramStartOffset(string $cmap, int $offset): int
+    {
+        $programStart = 0;
+        $searchOffset = 0;
+        while (($beginOffset = $this->nextCMapOperatorOffset($cmap, 'begincmap', $searchOffset)) !== null) {
+            if ($beginOffset >= $offset) {
+                break;
+            }
+
+            $programStart = $beginOffset + strlen('begincmap');
+            $searchOffset = $programStart;
+        }
+
+        return $programStart;
     }
 
     private function cMapWritingMode(string $cmap): ?int
@@ -34370,7 +34593,6 @@ final class PdfTextExtractor
     private function cMapUseCMapNames(string $cmap): array
     {
         $names = [];
-        $firstMappingOffset = $this->firstCMapSourceMappingOperatorOffset($cmap);
         $length = strlen($cmap);
         for ($index = 0; $index < $length;) {
             $char = $cmap[$index];
@@ -34410,7 +34632,13 @@ final class PdfTextExtractor
             $nameToken = $this->readNameToken($cmap, $index);
             $operatorOffset = $this->skipPdfWhitespace($cmap, $index);
             if ($this->pdfKeywordAt($cmap, $operatorOffset, 'usecmap')) {
-                if ($firstMappingOffset !== null && $operatorOffset > $firstMappingOffset) {
+                if (
+                    $this->cMapHasSourceMappingOperatorSince(
+                        $cmap,
+                        $this->currentCMapProgramStartOffset($cmap, $operatorOffset),
+                        $operatorOffset
+                    )
+                ) {
                     $index = $operatorOffset + strlen('usecmap');
                     continue;
                 }
@@ -39879,6 +40107,12 @@ final class PdfTextExtractor
                         $candidate,
                         null
                     )
+                    || $this->inlineNativeFilterStackCandidateReachesSampleFloorBeforeFirstFilterSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        null
+                    )
                 )
             ) {
                 return true;
@@ -40618,8 +40852,9 @@ final class PdfTextExtractor
 
     /**
      * Native filter stacks can expose a first-filter EOD marker before the
-     * final decoded sample floor is checked. Keep text-like surplus after that
-     * first EOD closed until the real inline-image terminator.
+     * final decoded sample floor is checked, and Identity Crypt suffixes can
+     * leave no sample floor at all. Keep text-like surplus after that first
+     * EOD closed until the real inline-image terminator.
      *
      * @param list<string|null> $filters
      */
@@ -40627,10 +40862,10 @@ final class PdfTextExtractor
         array $filters,
         string $dictionary,
         string $candidate,
-        int $expectedLength
+        ?int $expectedLength
     ): bool {
         $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
-        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+        if (($expectedLength !== null && $expectedLength < 1) || count($nonNullFilters) < 2) {
             return false;
         }
 
@@ -40681,7 +40916,7 @@ final class PdfTextExtractor
         );
 
         if ($decoded !== null) {
-            return strlen($decoded) >= $expectedLength;
+            return $expectedLength === null ? $decoded !== '' : strlen($decoded) >= $expectedLength;
         }
 
         $nativePrefix = $this->decodeInlineImageNativePrefixBeforePreviewFilter(
@@ -40691,7 +40926,8 @@ final class PdfTextExtractor
             substr($candidate, 0, $firstFilterEnd)
         );
 
-        return $nativePrefix !== null && strlen($nativePrefix) >= $expectedLength;
+        return $nativePrefix !== null
+            && ($expectedLength === null ? $nativePrefix !== '' : strlen($nativePrefix) >= $expectedLength);
     }
 
     /**

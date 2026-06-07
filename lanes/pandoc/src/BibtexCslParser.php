@@ -8,6 +8,7 @@ final class BibtexCslParser
 {
     private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
     private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
+    private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
 
     private int $offset = 0;
     private readonly int $length;
@@ -708,6 +709,11 @@ final class BibtexCslParser
             $item['biblatex-custom-lists'] = $biblatexCustomLists;
         }
 
+        $biblatexCustomNames = self::biblatexCustomNamesFromFields($fields);
+        if ($biblatexCustomNames !== []) {
+            $item['biblatex-custom-names'] = $biblatexCustomNames;
+        }
+
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
@@ -1115,6 +1121,27 @@ final class BibtexCslParser
         }
 
         return $customLists;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function biblatexCustomNamesFromFields(array $fields): array
+    {
+        $customNames = [];
+        foreach (self::BIBLATEX_CUSTOM_NAME_FIELDS as $field) {
+            if (!isset($fields[$field]) || trim($fields[$field]) === '') {
+                continue;
+            }
+
+            $names = self::namesFromBibtexField($fields, $field);
+            if ($names !== []) {
+                $customNames[$field] = $names;
+            }
+        }
+
+        return $customNames;
     }
 
     /**

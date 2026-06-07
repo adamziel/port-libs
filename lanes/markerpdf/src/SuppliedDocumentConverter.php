@@ -158,14 +158,14 @@ final class SuppliedDocumentConverter
         $pageRange = $extracted['page_range'];
         $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($pages);
         $lowresImages = $this->selectSelectedPageArtifacts(
-            $this->listOption($options, 'lowres_images'),
+            $this->pageArtifactOption($options, 'lowres_images'),
             $sourcePageCount,
             $pageRange,
             $selectedPageCount,
             $selectedPageNumbers
         );
         $layoutResults = $this->selectSelectedPageArtifacts(
-            $this->listOption($options, 'layout_results'),
+            $this->pageArtifactOption($options, 'layout_results'),
             $sourcePageCount,
             $pageRange,
             $selectedPageCount,
@@ -190,14 +190,14 @@ final class SuppliedDocumentConverter
         );
 
         $orderImages = $this->selectSelectedPageArtifacts(
-            $this->listOption($options, 'order_images'),
+            $this->pageArtifactOption($options, 'order_images'),
             $sourcePageCount,
             $pageRange,
             $selectedPageCount,
             $selectedPageNumbers
         );
         $orderResults = $this->selectSelectedPageArtifacts(
-            $this->listOption($options, 'order_results'),
+            $this->pageArtifactOption($options, 'order_results'),
             $sourcePageCount,
             $pageRange,
             $selectedPageCount,
@@ -2008,6 +2008,52 @@ final class SuppliedDocumentConverter
         }
 
         return $options[$key];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<mixed>
+     */
+    private function pageArtifactOption(array $options, string $key): array
+    {
+        if (!array_key_exists($key, $options) || $options[$key] === null) {
+            return [];
+        }
+        if (!is_array($options[$key])) {
+            throw new InvalidArgumentException("markerPDF supplied document option {$key} must be an array.");
+        }
+        if (!array_is_list($options[$key]) && !$this->isSourcePageKeyedArtifactMap($options[$key])) {
+            throw new InvalidArgumentException("markerPDF supplied document option {$key} must be a list or source-page keyed map.");
+        }
+
+        return $options[$key];
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function isSourcePageKeyedArtifactMap(array $value): bool
+    {
+        if ($value === [] || array_is_list($value)) {
+            return false;
+        }
+
+        foreach ($value as $key => $candidate) {
+            if (!$this->isIntegerArrayKey($key) || !is_array($candidate) || array_is_list($candidate)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isIntegerArrayKey(int|string $key): bool
+    {
+        if (is_int($key)) {
+            return true;
+        }
+
+        return preg_match('/^[+-]?\d+$/', trim($key)) === 1;
     }
 
     /**

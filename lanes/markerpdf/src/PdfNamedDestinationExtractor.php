@@ -96,7 +96,8 @@ final class PdfNamedDestinationExtractor
         $namesValue = $catalog['Names'] ?? null;
         $namesDictionary = $this->resolve($namesValue, $objects, $cache);
         if (
-            $this->isDictionary($namesDictionary)
+            !$this->dictionaryBodyHasDuplicateKeys($catalogDetails['body'], ['Names'])
+            && $this->isDictionary($namesDictionary)
             && array_key_exists('Dests', $namesDictionary)
             && !$this->catalogNamesDictionaryHasDuplicateDests($catalogDetails['body'], $namesValue, $objects)
         ) {

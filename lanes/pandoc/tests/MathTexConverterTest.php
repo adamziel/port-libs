@@ -76,6 +76,30 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review]{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hyperref[eq:review{x}'));
     },
+    'converts bounded siunitx scalar commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $numberMathml = $converter->texToMathMl('\\num{1.25e3} + \\num{-0.5}');
+        $unitMathml = $converter->texToMathMl('\\si[per-mode=symbol]{\\kg\\per\\s} + \\unit{\\m\\squared}', true);
+        $quantityMathml = $converter->texToMathMl('\\SI{12.5}{\\kg\\per\\s} + \\qty[mode=text]{3.5}{\\m}');
+        $angleMathml = $converter->texToMathMl('\\ang{30;15;0} + \\ang{90}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\SI{2}{\\m\\per\\s}');
+
+        $t->contains('<mn>1.25</mn><mo>×</mo><msup><mn>10</mn><mn>3</mn></msup><mo>+</mo><mn>-0.5</mn>', $numberMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\num{1.25e3} + \\num{-0.5}</annotation>', $numberMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $unitMathml);
+        $t->contains('<mrow><mtext>kg</mtext><mtext>/</mtext><mtext>s</mtext></mrow><mo>+</mo><msup><mtext>m</mtext><mn>2</mn></msup>', $unitMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\si[per-mode=symbol]{\\kg\\per\\s} + \\unit{\\m\\squared}</annotation>', $unitMathml);
+        $t->contains('<mrow><mn>12.5</mn><mspace width="0.2222em"></mspace><mrow><mtext>kg</mtext><mtext>/</mtext><mtext>s</mtext></mrow></mrow><mo>+</mo><mrow><mn>3.5</mn><mspace width="0.2222em"></mspace><mtext>m</mtext></mrow>', $quantityMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\SI{12.5}{\\kg\\per\\s} + \\qty[mode=text]{3.5}{\\m}</annotation>', $quantityMathml);
+        $t->contains('<mrow><mn>30</mn><mtext>°</mtext><mn>15</mn><mtext>′</mtext><mn>0</mn><mtext>″</mtext></mrow><mo>+</mo><mrow><mn>90</mn><mtext>°</mtext></mrow>', $angleMathml);
+        $t->contains('alttext="2 space m slash s"', $accessibleMathml);
+        $t->contains('intent="row(2,space,row(m,slash,s))"', $accessibleMathml);
+        $t->true(!str_contains($quantityMathml, '<mi>\\SI</mi>'));
+        $t->true(!str_contains($quantityMathml, '<mi>\\qty</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\num{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\unknownunit}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\SI{1}{}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);

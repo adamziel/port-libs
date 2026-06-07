@@ -295,6 +295,8 @@ final class Html5DomFragment
                 'code' => 'libxml-repair',
                 'level' => $error->level,
                 'message' => $message,
+                'line' => $error->line,
+                'column' => $error->column,
             ];
         }
 
@@ -342,6 +344,8 @@ final class Html5DomFragment
                 'code' => 'xml-parse-error',
                 'level' => $error->level,
                 'message' => $message,
+                'line' => $error->line,
+                'column' => $error->column,
             ];
         }
 
@@ -387,11 +391,17 @@ final class Html5DomFragment
         ?string $baseUrl = null
     ): ?array {
         if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
-            return [['type' => 'text', 'text' => $node->nodeValue ?? '']];
+            return [self::nodeWithSourceLine([
+                'type' => 'text',
+                'text' => $node->nodeValue ?? '',
+            ], $node)];
         }
 
         if ($node instanceof \DOMComment) {
-            return [['type' => 'comment', 'text' => $node->nodeValue ?? '']];
+            return [self::nodeWithSourceLine([
+                'type' => 'comment',
+                'text' => $node->nodeValue ?? '',
+            ], $node)];
         }
 
         if (!$node instanceof \DOMElement) {
@@ -402,19 +412,19 @@ final class Html5DomFragment
         $elementForeignContext = self::elementForeignContext($rawName, $mode, $foreignContext);
         $name = self::normalizedElementName($rawName, $elementForeignContext);
         if (!self::isSafeElementName($name)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'blocked-tag',
                 'tag' => $name,
-            ];
+            ], $node);
 
             return null;
         }
 
         if ($mode === 'html' && self::isUnwrappedElement($name)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'blocked-tag',
                 'tag' => $name,
-            ];
+            ], $node);
 
             if ($name === 'iframe' && $node->hasAttribute('srcdoc')) {
                 $srcdocNodes = self::normalizeHtmlSrcdocAttribute(
@@ -449,10 +459,10 @@ final class Html5DomFragment
         }
 
         if ($mode === 'html' && $name === 'input') {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'blocked-tag',
                 'tag' => $name,
-            ];
+            ], $node);
 
             $label = self::visibleInputLabel($node);
 
@@ -476,10 +486,10 @@ final class Html5DomFragment
         }
 
         if ($mode === 'html' && self::isBlockedElement($name)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'blocked-tag',
                 'tag' => $name,
-            ];
+            ], $node);
 
             return null;
         }
@@ -504,11 +514,11 @@ final class Html5DomFragment
         }
 
         if ($mode === 'html' && self::isEmptyHtmlPictureSourceElement($node, $name, $attrs)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'empty-source',
                 'tag' => $name,
                 'reason' => 'missing-src-or-srcset',
-            ];
+            ], $node);
 
             return $children === [] ? null : $children;
         }
@@ -519,6 +529,7 @@ final class Html5DomFragment
             'attrs' => $attrs,
             'children' => $mode === 'html' && self::isHtmlVoidElement($name) ? [] : $children,
         ];
+        $element = self::nodeWithSourceLine($element, $node);
 
         if ($mode === 'html' && self::isHtmlVoidElement($name) && $children !== []) {
             return [$element, ...$children];
@@ -905,7 +916,10 @@ final class Html5DomFragment
 
         foreach ($children as $child) {
             if (self::isFosteredHtmlTableNode($child, $context)) {
-                $diagnostics[] = self::htmlTableFosterDiagnostic($child, $context);
+                $diagnostics[] = self::diagnosticWithNormalizedNodeLine(
+                    self::htmlTableFosterDiagnostic($child, $context),
+                    $child
+                );
                 $fostered[] = $child;
                 continue;
             }
@@ -1064,6 +1078,49 @@ final class Html5DomFragment
     private static function isMathMlTextIntegrationPointName(string $name): bool
     {
         return in_array($name, ['mi', 'mn', 'mo', 'ms', 'mtext'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private static function nodeWithSourceLine(array $node, \DOMNode $sourceNode): array
+    {
+        $line = $sourceNode->getLineNo();
+        if ($line > 0) {
+            $node['line'] = $line;
+        }
+
+        return $node;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @return array<string, mixed>
+     */
+    private static function diagnosticWithSourceLine(array $diagnostic, \DOMNode $sourceNode): array
+    {
+        $line = $sourceNode->getLineNo();
+        if ($line > 0) {
+            $diagnostic['line'] = $line;
+        }
+
+        return $diagnostic;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private static function diagnosticWithNormalizedNodeLine(array $diagnostic, array $node): array
+    {
+        $line = $node['line'] ?? null;
+        if (is_int($line) && $line > 0) {
+            $diagnostic['line'] = $line;
+        }
+
+        return $diagnostic;
     }
 
     private static function isSafeElementName(string $name): bool
@@ -2271,11 +2328,11 @@ final class Html5DomFragment
             $value = str_replace("\0", '', $attribute->value);
 
             if (!self::isSafeAttributeName($name)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => $name,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -2288,11 +2345,11 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => $name,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -2377,21 +2434,21 @@ final class Html5DomFragment
 
             if ($mode === 'html' && self::isUrlAttribute($name)) {
                 if (!self::isSafeUrlAttributeValue($tagName, $name, $value, $foreignContext)) {
-                    $diagnostics[] = [
+                    $diagnostics[] = self::diagnosticWithSourceLine([
                         'code' => 'unsafe-url',
                         'tag' => $tagName,
                         'attribute' => $name,
-                    ];
+                    ], $element);
                     continue;
                 }
 
                 $normalizedUrl = self::normalizeUrlAttributeValue($value);
                 if ($normalizedUrl !== $value) {
-                    $diagnostics[] = [
+                    $diagnostics[] = self::diagnosticWithSourceLine([
                         'code' => 'normalized-url',
                         'tag' => $tagName,
                         'attribute' => $name,
-                    ];
+                    ], $element);
                 }
 
                 $value = $mode === 'html'

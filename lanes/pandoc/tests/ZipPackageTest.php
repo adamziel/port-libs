@@ -1985,6 +1985,92 @@ return [
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
+    'preflights legacy raw zip name collisions before strict media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $firstName = 'word/media/review-one.png';
+        $secondName = 'word/media/review-two.png';
+        $collisionPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw name collision review</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => $rawName,
+                'localName' => $rawName,
+                'data' => "first reviewer attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+            ],
+            [
+                'name' => $rawName,
+                'localName' => $rawName,
+                'data' => "second reviewer attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+            ],
+        ]));
+        $summary = $collisionPackage->rawNamePreflight();
+
+        $t->same([
+            'word/document.xml',
+            $firstName,
+            $secondName,
+        ], $collisionPackage->names());
+        $t->same(3, $summary['entryCount']);
+        $t->same(1, $summary['collisionGroupCount']);
+        $t->same(2, $summary['collisionEntryCount']);
+        $t->same($rawName, $summary['collisionGroups'][0]['rawName']);
+        $t->same(bin2hex($rawName), $summary['collisionGroups'][0]['rawNameHex']);
+        $t->same([$firstName, $secondName], $summary['collisionGroups'][0]['entryNames']);
+        $t->same('word/document.xml', $summary['entries'][0]['name']);
+        $t->same(false, $summary['entries'][0]['hasRawNameCollision']);
+        $t->same([], $summary['entries'][0]['issues']);
+        $t->same($firstName, $summary['entries'][1]['name']);
+        $t->same($rawName, $summary['entries'][1]['rawName']);
+        $t->same(bin2hex($rawName), $summary['entries'][1]['rawNameHex']);
+        $t->same([$firstName, $secondName], $summary['entries'][1]['equivalentEntryNames']);
+        $t->same(true, $summary['entries'][1]['hasRawNameCollision']);
+        $t->same(['raw-name-collision'], $summary['entries'][1]['issues']);
+        $t->same($secondName, $summary['entries'][2]['name']);
+        $t->same(['raw-name-collision'], $summary['entries'][2]['issues']);
+        $t->same("first reviewer attachment placeholder\n", $collisionPackage->read('/' . $firstName));
+        $t->same("second reviewer attachment placeholder\n", $collisionPackage->read('/' . $secondName));
+
+        $strictSummary = $collisionPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['raw-name-collisions'], $strictSummary['diagnostics']);
+        $t->same(2, $strictSummary['rawNames']['collisionEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertNoRawNameCollisions());
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe raw names</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review-one.png',
+                'data' => "first reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review-two.png',
+                'data' => "second reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoRawNameCollisions();
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['collisionGroupCount']);
+        $t->same(0, $safeSummary['collisionEntryCount']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([

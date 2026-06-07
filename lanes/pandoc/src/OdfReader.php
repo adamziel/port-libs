@@ -4878,7 +4878,7 @@ final class OdfReader
         $position = strtolower(self::attr($properties, self::STYLE_NS, 'text-position'));
 
         $result = [];
-        if ($fontWeight === 'bold' || $fontWeight === '700') {
+        if ($fontWeight === 'bold' || preg_match('/^[1-9]00$/', $fontWeight) === 1) {
             $result['bold'] = true;
         }
         if ($fontStyle === 'italic' || $fontStyle === 'oblique') {

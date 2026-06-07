@@ -4113,6 +4113,7 @@ MARKDOWN);
                 'streamBytes' => strlen($attachmentBytes),
                 'streamSha256' => hash('sha256', $attachmentBytes),
                 'streamSkipped' => null,
+                'collectionItems' => [],
                 'source' => 'catalog.Names.EmbeddedFiles',
             ],
             [
@@ -4129,6 +4130,7 @@ MARKDOWN);
                 'streamBytes' => strlen($filteredBytes),
                 'streamSha256' => null,
                 'streamSkipped' => 'filtered',
+                'collectionItems' => [],
                 'source' => 'catalog.AF',
             ],
         ];
@@ -4218,6 +4220,7 @@ MARKDOWN);
                 'streamBytes' => strlen($structureAttachmentBytes),
                 'streamSha256' => hash('sha256', $structureAttachmentBytes),
                 'streamSkipped' => null,
+                'collectionItems' => [],
                 'source' => 'structure:9 0 R.AF',
             ],
             [
@@ -4234,6 +4237,7 @@ MARKDOWN);
                 'streamBytes' => strlen($pageAttachmentBytes),
                 'streamSha256' => hash('sha256', $pageAttachmentBytes),
                 'streamSkipped' => null,
+                'collectionItems' => [],
                 'source' => 'page:3 0 R.AF',
             ],
         ];
@@ -4347,6 +4351,7 @@ MARKDOWN);
                 'streamBytes' => strlen($figureSourceBytes),
                 'streamSha256' => hash('sha256', $figureSourceBytes),
                 'streamSkipped' => null,
+                'collectionItems' => [],
                 'source' => 'marked-content:3 0 R.Properties.MCFigure.AF',
             ],
             [
@@ -4363,6 +4368,7 @@ MARKDOWN);
                 'streamBytes' => strlen($inlineNoteBytes),
                 'streamSha256' => hash('sha256', $inlineNoteBytes),
                 'streamSkipped' => null,
+                'collectionItems' => [],
                 'source' => 'marked-content:3 0 R.Properties.MCInline.AF',
             ],
         ];
@@ -4621,7 +4627,7 @@ MARKDOWN);
         $pdfBytes = implode("\n", [
             '%PDF-1.7',
             '1 0 obj',
-            '<< /Type /Catalog /Pages 2 0 R /Collection 20 0 R >>',
+            '<< /Type /Catalog /Pages 2 0 R /Collection 20 0 R /Names << /EmbeddedFiles << /Names [(review-assets.zip) 22 0 R] >> >> >>',
             'endobj',
             '2 0 obj',
             '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
@@ -4634,6 +4640,9 @@ MARKDOWN);
             'endobj',
             '21 0 obj',
             '<< /Type /CollectionField /Subtype /S /N (Review title) /O 1 /V true /E true >>',
+            'endobj',
+            '22 0 obj',
+            '<< /Type /Filespec /F (review-assets.zip) /Desc (Portfolio source package) /AFRelationship /Data /CI << /Title (Review source package) /Size 4096 /Modified (D:20260606120000Z) /Reviewed true /Score 98.5 /Stage /Final /Missing null >> >>',
             'endobj',
             'trailer',
             '<< /Root 1 0 R >>',
@@ -4689,8 +4698,118 @@ MARKDOWN);
         $t->contains('pdf-byte-collection-default:review-assets.zip', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-collection-schema-fields:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-collection-sort-fields:2', implode(',', $result['diagnostics']));
+        $t->same(['review-assets.zip'], $result['pdfEmbeddedFileNames']);
+        $expectedFiles = [
+            [
+                'name' => 'review-assets.zip',
+                'unicodeName' => null,
+                'description' => 'Portfolio source package',
+                'afRelationship' => 'Data',
+                'filespec' => '22 0 R',
+                'embeddedFile' => null,
+                'subtype' => null,
+                'size' => null,
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => null,
+                'streamSha256' => null,
+                'streamSkipped' => null,
+                'collectionItems' => [
+                    ['name' => 'Missing', 'value' => null, 'valueType' => 'null'],
+                    ['name' => 'Modified', 'value' => 'D:20260606120000Z', 'valueType' => 'string'],
+                    ['name' => 'Reviewed', 'value' => true, 'valueType' => 'boolean'],
+                    ['name' => 'Score', 'value' => 98.5, 'valueType' => 'number'],
+                    ['name' => 'Size', 'value' => 4096, 'valueType' => 'integer'],
+                    ['name' => 'Stage', 'value' => 'Final', 'valueType' => 'name'],
+                    ['name' => 'Title', 'value' => 'Review source package', 'valueType' => 'string'],
+                ],
+                'source' => 'catalog.Names.EmbeddedFiles',
+            ],
+        ];
+        $t->same($expectedFiles, $result['pdfEmbeddedFiles']);
+        $t->contains('pdf-byte-embedded-files:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-metadata:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-collection-items:7', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfCollectionMetadata']);
+        $t->same($expectedFiles, $sequence['finalPdfEmbeddedFiles']);
+    },
+
+    'fake runner extracts bounded pdf collection item metadata from embedded file specs' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio-items.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Collection 20 0 R /Names << /EmbeddedFiles << /Names [(dataset.csv) 22 0 R] >> >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '20 0 obj',
+            '<< /Type /Collection /View /D /D (dataset.csv) >>',
+            'endobj',
+            '22 0 obj',
+            '<< /Type /Filespec /F (dataset.csv) /Desc (Portfolio dataset) /AFRelationship /Data /CI 23 0 R >>',
+            'endobj',
+            '23 0 obj',
+            '<< /Type /CollectionItem /Title (Dataset export) /Rank 3 /Included false /Tags [/source /review] /Stats << /Pages 2 /Tables 1 >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/portfolio-items.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/portfolio-items.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedFiles = [
+            [
+                'name' => 'dataset.csv',
+                'unicodeName' => null,
+                'description' => 'Portfolio dataset',
+                'afRelationship' => 'Data',
+                'filespec' => '22 0 R',
+                'embeddedFile' => null,
+                'subtype' => null,
+                'size' => null,
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => null,
+                'streamSha256' => null,
+                'streamSkipped' => null,
+                'collectionItems' => [
+                    ['name' => 'Included', 'value' => false, 'valueType' => 'boolean'],
+                    ['name' => 'Rank', 'value' => 3, 'valueType' => 'integer'],
+                    ['name' => 'Stats', 'value' => 2, 'valueType' => 'dictionary'],
+                    ['name' => 'Tags', 'value' => 2, 'valueType' => 'array'],
+                    ['name' => 'Title', 'value' => 'Dataset export', 'valueType' => 'string'],
+                ],
+                'source' => 'catalog.Names.EmbeddedFiles',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(['dataset.csv'], $result['pdfEmbeddedFileNames']);
+        $t->same($expectedFiles, $result['pdfEmbeddedFiles']);
+        $t->contains('pdf-byte-collection-view:D', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-collection-items:5', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedFiles, $sequence['finalPdfEmbeddedFiles']);
     },
 
     'fake runner extracts bounded pdf article thread bead metadata from produced bytes' => static function (TestRunner $t) use ($document): void {

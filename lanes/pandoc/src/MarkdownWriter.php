@@ -330,15 +330,35 @@ final class MarkdownWriter
         }
 
         $trailingNewlines = strlen($value) - strlen(rtrim($value, "\n"));
+        $indentIndicator = $this->yamlMetadataBlockScalarNeedsExplicitIndent($value) ? '2' : '';
         if ($trailingNewlines === 0) {
-            return '|-';
+            return '|' . $indentIndicator . '-';
         }
 
         if ($trailingNewlines === 1) {
-            return '|';
+            return '|' . $indentIndicator;
         }
 
-        return '|+';
+        return '|' . $indentIndicator . '+';
+    }
+
+    private function yamlMetadataBlockScalarNeedsExplicitIndent(string $value): bool
+    {
+        $body = rtrim($value, "\n");
+        $sawIndentedContent = false;
+        foreach (explode("\n", $body) as $line) {
+            if ($line === '') {
+                continue;
+            }
+
+            if (!str_starts_with($line, ' ')) {
+                return false;
+            }
+
+            $sawIndentedContent = true;
+        }
+
+        return $sawIndentedContent;
     }
 
     /**

@@ -2013,7 +2013,11 @@ final class MarkerAppPreview
             }
         }
         foreach ($candidates as $candidate) {
-            if ($candidate['status'] === 'negative' || $candidate['status'] === 'reversed') {
+            if (
+                $candidate['status'] === 'negative'
+                || $candidate['status'] === 'reversed'
+                || $candidate['status'] === 'malformed_operand'
+            ) {
                 return true;
             }
         }
@@ -2034,7 +2038,7 @@ final class MarkerAppPreview
             }
         }
         foreach ($candidates as $candidate) {
-            if ($candidate['status'] === 'malformed') {
+            if ($candidate['status'] === 'malformed' || $candidate['status'] === 'malformed_operand') {
                 return true;
             }
         }
@@ -2060,7 +2064,17 @@ final class MarkerAppPreview
             $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
             $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
             if ($lower === null || $upper === null) {
-                $candidates[] = ['status' => 'malformed'];
+                $lowerStatus = $lower === null
+                    ? $this->pageLabelLimitOperandFailureStatus($elements[0], $objects, $seen)
+                    : 'valid';
+                $upperStatus = $upper === null
+                    ? $this->pageLabelLimitOperandFailureStatus($elements[1], $objects, $seen)
+                    : 'valid';
+                $candidates[] = [
+                    'status' => in_array('malformed_operand', [$lowerStatus, $upperStatus], true)
+                        ? 'malformed_operand'
+                        : 'malformed',
+                ];
                 continue;
             }
 
@@ -2081,6 +2095,41 @@ final class MarkerAppPreview
         }
 
         return $candidates;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelLimitOperandFailureStatus(string $value, array $objects, array $seen): string
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
+            return 'malformed';
+        }
+
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
+            return 'malformed_operand';
+        }
+
+        $objectId = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectId . ':' . $generation;
+        if (
+            $objectId <= 0
+            || $generation < 0
+            || in_array($objectKey, $seen, true)
+        ) {
+            return 'malformed_operand';
+        }
+
+        $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
+        if ($body === null) {
+            return 'malformed_operand';
+        }
+
+        return $this->pageLabelLimitOperandFailureStatus($body, $objects, [...$seen, $objectKey]);
     }
 
     /**

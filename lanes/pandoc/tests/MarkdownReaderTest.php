@@ -5548,6 +5548,46 @@ MD;
         $t->same('yaml-writer-block-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-writer-block-body">YAML writer block body</h1>', $blocks);
     },
+    'writes pandoc yaml block scalars with explicit indent for leading spaces' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Writer indent **Packet**',
+                'source-review-log' => "  preserve leading reviewer column\n  keep source outline",
+                'review' => [
+                    'blank-first' => "\n  preserve after leading blank\n  keep reviewer indent",
+                    'keep' => "  keep trailing reviewer blanks\n  with source indent\n\n",
+                    'steps' => [
+                        "  collect front matter\n  keep leading spaces",
+                        "mixed source\n  keeps ordinary explicit indent unnecessary",
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-indent-body'], [$text('YAML writer indent body')]),
+        ]);
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains("source-review-log: |2-\n    preserve leading reviewer column\n    keep source outline", $markdown);
+        $t->contains("  blank-first: |2-\n\n      preserve after leading blank\n      keep reviewer indent", $markdown);
+        $t->contains("  keep: |2+\n      keep trailing reviewer blanks\n      with source indent\n\n\n  steps:", $markdown);
+        $t->contains("    - |2-\n        collect front matter\n        keep leading spaces", $markdown);
+        $t->contains("    - |-\n      mixed source\n        keeps ordinary explicit indent unnecessary", $markdown);
+        $t->same(false, str_contains($markdown, "source-review-log: |-\n    preserve leading reviewer column"));
+        $t->same('Writer indent **Packet**', $meta['title']);
+        $t->same("  preserve leading reviewer column\n  keep source outline", $meta['source-review-log']);
+        $t->same("\n  preserve after leading blank\n  keep reviewer indent", $meta['review']['blank-first']);
+        $t->same("  keep trailing reviewer blanks\n  with source indent\n\n", $meta['review']['keep']);
+        $t->same("  collect front matter\n  keep leading spaces", $meta['review']['steps'][0]);
+        $t->same("mixed source\n  keeps ordinary explicit indent unnecessary", $meta['review']['steps'][1]);
+        $t->same('heading', $roundTripped->children[0]->type);
+        $t->same('yaml-writer-indent-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-writer-indent-body">YAML writer indent body</h1>', $blocks);
+    },
     'maps upstream markdown writer softbreak space option' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

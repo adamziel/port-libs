@@ -948,6 +948,25 @@ $fontWidthType3CharProcFontMatrixVectorBoundaryCurrentBasePdf = static function 
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthType3CharProcCancelledProjectionBoundaryCurrentBasePdf = static function (): string {
+    $charProc = "500 1000 d0\nBT /Fghost 9 Tf (cancelled projection charproc text leak) Tj ET\n";
+    $content = 'BT /Ft3cancel 12 Tf '
+        . '1 0 0 1 72 720 Tm <41424344> Tj '
+        . '1 0 0 1 112 720 Tm <4546474849> Tj ET';
+    $encoding = '<< /Type /Encoding /Differences [65 /W /i /d /e /B /l /o /c /k] >>';
+    $charProcs = '<< /W 3 0 R /i 3 0 R /d 3 0 R /e 3 0 R '
+        . '/B 3 0 R /l 3 0 R /o 3 0 R /c 3 0 R /k 3 0 R >>';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ft3cancel 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type3 /Name /T3CancelledProjection /BaseFont /T3CancelledProjection "
+        . "/FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 -0.0005 0.001 0 0] "
+        . "/FirstChar 65 /LastChar 73 /Widths [100 100 100 100 100 100 100 100 100] "
+        . "/Encoding {$encoding} /CharProcs {$charProcs} >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($charProc) . " >>\nstream\n{$charProc}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf = static function (): string {
     $toUnicode = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -2167,6 +2186,26 @@ return [
         $t->true(!str_contains($plainText, 'matrix-vector text leak'));
         $t->true(!str_contains($plainText, 'T3CharProcMatrixVector'));
         $t->true(!str_contains($plainText, 'Ft3cv'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses Type3 CharProc vector length when FontMatrix cancels horizontal projection before current gaps on current base' => static function (TestRunner $t) use ($fontWidthType3CharProcCancelledProjectionBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthType3CharProcCancelledProjectionBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['WideBlock'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block'], $extractor->extractTextRuns($pdf));
+        $t->same('WideBlock', $plainText);
+        $t->same("WideBlock\n", $extractor->naiveGetText($pdf));
+        $t->same(['Wide', 'Block'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 108.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, 'cancelled projection charproc text leak'));
+        $t->true(!str_contains($plainText, 'Ft3cancel'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'normalizes Type3 descriptor MissingWidth through FontMatrix before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthType3MissingWidthFontMatrixBoundaryCurrentBasePdf): void {

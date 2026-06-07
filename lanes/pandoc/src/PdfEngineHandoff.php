@@ -333,7 +333,7 @@ final class PdfEngineHandoff
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
-     *     pdfEmbeddedFiles: list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>,
+     *     pdfEmbeddedFiles: list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}>,
      *     pdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     pdfFormFieldTypes: array<string, int>,
      *     pdfEncrypted: bool,
@@ -1989,10 +1989,14 @@ final class PdfEngineHandoff
                 if ($pdfEmbeddedFiles !== []) {
                     $diagnostics[] = 'pdf-byte-embedded-file-metadata:' . count($pdfEmbeddedFiles);
                     $embeddedStreams = 0;
+                    $embeddedCollectionItems = 0;
                     $embeddedStreamSkips = [];
                     foreach ($pdfEmbeddedFiles as $embeddedFile) {
                         if (($embeddedFile['streamBytes'] ?? null) !== null) {
                             $embeddedStreams++;
+                        }
+                        if (is_array($embeddedFile['collectionItems'] ?? null)) {
+                            $embeddedCollectionItems += count($embeddedFile['collectionItems']);
                         }
                         if (is_string($embeddedFile['streamSkipped'] ?? null) && $embeddedFile['streamSkipped'] !== '') {
                             $embeddedStreamSkips[$embeddedFile['streamSkipped']] = true;
@@ -2000,6 +2004,9 @@ final class PdfEngineHandoff
                     }
                     if ($embeddedStreams > 0) {
                         $diagnostics[] = 'pdf-byte-embedded-file-streams:' . $embeddedStreams;
+                    }
+                    if ($embeddedCollectionItems > 0) {
+                        $diagnostics[] = 'pdf-byte-embedded-file-collection-items:' . $embeddedCollectionItems;
                     }
                     foreach (array_keys($embeddedStreamSkips) as $skipReason) {
                         $diagnostics[] = 'pdf-byte-embedded-file-stream-skipped:' . $skipReason;
@@ -2338,7 +2345,7 @@ final class PdfEngineHandoff
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
-     *     finalPdfEmbeddedFiles: list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>,
+     *     finalPdfEmbeddedFiles: list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}>,
      *     finalPdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     finalPdfFormFieldTypes: array<string, int>,
      *     finalPdfEncrypted: bool,
@@ -3666,7 +3673,7 @@ final class PdfEngineHandoff
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
-     *     embeddedFiles:list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>,
+     *     embeddedFiles:list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}>,
      *     formFields:list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     formFieldTypes:array<string, int>,
      *     encryption:array{
@@ -13829,7 +13836,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}>
+     * @return list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}>
      */
     private function extractPdfEmbeddedFiles(string $pdfBytes, ?string $catalog): array
     {
@@ -13979,7 +13986,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}> $files
+     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}> $files
      * @param array<string, string> $objects
      * @param array<string, bool> $visited
      */
@@ -14048,7 +14055,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}> $files
+     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}> $files
      * @param array{kind:string, value:string} $value
      * @param array<string, string> $objects
      */
@@ -14096,6 +14103,7 @@ final class PdfEngineHandoff
                 'streamBytes' => null,
                 'streamSha256' => null,
                 'streamSkipped' => null,
+                'collectionItems' => [],
                 'source' => $source,
             ]);
         }
@@ -14103,7 +14111,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}|null
+     * @return array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}|null
      */
     private function summarizePdfFileSpec(string $dictionary, array $objects, string $source, ?string $filespecReference, ?string $nameHint): ?array
     {
@@ -14130,8 +14138,132 @@ final class PdfEngineHandoff
             'streamBytes' => $embedded['streamBytes'],
             'streamSha256' => $embedded['streamSha256'],
             'streamSkipped' => $embedded['streamSkipped'],
+            'collectionItems' => $this->extractPdfFileSpecCollectionItems($dictionary, $objects),
             'source' => $source,
         ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{name:string, value:string|int|float|bool|null, valueType:string}>
+     */
+    private function extractPdfFileSpecCollectionItems(string $dictionary, array $objects): array
+    {
+        $collectionItem = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'CI', $objects);
+        if ($collectionItem === null) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($collectionItem) as $entry) {
+            if ($entry['key'] === 'Type') {
+                continue;
+            }
+
+            $summary = $this->summarizePdfFileSpecCollectionItemValue($entry['value'], $objects, 0);
+            if ($summary === null) {
+                continue;
+            }
+
+            $items[] = [
+                'name' => $entry['key'],
+                'value' => $summary['value'],
+                'valueType' => $summary['valueType'],
+            ];
+        }
+
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp($left['name'], $right['name'])
+        );
+
+        return $items;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{value:string|int|float|bool|null, valueType:string}|null
+     */
+    private function summarizePdfFileSpecCollectionItemValue(array $value, array $objects, int $depth): ?array
+    {
+        if ($depth > 8) {
+            return null;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+            if ($body === '') {
+                return [
+                    'value' => $value['value'],
+                    'valueType' => 'reference',
+                ];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved === null) {
+                return [
+                    'value' => $value['value'],
+                    'valueType' => 'reference',
+                ];
+            }
+
+            return $this->summarizePdfFileSpecCollectionItemValue($resolved, $objects, $depth + 1);
+        }
+
+        if ($value['kind'] === 'literal' || $value['kind'] === 'hex') {
+            return [
+                'value' => trim($value['value']),
+                'valueType' => 'string',
+            ];
+        }
+
+        if ($value['kind'] === 'name') {
+            return [
+                'value' => trim($value['value']),
+                'valueType' => 'name',
+            ];
+        }
+
+        if ($value['kind'] === 'number') {
+            $number = $value['value'];
+            $numeric = preg_match('/[.Ee]/', $number) === 1 ? (float) $number : (int) $number;
+
+            return [
+                'value' => $numeric,
+                'valueType' => is_int($numeric) ? 'integer' : 'number',
+            ];
+        }
+
+        if ($value['kind'] === 'keyword') {
+            if ($value['value'] === 'true' || $value['value'] === 'false') {
+                return [
+                    'value' => $value['value'] === 'true',
+                    'valueType' => 'boolean',
+                ];
+            }
+
+            return [
+                'value' => null,
+                'valueType' => 'null',
+            ];
+        }
+
+        if ($value['kind'] === 'array') {
+            return [
+                'value' => count($this->pdfTopLevelArrayValues($value['value'])),
+                'valueType' => 'array',
+            ];
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return [
+                'value' => count($this->extractPdfTopLevelDictionaryEntries($value['value'])),
+                'valueType' => 'dictionary',
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -14212,8 +14344,8 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}> $files
-     * @param array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, source:string}|null $entry
+     * @param array<string, array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}> $files
+     * @param array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}|null $entry
      */
     private function addPdfEmbeddedFileEntry(array &$files, ?array $entry): void
     {

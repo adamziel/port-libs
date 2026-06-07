@@ -161,6 +161,7 @@ final class PdfAcroFormExtractor
 
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects, $catalog);
         $objects = $this->materializeDirectPageAnnotationWidgetDictionaries($objects, $pageObjectNumbers);
+        $objects = $this->materializeDirectWidgetParentFieldDictionaries($objects, $pageObjectNumbers);
         $pageIndexes = array_flip($pageObjectNumbers);
         $pageWidgets = $this->pageWidgetMap($objects, $pageObjectNumbers);
         $formDefaults = $this->acroFormDefaults($acroForm);
@@ -9294,6 +9295,93 @@ final class PdfAcroFormExtractor
 
             $objects = $materialized['objects'];
             $objects[$arrayObject] = '[' . $materialized['body'] . ']';
+        }
+
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * Some compact or repaired PDFs keep a Widget annotation's parent field as a
+     * direct dictionary. The field discovery path is object-number based, so
+     * synthesize only top-level direct /Parent field dictionaries on page-owned
+     * widgets before page-widget repair runs.
+     *
+     * @param array<int, string> $objects
+     * @param list<int> $pageObjectNumbers
+     * @return array<int, string>
+     */
+    private function materializeDirectWidgetParentFieldDictionaries(array $objects, array $pageObjectNumbers): array
+    {
+        $nextSyntheticObject = $this->nextSyntheticAcroFormObjectNumber($objects);
+
+        foreach ($pageObjectNumbers as $pageObjectNumber) {
+            if (!isset($objects[$pageObjectNumber])) {
+                continue;
+            }
+
+            $pageBody = $this->dictionaryObjectBody($objects[$pageObjectNumber]) ?? trim($objects[$pageObjectNumber]);
+            $annots = $this->lastTopLevelValueAfterName($pageBody, 'Annots');
+            if ($annots === null) {
+                continue;
+            }
+
+            foreach ($this->annotationObjectReferences($annots, $objects) as $widgetObject) {
+                if (!isset($objects[$widgetObject]) || $this->objectIsStreamObject($widgetObject, $objects)) {
+                    continue;
+                }
+
+                $widgetBody = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+                if (!$this->isWidget($widgetBody) || !$this->widgetAnnotationBelongsToPage($widgetBody, $objects, $pageObjectNumber)) {
+                    continue;
+                }
+
+                $span = $this->lastTopLevelValueSpanAfterName($widgetBody, 'Parent');
+                if ($span === null) {
+                    continue;
+                }
+
+                $parentValue = trim($span['value']);
+                if (!str_starts_with($parentValue, '<<')) {
+                    continue;
+                }
+
+                $dictionaryEnd = null;
+                $parentDictionary = $this->readPdfDictionaryAt($parentValue, 0, $dictionaryEnd);
+                if (
+                    $parentDictionary === null
+                    || $dictionaryEnd === null
+                    || !$this->hasOnlyPdfWhitespaceOrCommentsAfter($parentValue, $dictionaryEnd)
+                    || !$this->isFieldDictionaryCandidate($parentDictionary)
+                ) {
+                    continue;
+                }
+
+                while (isset($objects[$nextSyntheticObject])) {
+                    $nextSyntheticObject++;
+                }
+
+                $parentObject = $nextSyntheticObject++;
+                $this->objectGenerations[$parentObject] = 0;
+                $objects[$parentObject] = '<<' . $parentDictionary . '>>';
+                $kids = $this->materializeDirectDictionariesInNamedArray(
+                    $parentDictionary,
+                    'Kids',
+                    $objects,
+                    $nextSyntheticObject,
+                    $parentObject
+                );
+                if ($kids['changed']) {
+                    $objects = $kids['objects'];
+                    $objects[$parentObject] = '<<' . $kids['body'] . '>>';
+                }
+
+                $widgetBody = substr($widgetBody, 0, $span['start'])
+                    . $parentObject . ' 0 R'
+                    . substr($widgetBody, $span['end']);
+                $objects[$widgetObject] = '<<' . $widgetBody . '>>';
+            }
         }
 
         ksort($objects, SORT_NUMERIC);

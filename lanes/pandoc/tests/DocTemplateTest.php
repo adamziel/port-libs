@@ -1398,6 +1398,34 @@ HTML,
         ], null, 'plain'));
     },
 
+    'renders bounded pandoc default bbcode template resource and aliases' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $body = "[b]Batch 42 Review[/b]\n\n[url=https://example.test/wp-admin/edit.php]Review import queue[/url]\n";
+
+        foreach ([
+            'bbcode',
+            'bbcode_phpbb',
+            'bbcode_fluxbb',
+            'bbcode_steam',
+            'bbcode_hubzilla',
+            'bbcode_xenforo',
+        ] as $format) {
+            $t->same(substr($body, 0, -1), $renderer->renderResource('templates/default', [], [
+                'body' => $body,
+            ], null, $format));
+        }
+
+        $t->same('[i]Direct BBCode body[/i]', $renderer->renderResource('templates/default.bbcode', [], [
+            'body' => "[i]Direct BBCode body[/i]\n",
+        ]));
+
+        $t->same('[quote]custom bbcode[/quote]', $renderer->renderResource('templates/default', [
+            'templates/default.bbcode' => '[quote]custom $body$[/quote]',
+        ], [
+            'body' => 'bbcode',
+        ], null, 'bbcode_steam'));
+    },
+
     'renders bounded pandoc default latex template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

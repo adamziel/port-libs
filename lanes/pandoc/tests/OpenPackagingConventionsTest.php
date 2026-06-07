@@ -4378,6 +4378,8 @@ XML;
   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
   <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+  <Override PartName="/word/footer1.xml" ContentType="application/xml"/>
   <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
 </Types>
 XML;
@@ -4397,6 +4399,9 @@ XML;
   <Relationship Id="rIdCommentsMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments-missing.xml"/>
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+  <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+  <Relationship Id="rIdFooterWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+  <Relationship Id="rIdHeaderExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="https://example.test/header.xml" TargetMode="External"/>
   <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
   <Relationship Id="rIdImageWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/not-image.xml"/>
   <Relationship Id="rIdLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/uploads/hero.png" TargetMode="External"/>
@@ -4426,6 +4431,8 @@ XML;
             ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
             ['name' => 'word/settings.xml', 'data' => '<w:settings/>'],
             ['name' => 'word/theme/theme1.xml', 'data' => '<a:theme/>'],
+            ['name' => 'word/header1.xml', 'data' => '<w:hdr/>'],
+            ['name' => 'word/footer1.xml', 'data' => '<w:ftr/>'],
             ['name' => 'word/media/hero.png', 'data' => 'PNG'],
             ['name' => 'word/media/not-image.xml', 'data' => '<not-image/>'],
             ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
@@ -4444,6 +4451,9 @@ XML;
             'rIdCommentsMissing',
             'rIdSettings',
             'rIdTheme',
+            'rIdHeader',
+            'rIdFooterWrongType',
+            'rIdHeaderExternal',
             'rIdImage',
             'rIdImageWrongType',
             'rIdLinkedImage',
@@ -4506,6 +4516,36 @@ XML;
         $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $roles['rIdTheme']['expectedContentType']);
         $t->same(true, $roles['rIdTheme']['valid']);
         $t->same([], $roles['rIdTheme']['issues']);
+
+        $t->same('header', $roles['rIdHeader']['role']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $roles['rIdHeader']['type']);
+        $t->same('/word/header1.xml', $roles['rIdHeader']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $roles['rIdHeader']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $roles['rIdHeader']['expectedContentType']);
+        $t->same(null, $roles['rIdHeader']['expectedContentTypePrefix']);
+        $t->same(false, $roles['rIdHeader']['expectedExternal']);
+        $t->same(false, $roles['rIdHeader']['external']);
+        $t->same(true, $roles['rIdHeader']['exists']);
+        $t->same(true, $roles['rIdHeader']['valid']);
+        $t->same([], $roles['rIdHeader']['issues']);
+
+        $t->same('footer', $roles['rIdFooterWrongType']['role']);
+        $t->same('/word/footer1.xml', $roles['rIdFooterWrongType']['targetPart']);
+        $t->same('application/xml', $roles['rIdFooterWrongType']['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml', $roles['rIdFooterWrongType']['expectedContentType']);
+        $t->same(false, $roles['rIdFooterWrongType']['expectedExternal']);
+        $t->same(false, $roles['rIdFooterWrongType']['valid']);
+        $t->same(['invalid-footer-content-type'], $roles['rIdFooterWrongType']['issues']);
+
+        $t->same('header', $roles['rIdHeaderExternal']['role']);
+        $t->same(true, $roles['rIdHeaderExternal']['external']);
+        $t->same(null, $roles['rIdHeaderExternal']['targetPart']);
+        $t->same(null, $roles['rIdHeaderExternal']['contentType']);
+        $t->same(false, $roles['rIdHeaderExternal']['expectedExternal']);
+        $t->same('https', $roles['rIdHeaderExternal']['externalTargetScheme']);
+        $t->same(true, $roles['rIdHeaderExternal']['externalTargetAllowed']);
+        $t->same(false, $roles['rIdHeaderExternal']['valid']);
+        $t->same(['external-header-target'], $roles['rIdHeaderExternal']['issues']);
 
         $t->same('image', $roles['rIdImage']['role']);
         $t->same('/word/media/hero.png', $roles['rIdImage']['targetPart']);

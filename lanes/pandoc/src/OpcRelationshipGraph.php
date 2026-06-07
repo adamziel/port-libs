@@ -20,6 +20,8 @@ final class OpcRelationshipGraph
     public const WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     public const WORDPROCESSING_SETTINGS_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     public const WORDPROCESSING_THEME_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    public const WORDPROCESSING_HEADER_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+    public const WORDPROCESSING_FOOTER_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     public const WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     public const WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
@@ -48,6 +50,8 @@ final class OpcRelationshipGraph
     private const WORDPROCESSING_ENDNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const WORDPROCESSING_COMMENTS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const WORDPROCESSING_SETTINGS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+    private const WORDPROCESSING_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+    private const WORDPROCESSING_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
     private const OFFICE_THEME_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.theme+xml';
 
     /**
@@ -2925,6 +2929,16 @@ final class OpcRelationshipGraph
                 'role' => 'theme',
                 'expectedContentType' => self::OFFICE_THEME_CONTENT_TYPE,
                 'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_HEADER_RELATIONSHIP_TYPE => [
+                'role' => 'header',
+                'expectedContentType' => self::WORDPROCESSING_HEADER_CONTENT_TYPE,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_FOOTER_RELATIONSHIP_TYPE => [
+                'role' => 'footer',
+                'expectedContentType' => self::WORDPROCESSING_FOOTER_CONTENT_TYPE,
                 'expectedExternal' => false,
             ],
             self::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE => [

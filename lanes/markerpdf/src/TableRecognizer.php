@@ -1336,6 +1336,13 @@ final class TableRecognizer
         $activeColIds = array_keys($colOrder);
         $activeRows = array_fill_keys($activeRowIds, true);
         $activeCols = array_fill_keys($activeColIds, true);
+        $retainedRowBboxes = $this->bboxesById($geometry['rows'], 'row_id');
+        $retainedColBboxes = $this->bboxesById($geometry['cols'], 'col_id');
+        $duplicateRowBboxes = $this->duplicateBandBboxesById($geometry['review']['row_bands'] ?? []);
+        $duplicateColBboxes = $this->duplicateBandBboxesById($geometry['review']['col_bands'] ?? []);
+        $rotated = $geometry['rows'] !== [] && $geometry['cols'] !== [] && $this->isRotated($geometry['rows'], $geometry['cols']);
+        $rowAxis = $rotated ? 'x' : 'y';
+        $colAxis = $rotated ? 'y' : 'x';
 
         $boundedCells = [];
         $reviewRows = [];
@@ -1351,11 +1358,46 @@ final class TableRecognizer
                 $colOrder
             );
 
+            $duplicateRowIds = $this->duplicateAssignedBandIdsForCell(
+                $cell['bbox'],
+                $boundedRowIds,
+                $retainedRowBboxes,
+                $duplicateRowBboxes,
+                $rowAxis
+            );
+            $duplicateColIds = $this->duplicateAssignedBandIdsForCell(
+                $cell['bbox'],
+                $boundedColIds,
+                $retainedColBboxes,
+                $duplicateColBboxes,
+                $colAxis
+            );
+            if ($duplicateRowIds !== []) {
+                $boundedRowIds = $this->orderIdsByMap(
+                    array_values(array_diff($boundedRowIds, $duplicateRowIds)),
+                    $rowOrder
+                );
+            }
+            if ($duplicateColIds !== []) {
+                $boundedColIds = $this->orderIdsByMap(
+                    array_values(array_diff($boundedColIds, $duplicateColIds)),
+                    $colOrder
+                );
+            }
+
             $missingRows = array_values(array_diff($originalRowIds, $boundedRowIds));
             $missingCols = array_values(array_diff($originalColIds, $boundedColIds));
             $active = $boundedRowIds !== [] && $boundedColIds !== [];
             $status = 'within_active_bands';
-            if (!$active && $boundedRowIds === [] && $boundedColIds === []) {
+            if (!$active && $duplicateRowIds !== [] && $duplicateColIds !== []) {
+                $status = 'excluded_duplicate_row_and_column_bands';
+            } elseif (!$active && $duplicateRowIds !== []) {
+                $status = 'excluded_duplicate_row_band';
+            } elseif (!$active && $duplicateColIds !== []) {
+                $status = 'excluded_duplicate_column_band';
+            } elseif ($active && ($duplicateRowIds !== [] || $duplicateColIds !== [])) {
+                $status = 'trimmed_duplicate_bands';
+            } elseif (!$active && $boundedRowIds === [] && $boundedColIds === []) {
                 $status = 'excluded_inactive_row_and_column_bands';
             } elseif (!$active && $boundedRowIds === []) {
                 $status = 'excluded_inactive_row_band';
@@ -1379,8 +1421,14 @@ final class TableRecognizer
                 'active' => $active,
                 'upstream_assignment_retained' => $active && $status === 'within_active_bands',
             ];
+            if ($duplicateRowIds !== []) {
+                $reviewRow['duplicate_row_ids'] = $duplicateRowIds;
+            }
+            if ($duplicateColIds !== []) {
+                $reviewRow['duplicate_col_ids'] = $duplicateColIds;
+            }
             $reviewRow = $this->withSourceGeometryReviewFields($reviewRow, $cell);
-            if ($active && $status === 'trimmed_to_active_bands') {
+            if ($active && ($status === 'trimmed_to_active_bands' || $status === 'trimmed_duplicate_bands')) {
                 $reviewRow['upstream_assignment_trimmed'] = true;
             }
             $reviewRows[] = $reviewRow;
@@ -1415,6 +1463,12 @@ final class TableRecognizer
                 'trimmed_cell_count' => count(array_filter(
                     $reviewRows,
                     static fn (array $row): bool => ($row['status'] ?? null) === 'trimmed_to_active_bands'
+                        || ($row['status'] ?? null) === 'trimmed_duplicate_bands'
+                )),
+                'duplicate_band_excluded_cell_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => isset($row['status'])
+                        && str_starts_with((string) $row['status'], 'excluded_duplicate_')
                 )),
                 'excluded_cell_count' => count(array_filter(
                     $reviewRows,
@@ -4949,6 +5003,10 @@ final class TableRecognizer
                     $reviewRows,
                     static fn (array $row): bool => ($row['status'] ?? null) === 'clipped_to_table_image'
                 )),
+                'duplicate_band_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_duplicate_')
+                )),
                 'excluded_band_count' => count(array_filter(
                     $reviewRows,
                     static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_')
@@ -5060,6 +5118,9 @@ final class TableRecognizer
     {
         $bounded = [];
         $reviewRows = [];
+        $activeIds = [];
+        $activeReviewIndexById = [];
+        $duplicateStatus = $axis === 'row' ? 'excluded_duplicate_row_id' : 'excluded_duplicate_column_id';
 
         foreach ($bands as $band) {
             $id = (int) ($band[$idField] ?? count($reviewRows));
@@ -5078,6 +5139,13 @@ final class TableRecognizer
                 $status = 'clipped_to_table_image';
             }
 
+            $duplicateOfReviewIndex = null;
+            if ($active && isset($activeIds[$id])) {
+                $active = false;
+                $status = $duplicateStatus;
+                $duplicateOfReviewIndex = $activeReviewIndexById[$id] ?? null;
+            }
+
             $reviewRow = [
                 'axis' => $axis,
                 'id_field' => $idField,
@@ -5088,6 +5156,10 @@ final class TableRecognizer
                 'status' => $status,
                 'active' => $active,
             ];
+            if ($duplicateOfReviewIndex !== null) {
+                $reviewRow['duplicate_of_id'] = $id;
+                $reviewRow['duplicate_of_band_index'] = $duplicateOfReviewIndex;
+            }
             if (isset($band['coordinate_source']) && is_string($band['coordinate_source'])) {
                 $reviewRow['coordinate_source'] = $band['coordinate_source'];
             }
@@ -5106,12 +5178,96 @@ final class TableRecognizer
             $band['height'] = $clippedBbox[3] - $clippedBbox[1];
             $band['area'] = $this->positiveArea($clippedBbox);
             $bounded[] = $band;
+            $activeIds[$id] = true;
+            $activeReviewIndexById[$id] = count($reviewRows) - 1;
         }
 
         return [
             'bands' => $bounded,
             'review_rows' => $reviewRows,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviewRows
+     * @return array<int, list<list<float>>>
+     */
+    private function duplicateBandBboxesById(array $reviewRows): array
+    {
+        $byId = [];
+        foreach ($reviewRows as $reviewRow) {
+            if (
+                !is_array($reviewRow)
+                || !isset($reviewRow['status'])
+                || !str_starts_with((string) $reviewRow['status'], 'excluded_duplicate_')
+            ) {
+                continue;
+            }
+
+            $id = $this->nullableInteger($reviewRow['id'] ?? null);
+            $bbox = isset($reviewRow['clipped_bbox']) && is_array($reviewRow['clipped_bbox'])
+                ? $this->nullableBbox($reviewRow['clipped_bbox'])
+                : null;
+            if ($id === null || $bbox === null || $this->positiveArea($bbox) <= 0.0) {
+                continue;
+            }
+
+            $byId[$id][] = $bbox;
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @param list<float> $cellBbox
+     * @param list<int> $ids
+     * @param array<int, list<float>> $retainedBboxes
+     * @param array<int, list<list<float>>> $duplicateBboxes
+     * @return list<int>
+     */
+    private function duplicateAssignedBandIdsForCell(
+        array $cellBbox,
+        array $ids,
+        array $retainedBboxes,
+        array $duplicateBboxes,
+        string $axis
+    ): array {
+        $duplicates = [];
+        foreach ($ids as $id) {
+            $id = (int) $id;
+            if (!isset($duplicateBboxes[$id])) {
+                continue;
+            }
+
+            $retainedBbox = $retainedBboxes[$id] ?? null;
+            $touchesRetained = is_array($retainedBbox) && $this->cellTouchesBandAlongAxis($cellBbox, $retainedBbox, $axis);
+            $touchesDuplicate = false;
+            foreach ($duplicateBboxes[$id] as $duplicateBbox) {
+                if ($this->cellTouchesBandAlongAxis($cellBbox, $duplicateBbox, $axis)) {
+                    $touchesDuplicate = true;
+                    break;
+                }
+            }
+
+            if ($touchesDuplicate && !$touchesRetained) {
+                $duplicates[] = $id;
+            }
+        }
+
+        return array_values(array_unique($duplicates));
+    }
+
+    /**
+     * @param list<float> $cellBbox
+     * @param list<float> $bandBbox
+     */
+    private function cellTouchesBandAlongAxis(array $cellBbox, array $bandBbox, string $axis): bool
+    {
+        if ($axis === 'x') {
+            return $this->intersectionXPct($cellBbox, $bandBbox) > 0.0;
+        }
+
+        return $this->intersectionYPct($cellBbox, $bandBbox) > 0.0;
     }
 
     /**
