@@ -712,6 +712,35 @@ $tableMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableCellVerticalAlignmentDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:vAlign w:val="top"/></w:tcPr>
+          <w:p><w:r><w:t>Top aligned source note</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:vAlign w:val="center"/></w:tcPr>
+          <w:p><w:r><w:t>Centered reviewer status</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:vAlign w:val="bottom"/></w:tcPr>
+          <w:p><w:r><w:t>Bottom aligned media audit</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:vAlign w:val="unsupported"/></w:tcPr>
+          <w:p><w:r><w:t>Plain fallback cell</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $notesContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2351,6 +2380,14 @@ $buildTableMetadataPackage = static function () use ($contentTypesXml, $packageR
     ]);
 };
 
+$buildTableCellVerticalAlignmentPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellVerticalAlignmentDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableCellVerticalAlignmentDocumentXml],
+    ]);
+};
+
 $buildNotesPackage = static function () use (
     $notesContentTypesXml,
     $packageRelationshipsXml,
@@ -3528,6 +3565,53 @@ return [
         $t->contains(': DOCX migration status', $markdown);
         $t->contains('<table class="docx-table-metadata" aria-description="Reviewer summary for imported DOCX table metadata." data-docx-table-description="Reviewer summary for imported DOCX table metadata.">', $blocks);
         $t->contains('<figcaption class="wp-element-caption">DOCX migration status</figcaption>', $blocks);
+    },
+    'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $topCell = $body->children[0]->children[0];
+        $centerCell = $body->children[0]->children[1];
+        $bottomCell = $body->children[1]->children[0];
+        $plainCell = $body->children[1]->children[1];
+
+        $t->same(['docx-cell-vertical-align', 'docx-cell-vertical-align-top'], $topCell->attr('classes'));
+        $t->same('top', $topCell->attr('attributes')['data-docx-cell-vertical-align']);
+        $t->same('top', $topCell->attr('htmlAttributes')['valign']);
+        $t->same('Top aligned source note', $topCell->attr('text'));
+
+        $t->same(['docx-cell-vertical-align', 'docx-cell-vertical-align-center'], $centerCell->attr('classes'));
+        $t->same('center', $centerCell->attr('attributes')['data-docx-cell-vertical-align']);
+        $t->same('middle', $centerCell->attr('htmlAttributes')['valign']);
+        $t->same('Centered reviewer status', $centerCell->attr('text'));
+
+        $t->same(['docx-cell-vertical-align', 'docx-cell-vertical-align-bottom'], $bottomCell->attr('classes'));
+        $t->same('bottom', $bottomCell->attr('attributes')['data-docx-cell-vertical-align']);
+        $t->same('bottom', $bottomCell->attr('htmlAttributes')['valign']);
+        $t->same('Bottom aligned media audit', $bottomCell->attr('text'));
+        $t->true(!isset($plainCell->attr('attributes', [])['data-docx-cell-vertical-align']), 'Unsupported DOCX table cell vertical alignment should not create data metadata');
+        $t->true(!isset($plainCell->attr('htmlAttributes', [])['valign']), 'Unsupported DOCX table cell vertical alignment should not create HTML valign metadata');
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('top', $geometry['sections'][0]['rows'][0]['slots'][0]['verticalAlignment'] ?? null);
+        $t->same('middle', $geometry['sections'][0]['rows'][0]['slots'][1]['verticalAlignment'] ?? null);
+        $t->same('bottom', $geometry['sections'][0]['rows'][1]['slots'][0]['verticalAlignment'] ?? null);
+        $t->same('default', $geometry['sections'][0]['rows'][1]['slots'][1]['verticalAlignment'] ?? null);
+        $t->same('center', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-vertical-align'] ?? null);
+        $t->same('middle', $geometry['coverage'][1]['sourceAttributes']['htmlAttributes']['valign'] ?? null);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Top aligned source note | Centered reviewer status |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-cell-vertical-align'), 'Pipe-table Markdown handoff should not leak DOCX cell vertical alignment metadata');
+        $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-top" valign="top" data-docx-cell-vertical-align="top"><p>Top aligned source note</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-center" valign="middle" data-docx-cell-vertical-align="center"><p>Centered reviewer status</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-bottom" valign="bottom" data-docx-cell-vertical-align="bottom"><p>Bottom aligned media audit</p></td><td><p>Plain fallback cell</p></td>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

@@ -5671,7 +5671,7 @@ final class DocxReader
                 }
 
                 $this->clearTableVerticalMergeColumns($verticalMerges, $gridColumn, $colspan);
-                $attrs = [];
+                $attrs = $this->tableCellVerticalAlignmentAttrs($cellElement);
                 if ($colspan > 1) {
                     $attrs['colspan'] = $colspan;
                 }
@@ -5747,6 +5747,43 @@ final class DocxReader
         $value = trim($value);
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function tableCellVerticalAlignmentAttrs(\DOMElement $cell): array
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $alignment = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'vAlign');
+        if (!$alignment instanceof \DOMElement) {
+            return [];
+        }
+
+        $sourceValue = strtolower(trim((string) ($this->wordAttr($alignment, 'val') ?? '')));
+        $htmlValue = match ($sourceValue) {
+            'top' => 'top',
+            'center' => 'middle',
+            'bottom' => 'bottom',
+            default => null,
+        };
+        if ($htmlValue === null) {
+            return [];
+        }
+
+        return [
+            'classes' => ['docx-cell-vertical-align', 'docx-cell-vertical-align-' . $sourceValue],
+            'attributes' => [
+                'data-docx-cell-vertical-align' => $sourceValue,
+            ],
+            'htmlAttributes' => [
+                'valign' => $htmlValue,
+            ],
+        ];
     }
 
     /**
