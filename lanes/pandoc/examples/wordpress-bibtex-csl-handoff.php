@@ -93,6 +93,8 @@ Article-number source @article-number-review preserves imported electronic artic
 
 PubMed source @pubmed-review preserves imported medical database identifiers for review.
 
+Media identifier source @media-identifier-review preserves film, score, and report identifiers for review.
+
 Container-author chapter @container-author-review preserves source volume authors for review.
 
 Reviewed work source @reviewed-work-review preserves reviewed-title, references, dimensions, and scale metadata for review.
@@ -709,6 +711,16 @@ $bibtex = <<<'BIB'
   pmid         = {12345678},
   pmcid        = {PMC1234567},
   doi          = {10.5555/pubmed-review}
+}
+
+@misc{media-identifier-review,
+  author = {{Migration Media Desk}},
+  title  = {Media Identifier Packet},
+  date   = {2026},
+  isan   = {0000-0000-D07A-0090-Q-0000-0000-X},
+  ismn   = {979-0-060-11561-5},
+  isrn   = {NISTIR 8202},
+  iswc   = {T-034.524.680-1}
 }
 
 @incollection{container-author-review,
@@ -1411,6 +1423,57 @@ XML);
     if (!str_contains($pubmedBlocks, '<dt>Ng 2026</dt><dd>PubMed Import Packet | 12345678 | PMC1234567</dd>')) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not render PubMed identifiers in custom bibliography output');
     }
+    $mediaIdentifierReview = $processor->item('media-identifier-review');
+    if (($mediaIdentifierReview['isan'] ?? null) !== '0000-0000-D07A-0090-Q-0000-0000-X') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve ISAN metadata');
+    }
+    if (($mediaIdentifierReview['ismn'] ?? null) !== '979-0-060-11561-5') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve ISMN metadata');
+    }
+    if (($mediaIdentifierReview['isrn'] ?? null) !== 'NISTIR 8202') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve ISRN metadata');
+    }
+    if (($mediaIdentifierReview['iswc'] ?? null) !== 'T-034.524.680-1') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve ISWC metadata');
+    }
+    if (($mediaIdentifierReview['raw']['ISAN'] ?? null) !== '0000-0000-D07A-0090-Q-0000-0000-X') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw media identifier metadata');
+    }
+    $mediaIdentifierStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="ISAN"/>
+        <text variable="ISMN"/>
+        <text variable="ISRN"/>
+        <text variable="ISWC"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="ISAN"/>
+      <text variable="ISMN"/>
+      <text variable="ISRN"/>
+      <text variable="ISWC"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $mediaIdentifierBlocks = (new WordPressBlockWriter())->write($mediaIdentifierStyled->appendBibliography(
+        (new MarkdownReader())->read('Media identifier review [@media-identifier-review] keeps source IDs visible.'),
+        'Media Identifier Sources'
+    ));
+    if (!str_contains($mediaIdentifierBlocks, '<p>Media identifier review Migration Media Desk | 0000-0000-D07A-0090-Q-0000-0000-X | 979-0-060-11561-5 | NISTIR 8202 | T-034.524.680-1 keeps source IDs visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render media identifiers in custom citations');
+    }
+    if (!str_contains($mediaIdentifierBlocks, '<dt>Migration Media Desk 2026</dt><dd>Media Identifier Packet | 0000-0000-D07A-0090-Q-0000-0000-X | 979-0-060-11561-5 | NISTIR 8202 | T-034.524.680-1</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render media identifiers in custom bibliography output');
+    }
     $containerAuthorReview = $processor->item('container-author-review');
     if (($containerAuthorReview['containerAuthors'][0]['family'] ?? null) !== 'Smith') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first container author family');
@@ -1606,6 +1669,8 @@ XML);
         '<dt>Roe 2026</dt><dd>Roe, Pat. Electronic Article Packet. Journal of Source Imports. 2026. Article number: e2026-77. DOI 10.5555/eid-review.</dd>',
         '<p>PubMed source Ng (2026) preserves imported medical database identifiers for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. PubMed Import Packet. Journal of Source Imports. 2026. DOI 10.5555/pubmed-review. PMID 12345678. PMCID PMC1234567.</dd>',
+        '<p>Media identifier source Migration Media Desk (2026) preserves film, score, and report identifiers for review.</p>',
+        '<dt>Migration Media Desk 2026</dt><dd>Migration Media Desk. Media Identifier Packet. 2026. ISAN 0000-0000-D07A-0090-Q-0000-0000-X. ISMN 979-0-060-11561-5. ISRN NISTIR 8202. ISWC T-034.524.680-1.</dd>',
         '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Reviewed work source Roe (2026) preserves reviewed-title, references, dimensions, and scale metadata for review.</p>',

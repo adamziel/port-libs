@@ -766,6 +766,10 @@ final class CitationCslProcessor
             'url' => self::firstStringField($item, ['URL', 'url']),
             'isbn' => self::firstStringField($item, ['ISBN', 'isbn']),
             'issn' => self::firstStringField($item, ['ISSN', 'issn']),
+            'isan' => self::firstStringField($item, ['ISAN', 'isan']),
+            'ismn' => self::firstStringField($item, ['ISMN', 'ismn']),
+            'isrn' => self::firstStringField($item, ['ISRN', 'isrn']),
+            'iswc' => self::firstStringField($item, ['ISWC', 'iswc']),
             'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
             'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
             'archive' => self::stringField($item, 'archive'),
@@ -4240,6 +4244,26 @@ final class CitationCslProcessor
             $parts[] = 'ISSN ' . $issn . '.';
         }
 
+        $isan = (string) ($item['isan'] ?? '');
+        if ($isan !== '') {
+            $parts[] = 'ISAN ' . $isan . '.';
+        }
+
+        $ismn = (string) ($item['ismn'] ?? '');
+        if ($ismn !== '') {
+            $parts[] = 'ISMN ' . $ismn . '.';
+        }
+
+        $isrn = (string) ($item['isrn'] ?? '');
+        if ($isrn !== '') {
+            $parts[] = 'ISRN ' . $isrn . '.';
+        }
+
+        $iswc = (string) ($item['iswc'] ?? '');
+        if ($iswc !== '') {
+            $parts[] = 'ISWC ' . $iswc . '.';
+        }
+
         $pmid = (string) ($item['pmid'] ?? '');
         if ($pmid !== '') {
             $parts[] = 'PMID ' . $pmid . '.';
@@ -5739,6 +5763,10 @@ final class CitationCslProcessor
             'url' => (string) $item['url'],
             'isbn' => (string) $item['isbn'],
             'issn' => (string) $item['issn'],
+            'isan' => (string) ($item['isan'] ?? ''),
+            'ismn' => (string) ($item['ismn'] ?? ''),
+            'isrn' => (string) ($item['isrn'] ?? ''),
+            'iswc' => (string) ($item['iswc'] ?? ''),
             'pmid' => (string) ($item['pmid'] ?? ''),
             'pmcid' => (string) ($item['pmcid'] ?? ''),
             'archive' => (string) $item['archive'],

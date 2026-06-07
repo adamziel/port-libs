@@ -2247,6 +2247,110 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
         $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
     },
+    'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@movie{film-source,
+  author = {{Migration Film Desk}},
+  title  = {Source Capture Reel},
+  date   = {2026},
+  isan   = {0000-0000-D07A-0090-Q-0000-0000-X}
+}
+
+@music{score-source,
+  author = {Curator, Eli},
+  title  = {Migration Review Score},
+  date   = {2025},
+  ismn   = {979-0-060-11561-5},
+  iswc   = {T-034.524.680-1}
+}
+
+@report{technical-review,
+  author      = {Ng, Nia},
+  title       = {Source Import Technical Report},
+  institution = {Migration Desk},
+  date        = {2024},
+  isrn        = {NISTIR 8202}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('0000-0000-D07A-0090-Q-0000-0000-X', $items[0]['ISAN'] ?? null);
+        $t->same('979-0-060-11561-5', $items[1]['ISMN'] ?? null);
+        $t->same('T-034.524.680-1', $items[1]['ISWC'] ?? null);
+        $t->same('NISTIR 8202', $items[2]['ISRN'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $film = $processor->item('film-source');
+        $score = $processor->item('score-source');
+        $report = $processor->item('technical-review');
+        $t->same('0000-0000-D07A-0090-Q-0000-0000-X', $film['isan'] ?? null);
+        $t->same('979-0-060-11561-5', $score['ismn'] ?? null);
+        $t->same('T-034.524.680-1', $score['iswc'] ?? null);
+        $t->same('NISTIR 8202', $report['isrn'] ?? null);
+        $t->same('(Migration Film Desk 2026; Curator 2025; Ng 2024)', $processor->renderCitationCluster([
+            $citation('film-source', '[@film-source]'),
+            $citation('score-source', '[@score-source]'),
+            $citation('technical-review', '[@technical-review]'),
+        ]));
+        $t->same('Migration Film Desk. Source Capture Reel. 2026. ISAN 0000-0000-D07A-0090-Q-0000-0000-X.', $processor->renderBibliographyEntry('film-source'));
+        $t->same('Curator, Eli. Migration Review Score. 2025. ISMN 979-0-060-11561-5. ISWC T-034.524.680-1.', $processor->renderBibliographyEntry('score-source'));
+        $t->same('Ng, Nia. Source Import Technical Report. Migration Desk, 2024. ISRN NISTIR 8202.', $processor->renderBibliographyEntry('technical-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="ISAN"/>
+        <text variable="ISMN"/>
+        <text variable="ISRN"/>
+        <text variable="ISWC"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="ISAN"/>
+      <text variable="ISMN"/>
+      <text variable="ISRN"/>
+      <text variable="ISWC"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Source Capture Reel | 0000-0000-D07A-0090-Q-0000-0000-X; Migration Review Score | 979-0-060-11561-5 | T-034.524.680-1; Source Import Technical Report | NISTIR 8202]', $styled->renderCitationCluster([
+            $citation('film-source', '[@film-source]'),
+            $citation('score-source', '[@score-source]'),
+            $citation('technical-review', '[@technical-review]'),
+        ]));
+        $t->same('Migration Review Score :: 979-0-060-11561-5 :: T-034.524.680-1', $styled->renderBibliographyEntry('score-source'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-media-id',
+            'title' => 'Manual Media Identifier Packet',
+            'ISAN' => '0000-0001-8947-0000-8-0000-0000-D',
+            'ismn' => '979-0-9016791-7-7',
+            'isrn' => 'DOE/ER/40427-1',
+            'ISWC' => 'T-123.456.789-0',
+        ]]);
+        $manualItem = $manual->item('manual-media-id');
+        $t->same('0000-0001-8947-0000-8-0000-0000-D', $manualItem['isan'] ?? null);
+        $t->same('979-0-9016791-7-7', $manualItem['ismn'] ?? null);
+        $t->same('DOE/ER/40427-1', $manualItem['isrn'] ?? null);
+        $t->same('T-123.456.789-0', $manualItem['iswc'] ?? null);
+        $t->same('Manual Media Identifier Packet. ISAN 0000-0001-8947-0000-8-0000-0000-D. ISMN 979-0-9016791-7-7. ISRN DOE/ER/40427-1. ISWC T-123.456.789-0.', $manual->renderBibliographyEntry('manual-media-id'));
+
+        $document = (new MarkdownReader())->read('Media source @film-source, score [@score-source], and report @technical-review preserve source identifiers.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Media source Migration Film Desk (2026), score (Curator 2025), and report Ng (2024) preserve source identifiers.</p>', $blocks);
+        $t->contains('<dt>Migration Film Desk 2026</dt><dd>Migration Film Desk. Source Capture Reel. 2026. ISAN 0000-0000-D07A-0090-Q-0000-0000-X.</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Review Score. 2025. ISMN 979-0-060-11561-5. ISWC T-034.524.680-1.</dd>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>Ng, Nia. Source Import Technical Report. Migration Desk, 2024. ISRN NISTIR 8202.</dd>', $blocks);
+    },
     'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{distributed-review,
