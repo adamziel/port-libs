@@ -573,7 +573,7 @@ final class PdfXrefFreeObjectMap
             return null;
         }
 
-        $trailerOffset = self::keywordOffset($pdfBytes, 'trailer', $sectionBodyOffset);
+        $trailerOffset = self::xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
         if ($trailerOffset === null) {
             return null;
         }
@@ -649,6 +649,53 @@ final class PdfXrefFreeObjectMap
         }
 
         return $entries;
+    }
+
+    private static function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if (substr($pdfBytes, $offset, 5) === '%%EOF' || self::keywordAt($pdfBytes, $offset, 'startxref')) {
+                return null;
+            }
+
+            if ($char === '%') {
+                self::skipComment($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                self::skipLiteralString($pdfBytes, $offset);
+                continue;
+            }
+
+            $compositeEnd = self::skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $hexEnd = self::skipPdfHexStringTokenAt($pdfBytes, $offset);
+                if ($hexEnd !== null) {
+                    $offset = $hexEnd;
+                    continue;
+                }
+            }
+
+            if (self::keywordAt($pdfBytes, $offset, 'trailer')) {
+                $dictionaryOffset = self::skipWhitespace($pdfBytes, $offset + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $offset;
+                }
+            }
+
+            $offset++;
+        }
+
+        return null;
     }
 
     /**
@@ -1293,15 +1340,6 @@ final class PdfXrefFreeObjectMap
         }
 
         return (int) $match[1];
-    }
-
-    private static function keywordOffset(string $pdfBytes, string $keyword, int $offset): ?int
-    {
-        if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) !== 1) {
-            return null;
-        }
-
-        return $match[0][1];
     }
 
     private static function keywordAt(string $pdfBytes, int $offset, string $keyword): bool
