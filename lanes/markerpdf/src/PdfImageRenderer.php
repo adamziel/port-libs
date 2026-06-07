@@ -4913,7 +4913,10 @@ final class PdfImageRenderer
 
             if (
                 array_key_exists($decodeParmsIndex, $filters)
-                && $this->imageFilterCanCarryDecodeParms($filters[$decodeParmsIndex])
+                && (
+                    $filters[$decodeParmsIndex] === null
+                    || $this->imageFilterCanCarryDecodeParms($filters[$decodeParmsIndex])
+                )
             ) {
                 continue;
             }

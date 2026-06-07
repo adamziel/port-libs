@@ -287,7 +287,10 @@ final class PdfTextExtractor
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
         $pageCount = count($pageObjectNumbers);
         if ($pageCount === 0) {
-            if ($this->currentTrailerRootReferenceBlocksFallback || $this->hasCatalogPageTreeReference($objects)) {
+            if (
+                $this->currentTrailerRootReferenceBlocksFallback
+                || $this->catalogPageTreeReferenceBlocksStreamFallback($objects)
+            ) {
                 return [];
             }
 
@@ -2618,7 +2621,7 @@ final class PdfTextExtractor
             return $pageStreams;
         }
 
-        if ($this->hasCatalogPageTreeReference($objects)) {
+        if ($this->catalogPageTreeReferenceBlocksStreamFallback($objects)) {
             return [];
         }
 
@@ -9635,7 +9638,10 @@ final class PdfTextExtractor
 
             if (
                 array_key_exists($decodeParmsIndex, $filters)
-                && $this->streamFilterCanCarryDecodeParms($filters[$decodeParmsIndex])
+                && (
+                    $filters[$decodeParmsIndex] === null
+                    || $this->streamFilterCanCarryDecodeParms($filters[$decodeParmsIndex])
+                )
             ) {
                 continue;
             }
@@ -13633,6 +13639,54 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function catalogPageTreeReferenceBlocksStreamFallback(array $objects): bool
+    {
+        foreach ($objects as $body) {
+            if (!$this->isCatalogObject($body)) {
+                continue;
+            }
+
+            $pagesReference = $this->objectReferenceAfterName($body, 'Pages');
+            if ($pagesReference === null) {
+                continue;
+            }
+
+            if (!$this->catalogPageTreeReferenceIsExplicitlyEmpty($objects, $pagesReference)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array{objectNumber: int, generation: int} $pagesReference
+     */
+    private function catalogPageTreeReferenceIsExplicitlyEmpty(array $objects, array $pagesReference): bool
+    {
+        $pagesBody = $this->objectBodyForExactReference(
+            $objects,
+            $pagesReference['objectNumber'],
+            $pagesReference['generation']
+        );
+        if ($pagesBody === null || !$this->isPagesObject($pagesBody)) {
+            return false;
+        }
+
+        $kidsValue = $this->topLevelPdfLastValueAfterName($pagesBody, 'Kids');
+        $kidsArray = $kidsValue === null ? null : $this->pdfArrayFromValue($kidsValue, $objects);
+        if ($kidsArray === null || trim($kidsArray) !== '') {
+            return false;
+        }
+
+        $countValue = $this->topLevelPdfLastValueAfterName($pagesBody, 'Count');
+        return $countValue !== null && preg_match('/^\s*0\s*$/s', $countValue) === 1;
     }
 
     /**
@@ -33011,9 +33065,10 @@ final class PdfTextExtractor
                 } elseif ($mappingBlock['declaredCount'] !== null) {
                     $entries = array_slice($entries, 0, max(0, $mappingBlock['declaredCount']));
                 }
+                $entrySlots = $tokenRows !== null ? count($entries) : ($rowEntries['rowSlots'] ?? count($entries));
                 if (
                     $mappingBlock['declaredCount'] !== null
-                    && ($rowEntries['rowSlots'] ?? count($entries)) < max(0, $mappingBlock['declaredCount'])
+                    && $entrySlots < max(0, $mappingBlock['declaredCount'])
                 ) {
                     continue;
                 }
@@ -33612,7 +33667,8 @@ final class PdfTextExtractor
 
         if ($declaredCount !== null) {
             $ranges = array_slice($ranges, 0, max(0, $declaredCount));
-            if (($rowRanges['rowSlots'] ?? count($ranges)) < max(0, $declaredCount)) {
+            $rangeSlots = $tokenRanges !== null ? count($ranges) : ($rowRanges['rowSlots'] ?? count($ranges));
+            if ($rangeSlots < max(0, $declaredCount)) {
                 return;
             }
         }
@@ -38546,7 +38602,10 @@ final class PdfTextExtractor
         $afterId = $index + 2;
         if (
             $this->inlineImageDataPrefixLooksLikeOperatorToken($stream, $afterId)
-            && !$this->inlineImageDictionaryHasTokenizerSampleBoundary($dictionary)
+            && (
+                !$this->inlineImageDictionaryHasTokenizerSampleBoundary($dictionary)
+                || $this->inlineImageDataPrefixLooksLikeIdWordSuffix($stream, $afterId)
+            )
         ) {
             return null;
         }
@@ -38583,6 +38642,21 @@ final class PdfTextExtractor
 
         $suffix = substr($stream, $offset, $end - $offset);
         return preg_match('/^[A-Z][A-Za-z0-9_]*$/', $suffix) === 1;
+    }
+
+    private function inlineImageDataPrefixLooksLikeIdWordSuffix(string $stream, int $offset): bool
+    {
+        if ($offset >= strlen($stream) || $this->isBareTokenDelimiter($stream[$offset])) {
+            return false;
+        }
+
+        $end = $offset;
+        while ($end < strlen($stream) && !$this->isBareTokenDelimiter($stream[$end])) {
+            $end++;
+        }
+
+        $suffix = substr($stream, $offset, $end - $offset);
+        return strlen($suffix) > 2 && preg_match('/^[A-Z][A-Z0-9_]*$/', $suffix) === 1;
     }
 
     private function inlineImageDictionaryHasTokenizerSampleBoundary(string $dictionary): bool
