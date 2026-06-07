@@ -5607,12 +5607,7 @@ final class PdfAcroFormExtractor
             return [];
         }
 
-        $value = trim($effective[$name]['value']);
-        if (!str_starts_with($value, '[')) {
-            return [];
-        }
-
-        $body = $this->arrayBodyFromValue($value);
+        $body = $this->arrayBodyFromValueOrReference($effective[$name]['value'], $objects);
         if ($body === null) {
             return [];
         }
@@ -8344,12 +8339,7 @@ final class PdfAcroFormExtractor
             return [];
         }
 
-        $value = trim($effective['Opt']['value']);
-        if (!str_starts_with($value, '[')) {
-            return [];
-        }
-
-        $body = $this->arrayBodyFromValue($value);
+        $body = $this->arrayBodyFromValueOrReference($effective['Opt']['value'], $objects);
         if ($body === null) {
             return [];
         }
@@ -10107,9 +10097,9 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        if (str_starts_with($value, '[')) {
-            $body = $this->arrayBodyFromValue($value);
-            return $body === null ? [] : $this->scalarValuesFromArrayBody($body, $objects);
+        $arrayBody = $this->arrayBodyFromValueOrReference($value, $objects);
+        if ($arrayBody !== null) {
+            return $this->scalarValuesFromArrayBody($arrayBody, $objects);
         }
 
         return $this->pdfValueToString($value, $objects);
