@@ -525,6 +525,58 @@ $buildUnicodePathBackedPackage = static function () use (
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildCentralUnicodePathMissingLocalBackedPackage = static function () use (
+    $crc32,
+    $buildUnicodeExtra,
+    $unicodePathName,
+    $unicodePathRawName
+): string {
+    $data = "Central-only Unicode path metadata should stay blocked\n";
+    $crc = $crc32($data);
+    $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodePathRawName, $unicodePathName);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($unicodePathRawName),
+        0
+    );
+    $body .= $unicodePathRawName . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($unicodePathRawName),
+        strlen($unicodePathExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $unicodePathRawName . $unicodePathExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildUtf8UnicodePathMismatchBackedPackage = static function () use ($crc32, $buildUnicodeExtra): string {
     $name = 'word/media/review.png';
     $unicodeName = "word/media/review-\u{2603}.png";
@@ -2298,6 +2350,12 @@ try {
     $invalidDosTimestampStrictRejected = str_contains($exception->getMessage(), 'invalid-modification-times');
 }
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
+$centralUnicodePathMissingLocalRejected = false;
+try {
+    ZipPackage::fromString($buildCentralUnicodePathMissingLocalBackedPackage());
+} catch (RuntimeException $exception) {
+    $centralUnicodePathMissingLocalRejected = str_contains($exception->getMessage(), 'Unicode path metadata is missing');
+}
 $utf8UnicodePathMismatchRejected = false;
 try {
     ZipPackage::fromString($buildUtf8UnicodePathMismatchBackedPackage());
@@ -4317,6 +4375,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected Unicode path media attachment bytes to round-trip');
     }
 
+    if (!$centralUnicodePathMissingLocalRejected) {
+        throw new RuntimeException('Expected central-only ZIP Unicode path metadata to be rejected before media import');
+    }
+
     if (!$utf8UnicodePathMismatchRejected) {
         throw new RuntimeException('Expected contradictory UTF-8 ZIP path metadata to be rejected before media import');
     }
@@ -4508,6 +4570,7 @@ echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
 echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
+echo 'zipCentralUnicodePathMissingLocalPolicy=' . ($centralUnicodePathMissingLocalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodePathMismatchPolicy=' . ($utf8UnicodePathMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodeCommentMismatchPolicy=' . ($utf8UnicodeCommentMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";

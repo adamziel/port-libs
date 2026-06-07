@@ -3450,6 +3450,15 @@ final class ZipPackage
             $localName,
             "local extra fields for {$entry->name}",
         );
+        $centralUnicodePath = self::unicodeTextFromExtraFieldData(
+            $entry->centralExtraFieldData,
+            self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+            $entry->rawName,
+            "central extra fields for {$entry->name}",
+        );
+        if ($centralUnicodePath !== null && $localUnicodePath === null && $localName !== $entry->name) {
+            throw new \RuntimeException("ZIP local header Unicode path metadata is missing for central directory entry {$entry->name}");
+        }
         if ($localUnicodePath !== null && $localUnicodePath !== $entry->name) {
             throw new \RuntimeException("ZIP local header Unicode path does not match central directory entry {$entry->name}");
         }

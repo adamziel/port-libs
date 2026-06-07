@@ -2132,6 +2132,40 @@ return [
         $t->same("Unicode media attachment placeholder\n", $package->read('/' . $unicodeName));
     },
 
+    'rejects central unicode zip path names when local source metadata is missing' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, $unicodeName);
+
+        $safePackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => "paired Unicode path metadata stays readable\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ]));
+        $safeEntry = $safePackage->entry('/' . $unicodeName);
+
+        $t->same([$unicodeName], $safePackage->names());
+        $t->same($rawName, $safeEntry->rawName);
+        $t->same($unicodeName, $safeEntry->name);
+        $t->same('info-zip-unicode-path', $safeEntry->nameEncoding);
+        $t->same("paired Unicode path metadata stays readable\n", $safePackage->read('/' . $unicodeName));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'central Unicode path without matching local metadata',
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => '',
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ])));
+    },
+
     'rejects contradictory utf8 flagged unicode zip metadata before media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
@@ -2314,6 +2348,7 @@ return [
                 'name' => 'word/media/review-image.bin',
                 'data' => "safe raw path with Unicode media name\n",
                 'flags' => 0,
+                'localExtra' => $buildUnicodeExtra(0x7075, 'word/media/review-image.bin', $safeUnicodePath),
                 'centralExtra' => $buildUnicodeExtra(0x7075, 'word/media/review-image.bin', $safeUnicodePath),
             ],
         ]));
