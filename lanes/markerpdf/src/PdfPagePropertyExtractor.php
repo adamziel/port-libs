@@ -2998,7 +2998,7 @@ final class PdfPagePropertyExtractor
         $table = $this->xrefTableSectionAt($pdfBytes, $offset);
         if ($table !== null) {
             $entries = $table['entries'];
-            $previousOffset = $this->dictionaryIntegerValue($table['trailer'], 'Prev');
+            $previousOffset = $this->previousXrefOffsetFromSectionDictionary($table['trailer'], $definitions, $offset);
             $entries = $this->repairCurrentUpdateXrefRows($entries, $definitions, $previousOffset, $offset);
             if ($previousOffset !== null) {
                 foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
@@ -3015,7 +3015,7 @@ final class PdfPagePropertyExtractor
         }
 
         $entries = $this->xrefStreamEntriesFromSection($stream);
-        $previousOffset = $this->dictionaryIntegerValue($stream['dictionary'], 'Prev');
+        $previousOffset = $this->previousXrefOffsetFromSectionDictionary($stream['dictionary'], $definitions, $offset);
         $entries = $this->repairCurrentUpdateXrefRows($entries, $definitions, $previousOffset, $offset);
         if ($previousOffset !== null) {
             foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
@@ -3024,6 +3024,76 @@ final class PdfPagePropertyExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function previousXrefOffsetFromSectionDictionary(
+        string $dictionary,
+        array $definitions,
+        int $sectionOffset
+    ): ?int {
+        $direct = $this->dictionaryIntegerValue($dictionary, 'Prev');
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $value = $this->dictionaryRawValue($dictionary, 'Prev');
+        if ($value === null) {
+            return null;
+        }
+
+        for ($depth = 0; $depth < 8; $depth++) {
+            $trimmed = trim($value);
+            if (preg_match('/^[+-]?\d+$/', $trimmed) === 1) {
+                return (int) $trimmed;
+            }
+
+            $reference = $this->objectReferenceFromValue($trimmed);
+            if ($reference === null) {
+                return null;
+            }
+
+            $definition = $this->latestDirectObjectDefinitionForReferenceBeforeOffset(
+                $definitions,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $sectionOffset
+            );
+            if ($definition === null) {
+                return null;
+            }
+
+            $value = $definition['body'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectDefinitionForReferenceBeforeOffset(
+        array $definitions,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?array {
+        $candidates = [];
+        foreach ($definitions[$objectNumber] ?? [] as $definition) {
+            if (
+                $definition['generation'] !== $generation
+                || $definition['offset'] >= $beforeOffset
+            ) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->lastScannedDirectObjectDefinition($candidates);
     }
 
     /**
