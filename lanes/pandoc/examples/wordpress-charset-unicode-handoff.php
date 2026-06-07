@@ -77,6 +77,9 @@ $iso88598Text = (string) $iso88598Source->children[1]->attr('text');
 $iso88599Bytes = "# Latin5 Import\n\nTurkish \xDDstanbul, \xD0a\xF0, \xDEi\xFEli, \xFDl\xFDk; \xD6\xDC remain.";
 $iso88599Source = (new MarkdownReader())->readBytes($iso88599Bytes, 'latin5');
 $iso88599Text = (string) $iso88599Source->children[1]->attr('text');
+$windows1254Bytes = "# Windows Turkish\n\nYazar \x93\xDDstanbul\x94 \x97 \x8010; \xD0a\xF0, \xDEi\xFEli, \xFDl\xFDk; \xD6\xDC remain.";
+$windows1254Source = (new MarkdownReader())->readBytes($windows1254Bytes, 'cp1254');
+$windows1254Text = (string) $windows1254Source->children[1]->attr('text');
 $tis620Bytes = "# \xE4\xB7\xC2\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3.";
 $tis620Source = (new MarkdownReader())->readBytes($tis620Bytes, 'tis-620');
 $tis620Text = (string) $tis620Source->children[1]->attr('text');
@@ -453,6 +456,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88599Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88599Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-1254 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows1254Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1254Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1254Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'TIS-620 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $tis620Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($tis620Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($tis620Text)])]),
@@ -743,6 +751,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>ISO-8859-9 source</td><td>Turkish İstanbul, Ğağ, Şişli, ılık; ÖÜ remain.</td><td>iso-8859-9:46</td>')) {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-9 Turkish decode audit row');
+    }
+    if (($windows1254Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-1254') {
+        throw new RuntimeException('charset handoff self-test missing Windows-1254 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Windows-1254 source</td><td>Yazar “İstanbul” — €10; Ğağ, Şişli, ılık; ÖÜ remain.</td><td>windows-1254:52</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Windows-1254 Turkish decode audit row');
     }
     if (($tis620Source->attr('sourceEncoding')['encoding'] ?? '') !== 'tis-620') {
         throw new RuntimeException('charset handoff self-test missing TIS-620 source encoding');
