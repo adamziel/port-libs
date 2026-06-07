@@ -3428,6 +3428,103 @@ XML);
         ]])->item('manual-role');
         $t->same('Roe', $manual['commentators'][0]['family'] ?? null);
     },
+    'normalizes and renders bounded csl participant name variables' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'participant-source',
+                'type' => 'book',
+                'title' => 'Participant Source Packet',
+                'chair' => [
+                    ['literal' => 'Program Committee', 'annotations' => [['part' => 'name', 'value' => 'agenda verified']]],
+                ],
+                'collection-editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'composer' => [
+                    ['family' => 'Morton', 'given' => 'Mia'],
+                ],
+                'contributor' => [
+                    ['literal' => 'Migration Contributors'],
+                ],
+                'editor-translator' => [
+                    ['family' => 'Garcia', 'given' => 'Gia'],
+                ],
+                'recipient' => [
+                    ['family' => 'Reader', 'given' => 'Rhea', 'annotations' => [['part' => 'family', 'value' => 'recipient family verified']]],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'recipient-source',
+                'type' => 'personal_communication',
+                'title' => 'Recipient Source Packet',
+                'recipient' => [
+                    ['literal' => 'Editorial Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ]);
+
+        $participant = $processor->item('participant-source');
+        $t->same('Program Committee', $participant['chairs'][0]['literal'] ?? null);
+        $t->same('Curator', $participant['collectionEditors'][0]['family'] ?? null);
+        $t->same('Morton', $participant['composers'][0]['family'] ?? null);
+        $t->same('Migration Contributors', $participant['contributors'][0]['literal'] ?? null);
+        $t->same('Garcia', $participant['editorTranslators'][0]['family'] ?? null);
+        $t->same('Reader', $participant['recipients'][0]['family'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="chair"/>
+        <names variable="collection-editor"/>
+        <names variable="composer"/>
+        <names variable="contributor"/>
+        <names variable="editor-translator"/>
+        <names variable="recipient"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="chair"/>
+      <names variable="collection-editor"/>
+      <names variable="composer"/>
+      <names variable="contributor"/>
+      <names variable="editor-translator"/>
+      <names variable="recipient"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('(Program Committee | Curator | Morton | Migration Contributors | Garcia | Reader; Editorial Desk)', $styled->renderCitationCluster([
+            $citation('participant-source', '[@participant-source]'),
+            $citation('recipient-source', '[@recipient-source]'),
+        ]));
+        $t->same(
+            'Participant Source Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified',
+            $styled->renderBibliographyEntry('participant-source')
+        );
+        $t->same('Recipient Source Packet :: Editorial Desk', $styled->renderBibliographyEntry('recipient-source'));
+
+        $document = (new MarkdownReader())->read('Participant sources [@participant-source; @recipient-source] keep CSL role names visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Participant sources (Program Committee | Curator | Morton | Migration Contributors | Garcia | Reader; Editorial Desk) keep CSL role names visible.</p>', $blocks);
+        $t->contains('<dt>Participant Source Packet 2026</dt><dd>Participant Source Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
+        $t->contains('<dt>Recipient Source Packet 2025</dt><dd>Recipient Source Packet :: Editorial Desk</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-recipient',
+            'title' => 'Bad Recipient Source',
+            'recipient' => 'Editorial Desk',
+        ]]));
+    },
     'maps bounded biblatex secondary editor roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{secondary-editor-review,

@@ -833,9 +833,15 @@ final class CitationCslProcessor
             'shortEditors' => self::names($item['short-editor'] ?? $item['shortEditor'] ?? [], $id, 'short-editor'),
             'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
             'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
+            'chairs' => self::names($item['chair'] ?? $item['chairs'] ?? [], $id, 'chair'),
             'containerAuthors' => self::names($item['container-author'] ?? $item['containerAuthor'] ?? [], $id, 'container-author'),
+            'collectionEditors' => self::names($item['collection-editor'] ?? $item['collectionEditor'] ?? [], $id, 'collection-editor'),
+            'composers' => self::names($item['composer'] ?? [], $id, 'composer'),
+            'contributors' => self::names($item['contributor'] ?? [], $id, 'contributor'),
+            'editorTranslators' => self::names($item['editor-translator'] ?? $item['editorTranslator'] ?? [], $id, 'editor-translator'),
             'eventOrganizers' => self::names($item['event-organizer'] ?? [], $id, 'event-organizer'),
             'originalAuthors' => self::names($item['original-author'] ?? [], $id, 'original-author'),
+            'recipients' => self::names($item['recipient'] ?? [], $id, 'recipient'),
             'compilers' => self::names($item['compiler'] ?? [], $id, 'compiler'),
             'curators' => self::names($item['curator'] ?? [], $id, 'curator'),
             'directors' => self::names($item['director'] ?? [], $id, 'director'),
@@ -3777,9 +3783,15 @@ final class CitationCslProcessor
                 continue;
             }
 
-            if ($type !== 'names') {
-                return true;
+            if ($type === 'names') {
+                if (!$this->namesVariableIsDefaultCreatorFallback((string) ($element['variable'] ?? 'author editor'))) {
+                    return true;
+                }
+
+                continue;
             }
+
+            return true;
         }
 
         return false;
@@ -3962,6 +3974,12 @@ final class CitationCslProcessor
         }
 
         $roles = [
+            ['chairs', 'Chaired by', 'chair'],
+            ['collectionEditors', 'Collection edited by', 'collection-editor'],
+            ['composers', 'Composed by', 'composer'],
+            ['contributors', 'Contributed by', 'contributor'],
+            ['editorTranslators', 'Edited and translated by', 'editor-translator'],
+            ['recipients', 'Recipient:', 'recipient'],
             ['compilers', 'Compiled by', 'compiler'],
             ['curators', 'Curated by', 'curator'],
             ['directors', 'Directed by', 'director'],
@@ -4596,9 +4614,15 @@ final class CitationCslProcessor
             ['editors', 'Editor'],
             ['holders', 'Holder'],
             ['translators', 'Translator'],
+            ['chairs', 'Chair'],
             ['containerAuthors', 'Container author'],
+            ['collectionEditors', 'Collection editor'],
+            ['composers', 'Composer'],
+            ['contributors', 'Contributor'],
+            ['editorTranslators', 'Editor-translator'],
             ['eventOrganizers', 'Event organizer'],
             ['originalAuthors', 'Original author'],
+            ['recipients', 'Recipient'],
             ['compilers', 'Compiler'],
             ['curators', 'Curator'],
             ['directors', 'Director'],
@@ -5232,6 +5256,22 @@ final class CitationCslProcessor
         }
 
         return false;
+    }
+
+    private function namesVariableIsDefaultCreatorFallback(string $variable): bool
+    {
+        $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
+        if ($variables === [] || $variables === ['']) {
+            return true;
+        }
+
+        foreach ($variables as $nameVariable) {
+            if (!in_array($nameVariable, ['author', 'editor'], true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -5876,9 +5916,15 @@ final class CitationCslProcessor
             'editor' => $this->renderNamesElement(['variable' => 'editor'], $item, $scope),
             'holder' => $this->renderNamesElement(['variable' => 'holder'], $item, $scope),
             'translator' => $this->renderNamesElement(['variable' => 'translator'], $item, $scope),
+            'chair' => $this->renderNamesElement(['variable' => 'chair'], $item, $scope),
             'container-author' => $this->renderNamesElement(['variable' => 'container-author'], $item, $scope),
+            'collection-editor' => $this->renderNamesElement(['variable' => 'collection-editor'], $item, $scope),
+            'composer' => $this->renderNamesElement(['variable' => 'composer'], $item, $scope),
+            'contributor' => $this->renderNamesElement(['variable' => 'contributor'], $item, $scope),
+            'editor-translator' => $this->renderNamesElement(['variable' => 'editor-translator'], $item, $scope),
             'event-organizer', 'organizer' => $this->renderNamesElement(['variable' => 'event-organizer'], $item, $scope),
             'original-author' => $this->renderNamesElement(['variable' => 'original-author'], $item, $scope),
+            'recipient' => $this->renderNamesElement(['variable' => 'recipient'], $item, $scope),
             'compiler' => $this->renderNamesElement(['variable' => 'compiler'], $item, $scope),
             'curator' => $this->renderNamesElement(['variable' => 'curator'], $item, $scope),
             'director' => $this->renderNamesElement(['variable' => 'director'], $item, $scope),
@@ -5969,7 +6015,7 @@ final class CitationCslProcessor
             return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
         }
 
-        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'translator', 'container-author', 'event-organizer', 'organizer', 'original-author', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
+        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'translator', 'chair', 'container-author', 'collection-editor', 'composer', 'contributor', 'editor-translator', 'event-organizer', 'organizer', 'original-author', 'recipient', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -6146,9 +6192,15 @@ final class CitationCslProcessor
                 'editor' => $item['editors'] ?? [],
                 'holder' => $item['holders'] ?? [],
                 'translator' => $item['translators'] ?? [],
+                'chair' => $item['chairs'] ?? [],
                 'container-author' => $item['containerAuthors'] ?? [],
+                'collection-editor' => $item['collectionEditors'] ?? [],
+                'composer' => $item['composers'] ?? [],
+                'contributor' => $item['contributors'] ?? [],
+                'editor-translator' => $item['editorTranslators'] ?? [],
                 'event-organizer', 'organizer' => $item['eventOrganizers'] ?? [],
                 'original-author' => $item['originalAuthors'] ?? [],
+                'recipient' => $item['recipients'] ?? [],
                 'compiler' => $item['compilers'] ?? [],
                 'curator' => $item['curators'] ?? [],
                 'director' => $item['directors'] ?? [],
