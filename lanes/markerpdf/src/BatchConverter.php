@@ -981,6 +981,149 @@ final class BatchConverter
         }
 
         $modelHandoff = $this->convertMainModelHandoffPlan($torchDevice, $torchDeviceModel, modelSlots: $modelSlots);
+        $modelHandoffErrorBoundary = $this->convertMainModelHandoffErrorBoundary($modelHandoff);
+        if ($modelHandoffErrorBoundary !== null) {
+            $metadataValueReview = $this->runtimeMetadataValueReview(
+                $selectedFilenames,
+                $runtimeMetadata,
+                $runtimeMetadataPlan['metadata_value_types']
+            );
+
+            return [
+                'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
+                'source' => 'sddai/markerPDF convert.py::main + os.path.abspath + os.makedirs(exist_ok=True) + task_args + torch.multiprocessing.Pool',
+                'environment' => [
+                    'PYTORCH_ENABLE_MPS_FALLBACK' => '1',
+                    'IN_STREAMLIT' => 'true',
+                    'PDFTEXT_CPU_WORKERS' => '1',
+                ],
+                'preflight_order' => [
+                    'configure_logging',
+                    'parse_args',
+                    'abspath_input_output',
+                    'list_input_files',
+                    'makedirs_output_exist_ok',
+                    'chunk_files',
+                    'load_metadata_file',
+                    'set_spawn_start_method',
+                    'prepare_model_handoff',
+                    'print_conversion_summary',
+                    'build_task_args',
+                    'pool_imap_process_single_pdf',
+                ],
+                'paths' => [
+                    'input_folder' => $inputFolder,
+                    'output_folder' => $outputFolder,
+                    'absolute_input_folder' => $absoluteInputFolder,
+                    'absolute_output_folder' => $absoluteOutputFolder,
+                    'path_resolution' => $pathResolution,
+                    ...$outputCreation,
+                ],
+                'input_listing' => [
+                    'source' => 'os.listdir + os.path.isfile',
+                    'entry_order_source' => $inputListing['entry_order_source'],
+                    'sort_applied_before_chunking' => $inputListing['sort_applied_before_chunking'],
+                    'preserves_os_listdir_order' => $inputListing['preserves_os_listdir_order'],
+                    'entry_count' => count($inputListing['entry_basenames']),
+                    'entry_basenames' => $inputListing['entry_basenames'],
+                    'file_count' => count($inputListing['file_basenames']),
+                    'file_basenames' => $inputListing['file_basenames'],
+                    'skipped_non_file_count' => count($inputListing['skipped_non_file_basenames']),
+                    'skipped_non_file_basenames' => $inputListing['skipped_non_file_basenames'],
+                    'symlink_filter' => 'os.path.isfile follows regular-file symlinks and excludes directory or broken symlinks',
+                    'symlink_basenames' => $inputListing['symlink_basenames'],
+                    'file_symlink_basenames' => $inputListing['file_symlink_basenames'],
+                    'skipped_symlink_basenames' => $inputListing['skipped_symlink_basenames'],
+                    'broken_symlink_basenames' => $inputListing['broken_symlink_basenames'],
+                    'file_filter' => 'os.path.isfile',
+                    'extension_filter_active' => false,
+                    'non_pdf_files_are_task_candidates' => $inputListing['non_pdf_file_basenames'] !== [],
+                    'non_pdf_file_basenames' => $inputListing['non_pdf_file_basenames'],
+                    'selected_non_pdf_filenames' => $this->nonPdfBasenames($selectedFilenames),
+                ],
+                'chunking' => [
+                    'chunk_index' => $chunkIndex,
+                    'num_chunks' => $numChunks,
+                    'chunk_size' => $chunkSize,
+                    'start_index' => $startIndex,
+                    'end_index' => $endIndex,
+                    'input_order_source' => 'os.listdir filesystem order after os.path.isfile',
+                    'sorts_before_chunking' => false,
+                    'preserves_input_listing_order' => true,
+                    'python_slice_start_index' => $pythonSliceStartIndex,
+                    'python_slice_end_index' => $pythonSliceEndIndex,
+                    'negative_chunk_index_active' => $chunkIndex < 0,
+                    'negative_num_chunks_active' => $numChunks < 0,
+                    'num_chunks_less_than_one_active' => $numChunks < 1,
+                    'max_files' => $maxFiles,
+                    'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
+                    'input_file_count' => count($inputFiles),
+                    'selected_count' => count($selectedFiles),
+                    'selected_filenames' => $selectedFilenames,
+                    'chunking_reached' => true,
+                    'chunk_error_boundary' => null,
+                ],
+                'metadata' => [
+                    'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
+                    'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
+                    'metadata_load_reached' => true,
+                    'metadata_load_success' => true,
+                    'metadata_error_boundary' => null,
+                    'metadata_error_class' => null,
+                    'metadata_error_message' => null,
+                    'metadata_json_type' => $runtimeMetadataPlan['metadata_json_type'],
+                    'metadata_get_available' => $runtimeMetadataPlan['metadata_get_available'],
+                    'metadata_shape_error_boundary' => $runtimeMetadataPlan['metadata_shape_error_boundary'],
+                    'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
+                    'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
+                    'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                    'metadata_top_level_key_order' => $runtimeMetadataPlan['metadata_top_level_key_order'],
+                    'metadata_duplicate_key_review' => $this->runtimeMetadataDuplicateKeyReview(
+                        $selectedFilenames,
+                        $runtimeMetadataPlan
+                    ),
+                    'metadata_value_review' => $metadataValueReview,
+                    'metadata_filenames' => $metadataFilenames,
+                    'selected_metadata_filenames' => $selectedMetadataFilenames,
+                    'missing_metadata_filenames' => $missingMetadataFilenames,
+                ],
+                'spawn_start_method' => $spawnStartMethod,
+                'model_handoff' => $modelHandoff,
+                'worker_pool' => [
+                    'requested_workers' => $workers,
+                    'total_processes' => 0,
+                    'pool_launchable' => false,
+                    'pool_error_boundary' => $modelHandoffErrorBoundary,
+                    'start_method' => 'spawn',
+                    'process_function' => 'process_single_pdf',
+                    'task_args_count' => 0,
+                    'task_args' => [],
+                    'task_args_error_boundary' => $modelHandoffErrorBoundary,
+                    'progress_iterator' => $this->progressIterator(),
+                ],
+                'console_summary' => $this->conversionSummaryPlan(
+                    0,
+                    $chunkIndex,
+                    $numChunks,
+                    0,
+                    $absoluteOutputFolder,
+                    $modelHandoffErrorBoundary
+                ),
+                'conversion_boundary' => [
+                    'min_length' => $minLength,
+                    'per_file_preflight_function' => 'process_single_pdf',
+                    'converter_function' => 'convert_single_pdf',
+                    'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+                    'model_handoff_error_boundary' => $modelHandoffErrorBoundary,
+                    'empty_output_policy' => 'print_empty_file_without_save_markdown',
+                ],
+                'review_only' => true,
+                'executes_python_or_models' => false,
+                'executes_multiprocessing' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        }
         if (!$runtimeMetadataPlan['metadata_get_available'] && $selectedFiles !== []) {
             return [
                 'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
@@ -3465,11 +3608,25 @@ final class BatchConverter
         $normalizedDevice = $torchDevice === null ? null : strtolower(trim($torchDevice));
         $normalizedDeviceModel = $torchDeviceModel === null ? null : strtolower(trim($torchDeviceModel));
         $usesMps = $reached && ($normalizedDevice === 'mps' || $normalizedDeviceModel === 'mps');
+        $shareMemoryReview = $this->convertMainModelShareMemoryReview(
+            $reached,
+            $usesMps,
+            $blockedBy,
+            $modelSlots
+        );
+        $shareMemoryErrorBoundary = ($shareMemoryReview['share_memory_error_found'] ?? false) === true
+            ? 'model-share-memory-failed'
+            : null;
 
         return [
             'source' => 'convert.py settings.TORCH_DEVICE model handoff',
             'order' => 'after_spawn_start_method_before_conversion_summary',
             'model_handoff_reached' => $reached,
+            'model_handoff_success' => $reached && $shareMemoryErrorBoundary === null,
+            'model_handoff_error_boundary' => $shareMemoryErrorBoundary,
+            'blocks_conversion_summary' => $shareMemoryErrorBoundary !== null,
+            'blocks_task_args' => $shareMemoryErrorBoundary !== null,
+            'blocks_pool_launch' => $shareMemoryErrorBoundary !== null,
             'blocked_by' => $blockedBy,
             'torch_device' => $torchDevice,
             'torch_device_model' => $torchDeviceModel,
@@ -3477,17 +3634,12 @@ final class BatchConverter
             'main_load_all_models' => $reached && !$usesMps,
             'share_memory_before_pool' => $reached && !$usesMps,
             'model_share_memory_loop_reached' => $reached && !$usesMps,
-            'worker_init_argument' => !$reached || $usesMps ? null : 'model_lst',
+            'worker_init_argument' => !$reached || $usesMps || $shareMemoryErrorBoundary !== null ? null : 'model_lst',
             'worker_loads_models_when_init_arg_null' => $usesMps,
             'warning' => $usesMps
                 ? "Cannot use MPS with torch multiprocessing share_memory. This will make things less memory efficient. If you want to share memory, you have to use CUDA or CPU.\nSet the TORCH_DEVICE environment variable to change the device."
                 : null,
-            'model_share_memory_review' => $this->convertMainModelShareMemoryReview(
-                $reached,
-                $usesMps,
-                $blockedBy,
-                $modelSlots
-            ),
+            'model_share_memory_review' => $shareMemoryReview,
             'native_plan_loads_models' => false,
             'upstream_model_execution_required' => $reached,
             'executes_python_or_models' => false,
@@ -3515,25 +3667,74 @@ final class BatchConverter
         $slotRows = [];
         $noneSlotIndexes = [];
         $shareMemorySlotIndexes = [];
+        $successfulShareMemorySlotIndexes = [];
+        $shareMemoryErrorSlotIndexes = [];
+        $slotsAfterFirstErrorNotCalled = [];
+        $firstError = null;
+        $containsErrorFixture = $reviewReached
+            && $modelSlots !== null
+            && $this->runtimeModelSlotsContainShareMemoryError($modelSlots);
+        $stoppedOnError = false;
         if ($reviewReached && $modelSlots !== null) {
             foreach (array_values($modelSlots) as $index => $slot) {
-                $isNone = $slot === null;
+                $isNone = $this->runtimeModelSlotIsNone($slot);
                 if ($isNone) {
                     $noneSlotIndexes[] = $index;
-                } else {
-                    $shareMemorySlotIndexes[] = $index;
                 }
 
-                $slotRows[] = [
+                $row = [
                     'index' => $index,
                     'label' => $this->runtimeModelSlotLabel($slot),
                     'is_none' => $isNone,
-                    'share_memory_called' => !$isNone,
+                    'share_memory_called' => false,
                 ];
+
+                if ($containsErrorFixture) {
+                    $row['share_memory_success'] = null;
+                    $row['blocked_by_previous_share_memory_error'] = $stoppedOnError;
+                }
+
+                if ($stoppedOnError) {
+                    $slotsAfterFirstErrorNotCalled[] = $index;
+                    $slotRows[] = $row;
+                    continue;
+                }
+
+                if ($isNone) {
+                    $slotRows[] = $row;
+                    continue;
+                }
+
+                $shareMemorySlotIndexes[] = $index;
+                $row['share_memory_called'] = true;
+                $error = $this->runtimeModelSlotShareMemoryError($slot);
+                if ($error === null) {
+                    $successfulShareMemorySlotIndexes[] = $index;
+                    if ($containsErrorFixture) {
+                        $row['share_memory_success'] = true;
+                    }
+                    $slotRows[] = $row;
+                    continue;
+                }
+
+                $shareMemoryErrorSlotIndexes[] = $index;
+                $firstError ??= [
+                    'index' => $index,
+                    'label' => $row['label'],
+                    'class' => $error['class'],
+                    'message' => $error['message'],
+                ];
+                $row['share_memory_success'] = false;
+                $row['share_memory_error_boundary'] = 'model-share-memory-failed';
+                $row['share_memory_error_class'] = $error['class'];
+                $row['share_memory_error_message'] = $error['message'];
+                $slotRows[] = $row;
+                $stoppedOnError = true;
             }
         }
 
         $fixtureUsed = $reviewReached && $modelSlots !== null;
+        $shareMemoryErrorFound = $shareMemoryErrorSlotIndexes !== [];
 
         return [
             'source' => 'convert.py load_all_models share_memory slot boundary',
@@ -3547,16 +3748,83 @@ final class BatchConverter
             'model_slots' => $slotRows,
             'none_model_slot_indexes' => $noneSlotIndexes,
             'share_memory_model_slot_indexes' => $shareMemorySlotIndexes,
+            'share_memory_successful_model_slot_indexes' => $successfulShareMemorySlotIndexes,
+            'share_memory_error_slot_indexes' => $shareMemoryErrorSlotIndexes,
             'share_memory_call_count' => $fixtureUsed ? count($shareMemorySlotIndexes) : null,
+            'share_memory_error_found' => $shareMemoryErrorFound,
+            'first_share_memory_error_index' => $firstError['index'] ?? null,
+            'first_share_memory_error_label' => $firstError['label'] ?? null,
+            'first_share_memory_error_class' => $firstError['class'] ?? null,
+            'first_share_memory_error_message' => $firstError['message'] ?? null,
+            'share_memory_loop_stops_on_first_error' => $shareMemoryErrorFound,
+            'model_slots_after_first_error_not_called' => $slotsAfterFirstErrorNotCalled,
             'none_slots_skipped_before_share_memory' => $fixtureUsed ? $noneSlotIndexes !== [] : null,
             'none_skip_condition' => 'if model is None: continue',
             'share_memory_call' => 'model.share_memory()',
             'share_memory_loop_reached' => $reviewReached,
-            'blocks_conversion_summary' => !$modelHandoffReached,
-            'blocks_task_args' => !$modelHandoffReached,
+            'blocks_conversion_summary' => !$modelHandoffReached || $shareMemoryErrorFound,
+            'blocks_task_args' => !$modelHandoffReached || $shareMemoryErrorFound,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $modelHandoff
+     */
+    private function convertMainModelHandoffErrorBoundary(array $modelHandoff): ?string
+    {
+        $review = $modelHandoff['model_share_memory_review'] ?? null;
+        if (is_array($review) && ($review['share_memory_error_found'] ?? false) === true) {
+            return 'model-share-memory-failed';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $modelSlots
+     */
+    private function runtimeModelSlotsContainShareMemoryError(array $modelSlots): bool
+    {
+        foreach ($modelSlots as $slot) {
+            if ($this->runtimeModelSlotShareMemoryError($slot) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function runtimeModelSlotIsNone(mixed $slot): bool
+    {
+        return $slot === null
+            || (is_array($slot) && ($slot['is_none'] ?? false) === true);
+    }
+
+    /**
+     * @return array{class: string, message: string}|null
+     */
+    private function runtimeModelSlotShareMemoryError(mixed $slot): ?array
+    {
+        if (!is_array($slot)) {
+            return null;
+        }
+
+        $hasErrorMessage = array_key_exists('share_memory_error', $slot)
+            || array_key_exists('share_memory_error_message', $slot)
+            || (($slot['share_memory_success'] ?? true) === false);
+        if (!$hasErrorMessage) {
+            return null;
+        }
+
+        $message = $slot['share_memory_error'] ?? $slot['share_memory_error_message'] ?? 'model.share_memory() failed';
+        $class = $slot['share_memory_error_class'] ?? 'RuntimeError';
+
+        return [
+            'class' => is_string($class) && trim($class) !== '' ? trim($class) : 'RuntimeError',
+            'message' => is_string($message) && trim($message) !== '' ? trim($message) : 'model.share_memory() failed',
         ];
     }
 
@@ -3564,6 +3832,11 @@ final class BatchConverter
     {
         if ($slot === null) {
             return null;
+        }
+        if (is_array($slot) && array_key_exists('label', $slot)) {
+            $label = $slot['label'];
+
+            return is_scalar($label) || $label === null ? ($label === null ? null : (string) $label) : get_debug_type($label);
         }
         if (is_bool($slot)) {
             return $slot ? 'true' : 'false';
