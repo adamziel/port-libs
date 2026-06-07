@@ -9367,13 +9367,10 @@ final class PdfAcroFormExtractor
 
         $spanValue = trim($span['value']);
         if (!str_starts_with($spanValue, '[')) {
-            $arrayObject = $this->validObjectReferenceFromValue($spanValue, $objects);
-            if ($arrayObject === null || !isset($objects[$arrayObject])) {
-                return $empty;
-            }
-
-            $arrayBody = $this->arrayBodyFromValue(trim($objects[$arrayObject]));
-            if ($arrayBody === null) {
+            $arrayTarget = $this->arrayBodyTargetFromValueOrReference($spanValue, $objects);
+            $arrayObject = $arrayTarget['object'] ?? null;
+            $arrayBody = $arrayTarget['body'] ?? null;
+            if (!is_int($arrayObject) || !is_string($arrayBody) || !isset($objects[$arrayObject])) {
                 return $empty;
             }
 
