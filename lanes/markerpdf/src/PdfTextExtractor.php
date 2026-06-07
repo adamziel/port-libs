@@ -12306,6 +12306,10 @@ final class PdfTextExtractor
             $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references, $seen);
         }
 
+        foreach ($this->type3PrivateExtGStateResourceValues($resourceOwnerBody, $objects) as $value) {
+            $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+        }
+
         foreach ($this->type3PrivateColorSpaceResourceValues($resourceOwnerBody, $objects) as $value) {
             $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
         }
@@ -12321,6 +12325,15 @@ final class PdfTextExtractor
         foreach ($this->type3PrivateFontResourceValues($resourceOwnerBody, $objects) as $value) {
             $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
         }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function type3PrivateExtGStateResourceValues(string $resourceOwnerBody, array $objects): array
+    {
+        return $this->type3PrivateResourceCategoryValues($resourceOwnerBody, $objects, 'ExtGState');
     }
 
     /**
