@@ -806,6 +806,24 @@ XML;
     if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
     }
+    if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 14 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 12) {
+        throw new RuntimeException('Expected EPUB OPF media-type report to count core manifest resources');
+    }
+    if (($result['mediaTypes']['foreignResourceCount'] ?? null) !== 2 || ($result['mediaTypes']['foreignResourceWithoutFallbackCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected EPUB OPF media-type report to classify custom resources as covered by fallback or bindings');
+    }
+    if (($result['mediaTypes']['itemsById']['slideshow']['fallbackCoverage'] ?? null) !== 'manifest-fallback') {
+        throw new RuntimeException('Expected EPUB OPF media-type report to preserve manifest fallback coverage for slideshow resources');
+    }
+    if (($result['mediaTypes']['itemsById']['bound-tour']['fallbackCoverage'] ?? null) !== 'binding-handler') {
+        throw new RuntimeException('Expected EPUB OPF media-type report to preserve OPF binding coverage for bound tour resources');
+    }
+    if (($result['mediaTypes']['itemsById']['style']['requiresSpineFallbackWhenDirect'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB OPF media-type report to distinguish core resources from direct spine content documents');
+    }
+    if (($result['document']->attr('mediaTypes')['itemsById']['bound-tour']['bindingHandlerId'] ?? null) !== 'bound-tour-handler') {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose OPF media-type fallback coverage');
+    }
     if (($result['xhtmlResourceReport']['externalReferenceCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB XHTML content scan to keep remote references unfetched for review');
     }
@@ -1188,6 +1206,11 @@ echo 'accessibilityRecord=' . ($result['accessibility']['linkedRecords'][0]['tar
 echo 'resourceReviewItems=' . ($result['resourceProperties']['summary']['reviewRequiredCount'] ?? 0) . "\n";
 echo 'chapterReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) . "\n";
 echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) . "\n";
+echo 'mediaCoreTypes=' . ($result['mediaTypes']['coreMediaTypeCount'] ?? 0) . "\n";
+echo 'mediaForeignResources=' . ($result['mediaTypes']['foreignResourceCount'] ?? 0) . "\n";
+echo 'mediaReviewRequired=' . ($result['mediaTypes']['reviewRequiredCount'] ?? 0) . "\n";
+echo 'slideshowMediaCoverage=' . ($result['mediaTypes']['itemsById']['slideshow']['fallbackCoverage'] ?? '') . "\n";
+echo 'boundTourMediaCoverage=' . ($result['mediaTypes']['itemsById']['bound-tour']['fallbackCoverage'] ?? '') . "\n";
 echo 'xhtmlContentRemoteReferences=' . ($result['xhtmlResourceReport']['externalReferenceCount'] ?? 0) . "\n";
 echo 'xhtmlContentMathmlAssets=' . ($result['xhtmlResourceReport']['mathmlAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentSwitchAssets=' . ($result['xhtmlResourceReport']['switchAssetCount'] ?? 0) . "\n";

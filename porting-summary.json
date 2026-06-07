@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-07 00:32:17 UTC",
-    "sourceCommit": "3a8058f7395669b2624b4a95a60e0fcfd8045b07",
-    "sourceCommitShort": "3a8058f73956",
+    "generated": "2026-06-07 00:32:33 UTC",
+    "sourceCommit": "9c14692adbd97fa716a467142b074b7c5f7f34cd",
+    "sourceCommitShort": "9c14692adbd9",
     "sourceBranch": "unknown",
-    "dashboardCommit": "3a8058f7395669b2624b4a95a60e0fcfd8045b07",
-    "dashboardCommitShort": "3a8058f73956",
+    "dashboardCommit": "9c14692adbd97fa716a467142b074b7c5f7f34cd",
+    "dashboardCommitShort": "9c14692adbd9",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,11 +139,11 @@
             "unmapped": "441",
             "php": "1,421 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC PDF engine current-base artifact marked-content slice...",
+            "audit": "2026-06-07 UTC EPUB3 package current-base media-type fallback slice o...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For PDF-engine follow-up, keep produced-byte parity bounded t...",
+            "nextTarget": "For EPUB3 package follow-up, keep package parity bounded to n...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

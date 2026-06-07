@@ -1901,6 +1901,92 @@ XML;
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
     },
+    'classifies OPF manifest core media and foreign resource fallback coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $widgetFallbackXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Widget review fallback</title></head>
+  <body><p>Custom widget fallback stays reviewable.</p></body>
+</html>
+XML;
+        $opfWithMediaTypes = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="poster-heic" href="images/poster.heic" media-type="image/heic"/>'
+            . '<item id="poster-heic-fallback" href="images/poster-fallback.heic" media-type="image/heic" fallback="cover-image"/>'
+            . '<item id="review-video" href="video/review.mp4" media-type="video/mp4"/>'
+            . '<item id="custom-widget" href="widgets/review.bin" media-type="application/x-review-widget"/>'
+            . '<item id="widget-handler" href="text/widget-fallback.xhtml" media-type="application/xhtml+xml"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithMediaTypes = str_replace(
+            '</package>',
+            '<bindings><mediaType media-type="application/x-review-widget" handler="widget-handler"/></bindings></package>',
+            $opfWithMediaTypes
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithMediaTypes,
+            null,
+            [
+                ['name' => 'OEBPS/images/poster.heic', 'data' => 'HEIC-POSTER'],
+                ['name' => 'OEBPS/images/poster-fallback.heic', 'data' => 'HEIC-FALLBACK'],
+                ['name' => 'OEBPS/video/review.mp4', 'data' => 'MP4-REVIEW'],
+                ['name' => 'OEBPS/widgets/review.bin', 'data' => 'WIDGET-BYTES'],
+                ['name' => 'OEBPS/text/widget-fallback.xhtml', 'data' => $widgetFallbackXhtml],
+            ]
+        ));
+
+        $mediaTypes = $result['mediaTypes'];
+        $itemsById = $mediaTypes['itemsById'];
+
+        $t->same(11, $mediaTypes['manifestItemCount']);
+        $t->same(7, $mediaTypes['coreMediaTypeCount']);
+        $t->same(3, $mediaTypes['foreignResourceCount']);
+        $t->same(1, $mediaTypes['exemptResourceCount']);
+        $t->same(4, $mediaTypes['epubContentDocumentCount']);
+        $t->same(1, $mediaTypes['manifestFallbackCount']);
+        $t->same(1, $mediaTypes['bindingHandledCount']);
+        $t->same(1, $mediaTypes['foreignResourceWithoutFallbackCount']);
+        $t->same(1, $mediaTypes['reviewRequiredCount']);
+        $t->same('foreign-resource-without-fallback', $mediaTypes['diagnostics'][0]['type']);
+        $t->same('poster-heic', $mediaTypes['diagnostics'][0]['id']);
+
+        $t->same(true, $itemsById['cover-image']['coreMediaType']);
+        $t->same('image', $itemsById['cover-image']['coreMediaTypeKind']);
+        $t->same(false, $itemsById['cover-image']['foreignResource']);
+        $t->same(false, $itemsById['cover-image']['reviewRequired']);
+
+        $t->same(false, $itemsById['poster-heic']['coreMediaType']);
+        $t->same(true, $itemsById['poster-heic']['foreignResource']);
+        $t->same(false, $itemsById['poster-heic']['hasManifestFallback']);
+        $t->same(false, $itemsById['poster-heic']['bindingHandled']);
+        $t->same(true, $itemsById['poster-heic']['reviewRequired']);
+        $t->same(['foreign-resource-without-fallback'], $itemsById['poster-heic']['reviewFlags']);
+
+        $t->same(true, $itemsById['poster-heic-fallback']['foreignResource']);
+        $t->same(true, $itemsById['poster-heic-fallback']['hasManifestFallback']);
+        $t->same('cover-image', $itemsById['poster-heic-fallback']['fallbackId']);
+        $t->same('manifest-fallback', $itemsById['poster-heic-fallback']['fallbackCoverage']);
+        $t->same(false, $itemsById['poster-heic-fallback']['reviewRequired']);
+
+        $t->same(false, $itemsById['review-video']['coreMediaType']);
+        $t->same(true, $itemsById['review-video']['exemptResource']);
+        $t->same('video', $itemsById['review-video']['exemptReason']);
+        $t->same('exempt-resource', $itemsById['review-video']['fallbackCoverage']);
+        $t->same(false, $itemsById['review-video']['reviewRequired']);
+
+        $t->same(true, $itemsById['custom-widget']['foreignResource']);
+        $t->same(true, $itemsById['custom-widget']['bindingHandled']);
+        $t->same('widget-handler', $itemsById['custom-widget']['bindingHandlerId']);
+        $t->same('binding-handler', $itemsById['custom-widget']['fallbackCoverage']);
+        $t->same(false, $itemsById['custom-widget']['reviewRequired']);
+
+        $t->same(true, $itemsById['chapter-1']['epubContentDocument']);
+        $t->same(false, $itemsById['chapter-1']['requiresSpineFallbackWhenDirect']);
+        $t->same(true, $itemsById['style']['requiresSpineFallbackWhenDirect']);
+        $t->same($mediaTypes, $result['importReport']['mediaTypes']);
+        $t->same($mediaTypes, $result['document']->attr('mediaTypes'));
+    },
     'parses OPF metadata link records without treating linked records as undeclared assets' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reviewRecordBytes = '{"@context":"https://schema.org","name":"WordPress EPUB review record"}';
         $opfWithMetadataLinks = str_replace(

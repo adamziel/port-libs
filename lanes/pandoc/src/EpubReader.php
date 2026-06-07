@@ -32,6 +32,29 @@ final class EpubReader
         'schema' => 'http://schema.org/',
         'xsd' => 'http://www.w3.org/2001/XMLSchema#',
     ];
+    private const CORE_MEDIA_TYPE_KINDS = [
+        'application/ecmascript' => 'script',
+        'application/font-sfnt' => 'font',
+        'application/font-woff' => 'font',
+        'application/javascript' => 'script',
+        'application/smil+xml' => 'media-overlay',
+        'application/vnd.ms-opentype' => 'font',
+        'application/x-dtbncx+xml' => 'navigation',
+        'application/xhtml+xml' => 'xhtml',
+        'audio/mp4' => 'audio',
+        'audio/mpeg' => 'audio',
+        'font/otf' => 'font',
+        'font/ttf' => 'font',
+        'font/woff' => 'font',
+        'font/woff2' => 'font',
+        'image/gif' => 'image',
+        'image/jpeg' => 'image',
+        'image/png' => 'image',
+        'image/svg+xml' => 'svg',
+        'image/webp' => 'image',
+        'text/css' => 'style',
+        'text/javascript' => 'script',
+    ];
 
     /**
      * @return array{
@@ -52,6 +75,7 @@ final class EpubReader
      *     renditions:array<string, mixed>,
      *     bindings:array<string, mixed>,
      *     resourceProperties:array<string, mixed>,
+     *     mediaTypes:array<string, mixed>,
      *     remoteResources:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     ocf:array<string, mixed>,
@@ -86,6 +110,7 @@ final class EpubReader
             $opf['bindings'],
             $opf['accessibility'],
             $opf['resourceProperties'],
+            $opf['mediaTypes'],
             $opf['remoteResources'],
             $opf['mediaDurations'],
             $opf['pageBreaks'],
@@ -114,6 +139,7 @@ final class EpubReader
             'renditions' => $renditions,
             'bindings' => $opf['bindings'],
             'resourceProperties' => $opf['resourceProperties'],
+            'mediaTypes' => $opf['mediaTypes'],
             'remoteResources' => $opf['remoteResources'],
             'encryption' => $opf['encryption'],
             'ocf' => $ocf,
@@ -156,6 +182,7 @@ final class EpubReader
                 'bindings' => $opf['bindings'],
                 'accessibility' => $opf['accessibility'],
                 'resourceProperties' => $opf['resourceProperties'],
+                'mediaTypes' => $opf['mediaTypes'],
                 'remoteResources' => $opf['remoteResources'],
                 'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
                 'cssResourceReport' => $opf['cssResourceReport'],
@@ -447,6 +474,7 @@ final class EpubReader
      *     bindings:array<string, mixed>,
      *     accessibility:array<string, mixed>,
      *     resourceProperties:array<string, mixed>,
+     *     mediaTypes:array<string, mixed>,
      *     remoteResources:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
@@ -494,6 +522,7 @@ final class EpubReader
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById, $prefixReport['bindingsByPrefix']);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
+        $manifestById = self::attachManifestMediaTypeReports($manifestById, $bindings);
         $mediaDurations = self::mediaDurationReport($metadata, $manifestById);
         $metadata['mediaDurations'] = $mediaDurations;
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations);
@@ -511,6 +540,7 @@ final class EpubReader
         $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $manifest = array_values($manifestById);
         $resourceProperties = self::resourcePropertyReport($manifest);
+        $mediaTypes = self::manifestMediaTypeReport($manifest);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
         $assetReport = $this->assetReport($package, $opfPart, $manifest, $manifestById, $metadata);
@@ -551,6 +581,7 @@ final class EpubReader
             'bindings' => $bindings,
             'accessibility' => $metadata['accessibility'],
             'resourceProperties' => $resourceProperties,
+            'mediaTypes' => $mediaTypes,
             'remoteResources' => $remoteResources,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
@@ -3826,6 +3857,235 @@ final class EpubReader
             if (($binding['mediaType'] ?? null) === $mediaType) {
                 return $binding;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $bindings
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function attachManifestMediaTypeReports(array $manifestById, array $bindings): array
+    {
+        foreach ($manifestById as $id => $item) {
+            $binding = self::bindingForMediaType($bindings, (string) ($item['mediaType'] ?? ''));
+            $report = self::manifestItemMediaTypeReport($item, $binding);
+
+            $item['mediaTypeReport'] = $report;
+            $item['coreMediaType'] = $report['coreMediaType'];
+            $item['coreMediaTypeKind'] = $report['coreMediaTypeKind'];
+            $item['epubContentDocument'] = $report['epubContentDocument'];
+            $item['foreignResource'] = $report['foreignResource'];
+            $item['exemptResource'] = $report['exemptResource'];
+            $item['mediaTypeReviewFlags'] = $report['reviewFlags'];
+            $item['mediaTypeDiagnostics'] = $report['diagnostics'];
+            $manifestById[$id] = $item;
+        }
+
+        return $manifestById;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestMediaTypeReport(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $itemsByMediaType = [];
+        $reviewItems = [];
+        $diagnostics = [];
+
+        foreach ($manifest as $item) {
+            $report = is_array($item['mediaTypeReport'] ?? null)
+                ? $item['mediaTypeReport']
+                : self::manifestItemMediaTypeReport($item, null);
+            $items[] = $report;
+
+            $id = (string) ($report['id'] ?? '');
+            if ($id !== '') {
+                $itemsById[$id] = $report;
+            }
+
+            $normalized = (string) ($report['normalizedMediaType'] ?? '');
+            if ($normalized !== '') {
+                $itemsByMediaType[$normalized][] = $report;
+            }
+
+            if (($report['reviewRequired'] ?? false) === true) {
+                $reviewItems[] = $report;
+            }
+
+            foreach (($report['diagnostics'] ?? []) as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'id' => $id,
+                    'mediaType' => (string) ($report['mediaType'] ?? ''),
+                ] + $diagnostic;
+            }
+        }
+
+        $countWhere = static function (callable $predicate) use ($items): int {
+            return count(array_filter($items, $predicate));
+        };
+
+        return [
+            'manifestItemCount' => count($items),
+            'coreMediaTypeCount' => $countWhere(static fn (array $item): bool => ($item['coreMediaType'] ?? false) === true),
+            'foreignResourceCount' => $countWhere(static fn (array $item): bool => ($item['foreignResource'] ?? false) === true),
+            'exemptResourceCount' => $countWhere(static fn (array $item): bool => ($item['exemptResource'] ?? false) === true),
+            'epubContentDocumentCount' => $countWhere(static fn (array $item): bool => ($item['epubContentDocument'] ?? false) === true),
+            'requiresSpineFallbackWhenDirectCount' => $countWhere(static fn (array $item): bool => ($item['requiresSpineFallbackWhenDirect'] ?? false) === true),
+            'manifestFallbackCount' => $countWhere(static fn (array $item): bool => ($item['hasManifestFallback'] ?? false) === true),
+            'bindingHandledCount' => $countWhere(static fn (array $item): bool => ($item['bindingHandled'] ?? false) === true),
+            'foreignResourceWithoutFallbackCount' => $countWhere(static fn (array $item): bool => in_array('foreign-resource-without-fallback', $item['reviewFlags'] ?? [], true)),
+            'reviewRequiredCount' => count($reviewItems),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByMediaType' => $itemsByMediaType,
+            'reviewItems' => $reviewItems,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param ?array<string, mixed> $binding
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestItemMediaTypeReport(array $item, ?array $binding): array
+    {
+        $id = (string) ($item['id'] ?? '');
+        $mediaType = (string) ($item['mediaType'] ?? '');
+        $part = is_string($item['part'] ?? null) ? (string) $item['part'] : null;
+        $parts = self::mediaTypeParts($mediaType);
+        $coreKind = self::coreMediaTypeKind($mediaType);
+        $core = $coreKind !== null;
+        $epubContentDocument = in_array($parts['base'], [self::XHTML_MEDIA_TYPE, 'image/svg+xml'], true);
+        $exemptReason = $core ? null : self::exemptMediaTypeReason($mediaType, $part ?? '');
+        $exempt = $exemptReason !== null;
+        $foreignResource = !$core && !$exempt;
+        $fallbackId = self::nullableManifestId($item['fallback'] ?? null);
+        $hasManifestFallback = $fallbackId !== null;
+        $bindingHandlerId = is_array($binding) && is_string($binding['handlerId'] ?? null) ? $binding['handlerId'] : null;
+        $bindingHandled = is_array($binding)
+            && ($binding['handlerExists'] ?? false) === true
+            && ($binding['handlerCanExposeBytes'] ?? false) === true
+            && ($binding['handlerMediaType'] ?? null) === self::XHTML_MEDIA_TYPE;
+
+        $reviewFlags = [];
+        $diagnostics = [];
+        if ($foreignResource && !$hasManifestFallback && !$bindingHandled) {
+            $reviewFlags[] = 'foreign-resource-without-fallback';
+            $diagnostics[] = [
+                'type' => 'foreign-resource-without-fallback',
+                'fallbackRequired' => true,
+                'fallbackId' => null,
+                'bindingHandlerId' => $bindingHandlerId,
+                'message' => 'EPUB OPF manifest item uses a non-core media type without a manifest fallback or OPF binding handler',
+            ];
+        }
+
+        $fallbackCoverage = match (true) {
+            $hasManifestFallback => 'manifest-fallback',
+            $bindingHandled => 'binding-handler',
+            $core => 'core-media-type',
+            $exempt => 'exempt-resource',
+            default => 'missing',
+        };
+
+        return [
+            'id' => $id,
+            'href' => (string) ($item['href'] ?? ''),
+            'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+            'part' => $part,
+            'external' => (bool) ($item['external'] ?? false),
+            'exists' => (bool) ($item['exists'] ?? false),
+            'mediaType' => $mediaType,
+            'normalizedMediaType' => $parts['normalized'],
+            'baseMediaType' => $parts['base'],
+            'mediaTypeParameters' => $parts['parameters'],
+            'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+            'coreMediaType' => $core,
+            'coreMediaTypeKind' => $coreKind,
+            'epubContentDocument' => $epubContentDocument,
+            'requiresSpineFallbackWhenDirect' => !$epubContentDocument,
+            'foreignResource' => $foreignResource,
+            'exemptResource' => $exempt,
+            'exemptReason' => $exemptReason,
+            'fallbackId' => $fallbackId,
+            'hasManifestFallback' => $hasManifestFallback,
+            'bindingHandlerId' => $bindingHandlerId,
+            'bindingHandled' => $bindingHandled,
+            'fallbackCoverage' => $fallbackCoverage,
+            'reviewRequired' => $reviewFlags !== [],
+            'reviewFlags' => $reviewFlags,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{normalized:string, base:string, parameters:array<string, string>}
+     */
+    private static function mediaTypeParts(string $mediaType): array
+    {
+        $tokens = array_map('trim', explode(';', trim($mediaType)));
+        $base = strtolower(array_shift($tokens) ?? '');
+        $parameters = [];
+        foreach ($tokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+
+            [$name, $value] = array_pad(explode('=', $token, 2), 2, '');
+            $name = strtolower(trim($name));
+            if ($name === '') {
+                continue;
+            }
+
+            $parameters[$name] = trim($value, " \t\n\r\0\x0B\"'");
+        }
+
+        $normalized = $base;
+        foreach ($parameters as $name => $value) {
+            $normalized .= '; ' . $name . '=' . strtolower($value);
+        }
+
+        return [
+            'normalized' => $normalized,
+            'base' => $base,
+            'parameters' => $parameters,
+        ];
+    }
+
+    private static function coreMediaTypeKind(string $mediaType): ?string
+    {
+        $parts = self::mediaTypeParts($mediaType);
+        if ($parts['base'] === 'audio/ogg') {
+            return strtolower($parts['parameters']['codecs'] ?? '') === 'opus' ? 'audio' : null;
+        }
+
+        return self::CORE_MEDIA_TYPE_KINDS[$parts['base']] ?? null;
+    }
+
+    private static function exemptMediaTypeReason(string $mediaType, string $part): ?string
+    {
+        $parts = self::mediaTypeParts($mediaType);
+        if (str_starts_with($parts['base'], 'video/')) {
+            return 'video';
+        }
+
+        if (self::isFontResource($mediaType, $part)) {
+            return 'font';
         }
 
         return null;
@@ -7795,6 +8055,9 @@ final class EpubReader
                 'part' => $item['part'],
                 'external' => (bool) ($item['external'] ?? false),
                 'mediaType' => $item['mediaType'],
+                'mediaTypeReport' => $item['mediaTypeReport'] ?? null,
+                'mediaTypeReviewFlags' => $item['mediaTypeReviewFlags'] ?? [],
+                'mediaTypeDiagnostics' => $item['mediaTypeDiagnostics'] ?? [],
                 'properties' => $item['properties'],
                 'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
                 'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
@@ -8340,6 +8603,7 @@ final class EpubReader
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $accessibility
      * @param array<string, mixed> $resourceProperties
+     * @param array<string, mixed> $mediaTypes
      * @param array<string, mixed> $remoteResources
      * @param array<string, mixed> $mediaDurations
      * @param array<string, mixed> $pageBreaks
@@ -8360,6 +8624,7 @@ final class EpubReader
         array $bindings,
         array $accessibility,
         array $resourceProperties,
+        array $mediaTypes,
         array $remoteResources,
         array $mediaDurations,
         array $pageBreaks,
@@ -8448,6 +8713,7 @@ final class EpubReader
             'accessibility' => $accessibility,
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
+            'mediaTypes' => $mediaTypes,
             'remoteResources' => $remoteResources,
             'navigation' => $navigation,
             'xhtmlResourceReport' => $xhtmlResourceReport,
