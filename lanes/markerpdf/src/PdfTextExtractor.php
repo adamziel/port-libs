@@ -32604,6 +32604,17 @@ final class PdfTextExtractor
         foreach ($this->cMapOperatorBlocks($cmap, 'begincodespacerange', 'endcodespacerange') as $blockMatch) {
             $block = $this->cMapOperatorBlockData($blockMatch['body']);
             $entries = $this->cMapTopLevelHexPairs($block);
+            $rowEntries = $this->cMapTopLevelHexPairRows($block);
+            if (
+                $rowEntries['hasMalformedRows']
+                && $rowEntries['pairs'] !== []
+                && (
+                    $blockMatch['declaredCount'] === null
+                    || count($rowEntries['pairs']) >= min(max(0, (int) $blockMatch['declaredCount']), count($entries))
+                )
+            ) {
+                $entries = $rowEntries['pairs'];
+            }
             if ($entries === []) {
                 continue;
             }
