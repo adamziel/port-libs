@@ -61,6 +61,8 @@ Math alphabet alias audit $\mathup{x} + \symbf{A1} + \bm{\alpha_i} + \mathds{R2}
 
 Stacked limits audit $\sum_{\substack{i=1 \\ i\ne j}}^{n} a_i + \lim_{\substack{x \to 0 \\ x > 0}} f(x)$ stays semantic.
 
+Prescript isotope audit $\prescript{14}{6}{C} + \prescript{\text{review}}{}{p_i} + \prescript{}{L}{\operatorname{score}}_j$ stays semantic.
+
 Operator limits audit $\sum\limits_{i=1}^{n} p_i + \lim\limits_{x \to 0} f(x) + \int\nolimits_{0}^{1} g(x) dx$ stays semantic.
 
 Starred operator limits audit $\operatorname*{argmax}_{p_i \in P}^{\text{draft}} f(p_i) + \operatorname{median}\displaylimits_{i=1}^{n} p_i + \operatorname*{rank}\nolimits_{j} q_j$ stays semantic.
@@ -188,6 +190,7 @@ $summary = [
     'mathAlphanumericMathml' => $converter->texToMathMl('\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}'),
     'mathAlphabetAliasMathml' => $converter->texToMathMl('\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}'),
     'substackMathml' => $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)'),
+    'prescriptMathml' => $converter->texToMathMl('\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j'),
     'operatorLimitsMathml' => $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx'),
     'starredOperatorLimitsMathml' => $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j'),
     'moduloMathml' => $converter->texToMathMl('a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i'),
@@ -291,6 +294,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}\\)</span>',
         '<span class="math inline">\\(\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}\\)</span>',
         '<span class="math inline">\\(\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)\\)</span>',
+        '<span class="math inline">\\(\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j\\)</span>',
         '<span class="math inline">\\(\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx\\)</span>',
         '<span class="math inline">\\(\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j\\)</span>',
         '<span class="math inline">\\(a \\mod n + b \\bmod m_i + x \\pmod {n+1} + y \\pod m_i\\)</span>',
@@ -412,6 +416,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mstyle mathvariant="monospace"><mrow><mi>' . $mathSymbol(0x1D68C) . '</mi><mi>' . $mathSymbol(0x1D698) . '</mi><mi>' . $mathSymbol(0x1D68D) . '</mi><mi>' . $mathSymbol(0x1D68E) . '</mi><mn>' . $mathSymbol(0x1D7FA) . $mathSymbol(0x1D7F8) . '</mn></mrow></mstyle>',
         '<msubsup><mo>∑</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>i</mi><mo>=</mo><mn>1</mn></mtd></mtr><mtr><mtd><mi>i</mi><mo>≠</mo><mi>j</mi></mtd></mtr></mtable><mi>n</mi></msubsup><msub><mi>a</mi><mi>i</mi></msub>',
         '<msub><mo>lim</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>x</mi><mo>→</mo><mn>0</mn></mtd></mtr><mtr><mtd><mi>x</mi><mo>&gt;</mo><mn>0</mn></mtd></mtr></mtable></msub><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>',
+        '<mmultiscripts><mi>C</mi><mprescripts/><mn>6</mn><mn>14</mn></mmultiscripts><mo>+</mo><mmultiscripts><msub><mi>p</mi><mi>i</mi></msub><mprescripts/><none/><mtext>review</mtext></mmultiscripts><mo>+</mo><msub><mmultiscripts><mi>score</mi><mprescripts/><mi>L</mi><none/></mmultiscripts><mi>j</mi></msub>',
+        '<annotation encoding="application/x-tex">\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j</annotation>',
         '<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>',
         '<munder><mo>lim</mo><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></munder><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>',
         '<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi>',

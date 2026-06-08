@@ -457,6 +457,23 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sideset{a}{_b}\\sum'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sideset{_a_a}{_b}\\sum'));
     },
+    'converts bounded tex prescript atoms to mathml multiscripts' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $prescriptMathml = $converter->texToMathMl('\\prescript{14}{6}{C} + \\prescript{\\text{pre}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\prescript{14}{6}{C}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $prescriptMathml);
+        $t->contains('<mmultiscripts><mi>C</mi><mprescripts/><mn>6</mn><mn>14</mn></mmultiscripts>', $prescriptMathml);
+        $t->contains('<mmultiscripts><msub><mi>p</mi><mi>i</mi></msub><mprescripts/><none/><mtext>pre</mtext></mmultiscripts>', $prescriptMathml);
+        $t->contains('<msub><mmultiscripts><mi>score</mi><mprescripts/><mi>L</mi><none/></mmultiscripts><mi>j</mi></msub>', $prescriptMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\prescript{14}{6}{C} + \\prescript{\\text{pre}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j</annotation>', $prescriptMathml);
+        $t->contains('alttext="C pre-sub 6 pre-sup 14"', $accessibleMathml);
+        $t->contains('intent="multiscripts(c,presub(6),presup(14))"', $accessibleMathml);
+        $t->true(!str_contains($prescriptMathml, '<mi>\\prescript</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\prescript{14}{6}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\prescript{}{}{C}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\prescript{14}{6}{}'));
+    },
     'converts bounded tex starred operator names and displaylimits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $starredMathml = $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname*{limsup}^{n} a_n', true);

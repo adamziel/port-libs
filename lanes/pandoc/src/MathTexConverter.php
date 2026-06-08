@@ -1831,6 +1831,10 @@ final class MathTexConverter
             return $this->parseSidesetCommand($source, $offset);
         }
 
+        if ($command === 'prescript') {
+            return $this->parsePrescriptCommand($source, $offset);
+        }
+
         if ($command === 'overset') {
             $above = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset above');
             $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset base');
@@ -4851,6 +4855,42 @@ final class MathTexConverter
         }
 
         return $mathml . '</mmultiscripts>';
+    }
+
+    private function parsePrescriptCommand(string $source, int &$offset): string
+    {
+        $superscript = $this->parsePrescriptScriptGroup($source, $offset, 'superscript');
+        $subscript = $this->parsePrescriptScriptGroup($source, $offset, 'subscript');
+        if ($superscript === null && $subscript === null) {
+            throw new \InvalidArgumentException('Expected TeX prescript subscript or superscript at offset ' . $offset);
+        }
+
+        $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'prescript base');
+
+        return '<mmultiscripts>' . $base
+            . '<mprescripts/>'
+            . ($subscript ?? '<none/>')
+            . ($superscript ?? '<none/>')
+            . '</mmultiscripts>';
+    }
+
+    private function parsePrescriptScriptGroup(string $source, int &$offset, string $label): ?string
+    {
+        $this->skipWhitespace($source, $offset);
+        $argument = $this->readTexBraceArgument($source, $offset);
+        if ($argument === null) {
+            throw new \InvalidArgumentException('Expected TeX prescript ' . $label . ' group at offset ' . $offset);
+        }
+
+        $offset = $argument['next'];
+        if (trim($argument['value']) === '') {
+            return null;
+        }
+
+        return $this->withMathChoiceStyle(
+            $this->nestedMathChoiceScriptStyle(),
+            fn (): string => $this->parseTexFragment($argument['value'], 'prescript ' . $label)
+        );
     }
 
     /**
