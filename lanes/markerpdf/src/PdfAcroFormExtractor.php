@@ -3476,23 +3476,23 @@ final class PdfAcroFormExtractor
         $seen = [];
 
         while (isset($objects[$candidate]) && !isset($seen[$candidate])) {
-            if ($this->objectIsStreamObject($candidate, $objects)) {
+            $seen[$candidate] = true;
+            $body = $this->completeAcroFormDictionaryObjectBody($candidate, $objects);
+            if ($body === null) {
                 break;
             }
 
-            $seen[$candidate] = true;
-            $body = $this->dictionaryObjectBody($objects[$candidate]) ?? trim($objects[$candidate]);
             $parentObject = $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects);
+            $parentBody = $parentObject === null ? null : $this->completeAcroFormDictionaryObjectBody($parentObject, $objects);
             if (
                 $parentObject === null
                 || !isset($objects[$parentObject])
                 || isset($seen[$parentObject])
-                || $this->objectIsStreamObject($parentObject, $objects)
+                || $parentBody === null
             ) {
                 break;
             }
 
-            $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
             if (!$this->isFieldDictionaryCandidate($parentBody) || !$this->fieldParentOwnsChild($parentObject, $candidate, $objects)) {
                 break;
             }
@@ -3505,7 +3505,11 @@ final class PdfAcroFormExtractor
         $nameParts = [];
         $hierarchyPath = [];
         foreach ($ancestors as $ancestorObject) {
-            $body = $this->dictionaryObjectBody($objects[$ancestorObject] ?? '') ?? trim($objects[$ancestorObject] ?? '');
+            $body = $this->completeAcroFormDictionaryObjectBody($ancestorObject, $objects);
+            if ($body === null) {
+                continue;
+            }
+
             $inherited = $this->mergeFieldAttributes($body, $inherited, $ancestorObject);
 
             $partialName = $this->lastPdfStringValueAfterName($body, 'T', $objects);
@@ -3553,12 +3557,16 @@ final class PdfAcroFormExtractor
         array $pageWidgets,
         array $fieldNamesByObject
     ): array {
-        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
             return [];
         }
 
         $seen[$objectNumber] = true;
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
+            return [];
+        }
+
         if (!$this->isFieldDictionaryCandidate($body)) {
             return [];
         }
@@ -3585,7 +3593,7 @@ final class PdfAcroFormExtractor
         $childFieldRefs = [];
         $widgetRefs = [];
         foreach ($kidRefs as $kidRef) {
-            if (isset($seen[$kidRef]) || !isset($objects[$kidRef]) || $this->objectIsStreamObject($kidRef, $objects)) {
+            if (isset($seen[$kidRef]) || !isset($objects[$kidRef])) {
                 continue;
             }
 
@@ -3593,7 +3601,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $kidBody = $this->dictionaryObjectBody($objects[$kidRef]) ?? trim($objects[$kidRef]);
+            $kidBody = $this->completeAcroFormDictionaryObjectBody($kidRef, $objects);
+            if ($kidBody === null) {
+                continue;
+            }
+
             if ($this->isPureWidget($kidBody)) {
                 $widgetRefs[] = $kidRef;
                 continue;
@@ -6222,7 +6234,11 @@ final class PdfAcroFormExtractor
             }
             $seen[$widgetRef] = true;
 
-            $body = $this->dictionaryObjectBody($objects[$widgetRef]) ?? trim($objects[$widgetRef]);
+            $body = $this->completeAcroFormDictionaryObjectBody($widgetRef, $objects);
+            if ($body === null) {
+                continue;
+            }
+
             $pageObject = $this->lastValidObjectReferenceValueAfterName($body, 'P', $objects) ?? ($pageWidgets[$widgetRef]['page_object'] ?? null);
             $pageIndex = $pageObject !== null && isset($pageIndexes[$pageObject])
                 ? $pageIndexes[$pageObject]
@@ -6338,7 +6354,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+            $body = $this->completeAcroFormDictionaryObjectBody($widgetObject, $objects);
+            if ($body === null) {
+                continue;
+            }
+
             $parentObject = $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects);
             if ($parentObject === null || !isset($names[$parentObject])) {
                 continue;
@@ -6365,7 +6385,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $body = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+            $body = $this->completeAcroFormDictionaryObjectBody($widgetObject, $objects);
+            if ($body === null) {
+                continue;
+            }
+
             if (!$this->isWidget($body) || $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects) !== $fieldObject) {
                 continue;
             }
@@ -6390,11 +6414,15 @@ final class PdfAcroFormExtractor
      */
     private function fieldHasResolvableKidsArray(int $objectNumber, array $objects): bool
     {
-        if (!isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        if (!isset($objects[$objectNumber])) {
             return false;
         }
 
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
+            return false;
+        }
+
         $kids = $this->lastTopLevelValueAfterName($body, 'Kids');
 
         return $kids !== null && $this->arrayBodyFromValueOrReference($kids, $objects) !== null;
@@ -6468,12 +6496,16 @@ final class PdfAcroFormExtractor
         array &$names,
         array $seen
     ): void {
-        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
             return;
         }
 
         $seen[$objectNumber] = true;
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
+            return;
+        }
+
         if (!$this->isFieldDictionaryCandidate($body)) {
             return;
         }
@@ -6496,7 +6528,7 @@ final class PdfAcroFormExtractor
         }
 
         foreach ($this->kidReferences($body, $objects) as $kidRef) {
-            if (!isset($objects[$kidRef]) || $this->objectIsStreamObject($kidRef, $objects)) {
+            if (!isset($objects[$kidRef])) {
                 continue;
             }
 
@@ -6504,7 +6536,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $kidBody = $this->dictionaryObjectBody($objects[$kidRef]) ?? trim($objects[$kidRef]);
+            $kidBody = $this->completeAcroFormDictionaryObjectBody($kidRef, $objects);
+            if ($kidBody === null) {
+                continue;
+            }
+
             if ($this->isPureWidget($kidBody)) {
                 $names[$kidRef] = $fieldName;
                 continue;
@@ -9180,6 +9216,22 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * AcroForm field and widget references point at one complete dictionary
+     * object. Fail closed on stray top-level operands instead of reviewing the
+     * first dictionary and ignoring a malformed sibling.
+     *
+     * @param array<int, string> $objects
+     */
+    private function completeAcroFormDictionaryObjectBody(int $objectNumber, array $objects): ?string
+    {
+        if (!isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+            return null;
+        }
+
+        return $this->completeDictionaryObjectBody($objects[$objectNumber]);
+    }
+
+    /**
      * @return list<int>
      */
     private function fieldReferencesFromAcroForm(string $acroForm, array $objects): array
@@ -9213,12 +9265,16 @@ final class PdfAcroFormExtractor
         $seen = [];
         while ($queue !== []) {
             $objectNumber = array_shift($queue);
-            if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+            if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
                 continue;
             }
 
             $seen[$objectNumber] = true;
-            $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+            $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+            if ($body === null) {
+                continue;
+            }
+
             if (!$this->isFieldDictionaryCandidate($body)) {
                 continue;
             }
@@ -9347,11 +9403,15 @@ final class PdfAcroFormExtractor
             }
 
             foreach ($this->annotationObjectReferences($annots, $objects) as $widgetObject) {
-                if (!isset($objects[$widgetObject]) || $this->objectIsStreamObject($widgetObject, $objects)) {
+                if (!isset($objects[$widgetObject])) {
                     continue;
                 }
 
-                $widgetBody = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+                $widgetBody = $this->completeAcroFormDictionaryObjectBody($widgetObject, $objects);
+                if ($widgetBody === null) {
+                    continue;
+                }
+
                 if (!$this->isWidget($widgetBody) || !$this->widgetAnnotationBelongsToPage($widgetBody, $objects, $pageObjectNumber)) {
                     continue;
                 }
@@ -9640,7 +9700,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $widgetBody = $this->dictionaryObjectBody($objects[$widgetObject]) ?? trim($objects[$widgetObject]);
+            $widgetBody = $this->completeAcroFormDictionaryObjectBody($widgetObject, $objects);
+            if ($widgetBody === null) {
+                continue;
+            }
+
             if (!$this->isWidget($widgetBody)) {
                 continue;
             }
@@ -9668,7 +9732,11 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $candidateBody = $this->dictionaryObjectBody($objects[$candidate]) ?? trim($objects[$candidate]);
+            $candidateBody = $this->completeAcroFormDictionaryObjectBody($candidate, $objects);
+            if ($candidateBody === null) {
+                continue;
+            }
+
             if (!$this->isFieldDictionaryCandidate($candidateBody)) {
                 continue;
             }
@@ -9691,13 +9759,13 @@ final class PdfAcroFormExtractor
     {
         $refs = [];
         foreach ($fieldRefs as $fieldRef) {
-            if ($this->objectIsStreamObject($fieldRef, $objects)) {
-                continue;
-            }
-
             $candidate = $fieldRef;
             if (isset($objects[$fieldRef])) {
-                $body = $this->dictionaryObjectBody($objects[$fieldRef]) ?? trim($objects[$fieldRef]);
+                $body = $this->completeAcroFormDictionaryObjectBody($fieldRef, $objects);
+                if ($body === null) {
+                    continue;
+                }
+
                 if ($this->isPureWidget($body)) {
                     $parentObject = $this->lastValidObjectReferenceValueAfterName($body, 'Parent', $objects);
                     $parentField = $parentObject === null ? null : $this->pageWidgetParentFieldCandidate($parentObject, $objects);
@@ -9726,11 +9794,11 @@ final class PdfAcroFormExtractor
      */
     private function pageWidgetParentFieldCandidate(int $objectNumber, array $objects): ?int
     {
-        if (!isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
             return null;
         }
 
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         return $this->isFieldDictionaryCandidate($body) ? $objectNumber : null;
     }
 
@@ -9739,11 +9807,11 @@ final class PdfAcroFormExtractor
      */
     private function fieldHasKids(int $objectNumber, array $objects): bool
     {
-        if (!isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
             return false;
         }
 
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         return $this->valueAfterName($body, 'Kids') !== null;
     }
 
@@ -9755,11 +9823,11 @@ final class PdfAcroFormExtractor
      */
     private function fieldCandidateAllowsPageWidgetRepair(int $objectNumber, array $objects): bool
     {
-        if (!isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
             return false;
         }
 
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         $parentValue = $this->lastTopLevelValueAfterName($body, 'Parent');
         if ($parentValue === null) {
             return true;
@@ -9774,11 +9842,11 @@ final class PdfAcroFormExtractor
      */
     private function fieldParentOwnsChild(int $parentObject, int $childObject, array $objects): bool
     {
-        if (!isset($objects[$parentObject]) || $this->objectIsStreamObject($parentObject, $objects)) {
+        $parentBody = $this->completeAcroFormDictionaryObjectBody($parentObject, $objects);
+        if ($parentBody === null) {
             return false;
         }
 
-        $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
         return in_array($childObject, $this->kidReferences($parentBody, $objects), true)
             && $this->fieldTreeChildOwnedByParent($parentObject, $childObject, $objects);
     }
@@ -9788,11 +9856,11 @@ final class PdfAcroFormExtractor
      */
     private function fieldTreeChildOwnedByParent(int $parentObject, int $childObject, array $objects): bool
     {
-        if (!isset($objects[$childObject]) || $this->objectIsStreamObject($childObject, $objects)) {
+        $childBody = $this->completeAcroFormDictionaryObjectBody($childObject, $objects);
+        if ($childBody === null) {
             return false;
         }
 
-        $childBody = $this->dictionaryObjectBody($objects[$childObject]) ?? trim($objects[$childObject]);
         $parentValue = $this->lastTopLevelValueAfterName($childBody, 'Parent');
         if ($parentValue === null) {
             return true;
@@ -9833,12 +9901,16 @@ final class PdfAcroFormExtractor
             return true;
         }
 
-        if (isset($seen[$rootObject]) || !isset($objects[$rootObject]) || $this->objectIsStreamObject($rootObject, $objects)) {
+        if (isset($seen[$rootObject]) || !isset($objects[$rootObject])) {
             return false;
         }
 
         $seen[$rootObject] = true;
-        $body = $this->dictionaryObjectBody($objects[$rootObject]) ?? trim($objects[$rootObject]);
+        $body = $this->completeAcroFormDictionaryObjectBody($rootObject, $objects);
+        if ($body === null) {
+            return false;
+        }
+
         foreach ($this->kidReferences($body, $objects) as $kidRef) {
             if (!$this->fieldTreeChildOwnedByParent($rootObject, $kidRef, $objects)) {
                 continue;
@@ -9868,14 +9940,16 @@ final class PdfAcroFormExtractor
         if (
             !isset($objects[$leftObject])
             || !isset($objects[$rightObject])
-            || $this->objectIsStreamObject($leftObject, $objects)
-            || $this->objectIsStreamObject($rightObject, $objects)
         ) {
             return false;
         }
 
-        $leftBody = $this->dictionaryObjectBody($objects[$leftObject]) ?? trim($objects[$leftObject]);
-        $rightBody = $this->dictionaryObjectBody($objects[$rightObject]) ?? trim($objects[$rightObject]);
+        $leftBody = $this->completeAcroFormDictionaryObjectBody($leftObject, $objects);
+        $rightBody = $this->completeAcroFormDictionaryObjectBody($rightObject, $objects);
+        if ($leftBody === null || $rightBody === null) {
+            return false;
+        }
+
         if (!$this->isWidget($leftBody) || !$this->isWidget($rightBody)) {
             return false;
         }
@@ -9888,11 +9962,11 @@ final class PdfAcroFormExtractor
      */
     private function directKidWidgetDictionaryMatchesTarget(int $parentObject, string $parentBody, int $targetObject, array $objects): bool
     {
-        if (!isset($objects[$targetObject]) || $this->objectIsStreamObject($targetObject, $objects)) {
+        $targetBody = $this->completeAcroFormDictionaryObjectBody($targetObject, $objects);
+        if ($targetBody === null) {
             return false;
         }
 
-        $targetBody = $this->dictionaryObjectBody($objects[$targetObject]) ?? trim($objects[$targetObject]);
         if (!$this->isWidget($targetBody)) {
             return false;
         }
@@ -10052,12 +10126,16 @@ final class PdfAcroFormExtractor
      */
     private function collectFieldTreeObjectNumbers(int $objectNumber, array $objects, array &$seen): void
     {
-        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber]) || $this->objectIsStreamObject($objectNumber, $objects)) {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
             return;
         }
 
         $seen[$objectNumber] = true;
-        $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null) {
+            return;
+        }
+
         foreach ($this->kidReferences($body, $objects) as $kidRef) {
             if (!$this->fieldTreeChildOwnedByParent($objectNumber, $kidRef, $objects)) {
                 continue;
