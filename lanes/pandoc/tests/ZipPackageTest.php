@@ -3120,6 +3120,66 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($prefixRecordZip));
     },
 
+    'preflights inter-entry zip archive extra data records before raw strict import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $archiveExtraData = 'review-archive-extra-data';
+        $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+        $twoEntryZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>archive extra inter-entry metadata</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "review media bytes\n",
+                'method' => 0,
+            ],
+        ]);
+        $twoEntryEocdOffset = strrpos($twoEntryZip, "PK\x05\x06");
+        if ($twoEntryEocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $twoEntryCentralDirectorySize = unpack('Vvalue', substr($twoEntryZip, $twoEntryEocdOffset + 12, 4))['value'];
+        $twoEntryCentralDirectoryOffset = unpack('Vvalue', substr($twoEntryZip, $twoEntryEocdOffset + 16, 4))['value'];
+        $firstCentralNameLength = unpack('vvalue', substr($twoEntryZip, $twoEntryCentralDirectoryOffset + 28, 2))['value'];
+        $firstCentralExtraLength = unpack('vvalue', substr($twoEntryZip, $twoEntryCentralDirectoryOffset + 30, 2))['value'];
+        $firstCentralCommentLength = unpack('vvalue', substr($twoEntryZip, $twoEntryCentralDirectoryOffset + 32, 2))['value'];
+        $interEntryOffset = $twoEntryCentralDirectoryOffset
+            + 46
+            + $firstCentralNameLength
+            + $firstCentralExtraLength
+            + $firstCentralCommentLength;
+        $interEntryRecordZip = substr($twoEntryZip, 0, $interEntryOffset)
+            . $archiveExtraRecord
+            . substr($twoEntryZip, $interEntryOffset);
+        $interEntryRecordZip = $rewriteEndOfCentralDirectory($interEntryRecordZip, [
+            'centralDirectorySize' => $twoEntryCentralDirectorySize + strlen($archiveExtraRecord),
+        ]);
+        $interEntrySummary = ZipPackage::archiveExtraDataRecordPreflight($interEntryRecordZip);
+        $interEntryRecord = $interEntrySummary['archiveExtraDataRecords'][0];
+        $interEntryRawStrict = ZipPackage::rawStrictImportPreflight($interEntryRecordZip, 4096, 100.0, 4096);
+
+        $t->same(2, $interEntrySummary['entryCount']);
+        $t->same(1, $interEntrySummary['archiveExtraDataRecordCount']);
+        $t->same(true, $interEntrySummary['hasArchiveExtraDataRecord']);
+        $t->same(false, $interEntrySummary['isSupportedByBoundedReader']);
+        $t->same($interEntryOffset, $interEntryRecord['offset']);
+        $t->same('before-central-directory-entry', $interEntryRecord['location']);
+        $t->same(['archive-extra-data-record'], $interEntryRecord['issues']);
+        $t->same('word/document.xml', $interEntrySummary['entries'][0]['name']);
+        $t->same('word/media/review.png', $interEntrySummary['entries'][1]['name']);
+        $t->same(false, $interEntryRawStrict['isValid']);
+        $t->same(false, $interEntryRawStrict['canInstantiate']);
+        $t->same(1, $interEntryRawStrict['archiveExtraDataRecords']['archiveExtraDataRecordCount']);
+        $t->same(
+            'before-central-directory-entry',
+            $interEntryRawStrict['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['location']
+        );
+        $t->same(true, in_array('archive-extra-data-records', $interEntryRawStrict['diagnostics'], true));
+        $t->same(true, in_array('zip-package-instantiation-failed', $interEntryRawStrict['diagnostics'], true));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($interEntryRecordZip));
+    },
+
     'preflights zip end of central directory archive layout before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

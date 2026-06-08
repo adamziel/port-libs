@@ -399,6 +399,61 @@ return [
         $t->true(!str_contains($html, '<textarea'), 'Expected textarea wrapper to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected form-side javascript URLs to be stripped');
     },
+    'converts form submission metadata into inert reviewer nodes before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<form method="POST" action=" ./submit?draft=1 " target=" review-frame " autocomplete="off" name=" comment-form " data-pandoc-form-name="source-spoof">'
+            . '<p>Comment <input type="submit" value="Send comment"></p></form>'
+            . '<form method="trace" action="java&#10;script:alert(1)" target="bad&lt;target" autocomplete="sometimes" name="bad&lt;tag">'
+            . '<p>Bad form<input type="submit" value="Bad send"></p></form>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/form-submission-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $expected = '<span data-pandoc-form-method="post" data-pandoc-form-action="https://source.example.test/import/posts/submit?draft=1" data-pandoc-form-target="review-frame" data-pandoc-form-autocomplete="off" data-pandoc-form-name="comment-form">Form submission: post</span>'
+            . '<p>Comment Send comment</p><p>Bad formBad send</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Form submission: postComment Send commentBad formBad send', $fragment->textContent());
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['base', 'form', 'input'], $summary['blockedTags']);
+        $t->same(['action', 'autocomplete', 'data-pandoc-form-name', 'method', 'name', 'target'], $summary['filteredAttributes']);
+        $t->same(16, $summary['diagnostics']);
+        $t->same(1, $policyDiagnostics['unsafe-url'] ?? 0);
+        $t->same(5, $policyDiagnostics['form-metadata-review'] ?? 0);
+        $t->same(5, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same(5, $policyDiagnostics['blocked-tag'] ?? 0);
+        $t->same('span', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-form-method' => 'post',
+            'data-pandoc-form-action' => 'https://source.example.test/import/posts/submit?draft=1',
+            'data-pandoc-form-target' => 'review-frame',
+            'data-pandoc-form-autocomplete' => 'off',
+            'data-pandoc-form-name' => 'comment-form',
+        ], $nodes[0]['attrs']);
+        $t->same('Form submission: post', $nodes[0]['children'][0]['text']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('Comment ', $nodes[1]['children'][0]['text']);
+        $t->same('Send comment', $nodes[1]['children'][1]['text']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/form-submission-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach (['<form', '<input', ' method=', ' action=', ' target=', ' autocomplete=', ' name=" comment-form "', 'source-spoof', 'bad&lt;target', 'bad&lt;tag', 'javascript:'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected form metadata handoff to strip live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
+        }
+    },
     'turns fieldset grouping controls into inert reviewer metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<form action="/submit">'

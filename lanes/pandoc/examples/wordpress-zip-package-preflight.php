@@ -2085,6 +2085,27 @@ $buildArchiveExtraDataRecordBackedPackage = static function (string $zip): strin
 
     return substr($zip, 0, $eocdOffset) . $archiveExtraRecord . substr($zip, $eocdOffset);
 };
+$buildInterEntryArchiveExtraDataRecordBackedPackage = static function (string $zip) use ($rewriteZipEndOfCentralDirectory): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('ZIP end-of-central-directory fixture was not found');
+    }
+
+    $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+    $firstNameLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 28, 2))['value'];
+    $firstExtraLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 30, 2))['value'];
+    $firstCommentLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 32, 2))['value'];
+    $interEntryOffset = $centralDirectoryOffset + 46 + $firstNameLength + $firstExtraLength + $firstCommentLength;
+
+    $archiveExtraData = 'wordpress-inter-entry-archive-extra-data';
+    $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+    $zip = substr($zip, 0, $interEntryOffset) . $archiveExtraRecord . substr($zip, $interEntryOffset);
+
+    return $rewriteZipEndOfCentralDirectory($zip, [
+        'centralDirectorySize' => $centralDirectorySize + strlen($archiveExtraRecord),
+    ]);
+};
 $buildZip64EndOfCentralDirectoryBackedPackage = static function (string $zip) use ($packUInt64): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -2987,6 +3008,15 @@ try {
 } catch (RuntimeException $exception) {
     $archiveExtraDataRecordRejected = str_contains($exception->getMessage(), 'archive extra data records');
 }
+$interEntryArchiveExtraDataRecordBytes = $buildInterEntryArchiveExtraDataRecordBackedPackage($package->bytes());
+$interEntryArchiveExtraDataRecordPreflight = ZipPackage::archiveExtraDataRecordPreflight($interEntryArchiveExtraDataRecordBytes);
+$interEntryArchiveExtraDataRecordRejected = false;
+try {
+    ZipPackage::fromString($interEntryArchiveExtraDataRecordBytes);
+} catch (RuntimeException $exception) {
+    $interEntryArchiveExtraDataRecordRejected = str_contains($exception->getMessage(), 'central directory header')
+        || str_contains($exception->getMessage(), 'archive extra data records');
+}
 $zip64EocdBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
     'diskEntryCount' => 0xffff,
     'totalEntryCount' => 0xffff,
@@ -3029,6 +3059,12 @@ $zip64SmallRecordBytes = $rewriteZip64EndOfCentralDirectoryPayloadSize($zip64Loc
 $zip64SmallRecordAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip64SmallRecordBytes);
 $rawStrictSplitZipPreflight = ZipPackage::rawStrictImportPreflight($splitZipBytes, 4096, 100.0, 4096);
 $rawStrictArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight($archiveExtraDataRecordBytes, 4096, 100.0, 4096);
+$rawStrictInterEntryArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight(
+    $interEntryArchiveExtraDataRecordBytes,
+    4096,
+    100.0,
+    4096
+);
 $rawStrictZip64EocdPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdBytes, 4096, 100.0, 4096);
 $rawStrictZip64LocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64LocatorBytes, 4096, 100.0, 4096);
 $rawStrictZip64MalformedLocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64MalformedLocatorBytes, 4096, 100.0, 4096);
@@ -4620,6 +4656,29 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($interEntryArchiveExtraDataRecordPreflight['entryCount'] ?? null) !== 3
+        || ($interEntryArchiveExtraDataRecordPreflight['archiveExtraDataRecordCount'] ?? null) !== 1
+        || ($interEntryArchiveExtraDataRecordPreflight['hasArchiveExtraDataRecord'] ?? null) !== true
+        || ($interEntryArchiveExtraDataRecordPreflight['isSupportedByBoundedReader'] ?? null) !== false
+        || ($interEntryArchiveExtraDataRecordPreflight['archiveExtraDataRecords'][0]['location'] ?? null) !== 'before-central-directory-entry'
+        || ($interEntryArchiveExtraDataRecordPreflight['entries'][1]['name'] ?? null) !== '_rels/.rels'
+        || !$interEntryArchiveExtraDataRecordRejected
+    ) {
+        throw new RuntimeException('Expected inter-entry ZIP archive extra data records to keep central-entry provenance before rejection');
+    }
+
+    if (
+        ($rawStrictInterEntryArchiveExtraDataRecordPreflight['isValid'] ?? null) !== false
+        || ($rawStrictInterEntryArchiveExtraDataRecordPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictInterEntryArchiveExtraDataRecordPreflight['archiveExtraDataRecords']['archiveExtraDataRecordCount'] ?? null) !== 1
+        || ($rawStrictInterEntryArchiveExtraDataRecordPreflight['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['location'] ?? null) !== 'before-central-directory-entry'
+        || !in_array('archive-extra-data-records', $rawStrictInterEntryArchiveExtraDataRecordPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictInterEntryArchiveExtraDataRecordPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject inter-entry archive extra data records');
+    }
+
+    if (
         ($zip64EocdPreflight['requiresZip64'] ?? null) !== true
         || ($zip64EocdPreflight['isArchiveLayoutSupported'] ?? null) !== false
         || !$zip64EocdRejected
@@ -5658,6 +5717,9 @@ echo 'zipArchiveExtraDataRecordCount=' . $archiveExtraDataRecordPreflight['archi
 echo 'zipArchiveExtraDataLocation=' . ($archiveExtraDataRecordPreflight['archiveExtraDataRecords'][0]['location'] ?? 'none') . "\n";
 echo 'zipRawStrictArchiveExtraPolicy=' . ($rawStrictArchiveExtraDataRecordPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictArchiveExtraDiagnostics=' . implode(',', $rawStrictArchiveExtraDataRecordPreflight['diagnostics']) . "\n";
+echo 'zipInterEntryArchiveExtraDataPolicy=' . ($interEntryArchiveExtraDataRecordRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipInterEntryArchiveExtraDataLocation=' . ($interEntryArchiveExtraDataRecordPreflight['archiveExtraDataRecords'][0]['location'] ?? 'none') . "\n";
+echo 'zipRawStrictInterEntryArchiveExtraDiagnostics=' . implode(',', $rawStrictInterEntryArchiveExtraDataRecordPreflight['diagnostics']) . "\n";
 echo 'zip64EocdPolicy=' . ($zip64EocdRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64EocdRequiresZip64=' . ($zip64EocdPreflight['requiresZip64'] ? 'true' : 'false') . "\n";
 echo 'zipRawStrictZip64EocdPolicy=' . ($rawStrictZip64EocdPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";

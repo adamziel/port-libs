@@ -2452,6 +2452,117 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/missing.xml'));
     },
+    'classifies OPC digital signature digest algorithms and decoded lengths' => static function (TestRunner $t): void {
+        $sha1Digest = base64_encode(str_repeat('s', 20));
+        $sha256Digest = base64_encode(str_repeat('d', 32));
+        $sha256ShortDigest = base64_encode(str_repeat('x', 20));
+        $sha384Digest = base64_encode(str_repeat('m', 48));
+        $sha512ShortDigest = base64_encode(str_repeat('z', 32));
+        $unknownDigest = base64_encode('opaque-digest');
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/sig-digests.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $signatureXml = <<<XML
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/docProps/core.xml">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"/>
+      <ds:DigestValue>{$sha512ShortDigest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/item1.xml">
+      <ds:DigestMethod Algorithm="urn:example:digest"/>
+      <ds:DigestValue>{$unknownDigest}</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:Object Id="idPackageSignatureObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestPackageParts">
+      <ds:Reference URI="/word/document.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#sha384"/>
+        <ds:DigestValue>{$sha384Digest}</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/docProps/core.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+        <ds:DigestValue>{$sha1Digest}</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/customXml/item1.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>{$sha256ShortDigest}</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'customXml/item1.xml', 'data' => '<item/>'],
+            ['name' => '_xmlsignatures/sig-digests.xml', 'data' => $signatureXml],
+        ]));
+
+        $signedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-digests.xml');
+        $t->same(3, count($signedInfoReferences));
+        $t->same([true, true, false], array_map(
+            static fn (array $reference): ?bool => $reference['digestAlgorithmKnown'],
+            $signedInfoReferences,
+        ));
+        $t->same(['sha256', 'sha512', null], array_map(
+            static fn (array $reference): ?string => $reference['digestAlgorithmProfile'],
+            $signedInfoReferences,
+        ));
+        $t->same([32, 64, null], array_map(
+            static fn (array $reference): ?int => $reference['digestExpectedDecodedBytes'],
+            $signedInfoReferences,
+        ));
+        $t->same([true, false, null], array_map(
+            static fn (array $reference): ?bool => $reference['digestValueLengthValid'],
+            $signedInfoReferences,
+        ));
+        $t->same([true, true, true], array_map(
+            static fn (array $reference): bool => $reference['valid'],
+            $signedInfoReferences,
+        ));
+
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-digests.xml');
+        $manifestReferences = $metadata['objects'][0]['manifestReferences'];
+        $t->same(3, count($manifestReferences));
+        $t->same([true, true, true], array_map(
+            static fn (array $reference): ?bool => $reference['digestAlgorithmKnown'],
+            $manifestReferences,
+        ));
+        $t->same(['sha384', 'sha1', 'sha256'], array_map(
+            static fn (array $reference): ?string => $reference['digestAlgorithmProfile'],
+            $manifestReferences,
+        ));
+        $t->same([48, 20, 32], array_map(
+            static fn (array $reference): ?int => $reference['digestExpectedDecodedBytes'],
+            $manifestReferences,
+        ));
+        $t->same([true, true, false], array_map(
+            static fn (array $reference): ?bool => $reference['digestValueLengthValid'],
+            $manifestReferences,
+        ));
+        $t->same([true, true, true], array_map(
+            static fn (array $reference): bool => $reference['valid'],
+            $manifestReferences,
+        ));
+        $t->same(true, $metadata['valid']);
+    },
     'maps OPC signature canonicalization transform algorithms to reviewer profiles' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

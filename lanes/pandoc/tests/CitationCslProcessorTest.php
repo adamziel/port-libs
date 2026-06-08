@@ -16782,6 +16782,85 @@ XML);
         $t->contains('<dt>Migration Review Film 2026</dt><dd>Migration Review Film :: Producer, Pia :: Performer, Pat; Archive Ensemble :: Narrator, Nia :: Host, Hugo :: Guest, Gia :: Executive, Eli :: Writer, Sam :: Producer 1: source credit verified; Script writer 1 family: script credit verified</dd>', $blocks);
         $t->contains('<dt>Migration Review Podcast 2025</dt><dd>Migration Review Podcast :: Ng, Nia :: Roe, Pat</dd>', $blocks);
     },
+    'applies bounded csl audiovisual creator role labels' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@video{production-credit-packet,
+  title = {Production Credit Packet},
+  date = {2026},
+  producer = {Producer, Pia},
+  performer = {Performer, Pat and {{Archive Ensemble}}},
+  narrator = {Narrator, Nia},
+  executiveproducer = {Executive, Eli},
+  scriptwriter = {Writer, Sam}
+}
+
+@audio{conversation-credit-packet,
+  title = {Conversation Credit Packet},
+  date = {2025},
+  host = {Host, Hugo},
+  guest = {Guest, Gia and Roe, Pat}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Audiovisual Creator Label Review</title>
+    <id>https://example.test/styles/bounded-audiovisual-creator-label-review</id>
+    <updated>2026-06-08T22:23:36+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="producer"><label form="verb" suffix=" "/><name/></names>
+        <names variable="performer"><label form="verb-short" suffix=" "/><name/></names>
+        <names variable="host"><label form="verb" suffix=" "/><name/></names>
+        <names variable="guest"><label form="verb-short" suffix=" "/><name/></names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="producer"><name initialize-with=". " name-as-sort-order="all"/><label form="short" plural="never" prefix=", "/></names>
+      <names variable="performer"><label form="long" plural="always" suffix=": "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="narrator"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="executive-producer"><name initialize-with=". " name-as-sort-order="all"/><label form="short" prefix=", "/></names>
+      <names variable="script-writer"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="host"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="guest"><name initialize-with=". " name-as-sort-order="all"/><label form="short" plural="always" prefix=", "/></names>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Audiovisual Creator Label Review', $summary['title'] ?? null);
+        $t->same('producer', $citationChildren[0]['variable'] ?? null);
+        $t->same('verb', $citationChildren[0]['nameRendering']['label']['form'] ?? null);
+        $t->same('performer', $citationChildren[1]['variable'] ?? null);
+        $t->same('verb-short', $citationChildren[1]['nameRendering']['label']['form'] ?? null);
+        $t->same('after', $bibliographyChildren[1]['nameRendering']['label']['position'] ?? null);
+        $t->same('short', $bibliographyChildren[1]['nameRendering']['label']['form'] ?? null);
+        $t->same('always', $bibliographyChildren[2]['nameRendering']['label']['plural'] ?? null);
+
+        $t->same('(produced by Producer | perf. by Performer and Archive Ensemble | 2026; hosted by Host | feat. Guest and Roe | 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'production-credit-packet', 'text' => '[@production-credit-packet]']),
+            new AstNode('citation', ['id' => 'conversation-credit-packet', 'text' => '[@conversation-credit-packet]']),
+        ]));
+        $t->same('Production Credit Packet :: Producer, P., prod. :: performers: Performer, P.; Archive Ensemble :: narrated by Narrator, N. :: Executive, E., exec. prod. :: written by Writer, S.', $processor->renderBibliographyEntry('production-credit-packet'));
+        $t->same('Conversation Credit Packet :: hosted by Host, H. :: Guest, G.; Roe, P., guests', $processor->renderBibliographyEntry('conversation-credit-packet'));
+
+        $document = (new MarkdownReader())->read('Production credits [@production-credit-packet; @conversation-credit-packet] keep CSL role labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Production credits (produced by Producer | perf. by Performer and Archive Ensemble | 2026; hosted by Host | feat. Guest and Roe | 2025) keep CSL role labels visible.</p>', $blocks);
+        $t->contains('<dt>Production Credit Packet 2026</dt><dd>Production Credit Packet :: Producer, P., prod. :: performers: Performer, P.; Archive Ensemble :: narrated by Narrator, N. :: Executive, E., exec. prod. :: written by Writer, S.</dd>', $blocks);
+        $t->contains('<dt>Conversation Credit Packet 2025</dt><dd>Conversation Credit Packet :: hosted by Host, H. :: Guest, G.; Roe, P., guests</dd>', $blocks);
+    },
     'applies bounded csl version number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -1506,6 +1506,23 @@ HTML);
         exit(1);
     }
 
+    $pipedVariableSources = (new DocTemplate())->render('Sources: $reviewSources/uppercase[ / ]$', $context);
+    if ($pipedVariableSources !== 'Sources: MEDIA / LINKS / LAYOUT') {
+        fwrite(STDERR, "Missing expected doctemplate piped variable separator output\n");
+        exit(1);
+    }
+
+    try {
+        (new DocTemplate())->render('Broken: $reviewSources[ / ]/uppercase$', $context);
+        fwrite(STDERR, "Expected doctemplate variable separator order rejection\n");
+        exit(1);
+    } catch (\UnexpectedValueException $exception) {
+        if (!str_contains($exception->getMessage(), 'Doctemplate variable separators must follow pipe suffixes in reviewSources[ / ]/uppercase')) {
+            fwrite(STDERR, "Unexpected doctemplate variable separator order diagnostic: {$exception->getMessage()}\n");
+            exit(1);
+        }
+    }
+
     try {
         (new DocTemplate())->render('Broken: $review-id', ['review-id' => 'PR-42']);
         fwrite(STDERR, "Expected unclosed doctemplate dollar directive rejection\n");

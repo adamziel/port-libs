@@ -3701,31 +3701,21 @@ final class ZipPackage
         $cursor = $archive['centralDirectoryOffset'];
         $centralDirectoryEnd = $archive['centralDirectoryEnd'];
 
-        $prefixRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
-        if ($prefixRecord !== null) {
-            $records[] = self::archiveExtraDataRecordSummary(
-                $prefixRecord,
-                'central-directory-prefix',
-                $archive['eocdOffset'],
-                $centralDirectoryEnd
-            );
-            $cursor = $prefixRecord['endOffset'];
-        }
+        $index = 0;
+        while ($index < $archive['totalEntryCount']) {
+            $record = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($record !== null) {
+                $records[] = self::archiveExtraDataRecordSummary(
+                    $record,
+                    $index === 0 ? 'central-directory-prefix' : 'before-central-directory-entry',
+                    $archive['eocdOffset'],
+                    $centralDirectoryEnd
+                );
+                $cursor = $record['endOffset'];
+                continue;
+            }
 
-        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
             if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
-                $record = self::archiveExtraDataRecordAt($bytes, $cursor);
-                if ($record !== null) {
-                    $records[] = self::archiveExtraDataRecordSummary(
-                        $record,
-                        'before-central-directory-entry',
-                        $archive['eocdOffset'],
-                        $centralDirectoryEnd
-                    );
-                    $cursor = $record['endOffset'];
-                    break;
-                }
-
                 throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
             }
 
@@ -3754,6 +3744,7 @@ final class ZipPackage
                 'offset' => $cursor,
             ];
             $cursor += 46 + $nameLength + $extraLength + $commentLength;
+            $index++;
         }
 
         while ($cursor < $centralDirectoryEnd) {

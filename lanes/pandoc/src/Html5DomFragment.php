@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'value-metadata-review', 'output-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'value-metadata-review', 'output-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -455,6 +455,13 @@ final class Html5DomFragment
                 $iframeSource = self::normalizeHtmlIframeSourceElement($node, $diagnostics, $baseUrl);
 
                 return $iframeSource === null ? [] : [$iframeSource];
+            }
+
+            if ($name === 'form') {
+                $formMetadata = self::htmlFormReviewMetadataNode($node, $diagnostics, $baseUrl);
+                if ($formMetadata !== null) {
+                    return [$formMetadata, ...$children];
+                }
             }
 
             if ($name === 'template') {
@@ -1398,6 +1405,206 @@ final class Html5DomFragment
         $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function htmlFormReviewMetadataNode(
+        \DOMElement $element,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?array {
+        foreach ($element->attributes as $attribute) {
+            $attributeName = strtolower($attribute->name);
+            if (!str_starts_with($attributeName, 'data-pandoc-form-')) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'form',
+                'attribute' => $attributeName,
+                'reason' => 'reserved-review-metadata-source-spoof',
+            ], $element);
+        }
+
+        $hasExplicitReviewContext = $element->hasAttribute('method')
+            || $element->hasAttribute('target')
+            || $element->hasAttribute('autocomplete')
+            || $element->hasAttribute('name');
+        if (!$hasExplicitReviewContext) {
+            return null;
+        }
+
+        $attrs = [];
+        if ($element->hasAttribute('method')) {
+            $method = self::normalizeHtmlFormMethodAttribute($element->getAttribute('method'));
+            if ($method === null) {
+                self::addHtmlInvalidFormMetadataDiagnostic($diagnostics, $element, 'method');
+            } else {
+                $attrs['data-pandoc-form-method'] = $method;
+                self::addHtmlFormMetadataDiagnostic($diagnostics, $element, 'method', 'data-pandoc-form-method');
+            }
+        }
+
+        if ($element->hasAttribute('action')) {
+            $action = self::normalizeHtmlFormActionAttribute($element->getAttribute('action'), $diagnostics, $element, $baseUrl);
+            if ($action !== null) {
+                $attrs['data-pandoc-form-action'] = $action;
+                self::addHtmlFormMetadataDiagnostic($diagnostics, $element, 'action', 'data-pandoc-form-action');
+            }
+        }
+
+        if ($element->hasAttribute('target')) {
+            $target = self::normalizeHtmlFormTargetAttribute($element->getAttribute('target'));
+            if ($target === null) {
+                self::addHtmlInvalidFormMetadataDiagnostic($diagnostics, $element, 'target');
+            } else {
+                $attrs['data-pandoc-form-target'] = $target;
+                self::addHtmlFormMetadataDiagnostic($diagnostics, $element, 'target', 'data-pandoc-form-target');
+            }
+        }
+
+        if ($element->hasAttribute('autocomplete')) {
+            $autocomplete = self::normalizeHtmlFormAutocompleteAttribute($element->getAttribute('autocomplete'));
+            if ($autocomplete === null) {
+                self::addHtmlInvalidFormMetadataDiagnostic($diagnostics, $element, 'autocomplete');
+            } else {
+                $attrs['data-pandoc-form-autocomplete'] = $autocomplete;
+                self::addHtmlFormMetadataDiagnostic($diagnostics, $element, 'autocomplete', 'data-pandoc-form-autocomplete');
+            }
+        }
+
+        if ($element->hasAttribute('name')) {
+            $name = self::normalizeHtmlFormNameAttribute($element->getAttribute('name'));
+            if ($name === null) {
+                self::addHtmlInvalidFormMetadataDiagnostic($diagnostics, $element, 'name');
+            } else {
+                $attrs['data-pandoc-form-name'] = $name;
+                self::addHtmlFormMetadataDiagnostic($diagnostics, $element, 'name', 'data-pandoc-form-name');
+            }
+        }
+
+        if ($attrs === []) {
+            return null;
+        }
+
+        $label = isset($attrs['data-pandoc-form-method'])
+            ? 'Form submission: ' . $attrs['data-pandoc-form-method']
+            : 'Form metadata';
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $label,
+            ]],
+        ], $element);
+    }
+
+    private static function normalizeHtmlFormMethodAttribute(string $value): ?string
+    {
+        $method = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return in_array($method, ['get', 'post', 'dialog'], true) ? $method : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlFormActionAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element,
+        ?string $baseUrl
+    ): ?string {
+        if (!self::isSafeFetchUrl($value)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-url',
+                'tag' => 'form',
+                'attribute' => 'action',
+            ], $element);
+
+            return null;
+        }
+
+        $action = self::normalizeUrlAttributeValue($value);
+        if ($action === '') {
+            return null;
+        }
+
+        return $baseUrl === null ? $action : self::resolveRelativeUrl($baseUrl, $action);
+    }
+
+    private static function normalizeHtmlFormTargetAttribute(string $value): ?string
+    {
+        $target = self::cleanHtmlMetadataAttribute(str_replace("\0", '', $value));
+        if ($target === '' || strlen($target) > 128) {
+            return null;
+        }
+        if (preg_match('/[\t\r\n\f<>"\'`{}]/', $target) === 1) {
+            return null;
+        }
+
+        return preg_match('/^[A-Za-z0-9_.:-]+$/', $target) === 1 ? $target : null;
+    }
+
+    private static function normalizeHtmlFormAutocompleteAttribute(string $value): ?string
+    {
+        $autocomplete = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return in_array($autocomplete, ['on', 'off'], true) ? $autocomplete : null;
+    }
+
+    private static function normalizeHtmlFormNameAttribute(string $value): ?string
+    {
+        $name = self::cleanHtmlMetadataAttribute($value);
+        if ($name === '' || strlen($name) > 128) {
+            return null;
+        }
+        if (preg_match('/[<>"\'`{}]/u', $name) === 1) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlFormMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'form-metadata-review',
+            'tag' => 'form',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'form-submission-metadata-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidFormMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => 'form',
+            'attribute' => $attributeName,
+            'reason' => 'invalid-form-metadata',
+        ], $element);
     }
 
     /**

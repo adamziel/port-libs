@@ -5573,6 +5573,10 @@ CSS;
         }
 
         $name = $matches[1];
+        if (array_key_exists(2, $matches) && $parts !== []) {
+            throw new \UnexpectedValueException("Doctemplate variable separators must follow pipe suffixes in {$expression}");
+        }
+
         $this->validateVariableName($name, $expression);
 
         return [

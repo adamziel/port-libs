@@ -772,6 +772,37 @@ TPL;
         ]), $output);
     },
 
+    'requires pandoc doctemplate variable separators after pipe suffixes' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $t->same(
+            'Sources: MEDIA / LINKS / LAYOUT',
+            $renderer->render('Sources: $sources/uppercase[ / ]$', [
+                'sources' => ['media', 'links', 'layout'],
+            ])
+        );
+
+        $t->same(
+            'Rows: DOCX, ODT',
+            $renderer->render('Rows: ${ rows:row()[, ]/uppercase }', [
+                'rows' => [
+                    ['source' => 'docx'],
+                    ['source' => 'odt'],
+                ],
+            ], [
+                'row' => '$it.source$',
+            ])
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('Broken: $sources[ / ]/uppercase$', [
+                'sources' => ['media', 'links'],
+            ]),
+            'Doctemplate variable separators must follow pipe suffixes in sources[ / ]/uppercase at <template>:1:9'
+        );
+    },
+
     'renders pandoc doctemplate parameterized enumeration and padding pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Checklist:

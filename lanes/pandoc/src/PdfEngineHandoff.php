@@ -297,6 +297,7 @@ final class PdfEngineHandoff
      *     pdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfFormXObjectFilters: array<string, int>,
      *     pdfStreamFilterPolicy: array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{},
+     *     pdfStreamDecodeParameters: array{streamCount:int, parameterSetCount:int, filters:array<string, int>, surfaces:array<string, int>, predictors:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, parameterSets:list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>}>}|array{},
      *     pdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
      *     pdfGraphicsStateBlendModes: array<string, int>,
      *     pdfOutlineTitles: list<string>,
@@ -749,6 +750,7 @@ final class PdfEngineHandoff
         $pdfFormXObjects = [];
         $pdfFormXObjectFilters = [];
         $pdfStreamFilterPolicy = [];
+        $pdfStreamDecodeParameters = [];
         $pdfGraphicsStates = [];
         $pdfGraphicsStateBlendModes = [];
         $pdfOutlineTitles = [];
@@ -859,6 +861,7 @@ final class PdfEngineHandoff
                 $pdfFormXObjects = $pdfInspection['formXObjects'];
                 $pdfFormXObjectFilters = $pdfInspection['formXObjectFilters'];
                 $pdfStreamFilterPolicy = $pdfInspection['streamFilterPolicy'];
+                $pdfStreamDecodeParameters = $pdfInspection['streamDecodeParameters'];
                 $pdfGraphicsStates = $pdfInspection['graphicsStates'];
                 $pdfGraphicsStateBlendModes = $pdfInspection['graphicsStateBlendModes'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
@@ -1311,6 +1314,19 @@ final class PdfEngineHandoff
                     }
                     foreach ($pdfStreamFilterPolicy['actions'] as $action => $actionCount) {
                         $diagnostics[] = 'pdf-byte-stream-filter-action:' . $action . ':' . $actionCount;
+                    }
+                }
+                if ($pdfStreamDecodeParameters !== []) {
+                    $diagnostics[] = 'pdf-byte-stream-decode-parameters:' . $pdfStreamDecodeParameters['streamCount'];
+                    $diagnostics[] = 'pdf-byte-stream-decode-parameter-sets:' . $pdfStreamDecodeParameters['parameterSetCount'];
+                    foreach ($pdfStreamDecodeParameters['filters'] as $filter => $filterCount) {
+                        $diagnostics[] = 'pdf-byte-stream-decode-filter:' . $filter . ':' . $filterCount;
+                    }
+                    foreach ($pdfStreamDecodeParameters['surfaces'] as $surface => $surfaceCount) {
+                        $diagnostics[] = 'pdf-byte-stream-decode-surface:' . $surface . ':' . $surfaceCount;
+                    }
+                    foreach ($pdfStreamDecodeParameters['predictors'] as $predictor => $predictorCount) {
+                        $diagnostics[] = 'pdf-byte-stream-decode-predictor:' . $predictor . ':' . $predictorCount;
                     }
                 }
                 if ($pdfGraphicsStates !== []) {
@@ -2794,6 +2810,7 @@ final class PdfEngineHandoff
             'pdfFormXObjects' => $pdfFormXObjects,
             'pdfFormXObjectFilters' => $pdfFormXObjectFilters,
             'pdfStreamFilterPolicy' => $pdfStreamFilterPolicy,
+            'pdfStreamDecodeParameters' => $pdfStreamDecodeParameters,
             'pdfGraphicsStates' => $pdfGraphicsStates,
             'pdfGraphicsStateBlendModes' => $pdfGraphicsStateBlendModes,
             'pdfOutlineTitles' => $pdfOutlineTitles,
@@ -2917,6 +2934,7 @@ final class PdfEngineHandoff
      *     finalPdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfFormXObjectFilters: array<string, int>,
      *     finalPdfStreamFilterPolicy: array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{},
+     *     finalPdfStreamDecodeParameters: array{streamCount:int, parameterSetCount:int, filters:array<string, int>, surfaces:array<string, int>, predictors:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, parameterSets:list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>}>}|array{},
      *     finalPdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
      *     finalPdfGraphicsStateBlendModes: array<string, int>,
      *     finalPdfTrailerCount: int,
@@ -3162,6 +3180,7 @@ final class PdfEngineHandoff
             'finalPdfFormXObjects' => is_array($finalRun) && is_array($finalRun['pdfFormXObjects'] ?? null) ? $finalRun['pdfFormXObjects'] : [],
             'finalPdfFormXObjectFilters' => is_array($finalRun) && is_array($finalRun['pdfFormXObjectFilters'] ?? null) ? $finalRun['pdfFormXObjectFilters'] : [],
             'finalPdfStreamFilterPolicy' => is_array($finalRun) && is_array($finalRun['pdfStreamFilterPolicy'] ?? null) ? $finalRun['pdfStreamFilterPolicy'] : [],
+            'finalPdfStreamDecodeParameters' => is_array($finalRun) && is_array($finalRun['pdfStreamDecodeParameters'] ?? null) ? $finalRun['pdfStreamDecodeParameters'] : [],
             'finalPdfGraphicsStates' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStates'] ?? null) ? $finalRun['pdfGraphicsStates'] : [],
             'finalPdfGraphicsStateBlendModes' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStateBlendModes'] ?? null) ? $finalRun['pdfGraphicsStateBlendModes'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
@@ -4405,6 +4424,7 @@ final class PdfEngineHandoff
             $annotationAppearances,
             $this->extractPdfEmbeddedFileStreamFilterPolicyEntries($embeddedFiles, $pdfBytes)
         );
+        $streamDecodeParameters = $this->summarizePdfStreamDecodeParameters($streamFilterPolicy, $pdfBytes);
         $documentInfo = $this->extractPdfDocumentInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -4449,6 +4469,7 @@ final class PdfEngineHandoff
             'formXObjects' => $formXObjects,
             'formXObjectFilters' => $this->summarizePdfFormXObjectFilters($formXObjects),
             'streamFilterPolicy' => $streamFilterPolicy,
+            'streamDecodeParameters' => $streamDecodeParameters,
             'graphicsStates' => $graphicsStates,
             'graphicsStateBlendModes' => $this->summarizePdfGraphicsStateBlendModes($graphicsStates),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
@@ -5008,6 +5029,245 @@ final class PdfEngineHandoff
         }
 
         return $hasImageFilter ? 'image-codec-review' : 'deferred-decode';
+    }
+
+    /**
+     * @param array{streams?:list<array{surface:string, source:string, object:string|null, filters:list<string>}>} $streamFilterPolicy
+     * @return array{streamCount:int, parameterSetCount:int, filters:array<string, int>, surfaces:array<string, int>, predictors:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, parameterSets:list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>}>}|array{}
+     */
+    private function summarizePdfStreamDecodeParameters(array $streamFilterPolicy, string $pdfBytes): array
+    {
+        $policyStreams = $streamFilterPolicy['streams'] ?? [];
+        if (!is_array($policyStreams) || $policyStreams === []) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $streams = [];
+        foreach ($policyStreams as $stream) {
+            if (!is_array($stream)) {
+                continue;
+            }
+
+            $object = is_string($stream['object'] ?? null) && $stream['object'] !== ''
+                ? $stream['object']
+                : null;
+            if ($object === null) {
+                continue;
+            }
+
+            $dictionary = $objects[$this->pdfReferenceKey($object)] ?? null;
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $parameterSets = $this->extractPdfDecodeParameterSets($dictionary, $objects);
+            if ($parameterSets === []) {
+                continue;
+            }
+
+            $streams[] = [
+                'surface' => is_string($stream['surface'] ?? null) ? $stream['surface'] : 'unknown',
+                'source' => is_string($stream['source'] ?? null) ? $stream['source'] : 'stream:unknown',
+                'object' => $object,
+                'filters' => $this->extractPdfFilterNamesInOrder($dictionary, $objects),
+                'parameterSets' => $parameterSets,
+            ];
+        }
+
+        if ($streams === []) {
+            return [];
+        }
+
+        $filters = [];
+        $surfaces = [];
+        $predictors = [];
+        $parameterSetCount = 0;
+        foreach ($streams as $stream) {
+            $surfaces[$stream['surface']] = ($surfaces[$stream['surface']] ?? 0) + 1;
+            foreach ($stream['parameterSets'] as $parameterSet) {
+                $parameterSetCount++;
+                $filter = is_string($parameterSet['filter'] ?? null) && $parameterSet['filter'] !== ''
+                    ? $parameterSet['filter']
+                    : 'unknown';
+                $filters[$filter] = ($filters[$filter] ?? 0) + 1;
+                $predictor = $parameterSet['predictorLabel'] ?? null;
+                if (is_string($predictor) && $predictor !== '') {
+                    $predictors[$predictor] = ($predictors[$predictor] ?? 0) + 1;
+                }
+            }
+        }
+
+        ksort($filters);
+        ksort($surfaces);
+        ksort($predictors);
+
+        return [
+            'streamCount' => count($streams),
+            'parameterSetCount' => $parameterSetCount,
+            'filters' => $filters,
+            'surfaces' => $surfaces,
+            'predictors' => $predictors,
+            'streams' => $streams,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>
+     */
+    private function extractPdfDecodeParameterSets(string $streamDictionary, array $objects): array
+    {
+        $sourceName = 'DecodeParms';
+        $value = $this->extractPdfValueForName($streamDictionary, 'DecodeParms');
+        if ($value === null) {
+            $sourceName = 'DP';
+            $value = $this->extractPdfValueForName($streamDictionary, 'DP');
+        }
+        if ($value === null) {
+            return [];
+        }
+
+        return $this->summarizePdfDecodeParameterValue(
+            $value,
+            $objects,
+            $this->extractPdfFilterNamesInOrder($streamDictionary, $objects),
+            $sourceName,
+            0
+        );
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int} $value
+     * @param array<string, string> $objects
+     * @param list<string|null> $filters
+     * @return list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>
+     */
+    private function summarizePdfDecodeParameterValue(array $value, array $objects, array $filters, string $sourceName, int $depth): array
+    {
+        if ($value['kind'] === 'keyword' && $value['value'] === 'null') {
+            return [];
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return [
+                $this->summarizePdfDecodeParameterDictionary(
+                    $value['value'],
+                    count($filters) === 1 ? $filters[0] : ($filters[0] ?? null),
+                    $sourceName
+                ),
+            ];
+        }
+
+        if ($value['kind'] === 'array') {
+            $sets = [];
+            foreach ($this->pdfTopLevelArrayValues($value['value']) as $index => $arrayValue) {
+                if (($arrayValue['kind'] ?? null) === 'keyword' && ($arrayValue['value'] ?? null) === 'null') {
+                    continue;
+                }
+                foreach ($this->summarizePdfDecodeParameterValue(
+                    $arrayValue,
+                    $objects,
+                    [$filters[$index] ?? null],
+                    $sourceName . '[' . $index . ']',
+                    $depth + 1
+                ) as $set) {
+                    $sets[] = $set;
+                }
+            }
+
+            return $sets;
+        }
+
+        if ($value['kind'] === 'reference') {
+            if ($depth >= 3) {
+                return [];
+            }
+            $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+            if ($body === '') {
+                return [];
+            }
+            $resolved = $this->parsePdfValueAt($body, 0);
+
+            return $resolved === null
+                ? []
+                : $this->summarizePdfDecodeParameterValue($resolved, $objects, $filters, $sourceName . ':' . $value['value'], $depth + 1);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}
+     */
+    private function summarizePdfDecodeParameterDictionary(string $dictionary, ?string $filter, string $parameterSource): array
+    {
+        $rawKeys = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            $rawKeys[] = $entry['key'];
+        }
+        $rawKeys = array_values(array_unique($rawKeys));
+        sort($rawKeys);
+
+        $predictor = $this->extractPdfIntegerToken($dictionary, 'Predictor');
+
+        return [
+            'filter' => $filter === '' ? null : $filter,
+            'parameterSource' => $parameterSource,
+            'predictor' => $predictor,
+            'predictorLabel' => $this->pdfDecodePredictorLabel($predictor),
+            'colors' => $this->extractPdfIntegerToken($dictionary, 'Colors'),
+            'bitsPerComponent' => $this->extractPdfIntegerToken($dictionary, 'BitsPerComponent'),
+            'columns' => $this->extractPdfIntegerToken($dictionary, 'Columns'),
+            'earlyChange' => $this->extractPdfIntegerToken($dictionary, 'EarlyChange'),
+            'k' => $this->extractPdfIntegerToken($dictionary, 'K'),
+            'rows' => $this->extractPdfIntegerToken($dictionary, 'Rows'),
+            'blackIs1' => $this->extractPdfBooleanToken($dictionary, 'BlackIs1'),
+            'encodedByteAlign' => $this->extractPdfBooleanToken($dictionary, 'EncodedByteAlign'),
+            'endOfLine' => $this->extractPdfBooleanToken($dictionary, 'EndOfLine'),
+            'endOfBlock' => $this->extractPdfBooleanToken($dictionary, 'EndOfBlock'),
+            'damagedRowsBeforeError' => $this->extractPdfIntegerToken($dictionary, 'DamagedRowsBeforeError'),
+            'jbig2Globals' => $this->extractPdfReferenceToken($dictionary, 'JBIG2Globals'),
+            'cryptName' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'cryptType' => $this->extractPdfStringOrNameValue($dictionary, 'Type'),
+            'rawKeys' => $rawKeys,
+        ];
+    }
+
+    private function pdfDecodePredictorLabel(?int $predictor): ?string
+    {
+        if ($predictor === null) {
+            return null;
+        }
+
+        return match ($predictor) {
+            1 => 'none',
+            2 => 'tiff-2',
+            10 => 'png-none',
+            11 => 'png-sub',
+            12 => 'png-up',
+            13 => 'png-average',
+            14 => 'png-paeth',
+            15 => 'png-optimum',
+            default => 'unknown-' . $predictor,
+        };
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function extractPdfFilterNamesInOrder(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'Filter');
+        if ($value === null) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->summarizePdfFilterValue($value, $objects, 0),
+            static fn (string $filter): bool => $filter !== ''
+        ));
     }
 
     /**

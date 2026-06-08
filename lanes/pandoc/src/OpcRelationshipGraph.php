@@ -59,6 +59,13 @@ final class OpcRelationshipGraph
     private const ENCRYPTED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.encrypted-package';
     private const EMBEDDED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.package';
     private const EMBEDDED_OBJECT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.oleObject';
+    private const XML_SIGNATURE_DIGEST_ALGORITHMS = [
+        'http://www.w3.org/2000/09/xmldsig#sha1' => ['profile' => 'sha1', 'expectedDecodedBytes' => 20],
+        'http://www.w3.org/2001/04/xmlenc#sha256' => ['profile' => 'sha256', 'expectedDecodedBytes' => 32],
+        'http://www.w3.org/2001/04/xmldsig-more#sha384' => ['profile' => 'sha384', 'expectedDecodedBytes' => 48],
+        'http://www.w3.org/2001/04/xmlenc#sha512' => ['profile' => 'sha512', 'expectedDecodedBytes' => 64],
+        'http://www.w3.org/2001/04/xmlenc#ripemd160' => ['profile' => 'ripemd160', 'expectedDecodedBytes' => 20],
+    ];
     private const WORDPROCESSING_STYLES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
     private const WORDPROCESSING_NUMBERING_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const WORDPROCESSING_FOOTNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
@@ -2122,7 +2129,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
+     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightDigitalSignatureMetadata(string $signaturePartName): array
     {
@@ -2198,7 +2205,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>
      */
     public function preflightDigitalSignatureSignedInfoReferences(string $signaturePartName): array
     {
@@ -2888,7 +2895,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}
+     * @return array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}
      */
     private static function digitalSignatureObjectMetadata(
         \DOMElement $object,
@@ -2950,7 +2957,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{manifestCount:int, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{manifestCount:int, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     private static function digitalSignatureObjectManifestReferences(
         \DOMElement $object,
@@ -2989,7 +2996,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
+     * @return array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}
      */
     private static function digitalSignatureManifestReferenceMetadata(
         \DOMElement $reference,
@@ -3065,6 +3072,7 @@ final class OpcRelationshipGraph
             }
         }
 
+        $digestPolicy = self::digitalSignatureDigestPolicy($digestAlgorithm, $digestValueDecodedBytes);
         $issues = array_values(array_unique($issues));
 
         return [
@@ -3075,9 +3083,13 @@ final class OpcRelationshipGraph
             'exists' => $exists,
             'contentType' => $contentType,
             'digestAlgorithm' => $digestAlgorithm,
+            'digestAlgorithmKnown' => $digestPolicy['known'],
+            'digestAlgorithmProfile' => $digestPolicy['profile'],
+            'digestExpectedDecodedBytes' => $digestPolicy['expectedDecodedBytes'],
             'digestValue' => $digestValue,
             'digestValueBase64Length' => $digestValueBase64Length,
             'digestValueDecodedBytes' => $digestValueDecodedBytes,
+            'digestValueLengthValid' => $digestPolicy['valueLengthValid'],
             'valid' => $issues === [],
             'issues' => $issues,
             'parseError' => $parseError,
@@ -3085,7 +3097,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
+     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}
      */
     private static function digitalSignatureSignedInfoReferenceMetadata(
         \DOMElement $reference,
@@ -3240,6 +3252,7 @@ final class OpcRelationshipGraph
             }
         }
 
+        $digestPolicy = self::digitalSignatureDigestPolicy($digestAlgorithm, $digestValueDecodedBytes);
         $issues = array_values(array_unique($issues));
 
         return [
@@ -3262,12 +3275,50 @@ final class OpcRelationshipGraph
             'relationshipTransformFollowingCanonicalization' => $relationshipTransformFollowingCanonicalization,
             'relationshipTransformFollowedByCanonicalization' => $relationshipTransformFollowedByCanonicalization,
             'digestAlgorithm' => $digestAlgorithm,
+            'digestAlgorithmKnown' => $digestPolicy['known'],
+            'digestAlgorithmProfile' => $digestPolicy['profile'],
+            'digestExpectedDecodedBytes' => $digestPolicy['expectedDecodedBytes'],
             'digestValue' => $digestValue,
             'digestValueBase64Length' => $digestValueBase64Length,
             'digestValueDecodedBytes' => $digestValueDecodedBytes,
+            'digestValueLengthValid' => $digestPolicy['valueLengthValid'],
             'valid' => $issues === [],
             'issues' => $issues,
             'parseError' => $parseError,
+        ];
+    }
+
+    /**
+     * @return array{known:?bool, profile:?string, expectedDecodedBytes:?int, valueLengthValid:?bool}
+     */
+    private static function digitalSignatureDigestPolicy(?string $algorithm, ?int $decodedBytes): array
+    {
+        if ($algorithm === null || $algorithm === '') {
+            return [
+                'known' => null,
+                'profile' => null,
+                'expectedDecodedBytes' => null,
+                'valueLengthValid' => null,
+            ];
+        }
+
+        $policy = self::XML_SIGNATURE_DIGEST_ALGORITHMS[$algorithm] ?? null;
+        if ($policy === null) {
+            return [
+                'known' => false,
+                'profile' => null,
+                'expectedDecodedBytes' => null,
+                'valueLengthValid' => null,
+            ];
+        }
+
+        $expectedDecodedBytes = $policy['expectedDecodedBytes'];
+
+        return [
+            'known' => true,
+            'profile' => $policy['profile'],
+            'expectedDecodedBytes' => $expectedDecodedBytes,
+            'valueLengthValid' => $decodedBytes === null ? null : $decodedBytes === $expectedDecodedBytes,
         ];
     }
 

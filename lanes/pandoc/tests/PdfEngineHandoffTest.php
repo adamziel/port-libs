@@ -5231,6 +5231,262 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStreamFilterPolicy'] ?? null);
     },
 
+    'fake runner extracts bounded pdf stream decode parameter metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/decode-parms.pdf']);
+        $xrefBytes = "xref bytes with row predictors\n";
+        $contentBytes = "compressed page content bytes\n";
+        $imageBytes = "predictor image bytes\n";
+        $appearanceBytes = "ccitt annotation appearance bytes\n";
+        $embeddedBytes = "encrypted embedded source bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AF [14 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /ImPredictor 8 0 R >> >> /Contents 6 0 R /Annots [5 0 R] >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /Rect [72 72 160 96] /AP << /N 10 0 R >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Length ' . strlen($contentBytes) . ' /Filter /FlateDecode /DP << /Predictor 12 /Columns 24 /Colors 1 /BitsPerComponent 8 >> >>',
+            'stream',
+            $contentBytes,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 320 /Height 180 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode /DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent 8 /Columns 320 >> /Length ' . strlen($imageBytes) . ' >>',
+            'stream',
+            $imageBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 88 24] /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 1728 /Rows 22 /BlackIs1 true /EncodedByteAlign true /EndOfLine false /EndOfBlock true /DamagedRowsBeforeError 2 >> /Length ' . strlen($appearanceBytes) . ' >>',
+            'stream',
+            $appearanceBytes,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XRef /Size 15 /Root 1 0 R /Index [0 15] /W [1 2 1] /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns 5 >> /Length ' . strlen($xrefBytes) . ' >>',
+            'stream',
+            $xrefBytes,
+            'endstream',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /Filespec /F (encrypted-source.bin) /AFRelationship /Source /EF << /F 15 0 R >> >>',
+            'endobj',
+            '15 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter /Crypt /DecodeParms << /Type /CryptFilterDecodeParms /Name /Identity >> /Length ' . strlen($embeddedBytes) . ' >>',
+            'stream',
+            $embeddedBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '256',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/decode-parms.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/decode-parms.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'streamCount' => 5,
+            'parameterSetCount' => 5,
+            'filters' => [
+                'CCITTFaxDecode' => 1,
+                'Crypt' => 1,
+                'FlateDecode' => 3,
+            ],
+            'surfaces' => [
+                'annotation-appearance' => 1,
+                'embedded-file' => 1,
+                'image-xobject' => 1,
+                'page-content' => 1,
+                'xref-stream' => 1,
+            ],
+            'predictors' => [
+                'png-optimum' => 1,
+                'png-up' => 2,
+            ],
+            'streams' => [
+                [
+                    'surface' => 'xref-stream',
+                    'source' => 'xref:11 0 R',
+                    'object' => '11 0 R',
+                    'filters' => ['FlateDecode'],
+                    'parameterSets' => [
+                        [
+                            'filter' => 'FlateDecode',
+                            'parameterSource' => 'DecodeParms',
+                            'predictor' => 12,
+                            'predictorLabel' => 'png-up',
+                            'colors' => null,
+                            'bitsPerComponent' => null,
+                            'columns' => 5,
+                            'earlyChange' => null,
+                            'k' => null,
+                            'rows' => null,
+                            'blackIs1' => null,
+                            'encodedByteAlign' => null,
+                            'endOfLine' => null,
+                            'endOfBlock' => null,
+                            'damagedRowsBeforeError' => null,
+                            'jbig2Globals' => null,
+                            'cryptName' => null,
+                            'cryptType' => null,
+                            'rawKeys' => ['Columns', 'Predictor'],
+                        ],
+                    ],
+                ],
+                [
+                    'surface' => 'page-content',
+                    'source' => 'page:3 0 R.Contents',
+                    'object' => '6 0 R',
+                    'filters' => ['FlateDecode'],
+                    'parameterSets' => [
+                        [
+                            'filter' => 'FlateDecode',
+                            'parameterSource' => 'DP',
+                            'predictor' => 12,
+                            'predictorLabel' => 'png-up',
+                            'colors' => 1,
+                            'bitsPerComponent' => 8,
+                            'columns' => 24,
+                            'earlyChange' => null,
+                            'k' => null,
+                            'rows' => null,
+                            'blackIs1' => null,
+                            'encodedByteAlign' => null,
+                            'endOfLine' => null,
+                            'endOfBlock' => null,
+                            'damagedRowsBeforeError' => null,
+                            'jbig2Globals' => null,
+                            'cryptName' => null,
+                            'cryptType' => null,
+                            'rawKeys' => ['BitsPerComponent', 'Colors', 'Columns', 'Predictor'],
+                        ],
+                    ],
+                ],
+                [
+                    'surface' => 'image-xobject',
+                    'source' => 'page:3 0 R.XObject.ImPredictor',
+                    'object' => '8 0 R',
+                    'filters' => ['FlateDecode'],
+                    'parameterSets' => [
+                        [
+                            'filter' => 'FlateDecode',
+                            'parameterSource' => 'DecodeParms',
+                            'predictor' => 15,
+                            'predictorLabel' => 'png-optimum',
+                            'colors' => 3,
+                            'bitsPerComponent' => 8,
+                            'columns' => 320,
+                            'earlyChange' => null,
+                            'k' => null,
+                            'rows' => null,
+                            'blackIs1' => null,
+                            'encodedByteAlign' => null,
+                            'endOfLine' => null,
+                            'endOfBlock' => null,
+                            'damagedRowsBeforeError' => null,
+                            'jbig2Globals' => null,
+                            'cryptName' => null,
+                            'cryptType' => null,
+                            'rawKeys' => ['BitsPerComponent', 'Colors', 'Columns', 'Predictor'],
+                        ],
+                    ],
+                ],
+                [
+                    'surface' => 'annotation-appearance',
+                    'source' => 'annotation:5 0 R.AP.N',
+                    'object' => '10 0 R',
+                    'filters' => ['CCITTFaxDecode'],
+                    'parameterSets' => [
+                        [
+                            'filter' => 'CCITTFaxDecode',
+                            'parameterSource' => 'DecodeParms',
+                            'predictor' => null,
+                            'predictorLabel' => null,
+                            'colors' => null,
+                            'bitsPerComponent' => null,
+                            'columns' => 1728,
+                            'earlyChange' => null,
+                            'k' => -1,
+                            'rows' => 22,
+                            'blackIs1' => true,
+                            'encodedByteAlign' => true,
+                            'endOfLine' => false,
+                            'endOfBlock' => true,
+                            'damagedRowsBeforeError' => 2,
+                            'jbig2Globals' => null,
+                            'cryptName' => null,
+                            'cryptType' => null,
+                            'rawKeys' => ['BlackIs1', 'Columns', 'DamagedRowsBeforeError', 'EncodedByteAlign', 'EndOfBlock', 'EndOfLine', 'K', 'Rows'],
+                        ],
+                    ],
+                ],
+                [
+                    'surface' => 'embedded-file',
+                    'source' => 'embedded-file:catalog.AF:encrypted-source.bin',
+                    'object' => '15 0 R',
+                    'filters' => ['Crypt'],
+                    'parameterSets' => [
+                        [
+                            'filter' => 'Crypt',
+                            'parameterSource' => 'DecodeParms',
+                            'predictor' => null,
+                            'predictorLabel' => null,
+                            'colors' => null,
+                            'bitsPerComponent' => null,
+                            'columns' => null,
+                            'earlyChange' => null,
+                            'k' => null,
+                            'rows' => null,
+                            'blackIs1' => null,
+                            'encodedByteAlign' => null,
+                            'endOfLine' => null,
+                            'endOfBlock' => null,
+                            'damagedRowsBeforeError' => null,
+                            'jbig2Globals' => null,
+                            'cryptName' => 'Identity',
+                            'cryptType' => 'CryptFilterDecodeParms',
+                            'rawKeys' => ['Name', 'Type'],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStreamDecodeParameters'] ?? null);
+        $t->contains('pdf-byte-stream-decode-parameters:5', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-decode-parameter-sets:5', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-decode-filter:FlateDecode:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-decode-filter:Crypt:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-decode-surface:embedded-file:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-decode-predictor:png-up:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-decode-predictor:png-optimum:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStreamDecodeParameters'] ?? null);
+    },
+
     'fake runner extracts bounded pdf rich media annotation metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/rich-media.pdf']);
