@@ -2605,13 +2605,14 @@ final class PdfEmbeddedFileExtractor
      */
     private function embeddedFileStreamHasDuplicateParamsBoundaryKeys(string $streamDictionary, array $objects): bool
     {
-        $params = $this->resolveDictionaryFromValue($this->dictionaryRawValue($streamDictionary, 'Params'), $objects);
+        $paramsValue = $this->dictionaryRawValue($streamDictionary, 'Params');
+        $params = $this->resolveExactDictionaryFromValue($paramsValue, $objects);
+        if ($params === null) {
+            return $this->valueReferencesNonExactDictionaryObject($paramsValue, $objects);
+        }
 
-        return $params !== null
-            && (
-                $this->dictionaryHasDuplicateKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
-                || $this->dictionaryHasTrailingOperandsAfterKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
-            );
+        return $this->dictionaryHasDuplicateKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($params['body'], self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS);
     }
 
     /**
@@ -7336,6 +7337,24 @@ final class PdfEmbeddedFileExtractor
         }
 
         return ['body' => $dictionary['body'], 'object' => $objectNumber];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function valueReferencesNonExactDictionaryObject(?string $value, array $objects): bool
+    {
+        if ($value === null || $this->objectNumberFromReference($value) === null) {
+            return false;
+        }
+
+        $body = $this->objectBodyFromReferenceValue($value, $objects);
+        if ($body === null) {
+            return false;
+        }
+
+        return $this->dictionaryObjectBody($body) !== null
+            && $this->resolveExactDictionaryFromValue($value, $objects) === null;
     }
 
     /**

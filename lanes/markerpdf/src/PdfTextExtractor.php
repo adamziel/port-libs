@@ -24936,6 +24936,10 @@ final class PdfTextExtractor
         for ($tokenIndex = 0; $tokenIndex < $tokenCount; $tokenIndex++) {
             $token = $tokens[$tokenIndex];
             if ($token === 'BX') {
+                if ($compatibilityDepth === 0 && $operands !== []) {
+                    return null;
+                }
+
                 $compatibilityDepth++;
                 $operands = [];
                 continue;

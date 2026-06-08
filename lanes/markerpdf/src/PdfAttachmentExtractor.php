@@ -3493,13 +3493,13 @@ final class PdfAttachmentExtractor
             return false;
         }
 
-        $paramsBody = $this->rawDictionaryBodyFromValue($paramsValue, $objects);
+        $paramsBody = $this->rawExactDictionaryBodyFromValue($paramsValue, $objects);
+        if ($paramsBody === null) {
+            return $this->rawValueReferencesNonExactDictionaryObject($paramsValue, $objects);
+        }
 
-        return $paramsBody !== null
-            && (
-                $this->dictionaryHasDuplicateKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
-                || $this->dictionaryHasTrailingOperandsAfterKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
-            );
+        return $this->dictionaryHasDuplicateKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($paramsBody, self::EMBEDDED_FILE_PARAMS_BOUNDARY_KEYS);
     }
 
     /**
@@ -8494,6 +8494,35 @@ final class PdfAttachmentExtractor
         }
 
         return $this->topLevelDictionaryBodyFromObjectBody($value);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function rawExactDictionaryBodyFromValue(string $value, array $objects): ?string
+    {
+        $index = 0;
+        $parsed = $this->parseValue($value, $index);
+        $object = $this->objectForReference($parsed, $objects);
+        if ($object !== null) {
+            return $this->topLevelExactDictionaryBodyFromObjectBody($object['body']);
+        }
+
+        return $this->topLevelDictionaryBodyFromObjectBody($value);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function rawValueReferencesNonExactDictionaryObject(string $value, array $objects): bool
+    {
+        $index = 0;
+        $parsed = $this->parseValue($value, $index);
+        $object = $this->objectForReference($parsed, $objects);
+
+        return $object !== null
+            && $this->topLevelDictionaryBodyFromObjectBody($object['body']) !== null
+            && $this->topLevelExactDictionaryBodyFromObjectBody($object['body']) === null;
     }
 
     /**
