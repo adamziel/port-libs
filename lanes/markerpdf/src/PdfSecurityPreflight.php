@@ -237,11 +237,7 @@ final class PdfSecurityPreflight
         $recipientPermissionsDeclared = (int) ($publicKeyRecipientReview['recipient_count'] ?? 0) > 0;
         $selectedRecipientCount = (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0);
         $publicKeyRecipientDeclarationFailClosed = ($publicKeyRecipientReview['recipient_declaration_fail_closed'] ?? false) === true;
-        $securityHandlerSubfilterPermissionBoundary = $securityHandlerSubfilterDeclarationFailClosed
-            && (
-                (is_string($encryption['filter'] ?? null) && $encryption['filter'] !== 'Standard')
-                || $recipientPermissionsDeclared
-            );
+        $securityHandlerSubfilterPermissionBoundary = $securityHandlerSubfilterDeclarationFailClosed;
         $permissionBitsReliable = $handlerSupported
             && !$securityHandlerDeclarationFailClosed
             && !$securityHandlerSubfilterPermissionBoundary
@@ -422,6 +418,7 @@ final class PdfSecurityPreflight
             'security_handler_subfilter_permission_boundary' => $securityHandlerSubfilterPermissionBoundary,
             'security_handler_duplicate_subfilter_entries' => (bool) ($securityHandlerSubfilterDeclarationReview['duplicate_entries'] ?? false),
             'security_handler_malformed_subfilter_entries' => (bool) ($securityHandlerSubfilterDeclarationReview['malformed_entries'] ?? false),
+            'security_handler_standard_subfilter_incompatible' => (bool) ($securityHandlerSubfilterDeclarationReview['standard_handler_incompatible'] ?? false),
             'security_handler_subfilter_declared_entry_count' => (int) ($securityHandlerSubfilterDeclarationReview['declared_entry_count'] ?? 0),
             'security_handler_subfilter_names' => is_array($securityHandlerSubfilterDeclarationReview['subfilter_names'] ?? null)
                 ? $securityHandlerSubfilterDeclarationReview['subfilter_names']
@@ -2313,11 +2310,7 @@ final class PdfSecurityPreflight
         $selectedPublicKeyRecipientCount = (int) ($publicKeyRecipientReview['selected_recipient_count'] ?? 0);
         $recipientPermissionsDeclared = $publicKeyRecipientCount > 0;
         $publicKeyRecipientDeclarationFailClosed = ($publicKeyRecipientReview['recipient_declaration_fail_closed'] ?? false) === true;
-        $securityHandlerSubfilterPermissionBoundary = $securityHandlerSubfilterDeclarationFailClosed
-            && (
-                ($handler !== null && $handler !== 'Standard')
-                || $recipientPermissionsDeclared
-            );
+        $securityHandlerSubfilterPermissionBoundary = $securityHandlerSubfilterDeclarationFailClosed;
         $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
             ? $encryption['standard_authentication_review']
             : [];
@@ -2445,6 +2438,7 @@ final class PdfSecurityPreflight
             'security_handler_subfilter_permission_boundary' => $securityHandlerSubfilterPermissionBoundary,
             'security_handler_duplicate_subfilter_entries' => (bool) ($securityHandlerSubfilterDeclarationReview['duplicate_entries'] ?? false),
             'security_handler_malformed_subfilter_entries' => (bool) ($securityHandlerSubfilterDeclarationReview['malformed_entries'] ?? false),
+            'security_handler_standard_subfilter_incompatible' => (bool) ($securityHandlerSubfilterDeclarationReview['standard_handler_incompatible'] ?? false),
             'security_handler_subfilter_names' => is_array($securityHandlerSubfilterDeclarationReview['subfilter_names'] ?? null)
                 ? $securityHandlerSubfilterDeclarationReview['subfilter_names']
                 : [],
@@ -6051,6 +6045,7 @@ final class PdfSecurityPreflight
         $permissionBitsReliable = $standardHandler
             && $permissions !== []
             && !$securityHandlerDeclarationFailClosed
+            && !$securityHandlerSubfilterDeclarationFailClosed
             && !$standardParametersMalformed
             && $permissionWellFormed === true
             && !$permissionWordDuplicateEntries
@@ -6173,6 +6168,7 @@ final class PdfSecurityPreflight
             'security_handler_subfilter_declaration_fail_closed' => $securityHandlerSubfilterDeclarationFailClosed,
             'security_handler_duplicate_subfilter_entries' => (bool) ($securityHandlerSubfilterDeclarationReview['duplicate_entries'] ?? false),
             'security_handler_malformed_subfilter_entries' => (bool) ($securityHandlerSubfilterDeclarationReview['malformed_entries'] ?? false),
+            'security_handler_standard_subfilter_incompatible' => (bool) ($securityHandlerSubfilterDeclarationReview['standard_handler_incompatible'] ?? false),
             'security_handler_subfilter_names' => is_array($securityHandlerSubfilterDeclarationReview['subfilter_names'] ?? null)
                 ? $securityHandlerSubfilterDeclarationReview['subfilter_names']
                 : [],
@@ -6381,6 +6377,9 @@ final class PdfSecurityPreflight
                     }
                     if (($permissionPreflight['security_handler_malformed_subfilter_entries'] ?? false) === true) {
                         $reasons[] = 'malformed_security_handler_subfilter_entries';
+                    }
+                    if (($permissionPreflight['security_handler_standard_subfilter_incompatible'] ?? false) === true) {
+                        $reasons[] = 'standard_security_handler_subfilter_incompatible';
                     }
                 } elseif (($permissionPreflight['public_key_recipient_declaration_fail_closed'] ?? false) === true) {
                     $reasons[] = 'public_key_recipient_declaration_malformed';

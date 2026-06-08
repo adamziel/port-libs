@@ -2623,7 +2623,8 @@ final class PdfNamedDestinationExtractor
             && !array_is_list($value)
             && !array_key_exists('__pdf_ref', $value)
             && !array_key_exists('__pdf_name', $value)
-            && !array_key_exists('__pdf_string', $value);
+            && !array_key_exists('__pdf_string', $value)
+            && !array_key_exists('__pdf_keyword', $value);
     }
 
     /**
@@ -2822,7 +2823,7 @@ final class PdfNamedDestinationExtractor
             'true' => true,
             'false' => false,
             'null' => null,
-            default => $keyword,
+            default => ['__pdf_keyword' => $keyword],
         };
     }
 

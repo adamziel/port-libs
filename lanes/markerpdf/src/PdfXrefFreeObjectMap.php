@@ -527,6 +527,8 @@ final class PdfXrefFreeObjectMap
     private static function directObjectEndOffset(string $pdfBytes, int $offset): ?int
     {
         $length = strlen($pdfBytes);
+        $lastDictionary = null;
+        $lastDictionaryEnd = null;
         while ($offset < $length) {
             $char = $pdfBytes[$offset];
 
@@ -544,6 +546,8 @@ final class PdfXrefFreeObjectMap
                 $dictionary = self::readDictionaryAt($pdfBytes, $offset);
                 if ($dictionary !== null) {
                     $offset += strlen($dictionary);
+                    $lastDictionary = $dictionary;
+                    $lastDictionaryEnd = $offset;
                     continue;
                 }
             }
@@ -562,7 +566,11 @@ final class PdfXrefFreeObjectMap
             }
 
             if (self::keywordAt($pdfBytes, $offset, 'stream')) {
-                $streamEnd = self::directObjectStreamEndOffset($pdfBytes, $offset);
+                $streamDictionary = $lastDictionaryEnd !== null
+                    && self::skipWhitespace($pdfBytes, $lastDictionaryEnd) === $offset
+                    ? $lastDictionary
+                    : null;
+                $streamEnd = self::directObjectStreamEndOffset($pdfBytes, $offset, $streamDictionary);
                 if ($streamEnd !== null) {
                     $offset = $streamEnd + strlen('endstream');
                     continue;
@@ -579,7 +587,11 @@ final class PdfXrefFreeObjectMap
         return null;
     }
 
-    private static function directObjectStreamEndOffset(string $pdfBytes, int $streamKeywordOffset): ?int
+    private static function directObjectStreamEndOffset(
+        string $pdfBytes,
+        int $streamKeywordOffset,
+        ?string $dictionary = null
+    ): ?int
     {
         $streamStart = $streamKeywordOffset + strlen('stream');
         if (substr($pdfBytes, $streamStart, 2) === "\r\n") {
@@ -588,9 +600,55 @@ final class PdfXrefFreeObjectMap
             $streamStart++;
         }
 
+        $declaredLength = $dictionary === null ? null : self::directStreamLengthFromDictionary($dictionary);
+        if ($declaredLength !== null && $declaredLength >= 0) {
+            $declaredEnd = $streamStart + $declaredLength;
+            $declaredTerminator = self::streamTerminatorOffsetAfterDeclaredLength($pdfBytes, $declaredEnd);
+            if ($declaredTerminator !== null) {
+                return $declaredTerminator;
+            }
+        }
+
         $streamEnd = strpos($pdfBytes, 'endstream', $streamStart);
 
         return is_int($streamEnd) ? $streamEnd : null;
+    }
+
+    private static function directStreamLengthFromDictionary(string $dictionary): ?int
+    {
+        $offset = self::valueOffsetAfterName($dictionary, 'Length');
+        if ($offset === null || preg_match('/\G([+-]?\d+)\b/s', $dictionary, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $afterInteger = self::skipWhitespace($dictionary, $offset + strlen($match[1]));
+        if (preg_match('/\G\d+\s+R\b/s', $dictionary, $referenceMatch, 0, $afterInteger) === 1) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
+    private static function streamTerminatorOffsetAfterDeclaredLength(string $pdfBytes, int $declaredEnd): ?int
+    {
+        if ($declaredEnd < 0 || $declaredEnd > strlen($pdfBytes)) {
+            return null;
+        }
+
+        $candidates = [$declaredEnd];
+        if (substr($pdfBytes, $declaredEnd, 2) === "\r\n") {
+            $candidates[] = $declaredEnd + 2;
+        } elseif (($pdfBytes[$declaredEnd] ?? '') === "\n" || ($pdfBytes[$declaredEnd] ?? '') === "\r") {
+            $candidates[] = $declaredEnd + 1;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (self::keywordAt($pdfBytes, $candidate, 'endstream')) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private static function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int

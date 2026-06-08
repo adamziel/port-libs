@@ -8865,7 +8865,7 @@ final class PdfMetadataExtractor
         if ($subfilter !== null) {
             $metadata['subfilter'] = $subfilter;
         }
-        $securityHandlerSubfilterDeclarationReview = $this->securityHandlerSubfilterDeclarationReview($dictionary, $objects);
+        $securityHandlerSubfilterDeclarationReview = $this->securityHandlerSubfilterDeclarationReview($dictionary, $objects, $filter);
         if ($securityHandlerSubfilterDeclarationReview !== []) {
             $metadata['security_handler_subfilter_declaration_review'] = $securityHandlerSubfilterDeclarationReview;
         }
@@ -10264,13 +10264,15 @@ final class PdfMetadataExtractor
 
     /**
      * Public-key security handlers use /SubFilter to decide whether recipient
-     * envelopes come from the encryption dictionary or crypt filters. Ambiguous
-     * or non-name declarations are therefore a permission-selection boundary.
+     * envelopes come from the encryption dictionary or crypt filters. A
+     * Standard handler that also declares /SubFilter mixes incompatible
+     * security-handler contracts and cannot safely trust Standard permission
+     * bits.
      *
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function securityHandlerSubfilterDeclarationReview(string $dictionary, array $objects): array
+    private function securityHandlerSubfilterDeclarationReview(string $dictionary, array $objects, ?string $filter): array
     {
         $values = $this->dictionaryTopLevelRawValues($dictionary, 'SubFilter');
         if ($values === []) {
@@ -10308,21 +10310,24 @@ final class PdfMetadataExtractor
             $entries,
             static fn (array $entry): bool => ($entry['status'] ?? null) !== 'security_handler_subfilter_name'
         ));
-        if (!$duplicate && $malformedEntries === []) {
+        $standardHandlerIncompatible = $filter === 'Standard';
+        if (!$duplicate && $malformedEntries === [] && !$standardHandlerIncompatible) {
             return [];
         }
 
         $selectedIndex = count($entries) - 1;
         $selectedEntry = $entries[$selectedIndex] ?? [];
-        $ambiguous = $duplicate || $malformedEntries !== [];
+        $ambiguous = $duplicate || $malformedEntries !== [] || $standardHandlerIncompatible;
 
         return [
             'source' => 'security_handler_subfilter_declaration_review',
             'pdf_name' => 'SubFilter',
+            'handler' => $filter,
             'declared_entry_count' => count($values),
             'duplicate_entries' => $duplicate,
             'malformed_entries' => $malformedEntries !== [],
             'malformed_entry_count' => count($malformedEntries),
+            'standard_handler_incompatible' => $standardHandlerIncompatible,
             'ambiguous' => $ambiguous,
             'fail_closed' => $ambiguous,
             'selected_entry_index' => $selectedIndex,
@@ -10348,9 +10353,12 @@ final class PdfMetadataExtractor
                 ),
                 static fn (mixed $shape): bool => is_string($shape)
             ))),
-            'status' => $duplicate
-                ? 'duplicate_security_handler_subfilter_entries_review'
-                : 'malformed_security_handler_subfilter_entries_review',
+            'status' => match (true) {
+                $duplicate => 'duplicate_security_handler_subfilter_entries_review',
+                $malformedEntries !== [] => 'malformed_security_handler_subfilter_entries_review',
+                $standardHandlerIncompatible => 'standard_security_handler_subfilter_incompatible_review',
+                default => 'security_handler_subfilter_declaration_review',
+            },
             'entries' => $entries,
             'review_only' => true,
             'executes_decryption' => false,

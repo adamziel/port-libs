@@ -608,6 +608,8 @@ return [
             'invalid_decode_parms_fields' => ['decode_parms_operand'],
             'decode_parms_review' => 'malformed_ccitt_decodeparms_fail_closed',
             'decode_parms_operand' => 'malformed_operand',
+            'decode_parms_operand_detail' => 'array_with_trailing_operands',
+            'decode_parms_array_policy' => 'reject_top_level_decodeparms_array_tail',
         ];
 
         $rendererPlan = $renderer->imageColorSpaceSoftMaskPlan(

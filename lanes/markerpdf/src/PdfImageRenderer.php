@@ -5735,6 +5735,25 @@ final class PdfImageRenderer
     private function ccittFaxDecodeParmsDictionaryOperandFailureDetails(string $resolved): array
     {
         $trimmed = trim($resolved);
+        if (str_starts_with($trimmed, '[')) {
+            $array = $this->readBalancedArray($trimmed, 0);
+            if ($array === null) {
+                return [
+                    'decode_parms_operand_detail' => 'malformed_array_operand',
+                    'decode_parms_array_policy' => 'reject_malformed_decodeparms_array',
+                ];
+            }
+
+            if ($this->skipPdfWhitespace($trimmed, $array['next']) !== strlen($trimmed)) {
+                return [
+                    'decode_parms_operand_detail' => 'array_with_trailing_operands',
+                    'decode_parms_array_policy' => 'reject_top_level_decodeparms_array_tail',
+                ];
+            }
+
+            return [];
+        }
+
         if (!str_starts_with($trimmed, '<<')) {
             return [];
         }

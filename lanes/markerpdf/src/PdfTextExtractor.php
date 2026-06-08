@@ -10802,6 +10802,25 @@ final class PdfTextExtractor
             return $this->imageXObjectCcittDecodeParmsOperandFailureDetails($body, $objects, $seenReferences);
         }
 
+        if (str_starts_with($trimmed, '[')) {
+            $arrayBody = $this->readPdfArrayAt($trimmed, 0);
+            if ($arrayBody === null) {
+                return [
+                    'decode_parms_operand_detail' => 'malformed_array_operand',
+                    'decode_parms_array_policy' => 'reject_malformed_decodeparms_array',
+                ];
+            }
+
+            if ($this->skipPdfWhitespace($trimmed, strlen($arrayBody) + 2) !== strlen($trimmed)) {
+                return [
+                    'decode_parms_operand_detail' => 'array_with_trailing_operands',
+                    'decode_parms_array_policy' => 'reject_top_level_decodeparms_array_tail',
+                ];
+            }
+
+            return [];
+        }
+
         if (!str_starts_with($trimmed, '<<')) {
             return [];
         }
