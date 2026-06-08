@@ -607,6 +607,29 @@ return [
         $t->true(!str_contains($setMathml . $integralMathml . $circledMathml, '<mi>\\bigcup</mi>'));
         $t->true(!str_contains($setMathml . $integralMathml . $circledMathml, '<mi>\\iint</mi>'));
     },
+    'converts bounded tex binary operator and relation aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $circledMathml = $converter->texToMathMl('a \\oplus b + c \\ominus d + e \\otimes f + g \\oslash h + i \\odot j', true);
+        $operatorMathml = $converter->texToMathMl('x \\bullet y + p \\circ q + r \\star s + u \\diamond v + m \\div n + a \\mp b');
+        $relationMathml = $converter->texToMathMl('A \\asymp B + C \\bowtie D + H \\vdash I + J \\dashv K + U \\smile V + W \\frown Z');
+        $accessibleMathml = $converter->texToAccessibleMathMl('a \\oplus b + A \\asymp B');
+        $combinedMathml = $circledMathml . $operatorMathml . $relationMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $circledMathml);
+        $t->contains('<mi>a</mi><mo>⊕</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⊖</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⊗</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>⊘</mo><mi>h</mi><mo>+</mo><mi>i</mi><mo>⊙</mo><mi>j</mi>', $circledMathml);
+        $t->contains('<annotation encoding="application/x-tex">a \\oplus b + c \\ominus d + e \\otimes f + g \\oslash h + i \\odot j</annotation>', $circledMathml);
+        $t->contains('<mi>x</mi><mo>∙</mo><mi>y</mi><mo>+</mo><mi>p</mi><mo>∘</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>⋆</mo><mi>s</mi><mo>+</mo><mi>u</mi><mo>⋄</mo><mi>v</mi><mo>+</mo><mi>m</mi><mo>÷</mo><mi>n</mi><mo>+</mo><mi>a</mi><mo>∓</mo><mi>b</mi>', $operatorMathml);
+        $t->contains('<annotation encoding="application/x-tex">x \\bullet y + p \\circ q + r \\star s + u \\diamond v + m \\div n + a \\mp b</annotation>', $operatorMathml);
+        $t->contains('<mi>A</mi><mo>≍</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⋈</mo><mi>D</mi><mo>+</mo><mi>H</mi><mo>⊢</mo><mi>I</mi><mo>+</mo><mi>J</mi><mo>⊣</mo><mi>K</mi><mo>+</mo><mi>U</mi><mo>⌣</mo><mi>V</mi><mo>+</mo><mi>W</mi><mo>⌢</mo><mi>Z</mi>', $relationMathml);
+        $t->contains('<annotation encoding="application/x-tex">A \\asymp B + C \\bowtie D + H \\vdash I + J \\dashv K + U \\smile V + W \\frown Z</annotation>', $relationMathml);
+        $t->contains('circled plus', $accessibleMathml);
+        $t->contains('asymptotically equal to', $accessibleMathml);
+        $t->contains('circled_plus', $accessibleMathml);
+        $t->contains('asymptotically_equal_to', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\oplus</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\bullet</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\asymp</mi>'));
+    },
     'converts bounded tex explicit operator limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $limitsMathml = $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q', true);

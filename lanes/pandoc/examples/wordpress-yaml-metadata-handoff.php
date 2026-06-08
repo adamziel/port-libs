@@ -340,6 +340,11 @@ sequence-explicit-null-review-items:
   - ? !wpd!key tagged-source
     status: queued
 source label: Migration review
+writer-hashtag-label: "#needs-review"
+writer-hashtag-labels:
+  - "#migration"
+  - "#wp-import"
+  - safe#fragment
 plain-key-review:
   source owner: Import Desk
   owner role: content steward
@@ -1461,6 +1466,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['source label'] ?? '') !== 'Migration review') {
         throw new RuntimeException('YAML metadata self-test missing plain spaced source label');
     }
+    if (($meta['writer-hashtag-label'] ?? '') !== '#needs-review') {
+        throw new RuntimeException('YAML metadata self-test missing writer hashtag label source metadata');
+    }
+    if (($meta['writer-hashtag-labels'] ?? []) !== ['#migration', '#wp-import', 'safe#fragment']) {
+        throw new RuntimeException('YAML metadata self-test missing writer hashtag label list source metadata');
+    }
     if (($meta['plain-key-review']['source owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing nested plain spaced key metadata');
     }
@@ -1668,6 +1679,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($metadataMarkdown, "review-notes:\n  - |-\n    Preserve original front matter.")) {
         throw new RuntimeException('YAML metadata self-test did not write sequence multiline note as a YAML block scalar');
     }
+    if (
+        !str_contains($metadataMarkdown, "writer-hashtag-label: \"#needs-review\"")
+        || !str_contains($metadataMarkdown, "  - \"#migration\"")
+        || !str_contains($metadataMarkdown, "  - \"#wp-import\"")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not quote comment-looking writer scalars');
+    }
     if (str_contains($metadataMarkdown, 'Source abstract keeps **review** emphasis\\n\\n') || str_contains($metadataMarkdown, 'Review steps:\\n')) {
         throw new RuntimeException('YAML metadata self-test leaked escaped newline metadata after writer block-scalar handoff');
     }
@@ -1679,6 +1697,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($metadataRoundTripMeta['source-uri'] ?? '') !== '/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test lost quoted writer source URI during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-hashtag-label'] ?? '') !== '#needs-review') {
+        throw new RuntimeException('YAML metadata self-test lost comment-looking writer scalar during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-hashtag-labels'] ?? []) !== ['#migration', '#wp-import', 'safe#fragment']) {
+        throw new RuntimeException('YAML metadata self-test lost comment-looking writer sequence scalars during round trip');
     }
     if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
@@ -1839,6 +1863,7 @@ echo 'Sequence item explicit null key: '
     . "\n";
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
+echo 'Writer hashtag labels: ' . ($metadataRoundTripMeta['writer-hashtag-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-hashtag-labels'] ?? []) . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYamlDiagnostics, 'field')) . "\n";

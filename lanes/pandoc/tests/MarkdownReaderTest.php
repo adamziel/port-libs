@@ -6466,6 +6466,39 @@ MD;
         $t->same('heading', $roundTripped->children[0]->type);
         $t->same('yaml-writer-body', $roundTripped->children[0]->attr('id'));
     },
+    'writes pandoc yaml comment-looking metadata scalars as quoted strings' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Writer hashtag **Packet**',
+                'review' => [
+                    'status' => '#needs-review',
+                    'labels' => ['#migration', '#wp-import', 'safe#inside'],
+                ],
+                'keywords' => ['#front-matter'],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-hash-body'], [$text('YAML writer hash body')]),
+        ]);
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains("status: \"#needs-review\"", $markdown);
+        $t->contains("  - \"#migration\"", $markdown);
+        $t->contains("  - \"#wp-import\"", $markdown);
+        $t->contains("  - safe#inside", $markdown);
+        $t->same(false, str_contains($markdown, 'status: #needs-review'));
+        $t->same('#needs-review', $meta['review']['status']);
+        $t->same('#migration', $meta['review']['labels'][0]);
+        $t->same('#wp-import', $meta['review']['labels'][1]);
+        $t->same('safe#inside', $meta['review']['labels'][2]);
+        $t->same('#front-matter', $meta['keywords'][0]);
+        $t->same('yaml-writer-hash-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-writer-hash-body">YAML writer hash body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

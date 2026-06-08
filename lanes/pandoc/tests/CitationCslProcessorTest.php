@@ -5454,6 +5454,78 @@ XML);
         $t->same('001 manual shorthand', $manual['sortShorthand'] ?? null);
         $t->same('001 manual shorthand', $manual['shorthandListSortKey'] ?? null);
     },
+    'emits bounded biblatex list of shorthands review blocks' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{zeta-shorthand,
+  author         = {Zed, Zoe},
+  title          = {Zeta Source Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  shorthand      = {Z-10},
+  sortshorthand  = {010 zeta source},
+  shorthandintro = {listed as Zeta Source}
+}
+
+@book{alpha-shorthand,
+  author         = {Adams, Ada},
+  title          = {Alpha Source Manual},
+  date           = {2025},
+  publisher      = {Review Press},
+  shorthand      = {A-2},
+  sort-shorthand = {002 alpha source}
+}
+
+@online{fallback-shorthand,
+  title     = {Fallback Shorthand Packet},
+  date      = {2024},
+  shorthand = {B-3},
+  url       = {https://example.test/fallback-shorthand}
+}
+
+@book{ordinary-source,
+  title = {Ordinary Source},
+  date  = {2026}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $blocks = $processor->shorthandListBlocks('List of Shorthands');
+        $t->same(2, count($blocks));
+        $t->same('heading', $blocks[0]->type);
+        $t->same('list-of-shorthands', $blocks[0]->attr('id'));
+        $t->same('List of Shorthands', $blocks[0]->attr('text'));
+
+        $list = $blocks[1];
+        $t->same('definition_list', $list->type);
+        $t->same(['pandoc-csl-shorthand-list'], $list->attr('classes'));
+        $t->same(3, count($list->children));
+        $terms = array_map(static fn (AstNode $item): string => (string) $item->children[0]->attr('text'), $list->children);
+        $t->same(['A-2', 'Z-10', 'B-3'], $terms);
+
+        $definitionText = static fn (AstNode $item): string => (string) $item->children[1]->children[0]->attr('text');
+        $t->same('Alpha Source Manual.', $definitionText($list->children[0]));
+        $t->same('listed as Zeta Source. Zeta Source Manual.', $definitionText($list->children[1]));
+        $t->same('Fallback Shorthand Packet.', $definitionText($list->children[2]));
+        $t->same('alpha-shorthand', $list->children[0]->attr('cslId'));
+        $t->same('002 alpha source', $list->children[0]->attr('shorthandListSortKey'));
+        $t->same('listed as Zeta Source', $list->children[1]->attr('shorthandIntro'));
+        $t->same([], CitationCslProcessor::fromBibtex('@book{ordinary-source,title={Ordinary Source},date={2026}}')->shorthandListBlocks());
+
+        $markdownList = (new MarkdownWriter())->write(new AstNode('document', [], $blocks));
+        $t->contains('List of Shorthands', $markdownList);
+        $t->contains('A-2' . "\n" . ':   Alpha Source Manual.', $markdownList);
+        $t->contains('Z-10' . "\n" . ':   listed as Zeta Source. Zeta Source Manual.', $markdownList);
+
+        $document = (new MarkdownReader())->read('Shorthand list @zeta-shorthand, @alpha-shorthand, and [@fallback-shorthand] keeps source abbreviations visible.');
+        $processed = $processor->appendShorthandList($processor->appendBibliography($document, 'Works Cited'), 'List of Shorthands');
+        $blocksHtml = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<h2 id="list-of-shorthands">List of Shorthands</h2>', $blocksHtml);
+        $t->contains('<dt>A-2</dt><dd>Alpha Source Manual.</dd>', $blocksHtml);
+        $t->contains('<dt>Z-10</dt><dd>listed as Zeta Source. Zeta Source Manual.</dd>', $blocksHtml);
+        $t->contains('<dt>B-3</dt><dd>Fallback Shorthand Packet.</dd>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'Ordinary Source.</dd>'));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $processor->appendShorthandList(new AstNode('paragraph')));
+    },
     'maps bounded biblatex label disambiguation fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{label-field-source,

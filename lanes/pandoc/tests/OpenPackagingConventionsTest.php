@@ -2821,6 +2821,10 @@ XML;
         $t->same(true, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['valid'] ?? null);
         $t->same('/xl/workbook.xml', $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['relationships'][0]['targetPart'] ?? null);
         $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml', $embeddedGraphs['rIdEmbeddedWorkbook']['nestedOfficeDocument']['relationships'][0]['contentType'] ?? null);
+        $t->same('/', $embeddedGraphs['rIdEmbeddedWorkbook']['nestedRelationshipClosure']['source'] ?? null);
+        $t->same(2, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedRelationshipClosure']['expandedSourceCount'] ?? null);
+        $t->same(1, $embeddedGraphs['rIdEmbeddedWorkbook']['nestedRelationshipClosure']['stopCount'] ?? null);
+        $t->same([], $embeddedGraphs['rIdEmbeddedWorkbook']['nestedRelationshipClosure']['issues'] ?? null);
         $t->same(true, $embeddedGraphs['rIdEmbeddedWorkbook']['valid']);
         $t->same([], $embeddedGraphs['rIdEmbeddedWorkbook']['issues']);
 
@@ -2841,6 +2845,100 @@ XML;
         $t->same(false, $embeddedGraphs['rIdMissingWorkbook']['expanded']);
         $t->same(false, $embeddedGraphs['rIdMissingWorkbook']['valid']);
         $t->same(['missing-in-package'], $embeddedGraphs['rIdMissingWorkbook']['issues']);
+    },
+    'preflights embedded OPC package relationship closure for importer review' => static function (TestRunner $t): void {
+        $nestedWorkbookBytes = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/media/logo.png" ContentType="image/png"/>
+  <Override PartName="/xl/drawings/missing.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+</Types>
+XML],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdWorkbook" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="xl/workbook.xml"/></Relationships>'],
+            ['name' => 'xl/workbook.xml', 'data' => '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+            ['name' => 'xl/_rels/workbook.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSheet1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>
+  <Relationship Id="rIdMissingDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="drawings/missing.xml"/>
+  <Relationship Id="rIdExternalTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/template" TargetMode="External"/>
+</Relationships>
+XML],
+            ['name' => 'xl/worksheets/sheet1.xml', 'data' => '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'],
+            ['name' => 'xl/media/logo.png', 'data' => 'PNG'],
+        ]);
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+</Types>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => $nestedWorkbookBytes],
+        ]));
+
+        $embedded = $graph->preflightEmbeddedPackageGraphs('/word/document.xml')[0] ?? null;
+        $t->true(is_array($embedded));
+        $t->same('rIdEmbeddedWorkbook', $embedded['id'] ?? null);
+        $t->same(true, $embedded['expanded'] ?? null);
+        $t->same(false, $embedded['valid'] ?? null);
+        $t->same(['embedded-missing-in-package'], $embedded['issues'] ?? null);
+
+        $closure = $embedded['nestedRelationshipClosure'] ?? null;
+        $t->true(is_array($closure));
+        $t->same('/', $closure['source'] ?? null);
+        $t->same(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE, $closure['relationshipType'] ?? null);
+        $t->same(false, $closure['valid'] ?? null);
+        $t->same(['missing-in-package'], $closure['issues'] ?? null);
+        $t->same(2, $closure['expandedSourceCount'] ?? null);
+        $t->same(4, $closure['stopCount'] ?? null);
+        $t->same(1, $closure['externalStopCount'] ?? null);
+        $t->same(1, $closure['missingStopCount'] ?? null);
+        $t->same(2, $closure['unloadedStopCount'] ?? null);
+
+        $sources = [];
+        foreach ($closure['sources'] as $source) {
+            $sources[$source['source']] = $source;
+        }
+        $t->same(['/', '/xl/workbook.xml'], array_keys($sources));
+        $t->same(true, $sources['/xl/workbook.xml']['reachable']);
+        $t->same(1, $sources['/xl/workbook.xml']['depth']);
+        $t->same(4, $sources['/xl/workbook.xml']['relationshipCount']);
+        $t->same(['/xl/drawings/missing.xml'], $sources['/xl/workbook.xml']['missingTargetParts']);
+        $t->same(['https://example.test/template'], $sources['/xl/workbook.xml']['externalTargets']);
+
+        $stops = [];
+        foreach ($closure['stops'] as $stop) {
+            $stops[$stop['id']] = $stop;
+        }
+        $t->same('target-source-not-loaded', $stops['rIdSheet1']['stopReason']);
+        $t->same('/xl/worksheets/sheet1.xml', $stops['rIdSheet1']['targetPart']);
+        $t->same('target-source-not-loaded', $stops['rIdLogo']['stopReason']);
+        $t->same('/xl/media/logo.png', $stops['rIdLogo']['targetPart']);
+        $t->same('missing-target', $stops['rIdMissingDrawing']['stopReason']);
+        $t->same('/xl/drawings/missing.xml', $stops['rIdMissingDrawing']['targetPart']);
+        $t->same(['missing-in-package'], $stops['rIdMissingDrawing']['issues']);
+        $t->same('external-target', $stops['rIdExternalTemplate']['stopReason']);
+        $t->same(null, $stops['rIdExternalTemplate']['targetPart']);
     },
     'preflights OPC relationship selectors by SourceId and SourceType' => static function (TestRunner $t): void {
         $selectorContentTypesXml = <<<'XML'

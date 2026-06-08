@@ -35,6 +35,8 @@ Text alias audit $\mbox{review mode} + \textrm{media label} + \textbf{draft} + \
 
 Dot and named symbol alias audit $\ldots + \cdots + \ddots + \aleph + \ell + \Re + \Im + \wp + a \cong b + c \simeq d + x \propto y + u \parallel v + r \perp s + \angle x + \nabla f + \top + \bot$ stays semantic.
 
+Operator relation alias audit $a \oplus b + c \ominus d + x \asymp y + p \vdash q + u \bowtie v$ stays semantic.
+
 Display audit:
 $$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \sqrt[3]{x_i + y_i} + \binom{n}{k} + \tbinom{p_i}{2} + \dbinom{a+b}{c} + \dfrac{q_i}{r_i} + \genfrac{\langle}{\rangle}{0pt}{0}{n}{k} + \widehat{\operatorname{quality}} + \vec{v}_i + \begin{pmatrix}p_1 & m_1 \\ p_2 & m_2\end{pmatrix} + \begin{aligned}x_i &= \operatorname{score}(p_i) \\ y_i &= \frac{a_i}{b_i}\end{aligned} + \begin{array}{l|c|r}\alpha & \beta & \omega \\ \hline 1 & 2 & 3\end{array} + \begin{cases}p_i & p_i \in P \\ 0 & \text{otherwise}\end{cases} + \forall p_i \in P \Rightarrow p_i \notin \emptyset + \alpha \times \omega$$
 
@@ -202,6 +204,7 @@ $summary = [
     'declaredPairedDelimiterSizedMathml' => $converter->texToMathMl('\\wpabs*{p_i + m_i} + \\wpabs[\\Big]{q_i} + \\wpabs[\\bigg]{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
+    'operatorRelationAliasMathml' => $converter->texToMathMl('a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
     'arrayRepeatedPreambleMathml' => $converter->texToMathMl('\\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\\\ p_2 & m_2 & 2\\end{array}'),
@@ -355,6 +358,17 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['operatorRelationAliasMathml'], '<mi>\\oplus</mi>')
+        || str_contains($summary['operatorRelationAliasMathml'], '<mi>\\asymp</mi>')
+        || !str_contains($summary['operatorRelationAliasMathml'], '<mo>⊕</mo>')
+        || !str_contains($summary['operatorRelationAliasMathml'], '<mo>≍</mo>')
+        || !str_contains($summary['operatorRelationAliasMathml'], '<mo>⊢</mo>')
+        || !str_contains($summary['operatorRelationAliasMathml'], '<mo>⋈</mo>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map operator/relation aliases');
+    }
+
+    if (
         str_contains($summary['largeOperatorAliasMathml'], '<mi>\\bigcup</mi>')
         || str_contains($summary['largeOperatorAliasMathml'], '<mi>\\iint</mi>')
         || !str_contains($summary['largeOperatorAliasMathml'], '<msubsup><mo>⋃</mo>')
@@ -388,6 +402,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\left\\lvert p_i + m_i \\right\\rvert\\)</span>',
         '<span class="math inline">\\(\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}\\)</span>',
         '<span class="math inline">\\(\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot\\)</span>',
+        '<span class="math inline">\\(a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ \\hline 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
         '<span class="math inline">\\(\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}\\)</span>',
         '<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot><mo>+</mo><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>',
@@ -466,6 +481,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mo>…</mo><mo>+</mo><mo>⋯</mo><mo>+</mo><mo>⋱</mo><mo>+</mo><mi>ℵ</mi><mo>+</mo><mi>ℓ</mi><mo>+</mo><mi>ℜ</mi><mo>+</mo><mi>ℑ</mi><mo>+</mo><mi>℘</mi>',
         '<mi>a</mi><mo>≅</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>≃</mo><mi>d</mi><mo>+</mo><mi>x</mi><mo>∝</mo><mi>y</mi><mo>+</mo><mi>u</mi><mo>∥</mo><mi>v</mi><mo>+</mo><mi>r</mi><mo>⊥</mo><mi>s</mi><mo>+</mo><mo>∠</mo><mi>x</mi><mo>+</mo><mo>∇</mo><mi>f</mi><mo>+</mo><mo>⊤</mo><mo>+</mo><mo>⊥</mo>',
         '<annotation encoding="application/x-tex">\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot</annotation>',
+        '<mi>a</mi><mo>⊕</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⊖</mo><mi>d</mi><mo>+</mo><mi>x</mi><mo>≍</mo><mi>y</mi><mo>+</mo><mi>p</mi><mo>⊢</mo><mi>q</mi><mo>+</mo><mi>u</mi><mo>⋈</mo><mi>v</mi>',
+        '<annotation encoding="application/x-tex">a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v</annotation>',
         '<mtable columnalign="left center right" columnlines="solid solid" data-tex-clines="after-row-1:2-3 after-row-2:1-1,3-3"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><msub><mi>r</mi><mi>i</mi></msub></mtd><mtd><msub><mi>s</mi><mi>i</mi></msub></mtd><mtd><mn>3</mn></mtd></mtr></mtable>',
         '<annotation encoding="application/x-tex">\\begin{array}{l|c|r}p_i &amp; m_i &amp; 1 \\\\ \\cline{2-3} q_i &amp; n_i &amp; 2 \\\\ \\cline{1-1}\\cline{3-3} r_i &amp; s_i &amp; 3\\end{array}</annotation>',
         '<mtable columnalign="center center right" columnlines="solid solid"><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd><mtd><mn>2</mn></mtd></mtr></mtable>',

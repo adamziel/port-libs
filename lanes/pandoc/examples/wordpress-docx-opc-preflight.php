@@ -1653,7 +1653,53 @@ foreach ($embeddedPackages as $embeddedPackage) {
 $embeddedPackageParts = array_values(array_unique($embeddedPackageParts));
 $embeddedObjectParts = array_values(array_unique($embeddedObjectParts));
 $nestedEmbeddedOfficeDocuments = [];
+$nestedEmbeddedRelationshipClosures = [];
 foreach ($embeddedPackageGraphs as $embeddedPackageGraph) {
+    $nestedClosure = $embeddedPackageGraph['nestedRelationshipClosure'] ?? null;
+    if (is_array($nestedClosure)) {
+        $nestedEmbeddedRelationshipClosures[] = [
+            'id' => $embeddedPackageGraph['id'],
+            'packagePart' => $embeddedPackageGraph['targetPart'],
+            'valid' => $nestedClosure['valid'],
+            'issues' => $nestedClosure['issues'],
+            'expandedSourceCount' => $nestedClosure['expandedSourceCount'],
+            'stopCount' => $nestedClosure['stopCount'],
+            'externalStopCount' => $nestedClosure['externalStopCount'],
+            'missingStopCount' => $nestedClosure['missingStopCount'],
+            'unloadedStopCount' => $nestedClosure['unloadedStopCount'],
+            'sources' => array_values(array_map(
+                static fn (array $source): array => [
+                    'source' => $source['source'],
+                    'reachable' => $source['reachable'],
+                    'depth' => $source['depth'],
+                    'relationshipCount' => $source['relationshipCount'],
+                    'invalidTargetCount' => $source['invalidTargetCount'],
+                    'targetParts' => $source['targetParts'],
+                    'missingTargetParts' => $source['missingTargetParts'],
+                    'externalTargets' => $source['externalTargets'],
+                    'valid' => $source['valid'],
+                    'issues' => $source['issues'],
+                ],
+                $nestedClosure['sources']
+            )),
+            'stops' => array_values(array_map(
+                static fn (array $stop): array => [
+                    'source' => $stop['source'],
+                    'depth' => $stop['depth'],
+                    'id' => $stop['id'],
+                    'targetPart' => $stop['targetPart'],
+                    'contentType' => $stop['contentType'],
+                    'external' => $stop['external'],
+                    'exists' => $stop['exists'],
+                    'stopReason' => $stop['stopReason'],
+                    'valid' => $stop['valid'],
+                    'issues' => $stop['issues'],
+                ],
+                $nestedClosure['stops']
+            )),
+        ];
+    }
+
     $officeRelationship = $embeddedPackageGraph['nestedOfficeDocument']['relationships'][0] ?? null;
     if (!is_array($officeRelationship)) {
         continue;
@@ -2059,6 +2105,7 @@ $summary = [
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
         'nestedEmbeddedOfficeDocuments' => $nestedEmbeddedOfficeDocuments,
+        'nestedEmbeddedRelationshipClosures' => $nestedEmbeddedRelationshipClosures,
         'internalSourceReferences' => array_values(array_map(
             static fn (array $target): array => [
                 'id' => $target['id'],
@@ -2166,12 +2213,24 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['embeddedPackageGraphs'][0]['nestedSourcePartNames'] ?? null) !== ['/', '/xl/workbook.xml']
         || ($summary['embeddedPackageGraphs'][0]['nestedOfficeDocument']['relationships'][0]['targetPart'] ?? null) !== '/xl/workbook.xml'
         || ($summary['embeddedPackageGraphs'][0]['nestedOfficeDocument']['relationships'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
+        || ($summary['embeddedPackageGraphs'][0]['nestedRelationshipClosure']['expandedSourceCount'] ?? null) !== 2
+        || ($summary['embeddedPackageGraphs'][0]['nestedRelationshipClosure']['stopCount'] ?? null) !== 1
+        || ($summary['embeddedPackageGraphs'][0]['nestedRelationshipClosure']['stops'][0]['id'] ?? null) !== 'rIdSheet1'
+        || ($summary['embeddedPackageGraphs'][0]['nestedRelationshipClosure']['stops'][0]['stopReason'] ?? null) !== 'target-source-not-loaded'
         || ($summary['embeddedPackageGraphs'][0]['valid'] ?? null) !== true
         || ($summary['embeddedPackageGraphs'][0]['issues'] ?? null) !== []
         || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['id'] ?? null) !== 'rIdEmbeddedWorkbook'
         || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['packagePart'] ?? null) !== '/word/embeddings/source workbook.xlsx'
         || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['officeDocumentPart'] ?? null) !== '/xl/workbook.xml'
         || ($summary['wordpressImport']['nestedEmbeddedOfficeDocuments'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['id'] ?? null) !== 'rIdEmbeddedWorkbook'
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['packagePart'] ?? null) !== '/word/embeddings/source workbook.xlsx'
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['expandedSourceCount'] ?? null) !== 2
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['stopCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['unloadedStopCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['sources'][1]['source'] ?? null) !== '/xl/workbook.xml'
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['stops'][0]['id'] ?? null) !== 'rIdSheet1'
+        || ($summary['wordpressImport']['nestedEmbeddedRelationshipClosures'][0]['stops'][0]['stopReason'] ?? null) !== 'target-source-not-loaded'
         || ($summary['officeDocumentRoot']['relationshipCount'] ?? null) !== 1
         || ($summary['officeDocumentRoot']['valid'] ?? null) !== true
         || ($summary['officeDocumentRoot']['issues'] ?? null) !== []

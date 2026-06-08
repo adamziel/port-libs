@@ -2212,7 +2212,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, expanded:bool, nestedPackagePartCount:?int, nestedRelationshipSourceCount:?int, nestedSourcePartNames:list<string>, nestedOfficeDocument:?array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}, parseError:?string, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, expanded:bool, nestedPackagePartCount:?int, nestedRelationshipSourceCount:?int, nestedSourcePartNames:list<string>, nestedOfficeDocument:?array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}, nestedRelationshipClosure:?array<string,mixed>, parseError:?string, valid:bool, issues:list<string>}>
      */
     public function preflightEmbeddedPackageGraphs(string $sourcePartName = '/'): array
     {
@@ -2229,6 +2229,7 @@ final class OpcRelationshipGraph
             $nestedRelationshipSourceCount = null;
             $nestedSourcePartNames = [];
             $nestedOfficeDocument = null;
+            $nestedRelationshipClosure = null;
             $parseError = null;
 
             if ($embeddedPackage['external']) {
@@ -2243,12 +2244,19 @@ final class OpcRelationshipGraph
                     $nestedGraph = self::fromPackage($nestedPackage);
                     $nestedSourcePartNames = $nestedGraph->sourcePartNames();
                     $nestedOfficeDocument = $nestedGraph->preflightOfficeDocumentRoot();
+                    $nestedRelationshipClosure = $nestedGraph->relationshipSourceClosureInventory(
+                        '/',
+                        self::OFFICE_DOCUMENT_RELATIONSHIP_TYPE,
+                    );
                     $nestedPackagePartCount = count($nestedPackage->names());
                     $nestedRelationshipSourceCount = count($nestedSourcePartNames);
                     $expanded = true;
 
                     if (!$nestedOfficeDocument['valid']) {
                         $issues[] = 'embedded-office-document-root-invalid';
+                    }
+                    foreach ($nestedRelationshipClosure['issues'] as $issue) {
+                        $issues[] = 'embedded-' . $issue;
                     }
                 } catch (\Throwable $exception) {
                     $issues[] = 'embedded-package-parse-error';
@@ -2271,6 +2279,7 @@ final class OpcRelationshipGraph
                 'nestedRelationshipSourceCount' => $nestedRelationshipSourceCount,
                 'nestedSourcePartNames' => $nestedSourcePartNames,
                 'nestedOfficeDocument' => $nestedOfficeDocument,
+                'nestedRelationshipClosure' => $nestedRelationshipClosure,
                 'parseError' => $parseError,
                 'valid' => $expanded && $issues === [],
                 'issues' => $issues,

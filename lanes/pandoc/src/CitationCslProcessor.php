@@ -306,6 +306,72 @@ final class CitationCslProcessor
         ];
     }
 
+    public function appendShorthandList(AstNode $document, string $headingText = 'List of Shorthands'): AstNode
+    {
+        if ($document->type !== 'document') {
+            throw new \InvalidArgumentException('Expected document AST node');
+        }
+
+        $blocks = $this->shorthandListBlocks($headingText);
+        if ($blocks === []) {
+            return $document;
+        }
+
+        return new AstNode('document', $document->attrs, [
+            ...$document->children,
+            ...$blocks,
+        ]);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    public function shorthandListBlocks(string $headingText = 'List of Shorthands'): array
+    {
+        $ids = $this->shorthandListIds();
+        if ($ids === []) {
+            return [];
+        }
+
+        return [
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => $this->slugify($headingText),
+                'text' => $headingText,
+            ], [
+                new AstNode('text', ['text' => $headingText]),
+            ]),
+            $this->shorthandDefinitionList($ids),
+        ];
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    public function shorthandDefinitionList(array $ids = []): AstNode
+    {
+        $ids = $ids === [] ? $this->shorthandListIds() : $ids;
+        $filteredIds = [];
+        foreach ($ids as $id) {
+            $id = (string) $id;
+            $item = $this->itemsById[$id] ?? null;
+            if ($item === null || trim((string) ($item['shorthand'] ?? '')) === '') {
+                continue;
+            }
+
+            $filteredIds[] = $id;
+        }
+
+        $items = [];
+        foreach ($this->sortShorthandListIds($filteredIds) as $id) {
+            $items[] = $this->shorthandDefinitionItem($this->itemsById[$id]);
+        }
+
+        return new AstNode('definition_list', [
+            'classes' => ['pandoc-csl-shorthand-list'],
+        ], $items);
+    }
+
     /**
      * @param list<AstNode> $citations
      */
@@ -3830,6 +3896,159 @@ final class CitationCslProcessor
         usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys, 'bibliography'));
 
         return array_map(static fn (array $entry): string => (string) $entry['id'], $entries);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function shorthandListIds(): array
+    {
+        $ids = [];
+        foreach ($this->primaryIds as $id) {
+            $item = $this->itemsById[$id] ?? null;
+            if ($item === null || trim((string) ($item['shorthand'] ?? '')) === '') {
+                continue;
+            }
+
+            $ids[] = $id;
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return list<string>
+     */
+    private function sortShorthandListIds(array $ids): array
+    {
+        if (count($ids) < 2) {
+            return $ids;
+        }
+
+        $entries = [];
+        foreach ($ids as $index => $id) {
+            $entries[] = [
+                'index' => $index,
+                'id' => $id,
+                'item' => $this->itemsById[$id],
+            ];
+        }
+
+        usort($entries, fn (array $left, array $right): int => $this->compareShorthandListEntries($left, $right));
+
+        return array_map(static fn (array $entry): string => (string) $entry['id'], $entries);
+    }
+
+    /**
+     * @param array{index:int, id:string, item:array<string, mixed>} $left
+     * @param array{index:int, id:string, item:array<string, mixed>} $right
+     */
+    private function compareShorthandListEntries(array $left, array $right): int
+    {
+        $leftValues = [
+            $this->shorthandListSortValue($left['item']),
+            $this->shorthandSortValue($left['item']),
+            $this->titleSortValue($left['item']),
+            (string) $left['id'],
+        ];
+        $rightValues = [
+            $this->shorthandListSortValue($right['item']),
+            $this->shorthandSortValue($right['item']),
+            $this->titleSortValue($right['item']),
+            (string) $right['id'],
+        ];
+
+        foreach ($leftValues as $index => $leftValue) {
+            $comparison = $leftValue <=> $rightValues[$index];
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+        }
+
+        return $left['index'] <=> $right['index'];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function shorthandListSortValue(array $item): string
+    {
+        $sortKey = trim((string) ($item['shorthandListSortKey'] ?? ''));
+        if ($sortKey === '') {
+            $sortKey = trim((string) ($item['shorthand'] ?? ''));
+        }
+
+        return $this->normalizeSortText($sortKey);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function shorthandSortValue(array $item): string
+    {
+        return $this->normalizeSortText((string) ($item['shorthand'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function titleSortValue(array $item): string
+    {
+        return $this->normalizeSortText((string) ($item['title'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function shorthandDefinitionItem(array $item): AstNode
+    {
+        $term = trim((string) ($item['shorthand'] ?? ''));
+        $definitionText = $this->shorthandDefinitionText($item);
+        $attrs = [
+            'term' => $term,
+            'cslId' => (string) ($item['id'] ?? ''),
+        ];
+        $sortKey = trim((string) ($item['shorthandListSortKey'] ?? ''));
+        if ($sortKey !== '') {
+            $attrs['shorthandListSortKey'] = $sortKey;
+        }
+        $intro = trim((string) ($item['shorthandIntro'] ?? ''));
+        if ($intro !== '') {
+            $attrs['shorthandIntro'] = $intro;
+        }
+
+        return new AstNode('definition_item', $attrs, [
+            new AstNode('term', ['text' => $term], [
+                new AstNode('text', ['text' => $term]),
+            ]),
+            new AstNode('definition', [], [
+                new AstNode('paragraph', ['text' => $definitionText], [
+                    new AstNode('text', ['text' => $definitionText]),
+                ]),
+            ]),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function shorthandDefinitionText(array $item): string
+    {
+        $parts = [];
+        $intro = trim((string) ($item['shorthandIntro'] ?? ''));
+        $title = trim((string) ($item['title'] ?? ''));
+        if ($intro !== '') {
+            $parts[] = $this->withTerminalPunctuation($intro);
+        }
+        if ($title !== '' && $this->normalizeSortText($title) !== $this->normalizeSortText($intro)) {
+            $parts[] = $this->withTerminalPunctuation($title);
+        }
+        if ($parts === []) {
+            $parts[] = $this->withTerminalPunctuation((string) ($item['id'] ?? ''));
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
