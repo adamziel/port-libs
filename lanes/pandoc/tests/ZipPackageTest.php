@@ -3229,6 +3229,40 @@ return [
         $t->same('review packet provenance', $roundTrip->read('word/media/reviewer-note.txt'));
     },
 
+    'rejects duplicate generated zip extra fields before package writing' => static function (TestRunner $t): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'duplicate generated extra-field ids',
+                'extraFieldData' => pack('vva*', 0xcafe, strlen('first-review'), 'first-review')
+                    . pack('vva*', 0xcafe, strlen('second-review'), 'second-review'),
+            ],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'duplicate generated extended timestamp id',
+                'modifiedAt' => 1780479017,
+                'extraFieldData' => pack('vvCV', 0x5455, 5, 0x01, 1780479018),
+            ],
+        ]));
+
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'safe generated extra-field ids',
+                'modifiedAt' => 1780479017,
+                'extraFieldData' => pack('vva*', 0xcafe, strlen('wp-review:v1'), 'wp-review:v1'),
+            ],
+        ]);
+        $summary = $package->assertNoDuplicateExtraFieldIds();
+
+        $t->same(0, $summary['duplicateExtraFieldEntryCount']);
+        $t->same([0x5455, 0xcafe], $summary['entries'][0]['centralExtraFieldIds']);
+        $t->same([0x5455, 0xcafe], $summary['entries'][0]['localExtraFieldIds']);
+        $t->same('safe generated extra-field ids', ZipPackage::fromString($package->bytes())->read('word/media/reviewer-note.txt'));
+    },
+
     'preflights duplicate zip extra field ids before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $centralExtra = pack('vva*', 0xcafe, strlen('central-one'), 'central-one')
             . pack('vva*', 0xcafe, strlen('central-two'), 'central-two')

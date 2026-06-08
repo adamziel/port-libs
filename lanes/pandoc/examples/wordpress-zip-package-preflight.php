@@ -1582,6 +1582,56 @@ $buildExtraFieldIdMismatchBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildDuplicateExtraFieldBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/duplicate-extra-review.bin';
+    $data = "Duplicate ZIP extra field metadata should stay blocked for strict media import\n";
+    $crc = $crc32($data);
+    $centralExtra = pack('vva*', 0xcafe, strlen('first-review'), 'first-review')
+        . pack('vva*', 0xcafe, strlen('second-review'), 'second-review');
+    $localExtra = $centralExtra;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($localExtra)
+    );
+    $body .= $name . $localExtra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($centralExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $centralExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildExtraFieldValueMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/split-extra-value-review.bin';
     $data = "Central and local ZIP extra-field values should stay reviewable\n";
@@ -2150,15 +2200,20 @@ try {
 } catch (RuntimeException $exception) {
     $unknownCreatorHostRejected = str_contains($exception->getMessage(), 'unknown creator host-system entries');
 }
-$duplicateExtraFieldPackage = ZipPackage::fromParts([
-    [
-        'name' => 'word/media/duplicate-extra-review.bin',
-        'data' => "Duplicate ZIP extra field metadata should stay blocked for strict media import\n",
-        'compressionMethod' => 0,
-        'extraFieldData' => pack('vva*', 0xcafe, strlen('first-review'), 'first-review')
-            . pack('vva*', 0xcafe, strlen('second-review'), 'second-review'),
-    ],
-]);
+$generatedDuplicateExtraFieldRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/generated-duplicate-extra-review.bin',
+            'data' => "Generated duplicate ZIP extra field metadata should fail before output\n",
+            'extraFieldData' => pack('vva*', 0xcafe, strlen('first-review'), 'first-review')
+                . pack('vva*', 0xcafe, strlen('second-review'), 'second-review'),
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $generatedDuplicateExtraFieldRejected = str_contains($exception->getMessage(), 'duplicate extra field ids');
+}
+$duplicateExtraFieldPackage = ZipPackage::fromString($buildDuplicateExtraFieldBackedPackage());
 $duplicateExtraFieldPreflight = $duplicateExtraFieldPackage->extraFieldPreflight();
 $duplicateExtraFieldRejected = false;
 try {
@@ -2399,7 +2454,8 @@ try {
         ],
     ]);
 } catch (RuntimeException $exception) {
-    $duplicateUnicodeExtraRejected = str_contains($exception->getMessage(), 'appears more than once');
+    $duplicateUnicodeExtraRejected = str_contains($exception->getMessage(), 'duplicate extra field ids')
+        || str_contains($exception->getMessage(), 'appears more than once');
 }
 $malformedExtendedTimestampRejected = false;
 try {
@@ -3492,6 +3548,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected generated ZIP package to avoid duplicate extra field ids');
     }
 
+    if (!$generatedDuplicateExtraFieldRejected) {
+        throw new RuntimeException('Expected generated ZIP writer to reject duplicate extra field ids before package output');
+    }
+
     if (($packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 0) {
         throw new RuntimeException('Expected generated ZIP package to avoid central/local extra field id mismatches');
     }
@@ -4550,6 +4610,7 @@ echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRe
 echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipUnknownCreatorHostPolicy=' . ($unknownCreatorHostRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnknownCreatorHostEntry=' . ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipGeneratedDuplicateExtraFieldPolicy=' . ($generatedDuplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

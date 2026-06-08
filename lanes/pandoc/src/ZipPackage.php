@@ -6285,6 +6285,23 @@ final class ZipPackage
             $extraFieldData .= $part['extraFieldData'];
         }
 
+        if ($extraFieldData !== '') {
+            $extraFieldIds = array_map(
+                static fn (array $field): int => $field['id'],
+                ZipPackageEntry::extraFieldsFromData($extraFieldData, "generated extra fields for {$name}")
+            );
+            $duplicateExtraFieldIds = self::duplicateIntegerValues($extraFieldIds);
+            if ($duplicateExtraFieldIds !== []) {
+                throw new \RuntimeException(
+                    sprintf(
+                        'ZIP entry %s generated extra fields contain duplicate extra field ids: %s',
+                        $name,
+                        implode(', ', array_map(static fn (int $id): string => sprintf('0x%04x', $id), $duplicateExtraFieldIds))
+                    )
+                );
+            }
+        }
+
         return $extraFieldData;
     }
 
