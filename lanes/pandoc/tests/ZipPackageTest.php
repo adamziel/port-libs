@@ -4858,6 +4858,140 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $badPackage->assertStrictImportable(256, 2.0, 256));
     },
 
+    'preflights raw zip package bytes before strict import instantiation' => static function (TestRunner $t) use (
+        $buildZipPackage,
+        $rewriteEndOfCentralDirectory,
+        $buildZip64EndOfCentralDirectoryPackage,
+        $buildTraditionalEncryptedPackage
+    ): void {
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw strict package import</w:p></w:document>',
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "review media bytes\n",
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]);
+        $safeRaw = ZipPackage::rawStrictImportPreflight($safePackage->bytes(), 512, 20.0, 512);
+
+        $t->same(true, $safeRaw['isValid']);
+        $t->same(true, $safeRaw['canInstantiate']);
+        $t->same(null, $safeRaw['instantiationError']);
+        $t->same([], $safeRaw['diagnostics']);
+        $t->same([], $safeRaw['preflightErrors']);
+        $t->same(3, $safeRaw['entryCount']);
+        $t->same(512, $safeRaw['maxTotalUncompressedBytes']);
+        $t->same(20.0, $safeRaw['maxExpansionRatio']);
+        $t->same(512, $safeRaw['maxEntryUncompressedBytes']);
+        $t->same(true, $safeRaw['archive']['isArchiveLayoutSupported']);
+        $t->same(3, $safeRaw['centralDirectoryInventory']['entryCount']);
+        $t->same(true, $safeRaw['compressionMethods']['isSupportedByBoundedReader']);
+        $t->same(false, $safeRaw['encryption']['hasEncryptedEntries']);
+        $t->same(0, $safeRaw['archiveExtraDataRecords']['archiveExtraDataRecordCount']);
+        $t->same(0, $safeRaw['zip64ExtraFields']['zip64ExtraFieldEntryCount']);
+        $t->same(0, $safeRaw['dataDescriptors']['mismatchedDescriptorEntryCount']);
+        $t->same(true, $safeRaw['strictImport']['isValid']);
+
+        $unsupportedZip = $buildZipPackage([
+            [
+                'name' => 'word/media/bzip2-review.bin',
+                'data' => 'unsupported method bytes stay blocked',
+                'method' => 12,
+            ],
+        ]);
+        $unsupportedRaw = ZipPackage::rawStrictImportPreflight($unsupportedZip, 256, 20.0, 256);
+
+        $t->same(false, $unsupportedRaw['isValid']);
+        $t->same(true, $unsupportedRaw['canInstantiate']);
+        $t->same(null, $unsupportedRaw['instantiationError']);
+        $t->same(1, $unsupportedRaw['entryCount']);
+        $t->same(1, $unsupportedRaw['compressionMethods']['unsupportedCompressionMethodCount']);
+        $t->same(1, $unsupportedRaw['strictImport']['readIntegrity']['failedEntryCount']);
+        $t->contains('unsupported-compression-methods', implode(',', $unsupportedRaw['diagnostics']));
+        $t->contains('unreadable-entries', implode(',', $unsupportedRaw['diagnostics']));
+
+        $splitZip = $rewriteEndOfCentralDirectory($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw split package</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]), [
+            'diskNumber' => 1,
+            'centralDirectoryDisk' => 1,
+            'diskEntryCount' => 1,
+        ]);
+        $splitRaw = ZipPackage::rawStrictImportPreflight($splitZip, 512, 20.0, 512);
+
+        $t->same(false, $splitRaw['isValid']);
+        $t->same(false, $splitRaw['canInstantiate']);
+        $t->same(1, $splitRaw['entryCount']);
+        $t->same(false, $splitRaw['archive']['isArchiveLayoutSupported']);
+        $t->same(true, $splitRaw['splitArchive']['hasSplitArchiveMarkers']);
+        $t->same(['split-archive-eocd'], $splitRaw['splitArchive']['issues']);
+        $t->contains('unsupported-archive-layout', implode(',', $splitRaw['diagnostics']));
+        $t->contains('split-archive-eocd', implode(',', $splitRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $splitRaw['diagnostics']));
+
+        $archiveExtraZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw archive extra package</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]);
+        $eocdOffset = strrpos($archiveExtraZip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $archiveExtraData = 'raw-archive-extra-data';
+        $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+        $archiveExtraZip = substr($archiveExtraZip, 0, $eocdOffset)
+            . $archiveExtraRecord
+            . substr($archiveExtraZip, $eocdOffset);
+        $archiveExtraRaw = ZipPackage::rawStrictImportPreflight($archiveExtraZip, 512, 20.0, 512);
+
+        $t->same(false, $archiveExtraRaw['isValid']);
+        $t->same(false, $archiveExtraRaw['canInstantiate']);
+        $t->same(1, $archiveExtraRaw['entryCount']);
+        $t->same(true, $archiveExtraRaw['archiveExtraDataRecords']['hasArchiveExtraDataRecord']);
+        $t->same('between-central-directory-and-eocd', $archiveExtraRaw['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['location']);
+        $t->contains('archive-extra-data-records', implode(',', $archiveExtraRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $archiveExtraRaw['diagnostics']));
+
+        $zip64Raw = ZipPackage::rawStrictImportPreflight($buildZip64EndOfCentralDirectoryPackage(), 512, 20.0, 512);
+
+        $t->same(false, $zip64Raw['isValid']);
+        $t->same(false, $zip64Raw['canInstantiate']);
+        $t->same(1, $zip64Raw['entryCount']);
+        $t->same(true, $zip64Raw['archive']['requiresZip64']);
+        $t->same(true, $zip64Raw['zip64EndOfCentralDirectory']['requiresZip64']);
+        $t->same(null, $zip64Raw['centralDirectoryInventory']);
+        $t->contains('unsupported-archive-layout', implode(',', $zip64Raw['diagnostics']));
+        $t->contains('zip64-end-of-central-directory', implode(',', $zip64Raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $zip64Raw['diagnostics']));
+
+        $encryptedRaw = ZipPackage::rawStrictImportPreflight($buildTraditionalEncryptedPackage(), 512, 20.0, 512);
+
+        $t->same(false, $encryptedRaw['isValid']);
+        $t->same(false, $encryptedRaw['canInstantiate']);
+        $t->same(1, $encryptedRaw['entryCount']);
+        $t->same(true, $encryptedRaw['encryption']['hasEncryptedEntries']);
+        $t->same(1, $encryptedRaw['encryption']['traditionalEncryptionEntryCount']);
+        $t->same(null, $encryptedRaw['strictImport']);
+        $t->contains('encrypted-zip-entries', implode(',', $encryptedRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $encryptedRaw['diagnostics']));
+    },
+
     'preflights zip64 extended information extra field plans before package import' => static function (TestRunner $t) use ($buildZipPackage, $packUInt64): void {
         $centralData = '<w:document><w:p>zip64 central size upgrade plan</w:p></w:document>';
         $centralCompressed = gzdeflate($centralData);

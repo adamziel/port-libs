@@ -4140,6 +4140,242 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     canInstantiate:bool,
+     *     instantiationError:?string,
+     *     isValid:bool,
+     *     diagnostics:list<string>,
+     *     maxTotalUncompressedBytes:?int,
+     *     maxExpansionRatio:?float,
+     *     maxEntryUncompressedBytes:?int,
+     *     archive:?array<string, mixed>,
+     *     zip64EndOfCentralDirectory:?array<string, mixed>,
+     *     splitArchive:?array<string, mixed>,
+     *     centralDirectoryInventory:?array<string, mixed>,
+     *     archiveExtraDataRecords:?array<string, mixed>,
+     *     encryption:?array<string, mixed>,
+     *     compressionMethods:?array<string, mixed>,
+     *     zip64ExtraFields:?array<string, mixed>,
+     *     dataDescriptors:?array<string, mixed>,
+     *     strictImport:?array<string, mixed>,
+     *     preflightErrors:list<array{component:string, error:string}>
+     * }
+     */
+    public static function rawStrictImportPreflight(
+        string $bytes,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        if ($maxTotalUncompressedBytes !== null && $maxTotalUncompressedBytes < 0) {
+            throw new \InvalidArgumentException('ZIP package maximum total uncompressed size must be non-negative');
+        }
+
+        if ($maxExpansionRatio !== null && $maxExpansionRatio < 0.0) {
+            throw new \InvalidArgumentException('ZIP package maximum expansion ratio must be non-negative');
+        }
+
+        self::assertReadLimit($maxEntryUncompressedBytes, 'raw strict package import preflight');
+
+        $diagnostics = [];
+        $preflightErrors = [];
+        $addDiagnostic = static function (string $diagnostic) use (&$diagnostics): void {
+            if (!in_array($diagnostic, $diagnostics, true)) {
+                $diagnostics[] = $diagnostic;
+            }
+        };
+        $addDiagnostics = static function (array $items) use ($addDiagnostic): void {
+            foreach ($items as $item) {
+                if (is_string($item)) {
+                    $addDiagnostic($item);
+                }
+            }
+        };
+        $runPreflight = static function (string $component, callable $preflight) use (&$preflightErrors, $addDiagnostic): ?array {
+            try {
+                $summary = $preflight();
+            } catch (\RuntimeException $exception) {
+                $preflightErrors[] = [
+                    'component' => $component,
+                    'error' => $exception->getMessage(),
+                ];
+                $addDiagnostic('raw-' . $component . '-preflight-failed');
+
+                return null;
+            }
+
+            return is_array($summary) ? $summary : null;
+        };
+
+        $archive = $runPreflight(
+            'end-of-central-directory',
+            static fn (): array => self::endOfCentralDirectoryPreflight($bytes)
+        );
+        $zip64EndOfCentralDirectory = $runPreflight(
+            'zip64-end-of-central-directory',
+            static fn (): array => self::zip64EndOfCentralDirectoryAccountingPreflight($bytes)
+        );
+
+        if ($archive === null) {
+            return [
+                'entryCount' => 0,
+                'canInstantiate' => false,
+                'instantiationError' => $preflightErrors[0]['error'] ?? 'ZIP end-of-central-directory record was not found',
+                'isValid' => false,
+                'diagnostics' => $diagnostics,
+                'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
+                'maxExpansionRatio' => $maxExpansionRatio,
+                'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+                'archive' => null,
+                'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
+                'splitArchive' => null,
+                'centralDirectoryInventory' => null,
+                'archiveExtraDataRecords' => null,
+                'encryption' => null,
+                'compressionMethods' => null,
+                'zip64ExtraFields' => null,
+                'dataDescriptors' => null,
+                'strictImport' => null,
+                'preflightErrors' => $preflightErrors,
+            ];
+        }
+
+        if (!$archive['isArchiveLayoutSupported']) {
+            $addDiagnostic('unsupported-archive-layout');
+        }
+
+        if ($zip64EndOfCentralDirectory !== null && !$zip64EndOfCentralDirectory['isSupportedByBoundedReader']) {
+            $addDiagnostics($zip64EndOfCentralDirectory['issues']);
+        }
+
+        $splitArchive = null;
+        $centralDirectoryInventory = null;
+        $archiveExtraDataRecords = null;
+        $encryption = null;
+        $compressionMethods = null;
+        $zip64ExtraFields = null;
+        $dataDescriptors = null;
+        $strictImport = null;
+        $canInstantiate = false;
+        $instantiationError = null;
+
+        if (!$archive['requiresZip64']) {
+            $splitArchive = $runPreflight(
+                'split-archive',
+                static fn (): array => self::splitArchivePreflight($bytes)
+            );
+            if ($splitArchive !== null && !$splitArchive['isSupportedByBoundedReader']) {
+                $addDiagnostics($splitArchive['issues']);
+            }
+
+            $centralDirectoryInventory = $runPreflight(
+                'central-directory-inventory',
+                static fn (): array => self::centralDirectoryInventoryPreflight($bytes)
+            );
+            if ($centralDirectoryInventory !== null && !$centralDirectoryInventory['isSupportedByBoundedReader']) {
+                $addDiagnostic('central-directory-inventory-issues');
+                $addDiagnostics($centralDirectoryInventory['issues']);
+            }
+
+            $archiveExtraDataRecords = $runPreflight(
+                'archive-extra-data-record',
+                static fn (): array => self::archiveExtraDataRecordPreflight($bytes)
+            );
+            if ($archiveExtraDataRecords !== null && $archiveExtraDataRecords['hasArchiveExtraDataRecord']) {
+                $addDiagnostic('archive-extra-data-records');
+            }
+
+            $encryption = $runPreflight(
+                'encryption-policy',
+                static fn (): array => self::encryptionPolicyPreflight($bytes)
+            );
+            if ($encryption !== null && !$encryption['isSupportedByBoundedReader']) {
+                $addDiagnostics($encryption['issues']);
+            }
+
+            $compressionMethods = $runPreflight(
+                'compression-method-policy',
+                static fn (): array => self::compressionMethodPolicyPreflight($bytes)
+            );
+            if ($compressionMethods !== null && !$compressionMethods['isSupportedByBoundedReader']) {
+                $addDiagnostics($compressionMethods['issues']);
+            }
+
+            $zip64ExtraFields = $runPreflight(
+                'zip64-extra-fields',
+                static fn (): array => self::zip64ExtraFieldPreflight($bytes)
+            );
+            if ($zip64ExtraFields !== null && $zip64ExtraFields['zip64ExtraFieldEntryCount'] > 0) {
+                $addDiagnostic('zip64-extra-fields');
+            }
+            if ($zip64ExtraFields !== null && $zip64ExtraFields['requiresZip64EntryCount'] > 0) {
+                $addDiagnostic('zip64-size-or-offset-sentinel');
+            }
+
+            $dataDescriptors = $runPreflight(
+                'data-descriptor-integrity',
+                static fn (): array => self::dataDescriptorIntegrityPreflight($bytes)
+            );
+            if ($dataDescriptors !== null && !$dataDescriptors['isSupportedByBoundedReader']) {
+                $addDiagnostics($dataDescriptors['issues']);
+            }
+        }
+
+        try {
+            $package = self::fromString($bytes);
+            $canInstantiate = true;
+            $strictImport = $package->strictImportPreflight(
+                $maxTotalUncompressedBytes,
+                $maxExpansionRatio,
+                $maxEntryUncompressedBytes
+            );
+            if (!$strictImport['isValid']) {
+                $addDiagnostics($strictImport['diagnostics']);
+            }
+        } catch (\RuntimeException $exception) {
+            $instantiationError = $exception->getMessage();
+            $addDiagnostic('zip-package-instantiation-failed');
+        }
+
+        $entryCount = (int) (
+            $strictImport['entryCount']
+            ?? $centralDirectoryInventory['entryCount']
+            ?? $splitArchive['entryCount']
+            ?? $encryption['entryCount']
+            ?? $compressionMethods['entryCount']
+            ?? $archiveExtraDataRecords['entryCount']
+            ?? $zip64ExtraFields['entryCount']
+            ?? $dataDescriptors['entryCount']
+            ?? $zip64EndOfCentralDirectory['totalEntryCount']
+            ?? $archive['totalEntryCount']
+            ?? 0
+        );
+
+        return [
+            'entryCount' => $entryCount,
+            'canInstantiate' => $canInstantiate,
+            'instantiationError' => $instantiationError,
+            'isValid' => $canInstantiate && $diagnostics === [],
+            'diagnostics' => $diagnostics,
+            'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
+            'maxExpansionRatio' => $maxExpansionRatio,
+            'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+            'archive' => $archive,
+            'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
+            'splitArchive' => $splitArchive,
+            'centralDirectoryInventory' => $centralDirectoryInventory,
+            'archiveExtraDataRecords' => $archiveExtraDataRecords,
+            'encryption' => $encryption,
+            'compressionMethods' => $compressionMethods,
+            'zip64ExtraFields' => $zip64ExtraFields,
+            'dataDescriptors' => $dataDescriptors,
+            'strictImport' => $strictImport,
+            'preflightErrors' => $preflightErrors,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     isValid:bool,
      *     diagnostics:list<string>,
      *     maxTotalUncompressedBytes:?int,

@@ -2320,6 +2320,7 @@ $strictImportPackage = ZipPackage::fromParts([
 ]);
 $strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $strictImportCentralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($strictImportPackage->bytes());
+$rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPackage->bytes(), 4096, 100.0, 4096);
 $strictCommentImportPreflight = $package->strictImportPreflight(4096, 100.0, 4096);
 $strictCommentImportRejected = false;
 try {
@@ -2709,6 +2710,10 @@ try {
 } catch (RuntimeException $exception) {
     $zip64LocatorRejected = str_contains($exception->getMessage(), 'ZIP64 end-of-central-directory');
 }
+$rawStrictSplitZipPreflight = ZipPackage::rawStrictImportPreflight($splitZipBytes, 4096, 100.0, 4096);
+$rawStrictArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight($archiveExtraDataRecordBytes, 4096, 100.0, 4096);
+$rawStrictZip64EocdPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdBytes, 4096, 100.0, 4096);
+$rawStrictZip64LocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64LocatorBytes, 4096, 100.0, 4096);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
@@ -3746,6 +3751,21 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($rawStrictImportPreflight['isValid'] ?? null) !== true
+        || ($rawStrictImportPreflight['canInstantiate'] ?? null) !== true
+        || ($rawStrictImportPreflight['instantiationError'] ?? null) !== null
+        || ($rawStrictImportPreflight['diagnostics'] ?? null) !== []
+        || ($rawStrictImportPreflight['preflightErrors'] ?? null) !== []
+        || ($rawStrictImportPreflight['entryCount'] ?? null) !== 3
+        || ($rawStrictImportPreflight['strictImport'] ?? null) !== $strictImportPreflight
+        || ($rawStrictImportPreflight['centralDirectoryInventory']['entryCount'] ?? null) !== 3
+        || ($rawStrictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
+        || ($rawStrictImportPreflight['encryption']['hasEncryptedEntries'] ?? null) !== false
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to accept clean package bytes');
+    }
+
+    if (
         ($strictCommentImportPreflight['isValid'] ?? null) !== false
         || ($strictCommentImportPreflight['diagnostics'] ?? null) !== ['package-or-entry-comments']
         || !$strictCommentImportRejected
@@ -4122,6 +4142,17 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($rawStrictSplitZipPreflight['isValid'] ?? null) !== false
+        || ($rawStrictSplitZipPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictSplitZipPreflight['splitArchive']['issues'] ?? null) !== ['split-archive-eocd']
+        || !in_array('unsupported-archive-layout', $rawStrictSplitZipPreflight['diagnostics'] ?? [], true)
+        || !in_array('split-archive-eocd', $rawStrictSplitZipPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictSplitZipPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject split package bytes');
+    }
+
+    if (
         ($archiveExtraDataRecordPreflight['archiveExtraDataRecordCount'] ?? null) !== 1
         || ($archiveExtraDataRecordPreflight['hasArchiveExtraDataRecord'] ?? null) !== true
         || ($archiveExtraDataRecordPreflight['isSupportedByBoundedReader'] ?? null) !== false
@@ -4133,11 +4164,34 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($rawStrictArchiveExtraDataRecordPreflight['isValid'] ?? null) !== false
+        || ($rawStrictArchiveExtraDataRecordPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictArchiveExtraDataRecordPreflight['archiveExtraDataRecords']['archiveExtraDataRecordCount'] ?? null) !== 1
+        || ($rawStrictArchiveExtraDataRecordPreflight['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['location'] ?? null) !== 'between-central-directory-and-eocd'
+        || !in_array('archive-extra-data-records', $rawStrictArchiveExtraDataRecordPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictArchiveExtraDataRecordPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject archive extra data records');
+    }
+
+    if (
         ($zip64EocdPreflight['requiresZip64'] ?? null) !== true
         || ($zip64EocdPreflight['isArchiveLayoutSupported'] ?? null) !== false
         || !$zip64EocdRejected
     ) {
         throw new RuntimeException('Expected ZIP64 EOCD markers to be reported and rejected before import');
+    }
+
+    if (
+        ($rawStrictZip64EocdPreflight['isValid'] ?? null) !== false
+        || ($rawStrictZip64EocdPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictZip64EocdPreflight['archive']['requiresZip64'] ?? null) !== true
+        || ($rawStrictZip64EocdPreflight['centralDirectoryInventory'] ?? null) !== null
+        || !in_array('unsupported-archive-layout', $rawStrictZip64EocdPreflight['diagnostics'] ?? [], true)
+        || !str_contains(implode(',', $rawStrictZip64EocdPreflight['diagnostics'] ?? []), 'zip64-end-of-central-directory')
+        || !in_array('zip-package-instantiation-failed', $rawStrictZip64EocdPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject ZIP64 EOCD markers');
     }
 
     if (
@@ -4147,6 +4201,17 @@ if (in_array('--self-test', $argv, true)) {
         || !$zip64LocatorRejected
     ) {
         throw new RuntimeException('Expected ZIP64 EOCD locator metadata to be reported and rejected before import');
+    }
+
+    if (
+        ($rawStrictZip64LocatorPreflight['isValid'] ?? null) !== false
+        || ($rawStrictZip64LocatorPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictZip64LocatorPreflight['zip64EndOfCentralDirectory']['hasZip64EndOfCentralDirectoryLocator'] ?? null) !== true
+        || ($rawStrictZip64LocatorPreflight['centralDirectoryInventory'] ?? null) !== null
+        || !str_contains(implode(',', $rawStrictZip64LocatorPreflight['diagnostics'] ?? []), 'zip64-end-of-central-directory')
+        || !in_array('zip-package-instantiation-failed', $rawStrictZip64LocatorPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject ZIP64 locator bytes');
     }
 
     if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
@@ -4971,6 +5036,10 @@ echo 'zipStrictImportCentralDirectoryEntries=' . $strictImportPreflight['central
 echo 'zipStrictImportCentralDirectorySupported=' . ($strictImportPreflight['centralDirectoryInventory']['isSupportedByBoundedReader'] ? 'true' : 'false') . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
 echo 'zipStrictImportPlatformMetadataEntries=' . $strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] . "\n";
+echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictImportCanInstantiate=' . ($rawStrictImportPreflight['canInstantiate'] ? 'true' : 'false') . "\n";
+echo 'zipRawStrictImportDiagnostics=' . implode(',', $rawStrictImportPreflight['diagnostics']) . "\n";
+echo 'zipRawStrictImportPreflightErrors=' . count($rawStrictImportPreflight['preflightErrors']) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
@@ -5010,14 +5079,22 @@ echo 'zipSplitArchiveSingleDisk=' . ($splitZipArchivePreflight['isSingleDisk'] ?
 echo 'zipSplitArchiveMarkerPolicy=' . ($splitZipDiskPreflight['hasSplitArchiveMarkers'] ? 'blocked' : 'supported') . "\n";
 echo 'zipSplitArchiveEntryCount=' . $splitZipDiskPreflight['splitArchiveEntryCount'] . "\n";
 echo 'zipSplitArchiveIssues=' . implode(',', $splitZipDiskPreflight['issues']) . "\n";
+echo 'zipRawStrictSplitPolicy=' . ($rawStrictSplitZipPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictSplitDiagnostics=' . implode(',', $rawStrictSplitZipPreflight['diagnostics']) . "\n";
 echo 'zipArchiveExtraDataPolicy=' . ($archiveExtraDataRecordRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipArchiveExtraDataRecordCount=' . $archiveExtraDataRecordPreflight['archiveExtraDataRecordCount'] . "\n";
 echo 'zipArchiveExtraDataLocation=' . ($archiveExtraDataRecordPreflight['archiveExtraDataRecords'][0]['location'] ?? 'none') . "\n";
+echo 'zipRawStrictArchiveExtraPolicy=' . ($rawStrictArchiveExtraDataRecordPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictArchiveExtraDiagnostics=' . implode(',', $rawStrictArchiveExtraDataRecordPreflight['diagnostics']) . "\n";
 echo 'zip64EocdPolicy=' . ($zip64EocdRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64EocdRequiresZip64=' . ($zip64EocdPreflight['requiresZip64'] ? 'true' : 'false') . "\n";
+echo 'zipRawStrictZip64EocdPolicy=' . ($rawStrictZip64EocdPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictZip64EocdDiagnostics=' . implode(',', $rawStrictZip64EocdPreflight['diagnostics']) . "\n";
 echo 'zip64LocatorPolicy=' . ($zip64LocatorRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64LocatorDetected=' . ($zip64LocatorPreflight['hasZip64EndOfCentralDirectoryLocator'] ? 'true' : 'false') . "\n";
 echo 'zip64LocatorRecordSize=' . ($zip64LocatorPreflight['zip64EndOfCentralDirectorySize'] ?? 'none') . "\n";
+echo 'zipRawStrictZip64LocatorPolicy=' . ($rawStrictZip64LocatorPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictZip64LocatorDiagnostics=' . implode(',', $rawStrictZip64LocatorPreflight['diagnostics']) . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 echo 'descriptor.entryCount=' . $descriptorDataDescriptorPreflight['descriptorEntryCount'] . "\n";
 echo 'descriptor.signedEntryCount=' . $descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] . "\n";
