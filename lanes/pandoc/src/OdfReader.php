@@ -17,6 +17,7 @@ final class OdfReader
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
     private const SCRIPT_NS = 'urn:oasis:names:tc:opendocument:xmlns:script:1.0';
     private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
+    private const CONFIG_NS = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
     private const DC_NS = 'http://purl.org/dc/elements/1.1/';
     private const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
@@ -57,6 +58,7 @@ final class OdfReader
      *     tableTemplates:array<string, mixed>,
      *     pageLayouts:array<string, mixed>,
      *     masterPages:array<string, mixed>,
+     *     settings:array<string, mixed>,
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
      *     trackedChanges:list<array<string, mixed>>,
@@ -74,6 +76,7 @@ final class OdfReader
         $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
         $metadata = $this->readMeta($package);
+        $settings = $this->readSettings($package);
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
 
@@ -105,6 +108,7 @@ final class OdfReader
                 'count' => count($styleCatalog['masterPages']),
                 'items' => array_values($styleCatalog['masterPages']),
             ],
+            'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
@@ -121,6 +125,7 @@ final class OdfReader
             'tableTemplates' => $styleCatalog['tableTemplates'],
             'pageLayouts' => $styleCatalog['pageLayouts'],
             'masterPages' => $styleCatalog['masterPages'],
+            'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
             'trackedChanges' => $content['trackedChanges'],
@@ -161,6 +166,7 @@ final class OdfReader
                     'count' => count($styleCatalog['masterPages']),
                     'items' => array_values($styleCatalog['masterPages']),
                 ],
+                'settings' => $settings,
                 'contentDeclarations' => $content['contentDeclarations'],
                 'media' => [
                     'count' => count($media),
@@ -538,6 +544,196 @@ final class OdfReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array{count:int,itemCount:int,mapEntryCount:int,sets:list<array<string, mixed>>,setsByName:array<string, array<string, mixed>>}
+     */
+    private function readSettings(ZipPackage $package): array
+    {
+        $empty = [
+            'count' => 0,
+            'itemCount' => 0,
+            'mapEntryCount' => 0,
+            'sets' => [],
+            'setsByName' => [],
+        ];
+        if (!$package->has('settings.xml')) {
+            return $empty;
+        }
+
+        $dom = self::loadXml($package->read('settings.xml'), 'ODT settings.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'document-settings' || $root->namespaceURI !== self::OFFICE_NS) {
+            throw new \InvalidArgumentException('ODT settings.xml must use office:document-settings as its root element');
+        }
+
+        $settingsElement = self::firstChildElement($root, 'settings', self::OFFICE_NS);
+        if (!$settingsElement instanceof \DOMElement) {
+            throw new \RuntimeException('ODT settings.xml is missing office:settings');
+        }
+
+        $sets = [];
+        $setsByName = [];
+        $itemCount = 0;
+        $mapEntryCount = 0;
+        foreach (self::childElements($settingsElement, 'config-item-set', self::CONFIG_NS) as $setElement) {
+            $name = self::attr($setElement, self::CONFIG_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+
+            $set = $this->settingsContainerDefinition($setElement) + ['name' => $name];
+            $sets[] = $set;
+            $setsByName[$name] = $set;
+            $itemCount += (int) ($set['itemCount'] ?? 0);
+            $mapEntryCount += (int) ($set['mapEntryCount'] ?? 0);
+        }
+
+        return [
+            'count' => count($sets),
+            'itemCount' => $itemCount,
+            'mapEntryCount' => $mapEntryCount,
+            'sets' => $sets,
+            'setsByName' => $setsByName,
+        ];
+    }
+
+    /**
+     * @return array{itemCount:int,mapEntryCount:int,items:list<array<string, mixed>>,itemsByName:array<string, array<string, mixed>>,maps:list<array<string, mixed>>,mapsByName:array<string, array<string, mixed>>}
+     */
+    private function settingsContainerDefinition(\DOMElement $container): array
+    {
+        $items = [];
+        $itemsByName = [];
+        $maps = [];
+        $mapsByName = [];
+        $itemCount = 0;
+        $mapEntryCount = 0;
+
+        foreach (self::childElements($container) as $child) {
+            if ($this->isElement($child, self::CONFIG_NS, 'config-item')) {
+                $item = $this->settingsConfigItemDefinition($child);
+                if ($item === []) {
+                    continue;
+                }
+
+                $items[] = $item;
+                $name = (string) ($item['name'] ?? '');
+                if ($name !== '') {
+                    $itemsByName[$name] = $item;
+                }
+                $itemCount++;
+                continue;
+            }
+
+            if ($this->isElement($child, self::CONFIG_NS, 'config-item-map-indexed')
+                || $this->isElement($child, self::CONFIG_NS, 'config-item-map-named')
+            ) {
+                $map = $this->settingsConfigMapDefinition($child);
+                if ($map === []) {
+                    continue;
+                }
+
+                $maps[] = $map;
+                $name = (string) ($map['name'] ?? '');
+                if ($name !== '') {
+                    $mapsByName[$name] = $map;
+                }
+                $itemCount += (int) ($map['itemCount'] ?? 0);
+                $mapEntryCount += (int) ($map['mapEntryCount'] ?? 0);
+            }
+        }
+
+        return [
+            'itemCount' => $itemCount,
+            'mapEntryCount' => $mapEntryCount,
+            'items' => $items,
+            'itemsByName' => $itemsByName,
+            'maps' => $maps,
+            'mapsByName' => $mapsByName,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function settingsConfigItemDefinition(\DOMElement $item): array
+    {
+        $name = self::attr($item, self::CONFIG_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        $type = self::attr($item, self::CONFIG_NS, 'type');
+        $value = self::normalizedText($item);
+        $definition = self::withoutEmpty([
+            'name' => $name,
+            'type' => self::nullable($type),
+            'value' => $value,
+            'typedValue' => $this->settingsConfigTypedValue($value, $type),
+        ]);
+
+        return $definition;
+    }
+
+    private function settingsConfigTypedValue(string $value, string $type): mixed
+    {
+        $type = strtolower(trim($type));
+        if (in_array($type, ['boolean', 'bool'], true)) {
+            return self::nullableBool($value);
+        }
+        if (in_array($type, ['int', 'integer', 'long', 'short'], true)) {
+            return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : $value;
+        }
+        if (in_array($type, ['float', 'double'], true)) {
+            return is_numeric($value) ? (float) $value : $value;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function settingsConfigMapDefinition(\DOMElement $map): array
+    {
+        $name = self::attr($map, self::CONFIG_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        $entries = [];
+        $entriesByName = [];
+        $itemCount = 0;
+        $mapEntryCount = 0;
+        foreach (self::childElements($map, 'config-item-map-entry', self::CONFIG_NS) as $entryElement) {
+            $entry = $this->settingsContainerDefinition($entryElement);
+            $entry['index'] = count($entries);
+            $entryName = self::attr($entryElement, self::CONFIG_NS, 'name');
+            if ($entryName !== '') {
+                $entry['name'] = $entryName;
+                $entriesByName[$entryName] = $entry;
+            }
+
+            $entries[] = $entry;
+            $itemCount += (int) ($entry['itemCount'] ?? 0);
+            $mapEntryCount += 1 + (int) ($entry['mapEntryCount'] ?? 0);
+        }
+
+        $definition = [
+            'name' => $name,
+            'type' => $map->localName === 'config-item-map-named' ? 'named' : 'indexed',
+            'entryCount' => count($entries),
+            'itemCount' => $itemCount,
+            'mapEntryCount' => $mapEntryCount,
+            'entries' => $entries,
+        ];
+        if ($entriesByName !== []) {
+            $definition['entriesByName'] = $entriesByName;
+        }
+
+        return $definition;
     }
 
     /**

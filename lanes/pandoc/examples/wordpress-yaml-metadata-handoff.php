@@ -350,6 +350,11 @@ writer-colon-labels:
   - ":migration"
   - ":wp-import"
   - safe:fragment
+writer-sexagesimal-duration: "2:03"
+writer-sexagesimal-labels:
+  - "0:01"
+  - "1:20:30.5"
+  - safe:fragment
 plain-key-review:
   source owner: Import Desk
   owner role: content steward
@@ -1483,6 +1488,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['writer-colon-labels'] ?? []) !== [':migration', ':wp-import', 'safe:fragment']) {
         throw new RuntimeException('YAML metadata self-test missing writer colon label list source metadata');
     }
+    if (($meta['writer-sexagesimal-duration'] ?? '') !== '2:03') {
+        throw new RuntimeException('YAML metadata self-test missing writer sexagesimal-looking duration source metadata');
+    }
+    if (($meta['writer-sexagesimal-labels'] ?? []) !== ['0:01', '1:20:30.5', 'safe:fragment']) {
+        throw new RuntimeException('YAML metadata self-test missing writer sexagesimal-looking label list source metadata');
+    }
     if (($meta['plain-key-review']['source owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing nested plain spaced key metadata');
     }
@@ -1705,6 +1716,17 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('YAML metadata self-test did not quote colon-indicator writer scalars');
     }
+    if (
+        !str_contains($metadataMarkdown, "writer-sexagesimal-duration: \"2:03\"")
+        || !str_contains($metadataMarkdown, "  - \"0:01\"")
+        || !str_contains($metadataMarkdown, "  - \"1:20:30.5\"")
+        || !str_contains($metadataMarkdown, "  - safe:fragment")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not quote sexagesimal-looking writer scalars');
+    }
+    if (str_contains($metadataMarkdown, 'writer-sexagesimal-duration: 2:03')) {
+        throw new RuntimeException('YAML metadata self-test emitted ambiguous sexagesimal writer scalar');
+    }
     if (str_contains($metadataMarkdown, 'Source abstract keeps **review** emphasis\\n\\n') || str_contains($metadataMarkdown, 'Review steps:\\n')) {
         throw new RuntimeException('YAML metadata self-test leaked escaped newline metadata after writer block-scalar handoff');
     }
@@ -1728,6 +1750,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($metadataRoundTripMeta['writer-colon-labels'] ?? []) !== [':migration', ':wp-import', 'safe:fragment']) {
         throw new RuntimeException('YAML metadata self-test lost colon-indicator writer sequence scalars during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-sexagesimal-duration'] ?? '') !== '2:03') {
+        throw new RuntimeException('YAML metadata self-test lost sexagesimal-looking writer scalar during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-sexagesimal-labels'] ?? []) !== ['0:01', '1:20:30.5', 'safe:fragment']) {
+        throw new RuntimeException('YAML metadata self-test lost sexagesimal-looking writer sequence scalars during round trip');
     }
     if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
@@ -1890,6 +1918,7 @@ echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['ke
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Writer hashtag labels: ' . ($metadataRoundTripMeta['writer-hashtag-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-hashtag-labels'] ?? []) . "\n";
 echo 'Writer colon labels: ' . ($metadataRoundTripMeta['writer-colon-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-colon-labels'] ?? []) . "\n";
+echo 'Writer sexagesimal labels: ' . ($metadataRoundTripMeta['writer-sexagesimal-duration'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-sexagesimal-labels'] ?? []) . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYamlDiagnostics, 'field')) . "\n";

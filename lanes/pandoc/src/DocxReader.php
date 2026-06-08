@@ -4039,6 +4039,10 @@ final class DocxReader
             foreach ($this->structuredDocumentTagFormControlAttrs($properties) as $name => $value) {
                 $attributes[$name] = $value;
             }
+
+            foreach ($this->structuredDocumentTagRepeatingSectionAttrs($properties) as $name => $value) {
+                $attributes[$name] = $value;
+            }
         }
 
         $classes = ['docx-content-control'];
@@ -4188,6 +4192,38 @@ final class DocxReader
         return $attributes;
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function structuredDocumentTagRepeatingSectionAttrs(\DOMElement $properties): array
+    {
+        $attributes = [];
+        $section = $this->firstStructuredDocumentTagPropertyElement($properties, 'repeatingSection');
+        if ($section instanceof \DOMElement) {
+            $titleElement = $this->firstStructuredDocumentTagPropertyElement($section, 'sectionTitle');
+            $title = $titleElement instanceof \DOMElement
+                ? $this->wordOrExtensionAttr($titleElement, 'val')
+                : $this->wordOrExtensionAttr($section, 'sectionTitle');
+            if ($title !== null && $title !== '') {
+                $attributes['data-docx-sdt-repeating-section-title'] = $title;
+            }
+
+            $insertDeleteLock = $this->firstStructuredDocumentTagPropertyElement($section, 'doNotAllowInsertDeleteSection');
+            if ($insertDeleteLock instanceof \DOMElement) {
+                $value = $this->wordOrExtensionAttr($insertDeleteLock, 'val');
+                $parsed = $this->onOffStringValue($value);
+                $attributes['data-docx-sdt-repeating-section-do-not-allow-insert-delete'] = ($parsed ?? true) ? 'true' : 'false';
+            }
+        }
+
+        $item = $this->firstStructuredDocumentTagPropertyElement($properties, 'repeatingSectionItem');
+        if ($item instanceof \DOMElement) {
+            $attributes['data-docx-sdt-repeating-section-item'] = 'true';
+        }
+
+        return $attributes;
+    }
+
     private function structuredDocumentTagPropertyValue(\DOMElement $properties, string $localName): ?string
     {
         $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
@@ -4219,12 +4255,34 @@ final class DocxReader
             'bibliography' => 'bibliography',
             'equation' => 'equation',
         ] as $localName => $type) {
-            if ($this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName) instanceof \DOMElement) {
+            if ($this->firstStructuredDocumentTagPropertyElement($properties, $localName) instanceof \DOMElement) {
                 return $type;
             }
         }
 
         return null;
+    }
+
+    private function firstStructuredDocumentTagPropertyElement(\DOMElement $properties, string $localName): ?\DOMElement
+    {
+        foreach ([self::WORDPROCESSINGML_NS, self::WORDPROCESSINGML_2012_NS, self::WORDPROCESSINGML_2010_NS] as $namespace) {
+            $element = $this->firstChildElement($properties, $namespace, $localName);
+            if ($element instanceof \DOMElement) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private function wordOrExtensionAttr(\DOMElement $element, string $localName): ?string
+    {
+        $value = $this->wordAttr($element, $localName);
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        return $this->wordExtensionAttr($element, $localName);
     }
 
     private function structuredDocumentTagPlaceholder(\DOMElement $properties): ?string

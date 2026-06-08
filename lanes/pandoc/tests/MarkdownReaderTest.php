@@ -6532,6 +6532,43 @@ MD;
         $t->same('yaml-writer-colon-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-writer-colon-body">YAML writer colon body</h1>', $blocks);
     },
+    'writes pandoc yaml sexagesimal-looking metadata scalars as quoted strings' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Writer sexagesimal **Packet**',
+                'review' => [
+                    'duration' => '2:03',
+                    'elapsed' => '1:20:30.5',
+                    'labels' => ['0:01', '1:02:0_3.5', 'safe:inside'],
+                    'source-uri' => 'https://example.test/export:443/path',
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-sexagesimal-body'], [$text('YAML writer sexagesimal body')]),
+        ]);
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains('duration: "2:03"', $markdown);
+        $t->contains('elapsed: "1:20:30.5"', $markdown);
+        $t->contains('  - "0:01"', $markdown);
+        $t->contains('  - "1:02:0_3.5"', $markdown);
+        $t->contains('  - safe:inside', $markdown);
+        $t->contains('source-uri: https://example.test/export:443/path', $markdown);
+        $t->same(false, str_contains($markdown, 'duration: 2:03'));
+        $t->same('2:03', $meta['review']['duration']);
+        $t->same('1:20:30.5', $meta['review']['elapsed']);
+        $t->same('0:01', $meta['review']['labels'][0]);
+        $t->same('1:02:0_3.5', $meta['review']['labels'][1]);
+        $t->same('safe:inside', $meta['review']['labels'][2]);
+        $t->same('https://example.test/export:443/path', $meta['review']['source-uri']);
+        $t->same('yaml-writer-sexagesimal-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-writer-sexagesimal-body">YAML writer sexagesimal body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

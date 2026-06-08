@@ -441,9 +441,59 @@ final class MarkdownWriter
         }
 
         return is_numeric($value)
+            || $this->isYamlMetadataSexagesimalNumericScalar(str_replace('_', '', trim($value)))
             || preg_match('/^[+-]?0x[0-9a-f]+$/i', $value) === 1
             || preg_match('/^[+-]?0o[0-7]+$/i', $value) === 1
             || preg_match('/^[+-]?0b[01]+$/i', $value) === 1;
+    }
+
+    private function isYamlMetadataSexagesimalNumericScalar(string $value): bool
+    {
+        if ($value === '' || !str_contains($value, ':')) {
+            return false;
+        }
+
+        if ($value[0] === '+' || $value[0] === '-') {
+            $value = substr($value, 1);
+        }
+
+        if ($value === '' || !str_contains($value, ':')) {
+            return false;
+        }
+
+        $parts = explode(':', $value);
+        if (count($parts) < 2) {
+            return false;
+        }
+
+        $lastIndex = count($parts) - 1;
+        foreach ($parts as $index => $part) {
+            if ($part === '') {
+                return false;
+            }
+
+            if ($index === $lastIndex && str_contains($part, '.')) {
+                if (preg_match('/^\d+(?:\.\d+)?$/', $part) !== 1) {
+                    return false;
+                }
+
+                if ($index > 0 && (float) $part >= 60.0) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (preg_match('/^\d+$/', $part) !== 1) {
+                return false;
+            }
+
+            if ($index > 0 && (int) $part > 59) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function doubleQuoteYamlMetadataString(string $value): string

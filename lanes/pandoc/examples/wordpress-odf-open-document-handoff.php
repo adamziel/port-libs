@@ -15,6 +15,7 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Object%201/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
   <manifest:file-entry manifest:full-path="Object%201/content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Pictures/source%20hero.png" manifest:media-type="image/png" manifest:size="2048">
@@ -309,6 +310,28 @@ $metaXml = <<<'XML'
 </office:document-meta>
 XML;
 
+$settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings">
+      <config:config-item config:name="ViewAreaTop" config:type="int">1440</config:config-item>
+      <config:config-item config:name="ShowRedlineChanges" config:type="boolean">true</config:config-item>
+      <config:config-item-map-indexed config:name="Views">
+        <config:config-item-map-entry>
+          <config:config-item config:name="ViewId" config:type="string">wp-review-view</config:config-item>
+          <config:config-item config:name="ViewLeft" config:type="int">120</config:config-item>
+        </config:config-item-map-entry>
+      </config:config-item-map-indexed>
+    </config:config-item-set>
+    <config:config-item-set config:name="ooo:configuration-settings">
+      <config:config-item config:name="LoadReadonly" config:type="boolean">false</config:config-item>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+
 $mathObjectXml = <<<'XML'
 <office:document
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
@@ -355,6 +378,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'content.xml', 'data' => $contentXml],
     ['name' => 'styles.xml', 'data' => $stylesXml],
     ['name' => 'meta.xml', 'data' => $metaXml],
+    ['name' => 'settings.xml', 'data' => $settingsXml],
     ['name' => 'Object 1/content.xml', 'data' => $mathObjectXml],
     ['name' => 'Object 2/oleObject.bin', 'data' => 'OLEPAYLOAD'],
     ['name' => 'Object 3/content.xml', 'data' => $chartObjectXml],
@@ -396,6 +420,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['userDefined']['source-score'] ?? '') !== '97.5'
         || (($result['metadata']['userDefinedDetails']['source-score']['valueType'] ?? '') !== 'float')) {
         throw new RuntimeException('Expected typed ODT numeric user-defined metadata');
+    }
+    if (($result['settings']['count'] ?? 0) !== 2
+        || (($result['settings']['setsByName']['ooo:view-settings']['itemsByName']['ViewAreaTop']['typedValue'] ?? null) !== 1440)
+        || (($result['settings']['setsByName']['ooo:view-settings']['itemsByName']['ShowRedlineChanges']['typedValue'] ?? null) !== true)
+        || (($result['settings']['setsByName']['ooo:configuration-settings']['itemsByName']['LoadReadonly']['typedValue'] ?? null) !== false)) {
+        throw new RuntimeException('Expected ODT package settings metadata to be parsed with typed values');
+    }
+    if (($result['settings']['setsByName']['ooo:view-settings']['mapsByName']['Views']['entries'][0]['itemsByName']['ViewId']['typedValue'] ?? '') !== 'wp-review-view'
+        || (($result['importReport']['settings']['itemCount'] ?? 0) !== 5)
+        || (($result['document']->attr('settings')['mapEntryCount'] ?? 0) !== 1)) {
+        throw new RuntimeException('Expected ODT view settings map metadata to survive import review');
     }
     if (($result['media'][0]['part'] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT image manifest media to be reported');
@@ -949,5 +984,6 @@ echo 'mediaItems=' . count($result['media']) . "\n";
 echo 'styleCount=' . count($result['styles']) . "\n";
 echo 'pageLayoutCount=' . count($result['pageLayouts']) . "\n";
 echo 'masterPageCount=' . count($result['masterPages']) . "\n";
+echo 'settingsSets=' . ($result['settings']['count'] ?? 0) . "\n";
 echo 'trackedTableChanges=' . ($result['importReport']['contentDeclarations']['tableTrackedChangeCount'] ?? 0) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

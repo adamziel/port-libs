@@ -355,6 +355,88 @@ XML;
         $t->same('PT19H55M00S', $result['importReport']['metadata']['modificationTime']);
         $t->same('_blank', $result['importReport']['metadata']['hyperlinkBehaviour']['targetFrameName']);
     },
+    'maps ODT settings XML config items into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings">
+      <config:config-item config:name="ViewAreaTop" config:type="int">1440</config:config-item>
+      <config:config-item config:name="ShowRedlineChanges" config:type="boolean">true</config:config-item>
+      <config:config-item-map-indexed config:name="Views">
+        <config:config-item-map-entry>
+          <config:config-item config:name="ViewId" config:type="string">view-1</config:config-item>
+          <config:config-item config:name="ViewLeft" config:type="int">120</config:config-item>
+        </config:config-item-map-entry>
+        <config:config-item-map-entry>
+          <config:config-item config:name="ViewId" config:type="string">view-2</config:config-item>
+          <config:config-item config:name="ViewLeft" config:type="int">240</config:config-item>
+        </config:config-item-map-entry>
+      </config:config-item-map-indexed>
+    </config:config-item-set>
+    <config:config-item-set config:name="ooo:configuration-settings">
+      <config:config-item config:name="LoadReadonly" config:type="boolean">false</config:config-item>
+      <config:config-item-map-named config:name="ForbiddenCharacters">
+        <config:config-item-map-entry config:name="en-US">
+          <config:config-item config:name="Language" config:type="string">en</config:config-item>
+        </config:config-item-map-entry>
+      </config:config-item-map-named>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSettings, null, null, [
+            ['name' => 'settings.xml', 'data' => $settingsXml],
+        ]));
+        $settings = $result['settings'];
+        $view = $settings['setsByName']['ooo:view-settings'];
+        $configuration = $settings['setsByName']['ooo:configuration-settings'];
+        $views = $view['mapsByName']['Views'];
+        $forbiddenCharacters = $configuration['mapsByName']['ForbiddenCharacters'];
+
+        $t->same(2, $settings['count']);
+        $t->same(8, $settings['itemCount']);
+        $t->same(3, $settings['mapEntryCount']);
+        $t->same(['ooo:view-settings', 'ooo:configuration-settings'], array_column($settings['sets'], 'name'));
+        $t->same(6, $view['itemCount']);
+        $t->same(2, $view['mapEntryCount']);
+        $t->same(1440, $view['itemsByName']['ViewAreaTop']['typedValue']);
+        $t->same('1440', $view['itemsByName']['ViewAreaTop']['value']);
+        $t->same(true, $view['itemsByName']['ShowRedlineChanges']['typedValue']);
+        $t->same('indexed', $views['type']);
+        $t->same(2, $views['entryCount']);
+        $t->same('view-1', $views['entries'][0]['itemsByName']['ViewId']['typedValue']);
+        $t->same(240, $views['entries'][1]['itemsByName']['ViewLeft']['typedValue']);
+        $t->same(2, $configuration['itemCount']);
+        $t->same(false, $configuration['itemsByName']['LoadReadonly']['typedValue']);
+        $t->same('named', $forbiddenCharacters['type']);
+        $t->same(1, $forbiddenCharacters['entryCount']);
+        $t->same('en-US', $forbiddenCharacters['entries'][0]['name']);
+        $t->same('en', $forbiddenCharacters['entriesByName']['en-US']['itemsByName']['Language']['typedValue']);
+        $t->same($settings, $result['document']->attr('settings'));
+        $t->same(2, $result['importReport']['settings']['count']);
+        $t->same(8, $result['importReport']['settings']['itemCount']);
+        $t->same(3, $result['importReport']['settings']['mapEntryCount']);
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $t->same('settings.xml', $manifestByPath['settings.xml']['part']);
+        $t->same(true, $manifestByPath['settings.xml']['exists']);
+        $t->same(1, count($result['media']), 'settings.xml must stay out of media byte handoff');
+
+        $badSettingsXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>';
+        $t->throws(\InvalidArgumentException::class, static fn (): array => (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSettings, null, null, [
+            ['name' => 'settings.xml', 'data' => $badSettingsXml],
+        ])));
+    },
     'maps ODT page layouts and master pages into import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithPageLayout = <<<'XML'
 <office:document-styles

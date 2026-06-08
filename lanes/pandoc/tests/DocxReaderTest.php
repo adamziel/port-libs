@@ -2216,6 +2216,56 @@ $sdtFormControlDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$sdtRepeatingSectionDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w:body>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="301"/>
+        <w:alias w:val="Checklist Rows"/>
+        <w:tag w:val="checklist_rows"/>
+        <w:dataBinding w:xpath="/packet/checklist/item" w:storeItemID="{22222222-3333-4444-5555-666666666666}"/>
+        <w15:repeatingSection>
+          <w15:sectionTitle w15:val="Checklist row"/>
+          <w15:doNotAllowInsertDeleteSection/>
+        </w15:repeatingSection>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:sdt>
+          <w:sdtPr>
+            <w:id w:val="302"/>
+            <w:alias w:val="Checklist Row Item"/>
+            <w:tag w:val="checklist_row_item"/>
+            <w15:repeatingSectionItem/>
+          </w:sdtPr>
+          <w:sdtContent>
+            <w:tbl>
+              <w:tr>
+                <w:tc><w:p><w:r><w:t>Task</w:t></w:r></w:p></w:tc>
+                <w:tc><w:p><w:r><w:t>Review source media</w:t></w:r></w:p></w:tc>
+              </w:tr>
+            </w:tbl>
+          </w:sdtContent>
+        </w:sdt>
+        <w:sdt>
+          <w:sdtPr>
+            <w:id w:val="303"/>
+            <w:alias w:val="Checklist Text Item"/>
+            <w:tag w:val="checklist_text_item"/>
+            <w15:repeatingSectionItem/>
+          </w:sdtPr>
+          <w:sdtContent>
+            <w:p><w:r><w:t>Confirm imported anchors.</w:t></w:r></w:p>
+          </w:sdtContent>
+        </w:sdt>
+      </w:sdtContent>
+    </w:sdt>
+    <w:p><w:r><w:t>After repeating section.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
 $glossaryContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3749,6 +3799,14 @@ $buildSdtFormControlPackage = static function () use ($contentTypesXml, $package
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $sdtFormControlDocumentXml],
+    ]);
+};
+
+$buildSdtRepeatingSectionPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $sdtRepeatingSectionDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sdtRepeatingSectionDocumentXml],
     ]);
 };
 
@@ -7163,6 +7221,62 @@ return [
         $t->contains('data-docx-sdt-list-last-value="publish"', $blocks);
         $t->contains('<span class="docx-content-control docx-content-control-combo-box" data-docx-sdt-id="204"', $blocks);
         $t->contains('data-docx-sdt-list-kind="combo-box"', $blocks);
+    },
+    'preserves DOCX repeating-section content controls with reviewer metadata' => static function (TestRunner $t) use ($buildSdtRepeatingSectionPackage): void {
+        $document = (new DocxReader())->readDocument($buildSdtRepeatingSectionPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $section = $document->children[0];
+        $t->same('div', $section->type);
+        $t->same(['docx-content-control', 'docx-content-control-repeating-section'], $section->attr('classes'));
+        $sectionAttrs = $section->attr('attributes');
+        $t->same('301', $sectionAttrs['data-docx-sdt-id']);
+        $t->same('Checklist Rows', $sectionAttrs['data-docx-sdt-alias']);
+        $t->same('checklist_rows', $sectionAttrs['data-docx-sdt-tag']);
+        $t->same('repeating-section', $sectionAttrs['data-docx-sdt-type']);
+        $t->same('/packet/checklist/item', $sectionAttrs['data-docx-sdt-xpath']);
+        $t->same('{22222222-3333-4444-5555-666666666666}', $sectionAttrs['data-docx-sdt-store-item-id']);
+        $t->same('Checklist row', $sectionAttrs['data-docx-sdt-repeating-section-title']);
+        $t->same('true', $sectionAttrs['data-docx-sdt-repeating-section-do-not-allow-insert-delete']);
+        $t->same(2, count($section->children));
+
+        $tableItem = $section->children[0];
+        $t->same('div', $tableItem->type);
+        $t->same(['docx-content-control', 'docx-content-control-repeating-section-item'], $tableItem->attr('classes'));
+        $tableItemAttrs = $tableItem->attr('attributes');
+        $t->same('302', $tableItemAttrs['data-docx-sdt-id']);
+        $t->same('Checklist Row Item', $tableItemAttrs['data-docx-sdt-alias']);
+        $t->same('repeating-section-item', $tableItemAttrs['data-docx-sdt-type']);
+        $t->same('true', $tableItemAttrs['data-docx-sdt-repeating-section-item']);
+        $t->same('table', $tableItem->children[0]->type);
+        $t->same('Task', $tableItem->children[0]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Review source media', $tableItem->children[0]->children[0]->children[0]->children[1]->attr('text'));
+
+        $paragraphItem = $section->children[1];
+        $t->same(['docx-content-control', 'docx-content-control-repeating-section-item'], $paragraphItem->attr('classes'));
+        $t->same('303', $paragraphItem->attr('attributes')['data-docx-sdt-id']);
+        $t->same('Confirm imported anchors.', $paragraphItem->children[0]->children[0]->attr('text'));
+        $t->same('After repeating section.', $document->children[1]->children[0]->attr('text'));
+
+        $t->contains('::: {.docx-content-control .docx-content-control-repeating-section data-docx-sdt-id="301"', $markdown);
+        $t->contains('data-docx-sdt-type="repeating-section"', $markdown);
+        $t->contains('data-docx-sdt-repeating-section-title="Checklist row"', $markdown);
+        $t->contains('data-docx-sdt-repeating-section-do-not-allow-insert-delete="true"', $markdown);
+        $t->contains('::: {.docx-content-control .docx-content-control-repeating-section-item data-docx-sdt-id="302"', $markdown);
+        $t->contains('data-docx-sdt-repeating-section-item="true"', $markdown);
+        $t->contains('| Task | Review source media |', $markdown);
+        $t->contains('Confirm imported anchors.', $markdown);
+
+        $t->contains('<div class="docx-content-control docx-content-control-repeating-section" data-docx-sdt-id="301"', $blocks);
+        $t->contains('data-docx-sdt-repeating-section-title="Checklist row"', $blocks);
+        $t->contains('<div class="docx-content-control docx-content-control-repeating-section-item" data-docx-sdt-id="302"', $blocks);
+        $t->contains('data-docx-sdt-repeating-section-item="true"', $blocks);
+        $t->contains('<table><tbody><tr><td><p>Task</p></td><td><p>Review source media</p></td></tr></tbody></table>', $blocks);
+        $t->contains('<p>Confirm imported anchors.</p>', $blocks);
+        $t->contains('<p>After repeating section.</p>', $blocks);
     },
     'imports DOCX glossary document parts and docPart content control metadata' => static function (TestRunner $t) use ($buildGlossaryPackage): void {
         $reader = new DocxReader();
