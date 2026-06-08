@@ -5210,6 +5210,7 @@ final class BatchConverter
         $metadataPathType = $hasMetadataFile ? $this->filesystemPathType($absoluteMetadataFile) : null;
         $metadataPathIsSymlink = $hasMetadataFile && is_link($absoluteMetadataFile);
         $metadataSymlinkTargetExists = $metadataPathIsSymlink && file_exists($absoluteMetadataFile);
+        $metadataBrokenSymlink = $metadataPathIsSymlink && !$metadataSymlinkTargetExists;
 
         return [
             'metadata_file_input' => $input,
@@ -5233,6 +5234,8 @@ final class BatchConverter
             'metadata_file_symlink_target_type' => $metadataPathIsSymlink
                 ? ($metadataSymlinkTargetExists ? $metadataPathType : 'missing')
                 : null,
+            'metadata_file_broken_symlink' => $metadataBrokenSymlink,
+            'metadata_file_open_broken_symlink_fails' => $metadataBrokenSymlink,
             'metadata_file_open_call' => $hasMetadataFile ? 'open(metadata_file, "r")' : null,
             'metadata_file_open_order' => $hasMetadataFile ? 'after_abspath_before_json_load' : null,
             'metadata_file_relative_to_process_cwd' => $hasMetadataFile && !$isAbsoluteInput,
