@@ -5614,8 +5614,7 @@ final class PdfTextExtractor
                         }
                     }
                 } else {
-                    $malformed = $this->malformedXObjectDoOperandDetail($operands, $currentStates);
-                    if ($malformed !== null) {
+                    foreach ($this->malformedXObjectDoOperandDetails($operands, $currentStates) as $malformed) {
                         $malformedInvocations[$malformed['resource_name']][] = $malformed['detail'];
                     }
                 }
@@ -5681,12 +5680,12 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      * @param list<array<string, mixed>> $currentStates
-     * @return array{resource_name: string, detail: array<string, mixed>}|null
+     * @return list<array{resource_name: string, detail: array<string, mixed>}>
      */
-    private function malformedXObjectDoOperandDetail(array $operands, array $currentStates): ?array
+    private function malformedXObjectDoOperandDetails(array $operands, array $currentStates): array
     {
         if (count($operands) <= 1) {
-            return null;
+            return [];
         }
 
         $nameIndexes = [];
@@ -5703,8 +5702,9 @@ final class PdfTextExtractor
             $resourceNames[] = $resourceName;
         }
 
-        if (count($resourceNames) !== 1 || $resourceNames[0] === '') {
-            return null;
+        $resourceNames = array_values(array_filter($resourceNames, static fn (string $name): bool => $name !== ''));
+        if ($resourceNames === []) {
+            return [];
         }
 
         $matrices = [];
@@ -5732,33 +5732,40 @@ final class PdfTextExtractor
             }
         }
 
-        return [
-            'resource_name' => $resourceNames[0],
-            'detail' => [
-                'reason' => 'extra_do_operands',
-                'operator' => 'Do',
-                'expected_operand_count' => 1,
-                'operand_count' => count($operands),
-                'resource_operand_index' => $nameIndexes[0],
-                'name_operands' => $nameOperands,
-                'resource_names' => $resourceNames,
-                'operand_types' => array_map(
-                    fn (string $operand): string => $this->contentOperandReviewType($operand),
-                    $operands
-                ),
-                'operand_previews' => array_map(
-                    fn (string $operand): string => $this->contentOperandPreview($operand),
-                    $operands
-                ),
-                'matrices' => $matrices,
-                'bboxes' => $bboxes,
-                'clip_bboxes' => $clipBboxes,
-                'visible_bboxes' => $visibleBboxes,
-                'paints_image' => false,
-                'payload_in_visible_text' => false,
-                'review_only' => true,
-            ],
+        $uniqueResourceNames = array_values(array_unique($resourceNames));
+        $detail = [
+            'reason' => count($nameIndexes) === 1 ? 'extra_do_operands' : 'ambiguous_do_resource_operands',
+            'operator' => 'Do',
+            'expected_operand_count' => 1,
+            'operand_count' => count($operands),
+            'resource_operand_index' => count($nameIndexes) === 1 ? $nameIndexes[0] : null,
+            'resource_operand_indexes' => $nameIndexes,
+            'name_operands' => $nameOperands,
+            'resource_names' => $resourceNames,
+            'operand_types' => array_map(
+                fn (string $operand): string => $this->contentOperandReviewType($operand),
+                $operands
+            ),
+            'operand_previews' => array_map(
+                fn (string $operand): string => $this->contentOperandPreview($operand),
+                $operands
+            ),
+            'matrices' => $matrices,
+            'bboxes' => $bboxes,
+            'clip_bboxes' => $clipBboxes,
+            'visible_bboxes' => $visibleBboxes,
+            'paints_image' => false,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
         ];
+
+        return array_map(
+            static fn (string $resourceName): array => [
+                'resource_name' => $resourceName,
+                'detail' => $detail,
+            ],
+            $uniqueResourceNames
+        );
     }
 
     /**
@@ -5786,6 +5793,10 @@ final class PdfTextExtractor
                 'resource_operand_index' => is_int($detail['resource_operand_index'] ?? null)
                     ? $detail['resource_operand_index']
                     : null,
+                'resource_operand_indexes' => array_values(array_filter(
+                    $detail['resource_operand_indexes'] ?? [],
+                    static fn (mixed $index): bool => is_int($index)
+                )),
                 'name_operands' => $this->stringList($detail['name_operands'] ?? []),
                 'resource_names' => $this->stringList($detail['resource_names'] ?? []),
                 'operand_types' => $this->stringList($detail['operand_types'] ?? []),
