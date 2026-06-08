@@ -2706,7 +2706,17 @@ final class PdfAnnotationExtractor
     private function pdfStringValueAfterName(string $body, string $name, array $objects): ?string
     {
         $value = $this->valueAfterName($body, $name);
-        return $value === null ? null : $this->pdfValueToString($value, $objects);
+        if ($value === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($body, $name)
+            || $this->resolvedValueHasTrailingOperand($value, $objects)
+        ) {
+            return null;
+        }
+
+        return $this->pdfValueToString($value, $objects);
     }
 
     /**

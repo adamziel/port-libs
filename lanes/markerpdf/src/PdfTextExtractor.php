@@ -24720,7 +24720,12 @@ final class PdfTextExtractor
                 $wx = $this->numericOperand($operands[0]);
                 $wy = $this->numericOperand($operands[1]);
 
-                if ($wx === null || $wy === null || $this->type3CharProcHasAdditionalMetricOperator($tokens, $tokenIndex + 1)) {
+                if (
+                    $wx === null
+                    || $wy === null
+                    || $wx < 0.0
+                    || $this->type3CharProcHasAdditionalMetricOperator($tokens, $tokenIndex + 1)
+                ) {
                     return null;
                 }
 
@@ -24745,7 +24750,12 @@ final class PdfTextExtractor
                 $wx = $this->numericOperand($operands[0]);
                 $wy = $this->numericOperand($operands[1]);
 
-                if ($wx === null || $wy === null || $this->type3CharProcHasAdditionalMetricOperator($tokens, $tokenIndex + 1)) {
+                if (
+                    $wx === null
+                    || $wy === null
+                    || $wx < 0.0
+                    || $this->type3CharProcHasAdditionalMetricOperator($tokens, $tokenIndex + 1)
+                ) {
                     return null;
                 }
 

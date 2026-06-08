@@ -777,7 +777,7 @@ final class PdfMetadataExtractor
         if ($objectNumber === null) {
             return $base + [
                 'status' => 'rejected_non_indirect_metadata_reference',
-            ];
+            ] + $this->catalogMetadataDirectValueReview($value, $objects);
         }
 
         $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
@@ -1076,6 +1076,91 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Catalog /Metadata direct values are never promoted, but array wrappers
+     * should still expose their referenced objects for import review.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogMetadataDirectValueReview(string $value, array $objects): array
+    {
+        $token = $this->firstPdfValueToken($value);
+        $review = [
+            'metadata_value_type' => $this->metadataStreamFilterOperandTokenType($token),
+            'metadata_value_preview' => $this->catalogMetadataDirectValuePreview($token, $objects),
+            'single_metadata_value' => $token !== '' && $this->pdfValueIsSingleToken($value, $token),
+        ];
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null) {
+            $review['nested_reference_object_number'] = $reference['objectNumber'];
+            $review['nested_reference_generation'] = $reference['generation'];
+        }
+
+        if (str_starts_with($this->trimPdfWhitespaceAndComments($token), '[')) {
+            $items = $this->arrayItemsFromValue($token, $objects);
+            $review['metadata_array_entry_count'] = count($items);
+
+            $referenceObjects = [];
+            foreach ($items as $item) {
+                $itemReference = $this->objectReferenceFromValue($item);
+                if ($itemReference !== null) {
+                    $referenceObjects[] = $itemReference['objectNumber'];
+                }
+            }
+
+            if ($referenceObjects !== []) {
+                $review['referenced_object_numbers'] = $this->uniqueIntegers($referenceObjects);
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function catalogMetadataDirectValuePreview(string $token, array $objects): string
+    {
+        $tokenType = $this->metadataStreamFilterOperandTokenType($token);
+        if ($tokenType === 'empty') {
+            return '';
+        }
+
+        if ($tokenType === 'dictionary') {
+            return 'direct_dictionary';
+        }
+
+        if ($tokenType === 'literal_string' || $tokenType === 'hex_string') {
+            return $tokenType;
+        }
+
+        if ($tokenType === 'array') {
+            $items = [];
+            foreach ($this->arrayItemsFromValue($token, $objects) as $item) {
+                $reference = $this->objectReferenceFromValue($item);
+                if ($reference !== null) {
+                    $items[] = $reference['objectNumber'] . ' ' . $reference['generation'] . ' R';
+                    continue;
+                }
+
+                $itemType = $this->metadataStreamFilterOperandTokenType($item);
+                if ($itemType === 'name') {
+                    $name = $this->nameValueAt($item, 0);
+                    $items[] = $name === null ? 'name' : '/' . $name;
+                    continue;
+                }
+
+                $items[] = $itemType;
+            }
+
+            return '[' . implode(' ', $items) . ']';
+        }
+
+        return $this->metadataStreamFilterOperandPreview($token);
     }
 
     /**
