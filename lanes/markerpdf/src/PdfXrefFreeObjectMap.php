@@ -735,6 +735,7 @@ final class PdfXrefFreeObjectMap
         $entries = [];
         $index = 0;
         $lineCount = count($lines);
+        $foundSection = false;
         while ($index < $lineCount) {
             $line = trim($lines[$index]);
             if ($line === '' || str_starts_with($line, '%')) {
@@ -742,11 +743,20 @@ final class PdfXrefFreeObjectMap
                 continue;
             }
 
-            if (preg_match('/^(\+?\d+)\s+(\+?\d+)$/', $line, $header) !== 1) {
+            if (preg_match('/^(\+?\d+)\s+(\+?\d+)(?:\s*(?:%.*)?)$/', $line, $header) !== 1) {
+                if ($foundSection) {
+                    if (preg_match('/^\d+\s+\d+\s+obj\b/s', $line) === 1) {
+                        return $entries;
+                    }
+
+                    return null;
+                }
+
                 $index++;
                 continue;
             }
 
+            $foundSection = true;
             $startObject = (int) $header[1];
             $count = (int) $header[2];
             $index++;

@@ -32591,7 +32591,11 @@ final class PdfTextExtractor
                     return null;
                 }
 
-                continue;
+                if (preg_match('/^\d+\s+\d+\s+obj\b/s', $line) === 1) {
+                    return $entries === [] ? null : $entries;
+                }
+
+                return null;
             }
 
             $foundSection = true;
