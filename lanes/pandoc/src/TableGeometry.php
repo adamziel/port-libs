@@ -1629,6 +1629,7 @@ final class TableGeometry
      *     columnDecimalAlignments:list<array<string, mixed>>,
      *     cellDecimalAlignments:list<array<string, mixed>>,
      *     directionality:array<string, mixed>,
+     *     tableSpacing?:array<string, mixed>,
      *     rowGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
      *     sections:list<array<string, mixed>>,
@@ -1658,6 +1659,7 @@ final class TableGeometry
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
         $tableFrame = self::tableFrameMetadata($table);
+        $tableSpacing = self::tableSpacingMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
@@ -1716,6 +1718,7 @@ final class TableGeometry
                 $flatGrid,
                 $flatGridFallbacks,
                 $tableFrame,
+                $tableSpacing,
                 $directionality,
                 (string) ($sourceSummary['text'] ?? '')
             ),
@@ -1723,6 +1726,10 @@ final class TableGeometry
 
         if ($tableFrame !== []) {
             $packet['tableFrame'] = $tableFrame;
+        }
+
+        if ($tableSpacing !== []) {
+            $packet['tableSpacing'] = $tableSpacing;
         }
 
         if ($sourceSummary !== []) {
@@ -4585,6 +4592,7 @@ final class TableGeometry
      * @param array<string, mixed> $flatGrid
      * @param list<array<string, mixed>> $flatGridFallbacks
      * @param array<string, mixed> $tableFrame
+     * @param array<string, mixed> $tableSpacing
      * @param array<string, mixed> $directionality
      * @return array<string, mixed>
      */
@@ -4604,6 +4612,7 @@ final class TableGeometry
         array $flatGrid,
         array $flatGridFallbacks,
         array $tableFrame,
+        array $tableSpacing,
         array $directionality,
         string $sourceSummary
     ): array
@@ -4851,6 +4860,10 @@ final class TableGeometry
             'tableFrame' => (string) ($tableFrame['frame'] ?? ''),
             'tableRules' => (string) ($tableFrame['rules'] ?? ''),
             'tableBorder' => (string) ($tableFrame['border'] ?? ''),
+            'hasTableSpacing' => $tableSpacing !== [],
+            'tableCellPadding' => (string) ($tableSpacing['cellPadding'] ?? ''),
+            'tableCellSpacing' => (string) ($tableSpacing['cellSpacing'] ?? ''),
+            'tableSpacingAttributeCount' => count(is_array($tableSpacing['attributes'] ?? null) ? $tableSpacing['attributes'] : []),
             'hasTableDirectionality' => (bool) ($directionalitySummary['hasDirectionality'] ?? false),
             'directionRecordCount' => (int) ($directionalitySummary['directionRecordCount'] ?? 0),
             'directionalCellCount' => (int) ($directionalitySummary['directionalCellCount'] ?? 0),
@@ -5264,6 +5277,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5339,6 +5353,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5426,6 +5441,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -6142,6 +6158,43 @@ final class TableGeometry
             'attributeCount' => count(is_array($tableFrame['attributes'] ?? null) ? $tableFrame['attributes'] : []),
             'attributes' => $tableFrame['attributes'] ?? [],
             'sourceAttributes' => $tableFrame['sourceAttributes'] ?? [],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableSpacingWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableSpacing = self::tableSpacingMetadata($table);
+        if ($tableSpacing === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-spacing-requires-raw-html', 'raw-html-table-spacing'],
+            'asciidoc' => ['asciidoc-table-spacing-review-required', 'table-spacing-review'],
+            'latex' => ['latex-table-spacing-review-required', 'table-spacing-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-spacing',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-spacing',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'cellPadding' => (string) ($tableSpacing['cellPadding'] ?? ''),
+            'cellSpacing' => (string) ($tableSpacing['cellSpacing'] ?? ''),
+            'attributeCount' => count(is_array($tableSpacing['attributes'] ?? null) ? $tableSpacing['attributes'] : []),
+            'attributes' => $tableSpacing['attributes'] ?? [],
+            'sourceAttributes' => $tableSpacing['sourceAttributes'] ?? [],
         ]];
     }
 
@@ -7616,6 +7669,58 @@ final class TableGeometry
         return $record;
     }
 
+    /**
+     * @return array{source:string,attributes:array<string, string>,cellPadding?:string,cellSpacing?:string,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableSpacingMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        $recordAttributes = [];
+        if (array_key_exists('cellpadding', $attributes)) {
+            $cellPadding = self::normalizeTableSpacingAttribute((string) $attributes['cellpadding']);
+            if ($cellPadding !== '') {
+                $recordAttributes['cellpadding'] = $cellPadding;
+            }
+        }
+
+        if (array_key_exists('cellspacing', $attributes)) {
+            $cellSpacing = self::normalizeTableSpacingAttribute((string) $attributes['cellspacing']);
+            if ($cellSpacing !== '') {
+                $recordAttributes['cellspacing'] = $cellSpacing;
+            }
+        }
+
+        if ($recordAttributes === []) {
+            return [];
+        }
+
+        ksort($recordAttributes);
+        $record = [
+            'source' => 'html-table-spacing',
+            'attributes' => $recordAttributes,
+        ];
+        if (isset($recordAttributes['cellpadding'])) {
+            $record['cellPadding'] = $recordAttributes['cellpadding'];
+        }
+        if (isset($recordAttributes['cellspacing'])) {
+            $record['cellSpacing'] = $recordAttributes['cellspacing'];
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
     private static function normalizeTableFrameAttribute(string $value): string
     {
         $value = strtolower(trim($value));
@@ -7636,6 +7741,13 @@ final class TableGeometry
         if ($value === '' || strtolower($value) === 'border') {
             return '1';
         }
+
+        return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
+    }
+
+    private static function normalizeTableSpacingAttribute(string $value): string
+    {
+        $value = trim($value);
 
         return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
     }

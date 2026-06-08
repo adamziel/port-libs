@@ -1353,4 +1353,95 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes legacy html table cell spacing attributes for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="legacy-spacing-grid" data-source="html-reader" cellpadding="6" cellspacing="2">
+<caption>Legacy spacing review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="legacy-spacing-invalid" cellpadding="6px" cellspacing="-1">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $invalidTable = $tables[1] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $spacingDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-spacing'
+            ));
+            $spacingDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'cellpadding' => '6',
+            'cellspacing' => '2',
+        ], $packet['tableSpacing']['attributes'] ?? null);
+        $t->same('6', $packet['tableSpacing']['cellPadding'] ?? null);
+        $t->same('2', $packet['tableSpacing']['cellSpacing'] ?? null);
+        $t->same('6', $packet['tableSpacing']['sourceAttributes']['htmlAttributes']['cellpadding'] ?? null);
+        $t->same('2', $packet['tableSpacing']['sourceAttributes']['htmlAttributes']['cellspacing'] ?? null);
+        $t->same(true, $packet['summary']['hasTableSpacing'] ?? null);
+        $t->same('6', $packet['summary']['tableCellPadding'] ?? null);
+        $t->same('2', $packet['summary']['tableCellSpacing'] ?? null);
+        $t->same(2, $packet['summary']['tableSpacingAttributeCount'] ?? null);
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableSpacing', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableSpacing'] ?? null);
+
+        $t->same([
+            'markdown-table-spacing-requires-raw-html',
+            'asciidoc-table-spacing-review-required',
+            'latex-table-spacing-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $spacingDiagnostics['markdown'],
+            $spacingDiagnostics['asciidoc'],
+            $spacingDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-spacing', $spacingDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-spacing', $spacingDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'cellpadding' => '6',
+            'cellspacing' => '2',
+        ], $spacingDiagnostics['markdown']['attributes'] ?? null);
+        $t->same('6', $spacingDiagnostics['markdown']['cellPadding'] ?? null);
+        $t->same('2', $spacingDiagnostics['markdown']['cellSpacing'] ?? null);
+
+        $t->contains('<table id="legacy-spacing-grid" data-source="html-reader" cellpadding="6" cellspacing="2">', $blocks);
+        $t->true(!str_contains($blocks, 'cellpadding="6px"'));
+        $t->true(!str_contains($blocks, 'cellspacing="-1"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

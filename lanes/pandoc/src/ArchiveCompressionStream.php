@@ -309,6 +309,125 @@ final class ArchiveCompressionStream
      *     type:string,
      *     kind:string,
      *     format:string,
+     *     decodedFormat:string,
+     *     compressedSize:int,
+     *     decodedPackageSize:?int,
+     *     entryCount:int,
+     *     entryNames:list<string>,
+     *     memberCount:int,
+     *     memberFilenameCandidateCount:int,
+     *     missingMemberFilenameCount:int,
+     *     mismatchedMemberCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectGzipMemberSourceNamePolicyAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+
+        $candidate = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+        if ($candidate['format'] !== self::FORMAT_GZIP_TAR && $candidate['format'] !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException('Archive gzip member source-name policy requires a gzip-compressed package stream');
+        }
+
+        $stream = self::streamInspection($bytes, $candidate['format'], $maxUncompressedBytes);
+        $decodedFormat = self::gzipDecodedPackageFormat($candidate['format']);
+        $entryNames = self::candidateEntryNames($candidate);
+        $diagnostics = [];
+        $members = [];
+        $memberFilenameCandidateCount = 0;
+        $missingMemberFilenameCount = 0;
+        $mismatchedMemberCount = 0;
+
+        foreach ($stream['members'] as $index => $member) {
+            if (!is_array($member)) {
+                continue;
+            }
+
+            $filename = is_string($member['filenameText'] ?? null)
+                ? $member['filenameText']
+                : (is_string($member['filename'] ?? null) ? $member['filename'] : null);
+            $memberCandidate = null;
+            $memberDiagnostics = [];
+
+            if ($filename === null || $filename === '') {
+                $missingMemberFilenameCount++;
+                $memberDiagnostics[] = 'archive-gzip-member-source-name-missing';
+            } else {
+                $memberCandidate = self::supportedPackageSourceNameCandidate($filename);
+                if ($memberCandidate === null) {
+                    $memberDiagnostics[] = 'archive-gzip-member-source-name-package-type-unknown';
+                } else {
+                    $memberFilenameCandidateCount++;
+                    if ($memberCandidate['kind'] !== $candidate['kind']) {
+                        $memberDiagnostics[] = 'archive-gzip-member-source-name-package-kind-mismatch';
+                    }
+
+                    if ($memberCandidate['format'] !== $decodedFormat) {
+                        $memberDiagnostics[] = 'archive-gzip-member-source-name-compression-format-mismatch';
+                    }
+                }
+            }
+
+            if ($memberDiagnostics !== []) {
+                $mismatchedMemberCount++;
+                $diagnostics = array_merge($diagnostics, $memberDiagnostics);
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'] ?? null,
+                'filenameText' => $member['filenameText'] ?? null,
+                'filenameEncoding' => $member['filenameEncoding'] ?? null,
+                'memberFilenameCandidate' => $memberCandidate !== null,
+                'memberNameReason' => $memberCandidate['reason'] ?? null,
+                'expectedKind' => $memberCandidate['kind'] ?? null,
+                'expectedDecodedFormat' => $memberCandidate['format'] ?? null,
+                'detectedKind' => $candidate['kind'],
+                'detectedDecodedFormat' => $decodedFormat,
+                'policy' => $memberDiagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+                'diagnostics' => $memberDiagnostics,
+                'memberOffset' => $member['memberOffset'] ?? null,
+                'nextMemberOffset' => $member['nextMemberOffset'] ?? null,
+            ];
+        }
+
+        $diagnostics = array_values(array_unique($diagnostics));
+
+        return [
+            'type' => 'archive-gzip-member-source-name-policy',
+            'kind' => $candidate['kind'],
+            'format' => $candidate['format'],
+            'decodedFormat' => $decodedFormat,
+            'compressedSize' => strlen($bytes),
+            'decodedPackageSize' => self::candidatePackageByteSize($candidate),
+            'entryCount' => count($entryNames),
+            'entryNames' => $entryNames,
+            'memberCount' => count($members),
+            'memberFilenameCandidateCount' => $memberFilenameCandidateCount,
+            'missingMemberFilenameCount' => $missingMemberFilenameCount,
+            'mismatchedMemberCount' => $mismatchedMemberCount,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $diagnostics,
+            'members' => $members,
+            'stream' => $stream,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     kind:string,
+     *     format:string,
      *     compressedSize:int,
      *     decodedPackageSize:int,
      *     chunkSize:int,
@@ -2543,6 +2662,15 @@ final class ArchiveCompressionStream
             'trailingPaddingBytes' => $inspection['trailingPaddingBytes'],
             'members' => $members,
         ];
+    }
+
+    private static function gzipDecodedPackageFormat(string $format): string
+    {
+        return match ($format) {
+            self::FORMAT_GZIP_TAR => self::FORMAT_TAR,
+            self::FORMAT_GZIP_ZIP => self::FORMAT_ZIP,
+            default => throw new \RuntimeException("Unsupported gzip package stream format: {$format}"),
+        };
     }
 
     /**

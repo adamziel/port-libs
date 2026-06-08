@@ -1361,13 +1361,13 @@ XML;
     },
     'preserves EPUB XHTML viewport metadata for fixed layout review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $fixedLayoutXhtml = <<<'XML'
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en-US" dir="ltr">
   <head>
     <title>Fixed page metadata</title>
     <meta name="viewport" content="width=600, height=900"/>
     <meta id="bad-viewport" name="viewport" content="width=cover,height=0,scale=1"/>
   </head>
-  <body><h1>Fixed page metadata</h1><p>Viewport dimensions remain available for package review.</p></body>
+  <body id="fixed-body" class="fixed review" xml:lang="ar" lang="ar-Latn" dir="rtl" epub:type="bodymatter chapter"><h1>Fixed page metadata</h1><p>Viewport dimensions remain available for package review.</p></body>
 </html>
 XML;
         $opfWithFixedContent = str_replace(
@@ -1406,6 +1406,21 @@ XML;
         $t->same(true, $metadata['present']);
         $t->same(true, $metadata['headPresent']);
         $t->same('Fixed page metadata', $metadata['title']);
+        $t->same('en', $metadata['htmlXmlLang'] ?? null);
+        $t->same('en-US', $metadata['htmlLang'] ?? null);
+        $t->same('en', $metadata['htmlLanguage'] ?? null);
+        $t->same('ltr', $metadata['htmlDirection'] ?? null);
+        $t->same(true, $metadata['bodyPresent'] ?? null);
+        $t->same('fixed-body', $metadata['bodyId'] ?? null);
+        $t->same('fixed review', $metadata['bodyClass'] ?? null);
+        $t->same(['fixed', 'review'], $metadata['bodyClasses'] ?? null);
+        $t->same('ar', $metadata['bodyXmlLang'] ?? null);
+        $t->same('ar-Latn', $metadata['bodyLang'] ?? null);
+        $t->same('ar', $metadata['bodyLanguage'] ?? null);
+        $t->same('rtl', $metadata['bodyDirection'] ?? null);
+        $t->same(['bodymatter', 'chapter'], $metadata['bodyEpubTypes'] ?? null);
+        $t->same('ar', $metadata['language'] ?? null);
+        $t->same('rtl', $metadata['direction'] ?? null);
         $t->same(2, $metadata['metaCount']);
         $t->same(2, $metadata['viewportCount']);
         $t->same(1, $metadata['validViewportCount']);
@@ -1435,6 +1450,9 @@ XML;
         $t->same($metadata['diagnostics'], $asset['diagnostics']);
 
         $t->same($metadata, $block->attr('contentMetadata'));
+        $t->same('ar', $block->attr('contentLanguage'));
+        $t->same('rtl', $block->attr('contentDirection'));
+        $t->same(['bodymatter', 'chapter'], $block->attr('contentBodyEpubTypes'));
         $t->same($viewport, $block->attr('contentViewport'));
         $t->same($metadata['viewports'], $block->attr('contentViewports'));
         $t->same($report, $result['importReport']['xhtmlResourceReport']);

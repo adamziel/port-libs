@@ -1352,6 +1352,58 @@ HTML;
         ], null, 'html4'));
     },
 
+    'renders bounded pandoc default rtf template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $rtf = $renderer->renderResource('templates/default', [], [
+            'header-includes' => ['{\\*\\generator PortLibs Review;}'],
+            'title' => 'RTF Default Review',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'spacer' => true,
+            'toc' => true,
+            'table-of-contents' => '{\\pard \\ql Contents\\par}',
+            'include-before' => ['{\\pard \\ql Before import\\par}'],
+            'body' => '{\\pard \\ql WordPress RTF body\\par}',
+            'include-after' => ['{\\pard \\ql After import\\par}'],
+        ], null, 'rtf+smart');
+
+        foreach ([
+            '{\\rtf1\\ansi\\deff0',
+            '{\\fonttbl{\\f0 \\fswiss Helvetica;}{\\f1 \\fmodern Courier;}}',
+            '{\\colortbl;\\red255\\green0\\blue0;\\red0\\green0\\blue255;}',
+            '\\widowctrl\\hyphauto',
+            '{\\*\\generator PortLibs Review;}',
+            '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 \\b \\fs36 RTF Default Review\\par}',
+            '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 Migration bot\\par}',
+            '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 Content editor\\par}',
+            '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 2026-06-08\\par}',
+            '{\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 \\par}',
+            '{\\pard \\ql Contents\\par}',
+            '{\\pard \\ql Before import\\par}',
+            '{\\pard \\ql WordPress RTF body\\par}',
+            '{\\pard \\ql After import\\par}',
+        ] as $needle) {
+            $t->contains($needle, $rtf);
+        }
+
+        $t->same('custom RTF body', $renderer->renderResource('templates/default', [
+            'templates/default.rtf' => 'custom $body$',
+        ], [
+            'body' => 'RTF body',
+        ], null, 'rtf'));
+
+        $wrapped = $renderer->renderResource('templates/wrapper.rtf', [
+            'templates/wrapper.rtf' => 'Wrapper: ${ default.rtf() }',
+        ], [
+            'title' => 'Nested RTF Default Review',
+            'body' => '{\\pard \\ql Nested RTF body\\par}',
+        ]);
+        $t->contains('Wrapper: {\\rtf1\\ansi\\deff0', $wrapped);
+        $t->contains('{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 \\b \\fs36 Nested RTF Default Review\\par}', $wrapped);
+        $t->contains('{\\pard \\ql Nested RTF body\\par}', $wrapped);
+    },
+
     'renders bounded pandoc default chunkedhtml template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

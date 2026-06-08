@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'value-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -3347,6 +3347,14 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlValueMetadataAttribute($tagName, $name)) {
+                $valueMetadata = self::normalizeHtmlValueMetadataAttribute($tagName, $name, $value, $diagnostics);
+                foreach ($valueMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && strtolower($tagName) === 'track') {
                 $trackAttributeName = strtolower($name);
                 if ($trackAttributeName === 'kind') {
@@ -3443,6 +3451,146 @@ final class Html5DomFragment
         }
 
         return $attrs;
+    }
+
+    private static function isHtmlValueMetadataAttribute(string $tagName, string $name): bool
+    {
+        $tag = strtolower($tagName);
+        $attribute = strtolower($name);
+
+        return match ($tag) {
+            'data' => $attribute === 'value',
+            'meter' => in_array($attribute, ['value', 'min', 'max', 'low', 'high', 'optimum'], true),
+            'progress' => in_array($attribute, ['value', 'max'], true),
+            default => false,
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlValueMetadataAttribute(
+        string $tagName,
+        string $name,
+        string $value,
+        array &$diagnostics
+    ): array {
+        $tag = strtolower($tagName);
+        $attribute = strtolower($name);
+        if ($tag === 'data') {
+            $metadataValue = self::normalizeHtmlDataValueAttribute($value);
+            if ($metadataValue === null) {
+                self::addHtmlInvalidValueMetadataDiagnostic($diagnostics, $tagName, $attribute);
+
+                return [];
+            }
+
+            self::addHtmlValueMetadataDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-data-value');
+
+            return ['data-pandoc-data-value' => $metadataValue];
+        }
+
+        $metadataValue = self::normalizeHtmlNumericValueAttribute($value);
+        if (
+            $metadataValue === null
+            || ($tag === 'progress' && $attribute === 'value' && self::isNegativeHtmlNumericValue($metadataValue))
+            || ($tag === 'progress' && $attribute === 'max' && !self::isPositiveHtmlNumericValue($metadataValue))
+        ) {
+            self::addHtmlInvalidValueMetadataDiagnostic($diagnostics, $tagName, $attribute);
+
+            return [];
+        }
+
+        $metadataAttribute = 'data-pandoc-' . $tag . '-' . $attribute;
+        self::addHtmlValueMetadataDiagnostic($diagnostics, $tagName, $attribute, $metadataAttribute);
+
+        return [$metadataAttribute => $metadataValue];
+    }
+
+    private static function normalizeHtmlDataValueAttribute(string $value): ?string
+    {
+        $value = self::cleanHtmlMetadataAttribute($value);
+        if ($value === '' || strlen($value) > 256 || preg_match('/[<>{}`]/', $value) === 1) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private static function normalizeHtmlNumericValueAttribute(string $value): ?string
+    {
+        $value = self::cleanHtmlMetadataAttribute($value);
+        if ($value === '' || strlen($value) > 64 || preg_match('/^-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $value) !== 1) {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        if ($negative) {
+            $value = substr($value, 1);
+        }
+        if (str_starts_with($value, '.')) {
+            $value = '0' . $value;
+        }
+
+        if (str_contains($value, '.')) {
+            [$integer, $fraction] = explode('.', $value, 2);
+            $integer = ltrim($integer, '0');
+            $fraction = rtrim($fraction, '0');
+            $value = ($integer === '' ? '0' : $integer) . ($fraction === '' ? '' : '.' . $fraction);
+        } else {
+            $value = ltrim($value, '0');
+        }
+
+        if ($value === '') {
+            $value = '0';
+        }
+
+        return $negative && $value !== '0' ? '-' . $value : $value;
+    }
+
+    private static function isNegativeHtmlNumericValue(string $value): bool
+    {
+        return str_starts_with($value, '-');
+    }
+
+    private static function isPositiveHtmlNumericValue(string $value): bool
+    {
+        return $value !== '0' && !self::isNegativeHtmlNumericValue($value);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlValueMetadataDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = [
+            'code' => 'value-metadata-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'semantic-value-preserved-as-review-metadata',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidValueMetadataDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName
+    ): void {
+        $diagnostics[] = [
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'reason' => 'invalid-semantic-value-metadata',
+        ];
     }
 
     private static function isHtmlLanguageDirectionAttribute(string $name): bool

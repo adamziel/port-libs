@@ -7778,6 +7778,78 @@ XML
         $t->contains('<dt>Smith 2024</dt><dd>Smith, Ada. Latin Review Packet. 2024.</dd>', $blocks);
         $t->contains('<dt>山田 2025</dt><dd>山田太郎. Japanese Review Packet. 2025.</dd>', $blocks);
     },
+    'applies bounded csl citation name sort order rendering' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'sort-citation-source',
+                'type' => 'report',
+                'title' => 'Citation Sort Name Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/citation-sort-name',
+            ],
+            [
+                'id' => 'single-source',
+                'type' => 'report',
+                'title' => 'Single Citation Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Name Sort Order Review Style</title>
+    <id>https://example.test/styles/bounded-citation-name-sort-order-review</id>
+    <updated>2026-06-08T04:57:01+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", " delimiter-precedes-last="always">
+          <name initialize-with=". " name-as-sort-order="all" sort-separator=", "/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author" delimiter=", " delimiter-precedes-last="always">
+        <name initialize-with=". " name-as-sort-order="all" sort-separator=", "/>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0]['nameRendering'] ?? [];
+        $t->same('Bounded Citation Name Sort Order Review Style', $summary['title'] ?? null);
+        $t->same('all', $citationNames['nameAsSortOrder'] ?? null);
+        $t->same(', ', $citationNames['sortSeparator'] ?? null);
+
+        $t->same('(Smith, A., and Roe, P. 2026; Ng, N. 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'sort-citation-source', 'text' => '[@sort-citation-source]']),
+            new AstNode('citation', ['id' => 'single-source', 'text' => '[@single-source]']),
+        ]));
+        $t->same('Smith, A., and Roe, P. Citation Sort Name Packet. https://example.test/citation-sort-name.', $processor->renderBibliographyEntry('sort-citation-source'));
+
+        $document = (new MarkdownReader())->read('Citation names [@sort-citation-source; @single-source] keep CSL sort-order initials visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Citation names (Smith, A., and Roe, P. 2026; Ng, N. 2025) keep CSL sort-order initials visible.</p>', $blocks);
+        $t->contains('<dt>Smith, A., and Roe, P. 2026</dt><dd>Smith, A., and Roe, P. Citation Sort Name Packet. https://example.test/citation-sort-name.</dd>', $blocks);
+        $t->contains('<dt>Ng, N. 2025</dt><dd>Ng, N. Single Citation Packet.</dd>', $blocks);
+    },
     'applies bounded csl demote non dropping particle display and sort behavior' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

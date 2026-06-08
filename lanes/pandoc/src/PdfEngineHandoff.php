@@ -323,6 +323,7 @@ final class PdfEngineHandoff
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
+     *     pdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     pdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
@@ -772,6 +773,7 @@ final class PdfEngineHandoff
         $pdfLegalAttestationMetadata = [];
         $pdfTaggingMetadata = [];
         $pdfStructureParentTree = [];
+        $pdfStructureIdTree = [];
         $pdfStructureElements = [];
         $pdfStructureAttributes = [];
         $pdfStructureClassMap = [];
@@ -879,6 +881,7 @@ final class PdfEngineHandoff
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureParentTree = $pdfInspection['structureParentTree'];
+                $pdfStructureIdTree = $pdfInspection['structureIdTree'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfStructureAttributes = $pdfInspection['structureAttributes'];
                 $pdfStructureClassMap = $pdfInspection['structureClassMap'];
@@ -1936,6 +1939,43 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-structure-class-attributes:' . $mappedAttributeCount;
                     }
                 }
+                if ($pdfStructureIdTree !== []) {
+                    $diagnostics[] = 'pdf-byte-structure-id-tree:' . count($pdfStructureIdTree);
+                    $idValues = [];
+                    $kidNodes = [];
+                    $referenceCount = 0;
+                    $missingReferenceCount = 0;
+                    foreach ($pdfStructureIdTree as $entry) {
+                        if (is_string($entry['id'] ?? null) && $entry['id'] !== '') {
+                            $idValues[] = $entry['id'];
+                        }
+                        if (
+                            is_string($entry['nodeObject'] ?? null)
+                            && ($entry['nodeObject'] ?? null) !== ''
+                            && str_contains((string) ($entry['source'] ?? ''), '.Kids.')
+                        ) {
+                            $kidNodes[] = (string) $entry['nodeObject'];
+                        }
+                        if (isset($entry['structureReferences']) && is_array($entry['structureReferences'])) {
+                            $referenceCount += count($entry['structureReferences']);
+                        }
+                        if (isset($entry['missingReferences']) && is_array($entry['missingReferences'])) {
+                            $missingReferenceCount += count($entry['missingReferences']);
+                        }
+                    }
+                    $idValues = $this->uniqueStrings($idValues);
+                    $kidNodes = $this->uniqueStrings($kidNodes);
+                    $diagnostics[] = 'pdf-byte-structure-id-tree-ids:' . count($idValues);
+                    if ($kidNodes !== []) {
+                        $diagnostics[] = 'pdf-byte-structure-id-tree-kids:' . count($kidNodes);
+                    }
+                    if ($referenceCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-id-tree-references:' . $referenceCount;
+                    }
+                    if ($missingReferenceCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-id-tree-missing:' . $missingReferenceCount;
+                    }
+                }
                 if ($pdfMarkedContentProperties !== []) {
                     $diagnostics[] = 'pdf-byte-marked-content-properties:' . count($pdfMarkedContentProperties);
                     $markedContentAssociatedFileCount = 0;
@@ -2711,6 +2751,7 @@ final class PdfEngineHandoff
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureParentTree' => $pdfStructureParentTree,
+            'pdfStructureIdTree' => $pdfStructureIdTree,
             'pdfStructureElements' => $pdfStructureElements,
             'pdfStructureAttributes' => $pdfStructureAttributes,
             'pdfStructureClassMap' => $pdfStructureClassMap,
@@ -2839,6 +2880,7 @@ final class PdfEngineHandoff
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
+     *     finalPdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfStructureAttributes: list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     finalPdfStructureClassMap: list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
@@ -3081,6 +3123,7 @@ final class PdfEngineHandoff
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureParentTree' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTree'] ?? null) ? $finalRun['pdfStructureParentTree'] : [],
+            'finalPdfStructureIdTree' => is_array($finalRun) && is_array($finalRun['pdfStructureIdTree'] ?? null) ? $finalRun['pdfStructureIdTree'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfStructureAttributes' => is_array($finalRun) && is_array($finalRun['pdfStructureAttributes'] ?? null) ? $finalRun['pdfStructureAttributes'] : [],
             'finalPdfStructureClassMap' => is_array($finalRun) && is_array($finalRun['pdfStructureClassMap'] ?? null) ? $finalRun['pdfStructureClassMap'] : [],
@@ -4201,6 +4244,8 @@ final class PdfEngineHandoff
      *     destinationOptions:list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     structureParentTree:list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
+     *     structureIdTree:list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     structureAttributes:list<array{object:string, type:string|null, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
      *     structureClassMap:list<array{className:string, attributeObject:string, owner:string|null, revision:int|null, placement:string|null, writingMode:string|null, textAlign:string|null, blockAlign:string|null, inlineAlign:string|null, listNumbering:string|null, bbox:list<float>|null, rowSpan:int|null, colSpan:int|null, scope:string|null, headers:list<string>}>,
@@ -4351,6 +4396,7 @@ final class PdfEngineHandoff
             'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'structureParentTree' => $this->extractPdfStructureParentTree($pdfBytes, $catalog),
+            'structureIdTree' => $this->extractPdfStructureIdTree($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'structureAttributes' => $this->extractPdfStructureAttributes($pdfBytes),
             'structureClassMap' => $this->extractPdfStructureClassMap($pdfBytes, $catalog),
@@ -9694,6 +9740,155 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>
+     */
+    private function extractPdfStructureIdTree(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/StructTreeRoot')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $structTreeRoot = $this->extractPdfDictionaryOrReferenceValue($catalog, 'StructTreeRoot', $objects);
+        if ($structTreeRoot === null || !str_contains($structTreeRoot, '/IDTree')) {
+            return [];
+        }
+
+        $idTree = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($structTreeRoot, 'IDTree'), $objects);
+        if ($idTree['dictionary'] === null) {
+            return [];
+        }
+
+        $entries = [];
+        $visited = [];
+        $nodeObject = is_string($idTree['object']) ? $idTree['object'] : null;
+        if ($nodeObject !== null && $nodeObject !== 'inline') {
+            $visited[$this->pdfReferenceKey($nodeObject)] = true;
+        }
+
+        $this->collectPdfStructureIdTree(
+            $entries,
+            'structTreeRoot.IDTree',
+            $idTree['dictionary'],
+            $nodeObject,
+            $objects,
+            $visited,
+            0
+        );
+
+        usort($entries, static fn (array $a, array $b): int => [$a['id'], $a['source'], $a['nodeObject'] ?? ''] <=> [$b['id'], $b['source'], $b['nodeObject'] ?? '']);
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}> $entries
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfStructureIdTree(
+        array &$entries,
+        string $source,
+        string $dictionary,
+        ?string $nodeObject,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $limits = $this->extractPdfStringArrayValues($dictionary, 'Limits');
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $values = $this->pdfTopLevelArrayValues($array);
+            for ($index = 0; $index + 1 < count($values); $index += 2) {
+                $idValue = $values[$index];
+                $targetValue = $values[$index + 1];
+                if (!in_array($idValue['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $id = trim($idValue['value']);
+                if ($id === '') {
+                    continue;
+                }
+
+                $entries[] = $this->summarizePdfStructureIdTreeEntry(
+                    $source,
+                    $nodeObject,
+                    $id,
+                    $targetValue,
+                    $objects,
+                    $limits
+                );
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $this->collectPdfStructureIdTree(
+                $entries,
+                $source . '.Kids.' . $kidReference . ' R',
+                $objects[$kidReference],
+                $kidReference . ' R',
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @param list<string> $limits
+     * @return array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}
+     */
+    private function summarizePdfStructureIdTreeEntry(
+        string $source,
+        ?string $nodeObject,
+        string $id,
+        array $value,
+        array $objects,
+        array $limits
+    ): array {
+        $valueKind = $value['kind'] === 'keyword' && $value['value'] === 'null' ? 'null' : $value['kind'];
+        $valueObject = $value['kind'] === 'reference' ? $this->pdfReferenceKey($value['value']) . ' R' : null;
+        $structureReferences = array_map(
+            fn (string $reference): string => $this->pdfReferenceKey($reference) . ' R',
+            $this->collectPdfReferencesFromValue($value, $objects)
+        );
+        $structureReferences = $this->uniqueStrings($structureReferences);
+        sort($structureReferences, SORT_STRING);
+
+        $missingReferences = [];
+        foreach ($structureReferences as $reference) {
+            $key = $this->pdfReferenceKey($reference);
+            if (!isset($objects[$key])) {
+                $missingReferences[] = $reference;
+            }
+        }
+        sort($missingReferences, SORT_STRING);
+
+        return [
+            'source' => $source,
+            'nodeObject' => $nodeObject,
+            'id' => $id,
+            'valueKind' => $valueKind,
+            'valueObject' => $valueObject,
+            'structureReferences' => $structureReferences,
+            'missingReferences' => $missingReferences,
+            'limits' => $limits,
+        ];
+    }
+
+    /**
      * @return list<int>
      */
     private function extractPdfIntegerArrayValues(string $dictionary, string $name): array
@@ -9711,6 +9906,14 @@ final class PdfEngineHandoff
         }
 
         return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfStringArrayValues(string $dictionary, string $name): array
+    {
+        return $this->collectPdfStringsFromArray($this->extractPdfArrayValue($dictionary, $name));
     }
 
     /**

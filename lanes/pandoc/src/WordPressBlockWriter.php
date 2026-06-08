@@ -514,8 +514,9 @@ final class WordPressBlockWriter
 
     private function renderTableElementAttrs(AstNode $node): string
     {
-        return $this->renderStoredHtmlAttrs($node, true, ['border', 'frame', 'rules'])
-            . $this->renderLegacyTableFrameAttrs($node);
+        return $this->renderStoredHtmlAttrs($node, true, ['border', 'cellpadding', 'cellspacing', 'frame', 'rules'])
+            . $this->renderLegacyTableFrameAttrs($node)
+            . $this->renderLegacyTableSpacingAttrs($node);
     }
 
     private function renderCaptionInlines(AstNode $node): string
@@ -815,6 +816,36 @@ final class WordPressBlockWriter
     {
         $value = strtolower(trim($value));
         return in_array($value, ['none', 'groups', 'rows', 'cols', 'all'], true) ? $value : '';
+    }
+
+    private function renderLegacyTableSpacingAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $attributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
+
+        $attrs = '';
+        foreach (['cellpadding', 'cellspacing'] as $name) {
+            if (!array_key_exists($name, $attributes)) {
+                continue;
+            }
+
+            $value = $this->legacyTableSpacingValue((string) $attributes[$name]);
+            if ($value !== '') {
+                $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function legacyTableSpacingValue(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
     }
 
     /**

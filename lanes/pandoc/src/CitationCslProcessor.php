@@ -7020,6 +7020,7 @@ final class CitationCslProcessor
             'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
             'initializeWithHyphen' => is_bool($options['initializeWithHyphen'] ?? null) ? $options['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+            'nameAsSortOrderExplicit' => ($options['nameAsSortOrderExplicit'] ?? false) === true || ($defaults['nameAsSortOrderExplicit'] ?? false) === true,
             'sortSeparator' => is_string($options['sortSeparator'] ?? null) ? $options['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
             'demoteNonDroppingParticle' => is_string($options['demoteNonDroppingParticle'] ?? null) ? $options['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
@@ -8513,7 +8514,7 @@ final class CitationCslProcessor
         foreach ($visible as $index => $name) {
             $rendered[] = $bibliography
                 ? $this->renderBibliographyName($name, $options, $index)
-                : $this->renderCitationName($name, $this->citationNameRenderingOptionsForVisibleName($options, $index));
+                : $this->renderCitationName($name, $this->citationNameRenderingOptionsForVisibleName($options, $index), $index);
         }
 
         if ($useEtAl) {
@@ -8521,7 +8522,7 @@ final class CitationCslProcessor
                 $lastName = $renderableNames[$count - 1];
                 $lastRendered = $bibliography
                     ? $this->renderBibliographyName($lastName, $options, $count - 1)
-                    : $this->renderCitationName($lastName, $this->citationNameRenderingOptionsForVisibleName($options, $count - 1));
+                    : $this->renderCitationName($lastName, $this->citationNameRenderingOptionsForVisibleName($options, $count - 1), $count - 1);
 
                 if ($bibliography && is_array($bibliographyState)) {
                     $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan(
@@ -8778,10 +8779,14 @@ final class CitationCslProcessor
      * @param array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
      * @param array<string, mixed> $options
      */
-    private function renderCitationName(array $name, array $options): string
+    private function renderCitationName(array $name, array $options, int $index): string
     {
         if ($name['literal'] !== '') {
             return $this->renderInstitutionName($name, $options);
+        }
+
+        if ($this->citationNameUsesExplicitSortOrder($options, $index)) {
+            return $this->renderBibliographyName($name, $options, $index);
         }
 
         $givenDisambiguationMode = (string) ($options['givenNameDisambiguationMode'] ?? '');
@@ -8795,6 +8800,20 @@ final class CitationCslProcessor
         }
 
         return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function citationNameUsesExplicitSortOrder(array $options, int $index): bool
+    {
+        if (($options['nameAsSortOrderExplicit'] ?? false) !== true) {
+            return false;
+        }
+
+        $nameAsSortOrder = (string) ($options['nameAsSortOrder'] ?? '');
+
+        return $nameAsSortOrder === 'all' || ($nameAsSortOrder === 'first' && $index === 0);
     }
 
     /**

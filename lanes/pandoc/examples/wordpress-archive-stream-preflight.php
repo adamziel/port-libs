@@ -1097,6 +1097,14 @@ $compressedDocxSourceNamePolicyInspection = ArchiveCompressionStream::inspectPac
     'WORDPRESS-REVIEW.DOCX.GZ',
     strlen($nestedZipPackage->bytes())
 );
+$gzipMemberSourceNameMismatch = GzipStream::build($nestedZipPackage->bytes(), [
+    'filename' => 'wordpress-review-packet.tar',
+    'comment' => 'gzip member source-name mismatch preflight',
+]);
+$gzipMemberSourceNamePolicyInspection = ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+    $gzipMemberSourceNameMismatch,
+    strlen($nestedZipPackage->bytes())
+);
 $sourceNamePolicyInspection = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
     $gzip,
     'wordpress-review-packet.docx',
@@ -1360,6 +1368,15 @@ if (in_array('--self-test', $argv, true)) {
         'compressedDocxDetectedFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'compressedDocxPolicy' => 'within-thresholds',
         'compressedDocxGzipFilename' => 'wordpress-review-package.docx',
+        'gzipMemberSourceNameExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'gzipMemberSourceNameExpectedFormat' => ArchiveCompressionStream::FORMAT_TAR,
+        'gzipMemberSourceNameDetectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
+        'gzipMemberSourceNameDetectedFormat' => ArchiveCompressionStream::FORMAT_ZIP,
+        'gzipMemberSourceNameReason' => 'extension:tar',
+        'gzipMemberSourceNameDiagnostics' => [
+            'archive-gzip-member-source-name-package-kind-mismatch',
+            'archive-gzip-member-source-name-compression-format-mismatch',
+        ],
         'sourceNamePolicyExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
         'sourceNamePolicyExpectedFormat' => ArchiveCompressionStream::FORMAT_ZIP,
         'sourceNamePolicyDetectedKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
@@ -1741,6 +1758,23 @@ if (in_array('--self-test', $argv, true)) {
         || ($compressedDocxSourceNamePolicyInspection['stream']['members'][0]['filename'] ?? null) !== $expected['compressedDocxGzipFilename']
         || isset($compressedDocxSourceNamePolicyInspection['package'])
         || isset($compressedDocxSourceNamePolicyInspection['zipBytes'])
+        || $gzipMemberSourceNamePolicyInspection['kind'] !== ArchiveCompressionStream::PACKAGE_KIND_ZIP
+        || $gzipMemberSourceNamePolicyInspection['format'] !== ArchiveCompressionStream::FORMAT_GZIP_ZIP
+        || $gzipMemberSourceNamePolicyInspection['decodedFormat'] !== ArchiveCompressionStream::FORMAT_ZIP
+        || $gzipMemberSourceNamePolicyInspection['handoffPolicy'] !== 'review-before-conversion'
+        || $gzipMemberSourceNamePolicyInspection['extractionPolicy'] !== 'metadata-only-no-extraction'
+        || $gzipMemberSourceNamePolicyInspection['memberCount'] !== 1
+        || $gzipMemberSourceNamePolicyInspection['mismatchedMemberCount'] !== 1
+        || $gzipMemberSourceNamePolicyInspection['diagnostics'] !== $expected['gzipMemberSourceNameDiagnostics']
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['filename'] ?? null) !== 'wordpress-review-packet.tar'
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['memberNameReason'] ?? null) !== $expected['gzipMemberSourceNameReason']
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['expectedKind'] ?? null) !== $expected['gzipMemberSourceNameExpectedKind']
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['expectedDecodedFormat'] ?? null) !== $expected['gzipMemberSourceNameExpectedFormat']
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['detectedKind'] ?? null) !== $expected['gzipMemberSourceNameDetectedKind']
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['detectedDecodedFormat'] ?? null) !== $expected['gzipMemberSourceNameDetectedFormat']
+        || ($gzipMemberSourceNamePolicyInspection['members'][0]['diagnostics'] ?? []) !== $expected['gzipMemberSourceNameDiagnostics']
+        || isset($gzipMemberSourceNamePolicyInspection['package'])
+        || isset($gzipMemberSourceNamePolicyInspection['zipBytes'])
         || $sourceNamePolicyInspection['sourceName'] !== 'wordpress-review-packet.docx'
         || $sourceNamePolicyInspection['sourceNameReason'] !== $expected['sourceNamePolicyReason']
         || $sourceNamePolicyInspection['expectedKind'] !== $expected['sourceNamePolicyExpectedKind']
@@ -1958,6 +1992,10 @@ echo 'compressedDocxSourceName.reason=' . $compressedDocxSourceNamePolicyInspect
 echo 'compressedDocxSourceName.expected=' . $compressedDocxSourceNamePolicyInspection['expectedKind'] . '/' . $compressedDocxSourceNamePolicyInspection['expectedFormat'] . "\n";
 echo 'compressedDocxSourceName.detected=' . $compressedDocxSourceNamePolicyInspection['detectedKind'] . '/' . $compressedDocxSourceNamePolicyInspection['detectedFormat'] . "\n";
 echo 'compressedDocxSourceName.handoffPolicy=' . $compressedDocxSourceNamePolicyInspection['handoffPolicy'] . "\n";
+echo 'gzipMemberSourceName.expected=' . ($gzipMemberSourceNamePolicyInspection['members'][0]['expectedKind'] ?? 'unknown') . '/' . ($gzipMemberSourceNamePolicyInspection['members'][0]['expectedDecodedFormat'] ?? 'unknown') . "\n";
+echo 'gzipMemberSourceName.detected=' . ($gzipMemberSourceNamePolicyInspection['members'][0]['detectedKind'] ?? 'unknown') . '/' . ($gzipMemberSourceNamePolicyInspection['members'][0]['detectedDecodedFormat'] ?? 'unknown') . "\n";
+echo 'gzipMemberSourceName.handoffPolicy=' . $gzipMemberSourceNamePolicyInspection['handoffPolicy'] . "\n";
+echo 'gzipMemberSourceName.diagnostics=' . implode(',', $gzipMemberSourceNamePolicyInspection['diagnostics']) . "\n";
 echo 'sourceNamePolicy.sourceName=' . $sourceNamePolicyInspection['sourceName'] . "\n";
 echo 'sourceNamePolicy.expected=' . $sourceNamePolicyInspection['expectedKind'] . '/' . $sourceNamePolicyInspection['expectedFormat'] . "\n";
 echo 'sourceNamePolicy.detected=' . $sourceNamePolicyInspection['detectedKind'] . '/' . $sourceNamePolicyInspection['detectedFormat'] . "\n";

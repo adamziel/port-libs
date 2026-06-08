@@ -704,6 +704,36 @@ HTML,
         exit(1);
     }
 
+    $rtfFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'header-includes' => ['{\\*\\generator PortLibs Review;}'],
+        'title' => 'RTF Review Packet',
+        'author' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-08',
+        'spacer' => true,
+        'toc' => true,
+        'table-of-contents' => '{\\pard \\ql RTF contents\\par}',
+        'include-before' => ['{\\pard \\ql Before RTF import\\par}'],
+        'body' => '{\\pard \\ql WordPress RTF review body\\par}',
+        'include-after' => ['{\\pard \\ql After RTF import\\par}'],
+    ], null, 'rtf+smart');
+    foreach ([
+        '{\\rtf1\\ansi\\deff0',
+        '{\\*\\generator PortLibs Review;}',
+        '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 \\b \\fs36 RTF Review Packet\\par}',
+        '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 Migration bot\\par}',
+        '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 Content editor\\par}',
+        '{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 2026-06-08\\par}',
+        '{\\pard \\ql RTF contents\\par}',
+        '{\\pard \\ql Before RTF import\\par}',
+        '{\\pard \\ql WordPress RTF review body\\par}',
+        '{\\pard \\ql After RTF import\\par}',
+    ] as $needle) {
+        if (!str_contains($rtfFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate RTF default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $wikiFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'include-before' => ['== WordPress review queue =='],
         'toc' => true,

@@ -5232,6 +5232,36 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $badPackage->assertStrictImportable(256, 2.0, 256));
     },
 
+    'rejects empty zip package bytes before strict document import' => static function (TestRunner $t): void {
+        $emptyPackage = ZipPackage::fromParts([]);
+        $contentPresence = $emptyPackage->contentPresencePreflight();
+        $strict = $emptyPackage->strictImportPreflight(512, 20.0, 512);
+        $raw = ZipPackage::rawStrictImportPreflight($emptyPackage->bytes(), 512, 20.0, 512);
+
+        $t->same([], $emptyPackage->names());
+        $t->same(0, $contentPresence['entryCount']);
+        $t->same(false, $contentPresence['hasEntries']);
+        $t->same(false, $contentPresence['isSupportedByBoundedReader']);
+        $t->same(['empty-package'], $contentPresence['issues']);
+
+        $t->same(false, $strict['isValid']);
+        $t->same(0, $strict['entryCount']);
+        $t->same(['empty-package'], $strict['diagnostics']);
+        $t->same($contentPresence, $strict['contentPresence']);
+        $t->same(0, $strict['centralDirectoryInventory']['entryCount']);
+        $t->same(0, $strict['readIntegrity']['readableEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $emptyPackage->assertStrictImportable(512, 20.0, 512));
+
+        $t->same(false, $raw['isValid']);
+        $t->same(true, $raw['canInstantiate']);
+        $t->same(null, $raw['instantiationError']);
+        $t->same(0, $raw['entryCount']);
+        $t->same(['empty-package'], $raw['diagnostics']);
+        $t->same([], $raw['preflightErrors']);
+        $t->same(false, $raw['strictImport']['isValid']);
+        $t->same($contentPresence, $raw['strictImport']['contentPresence']);
+    },
+
     'preflights raw zip package bytes before strict import instantiation' => static function (TestRunner $t) use (
         $buildZipPackage,
         $rewriteEndOfCentralDirectory,

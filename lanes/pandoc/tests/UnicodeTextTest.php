@@ -1633,6 +1633,30 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 9, 'Emoji multi-skin ZWJ wrapped line exceeds requested width');
         }
     },
+    'does not let plain zero width joiners collapse display columns' => static function (TestRunner $t): void {
+        $plain = "A\u{200D}B";
+        $cjk = "\u{9B5A}\u{200D}\u{9B5A}";
+        $emoji = "\u{1F469}\u{200D}\u{1F4BB}";
+        $indic = "\u{0915}\u{094D}\u{200D}\u{0937}";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Plain {$plain} CJK {$cjk} tail", 10, '  ');
+
+        $t->same(["A\u{200D}", 'B'], UnicodeText::graphemes($plain));
+        $t->same(["\u{9B5A}\u{200D}", "\u{9B5A}"], UnicodeText::graphemes($cjk));
+        $t->same([$emoji], UnicodeText::graphemes($emoji));
+        $t->same([$indic], UnicodeText::graphemes($indic));
+        $t->same(2, UnicodeText::displayWidth($plain));
+        $t->same(4, UnicodeText::displayWidth($cjk));
+        $t->same(2, UnicodeText::displayWidth($emoji));
+        $t->same(1, UnicodeText::displayWidth($indic));
+        $t->same(["A\u{200D}", 'B'], UnicodeText::splitAtDisplayWidth($plain, 1));
+        $t->same(["\u{9B5A}\u{200D}", "\u{9B5A}"], UnicodeText::splitAtDisplayWidth($cjk, 2));
+        $t->same(["A\u{200D}", 'B'], UnicodeText::splitByDisplayBreakpoints($plain, [1]));
+        $t->same(["\u{9B5A}\u{200D}", "\u{9B5A}"], UnicodeText::splitByDisplayBreakpoints($cjk, [2]));
+        $t->same(["Plain {$plain}", "  CJK {$cjk}", '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Plain ZWJ wrapped line exceeds requested width');
+        }
+    },
     'measures supplementary east asian wide symbols for display columns' => static function (TestRunner $t): void {
         $ideographicMarks = "\u{16FE0}\u{16FE1}\u{16FE2}\u{16FE3}";
         $kanaLetters = "\u{1B000}\u{1B11F}\u{1B132}\u{1B150}\u{1B155}\u{1B164}";

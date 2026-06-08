@@ -230,6 +230,9 @@ final class OdfReader
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
+                    'contentValidationCount' => (int) ($content['contentDeclarations']['contentValidationCount'] ?? 0),
+                    'contentValidationConditionCount' => (int) ($content['contentDeclarations']['contentValidationConditionCount'] ?? 0),
+                    'contentValidationMessageCount' => (int) ($content['contentDeclarations']['contentValidationMessageCount'] ?? 0),
                     'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
                     'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
                     'namedFormulaExpressionCount' => (int) ($content['contentDeclarations']['namedFormulaExpressionCount'] ?? 0),
@@ -1933,6 +1936,17 @@ final class OdfReader
             if (isset($metadata['formula'])) {
                 $classes[] = 'odf-table-cell-formula';
             }
+            if (isset($metadata['contentValidationName'])) {
+                $classes[] = 'odf-table-cell-validation';
+                $validation = $this->contentValidationByName((string) $metadata['contentValidationName']);
+                if ($validation !== null) {
+                    $attrs['odfContentValidation'] = $validation;
+                }
+                $htmlAttributes = array_merge(
+                    $htmlAttributes,
+                    $this->tableCellContentValidationHtmlAttributes($validation)
+                );
+            }
         }
 
         $styleProperties = is_array($style['tableCellProperties'] ?? null) ? $style['tableCellProperties'] : [];
@@ -1982,6 +1996,7 @@ final class OdfReader
             'dateValue' => self::nullable(self::attr($cell, self::OFFICE_NS, 'date-value')),
             'timeValue' => self::nullable(self::attr($cell, self::OFFICE_NS, 'time-value')),
             'booleanValue' => self::nullableBool(self::attr($cell, self::OFFICE_NS, 'boolean-value')),
+            'contentValidationName' => self::nullable(self::attr($cell, self::TABLE_NS, 'content-validation-name')),
         ]);
     }
 
@@ -2001,6 +2016,7 @@ final class OdfReader
             'dateValue' => 'data-odf-cell-date-value',
             'timeValue' => 'data-odf-cell-time-value',
             'booleanValue' => 'data-odf-cell-boolean-value',
+            'contentValidationName' => 'data-odf-cell-content-validation-name',
         ];
 
         foreach ($map as $source => $target) {
@@ -2010,6 +2026,49 @@ final class OdfReader
 
             $value = $metadata[$source];
             $attributes[$target] = is_bool($value) ? ($value ? 'true' : 'false') : $value;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function contentValidationByName(string $name): ?array
+    {
+        if ($name === '') {
+            return null;
+        }
+
+        $validationsByName = $this->contentDeclarations['contentValidationsByName'] ?? null;
+        if (!is_array($validationsByName) || !is_array($validationsByName[$name] ?? null)) {
+            return null;
+        }
+
+        return $validationsByName[$name];
+    }
+
+    /**
+     * @param array<string, mixed>|null $validation
+     * @return array<string, string>
+     */
+    private function tableCellContentValidationHtmlAttributes(?array $validation): array
+    {
+        $attributes = [
+            'data-odf-cell-content-validation-exists' => $validation === null ? 'false' : 'true',
+        ];
+        if ($validation === null) {
+            return $attributes;
+        }
+
+        $condition = $validation['condition'] ?? null;
+        if (is_scalar($condition) && (string) $condition !== '') {
+            $attributes['data-odf-cell-content-validation-condition'] = (string) $condition;
+        }
+
+        $allowEmptyCell = $validation['allowEmptyCell'] ?? null;
+        if (is_bool($allowEmptyCell)) {
+            $attributes['data-odf-cell-content-validation-allow-empty-cell'] = $allowEmptyCell ? 'true' : 'false';
         }
 
         return $attributes;
@@ -2709,6 +2768,26 @@ final class OdfReader
             }
         }
 
+        $contentValidations = $this->contentValidationsFromText($text);
+        $contentValidationsByName = [];
+        $contentValidationConditionCount = 0;
+        $contentValidationMessageCount = 0;
+        foreach ($contentValidations as $validation) {
+            $name = (string) ($validation['name'] ?? '');
+            if ($name !== '') {
+                $contentValidationsByName[$name] = $validation;
+            }
+            if ((string) ($validation['condition'] ?? '') !== '') {
+                $contentValidationConditionCount++;
+            }
+            if (is_array($validation['helpMessage'] ?? null)) {
+                $contentValidationMessageCount++;
+            }
+            if (is_array($validation['errorMessage'] ?? null)) {
+                $contentValidationMessageCount++;
+            }
+        }
+
         $databaseRanges = $this->databaseRangesFromText($text);
         $databaseRangesByName = [];
         $databaseSubtotalRuleCount = 0;
@@ -2786,6 +2865,11 @@ final class OdfReader
             'variableDeclarations' => $variableDeclarations,
             'userFieldDeclarationCount' => count($userFieldDeclarations),
             'userFieldDeclarations' => $userFieldDeclarations,
+            'contentValidationCount' => count($contentValidations),
+            'contentValidationConditionCount' => $contentValidationConditionCount,
+            'contentValidationMessageCount' => $contentValidationMessageCount,
+            'contentValidations' => $contentValidations,
+            'contentValidationsByName' => $contentValidationsByName,
             'namedExpressionCount' => count($namedExpressions),
             'namedRangeCount' => $namedRangeCount,
             'namedFormulaExpressionCount' => $namedFormulaExpressionCount,
@@ -2810,6 +2894,77 @@ final class OdfReader
             'ddeConnectionDeclarations' => $ddeConnectionDeclarations,
             'ddeConnectionDeclarationsByName' => $ddeConnectionDeclarationsByName,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function contentValidationsFromText(\DOMElement $text): array
+    {
+        $validations = [];
+        foreach (self::childElements($text, 'content-validations', self::TABLE_NS) as $container) {
+            foreach (self::childElements($container, 'content-validation', self::TABLE_NS) as $validation) {
+                $definition = $this->contentValidationDefinition($validation);
+                if ($definition !== []) {
+                    $validations[] = $definition;
+                }
+            }
+        }
+
+        return $validations;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function contentValidationDefinition(\DOMElement $validation): array
+    {
+        $name = self::attr($validation, self::TABLE_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        $helpMessage = self::firstChildElement($validation, 'help-message', self::TABLE_NS);
+        $errorMessage = self::firstChildElement($validation, 'error-message', self::TABLE_NS);
+        $errorMacro = self::firstChildElement($validation, 'error-macro', self::TABLE_NS);
+
+        return self::withoutEmpty([
+            'name' => $name,
+            'condition' => self::nullable(self::attr($validation, self::TABLE_NS, 'condition')),
+            'baseCellAddress' => self::nullable(self::attr($validation, self::TABLE_NS, 'base-cell-address')),
+            'allowEmptyCell' => self::nullableBool(self::attr($validation, self::TABLE_NS, 'allow-empty-cell')),
+            'displayList' => self::nullable(self::attr($validation, self::TABLE_NS, 'display-list')),
+            'helpMessage' => $helpMessage instanceof \DOMElement ? $this->contentValidationMessageDefinition($helpMessage) : null,
+            'errorMessage' => $errorMessage instanceof \DOMElement ? $this->contentValidationMessageDefinition($errorMessage) : null,
+            'errorMacro' => $errorMacro instanceof \DOMElement ? $this->contentValidationErrorMacroDefinition($errorMacro) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function contentValidationMessageDefinition(\DOMElement $message): array
+    {
+        return self::withoutEmpty([
+            'title' => self::nullable(self::attr($message, self::TABLE_NS, 'title')),
+            'display' => self::nullableBool(self::attr($message, self::TABLE_NS, 'display')),
+            'messageType' => self::nullable(self::attr($message, self::TABLE_NS, 'message-type')),
+            'text' => self::nullable(self::normalizedText($message)),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function contentValidationErrorMacroDefinition(\DOMElement $macro): array
+    {
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($macro, self::TABLE_NS, 'name')),
+            'execute' => self::nullableBool(self::attr($macro, self::TABLE_NS, 'execute')),
+            'macroName' => self::nullable(self::attr($macro, self::TABLE_NS, 'macro-name')),
+            'scriptLanguage' => self::nullable(self::attr($macro, self::SCRIPT_NS, 'language')),
+            'href' => self::nullable(self::attr($macro, self::XLINK_NS, 'href')),
+        ]);
     }
 
     /**

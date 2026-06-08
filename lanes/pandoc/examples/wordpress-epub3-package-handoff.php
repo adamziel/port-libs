@@ -1073,6 +1073,15 @@ XML;
     if (($result['document']->children[0]->attr('contentViewport')['raw'] ?? null) !== 'width=1024,height=768') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML viewport metadata');
     }
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['language'] ?? null) !== 'en' || ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['direction'] ?? null) !== 'ltr') {
+        throw new RuntimeException('Expected EPUB XHTML content language and direction metadata to be preserved');
+    }
+    if (($result['document']->children[0]->attr('contentLanguage') ?? null) !== 'en' || ($result['document']->children[0]->attr('contentDirection') ?? null) !== 'ltr') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML language and direction');
+    }
+    if (($result['document']->children[0]->attr('contentBodyEpubTypes') ?? []) !== ['bodymatter', 'chapter']) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB body semantic types');
+    }
     $chapterTrigger = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0] ?? null;
     if (!is_array($chapterTrigger) || ($chapterTrigger['action'] ?? null) !== 'play' || ($chapterTrigger['refElement'] ?? null) !== 'audio' || ($chapterTrigger['observerElement'] ?? null) !== 'span') {
         throw new RuntimeException('Expected EPUB trigger action/ref/observer metadata to remain reviewable');
@@ -1536,6 +1545,9 @@ echo 'xhtmlScripts=' . ($result['xhtmlResourceReport']['scriptCount'] ?? 0) . "\
 echo 'xhtmlScriptEventHandlers=' . ($result['xhtmlResourceReport']['scriptEventHandlerCount'] ?? 0) . "\n";
 echo 'xhtmlViewportAssets=' . ($result['xhtmlResourceReport']['viewportAssetCount'] ?? 0) . "\n";
 echo 'chapterViewport=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['viewport']['raw'] ?? '') . "\n";
+echo 'chapterLanguage=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['language'] ?? '') . "\n";
+echo 'chapterDirection=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['direction'] ?? '') . "\n";
+echo 'chapterBodyTypes=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['metadata']['bodyEpubTypes'] ?? []) . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";
 echo 'chapterTriggerAction=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0]['action'] ?? '') . "\n";
 echo 'cssResourceAssets=' . ($result['cssResourceReport']['assetCount'] ?? 0) . "\n";

@@ -66,6 +66,23 @@ $contentXml = <<<'XML'
           <table:data-pilot-field table:source-field-name="total" table:orientation="data" table:function="sum"/>
         </table:data-pilot-table>
       </table:data-pilot-tables>
+      <table:content-validations>
+        <table:content-validation table:name="ReviewStatusValidation" table:condition="cell-content-is-in-list(&quot;draft&quot;;&quot;ready&quot;;&quot;legal&quot;)" table:base-cell-address="Review.B2" table:allow-empty-cell="false" table:display-list="sort-ascending">
+          <table:help-message table:title="Review status" table:display="true">
+            <text:p>Choose a migration review status.</text:p>
+          </table:help-message>
+          <table:error-message table:title="Invalid status" table:display="true" table:message-type="warning">
+            <text:p>Use draft, ready, or legal.</text:p>
+          </table:error-message>
+          <table:error-macro table:name="ReviewStatusMacro" table:execute="false"/>
+        </table:content-validation>
+      </table:content-validations>
+      <table:table table:name="Validation Review">
+        <table:table-row>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+          <table:table-cell table:content-validation-name="ReviewStatusValidation" office:value-type="string" office:string-value="ready"><text:p>ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
       <text:p>Import source <text:database-display text:database-name="ImportDS" text:table-name="wp_posts" text:table-type="table" text:column-name="post_title">Imported post title</text:database-display> moved to row <text:database-row-number text:database-name="ImportDS" text:table-name="wp_posts" text:row-number="12"/>.</text:p>
     </office:text>
   </office:body>
@@ -152,6 +169,23 @@ if (in_array('--self-test', $argv, true)) {
     if (($declarations['dataPilotMemberCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT data-pilot members to be counted in the import report');
     }
+    if (($declarations['contentValidationCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT content validation to be counted in the import report');
+    }
+    if (($declarations['contentValidationConditionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT content validation condition to be counted in the import report');
+    }
+    if (($declarations['contentValidationMessageCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT content validation messages to be counted in the import report');
+    }
+    $contentValidations = $result['document']->attr('contentDeclarations')['contentValidationsByName'] ?? [];
+    $statusValidation = is_array($contentValidations) ? ($contentValidations['ReviewStatusValidation'] ?? null) : null;
+    if (!is_array($statusValidation) || ($statusValidation['condition'] ?? '') !== 'cell-content-is-in-list("draft";"ready";"legal")') {
+        throw new RuntimeException('Expected ODT content validation condition metadata to be preserved');
+    }
+    if (($statusValidation['helpMessage']['title'] ?? '') !== 'Review status' || ($statusValidation['errorMessage']['messageType'] ?? '') !== 'warning') {
+        throw new RuntimeException('Expected ODT content validation help and error messages to be preserved');
+    }
     $pivotFields = $readyPivot['fields'] ?? [];
     if (!is_array($pivotFields)) {
         throw new RuntimeException('Expected ODT data-pilot field metadata to be preserved');
@@ -177,6 +211,9 @@ if (in_array('--self-test', $argv, true)) {
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-database-row-number" data-odf-field-type="database-row-number" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-row-number="12">12</span>')) {
         throw new RuntimeException('Expected ODT database-row-number fallback value to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-validation" data-odf-cell-value-type="string" data-odf-cell-string-value="ready" data-odf-cell-content-validation-name="ReviewStatusValidation" data-odf-cell-content-validation-exists="true" data-odf-cell-content-validation-condition="cell-content-is-in-list(&quot;draft&quot;;&quot;ready&quot;;&quot;legal&quot;)" data-odf-cell-content-validation-allow-empty-cell="false"><p>ready</p></td>')) {
+        throw new RuntimeException('Expected ODT content validation cell metadata to render in WordPress blocks');
     }
 
     echo "odf database field handoff self-test ok\n";

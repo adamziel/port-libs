@@ -4779,6 +4779,27 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     hasEntries:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>
+     * }
+     */
+    public function contentPresencePreflight(): array
+    {
+        $entryCount = count($this->entries);
+        $issues = $entryCount === 0 ? ['empty-package'] : [];
+
+        return [
+            'entryCount' => $entryCount,
+            'hasEntries' => $entryCount > 0,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     isValid:bool,
      *     diagnostics:list<string>,
      *     maxTotalUncompressedBytes:?int,
@@ -4786,6 +4807,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
+     *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
@@ -4825,6 +4847,7 @@ final class ZipPackage
 
         $archive = $this->archivePreflight();
         $centralDirectoryInventory = self::centralDirectoryInventoryPreflight($this->bytes);
+        $contentPresence = $this->contentPresencePreflight();
         $size = $this->sizePreflight();
         $generalPurposeFlags = $this->generalPurposeFlagPreflight();
         $compressionMethods = $this->compressionMethodPreflight();
@@ -4857,6 +4880,10 @@ final class ZipPackage
 
         if (!$centralDirectoryInventory['isSupportedByBoundedReader']) {
             $diagnostics[] = 'central-directory-inventory-issues';
+        }
+
+        if (!$contentPresence['isSupportedByBoundedReader']) {
+            array_push($diagnostics, ...$contentPresence['issues']);
         }
 
         if ($comments['hasComments']) {
@@ -4973,6 +5000,7 @@ final class ZipPackage
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
+            'contentPresence' => $contentPresence,
             'size' => $size,
             'generalPurposeFlags' => $generalPurposeFlags,
             'compressionMethods' => $compressionMethods,
@@ -5006,6 +5034,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
+     *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,

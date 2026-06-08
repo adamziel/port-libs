@@ -160,6 +160,21 @@ $legacyFrameTables = array_values(array_filter(
     $legacyFrameDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$legacySpacingDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="legacy-spacing-grid" data-source="html-reader" cellpadding="6" cellspacing="2">
+<caption>Legacy spacing review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$legacySpacingTables = array_values(array_filter(
+    $legacySpacingDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $directionalityDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="directionality-grid" data-source="html-reader" dir="rtl">
 <caption>Directionality review</caption>
@@ -1137,6 +1152,7 @@ $document = new AstNode('document', [], [
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
     ...$legacyFrameTables,
+    ...$legacySpacingTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
     ...$captionSourceTables,
@@ -2328,6 +2344,48 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($legacyFramePacket, JSON_THROW_ON_ERROR);
     json_encode($legacyFrameDowngrades, JSON_THROW_ON_ERROR);
+
+    $legacySpacingTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'legacy-spacing-grid') {
+            $legacySpacingTable = $node;
+            break;
+        }
+    }
+    $legacySpacingPacket = $legacySpacingTable instanceof AstNode ? $legacySpacingTable->attr('tableGeometry') : null;
+    $legacySpacingDowngrades = $legacySpacingTable instanceof AstNode ? TableGeometry::reviewPacket($legacySpacingTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $legacySpacingDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $legacySpacingDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-spacing'
+        ));
+        $legacySpacingDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$legacySpacingTable instanceof AstNode
+        || !is_array($legacySpacingPacket)
+        || ($legacySpacingPacket['tableSpacing']['attributes'] ?? null) !== [
+            'cellpadding' => '6',
+            'cellspacing' => '2',
+        ]
+        || ($legacySpacingPacket['summary']['hasTableSpacing'] ?? null) !== true
+        || ($legacySpacingPacket['summary']['tableCellPadding'] ?? null) !== '6'
+        || ($legacySpacingPacket['summary']['tableCellSpacing'] ?? null) !== '2'
+        || ($legacySpacingDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-spacing-requires-raw-html'
+        || ($legacySpacingDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-spacing-review-required'
+        || ($legacySpacingDiagnostics['latex']['code'] ?? null) !== 'latex-table-spacing-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing legacy table cell spacing metadata');
+    }
+    if (!str_contains($blocks, '<table id="legacy-spacing-grid" data-source="html-reader" cellpadding="6" cellspacing="2">')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress legacy table cell spacing output');
+    }
+    json_encode($legacySpacingPacket, JSON_THROW_ON_ERROR);
+    json_encode($legacySpacingDowngrades, JSON_THROW_ON_ERROR);
 
     $directionalityTable = null;
     foreach ($document->children as $node) {

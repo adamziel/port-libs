@@ -174,6 +174,7 @@ final class CslStyle
             'initializeWith' => null,
             'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'first',
+            'nameAsSortOrderExplicit' => false,
             'sortSeparator' => ', ',
             'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
@@ -203,6 +204,7 @@ final class CslStyle
             'initializeWith' => null,
             'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'all',
+            'nameAsSortOrderExplicit' => false,
             'sortSeparator' => ', ',
             'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
@@ -897,6 +899,7 @@ final class CslStyle
             'initializeWith' => is_string($overrides['initializeWith'] ?? null) ? $overrides['initializeWith'] : $defaults['initializeWith'],
             'initializeWithHyphen' => is_bool($overrides['initializeWithHyphen'] ?? null) ? $overrides['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+            'nameAsSortOrderExplicit' => ($overrides['nameAsSortOrderExplicit'] ?? false) === true || ($defaults['nameAsSortOrderExplicit'] ?? false) === true,
             'sortSeparator' => is_string($overrides['sortSeparator'] ?? null) ? $overrides['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
             'demoteNonDroppingParticle' => is_string($overrides['demoteNonDroppingParticle'] ?? null) ? $overrides['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
@@ -965,6 +968,7 @@ final class CslStyle
         $nameAsSortOrder = self::optionalNameAttribute($name, $names, 'name-as-sort-order');
         if ($nameAsSortOrder !== null) {
             $overrides['nameAsSortOrder'] = $nameAsSortOrder;
+            $overrides['nameAsSortOrderExplicit'] = true;
         }
         if ($nameAsSortOrder !== null && !in_array($nameAsSortOrder, ['first', 'all'], true)) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' name-as-sort-order must be first or all');

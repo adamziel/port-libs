@@ -4425,6 +4425,99 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureClassUsage']);
     },
 
+    'fake runner extracts bounded pdf structure id tree metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-id-tree.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] /IDTree 12 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /H1 /P 9 0 R /Pg 3 0 R /ID (packet-title) /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /ID <FEFF006600690067007500720065002D0031> /Alt (Figure one) /K 1 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Kids [13 0 R] /Limits [(packet-title) (missing)] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Names [(packet-title) 10 0 R <FEFF006600690067007500720065002D0031> 11 0 R (missing) 99 0 R] /Limits [(packet-title) (missing)] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-id-tree.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-id-tree.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
+                'nodeObject' => '13 0 R',
+                'id' => 'figure-1',
+                'valueKind' => 'reference',
+                'valueObject' => '11 0 R',
+                'structureReferences' => ['11 0 R'],
+                'missingReferences' => [],
+                'limits' => ['packet-title', 'missing'],
+            ],
+            [
+                'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
+                'nodeObject' => '13 0 R',
+                'id' => 'missing',
+                'valueKind' => 'reference',
+                'valueObject' => '99 0 R',
+                'structureReferences' => ['99 0 R'],
+                'missingReferences' => ['99 0 R'],
+                'limits' => ['packet-title', 'missing'],
+            ],
+            [
+                'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
+                'nodeObject' => '13 0 R',
+                'id' => 'packet-title',
+                'valueKind' => 'reference',
+                'valueObject' => '10 0 R',
+                'structureReferences' => ['10 0 R'],
+                'missingReferences' => [],
+                'limits' => ['packet-title', 'missing'],
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureIdTree']);
+        $t->contains('pdf-byte-structure-id-tree:3', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-ids:3', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-kids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-references:3', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-missing:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureIdTree']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

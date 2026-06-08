@@ -227,6 +227,11 @@ $emojiVariationZwjSlices = UnicodeText::splitByDisplayBreakpoints($emojiHeartOnF
 $emojiMultiSkinHandshake = "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}";
 $emojiMultiSkinKiss = "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}";
 $emojiMultiSkinZwjSlices = UnicodeText::splitByDisplayBreakpoints($emojiMultiSkinHandshake . $emojiMultiSkinKiss, [2]);
+$plainZwjText = "A\u{200D}B";
+$cjkZwjText = "\u{9B5A}\u{200D}\u{9B5A}";
+$plainZwjSlices = UnicodeText::splitByDisplayBreakpoints($plainZwjText, [1]);
+$cjkZwjSlices = UnicodeText::splitByDisplayBreakpoints($cjkZwjText, [2]);
+$plainZwjWrap = UnicodeText::wrapByDisplayWidth("Plain {$plainZwjText} CJK {$cjkZwjText} tail", 10, '  ');
 $ambiguousText = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
 $ambiguousWideSlices = UnicodeText::splitByDisplayBreakpoints($ambiguousText, [2, 4, 6, 8], 'wide');
 $supplementaryWideText = "\u{16FE0}\u{1B000}\u{1F200}\u{1F18E}";
@@ -424,6 +429,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji multi-skin ZWJ'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $emojiMultiSkinZwjSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $emojiMultiSkinZwjSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Plain/CJK ZWJ'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $plainZwjSlices) . ' / ' . implode(' / ', $cjkZwjSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($plainZwjText) . ',' . UnicodeText::displayWidth($cjkZwjText) . ' / ' . implode(',', array_map(UnicodeText::displayWidth(...), $plainZwjWrap))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Ambiguous policy'])]),
@@ -814,6 +824,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Emoji multi-skin ZWJ</td><td>' . $emojiMultiSkinHandshake . ' / ' . $emojiMultiSkinKiss . '</td><td>2,2</td>')) {
         throw new RuntimeException('charset handoff self-test missing multi-skin emoji ZWJ display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Plain/CJK ZWJ</td><td>A' . "\u{200D}" . ' / B / ' . "\u{9B5A}\u{200D}" . ' / ' . "\u{9B5A}" . '</td><td>2,4 / 8,10,6</td>')) {
+        throw new RuntimeException('charset handoff self-test missing plain/CJK ZWJ split display-width audit');
     }
     if (!str_contains($blocks, "<td>Ambiguous policy</td><td>\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}</td><td>5/10</td>")) {
         throw new RuntimeException('charset handoff self-test missing ambiguous-width policy audit');

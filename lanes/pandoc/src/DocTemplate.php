@@ -405,6 +405,7 @@ final class DocTemplate
             'default.plain' => $this->defaultPlainTemplate(),
             'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
             'default.rst' => $this->defaultRstTemplate(),
+            'default.rtf' => $this->defaultRtfTemplate(),
             'default.bbcode' => $this->defaultBbcodeTemplate(),
             'default.jira' => $this->defaultJiraTemplate(),
             'default.dokuwiki', 'default.mediawiki' => $this->defaultWikiTocTemplate(),
@@ -462,6 +463,7 @@ final class DocTemplate
             'default.markdown',
             'default.commonmark',
             'default.rst',
+            'default.rtf',
             'default.bbcode',
             'default.jira',
             'default.dokuwiki',
@@ -1144,6 +1146,13 @@ $if(author)$
 $for(author)$$author$$sep$; $endfor$.
 $endif$
 MAN;
+    }
+
+    private function defaultRtfTemplate(): string
+    {
+        return <<<'RTF'
+{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}} {\colortbl;\red255\green0\blue0;\red0\green0\blue255;} \widowctrl\hyphauto $for(header-includes)$ $header-includes$ $endfor$ $if(title)$ {\pard \qc \f0 \sa180 \li0 \fi0 \b \fs36 $title$\par} $endif$ $for(author)$ {\pard \qc \f0 \sa180 \li0 \fi0 $author$\par} $endfor$ $if(date)$ {\pard \qc \f0 \sa180 \li0 \fi0 $date$\par} $endif$ $if(spacer)$ {\pard \ql \f0 \sa180 \li0 \fi0 \par} $endif$ $if(toc)$ $table-of-contents$ $endif$ $for(include-before)$ $include-before$ $endfor$ $body$ $for(include-after)$ $include-after$ $endfor$ }
+RTF;
     }
 
     private function defaultMsTemplate(): string

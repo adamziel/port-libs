@@ -4468,6 +4468,154 @@ return [
         $t->same(['archive-source-name-package-type-unknown'], $unknownName['diagnostics']);
     },
 
+    'preflights gzip member source-name mismatches before package conversion handoff' => static function (TestRunner $t): void {
+        $tarPacket = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-member-source-name-policy","format":"tar"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Gzip member source-name policy TAR packet\n\nReady for archive review.\n",
+            ],
+        ]);
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Gzip member source-name policy ZIP package</w:p></w:body></w:document>',
+            ],
+        ]);
+
+        $matchingTar = GzipStream::build($tarPacket->bytes(), [
+            'filename' => 'review-packet.tar',
+            'comment' => 'matching gzip member tar name',
+        ]);
+        $matchingDocx = GzipStream::build($zipPackage->bytes(), [
+            'filename' => 'WORDPRESS-REVIEW.DOCX',
+            'comment' => 'matching gzip member docx name',
+        ]);
+        $mismatchedTarMember = GzipStream::build($tarPacket->bytes(), [
+            'filename' => 'review-packet.docx',
+            'comment' => 'mismatched member name for tar bytes',
+        ]);
+        $redundantlyCompressedMember = GzipStream::build($zipPackage->bytes(), [
+            'filename' => 'wordpress-review-package.zip.gz',
+            'comment' => 'member name still carries gzip suffix',
+        ]);
+        $missingFilename = GzipStream::build($zipPackage->bytes());
+
+        $matchingTarPolicy = ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+            $matchingTar,
+            strlen($tarPacket->bytes()),
+            strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/content.md'))
+        );
+        $matchingDocxPolicy = ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+            $matchingDocx,
+            strlen($zipPackage->bytes())
+        );
+        $mismatchedTarPolicy = ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+            $mismatchedTarMember,
+            strlen($tarPacket->bytes())
+        );
+        $redundantSuffixPolicy = ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+            $redundantlyCompressedMember,
+            strlen($zipPackage->bytes())
+        );
+        $missingFilenamePolicy = ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+            $missingFilename,
+            strlen($zipPackage->bytes())
+        );
+
+        $t->same('archive-gzip-member-source-name-policy', $matchingTarPolicy['type']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $matchingTarPolicy['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $matchingTarPolicy['format']);
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $matchingTarPolicy['decodedFormat']);
+        $t->same(strlen($matchingTar), $matchingTarPolicy['compressedSize']);
+        $t->same(strlen($tarPacket->bytes()), $matchingTarPolicy['decodedPackageSize']);
+        $t->same(2, $matchingTarPolicy['entryCount']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $matchingTarPolicy['entryNames']);
+        $t->same(1, $matchingTarPolicy['memberCount']);
+        $t->same(1, $matchingTarPolicy['memberFilenameCandidateCount']);
+        $t->same(0, $matchingTarPolicy['missingMemberFilenameCount']);
+        $t->same(0, $matchingTarPolicy['mismatchedMemberCount']);
+        $t->same('within-thresholds', $matchingTarPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $matchingTarPolicy['extractionPolicy']);
+        $t->same([], $matchingTarPolicy['diagnostics']);
+        $t->same('gzip', $matchingTarPolicy['stream']['type']);
+        $t->same('review-packet.tar', $matchingTarPolicy['stream']['members'][0]['filename']);
+        $t->same('review-packet.tar', $matchingTarPolicy['members'][0]['filename']);
+        $t->same(true, $matchingTarPolicy['members'][0]['memberFilenameCandidate']);
+        $t->same('extension:tar', $matchingTarPolicy['members'][0]['memberNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $matchingTarPolicy['members'][0]['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $matchingTarPolicy['members'][0]['expectedDecodedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $matchingTarPolicy['members'][0]['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $matchingTarPolicy['members'][0]['detectedDecodedFormat']);
+        $t->same('within-thresholds', $matchingTarPolicy['members'][0]['policy']);
+        $t->same([], $matchingTarPolicy['members'][0]['diagnostics']);
+        $t->same(false, isset($matchingTarPolicy['tarBytes']));
+        $t->same(false, isset($matchingTarPolicy['archive']));
+        $t->same(false, isset($matchingTarPolicy['zipBytes']));
+        $t->same(false, isset($matchingTarPolicy['package']));
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $matchingDocxPolicy['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $matchingDocxPolicy['format']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $matchingDocxPolicy['decodedFormat']);
+        $t->same('within-thresholds', $matchingDocxPolicy['handoffPolicy']);
+        $t->same([], $matchingDocxPolicy['diagnostics']);
+        $t->same('WORDPRESS-REVIEW.DOCX', $matchingDocxPolicy['members'][0]['filename']);
+        $t->same('extension:zip-package', $matchingDocxPolicy['members'][0]['memberNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $matchingDocxPolicy['members'][0]['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $matchingDocxPolicy['members'][0]['expectedDecodedFormat']);
+
+        $t->same('review-before-conversion', $mismatchedTarPolicy['handoffPolicy']);
+        $t->same(1, $mismatchedTarPolicy['mismatchedMemberCount']);
+        $t->same([
+            'archive-gzip-member-source-name-package-kind-mismatch',
+            'archive-gzip-member-source-name-compression-format-mismatch',
+        ], $mismatchedTarPolicy['diagnostics']);
+        $t->same([
+            'archive-gzip-member-source-name-package-kind-mismatch',
+            'archive-gzip-member-source-name-compression-format-mismatch',
+        ], $mismatchedTarPolicy['members'][0]['diagnostics']);
+        $t->same('review-before-conversion', $mismatchedTarPolicy['members'][0]['policy']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $mismatchedTarPolicy['members'][0]['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $mismatchedTarPolicy['members'][0]['expectedDecodedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $mismatchedTarPolicy['members'][0]['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $mismatchedTarPolicy['members'][0]['detectedDecodedFormat']);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $redundantSuffixPolicy['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $redundantSuffixPolicy['format']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $redundantSuffixPolicy['decodedFormat']);
+        $t->same('review-before-conversion', $redundantSuffixPolicy['handoffPolicy']);
+        $t->same(['archive-gzip-member-source-name-compression-format-mismatch'], $redundantSuffixPolicy['diagnostics']);
+        $t->same('wordpress-review-package.zip.gz', $redundantSuffixPolicy['members'][0]['filename']);
+        $t->same('extension:gzip-zip', $redundantSuffixPolicy['members'][0]['memberNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $redundantSuffixPolicy['members'][0]['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $redundantSuffixPolicy['members'][0]['expectedDecodedFormat']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $redundantSuffixPolicy['members'][0]['detectedDecodedFormat']);
+
+        $t->same('review-before-conversion', $missingFilenamePolicy['handoffPolicy']);
+        $t->same(0, $missingFilenamePolicy['memberFilenameCandidateCount']);
+        $t->same(1, $missingFilenamePolicy['missingMemberFilenameCount']);
+        $t->same(1, $missingFilenamePolicy['mismatchedMemberCount']);
+        $t->same(['archive-gzip-member-source-name-missing'], $missingFilenamePolicy['diagnostics']);
+        $t->same(false, $missingFilenamePolicy['members'][0]['memberFilenameCandidate']);
+        $t->same(null, $missingFilenamePolicy['members'][0]['memberNameReason']);
+        $t->same(null, $missingFilenamePolicy['members'][0]['expectedKind']);
+        $t->same(null, $missingFilenamePolicy['members'][0]['expectedDecodedFormat']);
+        $t->same(['archive-gzip-member-source-name-missing'], $missingFilenamePolicy['members'][0]['diagnostics']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipMemberSourceNamePolicyAuto(
+            $zipPackage->bytes(),
+            strlen($zipPackage->bytes())
+        ));
+    },
+
     'discovers nested archive package streams without extracting package entries' => static function (TestRunner $t): void {
         $innerZip = ZipPackage::fromParts([
             [

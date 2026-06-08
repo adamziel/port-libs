@@ -10194,6 +10194,9 @@ final class EpubReader
                 'contentResourceFlags' => $contentReport['flags'],
                 'contentResourceReviewFlags' => $contentReport['reviewFlags'],
                 'contentMetadata' => $contentReport['metadata'],
+                'contentLanguage' => $contentReport['metadata']['language'] ?? null,
+                'contentDirection' => $contentReport['metadata']['direction'] ?? null,
+                'contentBodyEpubTypes' => $contentReport['metadata']['bodyEpubTypes'] ?? [],
                 'contentViewport' => $contentReport['metadata']['viewport'],
                 'contentViewports' => $contentReport['metadata']['viewports'],
                 'contentReferences' => $contentReport['references'],
@@ -11863,6 +11866,9 @@ final class EpubReader
             }
 
             $part = (string) ($asset['part'] ?? $report['part'] ?? '');
+            $metadata = is_array($report['metadata'] ?? null)
+                ? $report['metadata']
+                : self::emptyXhtmlContentMetadataReport($part);
             $item = [
                 'id' => (string) ($asset['id'] ?? ''),
                 'part' => $part,
@@ -11870,14 +11876,21 @@ final class EpubReader
                 'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
                 'flags' => is_array($report['flags'] ?? null) ? $report['flags'] : [],
                 'reviewFlags' => is_array($report['reviewFlags'] ?? null) ? array_values($report['reviewFlags']) : [],
-                'metadata' => is_array($report['metadata'] ?? null) ? $report['metadata'] : self::emptyXhtmlContentMetadataReport($part),
-                'title' => is_string($report['metadata']['title'] ?? null) ? $report['metadata']['title'] : null,
-                'viewportCount' => is_int($report['metadata']['viewportCount'] ?? null) ? $report['metadata']['viewportCount'] : 0,
-                'validViewportCount' => is_int($report['metadata']['validViewportCount'] ?? null) ? $report['metadata']['validViewportCount'] : 0,
-                'invalidViewportCount' => is_int($report['metadata']['invalidViewportCount'] ?? null) ? $report['metadata']['invalidViewportCount'] : 0,
-                'viewport' => is_array($report['metadata']['viewport'] ?? null) ? $report['metadata']['viewport'] : self::emptyXhtmlViewportReport(),
-                'viewports' => is_array($report['metadata']['viewports'] ?? null) ? array_values($report['metadata']['viewports']) : [],
-                'metadataDiagnostics' => is_array($report['metadata']['diagnostics'] ?? null) ? array_values($report['metadata']['diagnostics']) : [],
+                'metadata' => $metadata,
+                'title' => is_string($metadata['title'] ?? null) ? $metadata['title'] : null,
+                'language' => is_string($metadata['language'] ?? null) ? $metadata['language'] : null,
+                'direction' => is_string($metadata['direction'] ?? null) ? $metadata['direction'] : null,
+                'htmlLanguage' => is_string($metadata['htmlLanguage'] ?? null) ? $metadata['htmlLanguage'] : null,
+                'htmlDirection' => is_string($metadata['htmlDirection'] ?? null) ? $metadata['htmlDirection'] : null,
+                'bodyLanguage' => is_string($metadata['bodyLanguage'] ?? null) ? $metadata['bodyLanguage'] : null,
+                'bodyDirection' => is_string($metadata['bodyDirection'] ?? null) ? $metadata['bodyDirection'] : null,
+                'bodyEpubTypes' => is_array($metadata['bodyEpubTypes'] ?? null) ? array_values($metadata['bodyEpubTypes']) : [],
+                'viewportCount' => is_int($metadata['viewportCount'] ?? null) ? $metadata['viewportCount'] : 0,
+                'validViewportCount' => is_int($metadata['validViewportCount'] ?? null) ? $metadata['validViewportCount'] : 0,
+                'invalidViewportCount' => is_int($metadata['invalidViewportCount'] ?? null) ? $metadata['invalidViewportCount'] : 0,
+                'viewport' => is_array($metadata['viewport'] ?? null) ? $metadata['viewport'] : self::emptyXhtmlViewportReport(),
+                'viewports' => is_array($metadata['viewports'] ?? null) ? array_values($metadata['viewports']) : [],
+                'metadataDiagnostics' => is_array($metadata['diagnostics'] ?? null) ? array_values($metadata['diagnostics']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
                 'scriptCount' => count(is_array($report['scripts'] ?? null) ? $report['scripts'] : []),
@@ -12250,6 +12263,22 @@ final class EpubReader
             'part' => $part,
             'headPresent' => false,
             'title' => null,
+            'htmlXmlLang' => null,
+            'htmlLang' => null,
+            'htmlLanguage' => null,
+            'htmlDirection' => null,
+            'bodyPresent' => false,
+            'bodyId' => null,
+            'bodyClass' => null,
+            'bodyClasses' => [],
+            'bodyXmlLang' => null,
+            'bodyLang' => null,
+            'bodyLanguage' => null,
+            'bodyDirection' => null,
+            'bodyEpubTypes' => [],
+            'bodyAttributes' => [],
+            'language' => null,
+            'direction' => null,
             'metaCount' => 0,
             'viewportCount' => 0,
             'validViewportCount' => 0,
@@ -12271,9 +12300,49 @@ final class EpubReader
             return $empty;
         }
 
+        $htmlXmlLang = self::xmlLang($root);
+        $htmlLang = self::nullableAttribute($root, 'lang');
+        $htmlLanguage = $htmlXmlLang ?? $htmlLang;
+        $htmlDirection = self::direction($root);
+        $body = self::firstChildElement($root, 'body', self::XHTML_NS);
+        $bodyXmlLang = $body instanceof \DOMElement ? self::xmlLang($body) : null;
+        $bodyLang = $body instanceof \DOMElement ? self::nullableAttribute($body, 'lang') : null;
+        $bodyLanguage = $bodyXmlLang ?? $bodyLang;
+        $bodyDirection = $body instanceof \DOMElement ? self::direction($body) : null;
+        $bodyFields = [
+            'htmlXmlLang' => $htmlXmlLang,
+            'htmlLang' => $htmlLang,
+            'htmlLanguage' => $htmlLanguage,
+            'htmlDirection' => $htmlDirection,
+            'bodyPresent' => $body instanceof \DOMElement,
+            'bodyId' => $body instanceof \DOMElement ? self::nullableAttribute($body, 'id') : null,
+            'bodyClass' => $body instanceof \DOMElement ? self::nullableAttribute($body, 'class') : null,
+            'bodyClasses' => $body instanceof \DOMElement ? self::spaceDelimited($body->getAttribute('class')) : [],
+            'bodyXmlLang' => $bodyXmlLang,
+            'bodyLang' => $bodyLang,
+            'bodyLanguage' => $bodyLanguage,
+            'bodyDirection' => $bodyDirection,
+            'bodyEpubTypes' => $body instanceof \DOMElement ? self::epubTypes($body) : [],
+            'bodyAttributes' => $body instanceof \DOMElement ? self::elementAttributes($body) : [],
+            'language' => $bodyLanguage ?? $htmlLanguage,
+            'direction' => $bodyDirection ?? $htmlDirection,
+        ];
+
         $head = self::firstChildElement($root, 'head', self::XHTML_NS);
         if (!$head instanceof \DOMElement) {
-            return $empty;
+            return [
+                'present' => true,
+                'part' => $part,
+                'headPresent' => false,
+                'title' => null,
+                'metaCount' => 0,
+                'viewportCount' => 0,
+                'validViewportCount' => 0,
+                'invalidViewportCount' => 0,
+                'viewport' => self::emptyXhtmlViewportReport(),
+                'viewports' => [],
+                'diagnostics' => [],
+            ] + $bodyFields;
         }
 
         $titleElement = self::firstChildElement($head, 'title', self::XHTML_NS);
@@ -12310,6 +12379,22 @@ final class EpubReader
             'part' => $part,
             'headPresent' => true,
             'title' => $title,
+            'htmlXmlLang' => $htmlXmlLang,
+            'htmlLang' => $htmlLang,
+            'htmlLanguage' => $htmlLanguage,
+            'htmlDirection' => $htmlDirection,
+            'bodyPresent' => $bodyFields['bodyPresent'],
+            'bodyId' => $bodyFields['bodyId'],
+            'bodyClass' => $bodyFields['bodyClass'],
+            'bodyClasses' => $bodyFields['bodyClasses'],
+            'bodyXmlLang' => $bodyXmlLang,
+            'bodyLang' => $bodyLang,
+            'bodyLanguage' => $bodyLanguage,
+            'bodyDirection' => $bodyDirection,
+            'bodyEpubTypes' => $bodyFields['bodyEpubTypes'],
+            'bodyAttributes' => $bodyFields['bodyAttributes'],
+            'language' => $bodyFields['language'],
+            'direction' => $bodyFields['direction'],
             'metaCount' => count($metaElements),
             'viewportCount' => count($viewports),
             'validViewportCount' => count($validViewports),
@@ -14276,6 +14361,9 @@ final class EpubReader
                 'contentResourceFlags' => $asset['contentResourceFlags'] ?? [],
                 'contentResourceReviewFlags' => $asset['contentResourceReviewFlags'] ?? [],
                 'contentMetadata' => $asset['contentMetadata'] ?? [],
+                'contentLanguage' => $asset['contentLanguage'] ?? null,
+                'contentDirection' => $asset['contentDirection'] ?? null,
+                'contentBodyEpubTypes' => $asset['contentBodyEpubTypes'] ?? [],
                 'contentViewport' => $asset['contentViewport'] ?? [],
                 'contentViewports' => $asset['contentViewports'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],

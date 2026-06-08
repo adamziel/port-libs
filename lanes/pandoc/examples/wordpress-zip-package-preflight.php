@@ -2485,6 +2485,15 @@ $strictImportPackage = ZipPackage::fromParts([
 $strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $strictImportCentralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($strictImportPackage->bytes());
 $rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPackage->bytes(), 4096, 100.0, 4096);
+$emptyStrictImportPackage = ZipPackage::fromParts([]);
+$emptyStrictImportPreflight = $emptyStrictImportPackage->strictImportPreflight(4096, 100.0, 4096);
+$emptyRawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($emptyStrictImportPackage->bytes(), 4096, 100.0, 4096);
+$emptyStrictImportRejected = false;
+try {
+    $emptyStrictImportPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $emptyStrictImportRejected = str_contains($exception->getMessage(), 'empty-package');
+}
 $strictCommentImportPreflight = $package->strictImportPreflight(4096, 100.0, 4096);
 $strictCommentImportRejected = false;
 try {
@@ -3976,6 +3985,8 @@ if (in_array('--self-test', $argv, true)) {
         || ($strictImportPreflight['centralDirectoryInventory'] ?? null) !== $strictImportCentralDirectoryInventory
         || ($strictImportPreflight['centralDirectoryInventory']['entryCount'] ?? null) !== 3
         || ($strictImportPreflight['centralDirectoryInventory']['isSupportedByBoundedReader'] ?? null) !== true
+        || ($strictImportPreflight['contentPresence']['hasEntries'] ?? null) !== true
+        || ($strictImportPreflight['contentPresence']['entryCount'] ?? null) !== 3
         || ($strictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
         || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
@@ -4010,6 +4021,26 @@ if (in_array('--self-test', $argv, true)) {
         || ($rawStrictImportPreflight['encryption']['hasEncryptedEntries'] ?? null) !== false
     ) {
         throw new RuntimeException('Expected raw strict ZIP import preflight to accept clean package bytes');
+    }
+
+    if (
+        ($emptyStrictImportPreflight['isValid'] ?? null) !== false
+        || ($emptyStrictImportPreflight['diagnostics'] ?? null) !== ['empty-package']
+        || ($emptyStrictImportPreflight['contentPresence']['hasEntries'] ?? null) !== false
+        || ($emptyStrictImportPreflight['contentPresence']['issues'] ?? null) !== ['empty-package']
+        || !$emptyStrictImportRejected
+    ) {
+        throw new RuntimeException('Expected strict ZIP import preflight to reject empty package bytes');
+    }
+
+    if (
+        ($emptyRawStrictImportPreflight['isValid'] ?? null) !== false
+        || ($emptyRawStrictImportPreflight['canInstantiate'] ?? null) !== true
+        || ($emptyRawStrictImportPreflight['instantiationError'] ?? null) !== null
+        || ($emptyRawStrictImportPreflight['diagnostics'] ?? null) !== ['empty-package']
+        || ($emptyRawStrictImportPreflight['strictImport'] ?? null) !== $emptyStrictImportPreflight
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject empty package bytes');
     }
 
     if (
@@ -5385,6 +5416,10 @@ echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'acce
 echo 'zipRawStrictImportCanInstantiate=' . ($rawStrictImportPreflight['canInstantiate'] ? 'true' : 'false') . "\n";
 echo 'zipRawStrictImportDiagnostics=' . implode(',', $rawStrictImportPreflight['diagnostics']) . "\n";
 echo 'zipRawStrictImportPreflightErrors=' . count($rawStrictImportPreflight['preflightErrors']) . "\n";
+echo 'zipEmptyStrictImportPolicy=' . ($emptyStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipEmptyStrictContentPresence=' . ($emptyStrictImportPreflight['contentPresence']['hasEntries'] ? 'has-entries' : 'empty') . "\n";
+echo 'zipEmptyRawStrictImportPolicy=' . ($emptyRawStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipEmptyRawStrictImportDiagnostics=' . implode(',', $emptyRawStrictImportPreflight['diagnostics']) . "\n";
 echo 'zipRawStrictLocalHeaderNamePolicy=' . ($rawStrictLocalHeaderNamePreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderNameIssues=' . implode(',', $rawStrictLocalHeaderNamePreflight['localHeaderNames']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderNameMismatchCount=' . ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntryCount'] ?? 0) . "\n";

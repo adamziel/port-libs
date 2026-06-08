@@ -3155,7 +3155,9 @@ final class UnicodeText
                     $regionalIndicatorRun = 0;
                 }
             }
-            $joinNext = $codepoint === 0x200d;
+            $joinNext = $codepoint === 0x200d
+                && $clusters !== []
+                && self::canZeroWidthJoinNext($clusters[count($clusters) - 1]);
             $indicViramaJoinNext = self::isBoundedIndicVirama($codepoint)
                 || ($codepoint === 0x200d && $hadIndicViramaJoinNext);
         }
@@ -5509,6 +5511,42 @@ final class UnicodeText
     {
         return self::isEmojiModifierClusterBase($cluster)
             || self::endsWithEmojiModifierBase($cluster);
+    }
+
+    private static function canZeroWidthJoinNext(string $cluster): bool
+    {
+        $characters = self::characters($cluster);
+        for ($index = count($characters) - 1; $index >= 0; $index--) {
+            $codepoint = self::codepoint($characters[$index]);
+            if (self::isCombiningOrZeroWidth($codepoint) || self::isEmojiSkinToneModifier($codepoint)) {
+                continue;
+            }
+
+            return self::isEmojiZwjBase($codepoint);
+        }
+
+        return false;
+    }
+
+    private static function isEmojiZwjBase(int $codepoint): bool
+    {
+        return self::isEmojiVariationBase($codepoint)
+            || self::isEmojiModifierBase($codepoint)
+            || $codepoint === 0x1f004
+            || $codepoint === 0x1f0cf
+            || $codepoint === 0x1f18e
+            || ($codepoint >= 0x1f191 && $codepoint <= 0x1f19a)
+            || ($codepoint >= 0x1f200 && $codepoint <= 0x1f202)
+            || ($codepoint >= 0x1f210 && $codepoint <= 0x1f23b)
+            || ($codepoint >= 0x1f240 && $codepoint <= 0x1f248)
+            || ($codepoint >= 0x1f250 && $codepoint <= 0x1f251)
+            || ($codepoint >= 0x1f260 && $codepoint <= 0x1f265)
+            || ($codepoint >= 0x1f300 && $codepoint <= 0x1f64f)
+            || ($codepoint >= 0x1f680 && $codepoint <= 0x1f6ff)
+            || ($codepoint >= 0x1f7e0 && $codepoint <= 0x1f7eb)
+            || $codepoint === 0x1f7f0
+            || ($codepoint >= 0x1f900 && $codepoint <= 0x1f9ff)
+            || ($codepoint >= 0x1fa70 && $codepoint <= 0x1faff);
     }
 
     private static function endsWithEmojiModifierBase(string $cluster): bool

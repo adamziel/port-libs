@@ -930,6 +930,97 @@ XML;
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="date" data-odf-cell-date-value="2026-06-05"><p>Review date</p></td>', $blocksHtml);
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="boolean" data-odf-cell-boolean-value="true"><p>Ready</p></td>', $blocksHtml);
     },
+    'maps ODT content validations into declarations and table cell metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithContentValidations = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:content-validations>
+        <table:content-validation
+          table:name="ReviewStatusValidation"
+          table:condition="cell-content-is-in-list(&quot;draft&quot;;&quot;ready&quot;;&quot;legal&quot;)"
+          table:base-cell-address="Review.B2"
+          table:allow-empty-cell="false"
+          table:display-list="sort-ascending">
+          <table:help-message table:title="Review status" table:display="true">
+            <text:p>Choose a migration review status.</text:p>
+          </table:help-message>
+          <table:error-message table:title="Invalid status" table:display="true" table:message-type="warning">
+            <text:p>Use draft, ready, or legal.</text:p>
+          </table:error-message>
+          <table:error-macro table:name="ReviewStatusMacro" table:execute="false"/>
+        </table:content-validation>
+      </table:content-validations>
+      <table:table table:name="Validation Review">
+        <table:table-row>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+          <table:table-cell
+            table:content-validation-name="ReviewStatusValidation"
+            office:value-type="string"
+            office:string-value="ready"><text:p>ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithContentValidations));
+        $declarations = $result['contentDeclarations'];
+        $validations = is_array($declarations['contentValidations'] ?? null) ? $declarations['contentValidations'] : [];
+        $validationsByName = is_array($declarations['contentValidationsByName'] ?? null) ? $declarations['contentValidationsByName'] : [];
+        $validation = is_array($validationsByName['ReviewStatusValidation'] ?? null) ? $validationsByName['ReviewStatusValidation'] : [];
+        $table = $result['document']->children[0];
+        $rows = $table->children[0]->children;
+        $statusCell = $rows[0]->children[1];
+        $geometry = $table->attr('tableGeometry');
+        $coverage = is_array($geometry) ? ($geometry['coverage'] ?? []) : [];
+        $readyCoverage = is_array($coverage[1] ?? null) ? $coverage[1] : [];
+        $condition = 'cell-content-is-in-list("draft";"ready";"legal")';
+
+        $t->same(1, $declarations['contentValidationCount'] ?? null);
+        $t->same(1, $declarations['contentValidationConditionCount'] ?? null);
+        $t->same(2, $declarations['contentValidationMessageCount'] ?? null);
+        $t->same(1, count($validations));
+        $t->same('ReviewStatusValidation', $validation['name'] ?? null);
+        $t->same($condition, $validation['condition'] ?? null);
+        $t->same('Review.B2', $validation['baseCellAddress'] ?? null);
+        $t->same(false, $validation['allowEmptyCell'] ?? null);
+        $t->same('sort-ascending', $validation['displayList'] ?? null);
+        $t->same('Review status', $validation['helpMessage']['title'] ?? null);
+        $t->same(true, $validation['helpMessage']['display'] ?? null);
+        $t->same('Choose a migration review status.', $validation['helpMessage']['text'] ?? null);
+        $t->same('Invalid status', $validation['errorMessage']['title'] ?? null);
+        $t->same('warning', $validation['errorMessage']['messageType'] ?? null);
+        $t->same('Use draft, ready, or legal.', $validation['errorMessage']['text'] ?? null);
+        $t->same('ReviewStatusMacro', $validation['errorMacro']['name'] ?? null);
+        $t->same(false, $validation['errorMacro']['execute'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(1, $result['importReport']['contentDeclarations']['contentValidationCount'] ?? null);
+        $t->same(1, $result['importReport']['contentDeclarations']['contentValidationConditionCount'] ?? null);
+        $t->same(2, $result['importReport']['contentDeclarations']['contentValidationMessageCount'] ?? null);
+        $t->same(1, $result['importReport']['content']['contentValidationCount'] ?? null);
+        $t->same(1, $result['importReport']['content']['contentValidationConditionCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['contentValidationMessageCount'] ?? null);
+
+        $t->same('ready', $statusCell->attr('text'));
+        $t->same(['odf-table-cell-value', 'odf-table-cell-validation'], $statusCell->attr('classes'));
+        $t->same('ReviewStatusValidation', $statusCell->attr('odfCellMetadata')['contentValidationName'] ?? null);
+        $t->same('ReviewStatusValidation', $statusCell->attr('htmlAttributes')['data-odf-cell-content-validation-name'] ?? null);
+        $t->same('true', $statusCell->attr('htmlAttributes')['data-odf-cell-content-validation-exists'] ?? null);
+        $t->same($condition, $statusCell->attr('htmlAttributes')['data-odf-cell-content-validation-condition'] ?? null);
+        $t->same('false', $statusCell->attr('htmlAttributes')['data-odf-cell-content-validation-allow-empty-cell'] ?? null);
+        $t->same($validation, $statusCell->attr('odfContentValidation'));
+        $t->same('ready', $readyCoverage['text'] ?? null);
+        $t->same('ReviewStatusValidation', $readyCoverage['sourceAttributes']['htmlAttributes']['data-odf-cell-content-validation-name'] ?? null);
+        $t->same($condition, $readyCoverage['sourceAttributes']['htmlAttributes']['data-odf-cell-content-validation-condition'] ?? null);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<td class="odf-table-cell-value odf-table-cell-validation" data-odf-cell-value-type="string" data-odf-cell-string-value="ready" data-odf-cell-content-validation-name="ReviewStatusValidation" data-odf-cell-content-validation-exists="true" data-odf-cell-content-validation-condition="cell-content-is-in-list(&quot;draft&quot;;&quot;ready&quot;;&quot;legal&quot;)" data-odf-cell-content-validation-allow-empty-cell="false"><p>ready</p></td>', $blocksHtml);
+    },
     'maps ODT table cell style properties into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithCellProperties = <<<'XML'
 <office:document-styles

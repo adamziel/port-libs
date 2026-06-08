@@ -1513,6 +1513,94 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected malformed datetime schemes to stay diagnostic-only');
         $t->true(!str_contains($blocks, ' datetime='), 'Expected WordPress blocks to omit source datetime attributes');
     },
+    'converts data meter and progress values into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><p>'
+            . '<data value=" SKU-42 " data-pandoc-data-value="source-spoof">Legacy SKU</data>'
+            . '<data value="bad<tag">Bad data</data>'
+            . '<meter value=" 000.750 " min="0" max="1.500" low=".25" high="1.25" optimum="1.0" data-pandoc-meter-value="source-spoof">Quality</meter>'
+            . '<meter value="NaN" min="bad" max="10">Bad meter</meter>'
+            . '<progress value=".5" max="02.00" data-pandoc-progress-max="source-spoof">Half done</progress>'
+            . '<progress value="-1" max="0">Bad progress</progress>'
+            . '</p></article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/value-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><p>'
+            . '<data data-pandoc-data-value="SKU-42">Legacy SKU</data>'
+            . '<data>Bad data</data>'
+            . '<meter data-pandoc-meter-value="0.75" data-pandoc-meter-min="0" data-pandoc-meter-max="1.5" data-pandoc-meter-low="0.25" data-pandoc-meter-high="1.25" data-pandoc-meter-optimum="1">Quality</meter>'
+            . '<meter data-pandoc-meter-max="10">Bad meter</meter>'
+            . '<progress data-pandoc-progress-value="0.5" data-pandoc-progress-max="2">Half done</progress>'
+            . '<progress>Bad progress</progress>'
+            . '</p></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Legacy SKUBad dataQualityBad meterHalf doneBad progress', $fragment->textContent());
+        $t->same(['article', 'data', 'meter', 'p', 'progress'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['data-pandoc-data-value', 'data-pandoc-meter-value', 'data-pandoc-progress-max', 'high', 'low', 'max', 'min', 'optimum', 'value'], $summary['filteredAttributes']);
+        $t->same(18, count($policyDiagnostics));
+        $t->same([
+            'value-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'value-metadata-review',
+            'value-metadata-review',
+            'value-metadata-review',
+            'value-metadata-review',
+            'value-metadata-review',
+            'value-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'value-metadata-review',
+            'value-metadata-review',
+            'value-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $children = $nodes[0]['children'][0]['children'];
+        $t->same(['data-pandoc-data-value' => 'SKU-42'], $children[0]['attrs']);
+        $t->same([], $children[1]['attrs']);
+        $t->same([
+            'data-pandoc-meter-value' => '0.75',
+            'data-pandoc-meter-min' => '0',
+            'data-pandoc-meter-max' => '1.5',
+            'data-pandoc-meter-low' => '0.25',
+            'data-pandoc-meter-high' => '1.25',
+            'data-pandoc-meter-optimum' => '1',
+        ], $children[2]['attrs']);
+        $t->same(['data-pandoc-meter-max' => '10'], $children[3]['attrs']);
+        $t->same([
+            'data-pandoc-progress-value' => '0.5',
+            'data-pandoc-progress-max' => '2',
+        ], $children[4]['attrs']);
+        $t->same([], $children[5]['attrs']);
+        $t->same('/migration/value-metadata-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' value=', ' min=', ' max=', ' low=', ' high=', ' optimum='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source value attribute to be replaced: ' . $sourceAttribute);
+        }
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned Pandoc value metadata to be stripped');
+        $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed data values to stay diagnostic-only');
+        $t->true(!str_contains($html, 'NaN'), 'Expected non-finite meter values to stay diagnostic-only');
+        $t->true(!str_contains($blocks, ' value='), 'Expected WordPress blocks to omit source value attributes');
+    },
     'converts ins and del revision metadata into inert reviewer attributes before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><p>'
