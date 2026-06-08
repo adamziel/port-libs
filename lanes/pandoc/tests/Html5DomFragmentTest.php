@@ -955,6 +955,71 @@ return [
         $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed track language tags to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe caption source URL to be stripped');
     },
+    'converts live editing attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article contenteditable="" data-pandoc-contenteditable-state="source-spoof">'
+            . '<p contenteditable="plaintext-only" spellcheck="false" draggable="true">Editable <a href="./note.html" draggable="maybe">note</a></p>'
+            . '<section contenteditable="false" spellcheck="default" draggable="auto">Locked</section>'
+            . '<aside contenteditable="inherit" spellcheck="maybe" draggable="bad">Invalid</aside>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/editing-state-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-contenteditable-state="true">'
+            . '<p data-pandoc-contenteditable-state="plaintext-only" data-pandoc-spellcheck-state="false" data-pandoc-draggable-state="true">Editable <a href="https://source.example.test/import/posts/note.html">note</a></p>'
+            . '<section data-pandoc-contenteditable-state="false" data-pandoc-spellcheck-state="default" data-pandoc-draggable-state="auto">Locked</section>'
+            . '<aside>Invalid</aside>'
+            . '</article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Editable noteLockedInvalid', $fragment->textContent());
+        $t->same(['a', 'article', 'aside', 'p', 'section'], $summary['elementNames']);
+        $t->same(['contenteditable', 'data-pandoc-contenteditable-state', 'draggable', 'spellcheck'], $summary['filteredAttributes']);
+        $t->same([
+            'editing-state-review',
+            'unsafe-attribute',
+            'editing-state-review',
+            'editing-state-review',
+            'editing-state-review',
+            'unsafe-attribute',
+            'editing-state-review',
+            'editing-state-review',
+            'editing-state-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $t->same(['data-pandoc-contenteditable-state' => 'true'], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-contenteditable-state' => 'plaintext-only',
+            'data-pandoc-spellcheck-state' => 'false',
+            'data-pandoc-draggable-state' => 'true',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('https://source.example.test/import/posts/note.html', $nodes[0]['children'][0]['children'][1]['attrs']['href']);
+        $t->same([
+            'data-pandoc-contenteditable-state' => 'false',
+            'data-pandoc-spellcheck-state' => 'default',
+            'data-pandoc-draggable-state' => 'auto',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/editing-state-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' contenteditable', ' spellcheck', ' draggable', 'source-spoof', 'maybe', 'inherit'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live editing state to be stripped or converted: ' . $blocked);
+        }
+    },
     'marks closed details disclosure content for WordPress review handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<details data-pandoc-details-state="source-spoof"><summary onclick="alert(1)">Migration notes</summary>'

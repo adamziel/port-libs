@@ -242,7 +242,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2645,6 +2645,15 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlEditingStateAttribute($name)) {
+                $editingMetadata = self::normalizeHtmlEditingStateAttribute($name, $value, $tagName, $diagnostics);
+                if ($editingMetadata !== null) {
+                    [$metadataName, $metadataValue] = $editingMetadata;
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
@@ -2805,6 +2814,56 @@ final class Html5DomFragment
         ];
 
         return $state;
+    }
+
+    private static function isHtmlEditingStateAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['contenteditable', 'draggable', 'spellcheck'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlEditingStateAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?array {
+        $attribute = strtolower($name);
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($state === '') {
+            $state = 'true';
+        }
+
+        $allowedStates = match ($attribute) {
+            'contenteditable' => ['true', 'false', 'plaintext-only'],
+            'draggable' => ['true', 'false', 'auto'],
+            'spellcheck' => ['true', 'false', 'default'],
+            default => [],
+        };
+
+        if (!in_array($state, $allowedStates, true)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+                'value' => $state,
+            ];
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'editing-state-review',
+            'tag' => $tagName,
+            'attribute' => $attribute,
+            'state' => $state,
+            'reason' => 'live-editing-attribute-preserved-as-metadata',
+        ];
+
+        return ['data-pandoc-' . $attribute . '-state', $state];
     }
 
     /**
