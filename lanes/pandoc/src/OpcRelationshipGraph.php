@@ -504,6 +504,8 @@ final class OpcRelationshipGraph
             $exists = $this->packagePartNameForEquivalent($targetPartName) !== null;
             $contentType = $this->contentTypes->contentTypeForPart($targetPartName);
             $relationshipPartTarget = self::isRelationshipPartName($targetPartName);
+            $reservedRelationshipDirectoryTarget = !$relationshipPartTarget
+                && self::isReservedRelationshipDirectoryPartName($targetPartName);
             $issues = $typePreflight['issues'];
 
             if (!$exists) {
@@ -524,6 +526,10 @@ final class OpcRelationshipGraph
 
             if ($relationshipPartTarget) {
                 $issues[] = 'targets-relationship-part';
+            }
+
+            if ($reservedRelationshipDirectoryTarget) {
+                $issues[] = 'targets-reserved-relationship-directory-part';
             }
 
             if (self::isContentTypesItemName($targetPartName)) {
@@ -570,6 +576,8 @@ final class OpcRelationshipGraph
             $partName = OpcPackagePath::canonicalPartName($name);
             $contentType = $this->contentTypes->contentTypeForPart($partName);
             $relationshipPart = self::isRelationshipPartName($partName);
+            $reservedRelationshipDirectoryPart = !$relationshipPart
+                && self::isReservedRelationshipDirectoryPartName($partName);
             $relationshipSource = null;
             $relationshipSourceIsRelationshipPart = null;
             $relationshipSourceLoaded = null;
@@ -617,6 +625,10 @@ final class OpcRelationshipGraph
                 $issues[] = 'relationship-content-type-on-non-relationship-part';
             }
 
+            if ($reservedRelationshipDirectoryPart) {
+                $issues[] = 'reserved-relationship-directory-part';
+            }
+
             $preflight[] = [
                 'partName' => $partName,
                 'contentType' => $contentType,
@@ -644,6 +656,8 @@ final class OpcRelationshipGraph
         foreach ($this->contentTypes->overrides() as $partName => $contentType) {
             $exists = $this->packagePartNameForEquivalent($partName) !== null;
             $relationshipPart = self::isRelationshipPartName($partName);
+            $reservedRelationshipDirectoryPart = !$relationshipPart
+                && self::isReservedRelationshipDirectoryPartName($partName);
             $relationshipSource = null;
             $relationshipSourceIsRelationshipPart = null;
             $relationshipSourceLoaded = null;
@@ -683,6 +697,10 @@ final class OpcRelationshipGraph
                 }
             } elseif (self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
                 $issues[] = 'relationship-content-type-on-non-relationship-part';
+            }
+
+            if ($reservedRelationshipDirectoryPart) {
+                $issues[] = 'reserved-relationship-directory-override';
             }
 
             $preflight[] = [
@@ -2906,6 +2924,11 @@ final class OpcRelationshipGraph
     private static function isRelationshipPartName(string $name): bool
     {
         return OpcRelationships::isRelationshipPartName($name);
+    }
+
+    private static function isReservedRelationshipDirectoryPartName(string $name): bool
+    {
+        return str_contains(OpcPackagePath::canonicalPartName($name), '/_rels/');
     }
 
     private static function isContentTypesItemName(string $partName): bool

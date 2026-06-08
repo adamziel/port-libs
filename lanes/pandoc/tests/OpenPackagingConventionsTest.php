@@ -3533,6 +3533,108 @@ XML;
         $t->same(['missing-in-package', 'relationship-content-type-on-non-relationship-part'], $references['/word/media/missing.bin']['issues']);
         $t->same(['missing-in-package', 'relationship-content-type-on-non-relationship-part'], $references['/word/media/missing.bin']['directReferences'][0]['issues']);
     },
+    'rejects non relationship package parts under reserved relationship directories' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/review-metadata.xml" ContentType="application/xml"/>
+  <Override PartName="/word/_rels/missing-review.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReserved" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/review-metadata.xml"/>
+  <Relationship Id="rIdMissingReserved" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/missing-review.xml"/>
+  <Relationship Id="rIdNormal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="review/metadata.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/_rels/review-metadata.xml', 'data' => '<metadata/>'],
+            ['name' => 'word/review/metadata.xml', 'data' => '<metadata/>'],
+        ]));
+
+        $parts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $overrides = [];
+        foreach ($graph->preflightContentTypeOverrides() as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $references = [];
+        foreach ($graph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $reference) {
+            $references[$reference['partName']] = $reference;
+        }
+
+        $t->same(false, $parts['/word/_rels/review-metadata.xml']['relationshipPart']);
+        $t->same('application/xml', $parts['/word/_rels/review-metadata.xml']['contentType']);
+        $t->same(['reserved-relationship-directory-part'], $parts['/word/_rels/review-metadata.xml']['issues']);
+        $t->same(false, $parts['/word/_rels/review-metadata.xml']['valid']);
+        $t->same(true, $parts['/word/_rels/document.xml.rels']['relationshipPart']);
+        $t->same([], $parts['/word/_rels/document.xml.rels']['issues']);
+        $t->same(true, $parts['/word/_rels/document.xml.rels']['valid']);
+        $t->same(true, $parts['/word/review/metadata.xml']['valid']);
+        $t->same([], $parts['/word/review/metadata.xml']['issues']);
+
+        $t->same(true, $overrides['/word/_rels/review-metadata.xml']['exists']);
+        $t->same(false, $overrides['/word/_rels/review-metadata.xml']['relationshipPart']);
+        $t->same(false, $overrides['/word/_rels/review-metadata.xml']['valid']);
+        $t->same(['reserved-relationship-directory-override'], $overrides['/word/_rels/review-metadata.xml']['issues']);
+        $t->same(false, $overrides['/word/_rels/missing-review.xml']['exists']);
+        $t->same(false, $overrides['/word/_rels/missing-review.xml']['valid']);
+        $t->same(['override-target-missing-part', 'reserved-relationship-directory-override'], $overrides['/word/_rels/missing-review.xml']['issues']);
+
+        $t->same('/word/_rels/review-metadata.xml', $targets['rIdReserved']['target']);
+        $t->same(true, $targets['rIdReserved']['exists']);
+        $t->same('application/xml', $targets['rIdReserved']['contentType']);
+        $t->same(false, $targets['rIdReserved']['relationshipPartTarget']);
+        $t->same(false, $targets['rIdReserved']['valid']);
+        $t->same(['targets-reserved-relationship-directory-part'], $targets['rIdReserved']['issues']);
+        $t->same('/word/_rels/missing-review.xml', $targets['rIdMissingReserved']['target']);
+        $t->same(false, $targets['rIdMissingReserved']['exists']);
+        $t->same(false, $targets['rIdMissingReserved']['valid']);
+        $t->same(['missing-in-package', 'targets-reserved-relationship-directory-part'], $targets['rIdMissingReserved']['issues']);
+        $t->same('/word/review/metadata.xml', $targets['rIdNormal']['target']);
+        $t->same(true, $targets['rIdNormal']['valid']);
+        $t->same([], $targets['rIdNormal']['issues']);
+
+        $consistency = $graph->preflightPackageConsistency();
+        $t->same(false, $consistency['valid']);
+        $t->same(false, $consistency['packagePartsValid']);
+        $t->same(false, $consistency['contentTypeOverridesValid']);
+        $t->same(false, $consistency['relationshipTargetsValid']);
+
+        $t->same(false, $references['/word/_rels/review-metadata.xml']['valid']);
+        $t->same(1, $references['/word/_rels/review-metadata.xml']['directReferenceCount']);
+        $t->same(1, $references['/word/_rels/review-metadata.xml']['reachableReferenceCount']);
+        $t->same(['reserved-relationship-directory-part', 'targets-reserved-relationship-directory-part'], $references['/word/_rels/review-metadata.xml']['issues']);
+        $t->same(['reserved-relationship-directory-part'], $references['/word/_rels/review-metadata.xml']['packagePartIssues']);
+        $t->same(['targets-reserved-relationship-directory-part'], $references['/word/_rels/review-metadata.xml']['directReferences'][0]['issues']);
+        $t->same(false, $references['/word/_rels/missing-review.xml']['exists']);
+        $t->same(false, $references['/word/_rels/missing-review.xml']['valid']);
+        $t->same(['missing-in-package', 'targets-reserved-relationship-directory-part'], $references['/word/_rels/missing-review.xml']['issues']);
+    },
     'preflights package-wide OPC consistency across overrides and relationships' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

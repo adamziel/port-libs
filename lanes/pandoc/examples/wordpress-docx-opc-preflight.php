@@ -528,6 +528,35 @@ $reservedRelationshipContentTypePackage = ZipPackage::fromParts([
     ['name' => 'word/media/reserved.bin', 'data' => 'not relationship xml'],
 ]);
 
+$reservedRelationshipDirectoryContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/review-metadata.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+$reservedRelationshipDirectoryRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+$reservedRelationshipDirectoryRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReservedDirectory" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/review-metadata.xml"/>
+</Relationships>
+XML;
+
+$reservedRelationshipDirectoryPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $reservedRelationshipDirectoryContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $reservedRelationshipDirectoryRootRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $reservedRelationshipDirectoryRelationshipsXml],
+    ['name' => 'word/_rels/review-metadata.xml', 'data' => '<review/>'],
+]);
+
 $caseCollisionContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1012,6 +1041,47 @@ $reservedRelationshipContentTypeGuard = [
     'packagePartsValid' => $reservedRelationshipContentTypeConsistency['packagePartsValid'],
     'contentTypeOverridesValid' => $reservedRelationshipContentTypeConsistency['contentTypeOverridesValid'],
     'relationshipTargetsValid' => $reservedRelationshipContentTypeConsistency['relationshipTargetsValid'],
+];
+
+$reservedRelationshipDirectoryGraph = OpcRelationshipGraph::fromPackage($reservedRelationshipDirectoryPackage);
+$reservedRelationshipDirectoryConsistency = $reservedRelationshipDirectoryGraph->preflightPackageConsistency();
+$reservedRelationshipDirectoryParts = [];
+foreach ($reservedRelationshipDirectoryConsistency['packageParts'] as $part) {
+    $reservedRelationshipDirectoryParts[$part['partName']] = $part;
+}
+$reservedRelationshipDirectoryOverrides = [];
+foreach ($reservedRelationshipDirectoryConsistency['contentTypeOverrides'] as $override) {
+    $reservedRelationshipDirectoryOverrides[$override['partName']] = $override;
+}
+$reservedRelationshipDirectoryTargets = [];
+foreach ($reservedRelationshipDirectoryConsistency['relationshipTargets'] as $target) {
+    $reservedRelationshipDirectoryTargets[$target['source'] . ':' . $target['id']] = $target;
+}
+$reservedRelationshipDirectoryReferences = [];
+foreach ($reservedRelationshipDirectoryGraph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $reference) {
+    $reservedRelationshipDirectoryReferences[$reference['partName']] = $reference;
+}
+$reservedRelationshipDirectoryGuard = [
+    'packagePart' => $reservedRelationshipDirectoryParts['/word/_rels/review-metadata.xml']['partName'] ?? null,
+    'packagePartContentType' => $reservedRelationshipDirectoryParts['/word/_rels/review-metadata.xml']['contentType'] ?? null,
+    'packagePartRelationshipPart' => $reservedRelationshipDirectoryParts['/word/_rels/review-metadata.xml']['relationshipPart'] ?? null,
+    'packagePartValid' => $reservedRelationshipDirectoryParts['/word/_rels/review-metadata.xml']['valid'] ?? null,
+    'packagePartIssues' => $reservedRelationshipDirectoryParts['/word/_rels/review-metadata.xml']['issues'] ?? null,
+    'overridePart' => $reservedRelationshipDirectoryOverrides['/word/_rels/review-metadata.xml']['partName'] ?? null,
+    'overrideExists' => $reservedRelationshipDirectoryOverrides['/word/_rels/review-metadata.xml']['exists'] ?? null,
+    'overrideValid' => $reservedRelationshipDirectoryOverrides['/word/_rels/review-metadata.xml']['valid'] ?? null,
+    'overrideIssues' => $reservedRelationshipDirectoryOverrides['/word/_rels/review-metadata.xml']['issues'] ?? null,
+    'targetPart' => $reservedRelationshipDirectoryTargets['/word/document.xml:rIdReservedDirectory']['targetPart'] ?? null,
+    'targetExists' => $reservedRelationshipDirectoryTargets['/word/document.xml:rIdReservedDirectory']['exists'] ?? null,
+    'targetValid' => $reservedRelationshipDirectoryTargets['/word/document.xml:rIdReservedDirectory']['valid'] ?? null,
+    'targetIssues' => $reservedRelationshipDirectoryTargets['/word/document.xml:rIdReservedDirectory']['issues'] ?? null,
+    'referenceValid' => $reservedRelationshipDirectoryReferences['/word/_rels/review-metadata.xml']['valid'] ?? null,
+    'referenceIssues' => $reservedRelationshipDirectoryReferences['/word/_rels/review-metadata.xml']['issues'] ?? null,
+    'directReferenceIssues' => $reservedRelationshipDirectoryReferences['/word/_rels/review-metadata.xml']['directReferences'][0]['issues'] ?? null,
+    'packageConsistencyValid' => $reservedRelationshipDirectoryConsistency['valid'],
+    'packagePartsValid' => $reservedRelationshipDirectoryConsistency['packagePartsValid'],
+    'contentTypeOverridesValid' => $reservedRelationshipDirectoryConsistency['contentTypeOverridesValid'],
+    'relationshipTargetsValid' => $reservedRelationshipDirectoryConsistency['relationshipTargetsValid'],
 ];
 
 $relationshipPartLoads = [];
@@ -1624,6 +1694,7 @@ $summary = [
     'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
     'reservedRelationshipContentTypeGuard' => $reservedRelationshipContentTypeGuard,
+    'reservedRelationshipDirectoryGuard' => $reservedRelationshipDirectoryGuard,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
@@ -2061,6 +2132,26 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['reservedRelationshipContentTypeGuard']['packagePartsValid'] ?? null) !== false
         || ($summary['reservedRelationshipContentTypeGuard']['contentTypeOverridesValid'] ?? null) !== false
         || ($summary['reservedRelationshipContentTypeGuard']['relationshipTargetsValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['packagePart'] ?? null) !== '/word/_rels/review-metadata.xml'
+        || ($summary['reservedRelationshipDirectoryGuard']['packagePartContentType'] ?? null) !== 'application/xml'
+        || ($summary['reservedRelationshipDirectoryGuard']['packagePartRelationshipPart'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['packagePartValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['packagePartIssues'] ?? null) !== ['reserved-relationship-directory-part']
+        || ($summary['reservedRelationshipDirectoryGuard']['overridePart'] ?? null) !== '/word/_rels/review-metadata.xml'
+        || ($summary['reservedRelationshipDirectoryGuard']['overrideExists'] ?? null) !== true
+        || ($summary['reservedRelationshipDirectoryGuard']['overrideValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['overrideIssues'] ?? null) !== ['reserved-relationship-directory-override']
+        || ($summary['reservedRelationshipDirectoryGuard']['targetPart'] ?? null) !== '/word/_rels/review-metadata.xml'
+        || ($summary['reservedRelationshipDirectoryGuard']['targetExists'] ?? null) !== true
+        || ($summary['reservedRelationshipDirectoryGuard']['targetValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['targetIssues'] ?? null) !== ['targets-reserved-relationship-directory-part']
+        || ($summary['reservedRelationshipDirectoryGuard']['referenceValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['referenceIssues'] ?? null) !== ['reserved-relationship-directory-part', 'targets-reserved-relationship-directory-part']
+        || ($summary['reservedRelationshipDirectoryGuard']['directReferenceIssues'] ?? null) !== ['targets-reserved-relationship-directory-part']
+        || ($summary['reservedRelationshipDirectoryGuard']['packageConsistencyValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['packagePartsValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['contentTypeOverridesValid'] ?? null) !== false
+        || ($summary['reservedRelationshipDirectoryGuard']['relationshipTargetsValid'] ?? null) !== false
         || array_keys($summary['partNameCaseCollisionGuards'] ?? []) !== [
             '/Word/Document.XML',
             '/word/document.xml',
