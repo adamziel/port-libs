@@ -10669,16 +10669,25 @@ final class PdfAcroFormExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function validObjectReferenceFromValue(?string $value, array $objects): ?int
+    private function validObjectReferenceFromValue(?string $value, array $objects, array $seen = []): ?int
     {
         $reference = $this->objectReferenceFromValue($value);
         if ($reference === null) {
             return null;
         }
 
-        return $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)
-            ? $reference['object']
-            : null;
+        $objectNumber = $reference['object'];
+        if (isset($seen[$objectNumber]) || !$this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)) {
+            return null;
+        }
+
+        $seen[$objectNumber] = true;
+        $objectValue = trim($objects[$objectNumber]);
+        if ($this->objectReferenceFromValue($objectValue) !== null) {
+            return $this->validObjectReferenceFromValue($objectValue, $objects, $seen);
+        }
+
+        return $objectNumber;
     }
 
     /**
@@ -12367,10 +12376,12 @@ final class PdfAcroFormExtractor
             $referenceEnd = null;
             $reference = $this->readIndirectReferenceAt($value, $offset, $referenceEnd);
             if ($reference !== null && $referenceEnd !== null) {
-                $objectNumber = $reference['object'];
-                $generation = $reference['generation'];
-                if ($this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
-                    $references[] = $objectNumber;
+                $resolvedObjectNumber = $this->validObjectReferenceFromValue(
+                    substr($value, $offset, $referenceEnd - $offset),
+                    $objects
+                );
+                if ($resolvedObjectNumber !== null) {
+                    $references[] = $resolvedObjectNumber;
                 }
                 $offset = $referenceEnd;
                 continue;
