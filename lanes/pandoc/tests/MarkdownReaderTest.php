@@ -3266,6 +3266,59 @@ return [
         $t->same('explicit-key-tag-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-key-tag-body">Explicit key tag body</h1>', $blocks);
     },
+    'records pandoc yaml custom tag provenance paths for plain mapping keys' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Plain key tag **Packet**',
+            '!wp-field source:key: metadata value',
+            'review:',
+            '  !wp-field owner: Import Desk',
+            '  !wp-field "source:label": Metadata Label',
+            '  !!str 15: string numeric key',
+            'references:',
+            '  - id: plain-key-tag-ref',
+            '    metadata:',
+            '      !wp-field source:uri: https://example.test/source#plain-key-tag',
+            'compact-review-items:',
+            '  - status: queued',
+            '    !wp-field source:key: compact metadata value',
+            '...',
+            '',
+            '# Plain key tag body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Plain key tag **Packet**', $meta['title']);
+        $t->same('metadata value', $meta['source:key']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('Metadata Label', $meta['review']['source:label']);
+        $t->true(array_key_exists(15, $meta['review']) && $meta['review'][15] === 'string numeric key');
+        $t->same('plain-key-tag-ref', $meta['references'][0]['id']);
+        $t->same('https://example.test/source#plain-key-tag', $meta['references'][0]['metadata']['source:uri']);
+        $t->same('compact metadata value', $meta['compact-review-items'][0]['source:key']);
+        $t->same('queued', $meta['compact-review-items'][0]['status']);
+        $t->same([
+            '!wp-field',
+            '!wp-field',
+            '!wp-field',
+            '!wp-field',
+            '!wp-field',
+        ], array_column($provenance, 'tag'));
+        $t->same([
+            '/source:key',
+            '/review/owner',
+            '/review/source:label',
+            '/references/0/metadata/source:uri',
+            '/compact-review-items/0/source:key',
+        ], array_column($provenance, 'path'));
+        $t->same(false, str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wp-field'));
+        $t->same(false, in_array('!!str', array_column($provenance, 'tag'), true));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('plain-key-tag-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="plain-key-tag-body">Plain key tag body</h1>', $blocks);
+    },
     'maps pandoc yaml tag directives in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

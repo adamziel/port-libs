@@ -245,7 +245,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'referrer-policy-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -537,6 +537,9 @@ final class Html5DomFragment
         }
         if ($mode === 'html' && $name === 'ruby') {
             self::markHtmlRubyReviewMetadata($node, $attrs, $children, $diagnostics);
+        }
+        if ($mode === 'html' && $name === 'math') {
+            self::markHtmlMathAnnotationReviewMetadata($attrs, $children, $diagnostics);
         }
         if ($mode === 'html' && $name === 'figure') {
             self::markHtmlFigureReviewMetadata($node, $attrs, $children, $diagnostics);
@@ -1124,6 +1127,152 @@ final class Html5DomFragment
         $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMathAnnotationReviewMetadata(array &$attrs, array $children, array &$diagnostics): void
+    {
+        $sourceAnnotation = null;
+        $xmlEncoding = null;
+        foreach (self::htmlMathAnnotationNodes($children) as $annotation) {
+            $name = strtolower((string) ($annotation['name'] ?? ''));
+            $annotationAttrs = is_array($annotation['attrs'] ?? null) ? $annotation['attrs'] : [];
+            $encoding = self::normalizeHtmlMathAnnotationEncoding((string) ($annotationAttrs['encoding'] ?? ''));
+            if ($encoding === null) {
+                continue;
+            }
+
+            if ($name === 'annotation' && $sourceAnnotation === null) {
+                $source = self::normalizeHtmlMathAnnotationSourceText(self::htmlMathAnnotationNodeText($annotation));
+                if ($source !== null) {
+                    $sourceAnnotation = [$encoding, $source, $annotation];
+                }
+                continue;
+            }
+
+            if ($name === 'annotation-xml' && $xmlEncoding === null) {
+                $xmlEncoding = [$encoding, $annotation];
+            }
+        }
+
+        if ($sourceAnnotation !== null) {
+            [$encoding, $source, $annotation] = $sourceAnnotation;
+            $attrs['data-pandoc-math-source-format'] = $encoding;
+            $attrs['data-pandoc-math-source'] = $source;
+            $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                'code' => 'math-annotation-review',
+                'tag' => 'math',
+                'attribute' => 'annotation',
+                'metadataAttribute' => 'data-pandoc-math-source',
+                'encoding' => $encoding,
+                'reason' => 'math-source-annotation-preserved-as-review-metadata',
+            ], $annotation);
+        }
+
+        if ($xmlEncoding !== null) {
+            [$encoding, $annotation] = $xmlEncoding;
+            $attrs['data-pandoc-math-annotation-xml-encoding'] = $encoding;
+            $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+                'code' => 'math-annotation-review',
+                'tag' => 'math',
+                'attribute' => 'annotation',
+                'metadataAttribute' => 'data-pandoc-math-annotation-xml-encoding',
+                'encoding' => $encoding,
+                'reason' => 'math-xml-annotation-encoding-preserved-as-review-metadata',
+            ], $annotation);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlMathAnnotationNodes(array $nodes, int $depth = 0, bool $insideSemantics = false): array
+    {
+        if ($depth > 6) {
+            return [];
+        }
+
+        $annotations = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') !== 'element') {
+                continue;
+            }
+
+            $name = strtolower((string) ($node['name'] ?? ''));
+            if ($insideSemantics && ($name === 'annotation' || $name === 'annotation-xml')) {
+                $annotations[] = $node;
+                continue;
+            }
+
+            $children = $node['children'] ?? null;
+            if (is_array($children)) {
+                array_push(
+                    $annotations,
+                    ...self::htmlMathAnnotationNodes($children, $depth + 1, $insideSemantics || $name === 'semantics')
+                );
+            }
+        }
+
+        return $annotations;
+    }
+
+    private static function normalizeHtmlMathAnnotationEncoding(string $value): ?string
+    {
+        $encoding = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($encoding === '' || strlen($encoding) > 96) {
+            return null;
+        }
+
+        return preg_match('/^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*(?:\+[a-z0-9.+-]+)?$/', $encoding) === 1
+            ? $encoding
+            : null;
+    }
+
+    private static function normalizeHtmlMathAnnotationSourceText(string $text): ?string
+    {
+        if (preg_match('/[\x00-\x08\x0B\x0E-\x1F\x7F]/u', $text) === 1) {
+            return null;
+        }
+
+        $text = trim(preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text);
+        if ($text === '' || strlen($text) > 512) {
+            return null;
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function htmlMathAnnotationNodeText(array $node): string
+    {
+        if (($node['type'] ?? '') === 'text') {
+            return (string) ($node['text'] ?? '');
+        }
+        if (($node['type'] ?? '') !== 'element') {
+            return '';
+        }
+
+        $text = '';
+        $children = $node['children'] ?? null;
+        if (!is_array($children)) {
+            return $text;
+        }
+        foreach ($children as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            $text .= self::htmlMathAnnotationNodeText($child);
+        }
+
+        return $text;
     }
 
     /**

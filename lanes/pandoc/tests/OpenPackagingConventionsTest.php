@@ -2202,6 +2202,137 @@ XML;
         $t->same(false, $fragmentReference['valid']);
         $t->same(['manifest-reference-fragment-uri'], $fragmentReference['issues']);
     },
+    'cross-checks OPC package signature manifest references against relationship transform targets' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+  <Override PartName="/_xmlsignatures/sig-manifest-cross-check.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignatureCrossCheck" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-manifest-cross-check.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source%20workbook.xlsx"/>
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:Object Id="idPackageSignatureObject">
+    <ds:Manifest Id="manifestPackageParts">
+      <ds:Reference URI="/word/media/hero.png">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/word/embeddings/source%20workbook.xlsx">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>U291cmNl</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/word/document.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+        <ds:DigestValue>RG9jdW1lbnQ=</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source workbook.xlsx', 'data' => 'PK'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig-manifest-cross-check.xml', 'data' => $signatureXml],
+        ]));
+
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-manifest-cross-check.xml');
+        $object = $metadata['objects'][0];
+        $references = [];
+        foreach ($object['manifestReferences'] as $reference) {
+            $references[$reference['targetPart'] ?? (string) $reference['uri']] = $reference;
+        }
+
+        $t->same(true, $metadata['valid']);
+        $t->same([], $metadata['issues']);
+        $t->same(1, $object['manifestCount']);
+        $t->same(3, $object['manifestReferenceCount']);
+        $t->same(true, $object['valid']);
+
+        $heroReference = $references['/word/media/hero.png'];
+        $t->same(true, $heroReference['relationshipTransformTargetMatched']);
+        $t->same(1, $heroReference['relationshipTransformTargetMatchCount']);
+        $t->same('/word/_rels/document.xml.rels', $heroReference['relationshipTransformTargetMatches'][0]['relationshipPartName']);
+        $t->same('/word/document.xml', $heroReference['relationshipTransformTargetMatches'][0]['source']);
+        $t->same(0, $heroReference['relationshipTransformTargetMatches'][0]['referenceIndex']);
+        $t->same('rIdHero', $heroReference['relationshipTransformTargetMatches'][0]['id']);
+        $t->same('/word/media/hero.png', $heroReference['relationshipTransformTargetMatches'][0]['targetPart']);
+        $t->same('image/png', $heroReference['relationshipTransformTargetMatches'][0]['contentType']);
+        $t->same(true, $heroReference['relationshipTransformTargetMatches'][0]['selectedBySourceId']);
+        $t->same(false, $heroReference['relationshipTransformTargetMatches'][0]['selectedBySourceType']);
+        $t->same(true, $heroReference['relationshipTransformTargetMatches'][0]['relationshipValid']);
+        $t->same([], $heroReference['relationshipTransformTargetMatches'][0]['relationshipIssues']);
+        $t->same(true, $heroReference['relationshipTransformTargetMatches'][0]['transformValid']);
+        $t->same([], $heroReference['relationshipTransformTargetMatches'][0]['transformIssues']);
+        $t->same(true, $heroReference['valid']);
+        $t->same([], $heroReference['issues']);
+
+        $workbookReference = $references['/word/embeddings/source workbook.xlsx'];
+        $t->same(true, $workbookReference['relationshipTransformTargetMatched']);
+        $t->same(1, $workbookReference['relationshipTransformTargetMatchCount']);
+        $t->same('rIdEmbeddedWorkbook', $workbookReference['relationshipTransformTargetMatches'][0]['id']);
+        $t->same('/word/embeddings/source workbook.xlsx', $workbookReference['relationshipTransformTargetMatches'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $workbookReference['relationshipTransformTargetMatches'][0]['contentType']);
+        $t->same(false, $workbookReference['relationshipTransformTargetMatches'][0]['selectedBySourceId']);
+        $t->same(true, $workbookReference['relationshipTransformTargetMatches'][0]['selectedBySourceType']);
+        $t->same(true, $workbookReference['relationshipTransformTargetMatches'][0]['relationshipValid']);
+        $t->same(true, $workbookReference['relationshipTransformTargetMatches'][0]['transformValid']);
+        $t->same(true, $workbookReference['valid']);
+        $t->same([], $workbookReference['issues']);
+
+        $documentReference = $references['/word/document.xml'];
+        $t->same(false, $documentReference['relationshipTransformTargetMatched']);
+        $t->same(0, $documentReference['relationshipTransformTargetMatchCount']);
+        $t->same([], $documentReference['relationshipTransformTargetMatches']);
+        $t->same(true, $documentReference['valid']);
+        $t->same([], $documentReference['issues']);
+    },
     'preflights OPC digital signature SignedInfo digest references' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

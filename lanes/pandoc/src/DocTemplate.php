@@ -360,6 +360,7 @@ final class DocTemplate
             ],
             'templates/default.typst' => [
                 'templates/template.typst' => $this->defaultTypstConfTemplate(),
+                'templates/definitions.typst' => $this->defaultTypstDefinitionsTemplate(),
             ],
             default => [],
         };
@@ -468,6 +469,7 @@ final class DocTemplate
             'styles.html' => $this->defaultHtmlStylesTemplate(),
             'styles.citations.html' => $this->defaultHtmlCitationStylesTemplate(),
             'template.typst' => $this->defaultTypstConfTemplate(),
+            'definitions.typst' => $this->defaultTypstDefinitionsTemplate(),
             default => null,
         };
     }
@@ -539,6 +541,7 @@ final class DocTemplate
             'styles.html',
             'styles.citations.html',
             'template.typst',
+            'definitions.typst',
         ];
     }
 
@@ -3406,6 +3409,20 @@ TYPST;
   doc
 }
 TYPST_CONF;
+    }
+
+    private function defaultTypstDefinitionsTemplate(): string
+    {
+        return <<<'TYPST_DEFINITIONS'
+// Some definitions presupposed by pandoc's typst output.
+#let horizontalrule = [
+  #line(start: (25%,0%), end: (75%,0%))
+]
+
+#let endnote(num, contents) = [
+  #stack(dir: ltr, spacing: 3pt, super[#num], contents)
+]
+TYPST_DEFINITIONS;
     }
 
     private function defaultHtml5Template(): string

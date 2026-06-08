@@ -130,6 +130,10 @@ $signatureXml = <<<'XML'
         <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
         <ds:DigestValue>U291cmNl</ds:DigestValue>
       </ds:Reference>
+      <ds:Reference URI="/word/media/hero%20image.PNG">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>UE5H</ds:DigestValue>
+      </ds:Reference>
     </ds:Manifest>
     <ds:SignatureProperties>
       <ds:SignatureProperty Target="#idPackageSignature">
@@ -2232,6 +2236,21 @@ $summary = [
                 'uri' => $reference['uri'],
                 'targetPart' => $reference['targetPart'],
                 'contentType' => $reference['contentType'],
+                'relationshipTransformTargetMatched' => $reference['relationshipTransformTargetMatched'],
+                'relationshipTransformTargetMatchCount' => $reference['relationshipTransformTargetMatchCount'],
+                'relationshipTransformTargetMatches' => array_values(array_map(
+                    static fn (array $match): array => [
+                        'relationshipPartName' => $match['relationshipPartName'],
+                        'source' => $match['source'],
+                        'id' => $match['id'],
+                        'targetPart' => $match['targetPart'],
+                        'selectedBySourceId' => $match['selectedBySourceId'],
+                        'selectedBySourceType' => $match['selectedBySourceType'],
+                        'relationshipValid' => $match['relationshipValid'],
+                        'transformValid' => $match['transformValid'],
+                    ],
+                    $reference['relationshipTransformTargetMatches']
+                )),
                 'digestAlgorithm' => $reference['digestAlgorithm'],
                 'digestValueDecodedBytes' => $reference['digestValueDecodedBytes'],
                 'valid' => $reference['valid'],
@@ -2494,20 +2513,39 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['objects'][0]['packageSignatureElements'] ?? null) !== ['SignatureTime', 'Format', 'Value']
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestCount'] ?? null) !== 1
-        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferenceCount'] ?? null) !== 2
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferenceCount'] ?? null) !== 3
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['manifestId'] ?? null) !== 'manifestPackageParts'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['uri'] ?? null) !== '/word/document.xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['relationshipTransformTargetMatched'] ?? null) !== false
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['relationshipTransformTargetMatchCount'] ?? null) !== 0
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['valid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['uri'] ?? null) !== '/docProps/core.xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['targetPart'] ?? null) !== '/docProps/core.xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2000/09/xmldsig#sha1'
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['digestValueDecodedBytes'] ?? null) !== 6
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['relationshipTransformTargetMatched'] ?? null) !== false
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['relationshipTransformTargetMatchCount'] ?? null) !== 0
         || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['uri'] ?? null) !== '/word/media/hero%20image.PNG'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['targetPart'] ?? null) !== '/word/media/hero image.PNG'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['contentType'] ?? null) !== 'image/png'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['digestValueDecodedBytes'] ?? null) !== 3
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatched'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatchCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['id'] ?? null) !== 'rIdHero'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceId'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceType'] ?? null) !== false
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipValid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['relationshipTransformTargetMatches'][0]['transformValid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][2]['valid'] ?? null) !== true
         || ($summary['digitalSignatureSignedInfoReferences'][0]['uri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['digitalSignatureSignedInfoReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
@@ -2538,8 +2576,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureTime'] ?? null) !== '2026-06-06T22:33:48Z'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][0]['relationshipTransformTargetMatched'] ?? null) !== false
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['targetPart'] ?? null) !== '/docProps/core.xml'
         || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['relationshipTransformTargetMatched'] ?? null) !== false
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['targetPart'] ?? null) !== '/word/media/hero image.PNG'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['contentType'] ?? null) !== 'image/png'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatched'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatchCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['id'] ?? null) !== 'rIdHero'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceId'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][2]['relationshipTransformTargetMatches'][0]['selectedBySourceType'] ?? null) !== false
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipPart'] ?? null) !== true

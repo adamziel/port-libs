@@ -1165,6 +1165,53 @@ final class MarkdownReader
     }
 
     /**
+     * @return array{0:string, 1:bool}
+     */
+    private function normalizeYamlPlainMappingKeyDirectives(string $key, bool $quotedKey): array
+    {
+        if ($quotedKey || !$this->yamlPlainMappingKeyMayStartWithDirective($key)) {
+            return [$key, $quotedKey];
+        }
+
+        $tagStart = count($this->yamlMetadataTagProvenance);
+        $anchorStart = count($this->yamlMetadataAnchorProvenance);
+        [$source, $anchorName, $tags] = $this->parseYamlValueDirectives($key);
+        if ($source === $key || trim($source) === '') {
+            array_splice($this->yamlMetadataTagProvenance, $tagStart);
+            array_splice($this->yamlMetadataAnchorProvenance, $anchorStart);
+
+            return [$key, false];
+        }
+
+        $value = $this->withYamlMetadataScalarProvenanceRecording(
+            false,
+            fn (): mixed => $this->withYamlMetadataCollectionProvenanceRecording(
+                false,
+                fn (): mixed => $this->parseYamlScalarValueFromDirectives($source, $anchorName, $tags)
+            )
+        );
+        $normalized = $this->normalizeYamlExplicitMappingKey($value);
+        if ($normalized === null || $normalized === '') {
+            array_splice($this->yamlMetadataTagProvenance, $tagStart);
+            array_splice($this->yamlMetadataAnchorProvenance, $anchorStart);
+
+            return [$key, false];
+        }
+
+        $this->retargetYamlTagProvenanceFrom($tagStart, $normalized);
+        $this->retargetYamlAnchorProvenanceFrom($anchorStart, $normalized);
+
+        return [$normalized, $this->yamlExplicitKeySourceStartsQuoted($source)];
+    }
+
+    private function yamlPlainMappingKeyMayStartWithDirective(string $key): bool
+    {
+        $key = ltrim($key);
+
+        return $key !== '' && ($key[0] === '!' || $key[0] === '&');
+    }
+
+    /**
      * @return list<int|null>
      */
     private function yamlMetadataLineNumbers(int $count, int $startLine = 1): array
@@ -1391,6 +1438,7 @@ final class MarkdownReader
             }
 
             [$key, $sourceValue, $quotedKey] = $mapping;
+            [$key, $quotedKey] = $this->normalizeYamlPlainMappingKeyDirectives($key, $quotedKey);
             if (!$this->isYamlMetadataMergeKey($key)) {
                 $this->recordYamlTrailingCommentProvenance($sourceValue, $key);
             }

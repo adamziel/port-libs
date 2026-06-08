@@ -2397,6 +2397,57 @@ return [
         $t->true(!str_contains($html, '<source>'), 'Expected CDATA tag-looking source text to remain escaped');
         $t->true(!str_contains($blocks, '<source>'), 'Expected WordPress blocks to avoid parsed source-looking CDATA text');
     },
+    'adds mathml annotation source metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<math data-pandoc-math-source="source-spoof"><semantics>'
+            . '<mrow><mi>x</mi><mo>&lt;</mo><mi>y</mi></mrow>'
+            . '<annotation encoding="Application/X-TeX"> x &lt; y &amp; z </annotation>'
+            . '<annotation encoding="text/plain">duplicate source text</annotation>'
+            . '<annotation-xml encoding="Application/MathML-Content"><ci>x</ci></annotation-xml>'
+            . '</semantics></math>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/mathml-source-annotation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<math data-pandoc-math-source-format="application/x-tex" data-pandoc-math-source="x &lt; y &amp; z" data-pandoc-math-annotation-xml-encoding="application/mathml-content"><semantics>'
+            . '<mrow><mi>x</mi><mo>&lt;</mo><mi>y</mi></mrow>'
+            . '<annotation encoding="Application/X-TeX"> x &lt; y &amp; z </annotation>'
+            . '<annotation encoding="text/plain">duplicate source text</annotation>'
+            . '<annotation-xml encoding="Application/MathML-Content"><ci>x</ci></annotation-xml>'
+            . '</semantics></math>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('x<y x < y & z duplicate source textx', $fragment->textContent());
+        $t->same(['annotation', 'annotation-xml', 'ci', 'math', 'mi', 'mo', 'mrow', 'semantics'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['annotation', 'data-pandoc-math-source'], $summary['filteredAttributes']);
+        $t->same(['unsafe-attribute', 'math-annotation-review', 'math-annotation-review'], $policyDiagnostics);
+        $t->same('math', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-math-source-format' => 'application/x-tex',
+            'data-pandoc-math-source' => 'x < y & z',
+            'data-pandoc-math-annotation-xml-encoding' => 'application/mathml-content',
+        ], $nodes[0]['attrs']);
+        $t->same('semantics', $nodes[0]['children'][0]['name']);
+        $t->same('annotation', $nodes[0]['children'][0]['children'][1]['name']);
+        $t->same(' x < y & z ', $nodes[0]['children'][0]['children'][1]['children'][0]['text']);
+        $t->same('annotation-xml', $nodes[0]['children'][0]['children'][3]['name']);
+        $t->same('/migration/mathml-source-annotation-review.html', $document->children[0]->attr('part'));
+        foreach (['source-spoof', 'data-pandoc-math-source="source-spoof"'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected source-owned MathML metadata to be stripped: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip source-owned MathML metadata: ' . $blocked);
+        }
+    },
     'hands normalized HTML fragments to WordPress raw HTML blocks without browser or Pandoc execution' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml('<h1 id="review">Import</h1><p>Manual<br>break &amp; reviewer note</p>');
         $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [

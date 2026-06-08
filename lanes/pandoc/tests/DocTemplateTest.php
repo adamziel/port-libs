@@ -3977,6 +3977,49 @@ LATEX;
         ], null, 'typst'));
     },
 
+    'renders pandoc typst definitions default resource fallback' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $definitions = $renderer->renderResource('templates/definitions.typst', [], []);
+        foreach ([
+            "// Some definitions presupposed by pandoc's typst output.",
+            '#let horizontalrule = [',
+            '  #line(start: (25%,0%), end: (75%,0%))',
+            '#let endnote(num, contents) = [',
+            '  #stack(dir: ltr, spacing: 3pt, super[#num], contents)',
+        ] as $needle) {
+            $t->contains($needle, $definitions);
+        }
+        $t->same(false, str_contains($definitions, '$'));
+
+        $t->same($definitions, $renderer->renderResource('definitions.typst', [], []));
+
+        $fallback = $renderer->renderResource('templates/review', [
+            'templates/review.typst' => <<<'TYPST'
+#let review = [
+${ definitions.typst() }
+]
+#show: review
+TYPST,
+        ], [], null, 'typst');
+        foreach ([
+            '#let review = [',
+            '#let horizontalrule = [',
+            '#let endnote(num, contents) = [',
+            '#show: review',
+        ] as $needle) {
+            $t->contains($needle, $fallback);
+        }
+        $t->same(false, str_contains($fallback, 'Missing doctemplate partial'));
+        $t->same(1, substr_count($fallback, '#let horizontalrule = ['));
+        $t->same(1, substr_count($fallback, '#let endnote(num, contents) = ['));
+
+        $t->same('#let horizontalrule = [overridden]', $renderer->renderResource('templates/review', [
+            'templates/review.typst' => '${ definitions.typst() }',
+            'templates/definitions.typst' => '#let horizontalrule = [overridden]',
+        ], [], null, 'typst'));
+    },
+
     'renders pandoc default resources as partial fallbacks inside custom templates' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

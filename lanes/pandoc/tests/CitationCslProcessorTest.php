@@ -17509,6 +17509,104 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Source Provenance Review. 2026. Source: Legacy Drupal export batch 42.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Imported Extract. Migration Review. 2025. Source: Internet Archive snapshot.</dd>', $blocks);
     },
+    'applies bounded csl source sort keys to citation and bibliography order' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'late-source',
+                'type' => 'report',
+                'title' => 'Late Imported Packet',
+                'source' => 'zeta import queue',
+                'author' => [
+                    ['family' => 'Zed', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'early-source',
+                'type' => 'report',
+                'title' => 'Early Imported Packet',
+                'source' => 'alpha import queue',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'middle-source',
+                'type' => 'report',
+                'title' => 'Middle Imported Packet',
+                'source' => 'middle import queue',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Source Sort Review</title>
+    <id>https://example.test/styles/bounded-source-sort-review</id>
+    <updated>2026-06-08T23:31:35+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="source"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <number variable="citation-number"/>
+        <names variable="author"/>
+        <text variable="source"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="source"/>
+      <key variable="title"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <number variable="citation-number"/>
+      <text variable="title"/>
+      <text variable="source"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('source', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('source', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('title', $summary['bibliographySort'][1]['variable'] ?? null);
+        $t->same('citation-number', $summary['bibliographyRendering'][0]['variable'] ?? null);
+        $t->same('source', $summary['bibliographyRendering'][2]['variable'] ?? null);
+
+        $cluster = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'late-source', 'text' => '[@late-source]']),
+            new AstNode('citation', ['id' => 'early-source', 'text' => '[@early-source]']),
+            new AstNode('citation', ['id' => 'middle-source', 'text' => '[@middle-source]']),
+        ]);
+        $t->same('[1 | Adams | alpha import queue; 2 | Ng | middle import queue; 3 | Zed | zeta import queue]', $cluster);
+
+        $document = (new MarkdownReader())->read('Source sorted review [@late-source; @early-source; @middle-source] keeps import queues stable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $early = strpos($markdown, 'Early Imported Packet :: alpha import queue');
+        $middle = strpos($markdown, 'Middle Imported Packet :: middle import queue');
+        $late = strpos($markdown, 'Late Imported Packet :: zeta import queue');
+        $t->true(is_int($early) && is_int($middle) && is_int($late) && $early < $middle && $middle < $late, 'Source sort should order bibliography entries by source provenance');
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Source sorted review [1 | Adams | alpha import queue; 2 | Ng | middle import queue; 3 | Zed | zeta import queue] keeps import queues stable.</p>', $blocks);
+        $t->contains('<dt>Adams 2025</dt><dd>1 :: Early Imported Packet :: alpha import queue</dd>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>2 :: Middle Imported Packet :: middle import queue</dd>', $blocks);
+        $t->contains('<dt>Zed 2026</dt><dd>3 :: Late Imported Packet :: zeta import queue</dd>', $blocks);
+        $earlyPos = strpos($blocks, '<dt>Adams 2025</dt>');
+        $middlePos = strpos($blocks, '<dt>Ng 2024</dt>');
+        $latePos = strpos($blocks, '<dt>Zed 2026</dt>');
+        $t->true(is_int($earlyPos) && is_int($middlePos) && is_int($latePos) && $earlyPos < $middlePos && $middlePos < $latePos, 'WordPress bibliography entries should follow CSL source sort order');
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

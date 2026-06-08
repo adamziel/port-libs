@@ -118,6 +118,12 @@ tag-directive-review:
   labels: [!wpd!label directive, !wpd!label metadata]
 flow-tag-directive-review: {? !wpd!key "source:key": !wpd!value directive metadata, owner: !wpd!reviewer Flow Directive Desk}
 flow-key-tag-review: {? !wpd!key "source:key": directive key metadata}
+plain-tag-key-review:
+  !wpd!key source:key: plain key metadata
+  !wpd!key "source:label": Plain Key Metadata
+plain-tag-key-items:
+  - status: queued
+    !wpd!key source:key: compact item metadata
 tag-uri-suffix-review:
   owner: !wpd!source%2Fowner URI Suffix Desk
   source-uri: !wpd!source?kind=uri https://example.test/exports/packet#tag-uri-suffix
@@ -773,6 +779,26 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($lateDirectiveBlocks, '<h1 id="directive-boundary-body">Directive boundary body</h1>')) {
         throw new RuntimeException('YAML metadata self-test missing late directive WordPress body handoff');
+    }
+    if (
+        ($meta['plain-tag-key-review']['source:key'] ?? '') !== 'plain key metadata'
+        || ($meta['plain-tag-key-review']['source:label'] ?? '') !== 'Plain Key Metadata'
+        || ($meta['plain-tag-key-items'][0]['source:key'] ?? '') !== 'compact item metadata'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing plain tagged key metadata');
+    }
+    $plainKeyTagPairs = array_map(
+        static fn (array $entry): string => ($entry['tag'] ?? '') . "\0" . ($entry['path'] ?? ''),
+        $yamlTagProvenance
+    );
+    foreach ([
+        '!<tag:directive.example,2026:key>' . "\0" . '/plain-tag-key-review/source:key',
+        '!<tag:directive.example,2026:key>' . "\0" . '/plain-tag-key-review/source:label',
+        '!<tag:directive.example,2026:key>' . "\0" . '/plain-tag-key-items/0/source:key',
+    ] as $expectedPlainKeyTagPair) {
+        if (!in_array($expectedPlainKeyTagPair, $plainKeyTagPairs, true)) {
+            throw new RuntimeException('YAML metadata self-test missing plain tagged key provenance');
+        }
     }
     if (($meta['abstract'] ?? '') !== "Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).\n\n- Preserve front matter\n- Keep `source:key` audit\n") {
         throw new RuntimeException('YAML metadata self-test failed to preserve raw abstract metadata');

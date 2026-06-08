@@ -320,6 +320,24 @@ HTML,
         exit(1);
     }
 
+    $typstDefinitionsFallback = (new DocTemplate())->renderResource('review-packets/typst-review', [
+        'review-packets/typst-review.typst' => <<<'TYPST'
+${ definitions.typst() }
+#let review = [WordPress import Typst review]
+TYPST,
+    ], [], null, 'typst');
+    foreach ([
+        "// Some definitions presupposed by pandoc's typst output.",
+        '#let horizontalrule = [',
+        '#let endnote(num, contents) = [',
+        '#let review = [WordPress import Typst review]',
+    ] as $needle) {
+        if (!str_contains($typstDefinitionsFallback, $needle)) {
+            fwrite(STDERR, "Missing expected Typst definitions doctemplate fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $unicodeDiagnostic = null;
     try {
         (new DocTemplate())->render('Résumé $title/no-such-pipe$', [
