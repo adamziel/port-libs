@@ -709,6 +709,52 @@ final class PdfMarkupAnnotationExtractor
     }
 
     /**
+     * @param array<int, string> $objects
+     */
+    private function resolvedValueHasTrailingOperand(string $value, array $objects): bool
+    {
+        $trimmed = trim($value);
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            $body = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+            if ($body === null) {
+                return false;
+            }
+
+            $trimmed = trim($body);
+        }
+
+        return $this->topLevelValueHasTrailingOperand($trimmed);
+    }
+
+    private function topLevelValueHasTrailingOperand(string $value): bool
+    {
+        $offset = 0;
+        $this->skipWhitespaceAndComments($value, $offset);
+        if ($offset >= strlen($value)) {
+            return false;
+        }
+
+        $endOffset = null;
+        if (($value[$offset] ?? '') === '[') {
+            $this->readPdfArrayAt($value, $offset, $endOffset);
+        } elseif (substr($value, $offset, 2) === '<<') {
+            $this->readPdfDictionaryAt($value, $offset, $endOffset);
+        } else {
+            $this->valueStartingAtOffsetWithEnd($value, $offset, $endOffset);
+        }
+
+        if ($endOffset === null || $endOffset <= $offset) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipWhitespaceAndComments($value, $tailOffset);
+
+        return $tailOffset < strlen($value);
+    }
+
+    /**
      * @return list<list<float>>
      */
     private function quadPointsFromAnnotation(string $annotationBody, array $objects = []): array
@@ -1316,6 +1362,9 @@ final class PdfMarkupAnnotationExtractor
             ? $this->pageDictionaryValueAfterName($body, $name)
             : $this->valueAfterName($body, $name);
         if ($value === null) {
+            return null;
+        }
+        if ($this->dictionaryValueHasTrailingOperand($body, $name) || $this->resolvedValueHasTrailingOperand($value, $objects)) {
             return null;
         }
 

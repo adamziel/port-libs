@@ -2742,6 +2742,9 @@ final class PdfAnnotationExtractor
         if ($value === null) {
             return null;
         }
+        if ($this->dictionaryValueHasTrailingOperand($body, $name) || $this->resolvedValueHasTrailingOperand($value, $objects)) {
+            return null;
+        }
 
         $trimmed = trim($value);
         $reference = $this->objectReferenceWithGenerationFromValue($trimmed);
@@ -2752,7 +2755,13 @@ final class PdfAnnotationExtractor
             }
         }
 
-        return str_starts_with($trimmed, '/') ? $this->decodePdfName($trimmed) : null;
+        if (!str_starts_with($trimmed, '/')) {
+            return null;
+        }
+
+        $nameEnd = $this->skipPdfName($trimmed, 0);
+
+        return $this->decodePdfName(substr($trimmed, 0, $nameEnd));
     }
 
     private function boolValueAfterName(string $body, string $name): ?bool
