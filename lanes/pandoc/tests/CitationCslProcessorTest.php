@@ -1882,6 +1882,103 @@ XML);
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@online{bad,date={2026},hour={24},title={Bad Time}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-direct-time', 'issued' => ['date-parts' => [[2026]], 'time' => '9:00']]]));
     },
+    'maps bounded biblatex date addendum fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{date-addon-source,
+  author       = {Ng, Nia},
+  title        = {Date Addendum Source Packet},
+  date         = {2026-06-05},
+  dateaddon    = {first source capture},
+  origdate     = {2020},
+  origdateaddon = {legacy packet date},
+  publisher    = {Review Press},
+  url          = {https://example.test/date-addon-source},
+  urldate      = {2026-06-06},
+  urldateaddon = {reviewer accessed archive}
+}
+
+@proceedings{event-date-addon-source,
+  editor         = {Curator, Eli},
+  title          = {Event Addendum Proceedings},
+  eventtitle     = {Hybrid Review Clinic},
+  eventdate      = {2025-05-01/2025-05-02},
+  eventdateaddon = {hybrid review window},
+  date           = {2025},
+  publisher      = {Migration Desk}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('first source capture', $items[0]['date-addon'] ?? null);
+        $t->same('legacy packet date', $items[0]['original-date-addon'] ?? null);
+        $t->same('reviewer accessed archive', $items[0]['accessed-date-addon'] ?? null);
+        $t->same('hybrid review window', $items[1]['event-date-addon'] ?? null);
+        $t->same('hybrid review window', $items[1]['rawBibtex']['fields']['eventdateaddon'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('date-addon-source');
+        $event = $processor->item('event-date-addon-source');
+        $t->same('first source capture', $source['dateAddon'] ?? null);
+        $t->same('legacy packet date', $source['originalDateAddon'] ?? null);
+        $t->same('reviewer accessed archive', $source['accessedDateAddon'] ?? null);
+        $t->same('hybrid review window', $event['eventDateAddon'] ?? null);
+        $t->same('Ng, Nia. Date Addendum Source Packet. Review Press, 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Accessed date addendum: reviewer accessed archive. Original work published 2020. https://example.test/date-addon-source. Accessed 2026-06-06.', $processor->renderBibliographyEntry('date-addon-source'));
+        $t->same('Curator, Eli. Event Addendum Proceedings. Event: Hybrid Review Clinic. Event date 2025-05-01/2025-05-02. Migration Desk, 2025. Event date addendum: hybrid review window.', $processor->renderBibliographyEntry('event-date-addon-source'));
+        $t->same('(Ng 2026; Curator 2025)', $processor->renderCitationCluster([
+            $citation('date-addon-source', '[@date-addon-source]'),
+            $citation('event-date-addon-source', '[@event-date-addon-source]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="date-addon"/>
+        <text variable="original-date-addon"/>
+        <text variable="accessed-date-addon"/>
+        <text variable="event-date-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="date-addon"/>
+      <text variable="original-date-addon"/>
+      <text variable="accessed-date-addon"/>
+      <text variable="event-date-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Date Addendum Source Packet | first source capture | legacy packet date | reviewer accessed archive; Event Addendum Proceedings | hybrid review window]', $styled->renderCitationCluster([
+            $citation('date-addon-source', '[@date-addon-source]'),
+            $citation('event-date-addon-source', '[@event-date-addon-source]'),
+        ]));
+        $t->same('Date Addendum Source Packet :: first source capture :: legacy packet date :: reviewer accessed archive', $styled->renderBibliographyEntry('date-addon-source'));
+        $t->same('Event Addendum Proceedings :: hybrid review window', $styled->renderBibliographyEntry('event-date-addon-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-date-addon',
+            'title' => 'Manual Date Addendum',
+            'issued' => ['date-parts' => [[2027]]],
+            'date-addon' => 'direct issued addendum',
+            'original-date-addon' => 'direct original addendum',
+        ]]);
+        $directItem = $direct->item('manual-date-addon');
+        $t->same('direct issued addendum', $directItem['dateAddon'] ?? null);
+        $t->same('direct original addendum', $directItem['originalDateAddon'] ?? null);
+        $t->same('Manual Date Addendum. 2027. Date addendum: direct issued addendum. Original date addendum: direct original addendum.', $direct->renderBibliographyEntry('manual-date-addon'));
+
+        $document = (new MarkdownReader())->read('Date addendum source @date-addon-source and event [@event-date-addon-source] keep imported date qualifiers visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Date addendum source Ng (2026) and event (Curator 2025) keep imported date qualifiers visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Date Addendum Source Packet. Review Press, 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Accessed date addendum: reviewer accessed archive. Original work published 2020. https://example.test/date-addon-source. Accessed 2026-06-06.</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Event Addendum Proceedings. Event: Hybrid Review Clinic. Event date 2025-05-01/2025-05-02. Migration Desk, 2025. Event date addendum: hybrid review window.</dd>', $blocks);
+    },
     'preserves bounded biblatex uncertain and approximate date markers in csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{circa-manual,
