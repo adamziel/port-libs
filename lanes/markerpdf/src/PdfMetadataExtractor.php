@@ -5553,6 +5553,9 @@ final class PdfMetadataExtractor
             'type' => 'root_metadata_stream_type',
             'subtype' => 'root_metadata_stream_subtype',
             'operand_shape' => 'root_metadata_stream_operand_shape',
+            'outline_metadata_scope' => 'root_metadata_stream_scope',
+            'outline_metadata_scope_object' => 'root_metadata_stream_scope_object',
+            'document_xmp_promotion_boundary' => 'root_metadata_stream_document_xmp_promotion_boundary',
         ] as $reviewKey => $summaryKey) {
             if (is_string($review[$reviewKey] ?? null) && $review[$reviewKey] !== '') {
                 $summary[$summaryKey] = $review[$reviewKey];
@@ -5578,6 +5581,7 @@ final class PdfMetadataExtractor
             'indirect_reference_required' => 'root_metadata_stream_indirect_reference_required',
             'metadata_reference_resolved' => 'root_metadata_stream_reference_resolved',
             'has_stream' => 'root_metadata_stream_has_stream',
+            'root_metadata_stream_local_to_outline' => 'root_metadata_stream_local_to_outline',
         ] as $reviewKey => $summaryKey) {
             if (is_bool($review[$reviewKey] ?? null)) {
                 $summary[$summaryKey] = $review[$reviewKey];
@@ -6553,6 +6557,11 @@ final class PdfMetadataExtractor
         if (is_string($review['status'] ?? null)) {
             $review['status'] = str_replace('outline_item', 'outline_root', $review['status']);
         }
+
+        $review['outline_metadata_scope'] = 'root';
+        $review['outline_metadata_scope_object'] = 'Outlines';
+        $review['document_xmp_promotion_boundary'] = 'outline_root_review_only';
+        $review['root_metadata_stream_local_to_outline'] = true;
 
         return $review;
     }

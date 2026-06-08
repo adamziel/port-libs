@@ -1072,6 +1072,7 @@ final class PdfTextExtractor
      *     hex_string_filter_operand_count: int,
      *     duplicate_filter_declaration_count: int,
      *     duplicate_decodeparms_declaration_count: int,
+     *     duplicate_length_declaration_count: int,
      *     escaped_filter_name_operand_count: int,
      *     escaped_filter_key_count: int,
      *     escaped_decodeparms_key_count: int,
@@ -1110,6 +1111,7 @@ final class PdfTextExtractor
             'hex_string_filter_operand_count' => 0,
             'duplicate_filter_declaration_count' => 0,
             'duplicate_decodeparms_declaration_count' => 0,
+            'duplicate_length_declaration_count' => 0,
             'escaped_filter_name_operand_count' => 0,
             'escaped_filter_key_count' => 0,
             'escaped_decodeparms_key_count' => 0,
@@ -1181,6 +1183,7 @@ final class PdfTextExtractor
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
             $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter');
             $duplicateDecodeParmsDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'DecodeParms');
+            $duplicateLengthDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Length');
             $filters = $this->streamFilters($dict, $objects, true);
             if ($this->cMapFilterOperandReviewsHaveUnselectedIndirect($operandGroups['Filter'])) {
                 $filters = null;
@@ -1226,7 +1229,9 @@ final class PdfTextExtractor
             $cMapName = $parserBoundedDecoded === null
                 ? $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects)
                 : $this->cMapName($parserBoundedDecoded);
-            $declaredLength = $this->cMapStreamHasUnselectedIndirectLengthOperand($dict, $objects)
+            $hasUnselectedLengthOperand = $this->cMapStreamHasUnselectedIndirectLengthOperand($dict, $objects);
+            $declaredLength = $duplicateLengthDeclarationCount > 0
+                || $hasUnselectedLengthOperand
                 ? null
                 : $this->streamLength($dict, $objects);
             $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
@@ -1257,6 +1262,7 @@ final class PdfTextExtractor
             $review['hex_string_filter_operand_count'] += $hexStringFilterOperandCount;
             $review['duplicate_filter_declaration_count'] += $duplicateFilterDeclarationCount;
             $review['duplicate_decodeparms_declaration_count'] += $duplicateDecodeParmsDeclarationCount;
+            $review['duplicate_length_declaration_count'] += $duplicateLengthDeclarationCount;
             $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
             $review['escaped_filter_key_count'] += $escapedFilterKeyCount;
             $review['escaped_decodeparms_key_count'] += $escapedDecodeParmsKeyCount;
@@ -1288,6 +1294,7 @@ final class PdfTextExtractor
                 'hex_string_filter_operand_count' => $hexStringFilterOperandCount,
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                 'duplicate_decodeparms_declaration_count' => $duplicateDecodeParmsDeclarationCount,
+                'duplicate_length_declaration_count' => $duplicateLengthDeclarationCount,
                 'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
                 'escaped_filter_key_count' => $escapedFilterKeyCount,
                 'escaped_decodeparms_key_count' => $escapedDecodeParmsKeyCount,
@@ -1359,6 +1366,11 @@ final class PdfTextExtractor
                     'xref_selected' => false,
                     'owner_policy' => 'missing_operand',
                 ],
+                'length_operand_policy' => $this->cMapStreamLengthOperandPolicy(
+                    $duplicateLengthDeclarationCount,
+                    $operandGroups['Length'],
+                    $hasUnselectedLengthOperand
+                ),
                 'indirect_filter_count' => $filterIndirectCount,
                 'indirect_length_count' => $lengthIndirectCount,
                 'xref_selected_operand_count' => $selectedOperandCount,
@@ -38258,6 +38270,9 @@ final class PdfTextExtractor
         if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter') > 0) {
             return null;
         }
+        if ($this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Length') > 0) {
+            return null;
+        }
         if ($this->cMapStreamHasUnselectedIndirectFilterOperand($dict, $objects)) {
             return null;
         }
@@ -38266,6 +38281,30 @@ final class PdfTextExtractor
         }
 
         return $this->decodeStream($dict, $stream, $objects, true, true, true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lengthOperands
+     */
+    private function cMapStreamLengthOperandPolicy(
+        int $duplicateLengthDeclarationCount,
+        array $lengthOperands,
+        bool $hasUnselectedLengthOperand
+    ): string
+    {
+        if ($duplicateLengthDeclarationCount > 0) {
+            return 'reject_duplicate_length_declarations';
+        }
+
+        if ($hasUnselectedLengthOperand) {
+            return 'reject_unselected_length_operand';
+        }
+
+        if ($lengthOperands === []) {
+            return 'length_operand_missing';
+        }
+
+        return 'length_operand_resolved';
     }
 
     /**
