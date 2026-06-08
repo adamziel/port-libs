@@ -440,7 +440,7 @@ final class SuppliedDocumentConverter
                     $table = $this->withPageResultBboxEntryMetadata($table, $tableBboxEntry, $tableBboxesSource ?? 'bboxes');
                 }
 
-                $imageBbox = $this->pageResultBboxValue($imageBboxes[$tableIndex] ?? null);
+                $imageBbox = $this->pageResultImageBboxValue($imageBboxes[$tableIndex] ?? null, $tableOrPageResult, 'image_bboxes');
                 if ($imageBbox === null) {
                     $imageBbox = $sharedImageBbox;
                 }
@@ -1050,7 +1050,7 @@ final class SuppliedDocumentConverter
             return null;
         }
 
-        return $this->pageResultBboxValue($pageResult[$source] ?? null);
+        return $this->pageResultImageBboxValue($pageResult[$source] ?? null, $pageResult, $source);
     }
 
     private function pageResultSharedImageBboxSource(array $pageResult): ?string
@@ -1062,6 +1062,47 @@ final class SuppliedDocumentConverter
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $pageResult
+     * @return list<float>|array<mixed>|null
+     */
+    private function pageResultImageBboxValue(mixed $value, array $pageResult, string $sourceKey): mixed
+    {
+        if (!is_array($value)) {
+            return $this->pageResultBboxValue($value);
+        }
+
+        $entry = array_is_list($value) ? ['bbox' => $value] : $value;
+        if ($this->pageResultBboxCoordinateOrder($entry) === null) {
+            foreach ($this->pageResultImageBboxCoordinateOrderKeys($sourceKey) as $key) {
+                if (!isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                    continue;
+                }
+
+                $entry['bbox_order'] = (string) $pageResult[$key];
+                break;
+            }
+        }
+
+        return $this->pageResultOrderedBboxValue($entry);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultImageBboxCoordinateOrderKeys(string $sourceKey): array
+    {
+        return [
+            $sourceKey . '_order',
+            $sourceKey . '_bbox_order',
+            $sourceKey . '_coordinate_order',
+            $sourceKey . '_coordinate_format',
+            $sourceKey . '_bbox_coordinate_order',
+            $sourceKey . '_bbox_coordinate_format',
+            $sourceKey . '_bbox_format',
+        ];
     }
 
     /**
