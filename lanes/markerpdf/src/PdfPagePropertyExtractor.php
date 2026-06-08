@@ -1540,7 +1540,7 @@ final class PdfPagePropertyExtractor
             $reference['generation']
         );
 
-        return $resolved !== null && trim($resolved['body']) === 'null';
+        return $resolved !== null && $this->objectBodyIsSingleNullValue($resolved['body']);
     }
 
     /**
@@ -4488,6 +4488,18 @@ final class PdfPagePropertyExtractor
         return $this->skipWhitespace($objectBody, $dictionary['end']) >= strlen($objectBody)
             ? $dictionary['body']
             : null;
+    }
+
+    private function objectBodyIsSingleNullValue(string $objectBody): bool
+    {
+        $offset = $this->skipWhitespace($objectBody, 0);
+        if (!$this->pdfKeywordAt($objectBody, $offset, 'null')) {
+            return false;
+        }
+
+        $offset = $this->skipWhitespace($objectBody, $offset + strlen('null'));
+
+        return $offset >= strlen($objectBody);
     }
 
     private function objectBodyIsStreamObject(string $objectBody): bool

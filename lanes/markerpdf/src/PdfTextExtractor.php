@@ -23646,7 +23646,7 @@ final class PdfTextExtractor
                 return ['state' => 'blocked'];
             }
 
-            if (trim($objectBody) === 'null') {
+            if ($this->objectBodyIsSingleNullValue($objectBody)) {
                 return ['state' => 'inherit'];
             }
 
@@ -26834,6 +26834,20 @@ final class PdfTextExtractor
 
         $this->skipContentWhitespaceAndComments($objectBody, $offset);
         return $offset >= strlen($objectBody) ? $dictionary : null;
+    }
+
+    private function objectBodyIsSingleNullValue(string $objectBody): bool
+    {
+        $offset = 0;
+        $this->skipContentWhitespaceAndComments($objectBody, $offset);
+        if (!$this->pdfKeywordAt($objectBody, $offset, 'null')) {
+            return false;
+        }
+
+        $offset += strlen('null');
+        $this->skipContentWhitespaceAndComments($objectBody, $offset);
+
+        return $offset >= strlen($objectBody);
     }
 
     private function singleOutlineDictionaryObjectBody(string $objectBody): ?string
