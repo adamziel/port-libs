@@ -23190,6 +23190,7 @@ final class PdfTextExtractor
         $compatibilityDepth = 0;
         $graphicsStateDepth = 0;
         $markedContentDepth = 0;
+        $insideTextObject = false;
         $strokingColorSpace = null;
         $nonstrokingColorSpace = null;
 
@@ -23208,6 +23209,40 @@ final class PdfTextExtractor
                     $compatibilityDepth--;
                 }
 
+                $operands = [];
+                continue;
+            }
+
+            if ($insideTextObject) {
+                if ($token === 'ET') {
+                    if ($operands !== []) {
+                        return null;
+                    }
+
+                    $insideTextObject = false;
+                    $operands = [];
+                    continue;
+                }
+
+                if ($this->isOperator($token)) {
+                    if (!$this->type3CharProcAllowsPreMetricTextObjectOperator($token, $operands)) {
+                        return null;
+                    }
+
+                    $operands = [];
+                    continue;
+                }
+
+                $operands[] = $token;
+                continue;
+            }
+
+            if ($token === 'BT') {
+                if ($operands !== []) {
+                    return null;
+                }
+
+                $insideTextObject = true;
                 $operands = [];
                 continue;
             }
@@ -23413,6 +23448,36 @@ final class PdfTextExtractor
             if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcAllowsPreMetricTextObjectOperator(string $token, array $operands): bool
+    {
+        if ($token === 'Tf') {
+            return count($operands) === 2
+                && str_starts_with($operands[0], '/')
+                && $this->numericOperand($operands[1]) !== null;
+        }
+
+        if (in_array($token, ['Tc', 'Tw', 'Tz', 'TL', 'Tr', 'Ts'], true)) {
+            return count($operands) === 1 && $this->numericOperand($operands[0]) !== null;
+        }
+
+        if (in_array($token, ['Td', 'TD'], true)) {
+            return $this->type3CharProcHasNumericOperands($operands, 2);
+        }
+
+        if ($token === 'Tm') {
+            return $this->type3CharProcHasNumericOperands($operands, 6);
+        }
+
+        if ($token === 'T*') {
+            return count($operands) === 0;
         }
 
         return false;
