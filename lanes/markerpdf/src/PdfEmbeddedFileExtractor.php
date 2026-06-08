@@ -6149,6 +6149,18 @@ final class PdfEmbeddedFileExtractor
                 ? null
                 : $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
             if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $ignoredBoundary
+                && $this->classicXrefTableHasPreviousOffset(
+                    $pdfBytes,
+                    $definitions,
+                    $latestBeforeEof,
+                    $entry['offset']
+                )
+            ) {
+                return $eofBoundary;
+            }
+            if (
                 $latestBeforeEof === null
                 || $latestBeforeEof <= $ignoredBoundary
                 || $this->hasTopLevelStartxrefTokenBetweenOffsets(
@@ -6164,6 +6176,18 @@ final class PdfEmbeddedFileExtractor
 
         if ($eofBoundary !== null && $eofBoundary > $boundary) {
             $latestBeforeEof = $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $eofBoundary);
+            if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $boundary
+                && $this->classicXrefTableHasPreviousOffset(
+                    $pdfBytes,
+                    $definitions,
+                    $latestBeforeEof,
+                    $entry['offset']
+                )
+            ) {
+                return $eofBoundary;
+            }
             if (
                 $latestBeforeEof !== null
                 && $latestBeforeEof > $boundary
@@ -6236,6 +6260,23 @@ final class PdfEmbeddedFileExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     */
+    private function classicXrefTableHasPreviousOffset(
+        string $pdfBytes,
+        array $definitions,
+        int $xrefOffset,
+        int $previousOffset
+    ): bool {
+        $table = $this->xrefTableSectionAt($pdfBytes, $xrefOffset, $definitions, [], false);
+        if ($table === null) {
+            return false;
+        }
+
+        return $this->dictionaryIntegerValue($table['trailer'], 'Prev') === $previousOffset;
     }
 
     /**

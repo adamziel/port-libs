@@ -138,6 +138,13 @@ final class PdfXrefFreeObjectMap
                 ? null
                 : self::latestClassicXrefTableOffset($pdfBytes, $eofBoundary);
             if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $ignoredBoundary
+                && self::classicXrefTableHasPreviousOffset($pdfBytes, $latestBeforeEof, $entry['offset'])
+            ) {
+                return $eofBoundary;
+            }
+            if (
                 $latestBeforeEof === null
                 || $latestBeforeEof <= $ignoredBoundary
                 || self::hasTopLevelStartxrefTokenBetweenOffsets($pdfBytes, $latestBeforeEof, $eofBoundary)
@@ -148,6 +155,13 @@ final class PdfXrefFreeObjectMap
 
         if ($eofBoundary !== null && $eofBoundary > $boundary) {
             $latestBeforeEof = self::latestClassicXrefTableOffset($pdfBytes, $eofBoundary);
+            if (
+                $latestBeforeEof !== null
+                && $latestBeforeEof > $boundary
+                && self::classicXrefTableHasPreviousOffset($pdfBytes, $latestBeforeEof, $entry['offset'])
+            ) {
+                return $eofBoundary;
+            }
             if (
                 $latestBeforeEof !== null
                 && $latestBeforeEof > $boundary
@@ -237,6 +251,19 @@ final class PdfXrefFreeObjectMap
         }
 
         return false;
+    }
+
+    private static function classicXrefTableHasPreviousOffset(
+        string $pdfBytes,
+        int $xrefOffset,
+        int $previousOffset
+    ): bool {
+        $table = self::xrefTableSectionAt($pdfBytes, $xrefOffset);
+        if ($table === null) {
+            return false;
+        }
+
+        return self::integerValueAfterName($table['trailer'], 'Prev') === $previousOffset;
     }
 
     private static function latestIgnoredStartxrefRebuildBoundaryOffset(string $pdfBytes): ?int
