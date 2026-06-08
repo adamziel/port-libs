@@ -6167,7 +6167,7 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            $trailingOperands = $this->outlineMetadataTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
             if ($trailingOperands === []) {
                 $selectedMalformedReview = [];
                 $metadataEntryIndex++;
@@ -6199,8 +6199,16 @@ final class PdfMetadataExtractor
 
             $trailingObjectNumbers = [];
             $trailingOperandShapes = [];
+            $trailingOperandNames = [];
             foreach ($trailingOperands as $operand) {
-                $trailingOperandShapes[] = $this->outlineMetadataReferenceOperandShape($operand);
+                $shape = $this->outlineMetadataReferenceOperandShape($operand);
+                $trailingOperandShapes[] = $shape;
+                if ($shape === 'name') {
+                    $name = $this->nameValueAt($operand, 0);
+                    if ($name !== null) {
+                        $trailingOperandNames[] = $name;
+                    }
+                }
                 $reference = $this->objectReferenceFromValue($operand);
                 if ($reference !== null) {
                     $trailingObjectNumbers[] = $reference['objectNumber'];
@@ -6212,6 +6220,9 @@ final class PdfMetadataExtractor
             if ($trailingOperandShapes !== []) {
                 $review['trailing_operand_shapes'] = $this->uniqueStrings($trailingOperandShapes);
             }
+            if ($trailingOperandNames !== []) {
+                $review['trailing_operand_names'] = $this->uniqueStrings($trailingOperandNames);
+            }
 
             $selectedMalformedReview = $review;
             $metadataEntryIndex++;
@@ -6219,6 +6230,59 @@ final class PdfMetadataExtractor
         }
 
         return $selectedMalformedReview;
+    }
+
+    /**
+     * Outline-local /Metadata accepts one indirect stream reference. If a
+     * private key-like token after that reference consumes one value and still
+     * leaves top-level operands before the next key, the original /Metadata
+     * reference is ambiguous and must stay review-only.
+     *
+     * @return list<string>
+     */
+    private function outlineMetadataTrailingOperandsBeforeNextDictionaryKey(string $body, int $offset): array
+    {
+        $operands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $offset);
+        if ($operands !== []) {
+            return $operands;
+        }
+
+        return $this->topLevelMalformedKeyLikeOperandsBeforeNextDictionaryKey($body, $offset);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topLevelMalformedKeyLikeOperandsBeforeNextDictionaryKey(string $body, int $offset): array
+    {
+        $length = strlen($body);
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= $length || $body[$offset] !== '/') {
+            return [];
+        }
+
+        $keyLike = $this->readPdfValueAt($body, $offset);
+        if ($keyLike === null || !str_starts_with($keyLike, '/')) {
+            return [];
+        }
+
+        $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($keyLike));
+        if ($valueOffset >= $length) {
+            return [];
+        }
+
+        $pairedValue = $this->readPdfValueAt($body, $valueOffset);
+        if ($pairedValue === null || $pairedValue === '') {
+            return [];
+        }
+
+        $afterPairedValue = $valueOffset + strlen($pairedValue);
+        $extraOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterPairedValue);
+        if ($extraOperands === []) {
+            return [];
+        }
+
+        return array_values(array_merge([$keyLike, $pairedValue], $extraOperands));
     }
 
     /**
