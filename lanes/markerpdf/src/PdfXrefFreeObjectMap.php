@@ -117,6 +117,13 @@ final class PdfXrefFreeObjectMap
                 $eofBoundary = $entryEofBoundary;
             }
         }
+        $invalidStartxrefBoundary = self::latestInvalidStartxrefRebuildBoundaryOffset($pdfBytes);
+        if ($invalidStartxrefBoundary !== null && ($boundary === null || $invalidStartxrefBoundary > $boundary)) {
+            $invalidEofBoundary = self::firstTopLevelEofOffsetAfter($pdfBytes, $invalidStartxrefBoundary);
+            if ($invalidEofBoundary !== null) {
+                $eofBoundary = $invalidEofBoundary;
+            }
+        }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -283,6 +290,31 @@ final class PdfXrefFreeObjectMap
             }
 
             if (self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)) {
+                return $tokenOffset;
+            }
+        }
+
+        return null;
+    }
+
+    private static function latestInvalidStartxrefRebuildBoundaryOffset(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || !self::keywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || self::tokenStartsInCommentLine($pdfBytes, $tokenOffset)
+                || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset)
+            ) {
+                continue;
+            }
+
+            if (self::startxrefDeclaredOffsetFromOperand(substr($pdfBytes, $tokenOffset + strlen('startxref'), 64)) === null) {
                 return $tokenOffset;
             }
         }

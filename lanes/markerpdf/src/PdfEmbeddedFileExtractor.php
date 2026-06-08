@@ -6279,6 +6279,13 @@ final class PdfEmbeddedFileExtractor
                 $eofBoundary = $entryEofBoundary;
             }
         }
+        $invalidStartxrefBoundary = $this->latestInvalidStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($invalidStartxrefBoundary !== null && ($boundary === null || $invalidStartxrefBoundary > $boundary)) {
+            $invalidEofBoundary = $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $invalidStartxrefBoundary);
+            if ($invalidEofBoundary !== null) {
+                $eofBoundary = $invalidEofBoundary;
+            }
+        }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -6458,6 +6465,37 @@ final class PdfEmbeddedFileExtractor
                 $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
                 || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
             ) {
+                return $tokenOffset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function latestInvalidStartxrefRebuildBoundaryOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes);
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+                || $this->offsetInPdfByteRanges($tokenOffset, $linearizedHintRanges)
+            ) {
+                continue;
+            }
+
+            if ($this->startxrefDeclaredOffsetFromOperand(substr($pdfBytes, $tokenOffset + strlen('startxref'), 64)) === null) {
                 return $tokenOffset;
             }
         }
