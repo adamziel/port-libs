@@ -1257,3 +1257,19 @@ for review_path in exports/*.json
     wp post meta update $slug import_source $review_path; or return 1
 end
 ```
+
+``` {.sed #sed-review .numberLines startFrom=1020}
+# sed WordPress block cleanup review
+1i\
+<!-- wp:paragraph -->
+/^[[:space:]]*$/d
+s#<script[^>]*>.*</script>##g
+s/\[gallery[^\]]*\]/<!-- wp:shortcode -->[gallery]<!-- \/wp:shortcode -->/g
+/<!-- wp:html -->/,/<!-- \/wp:html -->/{
+  s/\r$//
+  t normalized
+  b
+}
+:normalized
+p
+```

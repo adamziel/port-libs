@@ -7065,7 +7065,11 @@ final class CitationCslProcessor
             return '';
         }
 
-        $value = $this->formatCslNumber($value, (string) ($element['form'] ?? 'numeric'));
+        $form = (string) ($element['form'] ?? 'numeric');
+        $gender = in_array(strtolower(trim($form)), ['ordinal', 'long-ordinal'], true)
+            ? $this->ordinalGenderForNumberVariable($variable, $item, $citation)
+            : '';
+        $value = $this->formatCslNumber($value, $form, $gender);
 
         if ($variable === 'locator') {
             return $this->formatCslLocatorRanges($value);
@@ -7074,7 +7078,7 @@ final class CitationCslProcessor
         return $variable === 'page' ? $this->formatCslPageRanges($value) : $value;
     }
 
-    private function formatCslNumber(string $value, string $form): string
+    private function formatCslNumber(string $value, string $form, string $gender = ''): string
     {
         $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
         if ($value === '' || !$this->cslNumberValueCanBeFormatted($value)) {
@@ -7086,7 +7090,7 @@ final class CitationCslProcessor
         $rendered = '';
         foreach ($tokens as $token) {
             if (preg_match('/^\d+$/', $token) === 1) {
-                $rendered .= $this->formatCslNumberToken((int) $token, $form);
+                $rendered .= $this->formatCslNumberToken((int) $token, $form, $gender);
                 continue;
             }
 
@@ -7117,33 +7121,33 @@ final class CitationCslProcessor
         return preg_match('/^\d+\s*(?:(?:[-\x{2010}-\x{2015}]|,|&)\s*\d+\s*)*$/u', $value) === 1;
     }
 
-    private function formatCslNumberToken(int $number, string $form): string
+    private function formatCslNumberToken(int $number, string $form, string $gender = ''): string
     {
         $numeric = (string) $number;
 
         return match ($form) {
-            'ordinal' => $numeric . $this->ordinalSuffix($number),
-            'long-ordinal' => $this->longOrdinalNumber($number),
+            'ordinal' => $numeric . $this->ordinalSuffix($number, $gender),
+            'long-ordinal' => $this->longOrdinalNumber($number, $gender),
             'roman' => $this->romanNumber($number) ?? $numeric,
             default => $numeric,
         };
     }
 
-    private function ordinalSuffix(int $number): string
+    private function ordinalSuffix(int $number, string $gender = ''): string
     {
-        return $this->style->ordinalSuffixTerm($number) ?? 'th';
+        return $this->style->ordinalSuffixTerm($number, $gender) ?? 'th';
     }
 
-    private function longOrdinalNumber(int $number): string
+    private function longOrdinalNumber(int $number, string $gender = ''): string
     {
         if ($number >= 1 && $number <= 10) {
-            $term = $this->style->termOrNull('long-ordinal-' . sprintf('%02d', $number));
+            $term = $this->style->termOrNull('long-ordinal-' . sprintf('%02d', $number), 'long', false, $gender);
             if ($term !== null) {
                 return $term;
             }
         }
 
-        return (string) $number . $this->ordinalSuffix($number);
+        return (string) $number . $this->ordinalSuffix($number, $gender);
     }
 
     private function romanNumber(int $number): ?string
@@ -7237,6 +7241,23 @@ final class CitationCslProcessor
             'part-number' => 'part',
             default => $variable,
         };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function ordinalGenderForNumberVariable(string $variable, array $item, ?AstNode $citation = null): string
+    {
+        $variable = strtolower(trim($variable));
+        if ($variable === '') {
+            return '';
+        }
+
+        $termName = $variable === 'locator'
+            ? $this->citationLocatorParts($citation)['label']
+            : $this->labelTermName($variable, $item);
+
+        return $this->style->termGender($termName);
     }
 
     private function paginationTermName(string $pagination): string
@@ -7894,7 +7915,11 @@ final class CitationCslProcessor
             in_array($normalizedForm, ['numeric', 'ordinal', 'long-ordinal', 'roman'], true)
             && $this->textVariableAcceptsNumberForm($normalizedVariable)
         ) {
-            return $this->formatCslNumber($this->renderVariableValue($item, $variable, $scope, $citation), $normalizedForm);
+            $gender = in_array($normalizedForm, ['ordinal', 'long-ordinal'], true)
+                ? $this->ordinalGenderForNumberVariable($normalizedVariable, $item, $citation)
+                : '';
+
+            return $this->formatCslNumber($this->renderVariableValue($item, $variable, $scope, $citation), $normalizedForm, $gender);
         }
 
         if ($normalizedForm !== 'short') {
@@ -8621,7 +8646,7 @@ final class CitationCslProcessor
         $value = match ($name) {
             'year' => $this->formatCslDateYearPart((int) $number, $spec['form']),
             'month' => $this->formatCslDateMonthPart((int) $number, $spec['form']),
-            'day' => $this->formatCslDateDayPart((int) $number, $spec['form']),
+            'day' => $this->formatCslDateDayPart((int) $number, $spec['form'], isset($parts[1]) ? (int) $parts[1] : null),
             default => '',
         };
         if ($value === '') {
@@ -8659,7 +8684,7 @@ final class CitationCslProcessor
         };
     }
 
-    private function formatCslDateDayPart(int $day, string $form): string
+    private function formatCslDateDayPart(int $day, string $form, ?int $month = null): string
     {
         if ($day < 1 || $day > 31) {
             return '';
@@ -8667,18 +8692,20 @@ final class CitationCslProcessor
 
         return match ($form) {
             'numeric-leading-zeros' => sprintf('%02d', $day),
-            'ordinal' => $this->formatCslDayOrdinal($day),
+            'ordinal' => $this->formatCslDayOrdinal($day, $month),
             default => (string) $day,
         };
     }
 
-    private function formatCslDayOrdinal(int $day): string
+    private function formatCslDayOrdinal(int $day, ?int $month = null): string
     {
         if ($this->style->limitDayOrdinalsToDay1() && $day !== 1) {
             return (string) $day;
         }
 
-        return $day . $this->ordinalSuffix($day);
+        $gender = $month === null ? '' : $this->style->termGender('month-' . sprintf('%02d', $month));
+
+        return $day . $this->ordinalSuffix($day, $gender);
     }
 
     /**

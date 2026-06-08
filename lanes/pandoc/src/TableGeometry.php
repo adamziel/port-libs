@@ -1629,6 +1629,7 @@ final class TableGeometry
      *     columnDecimalAlignments:list<array<string, mixed>>,
      *     cellDecimalAlignments:list<array<string, mixed>>,
      *     directionality:array<string, mixed>,
+     *     tableLayout?:array<string, mixed>,
      *     tableSpacing?:array<string, mixed>,
      *     rowGroups:list<array<string, mixed>>,
      *     captions:array<string, array<string, mixed>>,
@@ -1658,6 +1659,7 @@ final class TableGeometry
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
+        $tableLayout = self::tableLayoutMetadata($table);
         $tableFrame = self::tableFrameMetadata($table);
         $tableSpacing = self::tableSpacingMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
@@ -1717,12 +1719,17 @@ final class TableGeometry
                 $rowMatrix,
                 $flatGrid,
                 $flatGridFallbacks,
+                $tableLayout,
                 $tableFrame,
                 $tableSpacing,
                 $directionality,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
+
+        if ($tableLayout !== []) {
+            $packet['tableLayout'] = $tableLayout;
+        }
 
         if ($tableFrame !== []) {
             $packet['tableFrame'] = $tableFrame;
@@ -4591,6 +4598,7 @@ final class TableGeometry
      * @param array<string, mixed> $rowMatrix
      * @param array<string, mixed> $flatGrid
      * @param list<array<string, mixed>> $flatGridFallbacks
+     * @param array<string, mixed> $tableLayout
      * @param array<string, mixed> $tableFrame
      * @param array<string, mixed> $tableSpacing
      * @param array<string, mixed> $directionality
@@ -4611,6 +4619,7 @@ final class TableGeometry
         array $rowMatrix,
         array $flatGrid,
         array $flatGridFallbacks,
+        array $tableLayout,
         array $tableFrame,
         array $tableSpacing,
         array $directionality,
@@ -4856,6 +4865,10 @@ final class TableGeometry
             'captionAfterTable' => (bool) ($captions['long']['captionAfterTable'] ?? false),
             'hasSourceSummary' => $sourceSummary !== '',
             'sourceSummaryText' => $sourceSummary,
+            'hasTableLayout' => $tableLayout !== [],
+            'tableWidth' => (string) ($tableLayout['width'] ?? ''),
+            'tableWidthType' => (string) ($tableLayout['widthType'] ?? ''),
+            'tableLayoutAttributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
             'hasTableFrame' => $tableFrame !== [],
             'tableFrame' => (string) ($tableFrame['frame'] ?? ''),
             'tableRules' => (string) ($tableFrame['rules'] ?? ''),
@@ -5276,6 +5289,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
@@ -5352,6 +5366,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
@@ -5440,6 +5455,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
@@ -6120,6 +6136,44 @@ final class TableGeometry
             'caption' => $caption,
             'hasCaption' => trim($caption) !== '',
             'summaryText' => $summary,
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableLayoutWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableLayout = self::tableLayoutMetadata($table);
+        if ($tableLayout === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-width-requires-raw-html', 'raw-html-table-width'],
+            'asciidoc' => ['asciidoc-table-width-review-required', 'table-width-review'],
+            'latex' => ['latex-table-width-review-required', 'table-width-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-layout-width',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-layout',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'width' => (string) ($tableLayout['width'] ?? ''),
+            'widthType' => (string) ($tableLayout['widthType'] ?? ''),
+            'widthValue' => is_numeric($tableLayout['widthValue'] ?? null) ? (float) $tableLayout['widthValue'] : null,
+            'attributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
+            'attributes' => $tableLayout['attributes'] ?? [],
+            'sourceAttributes' => $tableLayout['sourceAttributes'] ?? [],
         ]];
     }
 
@@ -7616,6 +7670,46 @@ final class TableGeometry
     }
 
     /**
+     * @return array{source:string,attributes:array<string, string>,width:string,widthType:string,widthValue:float,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableLayoutMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        if (!array_key_exists('width', $attributes)) {
+            return [];
+        }
+
+        $width = self::normalizeTableWidthAttribute((string) $attributes['width']);
+        if ($width === []) {
+            return [];
+        }
+
+        $record = [
+            'source' => 'html-table-layout',
+            'attributes' => [
+                'width' => (string) $width['width'],
+            ],
+            'width' => (string) $width['width'],
+            'widthType' => (string) $width['widthType'],
+            'widthValue' => (float) $width['widthValue'],
+        ];
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    /**
      * @return array{source:string,attributes:array<string, string>,frame?:string,rules?:string,border?:string,sourceAttributes?:array<string, mixed>}
      */
     private static function tableFrameMetadata(AstNode $table): array
@@ -7750,6 +7844,38 @@ final class TableGeometry
         $value = trim($value);
 
         return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
+    }
+
+    /**
+     * @return array{width:string,widthType:string,widthValue:float}
+     */
+    private static function normalizeTableWidthAttribute(string $value): array
+    {
+        $value = trim($value);
+        if (preg_match('/^[1-9]\d{0,3}$/', $value) === 1) {
+            return [
+                'width' => (string) (int) $value,
+                'widthType' => 'pixels',
+                'widthValue' => (float) (int) $value,
+            ];
+        }
+
+        if (preg_match('/^(\d+(?:\.\d+)?)\s*%$/', $value, $match) !== 1) {
+            return [];
+        }
+
+        $width = (float) $match[1];
+        if ($width <= 0.0 || $width > 100.0) {
+            return [];
+        }
+
+        $formatted = rtrim(rtrim(number_format($width, 4, '.', ''), '0'), '.');
+
+        return [
+            'width' => ($formatted === '' ? '0' : $formatted) . '%',
+            'widthType' => 'percent',
+            'widthValue' => $width,
+        ];
     }
 
     private static function tableAttributeColumnCount(mixed $columns): int

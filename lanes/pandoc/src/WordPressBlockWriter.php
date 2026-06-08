@@ -1512,7 +1512,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'scope', 'style', 'summary', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'scope', 'style', 'summary', 'title', 'valign', 'width'], true);
     }
 
     private function allowedTableHtmlAttrValue(string $name, mixed $value): ?string
@@ -1522,6 +1522,10 @@ final class WordPressBlockWriter
         }
 
         $value = (string) $value;
+        if ($name === 'width') {
+            return $this->allowedTableWidthValue($value);
+        }
+
         if ($name !== 'dir') {
             return $value;
         }
@@ -1529,6 +1533,31 @@ final class WordPressBlockWriter
         $direction = strtolower(trim($value));
 
         return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
+    }
+
+    private function allowedTableWidthValue(mixed $value): ?string
+    {
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        if (preg_match('/^[1-9]\d{0,3}$/', $value) === 1) {
+            return (string) (int) $value;
+        }
+
+        if (preg_match('/^(\d+(?:\.\d+)?)\s*%$/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $width = (float) $match[1];
+        if ($width <= 0.0 || $width > 100.0) {
+            return null;
+        }
+
+        $formatted = rtrim(rtrim(number_format($width, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
     private function renderCodeBlock(AstNode $node): string

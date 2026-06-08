@@ -41,6 +41,11 @@ return [
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish-shell'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('language-fish'));
+        $t->same('sed', SyntaxHighlighter::normalizeLanguage('sed'));
+        $t->same('sed', SyntaxHighlighter::normalizeLanguage('gsed'));
+        $t->same('sed', SyntaxHighlighter::normalizeLanguage('gnu-sed'));
+        $t->same('sed', SyntaxHighlighter::normalizeLanguage('stream-editor'));
+        $t->same('sed', SyntaxHighlighter::normalizeLanguage('language-sed'));
         $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift'));
         $t->same('swift', SyntaxHighlighter::normalizeLanguage('swiftui'));
         $t->same('swift', SyntaxHighlighter::normalizeLanguage('swift-source'));
@@ -3292,6 +3297,47 @@ return [
         $t->same('fish', $directFish['language']);
         $t->same('fish-shell', $directFish['requestedLanguage']);
         $t->contains('<span class="kw">set</span> <span class="ot">-q</span> <span class="va">argv</span><span class="op">[</span><span class="dv">1</span><span class="op">];</span> <span class="kw">and</span> <span class="fu">echo</span> <span class="va">$argv[1]</span>', $directFish['html']);
+    },
+    'highlights sed stream editor review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[68] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Sed stream editor code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directSed = $highlighter->highlight(
+            's#<h1>\(.*\)</h1>#<!-- wp:heading -->\1<!-- /wp:heading -->#g',
+            'gnu-sed'
+        );
+
+        $t->same('sed', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('sed', $highlighted['language']);
+        $t->same('sed', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1020, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource sed numberLines"><code class="sourceCode sed" style="counter-reset: source-line 1019;">', $highlighted['html']);
+        $t->contains('<span id="sed-review-1020"><a href="#sed-review-1020"></a><span class="co"># sed WordPress block cleanup review</span></span>', $highlighted['html']);
+        $t->contains('<span class="dv">1</span><span class="kw">i</span><span class="op">\\</span>', $highlighted['html']);
+        $t->contains('<span class="st">/^[[:space:]]*$/</span><span class="kw">d</span>', $highlighted['html']);
+        $t->contains('<span class="kw">s</span><span class="st">#&lt;script[^&gt;]*&gt;.*&lt;/script&gt;##</span><span class="ot">g</span>', $highlighted['html']);
+        $t->contains('<span class="kw">s</span><span class="st">/\[gallery[^\]]*\]/&lt;!-- wp:shortcode --&gt;[gallery]&lt;!-- \/wp:shortcode --&gt;/</span><span class="ot">g</span>', $highlighted['html']);
+        $t->contains('<span class="st">/&lt;!-- wp:html --&gt;/</span><span class="op">,</span><span class="st">/&lt;!-- \/wp:html --&gt;/</span><span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">t</span> <span class="va">normalized</span>', $highlighted['html']);
+        $t->contains('<span class="re">:normalized</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="kw">s</span><span class="st">#&lt;script', $wordpressBlock);
+        $t->same('sed', $directSed['language']);
+        $t->same('gnu-sed', $directSed['requestedLanguage']);
+        $t->contains('<span class="kw">s</span><span class="st">#&lt;h1&gt;\(.*\)&lt;/h1&gt;#&lt;!-- wp:heading --&gt;\1&lt;!-- /wp:heading --&gt;#</span><span class="ot">g</span>', $directSed['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

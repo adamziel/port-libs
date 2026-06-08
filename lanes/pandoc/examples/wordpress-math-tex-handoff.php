@@ -37,6 +37,8 @@ Dot and named symbol alias audit $\ldots + \cdots + \ddots + \aleph + \ell + \Re
 
 Operator relation alias audit $a \oplus b + c \ominus d + x \asymp y + p \vdash q + u \bowtie v$ stays semantic.
 
+Symbol override alias audit $\arg z + \hbar\omega + \digamma + \varnothing + a \dag b + c \ddag d + A \lhd B + C \unrhd D + M \longmapsto N + \blacklozenge$ stays semantic.
+
 Display audit:
 $$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \sqrt[3]{x_i + y_i} + \binom{n}{k} + \tbinom{p_i}{2} + \dbinom{a+b}{c} + \dfrac{q_i}{r_i} + \genfrac{\langle}{\rangle}{0pt}{0}{n}{k} + \widehat{\operatorname{quality}} + \vec{v}_i + \begin{pmatrix}p_1 & m_1 \\ p_2 & m_2\end{pmatrix} + \begin{aligned}x_i &= \operatorname{score}(p_i) \\ y_i &= \frac{a_i}{b_i}\end{aligned} + \begin{array}{l|c|r}\alpha & \beta & \omega \\ \hline 1 & 2 & 3\end{array} + \begin{cases}p_i & p_i \in P \\ 0 & \text{otherwise}\end{cases} + \forall p_i \in P \Rightarrow p_i \notin \emptyset + \alpha \times \omega$$
 
@@ -205,6 +207,7 @@ $summary = [
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
     'operatorRelationAliasMathml' => $converter->texToMathMl('a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v'),
+    'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
     'arrayRepeatedPreambleMathml' => $converter->texToMathMl('\\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\\\ p_2 & m_2 & 2\\end{array}'),
@@ -369,6 +372,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['symbolOverrideAliasMathml'], '<mi>\\hbar</mi>')
+        || str_contains($summary['symbolOverrideAliasMathml'], '<mi>\\dag</mi>')
+        || str_contains($summary['symbolOverrideAliasMathml'], '<mi>\\longmapsto</mi>')
+        || str_contains($summary['symbolOverrideAliasMathml'], '<mi>\\blacklozenge</mi>')
+        || !str_contains($summary['symbolOverrideAliasMathml'], '<mi>arg</mi><mi>z</mi><mo>+</mo><mi>ℏ</mi><mi>ω</mi><mo>+</mo><mi>ϝ</mi><mo>+</mo><mo>⌀</mo>')
+        || !str_contains($summary['symbolOverrideAliasMathml'], '<mi>a</mi><mo>†</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>‡</mo><mi>d</mi>')
+        || !str_contains($summary['symbolOverrideAliasMathml'], '<mi>A</mi><mo>⊲</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⊵</mo><mi>D</mi><mo>+</mo><mi>M</mi><mo>⟼</mo><mi>N</mi><mo>+</mo><mo>⬧</mo>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map symbol override aliases');
+    }
+
+    if (
         str_contains($summary['largeOperatorAliasMathml'], '<mi>\\bigcup</mi>')
         || str_contains($summary['largeOperatorAliasMathml'], '<mi>\\iint</mi>')
         || !str_contains($summary['largeOperatorAliasMathml'], '<msubsup><mo>⋃</mo>')
@@ -403,6 +418,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}\\)</span>',
         '<span class="math inline">\\(\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot\\)</span>',
         '<span class="math inline">\\(a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v\\)</span>',
+        '<span class="math inline">\\(\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ \\hline 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
         '<span class="math inline">\\(\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}\\)</span>',
         '<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot><mo>+</mo><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>',

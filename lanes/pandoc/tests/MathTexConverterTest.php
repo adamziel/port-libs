@@ -630,6 +630,28 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\bullet</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\asymp</mi>'));
     },
+    'converts bounded texmath symbol override aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $identifierMathml = $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing', true);
+        $binaryMathml = $converter->texToMathMl('a \\dag b + c \\ddag d + e \\barwedge f + g \\wr h');
+        $relationMathml = $converter->texToMathMl('A \\lhd B + C \\rhd D + E \\unlhd F + G \\unrhd H + I \\Join J + K \\eqcolon L + M \\longmapsto N');
+        $shapeMathml = $converter->texToMathMl('\\Box + \\Diamond + \\lozenge + \\blacklozenge + \\blacksquare + \\blacktriangleleft + \\blacktriangleright');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\hbar + A \\longmapsto B + \\blacklozenge');
+        $combinedMathml = $identifierMathml . $binaryMathml . $relationMathml . $shapeMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $identifierMathml);
+        $t->contains('<mi>arg</mi><mi>z</mi><mo>+</mo><mi>ℏ</mi><mi>ω</mi><mo>+</mo><mi>ϝ</mi><mo>+</mo><mo>⌀</mo>', $identifierMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\arg z + \\hbar\\omega + \\digamma + \\varnothing</annotation>', $identifierMathml);
+        $t->contains('<mi>a</mi><mo>†</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>‡</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⌅</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>≀</mo><mi>h</mi>', $binaryMathml);
+        $t->contains('<mi>A</mi><mo>⊲</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⊳</mo><mi>D</mi><mo>+</mo><mi>E</mi><mo>⊴</mo><mi>F</mi><mo>+</mo><mi>G</mi><mo>⊵</mo><mi>H</mi><mo>+</mo><mi>I</mi><mo>⋈</mo><mi>J</mi><mo>+</mo><mi>K</mi><mo>≕</mo><mi>L</mi><mo>+</mo><mi>M</mi><mo>⟼</mo><mi>N</mi>', $relationMathml);
+        $t->contains('<mo>□</mo><mo>+</mo><mo>◇</mo><mo>+</mo><mo>◊</mo><mo>+</mo><mo>⬧</mo><mo>+</mo><mo>■</mo><mo>+</mo><mo>◂</mo><mo>+</mo><mo>▸</mo>', $shapeMathml);
+        $t->contains('alttext="h bar plus A long maps to B plus black lozenge"', $accessibleMathml);
+        $t->contains('intent="row(h_bar,plus,a,long_maps_to,b,plus,black_lozenge)"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\hbar</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\dag</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\longmapsto</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\blacklozenge</mi>'));
+    },
     'converts bounded tex explicit operator limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $limitsMathml = $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q', true);

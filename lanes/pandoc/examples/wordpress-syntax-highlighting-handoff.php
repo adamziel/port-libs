@@ -430,6 +430,12 @@ if (!$fishCodeBlock instanceof PortLibs\Pandoc\AstNode || $fishCodeBlock->type !
 }
 $fish = $highlighter->highlightCodeBlock($fishCodeBlock, 'haddock');
 $fishWordpressBlock = $highlighter->wordpressHtmlBlock($fishCodeBlock, 'haddock');
+$sedCodeBlock = $document->children[68] ?? null;
+if (!$sedCodeBlock instanceof PortLibs\Pandoc\AstNode || $sedCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Sed stream editor review code block');
+}
+$sed = $highlighter->highlightCodeBlock($sedCodeBlock, 'tango');
+$sedWordpressBlock = $highlighter->wordpressHtmlBlock($sedCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1865,6 +1871,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($fishWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
         throw new RuntimeException('Expected Fish WordPress style metadata');
     }
+    if (($sed['language'] ?? '') !== 'sed') {
+        throw new RuntimeException('Expected Sed stream editor language handoff');
+    }
+    if (($sed['requestedLanguage'] ?? '') !== 'sed') {
+        throw new RuntimeException('Expected Sed requested-language wrapper handoff');
+    }
+    if (($sed['lineNumbering']['start'] ?? null) !== 1020) {
+        throw new RuntimeException('Expected Sed source startFrom line-number handoff');
+    }
+    if (!str_contains($sed['html'], '<span class="st">/^[[:space:]]*$/</span><span class="kw">d</span>')) {
+        throw new RuntimeException('Expected Sed regex address and delete command token handoff');
+    }
+    if (!str_contains($sed['html'], '<span class="kw">s</span><span class="st">#&lt;script[^&gt;]*&gt;.*&lt;/script&gt;##</span><span class="ot">g</span>')) {
+        throw new RuntimeException('Expected Sed hash-delimited substitution and flag token handoff');
+    }
+    if (!str_contains($sed['html'], '<span class="re">:normalized</span>')) {
+        throw new RuntimeException('Expected Sed branch label token handoff');
+    }
+    if (!str_contains($sedWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Sed WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1953,6 +1980,7 @@ echo "awkHighlightedHtml:\n" . $awk['html'] . "\n";
 echo "batchHighlightedHtml:\n" . $batch['html'] . "\n";
 echo "matlabHighlightedHtml:\n" . $matlab['html'] . "\n";
 echo "fishHighlightedHtml:\n" . $fish['html'] . "\n";
+echo "sedHighlightedHtml:\n" . $sed['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2011,4 +2039,5 @@ echo "awkWordpressBlock:\n" . $awkWordpressBlock . "\n";
 echo "batchWordpressBlock:\n" . $batchWordpressBlock . "\n";
 echo "matlabWordpressBlock:\n" . $matlabWordpressBlock . "\n";
 echo "fishWordpressBlock:\n" . $fishWordpressBlock . "\n";
+echo "sedWordpressBlock:\n" . $sedWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

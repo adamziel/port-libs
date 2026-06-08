@@ -175,6 +175,21 @@ $legacySpacingTables = array_values(array_filter(
     $legacySpacingDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$layoutWidthDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="layout-width-grid" data-source="html-reader" width="80%">
+<caption>Layout width review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$layoutWidthTables = array_values(array_filter(
+    $layoutWidthDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $directionalityDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="directionality-grid" data-source="html-reader" dir="rtl">
 <caption>Directionality review</caption>
@@ -1153,6 +1168,7 @@ $document = new AstNode('document', [], [
     ...$verticalAlignmentTables,
     ...$legacyFrameTables,
     ...$legacySpacingTables,
+    ...$layoutWidthTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
     ...$captionSourceTables,
@@ -2386,6 +2402,48 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($legacySpacingPacket, JSON_THROW_ON_ERROR);
     json_encode($legacySpacingDowngrades, JSON_THROW_ON_ERROR);
+
+    $layoutWidthTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'layout-width-grid') {
+            $layoutWidthTable = $node;
+            break;
+        }
+    }
+    $layoutWidthPacket = $layoutWidthTable instanceof AstNode ? $layoutWidthTable->attr('tableGeometry') : null;
+    $layoutWidthDowngrades = $layoutWidthTable instanceof AstNode ? TableGeometry::reviewPacket($layoutWidthTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $layoutWidthDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $layoutWidthDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-layout-width'
+        ));
+        $layoutWidthDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$layoutWidthTable instanceof AstNode
+        || !is_array($layoutWidthPacket)
+        || ($layoutWidthPacket['tableLayout']['attributes'] ?? null) !== [
+            'width' => '80%',
+        ]
+        || ($layoutWidthPacket['tableLayout']['widthType'] ?? null) !== 'percent'
+        || ($layoutWidthPacket['summary']['hasTableLayout'] ?? null) !== true
+        || ($layoutWidthPacket['summary']['tableWidth'] ?? null) !== '80%'
+        || ($layoutWidthPacket['summary']['tableWidthType'] ?? null) !== 'percent'
+        || ($layoutWidthDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-width-requires-raw-html'
+        || ($layoutWidthDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-width-review-required'
+        || ($layoutWidthDiagnostics['latex']['code'] ?? null) !== 'latex-table-width-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table width layout metadata');
+    }
+    if (!str_contains($blocks, '<table id="layout-width-grid" data-source="html-reader" width="80%">')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress table width output');
+    }
+    json_encode($layoutWidthPacket, JSON_THROW_ON_ERROR);
+    json_encode($layoutWidthDowngrades, JSON_THROW_ON_ERROR);
 
     $directionalityTable = null;
     foreach ($document->children as $node) {

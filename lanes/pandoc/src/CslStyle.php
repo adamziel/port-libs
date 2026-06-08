@@ -15,7 +15,7 @@ final class CslStyle
         'limitDayOrdinalsToDay1' => false,
     ];
 
-    /** @var array<string, array{single:string, multiple:string, match?:string}> */
+    /** @var array<string, array{single:string, multiple:string, match?:string, gender?:string}> */
     private const DEFAULT_TERMS = [
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
@@ -224,7 +224,7 @@ final class CslStyle
      * @param list<array<string, mixed>> $bibliographyRenderingElements
      * @param array<string, list<array<string, mixed>>> $macros
      * @param array{citation:array<string, mixed>, bibliography:array<string, mixed>} $nameRendering
-     * @param array<string, array{single:string, multiple:string, match?:string}> $terms
+     * @param array<string, array{single:string, multiple:string, match?:string, gender?:string}> $terms
      * @param array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool} $localeOptions
      * @param array{title:string, id:string, class:string, defaultLocale:string, pageRangeFormat:string} $metadata
      */
@@ -418,14 +418,14 @@ final class CslStyle
         return $this->citationOptions;
     }
 
-    public function term(string $name, string $form = 'long', bool $plural = false): string
+    public function term(string $name, string $form = 'long', bool $plural = false, string $genderForm = ''): string
     {
-        return $this->termOrNull($name, $form, $plural) ?? $name;
+        return $this->termOrNull($name, $form, $plural, $genderForm) ?? $name;
     }
 
-    public function termOrNull(string $name, string $form = 'long', bool $plural = false): ?string
+    public function termOrNull(string $name, string $form = 'long', bool $plural = false, string $genderForm = ''): ?string
     {
-        foreach (self::termFallbackKeys($name, $form) as $key) {
+        foreach (self::termFallbackKeys($name, $form, $genderForm) as $key) {
             $term = $this->terms[$key] ?? null;
             if ($term !== null) {
                 return $plural ? $term['multiple'] : $term['single'];
@@ -435,19 +435,32 @@ final class CslStyle
         return null;
     }
 
-    public function ordinalSuffixTerm(int $number): ?string
+    public function termGender(string $name, string $form = 'long'): string
+    {
+        foreach (self::termFallbackKeys($name, $form) as $key) {
+            $term = $this->terms[$key] ?? null;
+            $gender = is_array($term) ? (string) ($term['gender'] ?? '') : '';
+            if ($gender !== '') {
+                return $gender;
+            }
+        }
+
+        return '';
+    }
+
+    public function ordinalSuffixTerm(int $number, string $genderForm = ''): ?string
     {
         $absolute = abs($number);
         $lastTwo = $absolute % 100;
         if ($lastTwo >= 10) {
-            $term = $this->ordinalSuffixCandidate($absolute, $lastTwo);
+            $term = $this->ordinalSuffixCandidate($absolute, $lastTwo, $genderForm);
             if ($term !== null) {
                 return $term;
             }
         }
 
-        return $this->ordinalSuffixCandidate($absolute, $absolute % 10)
-            ?? $this->termOrNull('ordinal');
+        return $this->ordinalSuffixCandidate($absolute, $absolute % 10, $genderForm)
+            ?? $this->termOrNull('ordinal', 'long', false, $genderForm);
     }
 
     /**
@@ -2010,8 +2023,8 @@ final class CslStyle
     }
 
     /**
-     * @param array<string, array{single:string, multiple:string, match?:string}> $terms
-     * @return array<string, array{single:string, multiple:string, match?:string}>
+     * @param array<string, array{single:string, multiple:string, match?:string, gender?:string}> $terms
+     * @return array<string, array{single:string, multiple:string, match?:string, gender?:string}>
      */
     private static function applyLocaleElementTerms(\DOMElement $locale, array $terms): array
     {
@@ -2038,29 +2051,42 @@ final class CslStyle
             if ($form === '') {
                 $form = 'long';
             }
+            $gender = self::termGenderAttribute($termElement, 'gender', $name);
+            $genderForm = self::termGenderAttribute($termElement, 'gender-form', $name);
+            if ($genderForm !== '' && !self::isGenderFormOrdinalTerm($name)) {
+                throw new \InvalidArgumentException('CSL locale term gender-form is only supported on ordinal terms');
+            }
 
             $single = self::directChild($termElement, 'single');
             $multiple = self::directChild($termElement, 'multiple');
             if ($single instanceof \DOMElement || $multiple instanceof \DOMElement) {
                 $singleText = $single instanceof \DOMElement ? self::elementText($single) : '';
                 $multipleText = $multiple instanceof \DOMElement ? self::elementText($multiple) : '';
-                $terms[self::termKey($name, $form)] = self::withOrdinalTermMatch($termElement, $name, [
+                $term = [
                     'single' => $singleText !== '' ? $singleText : $multipleText,
                     'multiple' => $multipleText !== '' ? $multipleText : $singleText,
-                ]);
+                ];
+                if ($gender !== '') {
+                    $term['gender'] = $gender;
+                }
+                $terms[self::termKey($name, $form, $genderForm)] = self::withOrdinalTermMatch($termElement, $name, $term);
                 continue;
             }
 
             $text = self::elementText($termElement);
-            $terms[self::termKey($name, $form)] = self::withOrdinalTermMatch($termElement, $name, ['single' => $text, 'multiple' => $text]);
+            $term = ['single' => $text, 'multiple' => $text];
+            if ($gender !== '') {
+                $term['gender'] = $gender;
+            }
+            $terms[self::termKey($name, $form, $genderForm)] = self::withOrdinalTermMatch($termElement, $name, $term);
         }
 
         return $terms;
     }
 
     /**
-     * @param array{single:string, multiple:string} $term
-     * @return array{single:string, multiple:string, match?:string}
+     * @param array{single:string, multiple:string, gender?:string} $term
+     * @return array{single:string, multiple:string, match?:string, gender?:string}
      */
     private static function withOrdinalTermMatch(\DOMElement $termElement, string $name, array $term): array
     {
@@ -2080,6 +2106,28 @@ final class CslStyle
         $term['match'] = $match;
 
         return $term;
+    }
+
+    private static function termGenderAttribute(\DOMElement $termElement, string $attribute, string $termName): string
+    {
+        if (!$termElement->hasAttribute($attribute)) {
+            return '';
+        }
+
+        $value = strtolower(trim($termElement->getAttribute($attribute)));
+        if ($value === '') {
+            return '';
+        }
+
+        if (!in_array($value, ['feminine', 'masculine'], true)) {
+            throw new \InvalidArgumentException('CSL locale term ' . $attribute . ' must be feminine or masculine');
+        }
+
+        if ($attribute === 'gender' && self::isGenderFormOrdinalTerm($termName)) {
+            throw new \InvalidArgumentException('CSL locale ordinal terms must use gender-form instead of gender');
+        }
+
+        return $value;
     }
 
     /**
@@ -2122,9 +2170,14 @@ final class CslStyle
         return preg_match('/^ordinal(?:-\d{2})?$/', $name) === 1;
     }
 
+    private static function isGenderFormOrdinalTerm(string $name): bool
+    {
+        return preg_match('/^(?:ordinal(?:-\d{2})?|long-ordinal-\d{2})$/', $name) === 1;
+    }
+
     /**
-     * @param array<string, array{single:string, multiple:string, match?:string}> $terms
-     * @return array<string, array{single:string, multiple:string, match?:string}>
+     * @param array<string, array{single:string, multiple:string, match?:string, gender?:string}> $terms
+     * @return array<string, array{single:string, multiple:string, match?:string, gender?:string}>
      */
     private static function withoutDefaultOrdinalSuffixTerms(array $terms): array
     {
@@ -2137,9 +2190,9 @@ final class CslStyle
         return $terms;
     }
 
-    private function ordinalSuffixCandidate(int $absoluteNumber, int $candidate): ?string
+    private function ordinalSuffixCandidate(int $absoluteNumber, int $candidate, string $genderForm = ''): ?string
     {
-        foreach (self::termFallbackKeys('ordinal-' . sprintf('%02d', $candidate), 'long') as $key) {
+        foreach (self::termFallbackKeys('ordinal-' . sprintf('%02d', $candidate), 'long', $genderForm) as $key) {
             $term = $this->terms[$key] ?? null;
             if ($term === null) {
                 continue;
@@ -2318,17 +2371,21 @@ final class CslStyle
         return trim(preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent);
     }
 
-    private static function termKey(string $name, string $form): string
+    private static function termKey(string $name, string $form, string $genderForm = ''): string
     {
-        return strtolower(trim($name)) . '|' . strtolower(trim($form));
+        $key = strtolower(trim($name)) . '|' . strtolower(trim($form));
+        $genderForm = strtolower(trim($genderForm));
+
+        return $genderForm === '' ? $key : $key . '|' . $genderForm;
     }
 
     /**
      * @return list<string>
      */
-    private static function termFallbackKeys(string $name, string $form): array
+    private static function termFallbackKeys(string $name, string $form, string $genderForm = ''): array
     {
         $form = strtolower(trim($form));
+        $genderForm = strtolower(trim($genderForm));
         $forms = match ($form) {
             'verb-short' => ['verb-short', 'verb', 'short', 'long'],
             'verb' => ['verb', 'long'],
@@ -2340,6 +2397,12 @@ final class CslStyle
 
         $keys = [];
         foreach ($forms as $candidate) {
+            if ($genderForm !== '') {
+                $key = self::termKey($name, $candidate, $genderForm);
+                if (!in_array($key, $keys, true)) {
+                    $keys[] = $key;
+                }
+            }
             $key = self::termKey($name, $candidate);
             if (!in_array($key, $keys, true)) {
                 $keys[] = $key;

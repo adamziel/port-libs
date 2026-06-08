@@ -11709,6 +11709,133 @@ XML
 XML
         ));
     },
+    'applies bounded csl gender specific ordinal terms for numbers and dates' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'edition-one',
+                'type' => 'book',
+                'title' => 'First Edition Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026, 1, 1]]],
+                'edition' => '1',
+                'chapter-number' => '1',
+            ],
+            [
+                'id' => 'edition-three',
+                'type' => 'book',
+                'title' => 'Third Edition Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 4, 1]]],
+                'edition' => '3',
+                'chapter-number' => '1',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="fr-FR">
+  <info>
+    <title>Bounded Gender Ordinal Review Style</title>
+    <id>https://example.test/styles/bounded-gender-ordinal-review</id>
+    <updated>2026-06-08T20:54:18+00:00</updated>
+  </info>
+  <locale xml:lang="fr-FR">
+    <terms>
+      <term name="edition" gender="feminine"><single>édition</single><multiple>éditions</multiple></term>
+      <term name="edition" form="short">éd.</term>
+      <term name="chapter" gender="masculine"><single>chapitre</single><multiple>chapitres</multiple></term>
+      <term name="month-01" gender="masculine">janvier</term>
+      <term name="month-04" gender="feminine">avril</term>
+      <term name="ordinal">e</term>
+      <term name="ordinal-01" gender-form="feminine" match="whole-number">re</term>
+      <term name="ordinal-01" gender-form="masculine" match="whole-number">er</term>
+      <term name="long-ordinal-01" gender-form="feminine">première</term>
+      <term name="long-ordinal-01" gender-form="masculine">premier</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <number variable="edition" form="ordinal"/>
+        <number variable="chapter-number" form="long-ordinal"/>
+        <date variable="issued" delimiter=" ">
+          <date-part name="day" form="ordinal"/>
+          <date-part name="month" form="long"/>
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="edition" form="short"/>
+        <number variable="edition" form="ordinal"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="chapter-number"/>
+        <number variable="chapter-number" form="long-ordinal"/>
+      </group>
+      <date variable="issued" delimiter=" ">
+        <date-part name="day" form="ordinal"/>
+        <date-part name="month" form="long"/>
+        <date-part name="year"/>
+      </date>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Gender Ordinal Review Style', $summary['title'] ?? null);
+        $t->same('ordinal', $summary['citationRendering'][0]['children'][1]['form'] ?? null);
+        $t->same('long-ordinal', $summary['citationRendering'][0]['children'][2]['form'] ?? null);
+
+        $t->same('(Smith | 1re | premier | 1er janvier 2026; Ng | 3e | premier | 1re avril 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'edition-one', 'text' => '[@edition-one]']),
+            new AstNode('citation', ['id' => 'edition-three', 'text' => '[@edition-three]']),
+        ]));
+        $t->same('First Edition Packet :: éd. 1re :: chapitre premier :: 1er janvier 2026', $processor->renderBibliographyEntry('edition-one'));
+        $t->same('Third Edition Packet :: éd. 3e :: chapitre premier :: 1re avril 2026', $processor->renderBibliographyEntry('edition-three'));
+
+        $document = (new MarkdownReader())->read('Gendered ordinal review [@edition-one; @edition-three] keeps localized importer labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Gendered ordinal review (Smith | 1re | premier | 1er janvier 2026; Ng | 3e | premier | 1re avril 2026) keeps localized importer labels visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>First Edition Packet :: éd. 1re :: chapitre premier :: 1er janvier 2026</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <locale>
+    <terms>
+      <term name="ordinal-01" gender-form="common">st</term>
+    </terms>
+  </locale>
+  <citation><layout><number variable="edition" form="ordinal"/></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <locale>
+    <terms>
+      <term name="edition" gender="common">edition</term>
+    </terms>
+  </locale>
+  <citation><layout><number variable="edition" form="ordinal"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl ordinal term match attributes for numbers and dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

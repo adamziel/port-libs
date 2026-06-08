@@ -802,6 +802,43 @@ try {
 } catch (RuntimeException) {
     $splitZipExtractionBlocked = true;
 }
+$generalPurposeZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'flags' => 0x0800,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $descriptorDocumentXml,
+        'flags' => 0x0800 | 0x0006,
+        'compressionMethod' => 8,
+        'descriptor' => true,
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "legacy CP437 metadata remains readable\n",
+        'flags' => 0,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/styles.xml',
+        'data' => '<w:styles/>',
+        'flags' => 0x0800,
+        'compressionMethod' => 8,
+    ],
+], 'general purpose flag review fixture');
+$generalPurposeZipGzip = GzipStream::build($generalPurposeZipBytes, [
+    'filename' => 'wordpress-general-purpose-flags.zip',
+    'comment' => 'ZIP general purpose flag preflight fixture',
+    'headerCrc' => true,
+]);
+$generalPurposeZipInspection = ArchiveCompressionStream::inspectZipGeneralPurposeFlagPolicy(
+    $generalPurposeZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($generalPurposeZipBytes)
+);
 $lz4DictionaryId = 0x1a2b3c4d;
 $lz4DictionaryDescriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
     . chr(0x40)
@@ -1302,6 +1339,20 @@ if (in_array('--self-test', $argv, true)) {
         'zipSplitEntryNames' => ['[Content_Types].xml', 'word/document.xml', 'word/media/split.png'],
         'zipSplitEntryDisks' => [0, 0, 2],
         'zipSplitGzipFilename' => 'wordpress-split-package.zip',
+        'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipGeneralPurposeEntryCount' => 4,
+        'zipGeneralPurposeSupportedCount' => 4,
+        'zipGeneralPurposeUnsupportedCount' => 0,
+        'zipGeneralPurposeUtf8Count' => 3,
+        'zipGeneralPurposeDescriptorCount' => 1,
+        'zipGeneralPurposeDeflateOptionCount' => 1,
+        'zipGeneralPurposeStrictReviewCount' => 1,
+        'zipGeneralPurposeEntryNames' => ['[Content_Types].xml', 'word/document.xml', 'word/media/review.txt', 'word/styles.xml'],
+        'zipGeneralPurposeStrictNames' => ['word/document.xml'],
+        'zipGeneralPurposeStrictFlags' => 0x080e,
+        'zipGeneralPurposeStrictFlagNames' => ['deflate-super-fast', 'data-descriptor', 'utf-8-names'],
+        'zipGeneralPurposeStrictIssues' => ['data-descriptor-entry', 'deflate-option-flags'],
+        'zipGeneralPurposeGzipFilename' => 'wordpress-general-purpose-flags.zip',
         'lz4DictionaryFormat' => 'lz4',
         'lz4DictionaryPolicyType' => 'lz4-dictionary-policy',
         'lz4DictionaryExtractionPolicy' => 'dictionary-frames-blocked',
@@ -1646,6 +1697,26 @@ if (in_array('--self-test', $argv, true)) {
         || array_column($splitZipInspection['entries'], 'diskStart') !== $expected['zipSplitEntryDisks']
         || ($splitZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipSplitGzipFilename']
         || !$splitZipExtractionBlocked
+        || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
+        || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
+        || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
+        || $generalPurposeZipInspection['entryCount'] !== $expected['zipGeneralPurposeEntryCount']
+        || $generalPurposeZipInspection['supportedEntryCount'] !== $expected['zipGeneralPurposeSupportedCount']
+        || $generalPurposeZipInspection['unsupportedFlagEntryCount'] !== $expected['zipGeneralPurposeUnsupportedCount']
+        || $generalPurposeZipInspection['utf8NameEntryCount'] !== $expected['zipGeneralPurposeUtf8Count']
+        || $generalPurposeZipInspection['dataDescriptorEntryCount'] !== $expected['zipGeneralPurposeDescriptorCount']
+        || $generalPurposeZipInspection['deflateOptionEntryCount'] !== $expected['zipGeneralPurposeDeflateOptionCount']
+        || $generalPurposeZipInspection['strictReviewEntryCount'] !== $expected['zipGeneralPurposeStrictReviewCount']
+        || array_column($generalPurposeZipInspection['entries'], 'name') !== $expected['zipGeneralPurposeEntryNames']
+        || array_column($generalPurposeZipInspection['strictReviewEntries'], 'name') !== $expected['zipGeneralPurposeStrictNames']
+        || ($generalPurposeZipInspection['strictReviewEntries'][0]['generalPurposeFlags'] ?? null) !== $expected['zipGeneralPurposeStrictFlags']
+        || ($generalPurposeZipInspection['strictReviewEntries'][0]['flagNames'] ?? []) !== $expected['zipGeneralPurposeStrictFlagNames']
+        || ($generalPurposeZipInspection['strictReviewEntries'][0]['issues'] ?? []) !== $expected['zipGeneralPurposeStrictIssues']
+        || ($generalPurposeZipInspection['strictReviewEntries'][0]['deflateOptionName'] ?? null) !== 'deflate-super-fast'
+        || ($generalPurposeZipInspection['strictReviewEntries'][0]['usesDataDescriptor'] ?? null) !== true
+        || ($generalPurposeZipInspection['entries'][2]['usesUtf8Names'] ?? null) !== false
+        || ($generalPurposeZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipGeneralPurposeGzipFilename']
+        || isset($generalPurposeZipInspection['package'])
         || $lz4DictionaryInspection['format'] !== $expected['lz4DictionaryFormat']
         || $lz4DictionaryInspection['type'] !== $expected['lz4DictionaryPolicyType']
         || $lz4DictionaryInspection['extractionPolicy'] !== $expected['lz4DictionaryExtractionPolicy']
@@ -1962,6 +2033,17 @@ echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";
 echo 'zipSplit.entryDisks=' . implode(',', array_column($splitZipInspection['entries'], 'diskStart')) . "\n";
 echo 'zipSplit.gzipFilename=' . $splitZipInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipSplit.extractionBlocked=' . ($splitZipExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
+echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
+echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";
+echo 'zipGeneralPurpose.utf8Count=' . $generalPurposeZipInspection['utf8NameEntryCount'] . "\n";
+echo 'zipGeneralPurpose.descriptorCount=' . $generalPurposeZipInspection['dataDescriptorEntryCount'] . "\n";
+echo 'zipGeneralPurpose.deflateOptionCount=' . $generalPurposeZipInspection['deflateOptionEntryCount'] . "\n";
+echo 'zipGeneralPurpose.strictReviewCount=' . $generalPurposeZipInspection['strictReviewEntryCount'] . "\n";
+echo 'zipGeneralPurpose.strictNames=' . implode(',', array_column($generalPurposeZipInspection['strictReviewEntries'], 'name')) . "\n";
+echo 'zipGeneralPurpose.strictFlags=' . $generalPurposeZipInspection['strictReviewEntries'][0]['generalPurposeFlags'] . "\n";
+echo 'zipGeneralPurpose.strictIssues=' . implode(',', $generalPurposeZipInspection['strictReviewEntries'][0]['issues']) . "\n";
+echo 'zipGeneralPurpose.gzipFilename=' . $generalPurposeZipInspection['stream']['members'][0]['filename'] . "\n";
 echo 'lz4Dictionary.format=' . $lz4DictionaryInspection['format'] . "\n";
 echo 'lz4Dictionary.extractionPolicy=' . $lz4DictionaryInspection['extractionPolicy'] . "\n";
 echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionaryFrameCount'] . "\n";

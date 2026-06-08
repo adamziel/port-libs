@@ -98,7 +98,9 @@ final class SyntaxHighlighter
         'fish-shell' => 'fish',
         'git-diff' => 'diff',
         'gawk' => 'awk',
+        'gnu-sed' => 'sed',
         'graphviz' => 'dot',
+        'gsed' => 'sed',
         'gv' => 'dot',
         'h' => 'c',
         'hcl' => 'hcl',
@@ -252,12 +254,14 @@ final class SyntaxHighlighter
         'scala' => 'scala',
         'scala-sbt' => 'scala',
         'scss' => 'scss',
+        'sed' => 'sed',
         'rs' => 'rust',
         'rust' => 'rust',
         's' => 'r',
         'sh' => 'bash',
         'shell' => 'bash',
         'shopify' => 'liquid',
+        'stream-editor' => 'sed',
         'shopify-liquid' => 'liquid',
         'sql' => 'sql',
         'sqlite' => 'sql',
@@ -756,6 +760,7 @@ final class SyntaxHighlighter
             'rust' => $this->tokenizeRust($code),
             'sass', 'scss' => $this->tokenizeScss($code),
             'scala' => $this->tokenizeScala($code),
+            'sed' => $this->tokenizeSed($code),
             'sql' => $this->tokenizeSql($code),
             'swift' => $this->tokenizeSwift($code),
             'tex' => $this->tokenizeTex($code),
@@ -2877,6 +2882,30 @@ final class SyntaxHighlighter
             ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
             ['operator', '/^(?:=>|==|!=|<=|>=|\\.\\.\\.|[{}()[\\],.:;=+*\\/%!<>?&|#~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeSed(string $code): array
+    {
+        return $this->scan($code, [
+            ['region', '/^:[A-Za-z_][A-Za-z0-9_-]*/'],
+            ['number', '/^(?:\d+(?:,\d+)?|\$)(?=[!{;,\sA-Za-z\/]|$)/'],
+            ['string', '/^\/(?:\\\\.|[^\/\\\\\n])+\/(?=[!,{;\sA-Za-z]|$)/'],
+            ['keyword', '/^s(?=[^\sA-Za-z0-9_\\\\])/'],
+            ['keyword', '/^y(?=[^\sA-Za-z0-9_\\\\])/'],
+            ['keyword', '/^[aic](?=\\\\|$|\s)/'],
+            ['attribute', '/^[gIpMw0-9]+(?=$|[;}\s])/'],
+            ['string', '/^([^\sA-Za-z0-9_\\\\])(?:\\\\.|(?!\1)[^\n])*\1(?:\\\\.|(?!\1)[^\n])*\1/'],
+            ['comment', '/^#[^\n]*/'],
+            ['keyword', '/^[btdDgGhHlnNpPqQrRtTwWx=](?=\b|$|[;{}\s])/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', '/^\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['variable', '/^\b[A-Za-z_][A-Za-z0-9_-]*\b/'],
+            ['operator', '/^(?:\\\\|&&|\|\||[{}()[\];,.+*\/=!<>?:|&$^-])/'],
         ]);
     }
 

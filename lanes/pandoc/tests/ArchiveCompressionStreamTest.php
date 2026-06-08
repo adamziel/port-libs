@@ -4057,6 +4057,122 @@ return [
         $t->same('encrypted zip reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
     },
 
+    'preflights zip general purpose flags across archive streams before strict handoff' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $utf8 = 0x0800;
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'flags' => $utf8,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Descriptor and deflate option flags</w:p></w:body></w:document>',
+                'flags' => $utf8 | 0x0006,
+                'compressionMethod' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "legacy CP437 metadata remains readable\n",
+                'flags' => 0,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'flags' => $utf8,
+                'compressionMethod' => 8,
+            ],
+        ], 'general purpose flag review fixture');
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-general-purpose-flags.zip',
+                'comment' => 'ZIP general purpose flag preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('general purpose flag reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipGeneralPurposeFlagPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(4, $inspection['entryCount']);
+            $t->same(4, $inspection['supportedEntryCount']);
+            $t->same(0, $inspection['unsupportedFlagEntryCount']);
+            $t->same(3, $inspection['utf8NameEntryCount']);
+            $t->same(1, $inspection['dataDescriptorEntryCount']);
+            $t->same(1, $inspection['deflateOptionEntryCount']);
+            $t->same(1, $inspection['strictReviewEntryCount']);
+            $t->same([], $inspection['unsupportedEntries']);
+            $t->same(['word/document.xml'], array_column($inspection['strictReviewEntries'], 'name'));
+            $t->same(['[Content_Types].xml', 'word/document.xml', 'word/media/review.txt', 'word/styles.xml'], array_column($inspection['entries'], 'name'));
+            $t->same(0x0800, $inspection['entries'][0]['generalPurposeFlags']);
+            $t->same(['utf-8-names'], $inspection['entries'][0]['flagNames']);
+            $t->same(false, $inspection['entries'][0]['requiresStrictReview']);
+            $t->same(0x080e, $inspection['entries'][1]['generalPurposeFlags']);
+            $t->same(['deflate-super-fast', 'data-descriptor', 'utf-8-names'], $inspection['entries'][1]['flagNames']);
+            $t->same(0, $inspection['entries'][1]['unsupportedFlagBits']);
+            $t->same(true, $inspection['entries'][1]['isSupportedByReader']);
+            $t->same(true, $inspection['entries'][1]['usesUtf8Names']);
+            $t->same(true, $inspection['entries'][1]['usesDataDescriptor']);
+            $t->same(0x0006, $inspection['entries'][1]['deflateOptionFlags']);
+            $t->same('deflate-super-fast', $inspection['entries'][1]['deflateOptionName']);
+            $t->same(true, $inspection['entries'][1]['requiresStrictReview']);
+            $t->same(['data-descriptor-entry', 'deflate-option-flags'], $inspection['entries'][1]['issues']);
+            $t->same(false, $inspection['entries'][2]['usesUtf8Names']);
+            $t->same(null, $inspection['entries'][2]['deflateOptionName']);
+            $t->same([], $inspection['entries'][2]['issues']);
+            $t->same(['utf-8-names'], $inspection['entries'][3]['flagNames']);
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipGeneralPurposeFlagPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipGeneralPurposeFlagPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-general-purpose-flags.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP general purpose flag preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('general purpose flag reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipGeneralPurposeFlagPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
     'preflights unsupported zip compression methods across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $utf8 = 0x0800;
         $zipBytes = $zipFixtureBytes([

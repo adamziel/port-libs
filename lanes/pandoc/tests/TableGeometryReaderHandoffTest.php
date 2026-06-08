@@ -1444,4 +1444,109 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table width layout metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="layout-width-grid" data-source="html-reader" width="80%">
+<caption>Layout width review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="layout-width-pixels" width="640">
+<tbody>
+<tr><td>Pixel width</td><td>Preserved</td></tr>
+</tbody>
+</table>
+<table id="layout-width-invalid" width="calc(100% - 1px)">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $pixelTable = $tables[1] ?? null;
+        $invalidTable = $tables[2] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($pixelTable instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$pixelTable instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $pixelPacket = $pixelTable->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $layoutDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-layout-width'
+            ));
+            $layoutDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'width' => '80%',
+        ], $packet['tableLayout']['attributes'] ?? null);
+        $t->same('80%', $packet['tableLayout']['width'] ?? null);
+        $t->same('percent', $packet['tableLayout']['widthType'] ?? null);
+        $t->same(80.0, $packet['tableLayout']['widthValue'] ?? null);
+        $t->same('80%', $packet['tableLayout']['sourceAttributes']['htmlAttributes']['width'] ?? null);
+        $t->same(true, $packet['summary']['hasTableLayout'] ?? null);
+        $t->same('80%', $packet['summary']['tableWidth'] ?? null);
+        $t->same('percent', $packet['summary']['tableWidthType'] ?? null);
+        $t->same(1, $packet['summary']['tableLayoutAttributeCount'] ?? null);
+
+        $t->same(true, is_array($pixelPacket));
+        $pixelPacket = is_array($pixelPacket) ? $pixelPacket : [];
+        $t->same('640', $pixelPacket['tableLayout']['width'] ?? null);
+        $t->same('pixels', $pixelPacket['tableLayout']['widthType'] ?? null);
+        $t->same(640.0, $pixelPacket['tableLayout']['widthValue'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableLayout', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableLayout'] ?? null);
+
+        $t->same([
+            'markdown-table-width-requires-raw-html',
+            'asciidoc-table-width-review-required',
+            'latex-table-width-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $layoutDiagnostics['markdown'],
+            $layoutDiagnostics['asciidoc'],
+            $layoutDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-width', $layoutDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-layout', $layoutDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'width' => '80%',
+        ], $layoutDiagnostics['markdown']['attributes'] ?? null);
+        $t->same('80%', $layoutDiagnostics['markdown']['width'] ?? null);
+        $t->same('percent', $layoutDiagnostics['markdown']['widthType'] ?? null);
+
+        $t->contains('<table id="layout-width-grid" data-source="html-reader" width="80%">', $blocks);
+        $t->contains('<table id="layout-width-pixels" width="640">', $blocks);
+        $t->true(!str_contains($blocks, 'width="calc(100% - 1px)"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($pixelPacket, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];
