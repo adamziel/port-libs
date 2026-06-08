@@ -167,6 +167,85 @@ $lz4DictionaryUncompressedFrame = static function (
         . pack('V', 0)
         . pack('V', intval(hash('xxh32', $decodedPayload), 16));
 };
+$zipDescriptorFixtureBytes = static function (array $entries, string $packageComment = ''): string {
+    $body = '';
+    $centralDirectory = '';
+    foreach ($entries as $entry) {
+        $name = (string) $entry['name'];
+        $data = (string) ($entry['data'] ?? '');
+        $method = (int) ($entry['compressionMethod'] ?? 0);
+        $flags = (int) ($entry['flags'] ?? 0);
+        $descriptor = (bool) ($entry['descriptor'] ?? false);
+        if ($descriptor) {
+            $flags |= 0x0008;
+        }
+
+        $payload = $method === 8 ? gzdeflate($data) : $data;
+        $crc32 = (int) sprintf('%u', crc32($data));
+        $localHeaderOffset = strlen($body);
+        $localCrc32 = $descriptor ? 0 : $crc32;
+        $localCompressedSize = $descriptor ? 0 : strlen($payload);
+        $localUncompressedSize = $descriptor ? 0 : strlen($data);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $localCrc32,
+            $localCompressedSize,
+            $localUncompressedSize,
+            strlen($name),
+            0
+        ) . $name . $payload;
+
+        if ($descriptor) {
+            if ((bool) ($entry['descriptorSignature'] ?? true)) {
+                $body .= "PK\x07\x08";
+            }
+            $body .= pack('VVV', $crc32, strlen($payload), strlen($data));
+        }
+
+        $centralDirectory .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($payload),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $localHeaderOffset
+        ) . $name;
+    }
+
+    return $body
+        . $centralDirectory
+        . pack(
+            'VvvvvVVv',
+            0x06054b50,
+            0,
+            0,
+            count($entries),
+            count($entries),
+            strlen($centralDirectory),
+            strlen($body),
+            strlen($packageComment)
+        )
+        . $packageComment;
+};
 
 $manifestBytes = '{"source":"wordpress-archive-stream","target":"review"}';
 $contentBytes = "# Archived source packet\n\nReady for WordPress import review.\n";
@@ -191,6 +270,8 @@ $lz4SplitPackageManifestBytes = '{"source":"lz4-dictionary-split","target":"word
 $lz4SplitPackageContentBytes = "# Split LZ4 dictionary package\n\nReady for WordPress archive review.\n";
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
+$descriptorDocumentXml = '<w:document><w:body><w:p>Descriptor-backed DOCX source</w:p></w:body></w:document>';
+$descriptorFootnotesXml = '<w:footnotes><w:footnote w:id="1">Descriptor-backed note</w:footnote></w:footnotes>';
 $archiveBombContentBytes = str_repeat('A', 4096);
 
 $archive = TarArchive::fromEntries([
@@ -502,6 +583,36 @@ try {
 } catch (RuntimeException) {
     $duplicatePaxExtractionBlocked = true;
 }
+$descriptorZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $descriptorDocumentXml,
+        'compressionMethod' => 8,
+        'descriptor' => true,
+    ],
+    [
+        'name' => 'word/footnotes.xml',
+        'data' => $descriptorFootnotesXml,
+        'compressionMethod' => 0,
+        'descriptor' => true,
+        'descriptorSignature' => false,
+    ],
+], 'zip descriptor review fixture');
+$descriptorZipGzip = GzipStream::build($descriptorZipBytes, [
+    'filename' => 'wordpress-descriptor-package.zip',
+    'comment' => 'ZIP data descriptor preflight fixture',
+    'headerCrc' => true,
+]);
+$descriptorZipInspection = ArchiveCompressionStream::inspectZipDataDescriptorPolicy(
+    $descriptorZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($descriptorZipBytes)
+);
 $lz4DictionaryId = 0x1a2b3c4d;
 $lz4DictionaryDescriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
     . chr(0x40)
@@ -814,6 +925,15 @@ if (in_array('--self-test', $argv, true)) {
         'duplicatePaxEntryCount' => 1,
         'duplicatePaxKeyword' => 'org.wordpress.import.review',
         'duplicatePaxValues' => ['first review state', 'second review state'],
+        'zipDescriptorFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipDescriptorEntryCount' => 3,
+        'zipDescriptorDescriptorCount' => 2,
+        'zipDescriptorSignedCount' => 1,
+        'zipDescriptorUnsignedCount' => 1,
+        'zipDescriptorNames' => ['word/document.xml', 'word/footnotes.xml'],
+        'zipDescriptorSignatures' => [true, false],
+        'zipDescriptorLengths' => [16, 12],
+        'zipDescriptorGzipFilename' => 'wordpress-descriptor-package.zip',
         'lz4DictionaryFormat' => 'lz4',
         'lz4DictionaryPolicyType' => 'lz4-dictionary-policy',
         'lz4DictionaryExtractionPolicy' => 'dictionary-frames-blocked',
@@ -995,6 +1115,19 @@ if (in_array('--self-test', $argv, true)) {
         || ($duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] ?? null) !== $expected['duplicatePaxKeyword']
         || ($duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values'] ?? []) !== $expected['duplicatePaxValues']
         || ($duplicatePaxInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-duplicate-pax.tar'
+        || $descriptorZipInspection['format'] !== $expected['zipDescriptorFormat']
+        || $descriptorZipInspection['entryCount'] !== $expected['zipDescriptorEntryCount']
+        || $descriptorZipInspection['descriptorEntryCount'] !== $expected['zipDescriptorDescriptorCount']
+        || $descriptorZipInspection['signedDescriptorEntryCount'] !== $expected['zipDescriptorSignedCount']
+        || $descriptorZipInspection['unsignedDescriptorEntryCount'] !== $expected['zipDescriptorUnsignedCount']
+        || array_column($descriptorZipInspection['descriptorEntries'], 'name') !== $expected['zipDescriptorNames']
+        || array_column($descriptorZipInspection['descriptorEntries'], 'hasSignature') !== $expected['zipDescriptorSignatures']
+        || array_column($descriptorZipInspection['descriptorEntries'], 'descriptorLength') !== $expected['zipDescriptorLengths']
+        || array_column($descriptorZipInspection['descriptorEntries'], 'hasZeroLocalHeaderPlaceholders') !== [true, true]
+        || ($descriptorZipInspection['descriptorEntries'][0]['valueOffset'] ?? null) !== (($descriptorZipInspection['descriptorEntries'][0]['descriptorOffset'] ?? 0) + 4)
+        || ($descriptorZipInspection['descriptorEntries'][1]['valueOffset'] ?? null) !== ($descriptorZipInspection['descriptorEntries'][1]['descriptorOffset'] ?? null)
+        || ($descriptorZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipDescriptorGzipFilename']
+        || $descriptorZipInspection['zipBytes'] !== $descriptorZipBytes
         || $lz4DictionaryInspection['format'] !== $expected['lz4DictionaryFormat']
         || $lz4DictionaryInspection['type'] !== $expected['lz4DictionaryPolicyType']
         || $lz4DictionaryInspection['extractionPolicy'] !== $expected['lz4DictionaryExtractionPolicy']
@@ -1176,6 +1309,13 @@ echo 'duplicatePax.duplicateEntryCount=' . $duplicatePaxInspection['duplicatePax
 echo 'duplicatePax.keyword=' . $duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] . "\n";
 echo 'duplicatePax.values=' . implode('|', $duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values']) . "\n";
 echo 'duplicatePax.extractionBlocked=' . ($duplicatePaxExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipDescriptor.format=' . $descriptorZipInspection['format'] . "\n";
+echo 'zipDescriptor.entryCount=' . $descriptorZipInspection['entryCount'] . "\n";
+echo 'zipDescriptor.descriptorEntryCount=' . $descriptorZipInspection['descriptorEntryCount'] . "\n";
+echo 'zipDescriptor.signedCount=' . $descriptorZipInspection['signedDescriptorEntryCount'] . "\n";
+echo 'zipDescriptor.unsignedCount=' . $descriptorZipInspection['unsignedDescriptorEntryCount'] . "\n";
+echo 'zipDescriptor.names=' . implode(',', array_column($descriptorZipInspection['descriptorEntries'], 'name')) . "\n";
+echo 'zipDescriptor.gzipFilename=' . $descriptorZipInspection['stream']['members'][0]['filename'] . "\n";
 echo 'lz4Dictionary.format=' . $lz4DictionaryInspection['format'] . "\n";
 echo 'lz4Dictionary.extractionPolicy=' . $lz4DictionaryInspection['extractionPolicy'] . "\n";
 echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionaryFrameCount'] . "\n";
