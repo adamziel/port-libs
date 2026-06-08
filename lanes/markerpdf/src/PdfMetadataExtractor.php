@@ -9184,6 +9184,10 @@ final class PdfMetadataExtractor
      */
     private function destinationNameDetailsFromRaw(string $value, array $objects): ?array
     {
+        if ($this->destinationValueHasTrailingOperandAfterResolution($value, $objects)) {
+            return null;
+        }
+
         $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
         if ($resolved === '') {
             return null;

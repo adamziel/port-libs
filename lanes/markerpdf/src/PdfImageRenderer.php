@@ -467,6 +467,7 @@ final class PdfImageRenderer
     public function imageColorSpaceSoftMaskPlan(string $imageDictionary, array $objects = []): array
     {
         $colorSpace = $this->imageColorSpaceDetails($imageDictionary, $objects);
+        $imageFilterSlots = $this->imageFilterValues($imageDictionary, $objects);
         $imageFilterDetails = $this->imageFilterDetails($imageDictionary, $objects);
         $imageFilterValues = array_map(
             static fn (array $filter): string => $filter['filter'],
@@ -542,7 +543,7 @@ final class PdfImageRenderer
         $ccittFilterBoundary = $this->ccittFaxFilterBoundaryReview($imageFilterDetails);
         $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($imageFilterDetails);
         $ccittImageMaskPolarityBoundary = $this->ccittFaxImageMaskPolarityBoundary($ccittDecodeBoundary, $imageMask);
-        $dctDecodeFilterBoundary = $this->dctDecodeFilterBoundaryReview($imageFilterDetails);
+        $dctDecodeFilterBoundary = $this->dctDecodeFilterBoundaryReview($imageFilterDetails, $imageFilterSlots);
         $notes = [];
 
         if ($colorSpace['uses_indexed_color_space']) {
@@ -6301,9 +6302,10 @@ final class PdfImageRenderer
 
     /**
      * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @param list<string|null>|null $filterSlots
      * @return array<string, mixed>|null
      */
-    private function dctDecodeFilterBoundaryReview(array $filterDetails): ?array
+    private function dctDecodeFilterBoundaryReview(array $filterDetails, ?array $filterSlots = null): ?array
     {
         $filters = [];
         $previewOnly = [];
@@ -6338,6 +6340,7 @@ final class PdfImageRenderer
                     'canonical_filter' => 'DCTDecode',
                     'alias_used' => $filter === 'DCT',
                     'non_null_filter_index' => count($filters),
+                    ...$this->dctDecodeFilterSlotBoundaryMetadata($filterSlots, $detailIndex),
                     'filters_before_dctdecode' => $filters,
                     'native_prefix_filters' => $nativePrefix,
                     ...($canonicalNativePrefix !== $nativePrefix ? [
@@ -6369,6 +6372,51 @@ final class PdfImageRenderer
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string|null>|null $filterSlots
+     * @return array<string, int>
+     */
+    private function dctDecodeFilterSlotBoundaryMetadata(?array $filterSlots, int $detailIndex): array
+    {
+        if ($filterSlots === null) {
+            return [];
+        }
+
+        $rawSlotIndex = null;
+        $nonNullIndex = 0;
+        foreach ($filterSlots as $slotIndex => $slotFilter) {
+            if (!is_string($slotFilter)) {
+                continue;
+            }
+
+            if ($nonNullIndex === $detailIndex) {
+                $rawSlotIndex = $slotIndex;
+                break;
+            }
+
+            $nonNullIndex++;
+        }
+        if (!is_int($rawSlotIndex)) {
+            return [];
+        }
+
+        $nullBefore = 0;
+        for ($slotIndex = 0; $slotIndex < $rawSlotIndex; $slotIndex++) {
+            if (array_key_exists($slotIndex, $filterSlots) && $filterSlots[$slotIndex] === null) {
+                $nullBefore++;
+            }
+        }
+        if ($nullBefore === 0) {
+            return [];
+        }
+
+        return [
+            'raw_filter_slot_index' => $rawSlotIndex,
+            'filter_stack_slot_count' => count($filterSlots),
+            'null_filter_slot_count_before_dctdecode' => $nullBefore,
+        ];
     }
 
     /**

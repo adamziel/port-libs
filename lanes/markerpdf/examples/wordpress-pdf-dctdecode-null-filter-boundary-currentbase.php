@@ -57,6 +57,7 @@ $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 $review = $extractor->extractImageXObjectBoundaryReview($pdf);
 $entry = $review['entries'][0] ?? [];
+$dctBoundary = $entry['dctdecode_filter_boundary'] ?? [];
 $payloadExcluded = !str_contains($plainText, 'WordPress Null DCT Payload Leak')
     && !str_contains($plainText, 'JFIF')
     && !str_contains($plainText, 'endstream');
@@ -65,7 +66,13 @@ $boundaryRecovered = ($entry['raw_length'] ?? null) === strlen($compressedPayloa
     && ($entry['raw_length'] ?? 0) > $fakeTerminatorOffset
     && ($entry['filters'] ?? []) === ['FlateDecode', 'DCTDecode']
     && ($entry['preview_only_filters'] ?? []) === ['DCTDecode']
-    && ($entry['native_raster_decode'] ?? true) === false;
+    && ($entry['native_raster_decode'] ?? true) === false
+    && is_array($dctBoundary)
+    && ($dctBoundary['non_null_filter_index'] ?? null) === 1
+    && ($dctBoundary['raw_filter_slot_index'] ?? null) === 3
+    && ($dctBoundary['filter_stack_slot_count'] ?? null) === 4
+    && ($dctBoundary['null_filter_slot_count_before_dctdecode'] ?? null) === 2
+    && ($dctBoundary['native_prefix_filters'] ?? []) === ['FlateDecode'];
 
 if ($lines !== $expected || !$payloadExcluded || !$boundaryRecovered) {
     throw new RuntimeException('Null-filter DCTDecode image payload leaked into WordPress text.');
@@ -78,6 +85,11 @@ echo '<!-- markerpdf:pdf-dctdecode-null-filter-boundary-currentbase ' . htmlspec
     'filter_stack_has_null_slots' => true,
     'decodeparms_null_slots_ignored_before_dct_boundary' => true,
     'stale_decodeparms_operands_on_null_slots' => ['99 0 R', '100 0 R'],
+    'dctdecode_non_null_filter_index' => $dctBoundary['non_null_filter_index'] ?? null,
+    'dctdecode_raw_filter_slot_index' => $dctBoundary['raw_filter_slot_index'] ?? null,
+    'dctdecode_filter_stack_slot_count' => $dctBoundary['filter_stack_slot_count'] ?? null,
+    'dctdecode_null_filter_slot_count_before_boundary' => $dctBoundary['null_filter_slot_count_before_dctdecode'] ?? null,
+    'dctdecode_native_prefix_filters' => $dctBoundary['native_prefix_filters'] ?? [],
     'declared_length_stopped_at_fake_endstream' => $fakeTerminatorOffset,
     'raw_length_after_boundary_recovery' => $entry['raw_length'] ?? null,
     'dctdecode_image_payload_excluded_from_text' => $payloadExcluded,

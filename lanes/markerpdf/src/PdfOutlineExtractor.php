@@ -6627,6 +6627,10 @@ final class PdfOutlineExtractor
      */
     private function destinationNameDetails(mixed $value, array $objects): ?array
     {
+        if ($this->isReferenceValue($value) && !$this->referenceTargetsSingleTopLevelValue($value, $objects)) {
+            return null;
+        }
+
         $resolved = $this->resolveValue($value, $objects);
         if (!is_array($resolved)
             || ($resolved['pdfType'] ?? null) !== 'string'

@@ -3739,7 +3739,7 @@ final class PdfActionReviewExtractor
 
             $leafEntries = [];
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
-                $name = $this->pdfStringDetails($this->resolveValue($names[$index]));
+                $name = $this->destinationNameDetails($names[$index]);
                 if ($name === null || $name['text'] === '') {
                     $index++;
                     continue;
@@ -4236,7 +4236,7 @@ final class PdfActionReviewExtractor
         }
 
         for ($index = 0, $count = count($items); $index + 1 < $count;) {
-            $name = $this->pdfStringDetails($this->resolveValue($items[$index]));
+            $name = $this->destinationNameDetails($items[$index]);
             if ($name === null) {
                 $index++;
                 continue;
@@ -4267,7 +4267,7 @@ final class PdfActionReviewExtractor
             return false;
         }
 
-        $valueName = $this->pdfStringDetails($this->resolveValue($items[$valueIndex]));
+        $valueName = $this->destinationNameDetails($items[$valueIndex]);
         if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
@@ -4276,7 +4276,7 @@ final class PdfActionReviewExtractor
             return false;
         }
 
-        return $this->pdfStringDetails($this->resolveValue($items[$nextIndex])) === null;
+        return $this->destinationNameDetails($items[$nextIndex]) === null;
     }
 
     /**
@@ -4698,6 +4698,18 @@ final class PdfActionReviewExtractor
         return is_array($value) && ($value['pdfType'] ?? null) === 'string' && is_string($value['value'] ?? null)
             ? $value['value']
             : null;
+    }
+
+    /**
+     * @return array{text: string, bytes: string}|null
+     */
+    private function destinationNameDetails(mixed $value): ?array
+    {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
+            return null;
+        }
+
+        return $this->pdfStringDetails($this->resolveValue($value));
     }
 
     /**

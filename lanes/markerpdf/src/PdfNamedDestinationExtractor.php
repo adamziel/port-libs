@@ -2400,6 +2400,10 @@ final class PdfNamedDestinationExtractor
      */
     private function destinationNameDetails(mixed $value, array $objects, array &$cache): ?array
     {
+        if ($this->valueHasTrailingOperandAfterResolution($value, $objects, $cache)) {
+            return null;
+        }
+
         $resolved = $this->resolve($value, $objects, $cache);
 
         return $this->pdfStringDetails($resolved);
