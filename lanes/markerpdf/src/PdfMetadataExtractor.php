@@ -7152,13 +7152,20 @@ final class PdfMetadataExtractor
             return;
         }
 
+        $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
         $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
-        if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($node, $objects, $inheritedLimits)) {
-            return;
+        $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
+        if ($this->nameTreeLocalLimitsDisjointFromInherited($node, $objects, $inheritedLimits)) {
+            $localLimits = $this->nameTreeNodeLimits($node, $objects);
+            if (
+                $kids !== []
+                || $localLimits === null
+                || !$this->nameTreeLimitsMatchAnyPairKey($names, $objects, $localLimits)
+            ) {
+                return;
+            }
         }
 
-        $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
-        $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
         if ($kids === []) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
                 ? $limits

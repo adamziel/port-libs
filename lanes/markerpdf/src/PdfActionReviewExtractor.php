@@ -2803,13 +2803,21 @@ final class PdfActionReviewExtractor
             return;
         }
 
+        $limits = $this->nameTreeEffectiveLimits($node, $inheritedLimits);
         $kids = $this->resolveArray($node['Kids'] ?? null) ?? [];
-        if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($node, $inheritedLimits)) {
-            return;
+        $names = $this->resolveArray($node['Names'] ?? null);
+        if ($this->nameTreeLocalLimitsDisjointFromInherited($node, $inheritedLimits)) {
+            $localLimits = $this->nameTreeNodeLimits($node);
+            if (
+                $kids !== []
+                || $names === null
+                || $localLimits === null
+                || !$this->nameTreeLimitsMatchAnyPairKey($names, $localLimits)
+            ) {
+                return;
+            }
         }
 
-        $limits = $this->nameTreeEffectiveLimits($node, $inheritedLimits);
-        $names = $this->resolveArray($node['Names'] ?? null);
         if ($kids === [] && $names !== null) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $limits)
                 ? $limits

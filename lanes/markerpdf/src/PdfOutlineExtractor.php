@@ -3792,8 +3792,15 @@ final class PdfOutlineExtractor
             return;
         }
         if ($nodeLimits !== null) {
-            if (($kids ?? []) !== [] && $this->nameTreeLimitStackDisjointFromNode($activeLimits, $nodeLimits)) {
-                return;
+            if ($this->nameTreeLimitStackDisjointFromNode($activeLimits, $nodeLimits)) {
+                $names = $this->resolveArray($node['Names'] ?? null, $objects);
+                if (
+                    ($kids ?? []) !== []
+                    || $names === null
+                    || !$this->nameTreeLimitsMatchAnyPairKey($names, $objects, [$nodeLimits])
+                ) {
+                    return;
+                }
             }
 
             $activeLimits = $this->nameTreeEffectiveLimitStack($activeLimits, $nodeLimits);
@@ -3873,8 +3880,15 @@ final class PdfOutlineExtractor
             return;
         }
         if ($nodeLimits !== null) {
-            if (($kids ?? []) !== [] && $this->nameTreeLimitStackDisjointFromNode($activeLimits, $nodeLimits)) {
-                return;
+            if ($this->nameTreeLimitStackDisjointFromNode($activeLimits, $nodeLimits)) {
+                $names = $this->resolveArray($node['Names'] ?? null, $objects);
+                if (
+                    ($kids ?? []) !== []
+                    || $names === null
+                    || !$this->nameTreeLimitsMatchAnyPairKey($names, $objects, [$nodeLimits])
+                ) {
+                    return;
+                }
             }
 
             $activeLimits = $this->nameTreeEffectiveLimitStack($activeLimits, $nodeLimits);

@@ -1195,14 +1195,23 @@ final class PdfNamedDestinationExtractor
             return [];
         }
 
-        $kids = $this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache));
-        if ($kids !== [] && $this->nameTreeLocalLimitsDisjointFromInherited($dictionary, $objects, $cache, $inheritedLimits)) {
-            return [];
-        }
-
         $entries = [];
         $limits = $this->nameTreeEffectiveLimits($dictionary, $objects, $cache, $inheritedLimits);
+        $kids = $this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache));
         $names = $this->resolve($dictionary['Names'] ?? null, $objects, $cache);
+        if ($this->nameTreeLocalLimitsDisjointFromInherited($dictionary, $objects, $cache, $inheritedLimits)) {
+            $localLimits = $this->nameTreeNodeLimits($dictionary, $objects, $cache);
+            if (
+                $kids !== []
+                || !is_array($names)
+                || !array_is_list($names)
+                || $localLimits === null
+                || !$this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $localLimits)
+            ) {
+                return [];
+            }
+        }
+
         if ($kids === [] && is_array($names) && array_is_list($names)) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $limits)
                 ? $limits
