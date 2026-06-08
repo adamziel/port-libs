@@ -1930,6 +1930,96 @@ XML;
         $t->same(false, isset($auxiliary['sectionsByType']['page-list']));
         $t->same($auxiliary, $result['importReport']['nav']['auxiliaryNavigation']);
     },
+    'reports EPUB3 primary navigation target policy for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithTargetPolicy = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Start reading</a></li>
+        <li><a href="appendix/outside.xhtml#appendix">Appendix outside spine</a></li>
+        <li><a href="https://cdn.example.test/epub/remote.xhtml">Remote review note</a></li>
+      </ol>
+    </nav>
+    <nav id="landmarks" epub:type="landmarks">
+      <h2>Landmarks</h2>
+      <ol>
+        <li><a epub:type="bodymatter" href="text/chapter1.xhtml#intro">Body</a></li>
+        <li><a href="text/chapter2.xhtml#media">Untyped reading point</a></li>
+      </ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <h2>Pages</h2>
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter1.xhtml#page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="text/missing.xhtml#page-404">404</a></li>
+      </ol>
+    </nav>
+    <nav id="figures" epub:type="loi">
+      <h2>Figures</h2>
+      <ol>
+        <li><a href="https://cdn.example.test/figures/source.svg">Remote figure source</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'OEBPS/appendix/outside.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="appendix">Appendix</h1></body></html>'],
+            ],
+            $navWithTargetPolicy
+        ));
+
+        $policy = $result['nav']['primaryNavigationTargetPolicy'];
+        $t->same(true, $policy['present']);
+        $t->same(3, $policy['sectionCount']);
+        $t->same(7, $policy['itemCount']);
+        $t->same(['toc', 'landmarks', 'page-list'], $policy['types']);
+        $t->same(7, $policy['targetedItemCount']);
+        $t->same(4, $policy['validTargetCount']);
+        $t->same(1, $policy['externalTargetCount']);
+        $t->same(0, $policy['missingTargetCount']);
+        $t->same(1, $policy['missingReferenceCount']);
+        $t->same(1, $policy['outsideSpineTargetCount']);
+        $t->same(2, $policy['landmarkCount']);
+        $t->same(1, $policy['landmarkMissingTypeCount']);
+        $t->same(4, $policy['diagnosticCount']);
+        $t->same(['primary-nav-target-outside-spine', 'external-primary-nav-target', 'missing-landmark-nav-type', 'missing-primary-nav-reference'], array_column($policy['diagnostics'], 'type'));
+
+        $outside = $policy['itemsBySectionType']['toc'][1];
+        $t->same('Appendix outside spine', $outside['label']);
+        $t->same('/OEBPS/appendix/outside.xhtml#appendix', $outside['target']);
+        $t->same(true, $outside['exists']);
+        $t->same(null, $outside['spineIndex']);
+        $t->same('primary-nav-target-outside-spine', $outside['diagnostics'][0]['type']);
+
+        $remoteToc = $policy['itemsBySectionType']['toc'][2];
+        $t->same(true, $remoteToc['external']);
+        $t->same('external-nav-reference', $remoteToc['sourceDiagnostics'][0]['type']);
+        $t->same('external-primary-nav-target', $remoteToc['diagnostics'][0]['type']);
+
+        $untypedLandmark = $policy['itemsBySectionType']['landmarks'][1];
+        $t->same('Untyped reading point', $untypedLandmark['label']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $untypedLandmark['target']);
+        $t->same(1, $untypedLandmark['spineIndex']);
+        $t->same('chapter-2', $untypedLandmark['spineIdref']);
+        $t->same('missing-landmark-nav-type', $untypedLandmark['diagnostics'][0]['type']);
+
+        $missingPage = $policy['itemsBySectionType']['page-list'][1];
+        $t->same('/OEBPS/text/missing.xhtml#page-404', $missingPage['target']);
+        $t->same(false, $missingPage['exists']);
+        $t->same('missing-nav-reference', $missingPage['sourceDiagnostics'][0]['type']);
+        $t->same('missing-primary-nav-reference', $missingPage['diagnostics'][0]['type']);
+
+        $t->same(false, isset($policy['itemsBySectionType']['loi']));
+        $t->same(1, $result['nav']['auxiliaryNavigation']['itemCount']);
+        $t->same($policy, $result['importReport']['nav']['primaryNavigationTargetPolicy']);
+    },
     'builds EPUB page-break report from page-list navigation for WordPress handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $pageListNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

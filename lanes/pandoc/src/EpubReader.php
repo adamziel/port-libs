@@ -560,6 +560,7 @@ final class EpubReader
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
         $assetReport = $this->assetReport($package, $opfPart, $manifest, $manifestById, $metadata);
         $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem);
+        $nav = $nav === null ? null : self::navWithPrimaryNavigationTargetPolicy($nav, $spine);
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
         $navigation = self::navigationReport($nav, $ncx, $spine);
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine);
@@ -7040,6 +7041,306 @@ final class EpubReader
         }
 
         return [];
+    }
+
+    /**
+     * @param array<string, mixed> $nav
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, mixed>
+     */
+    private static function navWithPrimaryNavigationTargetPolicy(array $nav, array $spine): array
+    {
+        $sections = is_array($nav['sections'] ?? null) ? array_values($nav['sections']) : [];
+        $nav['primaryNavigationTargetPolicy'] = self::primaryNavigationTargetPolicyReport($sections, $spine);
+
+        return $nav;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array{
+     *     present:bool,
+     *     sectionCount:int,
+     *     itemCount:int,
+     *     targetedItemCount:int,
+     *     validTargetCount:int,
+     *     externalTargetCount:int,
+     *     missingTargetCount:int,
+     *     missingReferenceCount:int,
+     *     outsideSpineTargetCount:int,
+     *     landmarkCount:int,
+     *     landmarkMissingTypeCount:int,
+     *     diagnosticCount:int,
+     *     types:list<string>,
+     *     sections:list<array<string, mixed>>,
+     *     sectionsByType:array<string, list<array<string, mixed>>>,
+     *     items:list<array<string, mixed>>,
+     *     itemsBySectionType:array<string, list<array<string, mixed>>>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function primaryNavigationTargetPolicyReport(array $sections, array $spine): array
+    {
+        $primaryTypes = [
+            'toc' => true,
+            'landmarks' => true,
+            'page-list' => true,
+        ];
+        $spineByContentPart = [];
+        foreach ($spine as $spineItem) {
+            $contentPart = is_string($spineItem['contentPart'] ?? null)
+                ? $spineItem['contentPart']
+                : (is_string($spineItem['part'] ?? null) ? $spineItem['part'] : null);
+            if ($contentPart !== null && $contentPart !== '' && !isset($spineByContentPart[$contentPart])) {
+                $spineByContentPart[$contentPart] = $spineItem;
+            }
+        }
+
+        $reportedSections = [];
+        $sectionsByType = [];
+        $items = [];
+        $itemsBySectionType = [];
+        $diagnostics = [];
+        $types = [];
+        $targetedItemCount = 0;
+        $validTargetCount = 0;
+        $externalTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingReferenceCount = 0;
+        $outsideSpineTargetCount = 0;
+        $landmarkCount = 0;
+        $landmarkMissingTypeCount = 0;
+
+        foreach ($sections as $sectionIndex => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionTypes = array_values(array_filter(
+                is_array($section['types'] ?? null) ? $section['types'] : [],
+                static fn (mixed $type): bool => is_string($type) && $type !== '',
+            ));
+            $constrainedTypes = array_values(array_filter(
+                $sectionTypes,
+                static fn (string $type): bool => isset($primaryTypes[$type]),
+            ));
+            if ($constrainedTypes === []) {
+                continue;
+            }
+
+            $sectionType = $constrainedTypes[0];
+            $sectionItems = is_array($section['items'] ?? null) ? array_values($section['items']) : [];
+            $flatItems = self::flattenNavigationItems($sectionItems);
+            $summary = [
+                'sectionIndex' => $sectionIndex,
+                'id' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                'class' => is_string($section['class'] ?? null) ? $section['class'] : null,
+                'classes' => is_array($section['classes'] ?? null) ? array_values($section['classes']) : [],
+                'language' => is_string($section['language'] ?? null) ? $section['language'] : null,
+                'direction' => is_string($section['direction'] ?? null) ? $section['direction'] : null,
+                'hidden' => (bool) ($section['hidden'] ?? false),
+                'type' => $sectionType,
+                'types' => $sectionTypes,
+                'primaryTypes' => $constrainedTypes,
+                'title' => is_string($section['title'] ?? null) ? $section['title'] : '',
+                'itemCount' => count($flatItems),
+                'items' => $sectionItems,
+            ];
+
+            $reportedSections[] = $summary;
+            foreach ($constrainedTypes as $type) {
+                $types[$type] = true;
+                $sectionsByType[$type][] = $summary;
+            }
+
+            foreach ($flatItems as $flat) {
+                $item = self::primaryNavigationTargetPolicyItem(
+                    is_array($flat['item'] ?? null) ? $flat['item'] : [],
+                    $sectionIndex,
+                    $sectionType,
+                    $sectionTypes,
+                    $constrainedTypes,
+                    is_string($section['id'] ?? null) ? $section['id'] : null,
+                    (int) ($flat['depth'] ?? 0),
+                    count($items),
+                    $spineByContentPart
+                );
+
+                if ($item['href'] !== null) {
+                    ++$targetedItemCount;
+                }
+                if (($item['validTarget'] ?? false) === true) {
+                    ++$validTargetCount;
+                }
+                if (($item['external'] ?? false) === true) {
+                    ++$externalTargetCount;
+                }
+                if ($item['href'] === null || $item['target'] === null) {
+                    ++$missingTargetCount;
+                }
+                if (($item['exists'] ?? true) !== true && ($item['external'] ?? false) !== true && $item['target'] !== null) {
+                    ++$missingReferenceCount;
+                }
+                if (($item['outsideSpine'] ?? false) === true) {
+                    ++$outsideSpineTargetCount;
+                }
+                if ($sectionType === 'landmarks') {
+                    ++$landmarkCount;
+                    if (($item['missingLandmarkType'] ?? false) === true) {
+                        ++$landmarkMissingTypeCount;
+                    }
+                }
+
+                foreach ($item['diagnostics'] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $diagnostics[] = [
+                        'index' => $item['index'],
+                        'sectionIndex' => $item['sectionIndex'],
+                        'sectionType' => $item['sectionType'],
+                        'sectionId' => $item['sectionId'],
+                    ] + $diagnostic;
+                }
+
+                $items[] = $item;
+                $itemsBySectionType[$sectionType][] = $item;
+                foreach (array_slice($constrainedTypes, 1) as $extraType) {
+                    $itemsBySectionType[$extraType][] = $item;
+                }
+            }
+        }
+
+        return [
+            'present' => $reportedSections !== [],
+            'sectionCount' => count($reportedSections),
+            'itemCount' => count($items),
+            'targetedItemCount' => $targetedItemCount,
+            'validTargetCount' => $validTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'landmarkCount' => $landmarkCount,
+            'landmarkMissingTypeCount' => $landmarkMissingTypeCount,
+            'diagnosticCount' => count($diagnostics),
+            'types' => array_keys($types),
+            'sections' => $reportedSections,
+            'sectionsByType' => $sectionsByType,
+            'items' => $items,
+            'itemsBySectionType' => $itemsBySectionType,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $sectionTypes
+     * @param list<string> $primaryTypes
+     * @param array<string, array<string, mixed>> $spineByContentPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function primaryNavigationTargetPolicyItem(
+        array $item,
+        int $sectionIndex,
+        string $sectionType,
+        array $sectionTypes,
+        array $primaryTypes,
+        ?string $sectionId,
+        int $depth,
+        int $index,
+        array $spineByContentPart
+    ): array {
+        $target = is_string($item['target'] ?? null) ? $item['target'] : null;
+        $part = is_string($item['part'] ?? null) ? $item['part'] : null;
+        $href = is_string($item['href'] ?? null) ? $item['href'] : null;
+        $external = (bool) ($item['external'] ?? false);
+        $exists = (bool) ($item['exists'] ?? false);
+        $spineItem = $part !== null ? ($spineByContentPart[$part] ?? null) : null;
+        $types = is_array($item['types'] ?? null) ? array_values($item['types']) : [];
+        $sourceDiagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
+        $diagnostics = [];
+
+        if ($external) {
+            $diagnostics[] = [
+                'type' => 'external-primary-nav-target',
+                'target' => $target,
+                'message' => 'EPUB primary navigation target points outside the package and was not fetched',
+            ];
+        } elseif ($target === null || $href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-primary-nav-target',
+                'message' => 'EPUB primary navigation item does not carry a resolvable target',
+            ];
+        } elseif (!$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-primary-nav-reference',
+                'part' => $part,
+                'message' => 'EPUB primary navigation target is missing from the package',
+            ];
+        } elseif (!is_array($spineItem)) {
+            $diagnostics[] = [
+                'type' => 'primary-nav-target-outside-spine',
+                'part' => $part,
+                'message' => 'EPUB primary navigation target exists in the package but is not part of the resolved spine handoff',
+            ];
+        }
+
+        $missingLandmarkType = $sectionType === 'landmarks' && $types === [];
+        if ($missingLandmarkType) {
+            $diagnostics[] = [
+                'type' => 'missing-landmark-nav-type',
+                'target' => $target,
+                'message' => 'EPUB landmark navigation item is missing an epub:type value for import handoff classification',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'sectionIndex' => $sectionIndex,
+            'sectionId' => $sectionId,
+            'sectionType' => $sectionType,
+            'sectionTypes' => $sectionTypes,
+            'primaryTypes' => $primaryTypes,
+            'depth' => $depth,
+            'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+            'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
+            'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
+            'labelElement' => is_string($item['labelElement'] ?? null) ? $item['labelElement'] : null,
+            'label' => is_string($item['title'] ?? null) ? $item['title'] : '',
+            'href' => $href,
+            'target' => $target,
+            'part' => $part,
+            'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : self::targetFragment($target),
+            'fragmentKind' => is_string($item['fragmentKind'] ?? null) ? $item['fragmentKind'] : self::targetFragmentFields($target)['fragmentKind'],
+            'epubCfi' => is_array($item['epubCfi'] ?? null) ? $item['epubCfi'] : self::targetFragmentFields($target)['epubCfi'],
+            'external' => $external,
+            'exists' => $exists,
+            'outsideSpine' => $target !== null && !$external && $exists && !is_array($spineItem),
+            'validTarget' => $target !== null && !$external && $exists && is_array($spineItem),
+            'missingLandmarkType' => $missingLandmarkType,
+            'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
+            'types' => $types,
+            'class' => is_string($item['class'] ?? null) ? $item['class'] : null,
+            'classes' => is_array($item['classes'] ?? null) ? array_values($item['classes']) : [],
+            'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+            'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+            'hidden' => (bool) ($item['hidden'] ?? false),
+            'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
+            'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
+            'spineItemId' => is_array($spineItem) && is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
+            'spinePart' => is_array($spineItem) ? (string) ($spineItem['part'] ?? '') : null,
+            'contentPart' => is_array($spineItem) ? (string) ($spineItem['contentPart'] ?? $spineItem['part'] ?? '') : null,
+            'linear' => is_array($spineItem) ? (bool) ($spineItem['linear'] ?? true) : null,
+            'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
+            'sourceDiagnostics' => $sourceDiagnostics,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

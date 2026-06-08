@@ -682,6 +682,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['nav']['auxiliaryNavigation']['itemCount'] ?? null) !== 2) {
         throw new RuntimeException('Expected EPUB import report to expose auxiliary nav item count');
     }
+    if (($result['nav']['primaryNavigationTargetPolicy']['itemCount'] ?? null) !== 5 || ($result['nav']['primaryNavigationTargetPolicy']['externalTargetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB primary nav target policy to report remote TOC targets separately from auxiliary nav');
+    }
+    if (($result['nav']['primaryNavigationTargetPolicy']['itemsBySectionType']['toc'][2]['diagnostics'][0]['type'] ?? null) !== 'external-primary-nav-target') {
+        throw new RuntimeException('Expected EPUB primary nav policy to classify remote TOC targets for review');
+    }
+    if (($result['importReport']['nav']['primaryNavigationTargetPolicy']['validTargetCount'] ?? null) !== 4) {
+        throw new RuntimeException('Expected EPUB import report to expose primary nav target policy coverage');
+    }
     if (($result['pageBreaks']['count'] ?? null) !== 1 || ($result['pageBreaks']['items'][0]['fragment'] ?? null) !== 'page-1') {
         throw new RuntimeException('Expected EPUB page-list entries to be summarized as page-break metadata');
     }
@@ -1272,6 +1281,9 @@ echo 'navigationExternalTargets=' . ($result['navigation']['externalTargetCount'
 echo 'navigationUncoveredLinear=' . ($result['navigation']['uncoveredLinearSpineItemCount'] ?? 0) . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
+echo 'primaryNavPolicyItems=' . ($result['nav']['primaryNavigationTargetPolicy']['itemCount'] ?? 0) . "\n";
+echo 'primaryNavPolicyExternal=' . ($result['nav']['primaryNavigationTargetPolicy']['externalTargetCount'] ?? 0) . "\n";
+echo 'primaryNavPolicyDiagnostics=' . ($result['nav']['primaryNavigationTargetPolicy']['diagnosticCount'] ?? 0) . "\n";
 echo 'pageBreaks=' . ($result['pageBreaks']['count'] ?? 0) . "\n";
 echo 'firstPageBreakFragment=' . ($result['pageBreaks']['items'][0]['fragment'] ?? '') . "\n";
 echo 'firstSpinePageBreaks=' . ($result['document']->children[0]->attr('pageBreakCount') ?? 0) . "\n";
