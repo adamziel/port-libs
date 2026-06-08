@@ -1459,6 +1459,8 @@ final class PdfActionReviewExtractor
                 'generation' => (int) $match[2][0],
                 'body' => $match[3][0],
                 'offset' => (int) $match[0][1],
+                'body_start' => (int) $match[3][1],
+                'body_end' => (int) $match[3][1] + strlen($match[3][0]) - 1,
             ];
         }
 
@@ -1547,7 +1549,7 @@ final class PdfActionReviewExtractor
      */
     private function xrefEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = PdfClassicXrefRebuilder::startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }

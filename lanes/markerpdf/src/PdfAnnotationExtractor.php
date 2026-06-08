@@ -3160,7 +3160,7 @@ final class PdfAnnotationExtractor
             $objects[$definition['object_id']] = $definition['body'];
         }
 
-        $xrefEntries = $this->xrefStreamEntriesFromLatestStartxref($pdfBytes, $definitions);
+        $xrefEntries = $this->xrefEntriesFromLatestStartxref($pdfBytes, $definitions);
         if ($xrefEntries === []) {
             return $objects;
         }
@@ -3189,7 +3189,7 @@ final class PdfAnnotationExtractor
     }
 
     /**
-     * @return list<array{object_id: int, generation: int, body: string, offset: int}>
+     * @return list<array{object_id: int, generation: int, body: string, offset: int, body_start: int, body_end: int}>
      */
     private function pdfObjectDefinitions(string $pdfBytes): array
     {
@@ -3204,6 +3204,8 @@ final class PdfAnnotationExtractor
                 'generation' => (int) $match[2][0],
                 'body' => $match[3][0],
                 'offset' => (int) $match[0][1],
+                'body_start' => (int) $match[3][1],
+                'body_end' => (int) $match[3][1] + strlen($match[3][0]) - 1,
             ];
         }
 
@@ -3211,18 +3213,22 @@ final class PdfAnnotationExtractor
     }
 
     /**
-     * @param list<array{object_id: int, generation: int, body: string, offset: int}> $definitions
+     * @param list<array{object_id: int, generation: int, body: string, offset: int, body_start: int, body_end: int}> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
      */
-    private function xrefStreamEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
+    private function xrefEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = PdfClassicXrefRebuilder::startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }
 
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
-        return $section === null ? [] : $this->xrefStreamEntriesFromSection($section);
+        if ($section !== null) {
+            return $this->xrefStreamEntriesFromSection($section);
+        }
+
+        return PdfClassicXrefRebuilder::classicTableEntriesAt($pdfBytes, $offset) ?? [];
     }
 
     /**

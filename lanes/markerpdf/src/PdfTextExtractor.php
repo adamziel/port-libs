@@ -11108,6 +11108,17 @@ final class PdfTextExtractor
 
         $jpegBytes = substr($reviewStream, $start, $eoiEnd - $start);
         $paddingEnd = $this->skipDctPreviewPadding($reviewStream, $eoiEnd);
+        $postEoiSurplusMetadata = [];
+        if (strlen($reviewStream) < strlen($stream) && str_starts_with($stream, $reviewStream)) {
+            $postEoiSurplusBytes = substr($stream, strlen($reviewStream));
+            if ($postEoiSurplusBytes !== '') {
+                $postEoiSurplusMetadata = [
+                    'post_jpeg_eoi_surplus_byte_count' => strlen($postEoiSurplusBytes),
+                    'post_jpeg_eoi_surplus_sha256' => hash('sha256', $postEoiSurplusBytes),
+                    'post_jpeg_eoi_surplus_preview_hex' => bin2hex(substr($postEoiSurplusBytes, 0, 32)),
+                ];
+            }
+        }
 
         return [
             'source' => 'dctdecode_jpeg_marker_boundary',
@@ -11118,6 +11129,7 @@ final class PdfTextExtractor
             'review_stream_length' => strlen($reviewStream),
             'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
             'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            ...$postEoiSurplusMetadata,
             ...$extraMetadata,
             ...($decodedFromNativePrefix ? [
                 'review_stream_decoded_from_native_prefix' => true,

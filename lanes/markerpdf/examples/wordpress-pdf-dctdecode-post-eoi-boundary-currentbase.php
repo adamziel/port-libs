@@ -34,6 +34,7 @@ $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 $review = $extractor->extractImageXObjectBoundaryReview($pdf);
 $entry = $review['entries'][0] ?? [];
+$boundary = is_array($entry) ? ($entry['dctdecode_stream_boundary'] ?? []) : [];
 $rendererPreview = $renderer->iccBasedImageStreamPreviewRows($rendererImage, $rendererObjects);
 
 $expected = ['Before Post EOI DCT Import', 'After Post EOI DCT Import'];
@@ -41,6 +42,10 @@ $surplusExcluded = !str_contains($plainText, 'WordPress Post EOI DCT Leak')
     && !str_contains($plainText, 'JFIF');
 $xobjectClipped = ($entry['raw_length'] ?? null) === strlen($jpegPayload)
     && (($entry['raw_length'] ?? 0) < strlen($declaredPayload));
+$extractorSurplusRecorded = ($boundary['raw_stream_length'] ?? null) === strlen($declaredPayload)
+    && ($boundary['review_stream_length'] ?? null) === strlen($jpegPayload)
+    && ($boundary['post_jpeg_eoi_surplus_byte_count'] ?? null) === strlen($postEoiSurplus)
+    && ($boundary['post_jpeg_eoi_surplus_sha256'] ?? null) === hash('sha256', $postEoiSurplus);
 $rendererClipped = ($rendererPreview['image_stream']['raw_length'] ?? null) === strlen($jpegPayload)
     && (($rendererPreview['image_stream']['raw_length'] ?? 0) < strlen($declaredPayload));
 
@@ -48,6 +53,7 @@ if (
     $lines !== $expected
     || !$surplusExcluded
     || !$xobjectClipped
+    || !$extractorSurplusRecorded
     || !$rendererClipped
     || ($entry['preview_only_filters'] ?? []) !== ['DCTDecode']
     || ($entry['native_raster_decode'] ?? true) !== false
@@ -64,7 +70,12 @@ echo '<!-- markerpdf:pdf-dctdecode-post-eoi-boundary-currentbase ' . htmlspecial
     'paragraphs' => $lines,
     'declared_payload_length' => strlen($declaredPayload),
     'jpeg_eoi_payload_length' => strlen($jpegPayload),
+    'xobject_declared_stream_length' => $boundary['raw_stream_length'] ?? null,
+    'xobject_review_stream_length' => $boundary['review_stream_length'] ?? null,
     'xobject_post_eoi_surplus_clipped' => $xobjectClipped,
+    'xobject_post_eoi_surplus_recorded' => $extractorSurplusRecorded,
+    'xobject_post_eoi_surplus_byte_count' => $boundary['post_jpeg_eoi_surplus_byte_count'] ?? null,
+    'xobject_post_eoi_surplus_sha256' => $boundary['post_jpeg_eoi_surplus_sha256'] ?? null,
     'renderer_post_eoi_surplus_clipped' => $rendererClipped,
     'post_eoi_surplus_excluded_from_text' => $surplusExcluded,
     'native_raster_decode' => $entry['native_raster_decode'] ?? null,

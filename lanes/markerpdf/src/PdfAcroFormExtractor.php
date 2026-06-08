@@ -9452,6 +9452,18 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
+            $parent = $this->materializeDirectFieldParentDictionary($body, $objects, $nextSyntheticObject, $objectNumber);
+            if ($parent['changed']) {
+                $body = $parent['body'];
+                $objects = $parent['objects'];
+                $objects[$objectNumber] = '<<' . $body . '>>';
+                foreach ($parent['added'] as $parentObject) {
+                    if (!isset($seen[$parentObject]) && !in_array($parentObject, $queue, true)) {
+                        $queue[] = $parentObject;
+                    }
+                }
+            }
+
             $kids = $this->materializeDirectDictionariesInNamedArray($body, 'Kids', $objects, $nextSyntheticObject, $objectNumber);
             if ($kids['changed']) {
                 $body = $kids['body'];
@@ -9639,6 +9651,104 @@ final class PdfAcroFormExtractor
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    /**
+     * Compact field trees may store a listed child field's /Parent as a direct
+     * dictionary. Keep inheritance object-number based by synthesizing the
+     * parent only when its /Kids array explicitly owns the child.
+     *
+     * @param array<int, string> $objects
+     * @return array{body: string, objects: array<int, string>, added: list<int>, changed: bool}
+     */
+    private function materializeDirectFieldParentDictionary(
+        string $fieldBody,
+        array $objects,
+        int &$nextSyntheticObject,
+        int $childObject
+    ): array {
+        $empty = [
+            'body' => $fieldBody,
+            'objects' => $objects,
+            'added' => [],
+            'changed' => false,
+        ];
+
+        $span = $this->lastTopLevelValueSpanAfterName($fieldBody, 'Parent');
+        if ($span === null || $this->topLevelValueSpanHasTrailingOperand($fieldBody, $span)) {
+            return $empty;
+        }
+
+        $parentValue = trim($span['value']);
+        if (!str_starts_with($parentValue, '<<')) {
+            return $empty;
+        }
+
+        $dictionaryEnd = null;
+        $parentDictionary = $this->readPdfDictionaryAt($parentValue, 0, $dictionaryEnd);
+        if (
+            $parentDictionary === null
+            || $dictionaryEnd === null
+            || !$this->hasOnlyPdfWhitespaceOrCommentsAfter($parentValue, $dictionaryEnd)
+            || !$this->isFieldDictionaryCandidate($parentDictionary, $objects)
+            || $this->isWidget($parentDictionary, $objects)
+            || !$this->directParentFieldDictionaryOwnsChild($parentDictionary, $childObject, $objects)
+        ) {
+            return $empty;
+        }
+
+        while (isset($objects[$nextSyntheticObject])) {
+            $nextSyntheticObject++;
+        }
+
+        $parentObject = $nextSyntheticObject++;
+        $this->objectGenerations[$parentObject] = 0;
+        $objects[$parentObject] = '<<' . $parentDictionary . '>>';
+        $added = [$parentObject];
+
+        $kids = $this->materializeDirectDictionariesInNamedArray(
+            $parentDictionary,
+            'Kids',
+            $objects,
+            $nextSyntheticObject,
+            $parentObject
+        );
+        if ($kids['changed']) {
+            $objects = $kids['objects'];
+            $objects[$parentObject] = '<<' . $kids['body'] . '>>';
+            foreach ($kids['added'] as $addedObject) {
+                $added[] = $addedObject;
+            }
+        }
+
+        $fieldBody = substr($fieldBody, 0, $span['start'])
+            . $parentObject . ' 0 R'
+            . substr($fieldBody, $span['end']);
+
+        return [
+            'body' => $fieldBody,
+            'objects' => $objects,
+            'added' => $added,
+            'changed' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function directParentFieldDictionaryOwnsChild(string $parentDictionary, int $childObject, array $objects): bool
+    {
+        $kids = $this->lastTopLevelValueAfterName($parentDictionary, 'Kids');
+        if ($kids === null) {
+            return false;
+        }
+
+        $arrayBody = $this->arrayBodyFromValueOrReference($kids, $objects);
+        if ($arrayBody === null) {
+            return false;
+        }
+
+        return in_array($childObject, $this->validObjectReferences($arrayBody, $objects), true);
     }
 
     /**

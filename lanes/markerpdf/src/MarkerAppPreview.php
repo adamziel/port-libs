@@ -703,20 +703,18 @@ final class MarkerAppPreview
             }
         }
 
-        foreach ($objects as $objectId => $object) {
-            if ($pages !== []) {
-                break;
-            }
+        if ($pages === [] && $rootCatalog === null) {
+            foreach ($objects as $objectId => $object) {
+                if ($this->objectType($object['body']) !== 'Catalog') {
+                    continue;
+                }
 
-            if ($this->objectType($object['body']) !== 'Catalog') {
-                continue;
-            }
-
-            $catalogBody = $object['body'];
-            $pagesId = $this->reference($object['body'], 'Pages');
-            if ($pagesId !== null && isset($objects[$pagesId])) {
-                $pages = $this->uniquePagesByObjectId($this->collectPages($pagesId, $objects));
-                break;
+                $catalogBody = $object['body'];
+                $pagesId = $this->reference($object['body'], 'Pages');
+                if ($pagesId !== null && isset($objects[$pagesId])) {
+                    $pages = $this->uniquePagesByObjectId($this->collectPages($pagesId, $objects));
+                    break;
+                }
             }
         }
 
