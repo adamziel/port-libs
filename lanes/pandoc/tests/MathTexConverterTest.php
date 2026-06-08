@@ -1155,6 +1155,17 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\not'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\not_1'));
     },
+    'canonicalizes bounded tex braced not relations to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $bracedRelationMathml = $converter->texToMathMl('x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r', true);
+        $slantAliasMathml = $converter->texToMathMl('x \\not\\geqslant y + y \\not\\leqslant z');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $bracedRelationMathml);
+        $t->contains('<mi>x</mi><mo>∉</mo><mi>S</mi><mo>+</mo><mi>y</mi><mo>≠</mo><mi>z</mi><mo>+</mo><mi>q</mi><mo>≰</mo><mi>r</mi>', $bracedRelationMathml);
+        $t->contains('<annotation encoding="application/x-tex">x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r</annotation>', $bracedRelationMathml);
+        $t->contains('<mi>x</mi><mo>≱</mo><mi>y</mi><mo>+</mo><mi>y</mi><mo>≰</mo><mi>z</mi>', $slantAliasMathml);
+        $t->true(!str_contains($bracedRelationMathml . $slantAliasMathml, '<menclose notation="updiagonalstrike"><mo>'));
+    },
     'converts bounded tex prime shorthand and prime commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $primeMathml = $converter->texToMathMl("f'(x) + g''_i + h_i''' + x^{2}'", true);

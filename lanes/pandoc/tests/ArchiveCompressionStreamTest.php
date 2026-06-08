@@ -3843,9 +3843,17 @@ return [
             $xzZipUpload,
             'wordpress-documents.zip.xz'
         );
+        $xzDocxPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $xzZipUpload,
+            'WORD-EXPORT.DOCX.XZ'
+        );
         $nameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
             '',
             'offline-review-packet.txz'
+        );
+        $bzip2EpubNameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            '',
+            'BOOK-EXPORT.EPUB.BZ2'
         );
         $mismatchPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
             $bzip2TarUpload,
@@ -3889,6 +3897,12 @@ return [
             'archive-package-bytes-not-exposed',
         ], $xzPolicy['diagnostics']);
 
+        $t->same('xz', $xzDocxPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $xzDocxPolicy['candidateKind']);
+        $t->same('xz-zip', $xzDocxPolicy['candidateFormat']);
+        $t->same(true, $xzDocxPolicy['signatureMatched']);
+        $t->same([], array_slice($xzDocxPolicy['diagnostics'], 4));
+
         $t->same('xz', $nameOnlyPolicy['format']);
         $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $nameOnlyPolicy['candidateKind']);
         $t->same('xz-tar', $nameOnlyPolicy['candidateFormat']);
@@ -3900,6 +3914,11 @@ return [
             'archive-package-bytes-not-exposed',
             'archive-compression-signature-unverified',
         ], $nameOnlyPolicy['diagnostics']);
+        $t->same('bzip2', $bzip2EpubNameOnlyPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $bzip2EpubNameOnlyPolicy['candidateKind']);
+        $t->same('bzip2-zip', $bzip2EpubNameOnlyPolicy['candidateFormat']);
+        $t->same(false, $bzip2EpubNameOnlyPolicy['signatureMatched']);
+        $t->same('archive-compression-signature-unverified', $bzip2EpubNameOnlyPolicy['diagnostics'][4] ?? null);
         $t->same('bzip2', $mismatchPolicy['format']);
         $t->same('bzip2-tar', $mismatchPolicy['candidateFormat']);
         $t->same('archive-compression-signature-source-name-mismatch', $mismatchPolicy['diagnostics'][4] ?? null);
@@ -3921,6 +3940,10 @@ return [
         $zstandardZipPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
             $zstandardZipUpload,
             'wordpress-documents.zip.zstd'
+        );
+        $zstandardOdtNameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            '',
+            'WORDPRESS-REVIEW.ODT.ZSTD'
         );
         $zstandardNameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
             '',
@@ -3956,6 +3979,11 @@ return [
         $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zstandardZipPolicy['candidateKind']);
         $t->same('zstandard-zip', $zstandardZipPolicy['candidateFormat']);
         $t->same('04', $zstandardZipPolicy['streamFlagsHex']);
+        $t->same('zstandard', $zstandardOdtNameOnlyPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zstandardOdtNameOnlyPolicy['candidateKind']);
+        $t->same('zstandard-zip', $zstandardOdtNameOnlyPolicy['candidateFormat']);
+        $t->same(false, $zstandardOdtNameOnlyPolicy['signatureMatched']);
+        $t->same('archive-compression-signature-unverified', $zstandardOdtNameOnlyPolicy['diagnostics'][4] ?? null);
         $t->same('zstandard', $zstandardNameOnlyPolicy['format']);
         $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $zstandardNameOnlyPolicy['candidateKind']);
         $t->same('zstandard-tar', $zstandardNameOnlyPolicy['candidateFormat']);
@@ -4110,6 +4138,11 @@ return [
             'word-export.docx',
             strlen($zipPackage->bytes())
         );
+        $matchingCompressedDocx = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+            $gzipZip,
+            'WORD-EXPORT.DOCX.GZ',
+            strlen($zipPackage->bytes())
+        );
         $mismatchedDocx = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
             $gzipTar,
             'word-export.docx',
@@ -4154,6 +4187,18 @@ return [
         $t->same(ArchiveCompressionStream::FORMAT_ZIP, $matchingDocx['detectedFormat']);
         $t->same('within-thresholds', $matchingDocx['handoffPolicy']);
         $t->same([], $matchingDocx['diagnostics']);
+
+        $t->same('WORD-EXPORT.DOCX.GZ', $matchingCompressedDocx['sourceName']);
+        $t->same(true, $matchingCompressedDocx['sourceNameCandidate']);
+        $t->same('extension:gzip-zip-package', $matchingCompressedDocx['sourceNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $matchingCompressedDocx['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $matchingCompressedDocx['expectedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $matchingCompressedDocx['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $matchingCompressedDocx['detectedFormat']);
+        $t->same('within-thresholds', $matchingCompressedDocx['handoffPolicy']);
+        $t->same([], $matchingCompressedDocx['diagnostics']);
+        $t->same('gzip', $matchingCompressedDocx['stream']['type']);
+        $t->same('actual-office-package.zip', $matchingCompressedDocx['stream']['members'][0]['filename']);
 
         $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $mismatchedDocx['expectedKind']);
         $t->same(ArchiveCompressionStream::FORMAT_ZIP, $mismatchedDocx['expectedFormat']);

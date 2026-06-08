@@ -514,7 +514,8 @@ final class WordPressBlockWriter
 
     private function renderTableElementAttrs(AstNode $node): string
     {
-        return $this->renderStoredHtmlAttrs($node, true, []);
+        return $this->renderStoredHtmlAttrs($node, true, ['border', 'frame', 'rules'])
+            . $this->renderLegacyTableFrameAttrs($node);
     }
 
     private function renderCaptionInlines(AstNode $node): string
@@ -756,6 +757,59 @@ final class WordPressBlockWriter
         }
 
         return 'attributes:' . json_encode($source['colgroupAttributes'] ?? [], JSON_UNESCAPED_SLASHES);
+    }
+
+    private function renderLegacyTableFrameAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $attributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
+
+        $attrs = '';
+        if (array_key_exists('border', $attributes)) {
+            $border = $this->legacyTableBorderValue((string) $attributes['border']);
+            if ($border !== '') {
+                $attrs .= ' border="' . $this->esc($border) . '"';
+            }
+        }
+
+        $frame = $this->legacyTableFrameValue((string) ($attributes['frame'] ?? ''));
+        if ($frame !== '') {
+            $attrs .= ' frame="' . $this->esc($frame) . '"';
+        }
+
+        $rules = $this->legacyTableRulesValue((string) ($attributes['rules'] ?? ''));
+        if ($rules !== '') {
+            $attrs .= ' rules="' . $this->esc($rules) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function legacyTableBorderValue(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || strtolower($value) === 'border') {
+            return '1';
+        }
+
+        return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
+    }
+
+    private function legacyTableFrameValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+        return in_array($value, ['void', 'above', 'below', 'hsides', 'lhs', 'rhs', 'vsides', 'box', 'border'], true)
+            ? $value
+            : '';
+    }
+
+    private function legacyTableRulesValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+        return in_array($value, ['none', 'groups', 'rows', 'cols', 'all'], true) ? $value : '';
     }
 
     /**

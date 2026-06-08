@@ -61,6 +61,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
     private const FIB_FC_PLCF_FLD_EDN = 0x021a;
     private const FIB_LCB_PLCF_FLD_EDN = 0x021e;
+    private const FIB_FC_STTBF_RMARK = 0x0232;
+    private const FIB_LCB_STTBF_RMARK = 0x0236;
     private const FIB_FC_PLCF_FLD_TXBX = 0x0262;
     private const FIB_LCB_PLCF_FLD_TXBX = 0x0266;
     private const FIB_FC_PLCF_FLD_HDR_TXBX = 0x0272;
@@ -147,7 +149,7 @@ final class LegacyDocReader
     private array $activeExternalFileReferences = [];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -155,7 +157,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -349,6 +351,12 @@ final class LegacyDocReader
             $metadata['commentAuthorCount'] = count($commentAuthors);
             $metadata['commentAuthors'] = $commentAuthors;
         }
+        $revisionAuthors = $this->revisionAuthorReport($wordDocument, $tableStream);
+        if ($revisionAuthors !== []) {
+            $metadata['revisionAuthorCount'] = count($revisionAuthors);
+            $metadata['revisionAuthors'] = $revisionAuthors;
+            $metadata['revisionAuthorPolicy'] = 'metadata-only-native-review';
+        }
         $comments = $this->commentReferenceReport($wordDocument, $tableStream, $textResult['text'], $subdocumentTexts, $commentAuthors);
         if ($comments !== []) {
             $metadata['commentReferenceCount'] = count($comments);
@@ -418,6 +426,7 @@ final class LegacyDocReader
             'endnotes' => $endnotes,
             'comments' => $comments,
             'commentAuthors' => $commentAuthors,
+            'revisionAuthors' => $revisionAuthors,
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'fieldStories' => $fieldStories,
@@ -466,6 +475,7 @@ final class LegacyDocReader
             'endnotes' => $endnotes,
             'comments' => $comments,
             'commentAuthors' => $commentAuthors,
+            'revisionAuthors' => $revisionAuthors,
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'fieldStories' => $fieldStories,
@@ -4196,6 +4206,108 @@ final class LegacyDocReader
             if (count($records) > 0x7fff) {
                 throw new \RuntimeException('Legacy DOC comment author name table exceeds the supported entry limit');
             }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function revisionAuthorReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STTBF_RMARK + 4) {
+            return [];
+        }
+
+        $fcMin = self::u32($wordDocument, 24);
+        if ($fcMin > 0 && self::FIB_LCB_STTBF_RMARK + 4 > $fcMin) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STTBF_RMARK);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC revision author table requires the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STTBF_RMARK);
+
+        return $this->parseSttbfRMark(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'SttbfRMark revision author table')
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseSttbfRMark(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 6) {
+            throw new \RuntimeException('Legacy DOC revision author table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC revision author table must use extended strings');
+        }
+
+        $count = self::u16($bytes, 2);
+        if ($count === 0 || $count > 0x7fff) {
+            throw new \RuntimeException('Legacy DOC revision author table must contain between 1 and 32767 names');
+        }
+        if (self::u16($bytes, 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC revision author table must not contain extra data');
+        }
+
+        $cursor = 6;
+        $records = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC revision author table string length is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters === 0) {
+                throw new \RuntimeException('Legacy DOC revision author table contains an empty author name');
+            }
+            if ($characters > 255) {
+                throw new \RuntimeException('Legacy DOC revision author name exceeds the bounded native reader limit');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength > $length) {
+                throw new \RuntimeException('Legacy DOC revision author table points outside its string data');
+            }
+
+            $name = $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+
+            if ($index === 0 && $name !== 'Unknown') {
+                throw new \RuntimeException('Legacy DOC revision author table first entry must be Unknown');
+            }
+
+            $record = [
+                'index' => $index,
+                'sourceTable' => 'SttbfRMark',
+                'name' => $name,
+                'characterCount' => $characters,
+                'sourceEncoding' => 'UTF-16LE-STTB',
+                'canExposeBytes' => false,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ];
+            if ($index === 0) {
+                $record['reservedUnknownAuthor'] = true;
+            } else {
+                $record['reviewerRole'] = 'revision-author';
+            }
+
+            $records[] = $record;
+        }
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC revision author table contains trailing bytes');
         }
 
         return $records;

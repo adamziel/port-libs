@@ -50,6 +50,8 @@ Multicolumn array audit $\begin{array}{lcr}p_i & \multicolumn{2}{|c|}{m_i + q_i}
 
 Negated relation audit $p_i \not\in P + a \not= b + x \not\leq y + A \not\subseteq B + \not\alpha_i$ stays semantic.
 
+Braced negated relation audit $x \not{\in} S + y \not{=} z + q \not{\leqslant} r + u \not\geqslant v$ stays canonical.
+
 Prime audit $f'(x) + g''_i + h_i''' + \partial^\prime f + y^\backprime$ stays semantic.
 
 Accent alias audit $\acute{x} + \grave{y} + \breve{z} + \check{a} + \mathring{A}_0 + \widetilde{mn}$ stays semantic.
@@ -200,6 +202,7 @@ $summary = [
     'arrayHookMathml' => $converter->texToMathMl('\\begin{array}{>{\\text{src}}l<{\\hspace{.25em}}@{\\,}c}p_i & m_i \\\\ q_i & n_i\\end{array}'),
     'arrayMulticolumnMathml' => $converter->texToMathMl('\\begin{array}{lcr}p_i & \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a & b & c\\end{array}'),
     'notRelationMathml' => $converter->texToMathMl('p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i'),
+    'bracedNotRelationMathml' => $converter->texToMathMl('x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r + u \\not\\geqslant v'),
     'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + \\partial^\\prime f + y^\\backprime"),
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
@@ -342,6 +345,13 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test emitted dot/relation symbol aliases as literal identifiers');
     }
 
+    if (
+        str_contains($summary['bracedNotRelationMathml'], '<menclose notation="updiagonalstrike"><mo>')
+        || !str_contains($summary['bracedNotRelationMathml'], '<mi>x</mi><mo>∉</mo><mi>S</mi><mo>+</mo><mi>y</mi><mo>≠</mo><mi>z</mi><mo>+</mo><mi>q</mi><mo>≰</mo><mi>r</mi><mo>+</mo><mi>u</mi><mo>≱</mo><mi>v</mi>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not canonicalize braced negated relations');
+    }
+
     $mathSymbol = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     foreach ([
@@ -437,6 +447,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\begin{array}{lcr}p_i &amp; \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a &amp; b &amp; c\\end{array}</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mo>∉</mo><mi>P</mi><mo>+</mo><mi>a</mi><mo>≠</mo><mi>b</mi><mo>+</mo><mi>x</mi><mo>≰</mo><mi>y</mi><mo>+</mo><mi>A</mi><mo>⊈</mo><mi>B</mi><mo>+</mo><msub><menclose notation="updiagonalstrike"><mi>α</mi></menclose><mi>i</mi></msub>',
         '<annotation encoding="application/x-tex">p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i</annotation>',
+        '<span class="math inline">\\(x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r + u \\not\\geqslant v\\)</span>',
+        '<annotation encoding="application/x-tex">x \\not{\\in} S + y \\not{=} z + q \\not{\\leqslant} r + u \\not\\geqslant v</annotation>',
         '<msup><mi>f</mi><mo>′</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><msubsup><mi>g</mi><mi>i</mi><mo>″</mo></msubsup>',
         '<msup><mo>∂</mo><mo>′</mo></msup><mi>f</mi><mo>+</mo><msup><mi>y</mi><mo>‵</mo></msup>',
         '<mover accent="true"><mi>x</mi><mo>´</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>`</mo></mover>',

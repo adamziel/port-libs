@@ -6168,12 +6168,139 @@ final class ZipPackage
             }
 
             $commentLength = self::readUInt16($bytes, $offset + 20);
-            if ($offset + $minimumSize + $commentLength === $length) {
+            if (
+                $offset + $minimumSize + $commentLength === $length
+                && self::isEndOfCentralDirectoryCandidatePlausible($bytes, $offset)
+            ) {
                 return $offset;
             }
         }
 
         throw new \RuntimeException('ZIP end-of-central-directory record not found');
+    }
+
+    private static function isEndOfCentralDirectoryCandidatePlausible(string $bytes, int $offset): bool
+    {
+        try {
+            $totalEntryCount = self::readUInt16($bytes, $offset + 10);
+            $centralDirectorySize = self::readUInt32($bytes, $offset + 12);
+            $centralDirectoryOffset = self::readUInt32($bytes, $offset + 16);
+        } catch (\RuntimeException) {
+            return false;
+        }
+
+        if (
+            $totalEntryCount === 0xffff
+            || $centralDirectorySize === 0xffffffff
+            || $centralDirectoryOffset === 0xffffffff
+        ) {
+            return true;
+        }
+
+        if ($centralDirectoryOffset > PHP_INT_MAX - $centralDirectorySize) {
+            return false;
+        }
+
+        $centralDirectoryEnd = $centralDirectoryOffset + $centralDirectorySize;
+        if ($centralDirectoryEnd > $offset) {
+            return false;
+        }
+
+        if (!self::isCentralDirectoryCandidateScannable(
+            $bytes,
+            $centralDirectoryOffset,
+            $centralDirectorySize
+        )) {
+            return false;
+        }
+
+        $cursor = $centralDirectoryEnd;
+        if ($cursor === $offset) {
+            return true;
+        }
+
+        try {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+            }
+
+            while ($cursor < $offset) {
+                $record = self::archiveExtraDataRecordAt($bytes, $cursor);
+                if ($record === null) {
+                    return false;
+                }
+
+                $cursor = $record['endOffset'];
+            }
+        } catch (\RuntimeException) {
+            return false;
+        }
+
+        return $cursor === $offset;
+    }
+
+    private static function isCentralDirectoryCandidateScannable(
+        string $bytes,
+        int $centralDirectoryOffset,
+        int $centralDirectorySize
+    ): bool {
+        try {
+            self::assertRange($bytes, $centralDirectoryOffset, $centralDirectorySize, 'central directory');
+            $centralDirectoryEnd = $centralDirectoryOffset + $centralDirectorySize;
+            $cursor = $centralDirectoryOffset;
+
+            while ($cursor < $centralDirectoryEnd) {
+                $record = self::archiveExtraDataRecordAt($bytes, $cursor);
+                if ($record !== null) {
+                    if ($record['endOffset'] > $centralDirectoryEnd) {
+                        return false;
+                    }
+
+                    $cursor = $record['endOffset'];
+                    continue;
+                }
+
+                if (substr($bytes, $cursor, 4) === self::CENTRAL_DIRECTORY_SIGNATURE) {
+                    self::assertRange($bytes, $cursor, 46, 'central directory entry');
+                    $nameLength = self::readUInt16($bytes, $cursor + 28);
+                    $extraLength = self::readUInt16($bytes, $cursor + 30);
+                    $commentLength = self::readUInt16($bytes, $cursor + 32);
+                    $cursor += 46 + $nameLength + $extraLength + $commentLength;
+                    if ($cursor > $centralDirectoryEnd) {
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+                if ($signature !== null) {
+                    if ($signature['endOffset'] > $centralDirectoryEnd) {
+                        return false;
+                    }
+
+                    $cursor = $signature['endOffset'];
+                    continue;
+                }
+
+                $record = self::archiveExtraDataRecordAt($bytes, $cursor);
+                if ($record !== null) {
+                    if ($record['endOffset'] > $centralDirectoryEnd) {
+                        return false;
+                    }
+
+                    $cursor = $record['endOffset'];
+                    continue;
+                }
+
+                return false;
+            }
+        } catch (\RuntimeException) {
+            return false;
+        }
+
+        return $cursor === $centralDirectoryEnd;
     }
 
     private static function rejectUnexpectedCentralDirectoryTail(string $bytes, int $offset, string $label): void

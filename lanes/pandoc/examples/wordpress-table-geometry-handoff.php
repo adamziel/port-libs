@@ -145,6 +145,21 @@ $verticalAlignmentTables = array_values(array_filter(
     $verticalAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$legacyFrameDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="legacy-frame-grid" data-source="html-reader" frame="void" rules="groups" border="1">
+<caption>Legacy frame review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$legacyFrameTables = array_values(array_filter(
+    $legacyFrameDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionSourceDocument = (new MarkdownReader())->read(<<<'HTML'
 <table>
 <caption id="caption-source-handoff" class="source-caption" data-origin="html-reader" aria-label="Caption source" style="caption-side: bottom" onclick="blocked()">Caption source handoff</caption>
@@ -1080,6 +1095,7 @@ $document = new AstNode('document', [], [
     ...$colgroupMismatchTables,
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
+    ...$legacyFrameTables,
     ...$readerHandoffTables,
     ...$captionSourceTables,
     ...$axisSourceTables,
@@ -2196,6 +2212,50 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for vertical alignment handoff');
     }
     json_encode($verticalAlignmentPacket, JSON_THROW_ON_ERROR);
+
+    $legacyFrameTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'legacy-frame-grid') {
+            $legacyFrameTable = $node;
+            break;
+        }
+    }
+    $legacyFramePacket = $legacyFrameTable instanceof AstNode ? $legacyFrameTable->attr('tableGeometry') : null;
+    $legacyFrameDowngrades = $legacyFrameTable instanceof AstNode ? TableGeometry::reviewPacket($legacyFrameTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $legacyFrameDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $legacyFrameDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-frame'
+        ));
+        $legacyFrameDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$legacyFrameTable instanceof AstNode
+        || !is_array($legacyFramePacket)
+        || ($legacyFramePacket['tableFrame']['attributes'] ?? null) !== [
+            'border' => '1',
+            'frame' => 'void',
+            'rules' => 'groups',
+        ]
+        || ($legacyFramePacket['summary']['hasTableFrame'] ?? null) !== true
+        || ($legacyFramePacket['summary']['tableFrame'] ?? null) !== 'void'
+        || ($legacyFramePacket['summary']['tableRules'] ?? null) !== 'groups'
+        || ($legacyFramePacket['summary']['tableBorder'] ?? null) !== '1'
+        || ($legacyFrameDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-frame-requires-raw-html'
+        || ($legacyFrameDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-frame-review-required'
+        || ($legacyFrameDiagnostics['latex']['code'] ?? null) !== 'latex-table-frame-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing legacy table frame/rules/border metadata');
+    }
+    if (!str_contains($blocks, '<table id="legacy-frame-grid" data-source="html-reader" border="1" frame="void" rules="groups">')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress legacy table frame/rules/border output');
+    }
+    json_encode($legacyFramePacket, JSON_THROW_ON_ERROR);
+    json_encode($legacyFrameDowngrades, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {

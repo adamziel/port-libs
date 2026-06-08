@@ -2406,6 +2406,69 @@ return [
         $t->contains('no unexpected pandoc-lua-engine library conditional branches', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks unexpected lua engine library native system fields before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $luaPackage = str_replace(
+            "library\n  import: test-options",
+            implode("\n", [
+                'library',
+                '  import: test-options',
+                '  c-sources: cbits/lua-runner-audit.c',
+                '  extra-libraries: lua5.4 pandoclua',
+                '  pkgconfig-depends: lua >= 5.4',
+                '  hsc2hs-options:',
+                '    --cross-compile',
+                '    --template=cbits/lua-template.hsc',
+                '  ld-options: -Wl,--as-needed',
+            ]),
+            $luaCabal()
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedNativeSystemFields']);
+        $t->same([], $audit['benchmarkDependencyClosure']['unexpectedNativeSystemFields']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedConditionalBranches']);
+        $t->same([
+            'c-sources' => ['cbits/lua-runner-audit.c'],
+            'extra-libraries' => ['lua5.4', 'pandoclua'],
+            'hsc2hs-options' => ['--cross-compile', '--template=cbits/lua-template.hsc'],
+            'ld-options' => ['-Wl,--as-needed'],
+            'pkgconfig-depends' => ['lua >= 5.4'],
+        ], $audit['luaEngineLibraryClosure']['presentNativeSystemFields']);
+        $t->same([
+            'c-sources: cbits/lua-runner-audit.c',
+            'extra-libraries: lua5.4',
+            'extra-libraries: pandoclua',
+            'hsc2hs-options: --cross-compile',
+            'hsc2hs-options: --template=cbits/lua-template.hsc',
+            'ld-options: -Wl,--as-needed',
+            'pkgconfig-depends: lua >= 5.4',
+        ], $audit['luaEngineLibraryClosure']['unexpectedNativeSystemFields']);
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected pandoc-lua-engine library native/system dependencies: c-sources: cbits/lua-runner-audit.c, extra-libraries: lua5.4, extra-libraries: pandoclua, hsc2hs-options: --cross-compile, hsc2hs-options: --template=cbits/lua-template.hsc, ld-options: -Wl,--as-needed, pkgconfig-depends: lua >= 5.4', $blocked);
+        $t->contains('no unexpected pandoc-lua-engine library native/system dependency fields', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks runner default-language drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
         $root = $makeTree($requiredFiles(
             $pinnedProject(),

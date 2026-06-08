@@ -476,6 +476,34 @@ final class OdfReader
                 $metadata['editingCycles'] = self::normalizedText($child);
                 continue;
             }
+            if (in_array($child->localName, ['generator', 'editing-duration', 'printed-by', 'print-date', 'print-time'], true)) {
+                $text = self::normalizedText($child);
+                if ($text !== '') {
+                    $metadata[self::camelCase($child->localName)] = $text;
+                }
+                continue;
+            }
+            if ($child->localName === 'template') {
+                $template = $this->metaTemplateMetadata($child);
+                if ($template !== []) {
+                    $metadata['template'] = $template;
+                }
+                continue;
+            }
+            if ($child->localName === 'auto-reload') {
+                $autoReload = $this->metaAutoReloadMetadata($child);
+                if ($autoReload !== []) {
+                    $metadata['autoReload'] = $autoReload;
+                }
+                continue;
+            }
+            if ($child->localName === 'hyperlink-behaviour') {
+                $hyperlinkBehaviour = $this->metaHyperlinkBehaviourMetadata($child);
+                if ($hyperlinkBehaviour !== []) {
+                    $metadata['hyperlinkBehaviour'] = $hyperlinkBehaviour;
+                }
+                continue;
+            }
             if ($child->localName === 'document-statistic') {
                 $metadata['statistics'] = $this->documentStatistics($child);
                 continue;
@@ -494,6 +522,55 @@ final class OdfReader
         if ($metadata['userDefined'] === []) {
             unset($metadata['userDefined']);
         }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function metaTemplateMetadata(\DOMElement $element): array
+    {
+        /** @var array<string, string> $metadata */
+        $metadata = self::withoutEmpty([
+            'href' => self::nullable(self::attr($element, self::XLINK_NS, 'href')),
+            'type' => self::nullable(self::attr($element, self::XLINK_NS, 'type')),
+            'title' => self::nullable(self::attr($element, self::XLINK_NS, 'title')),
+            'date' => self::nullable(self::attr($element, self::META_NS, 'date')),
+            'show' => self::nullable(self::attr($element, self::XLINK_NS, 'show')),
+            'actuate' => self::nullable(self::attr($element, self::XLINK_NS, 'actuate')),
+        ]);
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function metaAutoReloadMetadata(\DOMElement $element): array
+    {
+        /** @var array<string, string> $metadata */
+        $metadata = self::withoutEmpty([
+            'href' => self::nullable(self::attr($element, self::XLINK_NS, 'href')),
+            'type' => self::nullable(self::attr($element, self::XLINK_NS, 'type')),
+            'show' => self::nullable(self::attr($element, self::XLINK_NS, 'show')),
+            'actuate' => self::nullable(self::attr($element, self::XLINK_NS, 'actuate')),
+            'delay' => self::nullable(self::attr($element, self::META_NS, 'delay')),
+        ]);
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function metaHyperlinkBehaviourMetadata(\DOMElement $element): array
+    {
+        /** @var array<string, string> $metadata */
+        $metadata = self::withoutEmpty([
+            'show' => self::nullable(self::attr($element, self::XLINK_NS, 'show')),
+            'targetFrameName' => self::nullable(self::attr($element, self::OFFICE_NS, 'target-frame-name')),
+        ]);
 
         return $metadata;
     }

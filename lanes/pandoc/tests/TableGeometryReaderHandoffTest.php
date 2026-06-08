@@ -1187,4 +1187,71 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($docbookPacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes legacy html table frame rules and border geometry' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="legacy-frame-grid" data-source="html-reader" frame="void" rules="groups" border="1">
+<caption>Legacy frame review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $tableFrameDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-frame'
+            ));
+            $tableFrameDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('void', $packet['tableFrame']['frame'] ?? null);
+        $t->same('groups', $packet['tableFrame']['rules'] ?? null);
+        $t->same('1', $packet['tableFrame']['border'] ?? null);
+        $t->same([
+            'border' => '1',
+            'frame' => 'void',
+            'rules' => 'groups',
+        ], $packet['tableFrame']['attributes'] ?? null);
+        $t->same(true, $packet['summary']['hasTableFrame'] ?? null);
+        $t->same('void', $packet['summary']['tableFrame'] ?? null);
+        $t->same('groups', $packet['summary']['tableRules'] ?? null);
+        $t->same('1', $packet['summary']['tableBorder'] ?? null);
+        $t->same('void', $packet['sourceAttributes']['htmlAttributes']['frame'] ?? null);
+        $t->same('groups', $packet['sourceAttributes']['htmlAttributes']['rules'] ?? null);
+        $t->same('1', $packet['sourceAttributes']['htmlAttributes']['border'] ?? null);
+        $t->same([
+            'markdown-table-frame-requires-raw-html',
+            'asciidoc-table-frame-review-required',
+            'latex-table-frame-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $tableFrameDiagnostics['markdown'],
+            $tableFrameDiagnostics['asciidoc'],
+            $tableFrameDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-frame', $tableFrameDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-attributes', $tableFrameDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'border' => '1',
+            'frame' => 'void',
+            'rules' => 'groups',
+        ], $tableFrameDiagnostics['markdown']['attributes'] ?? null);
+        $t->contains('<table id="legacy-frame-grid" data-source="html-reader" border="1" frame="void" rules="groups">', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

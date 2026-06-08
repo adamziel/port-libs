@@ -406,6 +406,12 @@ if (!$juliaCodeBlock instanceof PortLibs\Pandoc\AstNode || $juliaCodeBlock->type
 }
 $julia = $highlighter->highlightCodeBlock($juliaCodeBlock, 'kate');
 $juliaWordpressBlock = $highlighter->wordpressHtmlBlock($juliaCodeBlock, 'kate');
+$awkCodeBlock = $document->children[64] ?? null;
+if (!$awkCodeBlock instanceof PortLibs\Pandoc\AstNode || $awkCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an AWK review filter code block');
+}
+$awk = $highlighter->highlightCodeBlock($awkCodeBlock, 'tango');
+$awkWordpressBlock = $highlighter->wordpressHtmlBlock($awkCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1751,6 +1757,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($juliaWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
         throw new RuntimeException('Expected Julia WordPress style metadata');
     }
+    if (($awk['language'] ?? '') !== 'awk') {
+        throw new RuntimeException('Expected AWK language handoff');
+    }
+    if (($awk['requestedLanguage'] ?? '') !== 'awk') {
+        throw new RuntimeException('Expected AWK requested-language wrapper handoff');
+    }
+    if (($awk['lineNumbering']['start'] ?? null) !== 940) {
+        throw new RuntimeException('Expected AWK source startFrom line-number handoff');
+    }
+    if (!str_contains($awk['html'], '<span class="re">BEGIN</span> <span class="op">{</span>')) {
+        throw new RuntimeException('Expected AWK BEGIN region token handoff');
+    }
+    if (!str_contains($awk['html'], '<span class="va">NR</span> <span class="op">&gt;</span> <span class="dv">1</span> <span class="op">&amp;&amp;</span> <span class="va">$3</span> <span class="op">~</span> <span class="st">/publish|draft/</span>')) {
+        throw new RuntimeException('Expected AWK field and regex token handoff');
+    }
+    if (!str_contains($awk['html'], '<span class="fu">gsub</span><span class="op">(</span><span class="st">/[[:space:]]+/</span>')) {
+        throw new RuntimeException('Expected AWK char-class regex token handoff');
+    }
+    if (!str_contains($awk['html'], '<span class="kw">printf</span> <span class="st">&quot;%s\\t%s\\t%s\\n&quot;</span>')) {
+        throw new RuntimeException('Expected AWK printf string token handoff');
+    }
+    if (!str_contains($awkWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected AWK WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1835,6 +1865,7 @@ echo "vueHighlightedHtml:\n" . $vue['html'] . "\n";
 echo "vueCustomHighlightedHtml:\n" . $vueCustom['html'] . "\n";
 echo "ocamlHighlightedHtml:\n" . $ocaml['html'] . "\n";
 echo "juliaHighlightedHtml:\n" . $julia['html'] . "\n";
+echo "awkHighlightedHtml:\n" . $awk['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1889,4 +1920,5 @@ echo "vueWordpressBlock:\n" . $vueWordpressBlock . "\n";
 echo "vueCustomWordpressBlock:\n" . $vueCustomWordpressBlock . "\n";
 echo "ocamlWordpressBlock:\n" . $ocamlWordpressBlock . "\n";
 echo "juliaWordpressBlock:\n" . $juliaWordpressBlock . "\n";
+echo "awkWordpressBlock:\n" . $awkWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

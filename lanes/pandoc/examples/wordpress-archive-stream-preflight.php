@@ -949,6 +949,19 @@ $unsupportedZstandardInspection = ArchiveCompressionStream::inspectUnsupportedCo
     $unsupportedZstandardUpload,
     'wordpress-review-packet.tar.zst'
 );
+$unsupportedZstandardOdtNameInspection = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+    '',
+    'WORDPRESS-REVIEW.ODT.ZSTD'
+);
+$compressedDocxGzip = GzipStream::build($nestedZipPackage->bytes(), [
+    'filename' => 'wordpress-review-package.docx',
+    'comment' => 'gzip-wrapped OPC package source-name preflight',
+]);
+$compressedDocxSourceNamePolicyInspection = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+    $compressedDocxGzip,
+    'WORDPRESS-REVIEW.DOCX.GZ',
+    strlen($nestedZipPackage->bytes())
+);
 $sourceNamePolicyInspection = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
     $gzip,
     'wordpress-review-packet.docx',
@@ -1173,7 +1186,16 @@ if (in_array('--self-test', $argv, true)) {
         'unsupportedZstandardKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'unsupportedZstandardCandidateFormat' => 'zstandard-tar',
         'unsupportedZstandardFlags' => '20',
+        'unsupportedZstandardOdtKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
+        'unsupportedZstandardOdtCandidateFormat' => 'zstandard-zip',
         'unsupportedPolicy' => 'unsupported-compression-stream-blocked',
+        'compressedDocxSourceNameReason' => 'extension:gzip-zip-package',
+        'compressedDocxExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
+        'compressedDocxExpectedFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'compressedDocxDetectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
+        'compressedDocxDetectedFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'compressedDocxPolicy' => 'within-thresholds',
+        'compressedDocxGzipFilename' => 'wordpress-review-package.docx',
         'sourceNamePolicyExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
         'sourceNamePolicyExpectedFormat' => ArchiveCompressionStream::FORMAT_ZIP,
         'sourceNamePolicyDetectedKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
@@ -1494,6 +1516,21 @@ if (in_array('--self-test', $argv, true)) {
         || $unsupportedZstandardInspection['streamFlagsHex'] !== $expected['unsupportedZstandardFlags']
         || $unsupportedZstandardInspection['extractionPolicy'] !== $expected['unsupportedPolicy']
         || ($unsupportedZstandardInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-zstandard-not-decoded'
+        || $unsupportedZstandardOdtNameInspection['candidateKind'] !== $expected['unsupportedZstandardOdtKind']
+        || $unsupportedZstandardOdtNameInspection['candidateFormat'] !== $expected['unsupportedZstandardOdtCandidateFormat']
+        || $unsupportedZstandardOdtNameInspection['signatureMatched'] !== false
+        || ($unsupportedZstandardOdtNameInspection['diagnostics'][4] ?? null) !== 'archive-compression-signature-unverified'
+        || $compressedDocxSourceNamePolicyInspection['sourceName'] !== 'WORDPRESS-REVIEW.DOCX.GZ'
+        || $compressedDocxSourceNamePolicyInspection['sourceNameReason'] !== $expected['compressedDocxSourceNameReason']
+        || $compressedDocxSourceNamePolicyInspection['expectedKind'] !== $expected['compressedDocxExpectedKind']
+        || $compressedDocxSourceNamePolicyInspection['expectedFormat'] !== $expected['compressedDocxExpectedFormat']
+        || $compressedDocxSourceNamePolicyInspection['detectedKind'] !== $expected['compressedDocxDetectedKind']
+        || $compressedDocxSourceNamePolicyInspection['detectedFormat'] !== $expected['compressedDocxDetectedFormat']
+        || $compressedDocxSourceNamePolicyInspection['handoffPolicy'] !== $expected['compressedDocxPolicy']
+        || $compressedDocxSourceNamePolicyInspection['diagnostics'] !== []
+        || ($compressedDocxSourceNamePolicyInspection['stream']['members'][0]['filename'] ?? null) !== $expected['compressedDocxGzipFilename']
+        || isset($compressedDocxSourceNamePolicyInspection['package'])
+        || isset($compressedDocxSourceNamePolicyInspection['zipBytes'])
         || $sourceNamePolicyInspection['sourceName'] !== 'wordpress-review-packet.docx'
         || $sourceNamePolicyInspection['sourceNameReason'] !== $expected['sourceNamePolicyReason']
         || $sourceNamePolicyInspection['expectedKind'] !== $expected['sourceNamePolicyExpectedKind']
@@ -1686,6 +1723,11 @@ echo 'unsupportedZstandard.format=' . $unsupportedZstandardInspection['format'] 
 echo 'unsupportedZstandard.candidateFormat=' . $unsupportedZstandardInspection['candidateFormat'] . "\n";
 echo 'unsupportedZstandard.extractionPolicy=' . $unsupportedZstandardInspection['extractionPolicy'] . "\n";
 echo 'unsupportedZstandard.diagnostics=' . implode(',', $unsupportedZstandardInspection['diagnostics']) . "\n";
+echo 'unsupportedZstandardOdt.candidateFormat=' . $unsupportedZstandardOdtNameInspection['candidateFormat'] . "\n";
+echo 'compressedDocxSourceName.reason=' . $compressedDocxSourceNamePolicyInspection['sourceNameReason'] . "\n";
+echo 'compressedDocxSourceName.expected=' . $compressedDocxSourceNamePolicyInspection['expectedKind'] . '/' . $compressedDocxSourceNamePolicyInspection['expectedFormat'] . "\n";
+echo 'compressedDocxSourceName.detected=' . $compressedDocxSourceNamePolicyInspection['detectedKind'] . '/' . $compressedDocxSourceNamePolicyInspection['detectedFormat'] . "\n";
+echo 'compressedDocxSourceName.handoffPolicy=' . $compressedDocxSourceNamePolicyInspection['handoffPolicy'] . "\n";
 echo 'sourceNamePolicy.sourceName=' . $sourceNamePolicyInspection['sourceName'] . "\n";
 echo 'sourceNamePolicy.expected=' . $sourceNamePolicyInspection['expectedKind'] . '/' . $sourceNamePolicyInspection['expectedFormat'] . "\n";
 echo 'sourceNamePolicy.detected=' . $sourceNamePolicyInspection['detectedKind'] . '/' . $sourceNamePolicyInspection['detectedFormat'] . "\n";

@@ -988,6 +988,7 @@ $routeSlipTable = $routeSlip([
     'status' => 'Awaiting legal signoff',
     'title' => 'Route packet 42',
 ]);
+$revisionAuthorTable = $sttbUnicode(['Unknown', 'Migration Lead', 'Review Editor', 'Archive Owner']);
 $fcDop = strlen($clx);
 $fcPlcfFldMom = $fcDop + strlen($dop);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
@@ -1000,7 +1001,8 @@ $fcStwUser = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcSttbSavedBy = $fcStwUser + strlen($documentVariablesTable);
 $fcSttbFnm = $fcSttbSavedBy + strlen($saveHistoryTable);
 $fcRouteSlip = $fcSttbFnm + strlen($externalFileTable);
-$fcSttbfBkmk = $fcRouteSlip + strlen($routeSlipTable);
+$fcSttbfRMark = $fcRouteSlip + strlen($routeSlipTable);
+$fcSttbfBkmk = $fcSttbfRMark + strlen($revisionAuthorTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
 $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
@@ -1016,7 +1018,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $routeSlipTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $routeSlipTable . $revisionAuthorTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -1053,6 +1055,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcSttbFnm), 0x02da, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcRouteSlip), 0x02ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbfRMark), 0x0232, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
@@ -1540,6 +1544,7 @@ $summary = [
     'endnotes' => $result['endnotes'],
     'comments' => $result['comments'],
     'commentAuthors' => $result['commentAuthors'],
+    'revisionAuthors' => $result['revisionAuthors'],
     'fieldCharacters' => $result['fieldCharacters'],
     'fields' => $result['fields'],
     'fieldStories' => $result['fieldStories'],
@@ -1681,6 +1686,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($summary['wordpressBlocks'], 'Route Reviewer') || str_contains($summary['wordpressBlocks'], 'Please review before import.') || str_contains($summary['wordpressBlocks'], 'Route Archivist')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered RouteSlip metadata into blocks');
+    }
+    if (($summary['metadata']['revisionAuthorCount'] ?? null) !== 4 || count($summary['revisionAuthors'] ?? []) !== 4) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing revision author metadata');
+    }
+    if (($summary['metadata']['revisionAuthorPolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing revision author policy');
+    }
+    if (($summary['revisionAuthors'][0]['name'] ?? '') !== 'Unknown' || ($summary['revisionAuthors'][0]['reservedUnknownAuthor'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfRMark Unknown sentinel');
+    }
+    if (($summary['revisionAuthors'][1]['name'] ?? '') !== 'Migration Lead' || ($summary['revisionAuthors'][2]['reviewerRole'] ?? '') !== 'revision-author') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfRMark reviewer records');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'Archive Owner') || str_contains($summary['wordpressBlocks'], 'Review Editor')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered revision author metadata into blocks');
     }
     $documentProperties = $summary['documentProperties'] ?? null;
     $documentPolicyFlags = is_array($documentProperties) && is_array($documentProperties['policyFlags'] ?? null) ? $documentProperties['policyFlags'] : [];

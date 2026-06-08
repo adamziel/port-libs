@@ -1174,3 +1174,25 @@ meta:
 - Keep `legacy_shortcode` visible
 </docs>
 ```
+
+``` {.awk #awk-review .numberLines startFrom=940}
+# AWK WordPress export review
+BEGIN {
+    FS = ","
+    OFS = "\t"
+    print "source_id", "title", "status"
+}
+
+NR > 1 && $3 ~ /publish|draft/ {
+    title = gensub(/^"|"$/, "", "g", $2)
+    gsub(/[[:space:]]+/, " ", title)
+    if (length(title) == 0) {
+        title = "Untitled"
+    }
+    printf "%s\t%s\t%s\n", $1, title, tolower($3)
+}
+
+END {
+    print "reviewed", NR - 1 > "/dev/stderr"
+}
+```

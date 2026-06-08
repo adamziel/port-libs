@@ -272,11 +272,20 @@ $metaXml = <<<'XML'
 <office:document-meta
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
-  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
   <office:meta>
     <dc:title>WordPress ODT source packet</dc:title>
     <dc:creator>Migration Desk</dc:creator>
     <dc:language>en</dc:language>
+    <meta:generator>LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4</meta:generator>
+    <meta:editing-duration>PT1H2M3S</meta:editing-duration>
+    <meta:printed-by>Migration Printer</meta:printed-by>
+    <meta:print-date>2026-06-08</meta:print-date>
+    <meta:print-time>PT12H34M56S</meta:print-time>
+    <meta:template xlink:href="Templates/import-review.ott" xlink:type="simple" xlink:title="Import Review Template" xlink:show="replace" xlink:actuate="onRequest" meta:date="2026-06-01T10:00:00Z"/>
+    <meta:auto-reload xlink:href="https://example.test/source.odt" xlink:type="simple" xlink:show="replace" xlink:actuate="onLoad" meta:delay="PT15M"/>
+    <meta:hyperlink-behaviour xlink:show="new" office:target-frame-name="_blank"/>
     <meta:keyword>odt</meta:keyword>
     <meta:document-statistic meta:page-count="1" meta:word-count="64" meta:image-count="1"/>
   </office:meta>
@@ -343,6 +352,21 @@ $blocks = (new WordPressBlockWriter())->write($result['document']);
 if (($argv[1] ?? '') === '--self-test') {
     if ($result['metadata']['title'] !== 'WordPress ODT source packet') {
         throw new RuntimeException('Expected ODT title metadata');
+    }
+    if (($result['metadata']['generator'] ?? '') !== 'LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4') {
+        throw new RuntimeException('Expected ODT generator metadata');
+    }
+    if (($result['metadata']['template']['href'] ?? '') !== 'Templates/import-review.ott'
+        || ($result['metadata']['template']['title'] ?? '') !== 'Import Review Template') {
+        throw new RuntimeException('Expected ODT template provenance metadata');
+    }
+    if (($result['metadata']['autoReload']['delay'] ?? '') !== 'PT15M'
+        || ($result['metadata']['autoReload']['href'] ?? '') !== 'https://example.test/source.odt') {
+        throw new RuntimeException('Expected ODT auto-reload metadata');
+    }
+    if (($result['metadata']['hyperlinkBehaviour']['show'] ?? '') !== 'new'
+        || ($result['metadata']['hyperlinkBehaviour']['targetFrameName'] ?? '') !== '_blank') {
+        throw new RuntimeException('Expected ODT default hyperlink behaviour metadata');
     }
     if (($result['media'][0]['part'] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT image manifest media to be reported');

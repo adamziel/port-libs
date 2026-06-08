@@ -410,6 +410,27 @@ return [
         $t->contains('<h1 id="dos-437">DOS 437</h1>', $blocks);
         $t->contains('<p>Box ╔═╗║╠; résumé; αß °±.</p>', $blocks);
     },
+    'decodes ibm850 dos western european source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 850\n\nEspa\xA4ol Fran\x87ais; \xB5rvore e \xD5zmir; fractions \xAB\xAC\xF3; box \xC9\xCD\xBB; \xF2.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp850');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cspc850multilingual');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x9E\xB5\xD5\xDD\xE7\xE8\xF0\xF2\xF3\xFE\xFF", 'ibm850');
+        $ibm437Comparison = UnicodeText::decodeBytes("\xB5\xD5\xF2\xF3", 'ibm437');
+
+        $t->same('ibm850', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 850\n\nEspañol Français; Árvore e ızmir; fractions ½¼¾; box ╔═╗; ‗.", $decoded['text']);
+        $t->same("×Áı¦þÞ\u{00AD}‗¾■\u{00A0}", $specials['text']);
+        $t->same('╡╒≥≤', $ibm437Comparison['text']);
+        $t->same(['encoding' => 'ibm850', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 850', $document->children[0]->attr('text'));
+        $t->same('Español Français; Árvore e ızmir; fractions ½¼¾; box ╔═╗; ‗.', $document->children[1]->attr('text'));
+        $t->same(60, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(67, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-850">DOS 850</h1>', $blocks);
+        $t->contains('<p>Español Français; Árvore e ızmir; fractions ½¼¾; box ╔═╗; ‗.</p>', $blocks);
+    },
     'decodes iso 8859 5 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-144');

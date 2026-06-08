@@ -165,10 +165,12 @@ final class MathTexConverter
         'equiv' => '≢',
         'ge' => '≱',
         'geq' => '≱',
+        'geqslant' => '≱',
         'gt' => '≯',
         'in' => '∉',
         'le' => '≰',
         'leq' => '≰',
+        'leqslant' => '≰',
         'leftarrow' => '↚',
         'leftrightarrow' => '↮',
         'lt' => '≮',
@@ -3659,6 +3661,16 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX relation after \\not at offset ' . $offset);
         }
 
+        if ($char === '{') {
+            $groupOffset = $offset;
+            $relation = $this->readNotRelationGroup($source, $groupOffset);
+            if ($relation !== null) {
+                $offset = $groupOffset;
+
+                return '<mo>' . $relation . '</mo>';
+            }
+        }
+
         if ($char === '\\') {
             $commandOffset = $offset + 1;
             $command = $this->readCommandName($source, $commandOffset);
@@ -3680,6 +3692,27 @@ final class MathTexConverter
         return '<menclose notation="updiagonalstrike">'
             . $this->parseAtom($source, $offset, $defaultScriptPlacement)
             . '</menclose>';
+    }
+
+    private function readNotRelationGroup(string $source, int &$offset): ?string
+    {
+        $group = trim($this->readRequiredGroupText($source, $offset));
+        if ($group === '') {
+            throw new \InvalidArgumentException('Expected TeX relation after \\not at offset ' . $offset);
+        }
+
+        if (strlen($group) === 1 && isset(self::NOT_RELATION_TOKENS[$group])) {
+            return self::NOT_RELATION_TOKENS[$group];
+        }
+
+        if (preg_match('/^\\\\([A-Za-z]+|.)$/', $group, $matches) === 1) {
+            $command = $matches[1];
+            if (isset(self::NOT_RELATION_COMMANDS[$command])) {
+                return self::NOT_RELATION_COMMANDS[$command];
+            }
+        }
+
+        return null;
     }
 
     private function parseArrowAccentCommand(string $source, int &$offset, string $command): string

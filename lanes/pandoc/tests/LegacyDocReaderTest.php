@@ -2796,6 +2796,78 @@ return [
         $t->contains('data-legacy-doc-include-external-reference-index="0"', $markdown);
         $t->true(!str_contains($blocks, 'C:\Legacy\Subdocs\chapter1.doc'));
     },
+    'extracts legacy DOC SttbfRMark revision authors as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbUnicode, $u16, $u32): void {
+        $revisionAuthorTable = $sttbUnicode(['Unknown', 'Migration Lead', 'Review Editor']);
+        $wordDocument = $buildExtendedFibWordDocument("Revision author review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x0232, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $revisionAuthorTable,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $revisionAuthors = $result['revisionAuthors'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(3, count($revisionAuthors));
+        $t->same(3, $metadata['revisionAuthorCount']);
+        $t->same('metadata-only-native-review', $metadata['revisionAuthorPolicy']);
+        $t->same($revisionAuthors, $metadata['revisionAuthors']);
+        $t->same($revisionAuthors, $result['document']->attr('revisionAuthors'));
+        $t->same($revisionAuthors, $result['document']->attr('meta')['revisionAuthors']);
+        $t->same(0, $revisionAuthors[0]['index']);
+        $t->same('SttbfRMark', $revisionAuthors[0]['sourceTable']);
+        $t->same('Unknown', $revisionAuthors[0]['name']);
+        $t->same(7, $revisionAuthors[0]['characterCount']);
+        $t->same('UTF-16LE-STTB', $revisionAuthors[0]['sourceEncoding']);
+        $t->same(false, $revisionAuthors[0]['canExposeBytes']);
+        $t->same('metadata-only-native-review', $revisionAuthors[0]['extractionPolicy']);
+        $t->same(true, $revisionAuthors[0]['reservedUnknownAuthor']);
+        $t->same(1, $revisionAuthors[1]['index']);
+        $t->same('Migration Lead', $revisionAuthors[1]['name']);
+        $t->same(14, $revisionAuthors[1]['characterCount']);
+        $t->same('revision-author', $revisionAuthors[1]['reviewerRole']);
+        $t->same(2, $revisionAuthors[2]['index']);
+        $t->same('Review Editor', $revisionAuthors[2]['name']);
+        $t->same('revision-author', $revisionAuthors[2]['reviewerRole']);
+        $t->contains('<p>Revision author review packet</p>', $blocks);
+        $t->contains('Revision author review packet', $markdown);
+        $t->true(!str_contains($blocks, 'Migration Lead'));
+        $t->true(!str_contains($blocks, 'Review Editor'));
+        $t->true(!str_contains($markdown, 'Review Editor'));
+
+        $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
+            $wordDocument = $buildExtendedFibWordDocument("Malformed revision author packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x0232, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($table)), 0x0236, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $table,
+            ]);
+        };
+        foreach ([
+            'wrong extended marker' => substr_replace($revisionAuthorTable, $u16(0), 0, 2),
+            'empty table' => $u16(0xffff) . $u16(0) . $u16(0),
+            'extra data' => substr_replace($revisionAuthorTable, $u16(2), 4, 2),
+            'missing Unknown sentinel' => $sttbUnicode(['Migration Lead', 'Review Editor']),
+            'empty author' => $sttbUnicode(['Unknown', '']),
+            'oversized author' => $sttbUnicode(['Unknown', str_repeat('A', 256)]),
+            'trailing bytes' => $revisionAuthorTable . "\0",
+        ] as $table) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($table)));
+        }
+
+        $missingTableWordDocument = $buildExtendedFibWordDocument("Missing revision author table stream packet\r");
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x0232, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
+    },
     'extracts legacy DOC RouteSlip routing metadata as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $routeSlip, $u16, $u32): void {
         $routeSlipTable = $routeSlip([
             [

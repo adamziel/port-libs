@@ -1623,6 +1623,7 @@ final class TableGeometry
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
+        $tableFrame = self::tableFrameMetadata($table);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
         $writerDowngrades = [];
@@ -1678,9 +1679,14 @@ final class TableGeometry
                 $rowMatrix,
                 $flatGrid,
                 $flatGridFallbacks,
+                $tableFrame,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
+
+        if ($tableFrame !== []) {
+            $packet['tableFrame'] = $tableFrame;
+        }
 
         if ($sourceSummary !== []) {
             $packet['sourceSummary'] = $sourceSummary;
@@ -4280,6 +4286,7 @@ final class TableGeometry
      * @param array<string, mixed> $rowMatrix
      * @param array<string, mixed> $flatGrid
      * @param list<array<string, mixed>> $flatGridFallbacks
+     * @param array<string, mixed> $tableFrame
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -4297,6 +4304,7 @@ final class TableGeometry
         array $rowMatrix,
         array $flatGrid,
         array $flatGridFallbacks,
+        array $tableFrame,
         string $sourceSummary
     ): array
     {
@@ -4526,6 +4534,10 @@ final class TableGeometry
             'captionAfterTable' => (bool) ($captions['long']['captionAfterTable'] ?? false),
             'hasSourceSummary' => $sourceSummary !== '',
             'sourceSummaryText' => $sourceSummary,
+            'hasTableFrame' => $tableFrame !== [],
+            'tableFrame' => (string) ($tableFrame['frame'] ?? ''),
+            'tableRules' => (string) ($tableFrame['rules'] ?? ''),
+            'tableBorder' => (string) ($tableFrame['border'] ?? ''),
             'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
             'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
             'shortCaptionBlockTypes' => array_values(array_map(
@@ -4929,6 +4941,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
@@ -5002,6 +5015,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
@@ -5087,6 +5101,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableFrameWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
@@ -5764,6 +5779,44 @@ final class TableGeometry
             'caption' => $caption,
             'hasCaption' => trim($caption) !== '',
             'summaryText' => $summary,
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableFrameWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableFrame = self::tableFrameMetadata($table);
+        if ($tableFrame === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-frame-requires-raw-html', 'raw-html-table-frame'],
+            'asciidoc' => ['asciidoc-table-frame-review-required', 'table-frame-review'],
+            'latex' => ['latex-table-frame-review-required', 'table-frame-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-frame',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-attributes',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'frame' => (string) ($tableFrame['frame'] ?? ''),
+            'rules' => (string) ($tableFrame['rules'] ?? ''),
+            'border' => (string) ($tableFrame['border'] ?? ''),
+            'attributeCount' => count(is_array($tableFrame['attributes'] ?? null) ? $tableFrame['attributes'] : []),
+            'attributes' => $tableFrame['attributes'] ?? [],
+            'sourceAttributes' => $tableFrame['sourceAttributes'] ?? [],
         ]];
     }
 
@@ -7135,6 +7188,84 @@ final class TableGeometry
         ksort($normalized);
 
         return $normalized;
+    }
+
+    /**
+     * @return array{source:string,attributes:array<string, string>,frame?:string,rules?:string,border?:string,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableFrameMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        $recordAttributes = [];
+        $frame = self::normalizeTableFrameAttribute((string) ($attributes['frame'] ?? ''));
+        if ($frame !== '') {
+            $recordAttributes['frame'] = $frame;
+        }
+
+        $rules = self::normalizeTableRulesAttribute((string) ($attributes['rules'] ?? ''));
+        if ($rules !== '') {
+            $recordAttributes['rules'] = $rules;
+        }
+
+        if (array_key_exists('border', $attributes)) {
+            $border = self::normalizeTableBorderAttribute((string) $attributes['border']);
+            if ($border !== '') {
+                $recordAttributes['border'] = $border;
+            }
+        }
+
+        if ($recordAttributes === []) {
+            return [];
+        }
+
+        ksort($recordAttributes);
+        $record = [
+            'source' => 'html-table-attributes',
+            'attributes' => $recordAttributes,
+        ];
+        foreach (['frame', 'rules', 'border'] as $name) {
+            if (isset($recordAttributes[$name])) {
+                $record[$name] = $recordAttributes[$name];
+            }
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    private static function normalizeTableFrameAttribute(string $value): string
+    {
+        $value = strtolower(trim($value));
+        return in_array($value, ['void', 'above', 'below', 'hsides', 'lhs', 'rhs', 'vsides', 'box', 'border'], true)
+            ? $value
+            : '';
+    }
+
+    private static function normalizeTableRulesAttribute(string $value): string
+    {
+        $value = strtolower(trim($value));
+        return in_array($value, ['none', 'groups', 'rows', 'cols', 'all'], true) ? $value : '';
+    }
+
+    private static function normalizeTableBorderAttribute(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || strtolower($value) === 'border') {
+            return '1';
+        }
+
+        return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
     }
 
     private static function tableAttributeColumnCount(mixed $columns): int

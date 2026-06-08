@@ -258,6 +258,52 @@ return [
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
     },
+    'maps ODT package policy metadata from meta XML' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $metaWithPackagePolicy = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:meta>
+    <dc:title>ODT Import Packet</dc:title>
+    <meta:generator>LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4</meta:generator>
+    <meta:editing-duration>PT1H2M3S</meta:editing-duration>
+    <meta:printed-by>Migration Printer</meta:printed-by>
+    <meta:print-date>2026-06-08</meta:print-date>
+    <meta:print-time>PT12H34M56S</meta:print-time>
+    <meta:template xlink:href="Templates/import-review.ott" xlink:type="simple" xlink:title="Import Review Template" xlink:show="replace" xlink:actuate="onRequest" meta:date="2026-06-01T10:00:00Z"/>
+    <meta:auto-reload xlink:href="https://example.test/source.odt" xlink:type="simple" xlink:show="replace" xlink:actuate="onLoad" meta:delay="PT15M"/>
+    <meta:hyperlink-behaviour xlink:show="new" office:target-frame-name="_blank"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, $metaWithPackagePolicy));
+        $metadata = $result['metadata'];
+
+        $t->same('LibreOffice/7.6.4$Linux_X86_64 LibreOffice_project/7.6.4', $metadata['generator']);
+        $t->same('PT1H2M3S', $metadata['editingDuration']);
+        $t->same('Migration Printer', $metadata['printedBy']);
+        $t->same('2026-06-08', $metadata['printDate']);
+        $t->same('PT12H34M56S', $metadata['printTime']);
+        $t->same('Templates/import-review.ott', $metadata['template']['href']);
+        $t->same('simple', $metadata['template']['type']);
+        $t->same('replace', $metadata['template']['show']);
+        $t->same('onRequest', $metadata['template']['actuate']);
+        $t->same('Import Review Template', $metadata['template']['title']);
+        $t->same('2026-06-01T10:00:00Z', $metadata['template']['date']);
+        $t->same('https://example.test/source.odt', $metadata['autoReload']['href']);
+        $t->same('simple', $metadata['autoReload']['type']);
+        $t->same('replace', $metadata['autoReload']['show']);
+        $t->same('onLoad', $metadata['autoReload']['actuate']);
+        $t->same('PT15M', $metadata['autoReload']['delay']);
+        $t->same('new', $metadata['hyperlinkBehaviour']['show']);
+        $t->same('_blank', $metadata['hyperlinkBehaviour']['targetFrameName']);
+        $t->same('Import Review Template', $result['document']->attr('metadata')['template']['title']);
+        $t->same('PT15M', $result['importReport']['metadata']['autoReload']['delay']);
+        $t->same('_blank', $result['importReport']['metadata']['hyperlinkBehaviour']['targetFrameName']);
+    },
     'maps ODT page layouts and master pages into import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithPageLayout = <<<'XML'
 <office:document-styles

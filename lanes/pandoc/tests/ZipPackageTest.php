@@ -580,6 +580,36 @@ return [
         $t->same($zip, $package->bytes());
     },
 
+    'reads zip packages whose package comment contains eocd signature bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>EOCD-looking comment bytes</w:p></w:body></w:document>';
+        $comment = "PK\x05\x06" . str_repeat("\0", 18);
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+        ], $comment);
+        $actualEocdOffset = strlen($zip) - 22 - strlen($comment);
+
+        $archive = ZipPackage::endOfCentralDirectoryPreflight($zip);
+        $package = ZipPackage::fromString($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same($actualEocdOffset, $archive['eocdOffset']);
+        $t->same(1, $archive['totalEntryCount']);
+        $t->same(strlen($comment), $archive['packageCommentLength']);
+        $t->same($comment, $archive['packageComment']);
+        $t->same(['word/document.xml'], $package->names());
+        $t->same($comment, $package->packageComment());
+        $t->same($documentXml, $package->read('/word/document.xml'));
+        $t->same(true, $rawPreflight['canInstantiate']);
+        $t->same($actualEocdOffset, $rawPreflight['archive']['eocdOffset']);
+        $t->contains('package-or-entry-comments', implode(',', $rawPreflight['diagnostics']));
+        $t->same(false, $rawPreflight['strictImport']['isValid']);
+        $t->same(true, $rawPreflight['strictImport']['comments']['hasPackageComment']);
+    },
+
     'exposes zip package entries in local header order for container preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [

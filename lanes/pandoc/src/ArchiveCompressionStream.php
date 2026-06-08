@@ -3158,6 +3158,34 @@ final class ArchiveCompressionStream
     private static function supportedPackageSourceNameCandidate(string $sourceName): ?array
     {
         $lower = strtolower($sourceName);
+        $zipPackageExtensions = [
+            '.docx',
+            '.dotx',
+            '.docm',
+            '.odt',
+            '.ods',
+            '.odp',
+            '.epub',
+        ];
+        $zipPackageCompressionSuffixes = [
+            '.gz' => [self::FORMAT_GZIP_ZIP, 'extension:gzip-zip-package'],
+            '.zlib' => [self::FORMAT_ZLIB_ZIP, 'extension:zlib-zip-package'],
+            '.deflate' => [self::FORMAT_RAW_DEFLATE_ZIP, 'extension:raw-deflate-zip-package'],
+            '.lz4' => [self::FORMAT_LZ4_ZIP, 'extension:lz4-zip-package'],
+        ];
+
+        foreach ($zipPackageCompressionSuffixes as $compressionSuffix => [$format, $reason]) {
+            foreach ($zipPackageExtensions as $packageExtension) {
+                if (str_ends_with($lower, $packageExtension . $compressionSuffix)) {
+                    return [
+                        'kind' => self::PACKAGE_KIND_ZIP,
+                        'format' => $format,
+                        'reason' => $reason,
+                    ];
+                }
+            }
+        }
+
         $suffixes = [
             '.tar.gz' => [self::PACKAGE_KIND_TAR, self::FORMAT_GZIP_TAR, 'extension:gzip-tar'],
             '.tgz' => [self::PACKAGE_KIND_TAR, self::FORMAT_GZIP_TAR, 'extension:gzip-tar'],
@@ -3199,6 +3227,33 @@ final class ArchiveCompressionStream
     private static function unsupportedCompressionNameCandidate(string $sourceName): ?array
     {
         $lower = strtolower($sourceName);
+        $zipPackageExtensions = [
+            '.docx',
+            '.dotx',
+            '.docm',
+            '.odt',
+            '.ods',
+            '.odp',
+            '.epub',
+        ];
+        $zipPackageCompressionSuffixes = [
+            '.bz2' => 'bzip2',
+            '.xz' => 'xz',
+            '.zst' => 'zstandard',
+            '.zstd' => 'zstandard',
+        ];
+
+        foreach ($zipPackageCompressionSuffixes as $compressionSuffix => $format) {
+            foreach ($zipPackageExtensions as $packageExtension) {
+                if (str_ends_with($lower, $packageExtension . $compressionSuffix)) {
+                    return [
+                        'format' => $format,
+                        'kind' => self::PACKAGE_KIND_ZIP,
+                    ];
+                }
+            }
+        }
+
         $compressedSuffixes = [
             '.tar.bz2' => ['bzip2', self::PACKAGE_KIND_TAR],
             '.tbz2' => ['bzip2', self::PACKAGE_KIND_TAR],

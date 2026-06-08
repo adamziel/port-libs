@@ -3900,6 +3900,113 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfTaggingMetadata']);
     },
 
+    'fake runner extracts bounded pdf structure parent tree number mappings from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/parent-tree.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] /ParentTree 12 0 R /ParentTreeNextKey 4 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /H1 /P 9 0 R /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /K [1 2] /Alt (Review figure) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Kids [14 0 R 15 0 R] /Limits [0 3] >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Nums [0 10 0 R 1 [10 0 R 11 0 R]] /Limits [0 1] >>',
+            'endobj',
+            '15 0 obj',
+            '<< /Nums [2 null 3 99 0 R] /Limits [2 3] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/parent-tree.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/parent-tree.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'source' => 'structTreeRoot.ParentTree.Kids.14 0 R',
+                'nodeObject' => '14 0 R',
+                'mcid' => 0,
+                'valueKind' => 'reference',
+                'valueObject' => '10 0 R',
+                'arrayCount' => null,
+                'structureReferences' => ['10 0 R'],
+                'missingReferences' => [],
+                'limits' => [0, 1],
+            ],
+            [
+                'source' => 'structTreeRoot.ParentTree.Kids.14 0 R',
+                'nodeObject' => '14 0 R',
+                'mcid' => 1,
+                'valueKind' => 'array',
+                'valueObject' => null,
+                'arrayCount' => 2,
+                'structureReferences' => ['10 0 R', '11 0 R'],
+                'missingReferences' => [],
+                'limits' => [0, 1],
+            ],
+            [
+                'source' => 'structTreeRoot.ParentTree.Kids.15 0 R',
+                'nodeObject' => '15 0 R',
+                'mcid' => 2,
+                'valueKind' => 'null',
+                'valueObject' => null,
+                'arrayCount' => null,
+                'structureReferences' => [],
+                'missingReferences' => [],
+                'limits' => [2, 3],
+            ],
+            [
+                'source' => 'structTreeRoot.ParentTree.Kids.15 0 R',
+                'nodeObject' => '15 0 R',
+                'mcid' => 3,
+                'valueKind' => 'reference',
+                'valueObject' => '99 0 R',
+                'arrayCount' => null,
+                'structureReferences' => ['99 0 R'],
+                'missingReferences' => ['99 0 R'],
+                'limits' => [2, 3],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureParentTree'] ?? null);
+        $t->contains('pdf-byte-structure-parent-tree:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-parent-tree-arrays:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-parent-tree-null:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-parent-tree-missing:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureParentTree'] ?? null);
+    },
+
     'fake runner extracts bounded pdf structure element accessibility metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-elements.pdf']);

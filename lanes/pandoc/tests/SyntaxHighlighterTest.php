@@ -61,6 +61,10 @@ return [
         $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('adoc'));
         $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('asc'));
         $t->same('asciidoc', SyntaxHighlighter::normalizeLanguage('language-asciidoctor'));
+        $t->same('awk', SyntaxHighlighter::normalizeLanguage('awk'));
+        $t->same('awk', SyntaxHighlighter::normalizeLanguage('gawk'));
+        $t->same('awk', SyntaxHighlighter::normalizeLanguage('mawk'));
+        $t->same('awk', SyntaxHighlighter::normalizeLanguage('language-awk-script'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rst'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('rest'));
         $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
@@ -3106,6 +3110,49 @@ return [
         $t->contains('&lt;!-- wp:shortcode --&gt;', $directNowdoc['html']);
         $t->contains('[gallery]', $directNowdoc['html']);
         $t->contains('HTML;</span>', $directNowdoc['html']);
+    },
+    'highlights awk migration filters with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[64] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an AWK review filter code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directAwk = $highlighter->highlight('BEGIN { FS="," } NR > 1 { print $1, tolower($2) }', 'gawk');
+
+        $t->same('awk', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('awk', $highlighted['language']);
+        $t->same('awk', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(940, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource awk numberLines"><code class="sourceCode awk" style="counter-reset: source-line 939;">', $highlighted['html']);
+        $t->contains('<span id="awk-review-940"><a href="#awk-review-940"></a><span class="co"># AWK WordPress export review</span></span>', $highlighted['html']);
+        $t->contains('<span class="re">BEGIN</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="va">FS</span> <span class="op">=</span> <span class="st">&quot;,&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="va">OFS</span> <span class="op">=</span> <span class="st">&quot;\\t&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">print</span> <span class="st">&quot;source_id&quot;</span><span class="op">,</span> <span class="st">&quot;title&quot;</span><span class="op">,</span> <span class="st">&quot;status&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="va">NR</span> <span class="op">&gt;</span> <span class="dv">1</span> <span class="op">&amp;&amp;</span> <span class="va">$3</span> <span class="op">~</span> <span class="st">/publish|draft/</span>', $highlighted['html']);
+        $t->contains('<span class="fu">gensub</span><span class="op">(</span><span class="st">/^&quot;|&quot;$/</span><span class="op">,</span> <span class="st">&quot;&quot;</span><span class="op">,</span> <span class="st">&quot;g&quot;</span><span class="op">,</span> <span class="va">$2</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">gsub</span><span class="op">(</span><span class="st">/[[:space:]]+/</span><span class="op">,</span> <span class="st">&quot; &quot;</span><span class="op">,</span> <span class="va">title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="fu">length</span><span class="op">(</span><span class="va">title</span><span class="op">)</span> <span class="op">==</span> <span class="dv">0</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">printf</span> <span class="st">&quot;%s\\t%s\\t%s\\n&quot;</span><span class="op">,</span> <span class="va">$1</span><span class="op">,</span> <span class="va">title</span><span class="op">,</span> <span class="fu">tolower</span><span class="op">(</span><span class="va">$3</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="re">END</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">print</span> <span class="st">&quot;reviewed&quot;</span><span class="op">,</span> <span class="va">NR</span> <span class="op">-</span> <span class="dv">1</span> <span class="op">&gt;</span> <span class="st">&quot;/dev/stderr&quot;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="fu">gsub</span><span class="op">(</span><span class="st">/[[:space:]]+/</span>', $wordpressBlock);
+        $t->same('awk', $directAwk['language']);
+        $t->same('gawk', $directAwk['requestedLanguage']);
+        $t->contains('<span class="re">BEGIN</span> <span class="op">{</span> <span class="va">FS</span><span class="op">=</span><span class="st">&quot;,&quot;</span>', $directAwk['html']);
+        $t->contains('<span class="va">NR</span> <span class="op">&gt;</span> <span class="dv">1</span> <span class="op">{</span> <span class="kw">print</span> <span class="va">$1</span><span class="op">,</span> <span class="fu">tolower</span><span class="op">(</span><span class="va">$2</span><span class="op">)</span>', $directAwk['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

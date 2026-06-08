@@ -50,6 +50,8 @@ final class SyntaxHighlighter
         'asc' => 'asciidoc',
         'asciidoc' => 'asciidoc',
         'asciidoctor' => 'asciidoc',
+        'awk' => 'awk',
+        'awk-script' => 'awk',
         'bash' => 'bash',
         'c' => 'c',
         'cargo-lock' => 'toml',
@@ -87,6 +89,7 @@ final class SyntaxHighlighter
         'exs' => 'elixir',
         'flutter' => 'dart',
         'git-diff' => 'diff',
+        'gawk' => 'awk',
         'graphviz' => 'dot',
         'gv' => 'dot',
         'h' => 'c',
@@ -163,11 +166,13 @@ final class SyntaxHighlighter
         'graphqls' => 'graphql',
         'markdown' => 'markdown',
         'mariadb' => 'sql',
+        'mawk' => 'awk',
         'md' => 'markdown',
         'mmd' => 'markdown',
         'multimarkdown' => 'markdown',
         'mustache' => 'mustache',
         'mysql' => 'sql',
+        'nawk' => 'awk',
         'nix' => 'nix',
         'nix-expr' => 'nix',
         'nix-shell' => 'nix',
@@ -687,6 +692,7 @@ final class SyntaxHighlighter
         return match ($language) {
             'apache' => $this->tokenizeApacheConfig($code),
             'asciidoc' => $this->tokenizeAsciiDoc($code),
+            'awk' => $this->tokenizeAwk($code),
             'bash' => $this->tokenizeBash($code),
             'c', 'cpp' => $this->tokenizeC($code),
             'clojure' => $this->tokenizeClojure($code),
@@ -767,6 +773,30 @@ final class SyntaxHighlighter
             ['number', '/^\\b\\d{3}\\b|^-?\\b\\d+(?:\\.\\d+)?\\b/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_.:-]*\\b/'],
             ['operator', '/^(?:!-?[A-Za-z]|-[A-Za-z]|!=|==|<=|>=|\\/?>|[{}()[\\];,.+*\\/%=!<>?:|&^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeAwk(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', '/^\\/(?:\\\\.|\\[[^\\]\\n]*(?:\\\\.[^\\]\\n]*)*\\]|[^\\/\\\\\\n])+\\/(?=\\s*(?:[),;{}]|&&|\\|\\||$))/'],
+            ['keyword', '/^@(?:include|load)\\b/'],
+            ['region', '/^\\b(?:BEGINFILE|ENDFILE|BEGIN|END)\\b/'],
+            ['keyword', '/^\\b(?:break|case|continue|default|do|else|exit|for|if|return|switch|while)\\b/'],
+            ['keyword', '/^\\b(?:delete|function|getline|in|nextfile|next|print|printf)\\b/'],
+            ['variable', '/^\\$[A-Za-z0-9_]+/'],
+            ['variable', '/^\\b(?:ARGC|ARGIND|ARGV|BINMODE|CONVFMT|ENVIRON|ERRNO|FIELDWIDTHS|FILENAME|FNR|FPAT|FS|FUNCTAB|IGNORECASE|LINT|NF|NR|OFMT|OFS|ORS|PREC|PROCINFO|ROUNDMODE|RS|RT|RSTART|RLENGTH|SUBSEP|SYMTAB|TEXTDOMAIN)\\b/'],
+            ['function', '/^\\b(?:and|asort|asorti|atan2|bindtextdomain|close|compl|cos|dcgettext|dcngettext|exp|fflush|gensub|gsub|index|int|isarray|length|log|lshift|match|mktime|or|patsplit|rand|rshift|sin|split|sprintf|sqrt|srand|strftime|strtonum|sub|substr|system|systime|tolower|toupper|typeof|xor)\\b(?=\\s*\\()/'],
+            ['constant', '/^\\[\\[:(?:alnum|alpha|blank|cntrl|digit|graph|lower|print|punct|space|upper|xdigit):\\]\\]/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?\\b/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\+\\+|--|\\+=|-=|\\*=|\\/=|%=|\\^=|==|!=|<=|>=|&&|\\|\\||!~|~|[{}()[\\];,.+*\\/%=!<>?:&|^$-])/'],
         ]);
     }
 
