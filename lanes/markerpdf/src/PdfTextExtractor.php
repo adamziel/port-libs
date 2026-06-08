@@ -10310,12 +10310,13 @@ final class PdfTextExtractor
     private function imageXObjectDecodeParmsOperandFailureReview(string $dictionary, array $objects): ?array
     {
         $offset = $this->topLevelNameValueOffset($dictionary, 'DecodeParms');
-        $value = $offset === null ? null : $this->pdfValueAtOffset($dictionary, $offset);
+        $value = $offset === null ? null : $this->topLevelDecodeParmsValueWithTail($dictionary, $offset);
         if (!is_string($value) || strtolower(trim($value)) === 'null') {
             return null;
         }
 
         $operand = $this->imageXObjectDecodeParmsOperandFailureKind($value, $objects);
+        $details = $this->imageXObjectCcittDecodeParmsOperandFailureDetails($value, $objects);
 
         return [
             'type' => 'CCITTFaxDecode',
@@ -10333,7 +10334,100 @@ final class PdfTextExtractor
                 ? 'unresolved_ccitt_decodeparms_fail_closed'
                 : 'malformed_ccitt_decodeparms_fail_closed',
             'decode_parms_operand' => $operand,
+            ...$details,
         ];
+    }
+
+    private function topLevelDecodeParmsValueWithTail(string $dictionary, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($dictionary, $offset);
+        $value = $this->pdfValueAtOffset($dictionary, $offset);
+        if ($value === null) {
+            return null;
+        }
+
+        $valueEnd = $this->skipPdfValueAt($dictionary, $offset);
+        $extraOperandEnd = $valueEnd > $offset
+            ? $this->decodeParmsExtraOperandEndAfterValue($dictionary, $valueEnd)
+            : null;
+        if ($extraOperandEnd === null) {
+            return $value;
+        }
+
+        return substr($dictionary, $offset, $extraOperandEnd - $offset);
+    }
+
+    private function decodeParmsExtraOperandEndAfterValue(string $body, int $offset): ?int
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= strlen($body) || substr($body, $offset, 2) === '>>' || ($body[$offset] ?? '') === ']') {
+            return null;
+        }
+
+        if (($body[$offset] ?? '') === '/') {
+            return null;
+        }
+
+        $end = $this->skipPdfValueAt($body, $offset);
+        if ($end > $offset) {
+            return $end;
+        }
+
+        $tokenLength = strcspn($body, " \t\r\n\f[]()<>{}/%", $offset);
+
+        return $tokenLength > 0 ? $offset + $tokenLength : $offset + 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenReferences
+     * @return array<string, string>
+     */
+    private function imageXObjectCcittDecodeParmsOperandFailureDetails(
+        string $value,
+        array $objects,
+        array $seenReferences = []
+    ): array {
+        $trimmed = trim($value);
+        $reference = $this->pdfIndirectReferenceTokenAt($trimmed, 0);
+        if ($reference !== null && $this->skipPdfWhitespace($trimmed, $reference['endOffset']) === strlen($trimmed)) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $key = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seenReferences[$key])) {
+                return [];
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return [];
+            }
+
+            $seenReferences[$key] = true;
+
+            return $this->imageXObjectCcittDecodeParmsOperandFailureDetails($body, $objects, $seenReferences);
+        }
+
+        if (!str_starts_with($trimmed, '<<')) {
+            return [];
+        }
+
+        $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+        if ($dictionary === null) {
+            return [
+                'decode_parms_operand_detail' => 'malformed_dictionary_operand',
+                'decode_parms_dictionary_policy' => 'reject_malformed_decodeparms_dictionary',
+            ];
+        }
+
+        if ($this->skipPdfWhitespace($trimmed, strlen($dictionary) + 4) !== strlen($trimmed)) {
+            return [
+                'decode_parms_operand_detail' => 'dictionary_with_trailing_operands',
+                'decode_parms_dictionary_policy' => 'reject_top_level_decodeparms_dictionary_tail',
+            ];
+        }
+
+        return [];
     }
 
     /**
@@ -19243,6 +19337,14 @@ final class PdfTextExtractor
                 return null;
             }
 
+            if ($name === 'DecodeParms') {
+                $extraOperandEnd = $this->decodeParmsExtraOperandEndAfterValue($dict, $nextOffset);
+                if ($extraOperandEnd !== null) {
+                    $index = $this->skipPdfWhitespace($dict, $extraOperandEnd);
+                    continue;
+                }
+            }
+
             if ($stopAtLength && $name === 'Length') {
                 $index = $this->skipPdfWhitespace($dict, $nextOffset);
                 continue;
@@ -19537,6 +19639,14 @@ final class PdfTextExtractor
             return [];
         }
 
+        $valueEnd = $this->skipPdfValueAt($dict, $offset);
+        if (
+            $valueEnd <= $offset
+            || $this->decodeParmsExtraOperandEndAfterValue($dict, $valueEnd) !== null
+        ) {
+            return null;
+        }
+
         return $this->decodeParmsValueList($dict, $offset, $objects);
     }
 
@@ -19562,6 +19672,13 @@ final class PdfTextExtractor
 
         $offset = $this->skipPdfWhitespace($dict, $offset);
         if ($offset >= strlen($dict)) {
+            return null;
+        }
+        $valueEnd = $this->skipPdfValueAt($dict, $offset);
+        if (
+            $valueEnd <= $offset
+            || $this->decodeParmsExtraOperandEndAfterValue($dict, $valueEnd) !== null
+        ) {
             return null;
         }
 
