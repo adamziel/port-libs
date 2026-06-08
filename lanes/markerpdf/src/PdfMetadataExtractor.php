@@ -14767,6 +14767,10 @@ final class PdfMetadataExtractor
      */
     private function xmpRdfContainerItems(DOMElement $container): array
     {
+        if ($this->xmpDirectRdfAttributeMembershipValues($container) !== []) {
+            return [$container];
+        }
+
         $directItems = $this->xmpDirectRdfCollectionItems($container);
         if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
