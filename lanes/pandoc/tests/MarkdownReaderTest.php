@@ -3921,6 +3921,53 @@ return [
         $t->same('sequence-explicit-item-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="sequence-explicit-item-yaml-body">Sequence explicit item YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit null keys in sequence metadata items' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sequence explicit null item **Packet**',
+            'review-items:',
+            '  - ? source',
+            '  - ? "source:key"',
+            '  - ? [source, uri]',
+            '  - ? {owner: desk, ticket: 7}',
+            '  - ? !wp-null tagged-source',
+            '    status: queued',
+            'references:',
+            '  - id: sequence-explicit-null-item-ref',
+            '    review-links:',
+            '      - ? [source, key]',
+            '      - ? {type: review}',
+            '        state: kept',
+            '...',
+            '',
+            '# Sequence explicit null item YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sequence explicit null item **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->true(array_key_exists('source', $meta['review-items'][0]) && $meta['review-items'][0]['source'] === null);
+        $t->true(array_key_exists('source:key', $meta['review-items'][1]) && $meta['review-items'][1]['source:key'] === null);
+        $t->true(array_key_exists('[source, uri]', $meta['review-items'][2]) && $meta['review-items'][2]['[source, uri]'] === null);
+        $t->true(array_key_exists('{owner: desk, ticket: 7}', $meta['review-items'][3]) && $meta['review-items'][3]['{owner: desk, ticket: 7}'] === null);
+        $t->true(array_key_exists('tagged-source', $meta['review-items'][4]) && $meta['review-items'][4]['tagged-source'] === null);
+        $t->same('queued', $meta['review-items'][4]['status']);
+        $t->same('sequence-explicit-null-item-ref', $meta['references'][0]['id']);
+        $t->true(array_key_exists('[source, key]', $meta['references'][0]['review-links'][0]) && $meta['references'][0]['review-links'][0]['[source, key]'] === null);
+        $t->true(array_key_exists('{type: review}', $meta['references'][0]['review-links'][1]) && $meta['references'][0]['review-links'][1]['{type: review}'] === null);
+        $t->same('kept', $meta['references'][0]['review-links'][1]['state']);
+        $t->same(false, array_key_exists('? source', $meta['review-items'][0]));
+        $t->same(false, array_key_exists('? [source, uri]', $meta['review-items'][2]));
+        $t->same(['!wp-null'], array_column($provenance, 'tag'));
+        $t->same(['/review-items/4/tagged-source'], array_column($provenance, 'path'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sequence-explicit-null-item-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sequence-explicit-null-item-yaml-body">Sequence explicit null item YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml plain multiline metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

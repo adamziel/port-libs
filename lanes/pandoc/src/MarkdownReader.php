@@ -2251,7 +2251,10 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($childLines !== [] && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))) {
+            if (
+                ($childLines !== [] || trim($sourceValue) !== '?')
+                && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))
+            ) {
                 $value = $this->withYamlMetadataPathSegment(
                     $itemPath,
                     fn (): array => $this->parseYamlMetadataLines(

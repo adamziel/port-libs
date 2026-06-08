@@ -317,6 +317,12 @@ sequence-explicit-review-items:
   - ? "source:key"
     : "metadata: value"
     owner: Import Desk
+sequence-explicit-null-review-items:
+  - ? source
+  - ? [source, uri]
+  - ? {owner: desk, ticket: 7}
+  - ? !wpd!key tagged-source
+    status: queued
 source label: Migration review
 plain-key-review:
   source owner: Import Desk
@@ -1191,6 +1197,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('? [source, uri]', $meta['sequence-explicit-review-items'][0] ?? [])) {
         throw new RuntimeException('YAML metadata self-test leaked raw sequence item explicit key');
     }
+    if (!array_key_exists('source', $meta['sequence-explicit-null-review-items'][0] ?? []) || $meta['sequence-explicit-null-review-items'][0]['source'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit null scalar key metadata');
+    }
+    if (!array_key_exists('[source, uri]', $meta['sequence-explicit-null-review-items'][1] ?? []) || $meta['sequence-explicit-null-review-items'][1]['[source, uri]'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit null sequence key metadata');
+    }
+    if (!array_key_exists('{owner: desk, ticket: 7}', $meta['sequence-explicit-null-review-items'][2] ?? []) || $meta['sequence-explicit-null-review-items'][2]['{owner: desk, ticket: 7}'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit null map key metadata');
+    }
+    if (!array_key_exists('tagged-source', $meta['sequence-explicit-null-review-items'][3] ?? []) || $meta['sequence-explicit-null-review-items'][3]['tagged-source'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit null tagged key metadata');
+    }
+    if (($meta['sequence-explicit-null-review-items'][3]['status'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit null child metadata');
+    }
     if (($meta['source label'] ?? '') !== 'Migration review') {
         throw new RuntimeException('YAML metadata self-test missing plain spaced source label');
     }
@@ -1530,6 +1551,11 @@ echo 'Block explicit null key review: ' . ($meta['block-explicit-null-review']['
     . (array_key_exists('[source, uri]', $meta['block-explicit-null-review'] ?? []) ? 'sequence-null' : 'missing')
     . "\n";
 echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') . ' / ' . ($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') . "\n";
+echo 'Sequence item explicit null key: '
+    . (array_key_exists('[source, uri]', $meta['sequence-explicit-null-review-items'][1] ?? []) ? 'sequence-null' : 'missing')
+    . ' / '
+    . ($meta['sequence-explicit-null-review-items'][3]['status'] ?? '')
+    . "\n";
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
