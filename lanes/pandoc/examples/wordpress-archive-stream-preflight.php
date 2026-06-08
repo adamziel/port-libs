@@ -175,6 +175,7 @@ $archive = TarArchive::fromEntries([
         'modifiedAt' => 1780479065,
         'accessedAt' => 1780479066,
         'changedAt' => 1780479067,
+        'createdAt' => 1780479062,
     ],
 ]);
 
@@ -596,6 +597,7 @@ if (in_array('--self-test', $argv, true)) {
         'gzipFilename' => 'wordpress-archive-stream.tar',
         'gzipMemberOffset' => 0,
         'content' => $contentBytes,
+        'contentCreatedAt' => 1780479062,
         'legacyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'legacyEntryType' => TarArchiveEntry::TYPE_FILE,
         'legacyContent' => $legacyContentBytes,
@@ -694,7 +696,9 @@ if (in_array('--self-test', $argv, true)) {
         || ($inspection['stream']['members'][0]['trailerOffset'] ?? 0) <= ($inspection['stream']['members'][0]['compressedDataOffset'] ?? 0)
         || ($inspection['stream']['members'][0]['nextMemberOffset'] ?? null) !== ($inspection['stream']['members'][0]['memberSize'] ?? null)
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
-        || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['atime', 'ctime']
+        || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['LIBARCHIVE.creationtime', 'atime', 'ctime']
+        || ($inspection['entryLayouts'][2]['createdAt'] ?? null) !== $expected['contentCreatedAt']
+        || ($inspection['archive']->entry('/packet/content.md')->paxHeaders['LIBARCHIVE.creationtime'] ?? null) !== (string) $expected['contentCreatedAt']
         || $legacyContiguousInspection['format'] !== $expected['legacyFormat']
         || ($legacyContiguousInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyEntryType']
         || $legacyContiguousInspection['archive']->read('/packet/legacy-contiguous.md') !== $expected['legacyContent']
@@ -857,6 +861,7 @@ echo 'gzip.compressedDataOffset=' . $inspection['stream']['members'][0]['compres
 echo 'gzip.trailerOffset=' . $inspection['stream']['members'][0]['trailerOffset'] . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";
+echo 'content.createdAt=' . $inspection['entryLayouts'][2]['createdAt'] . "\n";
 echo 'legacyContiguous.format=' . $legacyContiguousInspection['format'] . "\n";
 echo 'legacyContiguous.entryType=' . $legacyContiguousInspection['entryLayouts'][0]['type'] . "\n";
 echo 'legacyContiguous.content.md=' . $legacyContiguousInspection['archive']->read('/packet/legacy-contiguous.md') . "\n";

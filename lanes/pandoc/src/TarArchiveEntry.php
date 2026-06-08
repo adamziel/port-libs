@@ -26,6 +26,7 @@ final class TarArchiveEntry
         public readonly int $modifiedAt,
         public readonly ?int $accessedAt,
         public readonly ?int $changedAt,
+        public readonly ?int $createdAt,
         public readonly int $mode,
         public readonly int $uid,
         public readonly int $gid,

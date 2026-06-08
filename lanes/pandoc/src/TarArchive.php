@@ -197,6 +197,7 @@ final class TarArchive
                 self::resolvedModifiedAtFromHeader($header, $metadataHeaders),
                 self::resolvedAccessedAtFromHeader($metadataHeaders),
                 self::resolvedChangedAtFromHeader($metadataHeaders),
+                self::resolvedCreatedAtFromHeader($metadataHeaders),
                 self::readNumericField(substr($header, 100, 8), "TAR mode for {$name}"),
                 self::resolvedUidFromHeader($header, $metadataHeaders, $name),
                 self::resolvedGidFromHeader($header, $metadataHeaders, $name),
@@ -1734,7 +1735,7 @@ final class TarArchive
     }
 
     /**
-     * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
+     * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, createdAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */
     public static function build(array $entries, array $options = []): string
@@ -1797,6 +1798,10 @@ final class TarArchive
             if ($changedAt !== null) {
                 self::assertNonNegativeInt($changedAt, "TAR entry {$name} changedAt");
             }
+            $createdAt = $entry['createdAt'] ?? null;
+            if ($createdAt !== null) {
+                self::assertNonNegativeInt($createdAt, "TAR entry {$name} createdAt");
+            }
 
             $mode = $entry['mode'] ?? ($type === TarArchiveEntry::TYPE_DIRECTORY ? 0755 : 0644);
             self::assertOctalFieldValue($mode, 8, "TAR entry {$name} mode");
@@ -1825,6 +1830,9 @@ final class TarArchive
             }
             if ($changedAt !== null) {
                 $paxHeaders['ctime'] = (string) $changedAt;
+            }
+            if ($createdAt !== null) {
+                $paxHeaders['LIBARCHIVE.creationtime'] = (string) $createdAt;
             }
 
             $headerOptions = [
@@ -1971,6 +1979,20 @@ final class TarArchive
             $basename = implode('/', array_slice($segments, $index));
             if (strlen($prefix) <= 155 && strlen($basename) <= 100) {
                 return ['name' => $basename, 'prefix' => $prefix];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedCreatedAtFromHeader(array $headers): ?int
+    {
+        foreach (['LIBARCHIVE.creationtime', 'SCHILY.birthtime', 'birthtime'] as $key) {
+            if (isset($headers[$key])) {
+                return self::parsePaxIntegerTimestamp($headers[$key], "TAR PAX {$key}");
             }
         }
 

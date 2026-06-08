@@ -693,6 +693,78 @@ return [
         $t->same('<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
     },
 
+    'preserves pax creation timestamp metadata for tar review packets' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $localContent = "# Local creation time packet\n\nReady for WordPress provenance review.\n";
+        $inheritedContent = "# Inherited creation time packet\n\nReady for WordPress provenance review.\n";
+        $starContent = "# Star birthtime packet\n\nReady for WordPress provenance review.\n";
+        $archive = $rawTarHeader('GlobalHead/created', 'g', $paxPayload([
+            'LIBARCHIVE.creationtime' => '1780479036.75',
+        ]), 0, false)
+            . $rawTarHeader('PaxHeaders/local-created', 'x', $paxPayload([
+                'path' => 'packet/created/local.md',
+                'LIBARCHIVE.creationtime' => '1780479037.25',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-local.md', '0', $localContent, 1780479038, false)
+            . $rawTarHeader('packet/created/inherited.md', '0', $inheritedContent, 1780479039, false)
+            . $rawTarHeader('PaxHeaders/star-created', 'x', $paxPayload([
+                'path' => 'packet/created/star.md',
+                'LIBARCHIVE.creationtime' => '',
+                'SCHILY.birthtime' => '1780479040.50',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-star.md', '0', $starContent, 1780479041, false)
+            . str_repeat("\0", 1024);
+        $roundTrip = TarArchive::fromString($archive);
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $archive,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archive),
+            strlen($localContent) + strlen($inheritedContent) + strlen($starContent)
+        );
+        $generated = TarArchive::fromEntries([
+            [
+                'name' => 'packet/created/generated.md',
+                'data' => "# Generated creation time packet\n\nReady for WordPress provenance review.\n",
+                'createdAt' => 1780479042,
+            ],
+        ]);
+        $generatedEntry = $generated->entry('/packet/created/generated.md');
+
+        $t->same(1780479037, $roundTrip->entry('/packet/created/local.md')->createdAt);
+        $t->same(1780479036, $roundTrip->entry('/packet/created/inherited.md')->createdAt);
+        $t->same(1780479040, $roundTrip->entry('/packet/created/star.md')->createdAt);
+        $t->same('1780479037.25', $roundTrip->entry('/packet/created/local.md')->paxHeaders['LIBARCHIVE.creationtime'] ?? null);
+        $t->same('1780479036.75', $roundTrip->entry('/packet/created/inherited.md')->globalPaxHeaders['LIBARCHIVE.creationtime'] ?? null);
+        $t->same(null, $roundTrip->entry('/packet/created/star.md')->paxHeaders['LIBARCHIVE.creationtime'] ?? null);
+        $t->same('1780479040.50', $roundTrip->entry('/packet/created/star.md')->paxHeaders['SCHILY.birthtime'] ?? null);
+        $t->same(1780479037, $inspection['entryLayouts'][0]['createdAt']);
+        $t->same(1780479036, $inspection['entryLayouts'][1]['createdAt']);
+        $t->same(1780479040, $inspection['entryLayouts'][2]['createdAt']);
+        $t->same(['LIBARCHIVE.creationtime', 'path'], $inspection['entryLayouts'][0]['paxLocalHeaderKeys']);
+        $t->same(['LIBARCHIVE.creationtime'], $inspection['entryLayouts'][1]['paxGlobalHeaderKeys']);
+        $t->same(['LIBARCHIVE.creationtime', 'SCHILY.birthtime', 'path'], $inspection['entryLayouts'][2]['paxLocalHeaderKeys']);
+        $t->same(['LIBARCHIVE.creationtime'], $inspection['entryLayouts'][2]['paxDeletedHeaderKeys']);
+        $t->same($localContent, $roundTrip->read('/packet/created/local.md'));
+        $t->same($inheritedContent, $roundTrip->read('/packet/created/inherited.md'));
+        $t->same($starContent, $roundTrip->read('/packet/created/star.md'));
+        $t->same(1780479042, $generatedEntry->createdAt);
+        $t->same('1780479042', $generatedEntry->paxHeaders['LIBARCHIVE.creationtime'] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString(
+            $rawTarHeader('PaxHeaders/overflow-created', 'x', $paxPayload([
+                'path' => 'packet/created/overflow.md',
+                'LIBARCHIVE.creationtime' => (string) PHP_INT_MAX . '0.25',
+            ]), 0, false)
+            . $rawTarHeader('placeholder-overflow.md', '0', '# Overflow creation time', 0, false)
+            . str_repeat("\0", 1024)
+        ));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            [
+                'name' => 'packet/created/generated-overflow.md',
+                'data' => '# Overflow generated creation time',
+                'createdAt' => -1,
+            ],
+        ]));
+    },
+
     'preflights pax filesystem metadata without applying xattrs or acls' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $localContent = "# Filesystem metadata packet\n\nReady for WordPress review.\n";
         $inheritedContent = "# Inherited filesystem metadata packet\n\nReady for WordPress review.\n";
