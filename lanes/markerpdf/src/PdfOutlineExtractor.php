@@ -5665,26 +5665,31 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @param array<int, int> $pageIndexes
      * @param array<string, mixed> $destinations
-     * @return array{action_type: string, safety: string, page: int|null, destination: string|null, uri: string|null, file: string|null, operation: string|null, new_window: bool|null, is_safe_uri: bool|null, executes_on_import: bool}|null
+     * @return array<string, mixed>|null
      */
     private function localOpenDestinationReview(mixed $destination, array $objects, array $pageIndexes, array $destinations): ?array
     {
-        $page = $this->destinationPageIndex($destination, $objects, $pageIndexes, $destinations);
-        if ($page === null) {
+        $details = $this->destinationViewDetails($destination, $objects, $pageIndexes, $destinations);
+        if ($details === null) {
             return null;
         }
 
-        return $this->reviewAction(
+        $action = $this->reviewAction(
             'GoTo',
             'local-destination',
-            $page,
-            $this->stringOrNameValue($this->resolveValue($destination, $objects)),
+            $details['page'],
+            $details['destination'],
             null,
             null,
             null,
             null,
             null
         );
+        $action['view_mode'] = $details['view_mode'];
+        $action['view_position'] = $details['view_position'];
+        $action['view_parameters'] = $details['view_parameters'];
+
+        return $action;
     }
 
     /**

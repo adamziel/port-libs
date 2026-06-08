@@ -11435,7 +11435,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{sos_marker_seen: bool, dri_marker_seen: bool, jpeg_restart_interval: int|null, byte_stuffed_ff00_seen: bool, restart_marker_seen: bool}
+     * @return array{sos_marker_seen: bool, dri_marker_seen: bool, jpeg_restart_interval: int|null, byte_stuffed_ff00_seen: bool, restart_marker_seen: bool, sof_marker_seen: bool, jpeg_sof_marker: string|null, jpeg_precision: int|null, jpeg_width: int|null, jpeg_height: int|null, jpeg_component_count: int|null}
      */
     private function dctPreviewJpegMarkerReviewMetadata(
         string $bytes,
@@ -11448,6 +11448,12 @@ final class PdfTextExtractor
             'jpeg_restart_interval' => null,
             'byte_stuffed_ff00_seen' => false,
             'restart_marker_seen' => false,
+            'sof_marker_seen' => false,
+            'jpeg_sof_marker' => null,
+            'jpeg_precision' => null,
+            'jpeg_width' => null,
+            'jpeg_height' => null,
+            'jpeg_component_count' => null,
         ];
         $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
         $start = $this->dctPreviewSoiOffset($bytes, $startOffset, $limit);
@@ -11510,6 +11516,15 @@ final class PdfTextExtractor
                 break;
             }
 
+            if ($this->dctPreviewSofMarkerHasDimensions($marker) && $segmentLength >= 8) {
+                $metadata['sof_marker_seen'] = true;
+                $metadata['jpeg_sof_marker'] = $this->dctPreviewSofMarkerName($marker);
+                $metadata['jpeg_precision'] = ord($bytes[$payloadStart]);
+                $metadata['jpeg_height'] = (ord($bytes[$payloadStart + 1]) << 8) | ord($bytes[$payloadStart + 2]);
+                $metadata['jpeg_width'] = (ord($bytes[$payloadStart + 3]) << 8) | ord($bytes[$payloadStart + 4]);
+                $metadata['jpeg_component_count'] = ord($bytes[$payloadStart + 5]);
+            }
+
             if ($marker === 0xdd) {
                 $metadata['dri_marker_seen'] = true;
                 if ($segmentLength >= 4) {
@@ -11525,6 +11540,31 @@ final class PdfTextExtractor
         }
 
         return $metadata;
+    }
+
+    private function dctPreviewSofMarkerHasDimensions(int $marker): bool
+    {
+        return in_array($marker, [0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf], true);
+    }
+
+    private function dctPreviewSofMarkerName(int $marker): string
+    {
+        return match ($marker) {
+            0xc0 => 'SOF0',
+            0xc1 => 'SOF1',
+            0xc2 => 'SOF2',
+            0xc3 => 'SOF3',
+            0xc5 => 'SOF5',
+            0xc6 => 'SOF6',
+            0xc7 => 'SOF7',
+            0xc9 => 'SOF9',
+            0xca => 'SOF10',
+            0xcb => 'SOF11',
+            0xcd => 'SOF13',
+            0xce => 'SOF14',
+            0xcf => 'SOF15',
+            default => sprintf('SOF0x%02X', $marker),
+        };
     }
 
     private function dctPreviewLaterSoiOffset(string $bytes, int $startOffset): ?int

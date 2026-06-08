@@ -1325,7 +1325,12 @@ final class PdfTextDocumentExtractor
             }
 
             $bbox = $this->dictionaryOutputBbox($block['bbox'] ?? null, "blocks[{$index}].bbox");
-            $sortKey = $tolerance > 0.0 ? round($bbox[1] / $tolerance) * $tolerance : $bbox[1];
+            $sortKey = $tolerance > 0.0
+                ? round($bbox[1] / $tolerance, 0, PHP_ROUND_HALF_EVEN) * $tolerance
+                : $bbox[1];
+            if (abs($sortKey) < 0.000000000001) {
+                $sortKey = 0.0;
+            }
             $key = (string) $sortKey;
             if (!isset($groups[$key])) {
                 $groups[$key] = [

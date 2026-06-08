@@ -364,11 +364,17 @@ return [
                 'new_window' => null,
                 'is_safe_uri' => null,
                 'executes_on_import' => false,
+                'view_mode' => 'FitH',
+                'view_position' => [640.0],
+                'view_parameters' => ['top' => 640.0],
             ]],
             $direct
         );
         $t->same('Import Start', $named[0]['destination']);
         $t->same(0, $named[0]['page']);
+        $t->same('Fit', $named[0]['view_mode']);
+        $t->same([], $named[0]['view_position']);
+        $t->same([], $named[0]['view_parameters']);
         $t->same(false, $named[0]['executes_on_import']);
     },
     'classifies catalog OpenAction URI and Launch actions for WordPress safety review' => static function (TestRunner $t) use ($openActionPdf): void {
@@ -418,6 +424,8 @@ return [
         $t->same('post-import-helper.exe', $actions[1]['file']);
         $t->same(1, $actions[2]['page']);
         $t->same('Review Page', $actions[2]['destination']);
+        $t->same('FitH', $actions[2]['view_mode']);
+        $t->same(['top' => 640.0], $actions[2]['view_parameters']);
         $t->same([false, false, false], array_column($actions, 'executes_on_import'));
     },
     'keeps catalog OpenAction remote GoToR out of same-document outline rows' => static function (TestRunner $t) use ($openActionPdf): void {
@@ -726,6 +734,8 @@ return [
         $t->same(['local-destination', 'review-uri'], array_column($metadata['open_action_review_actions'], 'safety'));
         $t->same([false, false], array_column($metadata['open_action_review_actions'], 'executes_on_import'));
         $t->same([40, 42], array_column($metadata['open_action_review_actions'], 'action_object'));
+        $t->same('FitH', $metadata['open_action_review_actions'][0]['view_mode']);
+        $t->same(['top' => 640.0], $metadata['open_action_review_actions'][0]['view_parameters']);
         $t->same(true, $metadata['open_action_review_actions'][1]['chained']);
 
         $t->same(1, count($metadata['page_presentations']));

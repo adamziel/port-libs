@@ -10795,7 +10795,7 @@ final class PdfAcroFormExtractor
             return false;
         }
 
-        return in_array($type, ['Catalog', 'Pages', 'Page', 'Annot'], true);
+        return true;
     }
 
     private function isPureWidget(string $body, array $objects = []): bool
