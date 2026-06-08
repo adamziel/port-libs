@@ -1319,13 +1319,21 @@ final class PdfNamedDestinationExtractor
         $kidNodes = [];
         $boundedNodes = [];
         foreach ($kids as $order => $kid) {
+            $node = [
+                'kid' => $kid,
+                'limits' => null,
+                'order' => $order,
+                'bounded' => false,
+            ];
             if ($this->validRefObjectId($kid, $objects) === null) {
-                return $kids;
+                $kidNodes[] = $node;
+                continue;
             }
 
             $child = $this->resolve($kid, $objects, $cache);
             if (!$this->isDictionary($child)) {
-                return $kids;
+                $kidNodes[] = $node;
+                continue;
             }
 
             $localLimits = $this->nameTreeNodeLimits($child, $objects, $cache);

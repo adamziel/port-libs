@@ -3967,13 +3967,21 @@ final class PdfOutlineExtractor
         $kidNodes = [];
         $boundedNodes = [];
         foreach ($kids as $order => $kid) {
+            $node = [
+                'kid' => $kid,
+                'limits' => null,
+                'order' => $order,
+                'bounded' => false,
+            ];
             if ($this->validReferenceObjectNumber($kid, $objects) === null) {
-                return $kids;
+                $kidNodes[] = $node;
+                continue;
             }
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child === null) {
-                return $kids;
+                $kidNodes[] = $node;
+                continue;
             }
 
             $localLimits = $this->nameTreeLimits($child, $objects);

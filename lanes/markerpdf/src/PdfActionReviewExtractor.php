@@ -2933,13 +2933,21 @@ final class PdfActionReviewExtractor
         $kidNodes = [];
         $boundedNodes = [];
         foreach ($kids as $order => $kid) {
+            $node = [
+                'kid' => $kid,
+                'limits' => null,
+                'order' => $order,
+                'bounded' => false,
+            ];
             if ($this->referenceObject($kid) === null) {
-                return $kids;
+                $kidNodes[] = $node;
+                continue;
             }
 
             $child = $this->resolveDictionary($kid);
             if ($child === null) {
-                return $kids;
+                $kidNodes[] = $node;
+                continue;
             }
 
             $localLimits = $this->nameTreeNodeLimits($child);
