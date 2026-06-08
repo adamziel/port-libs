@@ -893,6 +893,12 @@ final class PdfMetadataExtractor
                 return $review;
             }
 
+            if ($dictionary === null && !$this->streamObjectHasStreamKeyword($objectBody)) {
+                return $base + [
+                    'object_number' => $objectNumber,
+                ] + $this->catalogMetadataNonStreamObjectReview($objectBody, $objects);
+            }
+
             $review = $base + [
                 'status' => 'unreadable_metadata_stream',
                 'object_number' => $objectNumber,
@@ -1027,6 +1033,46 @@ final class PdfMetadataExtractor
         $xmpSummary = $this->xmpPacketReviewSummary($stream['content']);
         if ($xmpSummary !== []) {
             $review['xmp_summary'] = $xmpSummary;
+        }
+
+        return $review;
+    }
+
+    /**
+     * Catalog /Metadata must point directly at a metadata stream object. Do not
+     * chase scalar or array wrapper objects into hidden XMP streams.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function catalogMetadataNonStreamObjectReview(string $objectBody, array $objects): array
+    {
+        $token = $this->firstPdfValueToken($objectBody);
+        $review = [
+            'status' => 'rejected_non_stream_metadata_object',
+            'object_value_type' => $this->metadataStreamFilterOperandTokenType($token),
+            'object_value_preview' => $token === '' ? '' : $this->metadataStreamFilterOperandPreview($token),
+            'single_object_value' => $token !== '' && $this->pdfValueIsSingleToken($objectBody, $token),
+        ];
+
+        $reference = $this->objectReferenceFromValue($token);
+        if ($reference !== null) {
+            $review['nested_reference_object_number'] = $reference['objectNumber'];
+            $review['nested_reference_generation'] = $reference['generation'];
+        }
+
+        if (str_starts_with($this->trimPdfWhitespaceAndComments($token), '[')) {
+            $referenceObjects = [];
+            foreach ($this->arrayItemsFromValue($token, $objects) as $item) {
+                $itemReference = $this->objectReferenceFromValue($item);
+                if ($itemReference !== null) {
+                    $referenceObjects[] = $itemReference['objectNumber'];
+                }
+            }
+
+            if ($referenceObjects !== []) {
+                $review['referenced_object_numbers'] = $this->uniqueIntegers($referenceObjects);
+            }
         }
 
         return $review;
