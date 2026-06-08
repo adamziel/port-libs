@@ -609,6 +609,98 @@ $buildSourceRowgroupHeaderDocument = static function (): AstNode {
     ]);
 };
 
+$buildSourceColgroupHeaderDocument = static function (): AstNode {
+    $importColumnGroupAttributes = [
+        'htmlAttributes' => [
+            'id' => 'source-import-columns',
+            'data-origin' => 'legacy-doc',
+        ],
+    ];
+    $stateColumnGroupAttributes = [
+        'htmlAttributes' => [
+            'id' => 'source-state-column',
+            'data-origin' => 'legacy-doc',
+        ],
+    ];
+
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Source colgroup accessibility grid',
+            'alignments' => ['left', 'right', 'center'],
+            'widths' => [1 / 3, 1 / 3, 1 / 3],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Source Colgroup Grid',
+            'columnSources' => [
+                [
+                    'kind' => 'colgroup',
+                    'column' => 0,
+                    'colgroupIndex' => 0,
+                    'sourceSpan' => 2,
+                    'spanOffset' => 0,
+                    'colgroupAttributes' => $importColumnGroupAttributes,
+                ],
+                [
+                    'kind' => 'colgroup',
+                    'column' => 1,
+                    'colgroupIndex' => 0,
+                    'sourceSpan' => 2,
+                    'spanOffset' => 1,
+                    'colgroupAttributes' => $importColumnGroupAttributes,
+                ],
+                [
+                    'kind' => 'colgroup',
+                    'column' => 2,
+                    'colgroupIndex' => 1,
+                    'sourceSpan' => 1,
+                    'spanOffset' => 0,
+                    'colgroupAttributes' => $stateColumnGroupAttributes,
+                ],
+            ],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Import scope',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-import-scope',
+                            'scope' => 'colgroup',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Import scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Items',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-items',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-state',
+                            'scope' => 'col',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Media'], [new AstNode('text', ['text' => 'Media'])]),
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildDuplicateSourceHeaderDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -2452,6 +2544,54 @@ return [
         $t->contains('<tbody id="media-body"><tr><th id="source-media-group" scope="rowgroup" style="text-align:left">Media</th><td headers="source-rg-count source-media-group" style="text-align:right">7</td><td headers="source-rg-state source-media-group" style="text-align:center">Needs alt</td></tr><tr><td headers="source-rg-scope source-media-group" style="text-align:left">Images</td><td headers="source-rg-count source-media-group" style="text-align:right">3</td><td headers="source-rg-state source-media-group" style="text-align:center">Review</td></tr></tbody>', $blocks);
         $t->contains('<tbody id="pages-body"><tr><td headers="source-rg-scope" style="text-align:left">Pages</td><td headers="source-rg-count" style="text-align:right">5</td><td headers="source-rg-state" style="text-align:center">Ready</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'applies explicit source colgroup headers across parsed column groups' => static function (TestRunner $t) use ($buildSourceColgroupHeaderDocument): void {
+        $document = $buildSourceColgroupHeaderDocument();
+        $table = $document->children[0];
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Source Colgroup Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Source Colgroup Grid']);
+        $associations = $packet['headerAssociations'] ?? [];
+        $matrix = $packet['rowMatrix'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('colgroup', $accessibility['head:0:0:0']['scope'] ?? null);
+        $t->same([0, 1], $accessibility['head:0:0:0']['columns'] ?? null);
+        $t->same([0, 1], $accessibility['head:0:0:0']['sourceColumnGroup']['columns'] ?? null);
+        $t->same('source-import-columns', $accessibility['head:0:0:0']['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same(['source-import-scope'], $accessibility['body:0:0:0']['headers'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $accessibility['body:0:1:1']['headers'] ?? null);
+        $t->same(['source-state'], $accessibility['body:0:2:2']['headers'] ?? null);
+        $t->same(['source-import-scope'], $accessibility['body:1:0:0']['headers'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $accessibility['body:1:1:1']['headers'] ?? null);
+        $t->same(['source-state'], $accessibility['body:1:2:2']['headers'] ?? null);
+
+        $t->same(3, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(6, $associations['summary']['dataCellCount'] ?? null);
+        $t->same(6, $associations['summary']['associatedDataCellCount'] ?? null);
+        $t->same(8, $associations['summary']['associationCount'] ?? null);
+        $t->same(['colgroup', 'col'], $associations['summary']['headerScopes'] ?? null);
+        $t->same('colgroup', $associations['headerCells'][0]['scope'] ?? null);
+        $t->same('colgroup', $associations['headerCells'][0]['sourceScope'] ?? null);
+        $t->same([0, 1], $associations['headerCells'][0]['columns'] ?? null);
+        $t->same([0, 1], $associations['headerCells'][0]['sourceColumnGroup']['columns'] ?? null);
+        $t->same('source-import-columns', $associations['headerCells'][0]['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same(['source-import-scope'], $associations['dataCells'][0]['headers'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $associations['dataCells'][1]['headers'] ?? null);
+        $t->same(['source-state'], $associations['dataCells'][2]['headers'] ?? null);
+        $t->same([0, 1], $matrix['rows'][0]['headerCells'][0]['columns'] ?? null);
+        $t->same('source-import-columns', $matrix['rows'][0]['headerCells'][0]['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $matrix['rows'][1]['dataCells'][1]['headers'] ?? null);
+
+        $t->same(8, $packet['summary']['headerAssociationCount'] ?? null);
+        $t->same(6, $packet['summary']['associatedDataCellCount'] ?? null);
+        $t->same([0, 1], $packet['columnGroups'][0]['columns'] ?? null);
+        $t->same('source-import-columns', $packet['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->contains('<colgroup id="source-import-columns" data-origin="legacy-doc"><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><colgroup id="source-state-column" data-origin="legacy-doc"><col style="width:33.3333%"/></colgroup>', $blocks);
+        $t->contains('<th id="source-import-scope" scope="colgroup" style="text-align:left">Import scope</th><th id="source-items" scope="col" style="text-align:right">Items</th><th id="source-state" scope="col" style="text-align:center">State</th>', $blocks);
+        $t->contains('<td headers="source-import-scope" style="text-align:left">Posts</td><td headers="source-import-scope source-items" style="text-align:right">42</td><td headers="source-state" style="text-align:center">Ready</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+        json_encode($matrix, JSON_THROW_ON_ERROR);
     },
     'resolves explicit source header references for reviewer audits' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
         $table = $buildSourceScopedHeaderDocument()->children[0];

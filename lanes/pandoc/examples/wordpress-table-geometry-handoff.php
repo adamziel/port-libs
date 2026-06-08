@@ -525,6 +525,96 @@ $sourceRowgroupScopeTable = new AstNode('table', [
     ]),
 ]);
 
+$sourceColgroupScopeTable = new AstNode('table', [
+    'caption' => 'Source colgroup accessibility grid',
+    'alignments' => ['left', 'right', 'center'],
+    'widths' => [1 / 3, 1 / 3, 1 / 3],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Source Colgroup Grid',
+    'columnSources' => [
+        [
+            'kind' => 'colgroup',
+            'column' => 0,
+            'colgroupIndex' => 0,
+            'sourceSpan' => 2,
+            'spanOffset' => 0,
+            'colgroupAttributes' => [
+                'htmlAttributes' => [
+                    'id' => 'source-import-columns',
+                    'data-origin' => 'legacy-doc',
+                ],
+            ],
+        ],
+        [
+            'kind' => 'colgroup',
+            'column' => 1,
+            'colgroupIndex' => 0,
+            'sourceSpan' => 2,
+            'spanOffset' => 1,
+            'colgroupAttributes' => [
+                'htmlAttributes' => [
+                    'id' => 'source-import-columns',
+                    'data-origin' => 'legacy-doc',
+                ],
+            ],
+        ],
+        [
+            'kind' => 'colgroup',
+            'column' => 2,
+            'colgroupIndex' => 1,
+            'sourceSpan' => 1,
+            'spanOffset' => 0,
+            'colgroupAttributes' => [
+                'htmlAttributes' => [
+                    'id' => 'source-state-column',
+                    'data-origin' => 'legacy-doc',
+                ],
+            ],
+        ],
+    ],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Import scope',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-import-scope',
+                    'scope' => 'colgroup',
+                ],
+            ], [new AstNode('text', ['text' => 'Import scope'])]),
+            new AstNode('table_cell', [
+                'text' => 'Items',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-items',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'Items'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'header' => true,
+                'htmlAttributes' => [
+                    'id' => 'source-state',
+                    'scope' => 'col',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Media'], [new AstNode('text', ['text' => 'Media'])]),
+            new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+            new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+        ]),
+    ]),
+]);
+
 $abbreviatedHeaderTable = new AstNode('table', [
     'caption' => 'Abbreviated header review',
     'alignments' => ['left', 'right'],
@@ -950,6 +1040,7 @@ $document = new AstNode('document', [], [
     $latexFooterTable,
     $astAttributeTable,
     $sourceRowgroupScopeTable,
+    $sourceColgroupScopeTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1474,6 +1565,27 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing isolated second tbody source rowgroup output');
     }
     json_encode($sourceRowgroupPacket, JSON_THROW_ON_ERROR);
+
+    $sourceColgroupAccessibility = TableGeometry::accessibilityAttributes($sourceColgroupScopeTable, 'Source Colgroup Grid');
+    if (($sourceColgroupAccessibility['head:0:0:0']['columns'] ?? null) !== [0, 1]) {
+        throw new RuntimeException('Table geometry self-test missing source colgroup header columns');
+    }
+    if (($sourceColgroupAccessibility['body:0:1:1']['headers'] ?? null) !== ['source-import-scope', 'source-items']) {
+        throw new RuntimeException('Table geometry self-test missing source colgroup header relationship on grouped column');
+    }
+    $sourceColgroupPacket = TableGeometry::reviewPacket($sourceColgroupScopeTable, ['idPrefix' => 'Source Colgroup Grid']);
+    if (
+        ($sourceColgroupPacket['headerAssociations']['summary']['associationCount'] ?? null) !== 8
+        || ($sourceColgroupPacket['headerAssociations']['headerCells'][0]['sourceScope'] ?? null) !== 'colgroup'
+        || ($sourceColgroupPacket['headerAssociations']['headerCells'][0]['sourceColumnGroup']['columns'] ?? null) !== [0, 1]
+        || ($sourceColgroupPacket['rowMatrix']['rows'][0]['headerCells'][0]['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null) !== 'source-import-columns'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source colgroup review-packet associations');
+    }
+    if (!str_contains($blocks, '<td headers="source-import-scope" style="text-align:left">Posts</td><td headers="source-import-scope source-items" style="text-align:right">42</td><td headers="source-state" style="text-align:center">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing source colgroup WordPress header relationships');
+    }
+    json_encode($sourceColgroupPacket, JSON_THROW_ON_ERROR);
 
     $duplicateHeaderPacket = TableGeometry::reviewPacket($duplicateHeaderTable, [
         'idPrefix' => 'Duplicate Header Grid',

@@ -700,6 +700,68 @@ HTML;
         $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:right">Media</td><td style="text-align:center">Ready</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'applies source colgroup scoped headers across parsed html colgroups' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="colgroup-source-scope-grid" data-source="html-reader">
+<caption>Colgroup source scope review</caption>
+<colgroup id="import-columns" data-origin="legacy-doc" span="2"></colgroup>
+<colgroup id="state-column" data-origin="legacy-doc"></colgroup>
+<thead>
+<tr><th id="source-import-scope" scope="colgroup">Import scope</th><th id="source-items" scope="col">Items</th><th id="source-state" scope="col">State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+<tr><td>Media</td><td>7</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Colgroup Source Scope Grid');
+        $associations = TableGeometry::headerAssociations($table, 'Colgroup Source Scope Grid');
+        $matrix = TableGeometry::rowMatrix($table, 'Colgroup Source Scope Grid');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('colgroup', $accessibility['head:0:0:0']['scope'] ?? null);
+        $t->same([0, 1], $accessibility['head:0:0:0']['columns'] ?? null);
+        $t->same([0, 1], $accessibility['head:0:0:0']['sourceColumnGroup']['columns'] ?? null);
+        $t->same('import-columns', $accessibility['head:0:0:0']['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same(['source-import-scope'], $accessibility['body:0:0:0']['headers'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $accessibility['body:0:1:1']['headers'] ?? null);
+        $t->same(['source-state'], $accessibility['body:0:2:2']['headers'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $accessibility['body:1:1:1']['headers'] ?? null);
+
+        $t->same(3, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(6, $associations['summary']['dataCellCount'] ?? null);
+        $t->same(6, $associations['summary']['associatedDataCellCount'] ?? null);
+        $t->same(8, $associations['summary']['associationCount'] ?? null);
+        $t->same(['colgroup', 'col'], $associations['summary']['headerScopes'] ?? null);
+        $t->same('colgroup', $associations['headerCells'][0]['scope'] ?? null);
+        $t->same('colgroup', $associations['headerCells'][0]['sourceScope'] ?? null);
+        $t->same([0, 1], $associations['headerCells'][0]['columns'] ?? null);
+        $t->same([0, 1], $associations['headerCells'][0]['sourceColumnGroup']['columns'] ?? null);
+        $t->same('import-columns', $associations['headerCells'][0]['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same(['source-import-scope'], $associations['dataCells'][0]['headers'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $associations['dataCells'][1]['headers'] ?? null);
+        $t->same(['source-state'], $associations['dataCells'][2]['headers'] ?? null);
+
+        $t->same([0, 1], $matrix['rows'][0]['headerCells'][0]['columns'] ?? null);
+        $t->same('import-columns', $matrix['rows'][0]['headerCells'][0]['sourceColumnGroup']['source']['colgroupAttributes']['htmlAttributes']['id'] ?? null);
+        $t->same(['source-import-scope', 'source-items'], $matrix['rows'][1]['dataCells'][1]['headers'] ?? null);
+        $t->same($associations, $packet['headerAssociations'] ?? null);
+        $t->same(8, $packet['summary']['headerAssociationCount'] ?? null);
+        $t->same([0, 1], $packet['accessibility']['head:0:0:0']['columns'] ?? null);
+        $t->contains('<colgroup id="import-columns" data-origin="legacy-doc"><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><colgroup id="state-column" data-origin="legacy-doc"><col style="width:33.3333%"/></colgroup>', $blocks);
+        $t->contains('<th id="source-import-scope" scope="colgroup">Import scope</th><th id="source-items" scope="col">Items</th><th id="source-state" scope="col">State</th>', $blocks);
+        $t->contains('<td>Posts</td><td>42</td><td>Ready</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+        json_encode($matrix, JSON_THROW_ON_ERROR);
+    },
     'reports html colgroup count mismatches while preserving usable geometry metadata' => static function (TestRunner $t): void {
         $underdeclaredHtml = <<<'HTML'
 <table id="colgroup-underdeclared-grid" data-source="html-reader">

@@ -401,12 +401,13 @@ final class TableGeometry
     }
 
     /**
-     * @return array<string, array{id?:string,scope?:string,headers?:list<string>}>
+     * @return array<string, array<string, mixed>>
      */
     public static function accessibilityAttributes(AstNode $table, string $idPrefix = 'pandoc-table'): array
     {
         $idPrefix = self::normalizeHtmlId($idPrefix);
         $sectionGrids = self::sectionGrids($table);
+        $columnGroups = self::columnGroups($table);
         $headers = [];
         $attributes = [];
 
@@ -432,12 +433,10 @@ final class TableGeometry
                     $sourceScope = self::cellSourceHtmlScope($node);
                     $scope = $sourceScope === '' ? self::headerScope($slot) : $sourceScope;
                     $sourceHeaders = self::cellSourceHtmlHeaders($node);
-                    $columns = [];
-                    $startColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
-                    $colspan = max(1, (int) ($slot['colspan'] ?? 1));
-                    for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
-                        $columns[] = $column;
-                    }
+                    $sourceColumnGroup = $sourceScope === 'colgroup'
+                        ? self::columnGroupForSlot($slot, $columnGroups)
+                        : [];
+                    $columns = self::accessibilityHeaderColumns($slot, $sourceScope, $sourceColumnGroup);
 
                     $record = [
                         'key' => $key,
@@ -451,12 +450,19 @@ final class TableGeometry
                     if ($sourceScope !== '') {
                         $record['sourceScope'] = $sourceScope;
                     }
+                    if ($sourceColumnGroup !== []) {
+                        $record['sourceColumnGroup'] = $sourceColumnGroup;
+                    }
                     $headers[] = $record;
                     $attributes[$key] = [
                         'id' => $id,
                         'scope' => $scope,
                         'headers' => $sourceHeaders,
+                        'columns' => $columns,
                     ];
+                    if ($sourceColumnGroup !== []) {
+                        $attributes[$key]['sourceColumnGroup'] = $sourceColumnGroup;
+                    }
                 }
             }
         }
@@ -469,12 +475,7 @@ final class TableGeometry
                         continue;
                     }
 
-                    $columns = [];
-                    $startColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
-                    $colspan = max(1, (int) ($slot['colspan'] ?? 1));
-                    for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
-                        $columns[] = $column;
-                    }
+                    $columns = self::associationColumns($slot);
 
                     $headerIds = [];
                     foreach ($headers as $header) {
@@ -552,6 +553,14 @@ final class TableGeometry
                         $id = trim((string) ($attributes['id'] ?? ''));
                         if ($id !== '') {
                             $record['id'] = $id;
+                        }
+
+                        $accessibilityColumns = self::intList($attributes['columns'] ?? []);
+                        if ($accessibilityColumns !== []) {
+                            $record['columns'] = $accessibilityColumns;
+                        }
+                        if (is_array($attributes['sourceColumnGroup'] ?? null)) {
+                            $record['sourceColumnGroup'] = $attributes['sourceColumnGroup'];
                         }
 
                         $scope = trim((string) ($attributes['scope'] ?? self::headerScope($slot)));
@@ -2104,6 +2113,13 @@ final class TableGeometry
             if ($headers !== []) {
                 $record['headers'] = $headers;
             }
+            $associationColumns = self::intList($association['columns'] ?? []);
+            if ($associationColumns !== []) {
+                $record['columns'] = $associationColumns;
+            }
+            if (is_array($association['sourceColumnGroup'] ?? null)) {
+                $record['sourceColumnGroup'] = $association['sourceColumnGroup'];
+            }
             self::appendSourceHeaderAssociationFields($record, $association);
 
             return $record;
@@ -2687,6 +2703,41 @@ final class TableGeometry
         }
 
         return $columns;
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @param array<string, mixed> $sourceColumnGroup
+     * @return list<int>
+     */
+    private static function accessibilityHeaderColumns(array $slot, string $sourceScope, array $sourceColumnGroup): array
+    {
+        $columns = self::associationColumns($slot);
+        if ($sourceScope !== 'colgroup' || $sourceColumnGroup === []) {
+            return $columns;
+        }
+
+        $groupColumns = self::intList($sourceColumnGroup['columns'] ?? []);
+
+        return $groupColumns === [] ? $columns : $groupColumns;
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @param list<array<string, mixed>> $columnGroups
+     * @return array<string, mixed>
+     */
+    private static function columnGroupForSlot(array $slot, array $columnGroups): array
+    {
+        $column = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
+        foreach ($columnGroups as $group) {
+            $columns = self::intList($group['columns'] ?? []);
+            if (in_array($column, $columns, true)) {
+                return $group;
+            }
+        }
+
+        return [];
     }
 
     private static function cellSourceHtmlId(mixed $node): string
