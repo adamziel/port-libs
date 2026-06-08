@@ -204,6 +204,8 @@ final class OdfReader
                     'chartLegendCount' => $contentStats['chartLegendCount'],
                     'formControlCount' => $contentStats['formControlCount'],
                     'missingFormControlCount' => $contentStats['missingFormControlCount'],
+                    'formControlOptionCount' => $contentStats['formControlOptionCount'],
+                    'selectedFormControlOptionCount' => $contentStats['selectedFormControlOptionCount'],
                     'sectionCount' => $contentStats['sectionCount'],
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
@@ -2140,12 +2142,18 @@ final class OdfReader
             'currentState' => self::nullable(self::attr($control, self::FORM_NS, 'current-state')),
             'linkedCell' => self::nullable(self::attr($control, self::FORM_NS, 'linked-cell')),
             'sourceCellRange' => self::nullable(self::attr($control, self::FORM_NS, 'source-cell-range')),
+            'listSource' => self::nullable(self::attr($control, self::FORM_NS, 'list-source')),
+            'listSourceType' => self::nullable(self::attr($control, self::FORM_NS, 'list-source-type')),
+            'boundColumn' => self::nullableInt(self::attr($control, self::FORM_NS, 'bound-column')),
+            'dropdown' => self::nullableBool(self::attr($control, self::FORM_NS, 'dropdown')),
+            'multiple' => self::nullableBool(self::attr($control, self::FORM_NS, 'multiple')),
+            'automaticCompletion' => self::nullableBool(self::attr($control, self::FORM_NS, 'automatic-completion')),
             'tabIndex' => self::nullableInt(self::attr($control, self::FORM_NS, 'tab-index')),
             'href' => self::nullable(self::attr($control, self::XLINK_NS, 'href')),
             'disabled' => self::nullableBool(self::attr($control, self::FORM_NS, 'disabled')),
             'printable' => self::nullableBool(self::attr($control, self::FORM_NS, 'printable')),
             'formMetadata' => $formMetadata,
-        ], $this->prefixedFormMetadata($formMetadata)));
+        ], $this->formControlOptionMetadata($control), $this->prefixedFormMetadata($formMetadata)));
     }
 
     /**
@@ -2164,6 +2172,75 @@ final class OdfReader
         }
 
         return $prefixed;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formControlOptionMetadata(\DOMElement $control): array
+    {
+        $options = [];
+        foreach (self::childElements($control) as $child) {
+            if ($child->namespaceURI !== self::FORM_NS || !in_array($child->localName, ['option', 'item'], true)) {
+                continue;
+            }
+
+            $label = self::attr($child, self::FORM_NS, 'label');
+            if ($label === '') {
+                $label = self::normalizedText($child);
+            }
+
+            $value = self::attr($child, self::FORM_NS, 'value');
+            $selected = self::nullableBool(self::attr($child, self::FORM_NS, 'current-selected'))
+                ?? self::nullableBool(self::attr($child, self::FORM_NS, 'selected'));
+
+            $option = self::withoutEmpty([
+                'element' => $child->localName,
+                'label' => self::nullable($label),
+                'value' => self::nullable($value),
+                'selected' => $selected,
+                'disabled' => self::nullableBool(self::attr($child, self::FORM_NS, 'disabled')),
+            ]);
+            if ($option !== []) {
+                $options[] = $option;
+            }
+        }
+
+        if ($options === []) {
+            return [];
+        }
+
+        $selectedOptions = array_values(array_filter(
+            $options,
+            static fn (array $option): bool => ($option['selected'] ?? false) === true
+        ));
+        $selectedLabels = $this->formControlOptionValues($selectedOptions, 'label');
+        $selectedValues = $this->formControlOptionValues($selectedOptions, 'value');
+
+        return self::withoutEmpty([
+            'options' => $options,
+            'optionCount' => count($options),
+            'selectedOptionCount' => count($selectedOptions),
+            'selectedOptionLabels' => $selectedLabels === [] ? null : implode(', ', $selectedLabels),
+            'selectedOptionValues' => $selectedValues === [] ? null : implode(', ', $selectedValues),
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     * @return list<string>
+     */
+    private function formControlOptionValues(array $options, string $name): array
+    {
+        $values = [];
+        foreach ($options as $option) {
+            $value = $option[$name] ?? null;
+            if (is_scalar($value) && (string) $value !== '') {
+                $values[] = (string) $value;
+            }
+        }
+
+        return $values;
     }
 
     /**
@@ -2517,6 +2594,16 @@ final class OdfReader
                 'currentState',
                 'linkedCell',
                 'sourceCellRange',
+                'listSource',
+                'listSourceType',
+                'boundColumn',
+                'dropdown',
+                'multiple',
+                'automaticCompletion',
+                'optionCount',
+                'selectedOptionCount',
+                'selectedOptionLabels',
+                'selectedOptionValues',
                 'tabIndex',
                 'href',
                 'disabled',
@@ -2601,7 +2688,7 @@ final class OdfReader
     private function formControlLabel(string $controlId, ?array $definition, ?\DOMElement $frame): string
     {
         if (is_array($definition)) {
-            foreach (['label', 'currentValue', 'value', 'name'] as $name) {
+            foreach (['label', 'currentValue', 'value', 'selectedOptionLabels', 'name'] as $name) {
                 $value = (string) ($definition[$name] ?? '');
                 if ($value !== '') {
                     return $value;
@@ -5569,7 +5656,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -5599,6 +5686,8 @@ final class OdfReader
             'chartLegendCount' => 0,
             'formControlCount' => 0,
             'missingFormControlCount' => 0,
+            'formControlOptionCount' => 0,
+            'selectedFormControlOptionCount' => 0,
             'sectionCount' => 0,
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
@@ -5752,6 +5841,18 @@ final class OdfReader
                 $stats['formControlCount']++;
                 if ($node->attr('exists') !== true) {
                     $stats['missingFormControlCount']++;
+                }
+                $formControl = $node->attr('formControl');
+                if (is_array($formControl)) {
+                    $options = $formControl['options'] ?? [];
+                    if (is_array($options)) {
+                        $stats['formControlOptionCount'] += count($options);
+                        foreach ($options as $option) {
+                            if (is_array($option) && ($option['selected'] ?? false) === true) {
+                                $stats['selectedFormControlOptionCount']++;
+                            }
+                        }
+                    }
                 }
             }
             if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('continued') === true) {

@@ -2340,6 +2340,101 @@ XML;
         $t->contains('data-odf-control-form-target-frame="_blank"', $blocksHtml);
         $t->contains('data-odf-control-form-master-fields="source_id"', $blocksHtml);
     },
+    'maps ODT option-bearing form controls into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFormOptions = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0">
+  <office:body>
+    <office:text>
+      <office:forms>
+        <form:form form:name="Review Form">
+          <form:combobox form:id="ctrl-disposition" form:name="Disposition" form:label="Review disposition" form:current-value="Ready to publish" form:dropdown="true" form:automatic-completion="true">
+            <form:option form:label="Draft" form:value="draft"/>
+            <form:option form:label="Ready to publish" form:value="ready" form:current-selected="true"/>
+          </form:combobox>
+          <form:listbox form:id="ctrl-categories" form:name="Categories" form:list-source-type="cell-range" form:list-source="Source.A2:Source.A4" form:bound-column="2" form:multiple="true">
+            <form:item form:label="Posts" form:value="post" form:selected="true"/>
+            <form:item form:label="Pages" form:value="page"/>
+            <form:item form:label="Media" form:value="attachment" form:current-selected="true"/>
+          </form:listbox>
+        </form:form>
+      </office:forms>
+      <text:p>Disposition <draw:control draw:control="ctrl-disposition"/> and categories <draw:control draw:control="ctrl-categories"/> remain auditable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFormOptions));
+        $paragraph = $result['document']->children[0];
+        $combobox = $paragraph->children[1];
+        $listbox = $paragraph->children[3];
+
+        $t->same('Disposition Review disposition and categories Posts, Media remain auditable.', $paragraph->attr('text'));
+        $t->same('span', $combobox->type);
+        $t->same(['odf-form-control', 'odf-control-combobox'], $combobox->attr('classes'));
+        $t->same('combobox', $combobox->attr('controlType'));
+        $t->same('Review disposition', $combobox->children[0]->attr('text'));
+        $t->same(2, $combobox->attr('formControl')['optionCount']);
+        $t->same(1, $combobox->attr('formControl')['selectedOptionCount']);
+        $t->same('Ready to publish', $combobox->attr('formControl')['selectedOptionLabels']);
+        $t->same('ready', $combobox->attr('formControl')['selectedOptionValues']);
+        $t->same(true, $combobox->attr('formControl')['dropdown']);
+        $t->same(true, $combobox->attr('formControl')['automaticCompletion']);
+        $t->same('option', $combobox->attr('formControl')['options'][0]['element']);
+        $t->same('Draft', $combobox->attr('formControl')['options'][0]['label']);
+        $t->same('draft', $combobox->attr('formControl')['options'][0]['value']);
+        $t->same(true, $combobox->attr('formControl')['options'][1]['selected']);
+        $t->same('2', $combobox->attr('attributes')['data-odf-control-option-count']);
+        $t->same('1', $combobox->attr('attributes')['data-odf-control-selected-option-count']);
+        $t->same('Ready to publish', $combobox->attr('attributes')['data-odf-control-selected-option-labels']);
+        $t->same('ready', $combobox->attr('attributes')['data-odf-control-selected-option-values']);
+        $t->same('true', $combobox->attr('attributes')['data-odf-control-dropdown']);
+        $t->same('true', $combobox->attr('attributes')['data-odf-control-automatic-completion']);
+
+        $t->same('span', $listbox->type);
+        $t->same(['odf-form-control', 'odf-control-listbox'], $listbox->attr('classes'));
+        $t->same('listbox', $listbox->attr('controlType'));
+        $t->same('Posts, Media', $listbox->children[0]->attr('text'));
+        $t->same(3, $listbox->attr('formControl')['optionCount']);
+        $t->same(2, $listbox->attr('formControl')['selectedOptionCount']);
+        $t->same('Posts, Media', $listbox->attr('formControl')['selectedOptionLabels']);
+        $t->same('post, attachment', $listbox->attr('formControl')['selectedOptionValues']);
+        $t->same('cell-range', $listbox->attr('formControl')['listSourceType']);
+        $t->same('Source.A2:Source.A4', $listbox->attr('formControl')['listSource']);
+        $t->same(2, $listbox->attr('formControl')['boundColumn']);
+        $t->same(true, $listbox->attr('formControl')['multiple']);
+        $t->same('item', $listbox->attr('formControl')['options'][0]['element']);
+        $t->same('Pages', $listbox->attr('formControl')['options'][1]['label']);
+        $t->same('attachment', $listbox->attr('formControl')['options'][2]['value']);
+        $t->same(true, $listbox->attr('formControl')['options'][2]['selected']);
+        $t->same('3', $listbox->attr('attributes')['data-odf-control-option-count']);
+        $t->same('2', $listbox->attr('attributes')['data-odf-control-selected-option-count']);
+        $t->same('Posts, Media', $listbox->attr('attributes')['data-odf-control-selected-option-labels']);
+        $t->same('post, attachment', $listbox->attr('attributes')['data-odf-control-selected-option-values']);
+        $t->same('cell-range', $listbox->attr('attributes')['data-odf-control-list-source-type']);
+        $t->same('Source.A2:Source.A4', $listbox->attr('attributes')['data-odf-control-list-source']);
+        $t->same('2', $listbox->attr('attributes')['data-odf-control-bound-column']);
+        $t->same('true', $listbox->attr('attributes')['data-odf-control-multiple']);
+        $t->same(2, $result['importReport']['content']['formControlCount']);
+        $t->same(5, $result['importReport']['content']['formControlOptionCount']);
+        $t->same(3, $result['importReport']['content']['selectedFormControlOptionCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Review disposition]{.odf-form-control .odf-control-combobox data-odf-control-id="ctrl-disposition" data-odf-control-type="combobox" data-odf-control-exists="true"', $markdown);
+        $t->contains('data-odf-control-selected-option-labels="Ready to publish"', $markdown);
+        $t->contains('[Posts, Media]{.odf-form-control .odf-control-listbox data-odf-control-id="ctrl-categories" data-odf-control-type="listbox" data-odf-control-exists="true"', $markdown);
+        $t->contains('data-odf-control-list-source="Source.A2:Source.A4"', $markdown);
+        $t->contains('<span class="odf-form-control odf-control-combobox" data-odf-control-id="ctrl-disposition" data-odf-control-type="combobox" data-odf-control-exists="true"', $blocksHtml);
+        $t->contains('data-odf-control-option-count="2" data-odf-control-selected-option-count="1" data-odf-control-selected-option-labels="Ready to publish"', $blocksHtml);
+        $t->contains('<span class="odf-form-control odf-control-listbox" data-odf-control-id="ctrl-categories" data-odf-control-type="listbox" data-odf-control-exists="true"', $blocksHtml);
+        $t->contains('data-odf-control-list-source-type="cell-range"', $blocksHtml);
+        $t->contains('data-odf-control-list-source="Source.A2:Source.A4"', $blocksHtml);
+    },
     'maps ODT field declarations and user-field fallback values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFieldDeclarations = <<<'XML'
 <office:document-content
