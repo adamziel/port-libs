@@ -5792,9 +5792,44 @@ final class PdfAttachmentExtractor
         $lastLineFeed = strrpos($before, "\n");
         $lastCarriageReturn = strrpos($before, "\r");
         $lineStart = max($lastLineFeed === false ? -1 : $lastLineFeed, $lastCarriageReturn === false ? -1 : $lastCarriageReturn) + 1;
-        $commentOffset = strpos($pdfBytes, '%', $lineStart);
+        $offset = 0;
+        while ($offset < $tokenOffset) {
+            $char = $pdfBytes[$offset] ?? '';
+            if ($char === '%') {
+                if ($offset >= $lineStart) {
+                    return true;
+                }
 
-        return $commentOffset !== false && $commentOffset < $tokenOffset;
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null && $compositeEnd > $offset) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipPdfHexStringToken($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        return false;
     }
 
     /**

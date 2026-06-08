@@ -31469,9 +31469,44 @@ final class PdfTextExtractor
         $lastLineFeed = strrpos($before, "\n");
         $lastCarriageReturn = strrpos($before, "\r");
         $lineStart = max($lastLineFeed === false ? -1 : $lastLineFeed, $lastCarriageReturn === false ? -1 : $lastCarriageReturn) + 1;
-        $commentOffset = strpos($pdfBytes, '%', $lineStart);
+        $offset = 0;
+        while ($offset < $tokenOffset) {
+            $char = $pdfBytes[$offset] ?? '';
+            if ($char === '%') {
+                if ($offset >= $lineStart) {
+                    return true;
+                }
 
-        return $commentOffset !== false && $commentOffset < $tokenOffset;
+                $this->skipPdfComment($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->skipPdfLiteralStringAt($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end + 1;
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null && $compositeEnd > $offset) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipPdfHexStringTokenAt($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        return false;
     }
 
     /**
