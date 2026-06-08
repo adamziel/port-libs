@@ -9501,7 +9501,11 @@ final class PdfMetadataExtractor
      */
     private function encryptMetadataDeclarationReview(string $dictionary, array $objects): array
     {
-        $values = $this->dictionaryTopLevelRawValues($dictionary, 'EncryptMetadata');
+        $valueReviews = $this->dictionaryTopLevelValueReviews($dictionary, 'EncryptMetadata');
+        $values = array_values(array_map(
+            static fn (array $entry): string => (string) ($entry['value'] ?? ''),
+            $valueReviews
+        ));
         if ($values === []) {
             return [
                 'source' => 'encrypt_metadata_declaration_review',
@@ -9525,29 +9529,48 @@ final class PdfMetadataExtractor
 
         $entries = [];
         foreach ($values as $index => $value) {
+            $valueReview = $valueReviews[$index] ?? ['value' => $value, 'single_value' => true];
             $resolved = $this->resolvePdfValue($value, $objects);
-            $valueForReview = $this->firstPdfValueToken($resolved ?? $value);
+            $resolvedValue = $resolved ?? $value;
+            $valueForReview = $this->firstPdfValueToken($resolvedValue);
             $operandShape = $this->encryptMetadataOperandShape($valueForReview);
-            $booleanValue = match ($valueForReview) {
+            $singleValue = ($valueReview['single_value'] ?? true) === true
+                && (
+                    ($resolved === null && $this->objectReferenceFromValue($value) !== null)
+                    || $valueForReview === ''
+                    || $this->pdfValueIsSingleToken($resolvedValue, $valueForReview)
+                );
+            $booleanValue = $singleValue ? match ($valueForReview) {
                 'true' => true,
                 'false' => false,
                 default => null,
-            };
+            } : null;
 
-            $entries[] = [
+            $entry = [
                 'source' => 'encrypt_metadata_entry_review',
                 'index' => $index,
                 'pdf_name' => 'EncryptMetadata',
                 'present' => true,
                 'resolved' => $resolved !== null,
                 'operand_shape' => $operandShape,
+                'single_value' => $singleValue,
                 'boolean' => $booleanValue !== null,
                 'value' => $booleanValue,
-                'status' => $booleanValue !== null
-                    ? 'well_formed_encrypt_metadata_boolean'
-                    : $this->encryptMetadataOperandStatus($value, $operandShape, $resolved !== null),
+                'status' => !$singleValue
+                    ? 'encrypt_metadata_trailing_operand_review'
+                    : ($booleanValue !== null
+                        ? 'well_formed_encrypt_metadata_boolean'
+                        : $this->encryptMetadataOperandStatus($value, $operandShape, $resolved !== null)),
                 'review_only' => true,
             ];
+
+            if (!$singleValue) {
+                $entry += ($valueReview['trailing_operand'] ?? false) === true
+                    ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                    : $this->topLevelTrailingOperandReview($resolvedValue, $valueForReview);
+            }
+
+            $entries[] = $entry;
         }
 
         $booleanEntries = array_values(array_filter(
