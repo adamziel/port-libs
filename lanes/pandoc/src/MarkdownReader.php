@@ -4729,7 +4729,13 @@ final class MarkdownReader
             return $value;
         }
 
-        return $this->parseYamlExplicitTaggedScalar($value, $tag);
+        $parsed = $this->parseYamlExplicitTaggedScalar($value, $tag);
+        $provenanceType = $this->yamlExplicitScalarProvenanceType($tag);
+        if ($provenanceType !== null) {
+            $this->recordYamlTypedScalarProvenance($value, $provenanceType, $parsed, $tag);
+        }
+
+        return $parsed;
     }
 
     private function parseYamlExplicitIntegerScalar(string $value): int|string

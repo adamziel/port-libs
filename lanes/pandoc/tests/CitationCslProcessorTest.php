@@ -3864,6 +3864,103 @@ XML);
         $t->contains('<dt>Migration Film Desk 2026</dt><dd>motion_picture :: Source Capture Reel</dd>', $blocks);
         $t->contains('<dt>Archive Image Desk 2024</dt><dd>graphic :: Archive Still</dd>', $blocks);
     },
+    'maps bounded biblatex unpublished eventtitle entries into csl speech type' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@unpublished{migration-talk,
+  author     = {Curator, Eli},
+  title      = {Migration Review Talk},
+  type       = {Paper},
+  eventtitle = {WordPress Import Summit},
+  eventdate  = {2026-06-04},
+  venue      = {Portland},
+  date       = {2026}
+}
+
+@unpublished{field-note,
+  author = {Ng, Nia},
+  title  = {Unpublished Field Notes},
+  date   = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('speech', $items[0]['type'] ?? null);
+        $t->same('Paper', $items[0]['genre'] ?? null);
+        $t->same('WordPress Import Summit', $items[0]['event'] ?? null);
+        $t->same('Portland', $items[0]['event-place'] ?? null);
+        $t->same(['date-parts' => [[2026, 6, 4]]], $items[0]['event-date'] ?? null);
+        $t->same('manuscript', $items[1]['type'] ?? null);
+        $t->same('', $items[1]['event'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $talk = $processor->item('migration-talk');
+        $note = $processor->item('field-note');
+        $t->same('speech', $talk['type'] ?? null);
+        $t->same('Paper', $talk['genre'] ?? null);
+        $t->same('WordPress Import Summit', $talk['eventTitle'] ?? null);
+        $t->same('Portland', $talk['eventPlace'] ?? null);
+        $t->same('2026-06-04', $talk['eventDate']['display'] ?? null);
+        $t->same('manuscript', $note['type'] ?? null);
+        $t->same('(Curator 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('migration-talk', '[@migration-talk]'),
+            $citation('field-note', '[@field-note]'),
+        ]));
+        $t->same(
+            'Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.',
+            $processor->renderBibliographyEntry('migration-talk')
+        );
+        $t->same('Ng, Nia. Unpublished Field Notes. 2025.', $processor->renderBibliographyEntry('field-note'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if type="speech">
+          <group delimiter=" | ">
+            <text value="speech"/>
+            <text variable="title"/>
+            <text variable="event"/>
+            <text variable="genre"/>
+            <text variable="event-place"/>
+            <date variable="event-date"/>
+          </group>
+        </if>
+        <else-if type="manuscript">
+          <group delimiter=" | ">
+            <text value="manuscript"/>
+            <text variable="title"/>
+          </group>
+        </else-if>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="type"/>
+      <text variable="title"/>
+      <text variable="event"/>
+      <text variable="genre"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[speech | Migration Review Talk | WordPress Import Summit | Paper | Portland | 2026-06-04; manuscript | Unpublished Field Notes]', $styled->renderCitationCluster([
+            $citation('migration-talk', '[@migration-talk]'),
+            $citation('field-note', '[@field-note]'),
+        ]));
+        $t->same('speech :: Migration Review Talk :: WordPress Import Summit :: Paper :: 2026-06-04', $styled->renderBibliographyEntry('migration-talk'));
+        $t->same('manuscript :: Unpublished Field Notes', $styled->renderBibliographyEntry('field-note'));
+
+        $document = (new MarkdownReader())->read('Presentation source @migration-talk and field note [@field-note] keep unpublished entry intent.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Presentation source Curator (2026) and field note (Ng 2025) keep unpublished entry intent.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Unpublished Field Notes. 2025.</dd>', $blocks);
+    },
     'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{distributed-review,

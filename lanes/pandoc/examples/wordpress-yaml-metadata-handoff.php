@@ -64,6 +64,17 @@ typed-review:
   explicit-legacy-enabled: !!bool y
   quoted-legacy-approved: "yes"
   withdrawn: !!null "not carried"
+typed-block-review:
+  approved: !!bool >-
+    true
+  priority: !!int |-
+    0x2A
+  captured-at: !!timestamp >-
+    2026-06-08 10:15:30Z
+  withdrawn: !!null |-
+    reviewer note is intentionally nulled
+  invalid-priority: !!int >-
+    not-a-number
 source-captured-at: !!timestamp 2026-06-05 06:46:51Z
 review-binary:
   note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"
@@ -824,6 +835,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!array_key_exists('withdrawn', $meta['typed-review'] ?? []) || $meta['typed-review']['withdrawn'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit null tag coercion');
     }
+    if (($meta['typed-block-review']['approved'] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing explicit block bool tag coercion');
+    }
+    if (($meta['typed-block-review']['priority'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit block integer tag coercion');
+    }
+    if (($meta['typed-block-review']['captured-at'] ?? '') !== '2026-06-08T10:15:30Z') {
+        throw new RuntimeException('YAML metadata self-test missing explicit block timestamp tag normalization');
+    }
+    if (!array_key_exists('withdrawn', $meta['typed-block-review'] ?? []) || $meta['typed-block-review']['withdrawn'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit block null tag coercion');
+    }
+    if (($meta['typed-block-review']['invalid-priority'] ?? '') !== 'not-a-number') {
+        throw new RuntimeException('YAML metadata self-test did not preserve invalid explicit block integer source text');
+    }
     if (($meta['source-captured-at'] ?? '') !== '2026-06-05T06:46:51Z') {
         throw new RuntimeException('YAML metadata self-test missing explicit timestamp tag normalization');
     }
@@ -1036,6 +1062,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '/typed-review/typed-revision' => ['number', 'int', '"007"'],
         '/typed-review/approved' => ['boolean', 'bool', '"true"'],
         '/typed-review/withdrawn' => ['null', 'null', '"not carried"'],
+        '/typed-block-review/approved' => ['boolean', 'bool', 'true'],
+        '/typed-block-review/priority' => ['number', 'int', '0x2A'],
+        '/typed-block-review/captured-at' => ['timestamp', 'timestamp', '2026-06-08 10:15:30Z'],
+        '/typed-block-review/withdrawn' => ['null', 'null', 'reviewer note is intentionally nulled'],
         '/source-captured-at' => ['timestamp', 'timestamp', '2026-06-05 06:46:51Z'],
         '/typed-flow-review/elapsed' => ['number', 'int', '0:01:05'],
         '/boolean-synonym-flow-review/published' => ['boolean', null, 'y'],
@@ -1053,6 +1083,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('/typed-review/quoted-legacy-approved', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded quoted yes as a typed scalar');
+    }
+    if (array_key_exists('/typed-block-review/invalid-priority', $yamlTypedScalarProvenance)) {
+        throw new RuntimeException('YAML metadata self-test recorded invalid explicit block integer as a typed scalar');
     }
     $yamlQuotedScalarProvenance = [];
     foreach ($yamlScalarProvenance as $entry) {

@@ -4551,6 +4551,79 @@ return [
         $t->same('typed-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="typed-scalar-provenance-yaml-body">Typed scalar provenance YAML body</h1>', $blocks);
     },
+    'records pandoc yaml explicit typed block scalar provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Typed block scalar **Packet**',
+            'review:',
+            '  approved: !!bool >-',
+            '    true',
+            '  priority: !!int |-',
+            '    0x2A',
+            '  captured-at: !!timestamp >-',
+            '    2026-06-08 10:15:30Z',
+            '  withdrawn: !!null |-',
+            '    reviewer note is intentionally nulled',
+            '  invalid-priority: !!int >-',
+            '    not-a-number',
+            '...',
+            '',
+            '# Typed block scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Typed block scalar **Packet**', $meta['title']);
+        $t->same(true, $meta['review']['approved']);
+        $t->same(42, $meta['review']['priority']);
+        $t->same('2026-06-08T10:15:30Z', $meta['review']['captured-at']);
+        $t->true(array_key_exists('withdrawn', $meta['review']) && $meta['review']['withdrawn'] === null);
+        $t->same('not-a-number', $meta['review']['invalid-priority']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $blockScalars = [];
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-block-scalar') {
+                $blockScalars[$entry['path'] ?? ''] = $entry;
+            }
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(5, count($blockScalars));
+        $t->same('folded', $blockScalars['/review/approved']['style'] ?? null);
+        $t->same('strip', $blockScalars['/review/approved']['chomp'] ?? null);
+        $t->same('literal', $blockScalars['/review/priority']['style'] ?? null);
+        $t->same('strip', $blockScalars['/review/priority']['chomp'] ?? null);
+        $t->same('folded', $blockScalars['/review/captured-at']['style'] ?? null);
+        $t->same('literal', $blockScalars['/review/withdrawn']['style'] ?? null);
+        $t->same('folded', $blockScalars['/review/invalid-priority']['style'] ?? null);
+
+        $t->same(4, count($typed));
+        $t->same('boolean', $typed['/review/approved']['scalarType'] ?? null);
+        $t->same('bool', $typed['/review/approved']['explicitTag'] ?? null);
+        $t->same('true', $typed['/review/approved']['source'] ?? null);
+        $t->same('4', $typed['/review/approved']['sourceLine'] ?? null);
+        $t->same('number', $typed['/review/priority']['scalarType'] ?? null);
+        $t->same('int', $typed['/review/priority']['explicitTag'] ?? null);
+        $t->same('0x2A', $typed['/review/priority']['source'] ?? null);
+        $t->same('6', $typed['/review/priority']['sourceLine'] ?? null);
+        $t->same('timestamp', $typed['/review/captured-at']['scalarType'] ?? null);
+        $t->same('timestamp', $typed['/review/captured-at']['explicitTag'] ?? null);
+        $t->same('2026-06-08 10:15:30Z', $typed['/review/captured-at']['source'] ?? null);
+        $t->same('8', $typed['/review/captured-at']['sourceLine'] ?? null);
+        $t->same('null', $typed['/review/withdrawn']['scalarType'] ?? null);
+        $t->same('null', $typed['/review/withdrawn']['explicitTag'] ?? null);
+        $t->same('reviewer note is intentionally nulled', $typed['/review/withdrawn']['source'] ?? null);
+        $t->same('10', $typed['/review/withdrawn']['sourceLine'] ?? null);
+        $t->same(false, array_key_exists('/review/invalid-priority', $typed));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('typed-block-scalar-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="typed-block-scalar-yaml-body">Typed block scalar YAML body</h1>', $blocks);
+    },
     'records pandoc yaml quoted scalar source provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -620,7 +620,7 @@ final class BibtexCslParser
         $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location']);
         $item = [
             'id' => $key,
-            'type' => self::cslType($type),
+            'type' => self::cslTypeForEntry($type, $fields),
             'citation-aliases' => self::biblatexKeyList($fields['ids'] ?? ''),
             'citation-label' => self::firstField($fields, ['shorthand', 'label']),
             'label' => self::firstField($fields, ['label']),
@@ -1110,6 +1110,19 @@ final class BibtexCslParser
             'unpublished' => 'manuscript',
             default => strtolower($type),
         };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function cslTypeForEntry(string $type, array $fields): string
+    {
+        $entryType = strtolower($type);
+        if ($entryType === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '') {
+            return 'speech';
+        }
+
+        return self::cslType($type);
     }
 
     /**
