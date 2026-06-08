@@ -187,6 +187,7 @@ final class PdfAttachmentExtractor
                 $attachments[$duplicateIndex]['associated_file_source'] = 'catalog_af';
                 $attachments[$duplicateIndex]['associated_file_index'] = $entry['associatedFileIndex'];
                 $attachments[$duplicateIndex]['catalog_object_id'] = $entry['catalogObjectId'];
+                $this->applyAssociatedFileRelationshipMirrorMetadata($attachments[$duplicateIndex], $attachment);
                 continue;
             }
 
@@ -220,6 +221,7 @@ final class PdfAttachmentExtractor
                 $attachments[$duplicateIndex]['page_associated_file_index'] = $entry['associatedFileIndex'];
                 $attachments[$duplicateIndex]['page_number'] = $entry['pageNumber'];
                 $attachments[$duplicateIndex]['page_object_id'] = $entry['pageObjectId'];
+                $this->applyAssociatedFileRelationshipMirrorMetadata($attachments[$duplicateIndex], $attachment);
                 continue;
             }
 
@@ -384,6 +386,23 @@ final class PdfAttachmentExtractor
                 $target[$key] = $annotationAttachment[$key];
             }
         }
+
+        $this->applyAssociatedFileRelationshipMirrorMetadata($target, $annotationAttachment);
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $candidate
+     */
+    private function applyAssociatedFileRelationshipMirrorMetadata(array &$target, array $candidate): void
+    {
+        foreach (['relationship', 'relationship_role', 'relationship_status'] as $key) {
+            if (!array_key_exists($key, $target) && array_key_exists($key, $candidate)) {
+                $target[$key] = $candidate[$key];
+            }
+        }
+
+        $this->applyMissingAssociatedFileRelationshipStatus($target);
     }
 
     /**
@@ -1661,6 +1680,7 @@ final class PdfAttachmentExtractor
                 ? 'standard_pdf_associated_file_relationship'
                 : 'unrecognized_pdf_associated_file_relationship';
         }
+        $this->applyMissingAssociatedFileRelationshipStatus($attachment);
         if ($fileSystem !== null && $fileSystem !== '') {
             $attachment['file_system'] = $fileSystem;
             $attachment['file_system_status'] = $this->fileSpecFileSystemStatus($fileSystem);
@@ -1719,6 +1739,39 @@ final class PdfAttachmentExtractor
         return $encryptionPolicy === null
             ? $attachment
             : $this->redactEncryptedAttachmentRow($attachment, $encryptionPolicy);
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     */
+    private function applyMissingAssociatedFileRelationshipStatus(array &$attachment): void
+    {
+        if (!$this->attachmentIsAssociatedFile($attachment)) {
+            return;
+        }
+
+        $relationship = $attachment['relationship'] ?? null;
+        if (is_string($relationship) && $relationship !== '') {
+            return;
+        }
+
+        if (!array_key_exists('relationship_status', $attachment)) {
+            $attachment['relationship_status'] = 'missing_pdf_associated_file_relationship';
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     */
+    private function attachmentIsAssociatedFile(array $attachment): bool
+    {
+        if (($attachment['associated_file'] ?? false) === true) {
+            return true;
+        }
+
+        $source = $attachment['source'] ?? null;
+
+        return is_string($source) && str_contains($source, 'associated');
     }
 
     /**
