@@ -293,6 +293,7 @@ final class SingleDocumentConverter
         $parsedLanguages = $this->parseLanguages($languages);
         $subfolder = $this->writer->getSubfolderPath($outputFolder, $basename);
         $markdownPath = $this->writer->getMarkdownFilepath($outputFolder, $basename);
+        $modelLoadSequence = $this->singleDocumentModelLoadSequence();
 
         return [
             'schema' => 'markerpdf.convert_single_runtime_preflight.v1',
@@ -321,16 +322,28 @@ final class SingleDocumentConverter
                 'langs' => $parsedLanguages,
                 'batch_multiplier' => $batchMultiplier,
             ],
+            'model_load_sequence' => $modelLoadSequence,
             'model_boundary' => [
                 'load_function' => 'load_all_models',
+                'load_function_source' => 'marker.models.load_all_models',
                 'loads_all_models_before_conversion' => true,
+                'model_list_source' => 'load_all_models()',
+                'model_list_variable' => 'model_lst',
+                'model_count' => $modelLoadSequence['model_count'],
+                'model_slot_order' => $modelLoadSequence['model_slot_order'],
+                'model_slots' => $modelLoadSequence['model_slots'],
                 'passes_model_list_to_convert_single_pdf' => true,
+                'recognition_model_always_loaded_for_single_document' => true,
+                'single_document_share_memory_loop' => false,
                 'native_plan_loads_models' => false,
                 'upstream_model_execution_required' => true,
             ],
             'conversion_call' => [
                 'function' => 'convert_single_pdf',
                 'receives_filename' => $filename,
+                'receives_model_list' => true,
+                'model_argument_source' => 'model_lst returned by load_all_models()',
+                'model_slot_order' => $modelLoadSequence['model_slot_order'],
                 'receives_options' => [
                     'max_pages' => $maxPages,
                     'langs' => $parsedLanguages,
@@ -359,6 +372,99 @@ final class SingleDocumentConverter
             'executes_streamlit' => false,
             'executes_fastapi' => false,
             'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function singleDocumentModelLoadSequence(): array
+    {
+        $modelSlots = [
+            [
+                'index' => 0,
+                'label' => 'texify',
+                'setup_function' => 'setup_texify_model',
+                'model_loader' => 'load_texify_model',
+                'processor_loader' => 'load_texify_processor',
+                'checkpoint_source' => 'settings.TEXIFY_MODEL_NAME',
+                'default_device_source' => 'settings.TORCH_DEVICE_MODEL',
+                'default_dtype_source' => 'settings.TEXIFY_DTYPE',
+            ],
+            [
+                'index' => 1,
+                'label' => 'layout',
+                'setup_function' => 'setup_layout_model',
+                'model_loader' => 'load_detection_model',
+                'processor_loader' => 'load_detection_processor',
+                'checkpoint_source' => 'settings.LAYOUT_MODEL_CHECKPOINT',
+                'default_device_source' => null,
+                'default_dtype_source' => null,
+            ],
+            [
+                'index' => 2,
+                'label' => 'order',
+                'setup_function' => 'setup_order_model',
+                'model_loader' => 'load_order_model',
+                'processor_loader' => 'load_order_processor',
+                'checkpoint_source' => null,
+                'default_device_source' => null,
+                'default_dtype_source' => null,
+            ],
+            [
+                'index' => 3,
+                'label' => 'detection',
+                'setup_function' => 'setup_detection_model',
+                'model_loader' => 'load_detection_model',
+                'processor_loader' => 'load_detection_processor',
+                'checkpoint_source' => null,
+                'default_device_source' => null,
+                'default_dtype_source' => null,
+            ],
+            [
+                'index' => 4,
+                'label' => 'ocr',
+                'setup_function' => 'setup_recognition_model',
+                'model_loader' => 'load_recognition_model',
+                'processor_loader' => 'load_recognition_processor',
+                'checkpoint_source' => null,
+                'default_device_source' => null,
+                'default_dtype_source' => null,
+            ],
+            [
+                'index' => 5,
+                'label' => 'table_model',
+                'setup_function' => 'setup_table_rec_model',
+                'model_loader' => 'load_table_model',
+                'processor_loader' => 'load_table_processor',
+                'checkpoint_source' => null,
+                'default_device_source' => null,
+                'default_dtype_source' => null,
+            ],
+        ];
+
+        return [
+            'source' => 'marker.models.load_all_models',
+            'upstream_statement' => 'model_lst = load_all_models()',
+            'order' => 'after_parse_langs_before_convert_single_pdf',
+            'model_list_variable' => 'model_lst',
+            'model_count' => count($modelSlots),
+            'device_argument' => null,
+            'dtype_argument' => null,
+            'device_dtype_assertion_reached' => false,
+            'uses_default_device_and_dtype' => true,
+            'construction_order' => [
+                'setup_detection_model',
+                'setup_layout_model',
+                'setup_order_model',
+                'setup_recognition_model',
+                'setup_texify_model',
+                'setup_table_rec_model',
+            ],
+            'model_slot_order' => array_column($modelSlots, 'label'),
+            'model_slots' => $modelSlots,
+            'native_plan_loads_models' => false,
+            'executes_python_or_models' => false,
         ];
     }
 

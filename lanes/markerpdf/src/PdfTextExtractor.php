@@ -14627,7 +14627,7 @@ final class PdfTextExtractor
             if (
                 $dictionary === null
                 || (
-                    !$this->dictionaryLooksLikeOutlineItem($dictionary)
+                    !$this->dictionaryLooksLikeOutlineItem($dictionary, $objects)
                     && !$this->dictionaryLooksLikeOutlineRoot($dictionary, $objects)
                 )
             ) {
@@ -14680,17 +14680,67 @@ final class PdfTextExtractor
             );
     }
 
-    private function dictionaryLooksLikeOutlineItem(string $dictionary): bool
+    private function dictionaryLooksLikeOutlineItem(string $dictionary, array $objects, array $seenParents = []): bool
     {
-        return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Title') !== null
-            && (
-                $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent') !== null
-                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Dest') !== null
-                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'A') !== null
-                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'First') !== null
-                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Last') !== null
-                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Count') !== null
-            );
+        if ($this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Title') !== null) {
+            foreach (['Parent', 'Dest', 'A', 'First', 'Last', 'Count', 'Prev', 'Next'] as $key) {
+                if ($this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $key) !== null) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        $parentValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent');
+        if ($parentValue === null) {
+            return false;
+        }
+
+        $hasTitlelessOutlineLink = false;
+        foreach (['Dest', 'A', 'First', 'Last', 'Count', 'Prev', 'Next', 'Metadata'] as $key) {
+            if ($this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $key) !== null) {
+                $hasTitlelessOutlineLink = true;
+                break;
+            }
+        }
+
+        if (!$hasTitlelessOutlineLink) {
+            return false;
+        }
+
+        $offset = 0;
+        $parentReference = $this->readPdfIndirectReferenceToken($parentValue, $offset);
+        if ($parentReference === null) {
+            return false;
+        }
+
+        $parentKey = $parentReference['objectNumber'] . ':' . $parentReference['generation'];
+        if (isset($seenParents[$parentKey])) {
+            return false;
+        }
+
+        $parentBody = $this->objectBodyForExactReference(
+            $objects,
+            $parentReference['objectNumber'],
+            $parentReference['generation']
+        );
+        if ($parentBody === null) {
+            return false;
+        }
+
+        $parentDictionary = $this->dictionaryObjectBody($parentBody);
+        if ($parentDictionary === null) {
+            return false;
+        }
+
+        if ($this->dictionaryLooksLikeOutlineRoot($parentDictionary, $objects)) {
+            return true;
+        }
+
+        $seenParents[$parentKey] = true;
+
+        return $this->dictionaryLooksLikeOutlineItem($parentDictionary, $objects, $seenParents);
     }
 
     /**

@@ -3736,7 +3736,7 @@ final class TableRecognizer
                 continue;
             }
 
-            $conflicts[] = [
+            $conflict = [
                 'ocr_index' => $ocrIndex,
                 'text' => $this->normalizeOcrFragmentText($this->ocrTextLineText($ocrLine)),
                 'bbox' => $bbox,
@@ -3745,9 +3745,33 @@ final class TableRecognizer
                 'candidate_overlaps' => array_column($candidates, 'overlap'),
                 'candidate_cell_bboxes' => array_column($candidates, 'cell_bbox'),
             ];
+            $conflicts[] = $this->withOcrLineGeometryReviewFields($conflict, $ocrLine);
         }
 
         return $conflicts;
+    }
+
+    /**
+     * @param array<string, mixed> $conflict
+     * @param array<string, mixed> $ocrLine
+     * @return array<string, mixed>
+     */
+    private function withOcrLineGeometryReviewFields(array $conflict, array $ocrLine): array
+    {
+        $conflict = $this->withSourceGeometryReviewFields($conflict, $ocrLine);
+        if (
+            array_key_exists('source_bbox', $conflict)
+            || array_key_exists('source_page_image_bbox', $conflict)
+        ) {
+            if (!isset($conflict['source_coordinate_source'])) {
+                $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($ocrLine);
+            }
+            if (!array_key_exists('source_endpoint_order_normalized', $conflict)) {
+                $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($ocrLine);
+            }
+        }
+
+        return $conflict;
     }
 
     /**
@@ -4382,6 +4406,8 @@ final class TableRecognizer
         return $this->polygonBbox($ocrLine['polygon'] ?? null)
             ?? $this->bboxFromValue($ocrLine['bbox'] ?? null)
             ?? $this->bboxFromNamedFields($ocrLine)
+            ?? $this->bboxFromWrappedValue($ocrLine)
+            ?? $this->sourceBboxFromRecord($ocrLine)
             ?? null;
     }
 
