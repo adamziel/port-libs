@@ -7401,6 +7401,7 @@ final class CitationCslProcessor
                 is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
                 is_array($options['etAl'] ?? null) ? $options['etAl'] : []
             ),
+            'initialize' => is_bool($options['initialize'] ?? null) ? $options['initialize'] : (bool) ($defaults['initialize'] ?? true),
             'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
             'initializeWithHyphen' => is_bool($options['initializeWithHyphen'] ?? null) ? $options['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
@@ -9631,6 +9632,10 @@ final class CitationCslProcessor
 
         $initializeWith = (string) $initializeWith;
         $initializeWithHyphen = ($options['initializeWithHyphen'] ?? true) !== false;
+        if (($options['initialize'] ?? true) === false) {
+            return $this->renderGivenNameWithoutInitialization($given, $initializeWith, $initializeWithHyphen);
+        }
+
         $tokens = preg_split('/(\s+|-+)/u', $given, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
         $rendered = '';
         $separator = '';
@@ -9659,6 +9664,69 @@ final class CitationCslProcessor
         }
 
         return rtrim($rendered);
+    }
+
+    private function renderGivenNameWithoutInitialization(string $given, string $initializeWith, bool $initializeWithHyphen): string
+    {
+        if ($initializeWith === '') {
+            return $given;
+        }
+
+        $tokens = preg_split('/(\s+|-+)/u', $given, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
+        $rendered = '';
+        $separator = '';
+        $lastTokenWasInitial = false;
+        foreach ($tokens as $token) {
+            if (preg_match('/^\s+$/u', $token) === 1) {
+                $separator = $token;
+                continue;
+            }
+
+            if (preg_match('/^-+$/u', $token) === 1) {
+                $separator = 'hyphen';
+                continue;
+            }
+
+            [$renderedToken, $tokenWasInitial] = $this->punctuateExistingGivenInitial($token, $initializeWith);
+            if ($rendered === '') {
+                $rendered = $renderedToken;
+                $lastTokenWasInitial = $tokenWasInitial;
+                $separator = '';
+                continue;
+            }
+
+            if ($separator === 'hyphen') {
+                if (!$lastTokenWasInitial && !$tokenWasInitial) {
+                    $rendered .= '-' . $renderedToken;
+                } elseif ($initializeWithHyphen) {
+                    $rendered = rtrim($rendered) . '-' . $renderedToken;
+                } else {
+                    $rendered = rtrim($rendered) . ' ' . ltrim($renderedToken);
+                }
+            } elseif ($separator !== '') {
+                $rendered = rtrim($rendered) . $separator . ltrim($renderedToken);
+            } else {
+                $rendered .= $renderedToken;
+            }
+
+            $lastTokenWasInitial = $tokenWasInitial;
+            $separator = '';
+        }
+
+        return rtrim($rendered);
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function punctuateExistingGivenInitial(string $token, string $initializeWith): array
+    {
+        $trimmed = trim($token);
+        if (preg_match('/^\p{L}\.?$/u', $trimmed) !== 1) {
+            return [$token, false];
+        }
+
+        return [$this->uppercaseInitial(rtrim($trimmed, '.')) . $initializeWith, true];
     }
 
     private function uppercaseInitial(string $initial): string

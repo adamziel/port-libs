@@ -8151,6 +8151,84 @@ XML
 XML
         ));
     },
+    'applies bounded csl initialize false for full given names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'given-only-source',
+                'type' => 'report',
+                'title' => 'Full Given Packet',
+                'author' => [
+                    ['given' => 'James T'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'family-given-source',
+                'type' => 'report',
+                'title' => 'Family Given Packet',
+                'author' => [
+                    ['family' => 'Kirk', 'given' => 'James T'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Initialize False Review Style</title>
+    <id>https://example.test/styles/bounded-initialize-false-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author">
+          <name initialize-with=". " initialize="false"/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " initialize="false" name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Initialize False Review Style', $summary['title'] ?? null);
+        $t->same(false, $summary['nameRendering']['citation']['initialize'] ?? null);
+        $t->same(false, $summary['nameRendering']['bibliography']['initialize'] ?? null);
+        $t->same(false, $summary['citationRendering'][0]['children'][0]['nameRendering']['initialize'] ?? null);
+        $t->same(false, $summary['bibliographyRendering'][0]['nameRendering']['initialize'] ?? null);
+        $t->same('(James T. 2026; Kirk 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'given-only-source', 'text' => '[@given-only-source]']),
+            new AstNode('citation', ['id' => 'family-given-source', 'text' => '[@family-given-source]']),
+        ]));
+        $t->same('James T. Full Given Packet.', $processor->renderBibliographyEntry('given-only-source'));
+        $t->same('Kirk, James T. Family Given Packet.', $processor->renderBibliographyEntry('family-given-source'));
+
+        $document = (new MarkdownReader())->read('Initialize false keeps @given-only-source and [@family-given-source] names reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Initialize false keeps James T. (2026) and (Kirk 2025) names reviewable.</p>', $blocks);
+        $t->contains('<dt>James T. 2026</dt><dd>James T. Full Given Packet.</dd>', $blocks);
+        $t->contains('<dt>Kirk 2025</dt><dd>Kirk, James T. Family Given Packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><name initialize-with=". " initialize="later"/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl sort separator for inverted bibliography names' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

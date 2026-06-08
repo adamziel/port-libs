@@ -2541,6 +2541,56 @@ XML;
         $t->contains('[review link](https://example.test/source.odt#review "Source ODT review"){.odf-link data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest"}', $markdown);
         $t->contains('<a href="https://example.test/source.odt#review" title="Source ODT review" class="odf-link" data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest">review link</a>', $blocksHtml);
     },
+    'maps ODT link event listeners into inert review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithLinkEvents = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Evented <text:a xlink:href="https://example.test/source.odt" xlink:type="simple" office:title="Evented source"><office:event-listeners><script:event-listener script:event-name="dom:mouseover" script:language="ooo:Basic" xlink:href="vnd.sun.star.script:Standard.Module.Hover?language=Basic&amp;location=document" xlink:type="simple" xlink:actuate="onRequest"/><script:event-listener script:event-name="dom:click" script:language="JavaScript" script:macro-name="ReviewLinkClick" xlink:href="Scripts/review-link.js" xlink:type="simple" xlink:show="replace"/></office:event-listeners>review link</text:a>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithLinkEvents));
+        $paragraph = $result['document']->children[0];
+        $link = $paragraph->children[1];
+        $metadata = $link->attr('odfLinkMetadata');
+        $listeners = $metadata['eventListeners'] ?? [];
+
+        $t->same('Evented review link.', $paragraph->attr('text'));
+        $t->same('link', $link->type);
+        $t->same(['odf-link'], $link->attr('classes'));
+        $t->same(2, $metadata['eventListenerCount']);
+        $t->same('dom:mouseover', $listeners[0]['eventName']);
+        $t->same('ooo:Basic', $listeners[0]['language']);
+        $t->same('vnd.sun.star.script:Standard.Module.Hover?language=Basic&location=document', $listeners[0]['href']);
+        $t->same('simple', $listeners[0]['type']);
+        $t->same('onRequest', $listeners[0]['actuate']);
+        $t->same('dom:click', $listeners[1]['eventName']);
+        $t->same('JavaScript', $listeners[1]['language']);
+        $t->same('ReviewLinkClick', $listeners[1]['macroName']);
+        $t->same('Scripts/review-link.js', $listeners[1]['href']);
+        $t->same('replace', $listeners[1]['show']);
+        $t->same('2', $link->attr('attributes')['data-odf-link-event-listener-count']);
+        $t->same('dom:mouseover', $link->attr('attributes')['data-odf-link-event-1-name']);
+        $t->same('ooo:Basic', $link->attr('attributes')['data-odf-link-event-1-language']);
+        $t->same('vnd.sun.star.script:Standard.Module.Hover?language=Basic&location=document', $link->attr('attributes')['data-odf-link-event-1-href']);
+        $t->same('onRequest', $link->attr('attributes')['data-odf-link-event-1-actuate']);
+        $t->same('dom:click', $link->attr('attributes')['data-odf-link-event-2-name']);
+        $t->same('ReviewLinkClick', $link->attr('attributes')['data-odf-link-event-2-macro-name']);
+        $t->same(2, $result['importReport']['content']['eventListenerCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[review link](https://example.test/source.odt "Evented source"){.odf-link data-odf-link-type="simple" data-odf-link-event-listener-count="2" data-odf-link-event-1-name="dom:mouseover"', $markdown);
+        $t->contains('<a href="https://example.test/source.odt" title="Evented source" class="odf-link" data-odf-link-type="simple" data-odf-link-event-listener-count="2" data-odf-link-event-1-name="dom:mouseover"', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, '<script:event-listener'), 'Expected raw ODT script event XML to stay out of WordPress output');
+    },
     'normalizes ODT parent relative text links like upstream fixRelativeLink' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithParentRelativeLinks = <<<'XML'
 <office:document-content

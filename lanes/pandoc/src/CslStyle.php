@@ -172,6 +172,7 @@ final class CslStyle
                 'stripPeriods' => false,
                 'quotes' => false,
             ],
+            'initialize' => true,
             'initializeWith' => null,
             'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'first',
@@ -202,6 +203,7 @@ final class CslStyle
                 'stripPeriods' => false,
                 'quotes' => false,
             ],
+            'initialize' => true,
             'initializeWith' => null,
             'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'all',
@@ -910,6 +912,7 @@ final class CslStyle
                 is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
                 is_array($overrides['etAl'] ?? null) ? $overrides['etAl'] : []
             ),
+            'initialize' => is_bool($overrides['initialize'] ?? null) ? $overrides['initialize'] : (bool) ($defaults['initialize'] ?? true),
             'initializeWith' => is_string($overrides['initializeWith'] ?? null) ? $overrides['initializeWith'] : $defaults['initializeWith'],
             'initializeWithHyphen' => is_bool($overrides['initializeWithHyphen'] ?? null) ? $overrides['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
@@ -1050,6 +1053,10 @@ final class CslStyle
 
         if ($name instanceof \DOMElement && $name->hasAttribute('initialize-with')) {
             $overrides['initializeWith'] = $name->getAttribute('initialize-with');
+        }
+        $initialize = self::optionalBooleanNameAttribute($name, $names, 'initialize', $scope);
+        if ($initialize !== null) {
+            $overrides['initialize'] = $initialize;
         }
         $initializeWithHyphen = self::optionalBooleanNameAttribute($name, $names, 'initialize-with-hyphen', $scope);
         if ($initializeWithHyphen !== null) {

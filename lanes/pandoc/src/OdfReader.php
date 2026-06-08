@@ -201,6 +201,7 @@ final class OdfReader
                     'rubyCount' => $contentStats['rubyCount'],
                     'softPageBreakCount' => $contentStats['softPageBreakCount'],
                     'citationCount' => $contentStats['citationCount'],
+                    'eventListenerCount' => $contentStats['eventListenerCount'],
                     'annotationRangeCount' => $contentStats['annotationRangeCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
@@ -4835,17 +4836,84 @@ final class OdfReader
             'show' => self::nullable(self::attr($link, self::XLINK_NS, 'show')),
             'actuate' => self::nullable(self::attr($link, self::XLINK_NS, 'actuate')),
         ]);
+        $eventListeners = $this->eventListenersMetadata($link);
+        if ($eventListeners !== []) {
+            $metadata['eventListeners'] = $eventListeners;
+            $metadata['eventListenerCount'] = count($eventListeners);
+        }
         if ($metadata !== []) {
             $attrs['sourceFormat'] = 'odt';
             $attrs['odfLinkMetadata'] = $metadata;
             $attrs['classes'] = ['odf-link'];
             $attrs['attributes'] = [];
             foreach ($metadata as $name => $value) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
                 $attrs['attributes']['data-odf-link-' . self::kebabCase((string) $name)] = (string) $value;
             }
+            $attrs['attributes'] += $this->eventListenerAttributes('data-odf-link', $eventListeners);
         }
 
         return new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($link, $catalog, $package)));
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function eventListenersMetadata(\DOMElement $element): array
+    {
+        $container = self::firstChildElement($element, 'event-listeners', self::OFFICE_NS);
+        if (!$container instanceof \DOMElement) {
+            return [];
+        }
+
+        $listeners = [];
+        foreach (self::childElements($container, 'event-listener', self::SCRIPT_NS) as $listener) {
+            $metadata = self::withoutEmpty([
+                'eventName' => self::nullable(self::attr($listener, self::SCRIPT_NS, 'event-name')),
+                'language' => self::nullable(self::attr($listener, self::SCRIPT_NS, 'language')),
+                'href' => self::nullable(self::attr($listener, self::XLINK_NS, 'href')),
+                'type' => self::nullable(self::attr($listener, self::XLINK_NS, 'type')),
+                'show' => self::nullable(self::attr($listener, self::XLINK_NS, 'show')),
+                'actuate' => self::nullable(self::attr($listener, self::XLINK_NS, 'actuate')),
+                'macroName' => self::nullable(self::attr($listener, self::SCRIPT_NS, 'macro-name')),
+            ]);
+            if ($metadata === []) {
+                continue;
+            }
+
+            $listeners[] = array_map(static fn (mixed $value): string => (string) $value, $metadata);
+        }
+
+        return $listeners;
+    }
+
+    /**
+     * @param list<array<string, string>> $listeners
+     * @return array<string, string>
+     */
+    private function eventListenerAttributes(string $prefix, array $listeners): array
+    {
+        if ($listeners === []) {
+            return [];
+        }
+
+        $attributes = [
+            $prefix . '-event-listener-count' => (string) count($listeners),
+        ];
+        foreach ($listeners as $index => $listener) {
+            $ordinal = $index + 1;
+            foreach ($listener as $name => $value) {
+                if ($value === '') {
+                    continue;
+                }
+                $attributeName = $name === 'eventName' ? 'name' : self::kebabCase($name);
+                $attributes[$prefix . '-event-' . $ordinal . '-' . $attributeName] = $value;
+            }
+        }
+
+        return $attributes;
     }
 
     private static function fixRelativeLink(string $uri): string
@@ -7693,7 +7761,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, eventListenerCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -7712,6 +7780,7 @@ final class OdfReader
             'rubyCount' => 0,
             'softPageBreakCount' => 0,
             'citationCount' => 0,
+            'eventListenerCount' => 0,
             'annotationRangeCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
@@ -7868,6 +7937,13 @@ final class OdfReader
             }
             if ($node->type === 'citation') {
                 $stats['citationCount']++;
+            }
+            if ($node->type === 'link') {
+                $linkMetadata = $node->attr('odfLinkMetadata', []);
+                $eventListeners = is_array($linkMetadata) ? ($linkMetadata['eventListeners'] ?? []) : [];
+                if (is_array($eventListeners)) {
+                    $stats['eventListenerCount'] += count($eventListeners);
+                }
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-annotation-range')) {
                 $stats['annotationRangeCount']++;
