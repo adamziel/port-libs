@@ -47040,6 +47040,39 @@ final class PdfTextExtractor
             return $currentTextEndY;
         }
 
+        $advance = $this->verticalTextAdvanceDeltaInfo(
+            $decoded,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $glyphDisplacements,
+            $sourceSpaceCount,
+            $includeTerminalCharacterSpacing
+        );
+        if ($advance === null) {
+            return $currentTextEndY;
+        }
+
+        return $currentTextEndY + $advance['delta'];
+    }
+
+    /**
+     * @param list<float>|null $glyphDisplacements
+     * @return array{delta: float, fallback: bool}|null
+     */
+    private function verticalTextAdvanceDeltaInfo(
+        string $decoded,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        ?array $glyphDisplacements = null,
+        ?int $sourceSpaceCount = null,
+        bool $includeTerminalCharacterSpacing = false
+    ): ?array {
+        if ($decoded === '') {
+            return ['delta' => 0.0, 'fallback' => false];
+        }
+
         $fontSize ??= 12.0;
         $characters = $glyphDisplacements !== null && $glyphDisplacements !== [] ? count($glyphDisplacements) : $this->length($decoded);
         $baseAdvance = $glyphDisplacements !== null && $glyphDisplacements !== []
@@ -47051,8 +47084,25 @@ final class PdfTextExtractor
             : max(0, $characters - 1);
         $spacingAdvance = ($characterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
         $direction = $baseAdvance < 0 ? -1.0 : 1.0;
+        $delta = $baseAdvance + ($spacingAdvance * $direction);
+        if ($this->textAdvanceDeltaIsBounded($delta)) {
+            return ['delta' => $delta, 'fallback' => false];
+        }
 
-        return $currentTextEndY + $baseAdvance + ($spacingAdvance * $direction);
+        if ($glyphDisplacements !== null && $glyphDisplacements !== []) {
+            $fallbackCharacters = $this->length($decoded);
+            $fallbackCharacterSpacingCount = $includeTerminalCharacterSpacing
+                ? max(0, $fallbackCharacters)
+                : max(0, $fallbackCharacters - 1);
+            $fallbackBaseAdvance = ($baseAdvance < 0 ? -1.0 : 1.0) * $fallbackCharacters * $fontSize;
+            $fallbackSpacingAdvance = ($fallbackCharacterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
+            $fallbackDelta = $fallbackBaseAdvance + ($fallbackSpacingAdvance * ($baseAdvance < 0 ? -1.0 : 1.0));
+            if ($this->textAdvanceDeltaIsBounded($fallbackDelta)) {
+                return ['delta' => $fallbackDelta, 'fallback' => true];
+            }
+        }
+
+        return ['delta' => 0.0, 'fallback' => true];
     }
 
     private function advanceTextEndYForOperand(
