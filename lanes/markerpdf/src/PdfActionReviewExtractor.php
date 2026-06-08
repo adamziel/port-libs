@@ -3565,7 +3565,7 @@ final class PdfActionReviewExtractor
     {
         $resolvedUriValue = $this->resolveValue($catalog['URI'] ?? null);
         $malformedValueKeys = $this->dictionaryMalformedValueOperandKeySet($resolvedUriValue);
-        if (isset($malformedValueKeys['Base'])) {
+        if (isset($malformedValueKeys['Base']) || $this->resolvedDictionaryHasDuplicateKeys($resolvedUriValue, ['Base'])) {
             return null;
         }
 

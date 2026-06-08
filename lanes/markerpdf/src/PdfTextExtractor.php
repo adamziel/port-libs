@@ -21712,6 +21712,9 @@ final class PdfTextExtractor
         if ($filter !== 'Crypt' && $this->decodeParmsHasName($decodeParms, 'Name')) {
             return false;
         }
+        if (!$this->decodeParmsPredictorParametersAreAllowedForFilter($filter, $decodeParms)) {
+            return false;
+        }
 
         foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
             if (
@@ -21753,6 +21756,21 @@ final class PdfTextExtractor
             )
         ) {
             return false;
+        }
+
+        return true;
+    }
+
+    private function decodeParmsPredictorParametersAreAllowedForFilter(string $filter, string $decodeParms): bool
+    {
+        if (in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)) {
+            return true;
+        }
+
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent'] as $name) {
+            if ($this->decodeParmsHasName($decodeParms, $name)) {
+                return false;
+            }
         }
 
         return true;
