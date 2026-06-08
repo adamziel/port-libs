@@ -72,6 +72,7 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdRelativeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html#packet" TargetMode="External"/>
   <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
   <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source-with-bad-type" TargetMode="External"/>
+  <Relationship Id="rIdSchemeRelativeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="//cdn.example.test/review/source.html" TargetMode="External"/>
   <Relationship Id="rIdDraftReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
 </Relationships>
 XML;
@@ -2022,10 +2023,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '/word/document.xml#review-bookmark',
         '/word/document.xml?review=ready#packet',
         '/word/_rels/document.xml.rels',
-        14,
-        2,
+        15,
+        3,
+        'external-target-network-path-base-uri',
         'external-target-unsafe-scheme',
-        'relationship-type-not-absolute-uri',
     ];
     $actual = [
         $summary['document']['part'],
@@ -2246,7 +2247,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loaded'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadAction'] ?? null) !== 'loaded'
         || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loadReason'] ?? null) !== 'loaded'
-        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipCount'] ?? null) !== 14
+        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipCount'] ?? null) !== 15
         || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
         || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['sourceExists'] ?? null) !== true
         || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['loaded'] ?? null) !== true
@@ -2507,7 +2508,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['mediaParts'][3] ?? null) !== '/word/media/review source.png'
         || ($summary['wordpressImport']['relationshipSourceReview'][2]['source'] ?? null) !== '/word/document.xml'
         || ($summary['wordpressImport']['relationshipSourceReview'][2]['valid'] ?? null) !== false
-        || ($summary['wordpressImport']['relationshipSourceReview'][2]['invalidTargetCount'] ?? null) !== 2
+        || ($summary['wordpressImport']['relationshipSourceReview'][2]['invalidTargetCount'] ?? null) !== 3
         || ($summary['relationships']['rIdReviewSource']['target'] ?? null) !== '/word/review source.xml'
         || isset($summary['relationships']['rIdDraftImage'])
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['relationshipCount'] ?? null) !== 4
@@ -2519,10 +2520,10 @@ if (($argv[1] ?? '') === '--self-test') {
             '/word/media/source diagram.svg',
         ]
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['contentTypes'] ?? null) !== ['image/png', 'image/svg+xml; charset=UTF-8']
-        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['relationshipCount'] ?? null) !== 4
-        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['externalCount'] ?? null) !== 3
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['relationshipCount'] ?? null) !== 5
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['externalCount'] ?? null) !== 4
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['internalCount'] ?? null) !== 1
-        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['issues'] ?? null) !== ['external-target-network-path-base-uri', 'external-target-unsafe-scheme']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'office-document'
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['sourceScope'] ?? null) !== 'package-root'
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['singletonScope'] ?? null) !== 'package'
@@ -2842,6 +2843,16 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['externalTargets'][3]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['integrity']['issues'][1]['id'] ?? null) !== 'rIdMalformedType'
         || ($summary['integrity']['issues'][1]['issues'] ?? null) !== ['relationship-type-not-absolute-uri']
+        || ($summary['wordpressImport']['externalTargets'][4]['id'] ?? null) !== 'rIdSchemeRelativeReviewer'
+        || ($summary['wordpressImport']['externalTargets'][4]['kind'] ?? null) !== 'network-path-reference'
+        || ($summary['wordpressImport']['externalTargets'][4]['scheme'] ?? null) !== null
+        || ($summary['wordpressImport']['externalTargets'][4]['allowed'] ?? null) !== true
+        || ($summary['wordpressImport']['externalTargets'][4]['requiresBaseUri'] ?? null) !== true
+        || ($summary['wordpressImport']['externalTargets'][4]['rewriteBasePart'] ?? null) !== null
+        || ($summary['wordpressImport']['externalTargets'][4]['rewriteReason'] ?? null) !== 'external-target-network-path-reference'
+        || ($summary['wordpressImport']['externalTargets'][4]['issues'] ?? null) !== ['external-target-network-path-base-uri']
+        || ($summary['integrity']['issues'][2]['id'] ?? null) !== 'rIdSchemeRelativeReviewer'
+        || ($summary['integrity']['issues'][2]['issues'] ?? null) !== ['external-target-network-path-base-uri']
     ) {
         throw new RuntimeException('OPC DOCX preflight self-test failed');
     }

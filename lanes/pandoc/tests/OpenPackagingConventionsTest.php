@@ -1544,6 +1544,43 @@ XML;
         $t->same(['external-target-unsafe-scheme'], $closureById['rIdJavascript']['issues']);
         $t->same(null, $closureById['rIdRelative']['targetPart']);
     },
+    'preflights external OPC network-path targets as requiring a base scheme policy' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSchemeRelativeImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="//cdn.example.test/review.png" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('network-path-reference', $preflight['rIdSchemeRelativeImage']['externalTargetKind']);
+        $t->same(null, $preflight['rIdSchemeRelativeImage']['externalTargetScheme']);
+        $t->same(true, $preflight['rIdSchemeRelativeImage']['externalTargetAllowed']);
+        $t->same(true, $preflight['rIdSchemeRelativeImage']['externalTargetRequiresBaseUri']);
+        $t->same(null, $preflight['rIdSchemeRelativeImage']['externalTargetRewriteBasePart']);
+        $t->same('external-target-network-path-reference', $preflight['rIdSchemeRelativeImage']['externalTargetRewriteReason']);
+        $t->same(false, $preflight['rIdSchemeRelativeImage']['valid']);
+        $t->same(['external-target-network-path-base-uri'], $preflight['rIdSchemeRelativeImage']['issues']);
+
+        $allTargets = [];
+        foreach ($graph->preflightAllRelationshipTargets() as $target) {
+            $allTargets[$target['source'] . ':' . $target['id']] = $target;
+        }
+        $t->same(false, $allTargets['/word/document.xml:rIdSchemeRelativeImage']['valid']);
+        $t->same(['external-target-network-path-base-uri'], $allTargets['/word/document.xml:rIdSchemeRelativeImage']['issues']);
+        $t->same(false, $graph->preflightPackageConsistency()['relationshipTargetsValid']);
+    },
     'preflights raw whitespace in external OPC relationship target URI references' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $rawSpace = new OpcRelationship(
             'rIdRawSpaceExternal',

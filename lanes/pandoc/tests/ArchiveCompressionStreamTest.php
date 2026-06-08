@@ -2636,6 +2636,78 @@ return [
         $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
     },
 
+    'preflights decoded package chunks across split gzip source members' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"decoded-package-chunks","target":"wordpress"}';
+        $contentBytes = "# Decoded package chunks\n\nReady for streaming archive review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 1536;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'chunk-source-part-1.tar',
+            'comment' => 'first decoded package segment',
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'chunk-source-part-2.tar',
+            'comment' => 'second decoded package segment',
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectDecodedPackageChunksAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes),
+            1024
+        );
+
+        $t->same('archive-decoded-package-chunk-policy', $inspection['type']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $inspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(strlen($gzip), $inspection['compressedSize']);
+        $t->same(strlen($tarBytes), $inspection['decodedPackageSize']);
+        $t->same(1024, $inspection['chunkSize']);
+        $t->same(3, $inspection['chunkCount']);
+        $t->same(2, $inspection['entryCount']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $inspection['entryNames']);
+        $t->same('within-thresholds', $inspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $inspection['extractionPolicy']);
+        $t->same('gzip', $inspection['stream']['type']);
+        $t->same(2, $inspection['stream']['memberCount']);
+        $t->same(['chunk-source-part-1.tar', 'chunk-source-part-2.tar'], array_column($inspection['stream']['members'], 'filename'));
+        $t->same([0, $splitOffset], array_column($inspection['stream']['members'], 'decodedDataOffset'));
+        $t->same([$splitOffset, strlen($tarBytes)], array_column($inspection['stream']['members'], 'decodedDataEndOffset'));
+        $t->same([0, 1024, 2048], array_column($inspection['chunks'], 'decodedOffset'));
+        $t->same([1024, 2048, strlen($tarBytes)], array_column($inspection['chunks'], 'decodedEndOffset'));
+        $t->same([1, 2, 1], array_column($inspection['chunks'], 'sourceSegmentCount'));
+        $t->same([false, true, false], array_column($inspection['chunks'], 'crossesSourceBoundary'));
+        $t->same(['gzip-member'], array_column($inspection['chunks'][0]['sourceSegments'], 'sourceType'));
+        $t->same(['chunk-source-part-1.tar'], array_column($inspection['chunks'][0]['sourceSegments'], 'sourceLabel'));
+        $t->same(['gzip-member', 'gzip-member'], array_column($inspection['chunks'][1]['sourceSegments'], 'sourceType'));
+        $t->same(['chunk-source-part-1.tar', 'chunk-source-part-2.tar'], array_column($inspection['chunks'][1]['sourceSegments'], 'sourceLabel'));
+        $t->same([1024, $splitOffset], array_column($inspection['chunks'][1]['sourceSegments'], 'sourceDecodedOffset'));
+        $t->same([$splitOffset, 2048], array_column($inspection['chunks'][1]['sourceSegments'], 'sourceDecodedEndOffset'));
+        $t->same([0, $splitOffset - 1024], array_column($inspection['chunks'][1]['sourceSegments'], 'chunkOffset'));
+        $t->same([$splitOffset - 1024, 1024], array_column($inspection['chunks'][1]['sourceSegments'], 'chunkEndOffset'));
+        $t->same(['chunk-source-part-2.tar'], array_column($inspection['chunks'][2]['sourceSegments'], 'sourceLabel'));
+        $t->same('metadata-only-no-extraction', $inspection['chunks'][1]['policy']);
+        $t->same(false, isset($inspection['tarBytes']));
+        $t->same(false, isset($inspection['zipBytes']));
+        $t->same(false, isset($inspection['archive']));
+        $t->same(false, isset($inspection['package']));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectDecodedPackageChunksAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes),
+            0
+        ));
+    },
+
     'maps tar entry layouts to decoded compression stream source segments' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"entry-source-segments","target":"wordpress"}';
         $contentBytes = "# Entry source segments\n\nReady for split stream review.\n";

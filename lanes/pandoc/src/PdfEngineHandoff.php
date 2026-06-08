@@ -1446,6 +1446,21 @@ final class PdfEngineHandoff
                         if (is_int($pdfXmpMetadata['compressedBytes'] ?? null)) {
                             $diagnostics[] = 'pdf-byte-xmp-metadata-compressed-bytes:' . $pdfXmpMetadata['compressedBytes'];
                         }
+                        foreach ([
+                            'subjects' => 'pdf-byte-xmp-subjects',
+                            'languages' => 'pdf-byte-xmp-languages',
+                            'relations' => 'pdf-byte-xmp-relations',
+                        ] as $metadataKey => $diagnosticPrefix) {
+                            if (isset($pdfXmpMetadata[$metadataKey]) && is_array($pdfXmpMetadata[$metadataKey]) && $pdfXmpMetadata[$metadataKey] !== []) {
+                                $diagnostics[] = $diagnosticPrefix . ':' . count($pdfXmpMetadata[$metadataKey]);
+                            }
+                        }
+                        if (is_string($pdfXmpMetadata['rights'] ?? null) && $pdfXmpMetadata['rights'] !== '') {
+                            $diagnostics[] = 'pdf-byte-xmp-rights';
+                        }
+                        if (is_string($pdfXmpMetadata['source'] ?? null) && $pdfXmpMetadata['source'] !== '') {
+                            $diagnostics[] = 'pdf-byte-xmp-source';
+                        }
                         if (isset($pdfXmpMetadata['pdfaIdentification']) && is_array($pdfXmpMetadata['pdfaIdentification'])) {
                             $part = is_string($pdfXmpMetadata['pdfaIdentification']['part'] ?? null)
                                 ? $pdfXmpMetadata['pdfaIdentification']['part']
@@ -4858,7 +4873,9 @@ final class PdfEngineHandoff
         foreach ([
             'title' => 'title',
             'description' => 'description',
+            'rights' => 'rights',
             'format' => 'format',
+            'source' => 'source',
             'creatorTool' => 'CreatorTool',
             'createDate' => 'CreateDate',
             'modifyDate' => 'ModifyDate',
@@ -4866,7 +4883,7 @@ final class PdfEngineHandoff
             'documentId' => 'DocumentID',
             'instanceId' => 'InstanceID',
         ] as $target => $name) {
-            $value = in_array($name, ['title', 'description'], true)
+            $value = in_array($name, ['title', 'description', 'rights'], true)
                 ? $this->xmpLocalizedText($xml, $name)
                 : $this->xmpScalarText($xml, $name);
             if ($value !== null && $value !== '') {
@@ -4877,6 +4894,17 @@ final class PdfEngineHandoff
         $creators = $this->xmpListText($xml, 'creator');
         if ($creators !== []) {
             $metadata['creators'] = $creators;
+        }
+
+        foreach ([
+            'subjects' => 'subject',
+            'languages' => 'language',
+            'relations' => 'relation',
+        ] as $target => $name) {
+            $values = $this->xmpListText($xml, $name);
+            if ($values !== []) {
+                $metadata[$target] = $values;
+            }
         }
 
         $pdfaPart = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_A_ID_NAMESPACE, 'part', ['pdfaid']);

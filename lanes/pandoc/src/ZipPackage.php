@@ -4544,6 +4544,10 @@ final class ZipPackage
             $diagnostics[] = 'executable-file-entries';
         }
 
+        if ($permissions['writablePermissionEntryCount'] > 0) {
+            $diagnostics[] = 'unix-writable-permission-entries';
+        }
+
         if ($dosAttributes['hiddenSystemOrVolumeLabelEntryCount'] > 0) {
             $diagnostics[] = 'hidden-system-or-volume-label-entries';
         }
@@ -5003,22 +5007,47 @@ final class ZipPackage
      *     entryCount:int,
      *     unixModeEntryCount:int,
      *     executableFileCount:int,
-     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>,
-     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>
+     *     groupWritableEntryCount:int,
+     *     worldWritableEntryCount:int,
+     *     writablePermissionEntryCount:int,
+     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>,
+     *     writablePermissionEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>,
+     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>
      * }
      */
     public function permissionPreflight(): array
     {
         $unixModeEntryCount = 0;
+        $groupWritableEntryCount = 0;
+        $worldWritableEntryCount = 0;
         $executableEntries = [];
+        $writablePermissionEntries = [];
         $entries = [];
 
         foreach ($this->entries as $entry) {
             $unixMode = $entry->unixMode();
             $permissions = $entry->unixPermissionBits();
             $isExecutableFile = $entry->isUnixExecutableFile();
+            $isGroupWritable = $permissions !== null && ($permissions & 0020) !== 0;
+            $isWorldWritable = $permissions !== null && ($permissions & 0002) !== 0;
+            $hasWritablePermissions = $isGroupWritable || $isWorldWritable;
+            $issues = [];
             if ($unixMode !== null) {
                 $unixModeEntryCount++;
+            }
+
+            if ($isGroupWritable) {
+                $groupWritableEntryCount++;
+                $issues[] = 'unix-group-writable-permission';
+            }
+
+            if ($isWorldWritable) {
+                $worldWritableEntryCount++;
+                $issues[] = 'unix-world-writable-permission';
+            }
+
+            if ($isExecutableFile) {
+                $issues[] = 'unix-executable-file';
             }
 
             $summary = [
@@ -5028,11 +5057,18 @@ final class ZipPackage
                 'unixMode' => $unixMode,
                 'permissions' => $permissions,
                 'isExecutableFile' => $isExecutableFile,
+                'isGroupWritable' => $isGroupWritable,
+                'isWorldWritable' => $isWorldWritable,
+                'hasWritablePermissions' => $hasWritablePermissions,
                 'externalAttributes' => $entry->externalFileAttributes,
+                'issues' => $issues,
             ];
             $entries[] = $summary;
             if ($isExecutableFile) {
                 $executableEntries[] = $summary;
+            }
+            if ($hasWritablePermissions) {
+                $writablePermissionEntries[] = $summary;
             }
         }
 
@@ -5040,7 +5076,11 @@ final class ZipPackage
             'entryCount' => count($this->entries),
             'unixModeEntryCount' => $unixModeEntryCount,
             'executableFileCount' => count($executableEntries),
+            'groupWritableEntryCount' => $groupWritableEntryCount,
+            'worldWritableEntryCount' => $worldWritableEntryCount,
+            'writablePermissionEntryCount' => count($writablePermissionEntries),
             'executableEntries' => $executableEntries,
+            'writablePermissionEntries' => $writablePermissionEntries,
             'entries' => $entries,
         ];
     }
@@ -5050,8 +5090,12 @@ final class ZipPackage
      *     entryCount:int,
      *     unixModeEntryCount:int,
      *     executableFileCount:int,
-     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>,
-     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>
+     *     groupWritableEntryCount:int,
+     *     worldWritableEntryCount:int,
+     *     writablePermissionEntryCount:int,
+     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>,
+     *     writablePermissionEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>,
+     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>
      * }
      */
     public function assertNoExecutableFiles(): array
@@ -5065,6 +5109,41 @@ final class ZipPackage
 
             throw new \RuntimeException(
                 'ZIP package contains Unix executable file entries that require explicit import review: ' . $names
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     unixModeEntryCount:int,
+     *     executableFileCount:int,
+     *     groupWritableEntryCount:int,
+     *     worldWritableEntryCount:int,
+     *     writablePermissionEntryCount:int,
+     *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>,
+     *     writablePermissionEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>,
+     *     entries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, isGroupWritable:bool, isWorldWritable:bool, hasWritablePermissions:bool, externalAttributes:int, issues:list<string>}>
+     * }
+     */
+    public function assertNoWritablePermissionEntries(): array
+    {
+        $summary = $this->permissionPreflight();
+        if ($summary['writablePermissionEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name']
+                        . ' (' . implode('/', $entry['issues']) . ')',
+                    $summary['writablePermissionEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains Unix group/world-writable permission entries that require explicit import review: '
+                . $entries
             );
         }
 

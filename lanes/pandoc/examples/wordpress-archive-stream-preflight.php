@@ -279,6 +279,8 @@ $descriptorDocumentXml = '<w:document><w:body><w:p>Descriptor-backed DOCX source
 $descriptorFootnotesXml = '<w:footnotes><w:footnote w:id="1">Descriptor-backed note</w:footnote></w:footnotes>';
 $splitZipMediaBytes = "split archive media placeholder\n";
 $archiveBombContentBytes = str_repeat('A', 4096);
+$chunkedPackageManifestBytes = '{"source":"decoded-package-chunks","target":"wordpress"}';
+$chunkedPackageContentBytes = "# Decoded package chunks\n\nReady for WordPress archive streaming review.\n";
 
 $archive = TarArchive::fromEntries([
     [
@@ -947,6 +949,30 @@ $sourceNamePolicyInspection = ArchiveCompressionStream::inspectPackageSourceName
     strlen($archive->bytes()),
     strlen($manifestBytes) + strlen($contentBytes)
 );
+$chunkedPackageArchiveBytes = TarArchive::fromEntries([
+    [
+        'name' => 'packet/manifest.json',
+        'data' => $chunkedPackageManifestBytes,
+    ],
+    [
+        'name' => 'packet/content.md',
+        'data' => $chunkedPackageContentBytes,
+    ],
+])->bytes();
+$chunkedPackageSplitOffset = 1536;
+$chunkedPackageGzip = GzipStream::build(substr($chunkedPackageArchiveBytes, 0, $chunkedPackageSplitOffset), [
+    'filename' => 'wordpress-chunked-package-part-1.tar',
+    'comment' => 'first decoded package chunk source',
+]) . GzipStream::build(substr($chunkedPackageArchiveBytes, $chunkedPackageSplitOffset), [
+    'filename' => 'wordpress-chunked-package-part-2.tar',
+    'comment' => 'second decoded package chunk source',
+]);
+$chunkedPackageInspection = ArchiveCompressionStream::inspectDecodedPackageChunksAuto(
+    $chunkedPackageGzip,
+    strlen($chunkedPackageArchiveBytes),
+    strlen($chunkedPackageManifestBytes) + strlen($chunkedPackageContentBytes),
+    1024
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -1142,6 +1168,19 @@ if (in_array('--self-test', $argv, true)) {
             'archive-source-name-package-kind-mismatch',
             'archive-source-name-compression-format-mismatch',
         ],
+        'chunkedPackageKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'chunkedPackageFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'chunkedPackageChunkCount' => 3,
+        'chunkedPackageChunkSize' => 1024,
+        'chunkedPackageEntryNames' => ['packet/manifest.json', 'packet/content.md'],
+        'chunkedPackageSourceCounts' => [1, 2, 1],
+        'chunkedPackageCrossesSourceBoundary' => [false, true, false],
+        'chunkedPackageSecondChunkLabels' => [
+            'wordpress-chunked-package-part-1.tar',
+            'wordpress-chunked-package-part-2.tar',
+        ],
+        'chunkedPackageSecondChunkOffsets' => [1024, $chunkedPackageSplitOffset],
+        'chunkedPackageSecondChunkEndOffsets' => [$chunkedPackageSplitOffset, 2048],
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -1438,6 +1477,21 @@ if (in_array('--self-test', $argv, true)) {
         || $sourceNamePolicyInspection['diagnostics'] !== $expected['sourceNamePolicyDiagnostics']
         || isset($sourceNamePolicyInspection['archive'])
         || isset($sourceNamePolicyInspection['tarBytes'])
+        || $chunkedPackageInspection['kind'] !== $expected['chunkedPackageKind']
+        || $chunkedPackageInspection['format'] !== $expected['chunkedPackageFormat']
+        || $chunkedPackageInspection['entryNames'] !== $expected['chunkedPackageEntryNames']
+        || $chunkedPackageInspection['chunkCount'] !== $expected['chunkedPackageChunkCount']
+        || $chunkedPackageInspection['chunkSize'] !== $expected['chunkedPackageChunkSize']
+        || $chunkedPackageInspection['decodedPackageSize'] !== strlen($chunkedPackageArchiveBytes)
+        || $chunkedPackageInspection['extractionPolicy'] !== 'metadata-only-no-extraction'
+        || ($chunkedPackageInspection['stream']['memberCount'] ?? null) !== 2
+        || array_column($chunkedPackageInspection['chunks'], 'sourceSegmentCount') !== $expected['chunkedPackageSourceCounts']
+        || array_column($chunkedPackageInspection['chunks'], 'crossesSourceBoundary') !== $expected['chunkedPackageCrossesSourceBoundary']
+        || array_column($chunkedPackageInspection['chunks'][1]['sourceSegments'], 'sourceLabel') !== $expected['chunkedPackageSecondChunkLabels']
+        || array_column($chunkedPackageInspection['chunks'][1]['sourceSegments'], 'sourceDecodedOffset') !== $expected['chunkedPackageSecondChunkOffsets']
+        || array_column($chunkedPackageInspection['chunks'][1]['sourceSegments'], 'sourceDecodedEndOffset') !== $expected['chunkedPackageSecondChunkEndOffsets']
+        || isset($chunkedPackageInspection['tarBytes'])
+        || isset($chunkedPackageInspection['archive'])
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -1604,3 +1658,16 @@ echo 'sourceNamePolicy.expected=' . $sourceNamePolicyInspection['expectedKind'] 
 echo 'sourceNamePolicy.detected=' . $sourceNamePolicyInspection['detectedKind'] . '/' . $sourceNamePolicyInspection['detectedFormat'] . "\n";
 echo 'sourceNamePolicy.handoffPolicy=' . $sourceNamePolicyInspection['handoffPolicy'] . "\n";
 echo 'sourceNamePolicy.diagnostics=' . implode(',', $sourceNamePolicyInspection['diagnostics']) . "\n";
+echo 'chunkedPackage.kind=' . $chunkedPackageInspection['kind'] . "\n";
+echo 'chunkedPackage.format=' . $chunkedPackageInspection['format'] . "\n";
+echo 'chunkedPackage.chunkCount=' . $chunkedPackageInspection['chunkCount'] . "\n";
+echo 'chunkedPackage.entryNames=' . implode(',', $chunkedPackageInspection['entryNames']) . "\n";
+echo 'chunkedPackage.sourceCounts=' . implode(',', array_column($chunkedPackageInspection['chunks'], 'sourceSegmentCount')) . "\n";
+echo 'chunkedPackage.crossesSourceBoundary=' . implode(',', array_map(
+    static fn (bool $crosses): string => $crosses ? 'yes' : 'no',
+    array_column($chunkedPackageInspection['chunks'], 'crossesSourceBoundary')
+)) . "\n";
+echo 'chunkedPackage.secondChunkSources=' . implode(',', array_map(
+    static fn (array $segment): string => $segment['sourceLabel'] . ':' . $segment['sourceDecodedOffset'] . '-' . $segment['sourceDecodedEndOffset'],
+    $chunkedPackageInspection['chunks'][1]['sourceSegments']
+)) . "\n";

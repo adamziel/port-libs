@@ -1234,8 +1234,12 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing packet row occupancy rollup');
     }
     $migrationPlaceholderBlocks = (new WordPressBlockWriter(['preserveTableMissingCells' => true]))->write(new AstNode('document', [], [$document->children[0]]));
+    $migrationCoveredSlotBlocks = (new WordPressBlockWriter(['preserveTableCoveredSlots' => true]))->write(new AstNode('document', [], [$document->children[0]]));
     if (str_contains($blocks, 'data-pandoc-missing-cell="true"')) {
         throw new RuntimeException('Table geometry self-test unexpectedly changed default WordPress missing-cell output');
+    }
+    if (str_contains($blocks, 'data-pandoc-covered-slots=')) {
+        throw new RuntimeException('Table geometry self-test unexpectedly changed default WordPress covered-slot output');
     }
     if (substr_count($migrationPlaceholderBlocks, 'data-pandoc-missing-cell="true"') !== 3) {
         throw new RuntimeException('Table geometry self-test missing opt-in WordPress missing-cell placeholders');
@@ -1245,6 +1249,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($migrationPlaceholderBlocks, 'data-pandoc-missing-column="0"') || str_contains($migrationPlaceholderBlocks, 'data-pandoc-missing-column="1"')) {
         throw new RuntimeException('Table geometry self-test treated covered span slots as missing-cell placeholders');
+    }
+    if (substr_count($migrationCoveredSlotBlocks, 'data-pandoc-span-anchor="true"') !== 2) {
+        throw new RuntimeException('Table geometry self-test missing opt-in WordPress span-anchor covered-slot metadata');
+    }
+    if (!str_contains($migrationCoveredSlotBlocks, 'data-pandoc-covered-slots="0:1:colspan"')) {
+        throw new RuntimeException('Table geometry self-test missing colspan covered-slot replay coordinates');
+    }
+    if (!str_contains($migrationCoveredSlotBlocks, 'data-pandoc-covered-slots="1:0:rowspan"')) {
+        throw new RuntimeException('Table geometry self-test missing rowspan covered-slot replay coordinates');
+    }
+    if (str_contains($migrationCoveredSlotBlocks, 'data-pandoc-missing-cell="true"')) {
+        throw new RuntimeException('Table geometry self-test mixed covered-slot replay with missing-cell placeholders by default');
     }
     $multiWriterPacket = TableGeometry::reviewPacket($document->children[0], [
         'idPrefix' => 'Migration Grid',

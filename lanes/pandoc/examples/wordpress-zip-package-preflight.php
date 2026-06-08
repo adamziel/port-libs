@@ -2833,6 +2833,45 @@ try {
 } catch (RuntimeException $exception) {
     $executablePermissionRejected = str_contains($exception->getMessage(), 'Unix executable file entries');
 }
+$writablePermissionPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Writable permission review source</w:p></w:body></w:document>',
+        'externalAttributes' => 0x81a40000,
+    ],
+    [
+        'name' => 'word/media/group-writable.txt',
+        'data' => "group writable media requires review\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81b40000,
+    ],
+    [
+        'name' => 'word/media/world-writable.txt',
+        'data' => "world writable media requires review\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81b60000,
+    ],
+    [
+        'name' => 'word/media/open-directory/',
+        'data' => '',
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x41ff0000,
+    ],
+]);
+$writablePermissionPreflight = $writablePermissionPackage->permissionPreflight();
+$writablePermissionStrictPreflight = $writablePermissionPackage->strictImportPreflight(4096, 100.0, 4096);
+$writablePermissionRejected = false;
+try {
+    $writablePermissionPackage->assertNoWritablePermissionEntries();
+} catch (RuntimeException $exception) {
+    $writablePermissionRejected = str_contains($exception->getMessage(), 'Unix group/world-writable permission entries');
+}
+$writablePermissionStrictRejected = false;
+try {
+    $writablePermissionPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $writablePermissionStrictRejected = str_contains($exception->getMessage(), 'unix-writable-permission-entries');
+}
 $hiddenDosAttributePackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -3736,6 +3775,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($strictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
         || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
+        || ($strictImportPreflight['permissions']['writablePermissionEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['modificationTimes']['invalidDosTimestampEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['nameHygiene']['reviewEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] ?? null) !== 0
@@ -3844,12 +3884,20 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected stored ZIP entry size mismatches to be rejected before media import');
     }
 
-    if (($packagePermissionPreflight['entryCount'] ?? null) !== 3 || ($packagePermissionPreflight['executableFileCount'] ?? null) !== 0) {
+    if (
+        ($packagePermissionPreflight['entryCount'] ?? null) !== 3
+        || ($packagePermissionPreflight['executableFileCount'] ?? null) !== 0
+        || ($packagePermissionPreflight['writablePermissionEntryCount'] ?? null) !== 0
+    ) {
         throw new RuntimeException('Expected ZIP package permission preflight to accept generated non-executable import parts');
     }
 
     if ($package->assertNoExecutableFiles() !== $packagePermissionPreflight) {
         throw new RuntimeException('Expected ZIP package permission preflight to return the accepted summary');
+    }
+
+    if ($package->assertNoWritablePermissionEntries() !== $packagePermissionPreflight) {
+        throw new RuntimeException('Expected ZIP package writable-permission preflight to return the accepted summary');
     }
 
     if (
@@ -4891,6 +4939,22 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected Unix executable ZIP media entries to be rejected before media import');
     }
 
+    if (
+        !$writablePermissionRejected
+        || !$writablePermissionStrictRejected
+        || ($writablePermissionPreflight['groupWritableEntryCount'] ?? null) !== 3
+        || ($writablePermissionPreflight['worldWritableEntryCount'] ?? null) !== 2
+        || ($writablePermissionPreflight['writablePermissionEntryCount'] ?? null) !== 3
+        || ($writablePermissionPreflight['writablePermissionEntries'][0]['name'] ?? null) !== 'word/media/group-writable.txt'
+        || ($writablePermissionPreflight['writablePermissionEntries'][1]['issues'] ?? null) !== [
+            'unix-group-writable-permission',
+            'unix-world-writable-permission',
+        ]
+        || ($writablePermissionStrictPreflight['diagnostics'] ?? null) !== ['unix-writable-permission-entries']
+    ) {
+        throw new RuntimeException('Expected Unix group/world-writable ZIP permissions to be rejected before media import');
+    }
+
     if (!$missingTarEndMarkerRejected) {
         throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
     }
@@ -5067,6 +5131,7 @@ echo 'packageExtraField.mismatchedEntryCount=' . $packageExtraFieldPreflight['mi
 echo 'packageExtraField.valueMismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldValueEntryCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
+echo 'packagePermissions.writablePermissionEntryCount=' . $packagePermissionPreflight['writablePermissionEntryCount'] . "\n";
 echo 'packageDosAttributes.hiddenSystemOrVolumeLabelEntryCount=' . $packageDosAttributePreflight['hiddenSystemOrVolumeLabelEntryCount'] . "\n";
 echo 'zipDosHiddenSystemVolumePolicy=' . ($hiddenDosAttributeRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDosHiddenSystemVolumeStrictPolicy=' . ($hiddenDosAttributeStrictRejected ? 'rejected' : 'not-rejected') . "\n";
@@ -5199,6 +5264,9 @@ echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not
 echo 'zipDuplicateUnicodeExtraPolicy=' . ($duplicateUnicodeExtraRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipMalformedExtendedTimestampPolicy=' . ($malformedExtendedTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExecutablePermissionPolicy=' . ($executablePermissionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipWritablePermissionPolicy=' . ($writablePermissionRejected && $writablePermissionStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipWritablePermissionEntries=' . $writablePermissionPreflight['writablePermissionEntryCount'] . "\n";
+echo 'zipWritablePermissionDiagnostics=' . implode(',', $writablePermissionStrictPreflight['diagnostics']) . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";

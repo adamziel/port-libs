@@ -15,14 +15,17 @@ final class WordPressBlockWriter
 
     private bool $preserveTableMissingCells;
 
+    private bool $preserveTableCoveredSlots;
+
     /**
-     * @param array{highlightCodeBlocks?: bool, highlightStyle?: string, preserveTableMissingCells?: bool} $options
+     * @param array{highlightCodeBlocks?: bool, highlightStyle?: string, preserveTableMissingCells?: bool, preserveTableCoveredSlots?: bool} $options
      */
     public function __construct(array $options = [])
     {
         $this->highlightCodeBlocks = ($options['highlightCodeBlocks'] ?? false) === true;
         $this->highlightStyle = (string) ($options['highlightStyle'] ?? 'pygments');
         $this->preserveTableMissingCells = ($options['preserveTableMissingCells'] ?? false) === true;
+        $this->preserveTableCoveredSlots = ($options['preserveTableCoveredSlots'] ?? false) === true;
     }
 
     public function write(AstNode $document): string
@@ -980,7 +983,9 @@ final class WordPressBlockWriter
             $rows[] = $entry['row'];
         }
 
-        $gridRows = $this->preserveTableMissingCells ? TableGeometry::sectionGrid($rows, $columnCount) : [];
+        $gridRows = $this->preserveTableMissingCells || $this->preserveTableCoveredSlots
+            ? TableGeometry::sectionGrid($rows, $columnCount)
+            : [];
         $html = '';
         foreach (TableGeometry::layoutRows($rows, $columnCount) as $index => $layoutRow) {
             $html .= $this->renderTableRow(
@@ -1034,7 +1039,8 @@ final class WordPressBlockWriter
                 $layoutCell['colspan'],
                 $layoutCell['rowspan'],
                 $cell,
-                $accessibilityAttrs[$accessibilityKey] ?? []
+                $accessibilityAttrs[$accessibilityKey] ?? [],
+                $this->coveredSlotReplayRecords($gridSlots[$anchorColumn] ?? null)
             );
             $tag = TableGeometry::isHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
@@ -1071,6 +1077,37 @@ final class WordPressBlockWriter
         }
 
         return $html;
+    }
+
+    /**
+     * @return list<array{row:int,column:int,covering:string}>
+     */
+    private function coveredSlotReplayRecords(mixed $slot): array
+    {
+        if (!$this->preserveTableCoveredSlots || !is_array($slot) || ($slot['kind'] ?? null) !== 'cell') {
+            return [];
+        }
+
+        $records = [];
+        $occupiedSlots = is_array($slot['occupiedSlots'] ?? null) ? $slot['occupiedSlots'] : [];
+        foreach ($occupiedSlots as $occupiedSlot) {
+            if (!is_array($occupiedSlot)) {
+                continue;
+            }
+
+            $covering = (string) ($occupiedSlot['covering'] ?? '');
+            if (!in_array($covering, ['colspan', 'rowspan', 'rowspan-colspan'], true)) {
+                continue;
+            }
+
+            $records[] = [
+                'row' => isset($occupiedSlot['row']) && is_numeric($occupiedSlot['row']) ? (int) $occupiedSlot['row'] : 0,
+                'column' => isset($occupiedSlot['column']) && is_numeric($occupiedSlot['column']) ? (int) $occupiedSlot['column'] : 0,
+                'covering' => $covering,
+            ];
+        }
+
+        return $records;
     }
 
     private function renderTableCellContent(AstNode $cell): string
@@ -1118,11 +1155,15 @@ final class WordPressBlockWriter
         ], true);
     }
 
-    private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell, array $accessibilityAttrs = []): string
+    /**
+     * @param list<array{row:int,column:int,covering:string}> $coveredSlots
+     */
+    private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell, array $accessibilityAttrs = [], array $coveredSlots = []): string
     {
         $attrs = $this->renderComputedTableAccessibilityAttrs($cell, $accessibilityAttrs);
         $attrs .= $this->renderSourceCellDecimalAlignmentAttr($cell);
         $attrs .= $this->renderStoredHtmlAttrs($cell, true, ['style']);
+        $attrs .= $this->renderCoveredTableSlotAttrs($coveredSlots);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
         }
@@ -1159,6 +1200,27 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<array{row:int,column:int,covering:string}> $coveredSlots
+     */
+    private function renderCoveredTableSlotAttrs(array $coveredSlots): string
+    {
+        if ($coveredSlots === []) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($coveredSlots as $slot) {
+            $tokens[] = max(0, (int) $slot['row'])
+                . ':' . max(0, (int) $slot['column'])
+                . ':' . $slot['covering'];
+        }
+
+        return ' data-pandoc-span-anchor="true"'
+            . ' data-pandoc-covered-slot-count="' . count($tokens) . '"'
+            . ' data-pandoc-covered-slots="' . $this->esc(implode(';', $tokens)) . '"';
     }
 
     private function renderSourceCellDecimalAlignmentAttr(AstNode $cell): string

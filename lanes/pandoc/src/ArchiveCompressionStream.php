@@ -286,6 +286,79 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     kind:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     decodedPackageSize:int,
+     *     chunkSize:int,
+     *     chunkCount:int,
+     *     entryCount:int,
+     *     entryNames:list<string>,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     chunks:list<array{
+     *         chunkIndex:int,
+     *         decodedOffset:int,
+     *         decodedEndOffset:int,
+     *         decodedSize:int,
+     *         sourceSegmentCount:int,
+     *         crossesSourceBoundary:bool,
+     *         policy:string,
+     *         sourceSegments:list<array{
+     *             sourceType:string,
+     *             sourceIndex:int,
+     *             sourceLabel:?string,
+     *             sourceDecodedOffset:int,
+     *             sourceDecodedEndOffset:int,
+     *             chunkOffset:int,
+     *             chunkEndOffset:int
+     *         }>
+     *     }>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectDecodedPackageChunksAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null,
+        int $chunkSize = 1048576
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($chunkSize <= 0) {
+            throw new \RuntimeException('Archive decoded package chunk size must be positive');
+        }
+
+        $candidate = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+        $decodedPackageSize = self::candidatePackageByteSize($candidate);
+        if ($decodedPackageSize === null) {
+            throw new \RuntimeException('Detected archive package candidate is missing decoded package bytes');
+        }
+
+        $stream = self::streamInspection($bytes, $candidate['format'], $maxUncompressedBytes);
+        $sourceSegments = self::decodedStreamSourceSegments($stream, $decodedPackageSize);
+        $entryNames = self::candidateEntryNames($candidate);
+
+        return [
+            'type' => 'archive-decoded-package-chunk-policy',
+            'kind' => $candidate['kind'],
+            'format' => $candidate['format'],
+            'compressedSize' => strlen($bytes),
+            'decodedPackageSize' => $decodedPackageSize,
+            'chunkSize' => $chunkSize,
+            'chunkCount' => (int) ceil($decodedPackageSize / $chunkSize),
+            'entryCount' => count($entryNames),
+            'entryNames' => $entryNames,
+            'handoffPolicy' => 'within-thresholds',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'chunks' => self::decodedPackageChunks($decodedPackageSize, $chunkSize, $sourceSegments),
+            'stream' => $stream,
+        ];
+    }
+
+    /**
      * @param array<int|string, string> $dictionaries
      * @return array<string, mixed>
      */
@@ -1997,6 +2070,74 @@ final class ArchiveCompressionStream
         }
 
         return $segments;
+    }
+
+    /**
+     * @param list<array{
+     *     sourceType:string,
+     *     sourceIndex:int,
+     *     sourceLabel:?string,
+     *     decodedDataOffset:int,
+     *     decodedDataEndOffset:int
+     * }> $sourceSegments
+     * @return list<array{
+     *     chunkIndex:int,
+     *     decodedOffset:int,
+     *     decodedEndOffset:int,
+     *     decodedSize:int,
+     *     sourceSegmentCount:int,
+     *     crossesSourceBoundary:bool,
+     *     policy:string,
+     *     sourceSegments:list<array{
+     *         sourceType:string,
+     *         sourceIndex:int,
+     *         sourceLabel:?string,
+     *         sourceDecodedOffset:int,
+     *         sourceDecodedEndOffset:int,
+     *         chunkOffset:int,
+     *         chunkEndOffset:int
+     *     }>
+     * }>
+     */
+    private static function decodedPackageChunks(int $decodedSize, int $chunkSize, array $sourceSegments): array
+    {
+        $chunks = [];
+        for ($offset = 0, $index = 0; $offset < $decodedSize; $offset += $chunkSize, $index++) {
+            $endOffset = min($decodedSize, $offset + $chunkSize);
+            $segments = [];
+            foreach ($sourceSegments as $source) {
+                $sourceStart = $source['decodedDataOffset'];
+                $sourceEnd = $source['decodedDataEndOffset'];
+                $overlapStart = max($offset, $sourceStart);
+                $overlapEnd = min($endOffset, $sourceEnd);
+                if ($overlapStart >= $overlapEnd) {
+                    continue;
+                }
+
+                $segments[] = [
+                    'sourceType' => $source['sourceType'],
+                    'sourceIndex' => $source['sourceIndex'],
+                    'sourceLabel' => $source['sourceLabel'],
+                    'sourceDecodedOffset' => $overlapStart,
+                    'sourceDecodedEndOffset' => $overlapEnd,
+                    'chunkOffset' => $overlapStart - $offset,
+                    'chunkEndOffset' => $overlapEnd - $offset,
+                ];
+            }
+
+            $chunks[] = [
+                'chunkIndex' => $index,
+                'decodedOffset' => $offset,
+                'decodedEndOffset' => $endOffset,
+                'decodedSize' => $endOffset - $offset,
+                'sourceSegmentCount' => count($segments),
+                'crossesSourceBoundary' => count($segments) > 1,
+                'policy' => 'metadata-only-no-extraction',
+                'sourceSegments' => $segments,
+            ];
+        }
+
+        return $chunks;
     }
 
     private static function paddedTarPayloadSize(int $size): int

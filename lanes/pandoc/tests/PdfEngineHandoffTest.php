@@ -2527,8 +2527,13 @@ MARKDOWN);
             '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" xmlns:ua="http://www.aiim.org/pdfua/ns/id/">',
             '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">PDF Review Packet</rdf:li></rdf:Alt></dc:title>',
             '<dc:creator><rdf:Seq><rdf:li>Migration Desk</rdf:li><rdf:li>Content Reviewer</rdf:li></rdf:Seq></dc:creator>',
+            '<dc:subject><rdf:Bag><rdf:li>wordpress-import</rdf:li><rdf:li>pdf-review</rdf:li></rdf:Bag></dc:subject>',
             '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Migration review metadata</rdf:li></rdf:Alt></dc:description>',
+            '<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">CC BY-SA review packet</rdf:li></rdf:Alt></dc:rights>',
             '<dc:format>application/pdf</dc:format>',
+            '<dc:language><rdf:Bag><rdf:li>en-US</rdf:li><rdf:li>es</rdf:li></rdf:Bag></dc:language>',
+            '<dc:relation><rdf:Bag><rdf:li>urn:wordpress:post:42</rdf:li><rdf:li>https://example.test/source</rdf:li></rdf:Bag></dc:relation>',
+            '<dc:source>legacy-pdf-review-packet</dc:source>',
             '<xmp:CreatorTool>Pandoc native handoff</xmp:CreatorTool>',
             '<xmp:CreateDate>2026-06-05T07:41:23Z</xmp:CreateDate>',
             '<xmp:ModifyDate>2026-06-05T07:42:00Z</xmp:ModifyDate>',
@@ -2585,7 +2590,9 @@ MARKDOWN);
             'packetSha256' => hash('sha256', $xmp),
             'title' => 'PDF Review Packet',
             'description' => 'Migration review metadata',
+            'rights' => 'CC BY-SA review packet',
             'format' => 'application/pdf',
+            'source' => 'legacy-pdf-review-packet',
             'creatorTool' => 'Pandoc native handoff',
             'createDate' => '2026-06-05T07:41:23Z',
             'modifyDate' => '2026-06-05T07:42:00Z',
@@ -2593,6 +2600,9 @@ MARKDOWN);
             'documentId' => 'uuid:pdf-review-packet',
             'instanceId' => 'uuid:pdf-review-packet-v2',
             'creators' => ['Migration Desk', 'Content Reviewer'],
+            'subjects' => ['wordpress-import', 'pdf-review'],
+            'languages' => ['en-US', 'es'],
+            'relations' => ['urn:wordpress:post:42', 'https://example.test/source'],
             'pdfaIdentification' => [
                 'part' => '2',
                 'conformance' => 'B',
@@ -2606,7 +2616,12 @@ MARKDOWN);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfXmpMetadata']);
-        $t->contains('pdf-byte-xmp-metadata:14', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-metadata:19', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-subjects:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-languages:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-relations:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-rights', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-source', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-pdfa:2:B', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-pdfua:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-pdfua-amendment:2024', implode(',', $result['diagnostics']));

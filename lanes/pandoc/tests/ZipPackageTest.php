@@ -1577,9 +1577,13 @@ return [
         $t->same(4, $summary['entryCount']);
         $t->same(3, $summary['unixModeEntryCount']);
         $t->same(1, $summary['executableFileCount']);
+        $t->same(0, $summary['writablePermissionEntryCount']);
         $t->same('word/media/reviewer-script.bin', $summary['executableEntries'][0]['name']);
         $t->same(0x81ed, $summary['executableEntries'][0]['unixMode']);
         $t->same(0755, $summary['executableEntries'][0]['permissions']);
+        $t->same(false, $summary['executableEntries'][0]['isGroupWritable']);
+        $t->same(false, $summary['executableEntries'][0]['isWorldWritable']);
+        $t->same(['unix-executable-file'], $summary['executableEntries'][0]['issues']);
         $t->same(true, $summary['entries'][1]['isExecutableFile']);
         $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoExecutableFiles());
 
@@ -1598,7 +1602,114 @@ return [
 
         $t->same(2, $safeSummary['unixModeEntryCount']);
         $t->same(0, $safeSummary['executableFileCount']);
+        $t->same(0, $safeSummary['writablePermissionEntryCount']);
         $t->same([], $safeSummary['executableEntries']);
+        $t->same([], $safeSummary['writablePermissionEntries']);
+    },
+
+    'preflights group and world writable unix permissions before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>writable permission preflight</w:p></w:document>',
+                'method' => 8,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/group-writable.txt',
+                'data' => "group writable media provenance\n",
+                'method' => 0,
+                'externalAttributes' => 0x81b40000,
+            ],
+            [
+                'name' => 'word/media/world-writable.txt',
+                'data' => "world writable media provenance\n",
+                'method' => 0,
+                'externalAttributes' => 0x81b60000,
+            ],
+            [
+                'name' => 'word/media/open-directory/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x41ff0000,
+            ],
+            [
+                'name' => 'word/media/fat-permissions.bin',
+                'data' => "non-unix host mode bits stay metadata\n",
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0x81b60000,
+            ],
+        ]));
+        $summary = $package->permissionPreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(4, $summary['unixModeEntryCount']);
+        $t->same(0, $summary['executableFileCount']);
+        $t->same(3, $summary['groupWritableEntryCount']);
+        $t->same(2, $summary['worldWritableEntryCount']);
+        $t->same(3, $summary['writablePermissionEntryCount']);
+        $t->same([], $summary['executableEntries']);
+        $t->same('word/media/group-writable.txt', $summary['writablePermissionEntries'][0]['name']);
+        $t->same(0x81b4, $summary['writablePermissionEntries'][0]['unixMode']);
+        $t->same(0664, $summary['writablePermissionEntries'][0]['permissions']);
+        $t->same(true, $summary['writablePermissionEntries'][0]['isGroupWritable']);
+        $t->same(false, $summary['writablePermissionEntries'][0]['isWorldWritable']);
+        $t->same(['unix-group-writable-permission'], $summary['writablePermissionEntries'][0]['issues']);
+        $t->same('word/media/world-writable.txt', $summary['writablePermissionEntries'][1]['name']);
+        $t->same(0666, $summary['writablePermissionEntries'][1]['permissions']);
+        $t->same(true, $summary['writablePermissionEntries'][1]['isGroupWritable']);
+        $t->same(true, $summary['writablePermissionEntries'][1]['isWorldWritable']);
+        $t->same([
+            'unix-group-writable-permission',
+            'unix-world-writable-permission',
+        ], $summary['writablePermissionEntries'][1]['issues']);
+        $t->same('word/media/open-directory/', $summary['writablePermissionEntries'][2]['name']);
+        $t->same(0777, $summary['writablePermissionEntries'][2]['permissions']);
+        $t->same(true, $summary['writablePermissionEntries'][2]['isDirectory']);
+        $t->same(true, $summary['writablePermissionEntries'][2]['hasWritablePermissions']);
+        $t->same(null, $summary['entries'][4]['unixMode']);
+        $t->same(false, $summary['entries'][4]['hasWritablePermissions']);
+        $t->same(false, $summary['entries'][4]['isGroupWritable']);
+        $t->same(false, $summary['entries'][4]['isWorldWritable']);
+
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strict['isValid']);
+        $t->same(['unix-writable-permission-entries'], $strict['diagnostics']);
+        $t->same(3, $strict['permissions']['writablePermissionEntryCount']);
+        $t->same(3, $strict['permissions']['groupWritableEntryCount']);
+        $t->same(2, $strict['permissions']['worldWritableEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoWritablePermissionEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(4096, 100.0, 4096));
+        $t->same("group writable media provenance\n", $package->read('/word/media/group-writable.txt'));
+        $t->same("world writable media provenance\n", $package->read('/word/media/world-writable.txt'));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe writable permission policy</w:p></w:document>',
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "safe permission media provenance\n",
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoWritablePermissionEntries();
+
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(3, $safeSummary['unixModeEntryCount']);
+        $t->same(0, $safeSummary['groupWritableEntryCount']);
+        $t->same(0, $safeSummary['worldWritableEntryCount']);
+        $t->same(0, $safeSummary['writablePermissionEntryCount']);
+        $t->same([], $safeSummary['writablePermissionEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
     'preflights zip creator host systems before package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

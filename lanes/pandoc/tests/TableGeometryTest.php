@@ -1831,6 +1831,32 @@ return [
         $t->true(!str_contains($placeholderBlocks, 'data-pandoc-missing-column="1"'), 'Covered colspan/rowspan slots should not become missing-cell placeholders');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'preserves flat grid covered visual slots as opt-in WordPress span-anchor metadata' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
+        $document = $buildSectionGridDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $defaultBlocks = (new WordPressBlockWriter())->write($document);
+        $coveredBlocks = (new WordPressBlockWriter(['preserveTableCoveredSlots' => true]))->write($document);
+        $combinedBlocks = (new WordPressBlockWriter([
+            'preserveTableCoveredSlots' => true,
+            'preserveTableMissingCells' => true,
+        ]))->write($document);
+
+        $t->same('flat-grid-covered-slots-require-anchor-replay', $packet['flatGridFallbacks'][0]['code'] ?? null);
+        $t->same(4, $packet['flatGridFallbacks'][0]['slotCount'] ?? null);
+        $t->same('span-anchor-replay', $packet['flatGridFallbacks'][0]['requiredFeature'] ?? null);
+        $t->true(!str_contains($defaultBlocks, 'data-pandoc-covered-slots'), 'Default WordPress table output should not expose covered-slot replay metadata');
+        $t->true(!str_contains($coveredBlocks, 'data-pandoc-missing-cell'), 'Covered-slot replay should not synthesize missing-cell placeholders unless separately requested');
+        $t->same(2, substr_count($coveredBlocks, 'data-pandoc-span-anchor="true"'));
+        $t->same(1, substr_count($coveredBlocks, 'data-pandoc-covered-slots="0:1:colspan"'));
+        $t->same(1, substr_count($coveredBlocks, 'data-pandoc-covered-slots="0:1:colspan;1:0:rowspan;1:1:rowspan-colspan"'));
+        $t->contains('<th data-pandoc-span-anchor="true" data-pandoc-covered-slot-count="1" data-pandoc-covered-slots="0:1:colspan" colspan="2" style="text-align:left">Scope</th>', $coveredBlocks);
+        $t->contains('<td data-pandoc-span-anchor="true" data-pandoc-covered-slot-count="3" data-pandoc-covered-slots="0:1:colspan;1:0:rowspan;1:1:rowspan-colspan" colspan="2" rowspan="2" style="text-align:left">Posts</td>', $coveredBlocks);
+        $t->true(!str_contains($coveredBlocks, '<td data-pandoc-span-anchor="true" data-pandoc-covered-slot-count="0"'), 'Only anchors with covered visual slots should be annotated');
+        $t->same(2, substr_count($combinedBlocks, 'data-pandoc-span-anchor="true"'));
+        $t->same(3, substr_count($combinedBlocks, 'data-pandoc-missing-cell="true"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes spanned cell occupied slots for importer geometry audits' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSectionScopedRowspanDocument): void {
         $document = $buildSectionGridDocument();
         $table = $document->children[0];

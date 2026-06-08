@@ -4135,6 +4135,15 @@ final class OpcRelationshipGraph
     private static function externalTargetRewritePolicy(string $sourcePartName, array $externalTarget): array
     {
         $kind = $externalTarget['kind'];
+        if ($kind === 'network-path-reference') {
+            return [
+                'requiresBaseUri' => true,
+                'basePart' => null,
+                'reason' => 'external-target-network-path-reference',
+                'issues' => ['external-target-network-path-base-uri'],
+            ];
+        }
+
         if ($kind === 'relative-reference' || $kind === 'fragment-reference') {
             $basePart = OpcPackagePath::canonicalPartName($sourcePartName, true);
 
