@@ -10819,6 +10819,95 @@ XML
         $t->contains('<dt>Ng 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">Ng, N.</div><div class="csl-right-inline">Nested Display Packet. 2026.</div><div class="csl-block">Source: https://example.test/nested-display</div></div></dd>', $blocks);
         $t->contains('<dt>Olsen 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">Olsen, I.</div><div class="csl-right-inline">Offline Display Packet. 2025.</div><div class="csl-indent">No source URL</div></div></dd>', $blocks);
     },
+    'surfaces csl bibliography display parts from names substitutes' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'named-source',
+                'type' => 'report',
+                'title' => 'Named Source Packet',
+                'author' => [
+                    ['family' => 'Diaz', 'given' => 'Rosa'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'title-source',
+                'type' => 'webpage',
+                'title' => 'Title Only Packet',
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/title-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Substitute Display Style</title>
+    <id>https://example.test/styles/bounded-substitute-display</id>
+    <updated>2026-06-08T08:18:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author">
+          <substitute>
+            <text variable="title"/>
+          </substitute>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <layout delimiter=" ">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <substitute>
+          <group display="left-margin" font-weight="bold">
+            <text variable="title"/>
+          </group>
+          <text variable="URL" display="right-inline" prefix="Source: "/>
+        </substitute>
+      </names>
+      <group display="right-inline" delimiter=". " suffix=".">
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Substitute Display Style', $summary['title'] ?? null);
+        $t->same('names', $summary['bibliographyRendering'][0]['type'] ?? null);
+        $t->same('left-margin', $summary['bibliographyRendering'][0]['substitute'][0]['display'] ?? null);
+        $t->same(['fontWeight' => 'bold'], $summary['bibliographyRendering'][0]['substitute'][0]['formatting'] ?? null);
+        $t->same('right-inline', $summary['bibliographyRendering'][0]['substitute'][1]['display'] ?? null);
+
+        $t->same('Diaz, R. Named Source Packet. 2026.', $processor->renderBibliographyEntry('named-source'));
+        $t->same('Title Only Packet Title Only Packet. 2025.', $processor->renderBibliographyEntry('title-source'));
+
+        $document = (new MarkdownReader())->read('Review cites @named-source and @title-source for substitute display output.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $bibliography = $processed->children[2];
+        $namedItem = $bibliography->children[0];
+        $titleOnlyItem = $bibliography->children[1];
+        $t->same('flush', $bibliography->attr('secondFieldAlign'));
+        $t->same([
+            ['display' => 'right-inline', 'text' => 'Named Source Packet. 2026.'],
+        ], $namedItem->attr('cslDisplayParts'));
+        $t->same([
+            ['display' => 'left-margin', 'text' => 'Title Only Packet', 'formatting' => ['fontWeight' => 'bold']],
+            ['display' => 'right-inline', 'text' => 'Title Only Packet. 2025.'],
+        ], $titleOnlyItem->attr('cslDisplayParts'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites Diaz (2026) and Title Only Packet (2025) for substitute display output.</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd><div class="csl-entry"><div class="csl-right-inline">Named Source Packet. 2026.</div></div></dd>', $blocks);
+        $t->contains('<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">Title Only Packet. 2025.</div></div></dd>', $blocks);
+    },
     'applies bounded csl year suffix disambiguation for ambiguous author dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

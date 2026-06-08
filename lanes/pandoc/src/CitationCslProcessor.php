@@ -4048,6 +4048,36 @@ final class CitationCslProcessor
                 : [];
         }
 
+        if ($type === 'names') {
+            [$names] = $this->namesForRenderingVariableWithSource(
+                $item,
+                (string) ($element['variable'] ?? 'author editor')
+            );
+            if ($names !== []) {
+                return [];
+            }
+
+            $substitute = $element['substitute'] ?? [];
+            if (!is_array($substitute)) {
+                return [];
+            }
+
+            foreach ($substitute as $substituteElement) {
+                if (!is_array($substituteElement)) {
+                    continue;
+                }
+
+                $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
+                    ? $this->renderNamesElementValue($substituteElement, $item, 'bibliography', false)
+                    : $this->renderRenderingElement($substituteElement, $item, 'bibliography', $macroStack);
+                if ($value === '') {
+                    continue;
+                }
+
+                return $this->bibliographyDisplayPartsForElement($substituteElement, $item, $macroStack);
+            }
+        }
+
         if ($type === 'choose') {
             foreach (($element['branches'] ?? []) as $branch) {
                 if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, 'bibliography')) {
