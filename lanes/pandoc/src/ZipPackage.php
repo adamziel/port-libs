@@ -617,6 +617,76 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryOrderNames:list<string>,
+     *     localHeaderOrderNames:list<string>,
+     *     hasCentralDirectoryOrderMismatch:bool,
+     *     mismatchedEntryCount:int,
+     *     mismatchedEntries:list<array{
+     *         name:string,
+     *         centralDirectoryIndex:int,
+     *         localHeaderOrder:int,
+     *         localHeaderOffset:int,
+     *         localHeaderNameAtCentralDirectoryIndex:?string,
+     *         centralDirectoryNameAtLocalHeaderOrder:?string,
+     *         matchesCentralDirectoryOrder:bool
+     *     }>,
+     *     entries:list<array{
+     *         name:string,
+     *         centralDirectoryIndex:int,
+     *         localHeaderOrder:int,
+     *         localHeaderOffset:int,
+     *         localHeaderNameAtCentralDirectoryIndex:?string,
+     *         centralDirectoryNameAtLocalHeaderOrder:?string,
+     *         matchesCentralDirectoryOrder:bool
+     *     }>
+     * }
+     */
+    public function localHeaderOrderPreflight(): array
+    {
+        $centralDirectoryOrderNames = $this->names();
+        $localEntries = $this->localEntries();
+        $localHeaderOrderNames = array_map(static fn (ZipPackageEntry $entry): string => $entry->name, $localEntries);
+        $localOrderByName = [];
+        foreach ($localEntries as $localOrder => $entry) {
+            $localOrderByName[$entry->name] = $localOrder;
+        }
+
+        $entries = [];
+        $mismatchedEntries = [];
+        foreach ($this->entries as $centralDirectoryIndex => $entry) {
+            $localHeaderOrder = $localOrderByName[$entry->name];
+            $matchesCentralDirectoryOrder = $localHeaderOrder === $centralDirectoryIndex;
+            $summary = [
+                'name' => $entry->name,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => $localHeaderOrder,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'localHeaderNameAtCentralDirectoryIndex' => $localHeaderOrderNames[$centralDirectoryIndex] ?? null,
+                'centralDirectoryNameAtLocalHeaderOrder' => $centralDirectoryOrderNames[$localHeaderOrder] ?? null,
+                'matchesCentralDirectoryOrder' => $matchesCentralDirectoryOrder,
+            ];
+            $entries[] = $summary;
+            if (!$matchesCentralDirectoryOrder) {
+                $mismatchedEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'centralDirectoryOffset' => $this->centralDirectoryOffset,
+            'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
+            'localHeaderOrderNames' => $localHeaderOrderNames,
+            'hasCentralDirectoryOrderMismatch' => $mismatchedEntries !== [],
+            'mismatchedEntryCount' => count($mismatchedEntries),
+            'mismatchedEntries' => $mismatchedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     totalEntryCount:int,
      *     centralDirectoryOffset:int,
      *     centralDirectorySize:int,
@@ -3963,6 +4033,7 @@ final class ZipPackage
      *     creatorHostSystems:array<string, mixed>,
      *     unixOwners:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
+     *     localHeaderOrder:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
      *     readIntegrity:array<string, mixed>
      * }
@@ -3999,6 +4070,7 @@ final class ZipPackage
         $creatorHostSystems = $this->creatorHostSystemPreflight();
         $unixOwners = $this->unixOwnerPreflight();
         $localHeaders = $this->localHeaderPreflight();
+        $localHeaderOrder = $this->localHeaderOrderPreflight();
         $dataDescriptors = $this->dataDescriptorPreflight();
         $readIntegrity = $this->readIntegrityPreflight($maxEntryUncompressedBytes);
         $diagnostics = [];
@@ -4132,6 +4204,7 @@ final class ZipPackage
             'creatorHostSystems' => $creatorHostSystems,
             'unixOwners' => $unixOwners,
             'localHeaders' => $localHeaders,
+            'localHeaderOrder' => $localHeaderOrder,
             'dataDescriptors' => $dataDescriptors,
             'readIntegrity' => $readIntegrity,
         ];
@@ -4162,6 +4235,7 @@ final class ZipPackage
      *     creatorHostSystems:array<string, mixed>,
      *     unixOwners:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
+     *     localHeaderOrder:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
      *     readIntegrity:array<string, mixed>
      * }

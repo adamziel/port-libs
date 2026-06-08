@@ -2185,6 +2185,82 @@ $buildTrailingDeflateBytesBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildLocalHeaderOrderReviewBackedPackage = static function () use ($crc32): string {
+    $body = '';
+    $centralRecordsByName = [];
+    $entries = [
+        [
+            'name' => 'mimetype',
+            'data' => 'application/vnd.oasis.opendocument.text',
+            'method' => 0,
+        ],
+        [
+            'name' => 'content.xml',
+            'data' => '<office:document-content><text:p>review packet</text:p></office:document-content>',
+            'method' => 8,
+        ],
+        [
+            'name' => 'styles.xml',
+            'data' => '<office:document-styles><style:style/></office:document-styles>',
+            'method' => 8,
+        ],
+    ];
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'];
+        $method = $entry['method'];
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $crc = $crc32($data);
+        $localHeaderOffset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $central = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $localHeaderOffset
+        );
+        $centralRecordsByName[$name] = $central . $name;
+    }
+
+    $central = $centralRecordsByName['content.xml']
+        . $centralRecordsByName['styles.xml']
+        . $centralRecordsByName['mimetype'];
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 3, 3, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -2217,8 +2293,12 @@ $packageUnixOwnerPreflight = $package->unixOwnerPreflight();
 $packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
 $packageCaseInsensitiveNamePreflight = $package->caseInsensitiveNamePreflight();
 $packageLocalHeaderPreflight = $package->localHeaderPreflight();
+$packageLocalHeaderOrderPreflight = $package->localHeaderOrderPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
 $packageModificationTimePreflight = $package->modificationTimePreflight();
+$localHeaderOrderReviewPackage = ZipPackage::fromString($buildLocalHeaderOrderReviewBackedPackage());
+$localHeaderOrderReviewPreflight = $localHeaderOrderReviewPackage->localHeaderOrderPreflight();
+$localHeaderOrderReviewStrictPreflight = $localHeaderOrderReviewPackage->strictImportPreflight(4096, 100.0, 4096);
 $strictImportPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -4025,6 +4105,31 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected strict ZIP import preflight to include local header spans');
     }
 
+    if (
+        ($packageLocalHeaderOrderPreflight['hasCentralDirectoryOrderMismatch'] ?? null) !== false
+        || ($packageLocalHeaderOrderPreflight['mismatchedEntryCount'] ?? null) !== 0
+        || ($packageLocalHeaderOrderPreflight['centralDirectoryOrderNames'] ?? []) !== $package->names()
+        || ($packageLocalHeaderOrderPreflight['localHeaderOrderNames'] ?? []) !== $package->localNames()
+        || ($strictCommentImportPreflight['localHeaderOrder']['entryCount'] ?? null) !== 3
+    ) {
+        throw new RuntimeException('Expected generated ZIP package central-directory order to match local header order');
+    }
+
+    if (
+        ($localHeaderOrderReviewPreflight['hasCentralDirectoryOrderMismatch'] ?? null) !== true
+        || ($localHeaderOrderReviewPreflight['mismatchedEntryCount'] ?? null) !== 3
+        || ($localHeaderOrderReviewPreflight['centralDirectoryOrderNames'] ?? []) !== ['content.xml', 'styles.xml', 'mimetype']
+        || ($localHeaderOrderReviewPreflight['localHeaderOrderNames'] ?? []) !== ['mimetype', 'content.xml', 'styles.xml']
+        || ($localHeaderOrderReviewPreflight['entries'][0]['name'] ?? null) !== 'content.xml'
+        || ($localHeaderOrderReviewPreflight['entries'][0]['localHeaderOrder'] ?? null) !== 1
+        || ($localHeaderOrderReviewPreflight['entries'][0]['localHeaderNameAtCentralDirectoryIndex'] ?? null) !== 'mimetype'
+        || ($localHeaderOrderReviewPreflight['entries'][0]['centralDirectoryNameAtLocalHeaderOrder'] ?? null) !== 'styles.xml'
+        || ($localHeaderOrderReviewStrictPreflight['isValid'] ?? null) !== true
+        || ($localHeaderOrderReviewStrictPreflight['localHeaderOrder'] ?? null) !== $localHeaderOrderReviewPreflight
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory order mismatches to remain valid but visible for review');
+    }
+
     $documentEntry = $package->entry('/word/document.xml');
     if ($documentEntry->lastModifiedTimestamp() !== $documentModifiedAt) {
         throw new RuntimeException('Expected document part ZIP timestamp metadata to round-trip');
@@ -4763,6 +4868,12 @@ echo 'zipStoredFirstMimetypeExtraFieldPolicy=' . ($odtMimetypeExtraFieldRejected
 echo 'packageLocalHeaders.entryCount=' . $packageLocalHeaderPreflight['entryCount'] . "\n";
 echo 'packageLocalHeaders.firstLocalEntry=' . ($packageLocalHeaderPreflight['firstLocalEntryName'] ?? 'none') . "\n";
 echo 'packageLocalHeaders.lastRecordEnd=' . ($packageLocalHeaderPreflight['entries'][2]['recordEnd'] ?? 'none') . "\n";
+echo 'packageLocalHeaderOrder.central=' . implode(',', $packageLocalHeaderOrderPreflight['centralDirectoryOrderNames']) . "\n";
+echo 'packageLocalHeaderOrder.local=' . implode(',', $packageLocalHeaderOrderPreflight['localHeaderOrderNames']) . "\n";
+echo 'packageLocalHeaderOrder.mismatchedEntryCount=' . $packageLocalHeaderOrderPreflight['mismatchedEntryCount'] . "\n";
+echo 'zipLocalHeaderOrderReview.central=' . implode(',', $localHeaderOrderReviewPreflight['centralDirectoryOrderNames']) . "\n";
+echo 'zipLocalHeaderOrderReview.local=' . implode(',', $localHeaderOrderReviewPreflight['localHeaderOrderNames']) . "\n";
+echo 'zipLocalHeaderOrderReview.mismatchedEntryCount=' . $localHeaderOrderReviewPreflight['mismatchedEntryCount'] . "\n";
 foreach ($package->entries() as $entry) {
     $modifiedAt = $entry->lastModifiedTimestamp();
     echo '- ' . $entry->name

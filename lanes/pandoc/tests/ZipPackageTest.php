@@ -692,6 +692,79 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'preflights zip central directory order against local header order before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/vnd.oasis.opendocument.text';
+        $contentXml = '<office:document-content><text:p>body</text:p></office:document-content>';
+        $stylesXml = '<office:document-styles><style:style/></office:document-styles>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'method' => 0,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => $contentXml,
+                'method' => 8,
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'styles.xml',
+                'data' => $stylesXml,
+                'method' => 8,
+                'centralIndex' => 1,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderOrderPreflight();
+        $entries = $summary['entries'];
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(['content.xml', 'styles.xml', 'mimetype'], $summary['centralDirectoryOrderNames']);
+        $t->same(['mimetype', 'content.xml', 'styles.xml'], $summary['localHeaderOrderNames']);
+        $t->same(true, $summary['hasCentralDirectoryOrderMismatch']);
+        $t->same(3, $summary['mismatchedEntryCount']);
+        $t->same('content.xml', $entries[0]['name']);
+        $t->same(0, $entries[0]['centralDirectoryIndex']);
+        $t->same(1, $entries[0]['localHeaderOrder']);
+        $t->same('mimetype', $entries[0]['localHeaderNameAtCentralDirectoryIndex']);
+        $t->same('styles.xml', $entries[0]['centralDirectoryNameAtLocalHeaderOrder']);
+        $t->same(false, $entries[0]['matchesCentralDirectoryOrder']);
+        $t->same('styles.xml', $entries[1]['name']);
+        $t->same(2, $entries[1]['localHeaderOrder']);
+        $t->same('mimetype', $entries[2]['name']);
+        $t->same(0, $entries[2]['localHeaderOrder']);
+        $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
+        $t->same(true, $package->strictImportPreflight(2048, 100.0, 2048)['isValid']);
+        $t->same($mimetype, $package->read('/mimetype'));
+
+        $matchingPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'method' => 0,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => $contentXml,
+                'method' => 8,
+            ],
+        ]));
+        $matchingSummary = $matchingPackage->localHeaderOrderPreflight();
+
+        $t->same(2, $matchingSummary['entryCount']);
+        $t->same(['mimetype', 'content.xml'], $matchingSummary['centralDirectoryOrderNames']);
+        $t->same(['mimetype', 'content.xml'], $matchingSummary['localHeaderOrderNames']);
+        $t->same(false, $matchingSummary['hasCentralDirectoryOrderMismatch']);
+        $t->same(0, $matchingSummary['mismatchedEntryCount']);
+        $t->same(true, $matchingSummary['entries'][0]['matchesCentralDirectoryOrder']);
+        $t->same(0, $matchingSummary['entries'][0]['localHeaderOrder']);
+        $t->same($matchingSummary, $matchingPackage->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
+        $t->same(true, $matchingPackage->strictImportPreflight(2048, 100.0, 2048)['isValid']);
+    },
+
     'preflights zip central and local header name provenance before entry exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $legacyRawName = 'word/media/review-image.bin';
         $unicodeName = "word/media/review-\u{2603}.png";
