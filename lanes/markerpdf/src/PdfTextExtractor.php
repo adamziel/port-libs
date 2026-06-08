@@ -27552,7 +27552,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
             if ($body === null) {
                 return null;
             }
@@ -27596,7 +27596,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
         if ($body === null) {
             return null;
         }

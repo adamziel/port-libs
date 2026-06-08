@@ -1168,6 +1168,9 @@ final class TableRecognizer
                     if (isset($cropCandidate['source'])) {
                         $imageSize['table_bbox_source'] = $cropCandidate['source'];
                     }
+                    if (isset($cropCandidate['source_coordinate_space'])) {
+                        $imageSize['table_bbox_coordinate_space'] = $cropCandidate['source_coordinate_space'];
+                    }
                 }
                 $imageSize['image_size_source'] = 'table_crop_bbox_extent';
 
@@ -2786,6 +2789,11 @@ final class TableRecognizer
             return $imageNested;
         }
 
+        $rowsColsCrop = $this->rowsColsTableCropBboxCandidate($table, $imageSize);
+        if ($rowsColsCrop !== null) {
+            return $rowsColsCrop;
+        }
+
         if (isset($table['bbox'])) {
             $tableBbox = $this->bboxFromExplicitCoordinateOrder($table)
                 ?? $this->bboxFromGeometryValue($table['bbox']);
@@ -2813,6 +2821,90 @@ final class TableRecognizer
                 $table,
                 $imageSize
             );
+        }
+
+        return null;
+    }
+
+    /**
+     * Upstream tabled direct sidecars may wrap the per-table TableResult under
+     * rows_cols while preserving a broader wrapper bbox. Prefer that nested
+     * table crop before the generic wrapper bbox fallback.
+     *
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array{bbox: list<float>, source: string, source_bbox?: list<float>, source_coordinate_space?: string, page_image_normalization_size?: array{width: int, height: int}}|null
+     */
+    private function rowsColsTableCropBboxCandidate(array $table, array $imageSize): ?array
+    {
+        $rowsCols = $table['rows_cols'] ?? null;
+        if (!is_array($rowsCols)) {
+            return null;
+        }
+
+        $rowsColsContainer = $this->singleRowsColsGeometryContainer($rowsCols);
+        if ($rowsColsContainer === null) {
+            return null;
+        }
+
+        $container = $rowsColsContainer['container'];
+        $prefix = $rowsColsContainer['prefix'];
+
+        foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $bboxKey) {
+            if (!array_key_exists($bboxKey, $container)) {
+                continue;
+            }
+
+            $candidate = $this->tableCropBboxCandidateFromValue(
+                $container[$bboxKey],
+                $prefix . '.' . $bboxKey,
+                $container,
+                $bboxKey,
+                $table,
+                $imageSize,
+                true
+            );
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        $polygonBbox = $this->polygonBboxFromRecord($container);
+        if ($polygonBbox !== null) {
+            $sourceKey = $this->polygonCoordinateSourceFromRecord($container);
+            if ($sourceKey !== null) {
+                return $this->tableCropBboxCandidateWithCoordinateSpace(
+                    $polygonBbox,
+                    $prefix . '.' . $sourceKey,
+                    $this->tableCropBboxCoordinateSpace($container, $sourceKey, true),
+                    $table,
+                    $imageSize
+                );
+            }
+        }
+
+        $fallbackKeys = array_unique(array_merge(
+            ['bbox'],
+            $this->sourceGeometryFallbackKeys(),
+            $this->wrappedGeometryKeys()
+        ));
+        foreach ($fallbackKeys as $bboxKey) {
+            if (!array_key_exists($bboxKey, $container)) {
+                continue;
+            }
+
+            $candidate = $this->tableCropBboxCandidateFromValue(
+                $container[$bboxKey],
+                $prefix . '.' . $bboxKey,
+                $container,
+                $bboxKey,
+                $table,
+                $imageSize,
+                true
+            );
+            if ($candidate !== null) {
+                return $candidate;
+            }
         }
 
         return null;

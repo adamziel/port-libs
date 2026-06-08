@@ -8010,17 +8010,48 @@ final class PdfMetadataExtractor
      */
     private function destinationNameTreeLeafEntriesSortedByNameBytes(array $entries): array
     {
-        if (count($entries) < 2 || !$this->destinationNameTreeLeafEntriesContainDuplicateName($entries)) {
+        if (count($entries) < 2) {
+            return $entries;
+        }
+        if ($this->destinationNameTreeLeafEntriesContainDuplicateRawName($entries)) {
+            usort(
+                $entries,
+                static function (array $left, array $right): int {
+                    return strcmp($left['name_bytes'], $right['name_bytes'])
+                        ?: $left['order'] <=> $right['order'];
+                }
+            );
+
             return $entries;
         }
 
-        usort(
-            $entries,
-            static function (array $left, array $right): int {
-                return strcmp($left['name_bytes'], $right['name_bytes'])
-                    ?: $left['order'] <=> $right['order'];
+        $duplicateNames = $this->destinationNameTreeLeafDuplicateDecodedNames($entries);
+        if ($duplicateNames === []) {
+            return $entries;
+        }
+
+        $groups = [];
+        foreach ($entries as $entry) {
+            if (isset($duplicateNames[$entry['name']])) {
+                $groups[$entry['name']][] = $entry;
             }
-        );
+        }
+        foreach ($groups as &$group) {
+            usort(
+                $group,
+                static function (array $left, array $right): int {
+                    return strcmp($left['name_bytes'], $right['name_bytes'])
+                        ?: $left['order'] <=> $right['order'];
+                }
+            );
+        }
+        unset($group);
+
+        foreach ($entries as $index => $entry) {
+            if (isset($duplicateNames[$entry['name']])) {
+                $entries[$index] = array_shift($groups[$entry['name']]);
+            }
+        }
 
         return $entries;
     }
@@ -8028,7 +8059,7 @@ final class PdfMetadataExtractor
     /**
      * @param list<array{name: string, name_bytes: string, name_key: string, value: string, source: string, order: int}> $entries
      */
-    private function destinationNameTreeLeafEntriesContainDuplicateName(array $entries): bool
+    private function destinationNameTreeLeafEntriesContainDuplicateRawName(array $entries): bool
     {
         $seen = [];
         foreach ($entries as $entry) {
@@ -8039,6 +8070,27 @@ final class PdfMetadataExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{name: string, name_bytes: string, name_key: string, value: string, source: string, order: int}> $entries
+     * @return array<string, true>
+     */
+    private function destinationNameTreeLeafDuplicateDecodedNames(array $entries): array
+    {
+        $counts = [];
+        foreach ($entries as $entry) {
+            $counts[$entry['name']] = ($counts[$entry['name']] ?? 0) + 1;
+        }
+
+        $duplicates = [];
+        foreach ($counts as $name => $count) {
+            if ($count > 1) {
+                $duplicates[$name] = true;
+            }
+        }
+
+        return $duplicates;
     }
 
     private function documentDestinationNameEntryKey(string $name, string $bytes): string

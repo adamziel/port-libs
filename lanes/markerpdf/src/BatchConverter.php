@@ -4981,6 +4981,7 @@ final class BatchConverter
         $outputPathTypeBeforeListing = $this->filesystemPathType($absoluteOutputFolder);
         $outputTaskCandidateBeforeCreation = $outputRelativeToInput
             && is_file($absoluteOutputFolder);
+        $listdirBoundaryReview = $this->inputFolderListdirBoundaryReview($absoluteInputFolder);
         $sameFolderReview = [
             'source' => 'convert.py same input/output folder runtime preflight',
             'review_reached' => $sameFolder,
@@ -5031,6 +5032,7 @@ final class BatchConverter
                 && $inputRealpath !== $absoluteInputFolder,
             'input_folder_abspath_does_not_resolve_symlink' => $inputIsSymlink,
             'task_filepaths_preserve_input_folder_prefix' => true,
+            'input_folder_listdir_boundary_review' => $listdirBoundaryReview,
             'input_folder_relative_to_process_cwd' => !$inputWasAbsolute,
             'output_folder_relative_to_process_cwd' => !$outputWasAbsolute,
             'input_folder_relative_to_output_folder' => $inputRelativeToOutput,
@@ -5047,6 +5049,73 @@ final class BatchConverter
             'input_listing_uses_absolute_input_folder' => true,
             'output_creation_uses_absolute_output_folder' => true,
             'filesystem_touched_by_abspath' => false,
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inputFolderListdirBoundaryReview(string $absoluteInputFolder): array
+    {
+        $pathExists = file_exists($absoluteInputFolder);
+        $pathType = $this->filesystemPathType($absoluteInputFolder);
+        $isSymlink = is_link($absoluteInputFolder);
+        $symlinkTargetExists = $isSymlink && $pathExists;
+        $isDirectory = is_dir($absoluteInputFolder);
+        $isReadable = is_readable($absoluteInputFolder);
+        $errorReason = null;
+        $errorClass = null;
+
+        if ($isSymlink && !$symlinkTargetExists) {
+            $errorReason = 'broken-symlink';
+            $errorClass = 'FileNotFoundError';
+        } elseif (!$pathExists) {
+            $errorReason = 'missing';
+            $errorClass = 'FileNotFoundError';
+        } elseif (!$isDirectory) {
+            $errorReason = 'not-directory';
+            $errorClass = 'NotADirectoryError';
+        } elseif (!$isReadable) {
+            $errorReason = 'permission-denied';
+            $errorClass = 'PermissionError';
+        }
+
+        $errorBoundary = $errorReason === null ? null : 'input-folder-list-failed';
+        $blocked = $errorBoundary !== null;
+
+        return [
+            'source' => 'convert.py os.listdir input-folder boundary',
+            'order' => 'after_abspath_before_output_makedirs',
+            'input_folder' => $absoluteInputFolder,
+            'input_path_exists' => $pathExists,
+            'input_path_type' => $pathType,
+            'input_folder_is_symlink' => $isSymlink,
+            'input_folder_symlink_target_exists' => $symlinkTargetExists,
+            'input_folder_broken_symlink' => $isSymlink && !$symlinkTargetExists,
+            'listdir_call' => 'os.listdir(in_folder)',
+            'listdir_reached' => true,
+            'listdir_success' => !$blocked,
+            'error_boundary' => $errorBoundary,
+            'error_reason' => $errorReason,
+            'error_class' => $errorClass,
+            'upstream_error_message_preview' => $blocked
+                ? $this->runtimeMainPreflightUpstreamErrorMessage(
+                    'input-folder-list-failed',
+                    $absoluteInputFolder,
+                    'Batch input folder cannot be listed: ' . $absoluteInputFolder
+                )
+                : null,
+            'output_creation_blocked_by_listdir_failure' => $blocked,
+            'chunking_blocked_by_listdir_failure' => $blocked,
+            'metadata_load_blocked_by_listdir_failure' => $blocked,
+            'spawn_start_method_blocked_by_listdir_failure' => $blocked,
+            'model_handoff_blocked_by_listdir_failure' => $blocked,
+            'task_args_blocked_by_listdir_failure' => $blocked,
+            'pool_launch_blocked_by_listdir_failure' => $blocked,
             'review_only' => true,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
