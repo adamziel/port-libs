@@ -3195,6 +3195,85 @@ XML;
         $t->contains('<span class="odf-field odf-field-hidden-text" data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note">fallback audit note</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-hidden-paragraph" data-odf-field-type="hidden-paragraph" data-odf-field-condition="ArchiveOnly" data-odf-field-string-value="archive paragraph marker">archive paragraph marker</span>', $blocksHtml);
     },
+    'maps ODT script macro and DDE fields into inert review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDynamicFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:dde-connection-decls>
+        <text:dde-connection-decl
+          office:name="ReviewSheet"
+          office:dde-application="soffice"
+          office:dde-topic="Documents/review.ods"
+          office:dde-item="Approved.A2"
+          office:automatic-update="false"
+          office:conversion-mode="keep-text"/>
+      </text:dde-connection-decls>
+      <text:p>Audit <text:script script:language="ooo:Basic" xlink:href="vnd.sun.star.script:Standard.Module.Main?language=Basic&amp;location=document" xlink:type="simple">Run import macro</text:script>, macro <text:execute-macro text:name="Standard.Module.PublishReview">Publish review</text:execute-macro>, and DDE <text:dde-connection text:connection-name="ReviewSheet">Last approved row</text:dde-connection>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDynamicFields));
+        $paragraph = $result['document']->children[0];
+        $script = $paragraph->children[1];
+        $macro = $paragraph->children[3];
+        $dde = $paragraph->children[5];
+        $declarations = $result['contentDeclarations'];
+        $ddeDeclaration = $declarations['ddeConnectionDeclarationsByName']['ReviewSheet'] ?? [];
+
+        $t->same('Audit Run import macro, macro Publish review, and DDE Last approved row.', $paragraph->attr('text'));
+        $t->same('span', $script->type);
+        $t->same(['odf-field', 'odf-field-script'], $script->attr('classes'));
+        $t->same('script', $script->attr('fieldType'));
+        $t->same('ooo:Basic', $script->attr('fieldMetadata')['scriptLanguage']);
+        $t->same('vnd.sun.star.script:Standard.Module.Main?language=Basic&location=document', $script->attr('fieldMetadata')['href']);
+        $t->same('simple', $script->attr('fieldMetadata')['xlinkType']);
+        $t->same('ooo:Basic', $script->attr('attributes')['data-odf-field-script-language']);
+        $t->same('Run import macro', $script->children[0]->attr('text'));
+
+        $t->same('execute-macro', $macro->attr('fieldType'));
+        $t->same('Standard.Module.PublishReview', $macro->attr('fieldName'));
+        $t->same('Standard.Module.PublishReview', $macro->attr('fieldMetadata')['name']);
+        $t->same('Publish review', $macro->children[0]->attr('text'));
+
+        $t->same('dde-connection', $dde->attr('fieldType'));
+        $t->same('ReviewSheet', $dde->attr('fieldMetadata')['connectionName']);
+        $t->same('soffice', $dde->attr('fieldMetadata')['ddeApplication']);
+        $t->same('Documents/review.ods', $dde->attr('fieldMetadata')['ddeTopic']);
+        $t->same('Approved.A2', $dde->attr('fieldMetadata')['ddeItem']);
+        $t->same(false, $dde->attr('fieldMetadata')['automaticUpdate']);
+        $t->same('keep-text', $dde->attr('fieldMetadata')['conversionMode']);
+        $t->same(true, $dde->attr('fieldMetadata')['declared']);
+        $t->same('ReviewSheet', $dde->attr('attributes')['data-odf-field-connection-name']);
+        $t->same('soffice', $dde->attr('attributes')['data-odf-field-dde-application']);
+        $t->same('false', $dde->attr('attributes')['data-odf-field-automatic-update']);
+        $t->same('Last approved row', $dde->children[0]->attr('text'));
+
+        $t->same(1, $declarations['ddeConnectionDeclarationCount']);
+        $t->same('ReviewSheet', $ddeDeclaration['name'] ?? null);
+        $t->same('soffice', $ddeDeclaration['ddeApplication'] ?? null);
+        $t->same('Documents/review.ods', $ddeDeclaration['ddeTopic'] ?? null);
+        $t->same('Approved.A2', $ddeDeclaration['ddeItem'] ?? null);
+        $t->same(false, $ddeDeclaration['automaticUpdate'] ?? null);
+        $t->same('keep-text', $ddeDeclaration['conversionMode'] ?? null);
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+        $t->same(1, $result['importReport']['content']['ddeConnectionDeclarationCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Run import macro]{.odf-field .odf-field-script data-odf-field-type="script" data-odf-field-href="vnd.sun.star.script:Standard.Module.Main?language=Basic&location=document" data-odf-field-xlink-type="simple" data-odf-field-script-language="ooo:Basic"}', $markdown);
+        $t->contains('[Publish review]{.odf-field .odf-field-execute-macro data-odf-field-type="execute-macro" data-odf-field-name="Standard.Module.PublishReview"}', $markdown);
+        $t->contains('[Last approved row]{.odf-field .odf-field-dde-connection data-odf-field-type="dde-connection" data-odf-field-connection-name="ReviewSheet" data-odf-field-dde-application="soffice" data-odf-field-dde-topic="Documents/review.ods" data-odf-field-dde-item="Approved.A2" data-odf-field-automatic-update="false" data-odf-field-conversion-mode="keep-text" data-odf-field-declared="true"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-script" data-odf-field-type="script" data-odf-field-href="vnd.sun.star.script:Standard.Module.Main?language=Basic&amp;location=document" data-odf-field-xlink-type="simple" data-odf-field-script-language="ooo:Basic">Run import macro</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-execute-macro" data-odf-field-type="execute-macro" data-odf-field-name="Standard.Module.PublishReview">Publish review</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-dde-connection" data-odf-field-type="dde-connection" data-odf-field-connection-name="ReviewSheet" data-odf-field-dde-application="soffice" data-odf-field-dde-topic="Documents/review.ods" data-odf-field-dde-item="Approved.A2" data-odf-field-automatic-update="false" data-odf-field-conversion-mode="keep-text" data-odf-field-declared="true">Last approved row</span>', $blocksHtml);
+    },
     'maps ODT placeholders into review spans without dropping source text' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlaceholders = <<<'XML'
 <office:document-content

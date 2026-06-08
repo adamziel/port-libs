@@ -15,6 +15,7 @@ final class OdfReader
     private const FORM_NS = 'urn:oasis:names:tc:opendocument:xmlns:form:1.0';
     private const SVG_NS = 'urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
+    private const SCRIPT_NS = 'urn:oasis:names:tc:opendocument:xmlns:script:1.0';
     private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
     private const DC_NS = 'http://purl.org/dc/elements/1.1/';
     private const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
@@ -231,6 +232,7 @@ final class OdfReader
                     'databaseRangeCount' => (int) ($content['contentDeclarations']['databaseRangeCount'] ?? 0),
                     'databaseSubtotalRuleCount' => (int) ($content['contentDeclarations']['databaseSubtotalRuleCount'] ?? 0),
                     'databaseSubtotalFieldCount' => (int) ($content['contentDeclarations']['databaseSubtotalFieldCount'] ?? 0),
+                    'ddeConnectionDeclarationCount' => (int) ($content['contentDeclarations']['ddeConnectionDeclarationCount'] ?? 0),
                 ],
             ],
         ];
@@ -2365,6 +2367,15 @@ final class OdfReader
             $databaseSubtotalFieldCount += (int) ($subtotalRules['fieldCount'] ?? 0);
         }
 
+        $ddeConnectionDeclarations = $this->ddeConnectionDeclarationsFromText($text);
+        $ddeConnectionDeclarationsByName = [];
+        foreach ($ddeConnectionDeclarations as $declaration) {
+            $name = (string) ($declaration['name'] ?? '');
+            if ($name !== '') {
+                $ddeConnectionDeclarationsByName[$name] = $declaration;
+            }
+        }
+
         return [
             'noteConfigurationCount' => count($noteConfigurations),
             'noteConfigurations' => $noteConfigurations,
@@ -2385,7 +2396,37 @@ final class OdfReader
             'databaseRangesByName' => $databaseRangesByName,
             'databaseSubtotalRuleCount' => $databaseSubtotalRuleCount,
             'databaseSubtotalFieldCount' => $databaseSubtotalFieldCount,
+            'ddeConnectionDeclarationCount' => count($ddeConnectionDeclarations),
+            'ddeConnectionDeclarations' => $ddeConnectionDeclarations,
+            'ddeConnectionDeclarationsByName' => $ddeConnectionDeclarationsByName,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function ddeConnectionDeclarationsFromText(\DOMElement $text): array
+    {
+        $declarations = [];
+        foreach (self::childElements($text, 'dde-connection-decls', self::TEXT_NS) as $container) {
+            foreach (self::childElements($container, 'dde-connection-decl', self::TEXT_NS) as $declaration) {
+                $name = self::attr($declaration, self::OFFICE_NS, 'name');
+                if ($name === '') {
+                    continue;
+                }
+
+                $declarations[] = self::withoutEmpty([
+                    'name' => $name,
+                    'ddeApplication' => self::nullable(self::attr($declaration, self::OFFICE_NS, 'dde-application')),
+                    'ddeTopic' => self::nullable(self::attr($declaration, self::OFFICE_NS, 'dde-topic')),
+                    'ddeItem' => self::nullable(self::attr($declaration, self::OFFICE_NS, 'dde-item')),
+                    'automaticUpdate' => self::nullableBool(self::attr($declaration, self::OFFICE_NS, 'automatic-update')),
+                    'conversionMode' => self::nullable(self::attr($declaration, self::OFFICE_NS, 'conversion-mode')),
+                ]);
+            }
+        }
+
+        return $declarations;
     }
 
     /**
@@ -3476,6 +3517,9 @@ final class OdfReader
             'expression',
             'text-input',
             'drop-down',
+            'script',
+            'execute-macro',
+            'dde-connection',
             'conditional-text',
             'hidden-text',
             'hidden-paragraph',
@@ -3593,6 +3637,9 @@ final class OdfReader
     {
         $children = $this->coalesceTextNodes($this->inlineNodes($field, $catalog, $package));
         $metadata = $this->fieldMetadata($field);
+        if ($this->isElement($field, self::TEXT_NS, 'dde-connection')) {
+            $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
+        }
         if ($children === []) {
             $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
             $text = $this->fieldFallbackText($field, $metadata);
@@ -3668,6 +3715,10 @@ final class OdfReader
             'tableType' => self::nullable(self::attr($field, self::TEXT_NS, 'table-type')),
             'columnName' => self::nullable(self::attr($field, self::TEXT_NS, 'column-name')),
             'rowNumber' => self::nullable(self::attr($field, self::TEXT_NS, 'row-number')),
+            'connectionName' => self::nullable(self::attr($field, self::TEXT_NS, 'connection-name')),
+            'href' => self::nullable(self::attr($field, self::XLINK_NS, 'href')),
+            'xlinkType' => self::nullable(self::attr($field, self::XLINK_NS, 'type')),
+            'scriptLanguage' => self::nullable(self::attr($field, self::SCRIPT_NS, 'language')),
             'outlineLevel' => self::nullableInt(self::attr($field, self::TEXT_NS, 'outline-level')),
             'valueType' => self::nullable(self::attr($field, self::OFFICE_NS, 'value-type')),
             'value' => self::nullable(self::attr($field, self::OFFICE_NS, 'value')),
@@ -3743,6 +3794,10 @@ final class OdfReader
      */
     private function fieldMetadataWithDeclarations(\DOMElement $field, array $metadata): array
     {
+        if ($this->isElement($field, self::TEXT_NS, 'dde-connection')) {
+            return $this->fieldMetadataWithDdeDeclaration($metadata);
+        }
+
         if (!$this->isElement($field, self::TEXT_NS, 'user-field-get')
             && !$this->isElement($field, self::TEXT_NS, 'user-field-input')) {
             return $metadata;
@@ -3764,6 +3819,40 @@ final class OdfReader
         }
 
         foreach (['valueType', 'value', 'stringValue', 'dateValue', 'timeValue', 'booleanValue', 'currency'] as $key) {
+            if (!array_key_exists($key, $declaration)) {
+                continue;
+            }
+            if (!array_key_exists($key, $metadata) || $metadata[$key] === null || $metadata[$key] === '') {
+                $metadata[$key] = $declaration[$key];
+            }
+        }
+        $metadata['declared'] = true;
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function fieldMetadataWithDdeDeclaration(array $metadata): array
+    {
+        $connectionName = (string) ($metadata['connectionName'] ?? '');
+        if ($connectionName === '') {
+            return $metadata;
+        }
+
+        $declarations = $this->contentDeclarations['ddeConnectionDeclarationsByName'] ?? [];
+        if (!is_array($declarations)) {
+            return $metadata;
+        }
+
+        $declaration = $declarations[$connectionName] ?? null;
+        if (!is_array($declaration)) {
+            return $metadata;
+        }
+
+        foreach (['ddeApplication', 'ddeTopic', 'ddeItem', 'automaticUpdate', 'conversionMode'] as $key) {
             if (!array_key_exists($key, $declaration)) {
                 continue;
             }
