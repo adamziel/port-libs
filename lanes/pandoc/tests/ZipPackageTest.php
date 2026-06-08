@@ -2820,6 +2820,41 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($declaredTooHigh));
     },
 
+    'embeds zip central directory inventory in strict package import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>strict central inventory</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $inventory = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same($inventory, $strictSummary['centralDirectoryInventory']);
+        $t->same(true, $strictSummary['centralDirectoryInventory']['isSupportedByBoundedReader']);
+        $t->same([], $strictSummary['centralDirectoryInventory']['issues']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($strictSummary['centralDirectoryInventory']['entries'], 'name'));
+        $t->same(true, $strictSummary['isValid']);
+        $t->same([], $strictSummary['diagnostics']);
+
+        $signedZip = $buildCentralDirectorySignaturePackage();
+        $signedPackage = ZipPackage::fromString($signedZip);
+        $signedSummary = $signedPackage->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(true, $signedSummary['centralDirectoryInventory']['hasCentralDirectorySignature']);
+        $t->same('between-central-directory-and-eocd', $signedSummary['centralDirectoryInventory']['centralDirectorySignature']['location']);
+        $t->same(strlen('central-signature'), $signedSummary['centralDirectoryInventory']['centralDirectorySignature']['dataLength']);
+        $t->same(false, $signedSummary['isValid']);
+        $t->same(['central-directory-signature-unverified'], $signedSummary['diagnostics']);
+    },
+
     'preflights split zip archive disk markers before bounded package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

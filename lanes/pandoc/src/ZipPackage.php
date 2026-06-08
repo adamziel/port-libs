@@ -4146,6 +4146,7 @@ final class ZipPackage
      *     maxExpansionRatio:?float,
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
+     *     centralDirectoryInventory:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
@@ -4184,6 +4185,7 @@ final class ZipPackage
         self::assertReadLimit($maxEntryUncompressedBytes, 'strict package import preflight');
 
         $archive = $this->archivePreflight();
+        $centralDirectoryInventory = self::centralDirectoryInventoryPreflight($this->bytes);
         $size = $this->sizePreflight();
         $generalPurposeFlags = $this->generalPurposeFlagPreflight();
         $compressionMethods = $this->compressionMethodPreflight();
@@ -4212,6 +4214,10 @@ final class ZipPackage
 
         if ($archive['hasCentralDirectorySignature']) {
             $diagnostics[] = 'central-directory-signature-unverified';
+        }
+
+        if (!$centralDirectoryInventory['isSupportedByBoundedReader']) {
+            $diagnostics[] = 'central-directory-inventory-issues';
         }
 
         if ($comments['hasComments']) {
@@ -4323,6 +4329,7 @@ final class ZipPackage
             'maxExpansionRatio' => $maxExpansionRatio,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
+            'centralDirectoryInventory' => $centralDirectoryInventory,
             'size' => $size,
             'generalPurposeFlags' => $generalPurposeFlags,
             'compressionMethods' => $compressionMethods,
@@ -4355,6 +4362,7 @@ final class ZipPackage
      *     maxExpansionRatio:?float,
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
+     *     centralDirectoryInventory:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,

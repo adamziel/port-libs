@@ -2319,6 +2319,7 @@ $strictImportPackage = ZipPackage::fromParts([
     ],
 ]);
 $strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictImportCentralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($strictImportPackage->bytes());
 $strictCommentImportPreflight = $package->strictImportPreflight(4096, 100.0, 4096);
 $strictCommentImportRejected = false;
 try {
@@ -3723,6 +3724,9 @@ if (in_array('--self-test', $argv, true)) {
         ($strictImportPreflight['isValid'] ?? null) !== true
         || ($strictImportPreflight['diagnostics'] ?? null) !== []
         || ($strictImportPreflight['entryCount'] ?? null) !== 3
+        || ($strictImportPreflight['centralDirectoryInventory'] ?? null) !== $strictImportCentralDirectoryInventory
+        || ($strictImportPreflight['centralDirectoryInventory']['entryCount'] ?? null) !== 3
+        || ($strictImportPreflight['centralDirectoryInventory']['isSupportedByBoundedReader'] ?? null) !== true
         || ($strictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
         || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
@@ -4963,6 +4967,8 @@ echo 'packageModificationTimes.timestampEntryCount=' . $packageModificationTimeP
 echo 'packageModificationTimes.invalidDosTimestampEntryCount=' . $packageModificationTimePreflight['invalidDosTimestampEntryCount'] . "\n";
 echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
+echo 'zipStrictImportCentralDirectoryEntries=' . $strictImportPreflight['centralDirectoryInventory']['entryCount'] . "\n";
+echo 'zipStrictImportCentralDirectorySupported=' . ($strictImportPreflight['centralDirectoryInventory']['isSupportedByBoundedReader'] ? 'true' : 'false') . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
 echo 'zipStrictImportPlatformMetadataEntries=' . $strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
