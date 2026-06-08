@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'revision-metadata-review', 'language-direction-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2752,6 +2752,14 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($name) === 'translate') {
+                $translationState = self::normalizeHtmlTranslationStateAttribute($value, $tagName, $diagnostics);
+                if ($translationState !== null) {
+                    $attrs['data-pandoc-translate-state'] = $translationState;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlRevisionMetadataAttribute($tagName, $name)) {
                 $revisionMetadata = self::normalizeHtmlRevisionMetadataAttribute(
                     $name,
@@ -3055,6 +3063,41 @@ final class Html5DomFragment
         ];
 
         return ['data-pandoc-' . $attribute . '-state', $state];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlTranslationStateAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): ?string {
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($state === '') {
+            $state = 'yes';
+        }
+
+        if (!in_array($state, ['yes', 'no'], true)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'translate',
+                'value' => $state,
+            ];
+
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'translation-state-review',
+            'tag' => $tagName,
+            'attribute' => 'translate',
+            'state' => $state,
+            'reason' => 'translation-state-preserved-as-metadata',
+        ];
+
+        return $state;
     }
 
     private static function isHtmlRevisionMetadataAttribute(string $tagName, string $name): bool

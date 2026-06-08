@@ -2372,6 +2372,54 @@ return [
         $t->true(!str_contains($blocks, ' lang='), 'Expected WordPress blocks to omit source lang attributes');
         $t->true(!str_contains($blocks, ' dir='), 'Expected WordPress blocks to omit source dir attributes');
     },
+    'converts translate attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article translate="no" data-pandoc-translate-state="source-spoof">'
+            . '<p translate="">Reviewer source</p>'
+            . '<span translate=" YES ">Machine text</span>'
+            . '<em translate="maybe">Invalid state</em>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/translation-state-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-translate-state="no">'
+            . '<p data-pandoc-translate-state="yes">Reviewer source</p>'
+            . '<span data-pandoc-translate-state="yes">Machine text</span>'
+            . '<em>Invalid state</em></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Reviewer sourceMachine textInvalid state', $fragment->textContent());
+        $t->same(['article', 'em', 'p', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['data-pandoc-translate-state', 'translate'], $summary['filteredAttributes']);
+        $t->same([
+            'translation-state-review',
+            'unsafe-attribute',
+            'translation-state-review',
+            'translation-state-review',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $t->same(['data-pandoc-translate-state' => 'no'], $nodes[0]['attrs']);
+        $t->same(['data-pandoc-translate-state' => 'yes'], $nodes[0]['children'][0]['attrs']);
+        $t->same(['data-pandoc-translate-state' => 'yes'], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/translation-state-review.html', $document->children[0]->attr('part'));
+        foreach ([' translate=', 'source-spoof', 'maybe'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected source translate state to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' translate='), 'Expected WordPress blocks to omit source translate attributes');
+    },
     'converts passive named metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
