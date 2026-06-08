@@ -10427,8 +10427,12 @@ final class PdfAcroFormExtractor
      */
     private function rectFromAnnotation(string $annotationBody, array $objects): ?array
     {
-        $value = $this->valueAfterName($annotationBody, 'Rect');
-        if ($value === null) {
+        $span = $this->lastTopLevelValueSpanAfterName($annotationBody, 'Rect');
+        $value = $span['value'] ?? null;
+        if (!is_string($value)) {
+            return null;
+        }
+        if ($span !== null && $this->topLevelValueSpanHasTrailingOperand($annotationBody, $span)) {
             return null;
         }
 
@@ -10437,19 +10441,39 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
-        if (count($numbers) < 4) {
+        $rect = $this->fixedNumericArray($arrayBody, 4, $objects);
+        if ($rect === null) {
             return null;
         }
 
-        $rect = array_slice($numbers, 0, 4);
-        foreach ($rect as $number) {
-            if (!is_float($number) && !is_int($number)) {
+        return $this->normalizeRect($rect);
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function fixedNumericArray(string $arrayBody, int $expectedCount, array $objects): ?array
+    {
+        $numbers = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $value = $this->readPdfValueAt($arrayBody, $offset, $endOffset);
+            if ($value === null || $endOffset === null) {
+                $offset++;
+                continue;
+            }
+
+            $number = $this->pdfNumberFromValue($value, $objects);
+            if ($number === null) {
                 return null;
             }
+
+            $numbers[] = $number;
+            $offset = $endOffset;
         }
 
-        return $this->normalizeRect($rect);
+        return count($numbers) === $expectedCount ? $numbers : null;
     }
 
     /**
