@@ -57,6 +57,8 @@ $source = <<<HTML
   <details open><summary>Open import note</summary><p>Visible disclosure text</p></details>
   <section hidden data-pandoc-hidden-state="source-spoof"><h2>Hidden migration note</h2><p>Hidden packet <a href="./hidden/source.html">hidden source</a><a href="java&#10;script:alert(1)">bad hidden</a></p></section>
   <aside hidden="until-found" inert><p>Search reveal import note</p></aside>
+  <aside id="popover-note" popover="manual" data-pandoc-popover-state="source-spoof"><p>Popover migration note <a href="./popover/source.html">popover source</a><a href="java&#10;script:alert(1)">bad popover</a></p></aside>
+  <a href="./popover/control.html" popovertarget="popover-note" popovertargetaction="show">Popover control source</a>
   <iframe srcdoc="$srcdoc"></iframe>
   <iframe src="./frames/source.html?review=1" title="Embedded frame source" sandbox="allow-scripts allow-same-origin" allow="fullscreen; clipboard-write" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
   <iframe src="java&#10;script:alert(1)" title="Bad frame"></iframe>
@@ -77,7 +79,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Language: en-US', 'Direction: ltr', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Language: en-US', 'Direction: ltr', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -118,6 +120,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<details open><summary>Open import note</summary><p>Visible disclosure text</p></details>',
         '<section data-pandoc-hidden-state="hidden"><h2>Hidden migration note</h2><p>Hidden packet <a href="https://source.example.test/import/posts/hidden/source.html">hidden source</a><a>bad hidden</a></p></section>',
         '<aside data-pandoc-hidden-state="until-found" data-pandoc-inert-state="true"><p>Search reveal import note</p></aside>',
+        '<aside id="popover-note" data-pandoc-popover-state="manual"><p>Popover migration note <a href="https://source.example.test/import/posts/popover/source.html">popover source</a><a>bad popover</a></p></aside>',
+        '<a href="https://source.example.test/import/posts/popover/control.html">Popover control source</a>',
         '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
         '<a href="https://source.example.test/import/posts/frames/source.html?review=1" data-pandoc-iframe-src="true" title="Embedded frame source" data-pandoc-iframe-sandbox="allow-scripts allow-same-origin" data-pandoc-iframe-allow="fullscreen; clipboard-write" data-pandoc-iframe-referrerpolicy="strict-origin-when-cross-origin" data-pandoc-iframe-allowfullscreen="true">Embedded frame source</a>',
         '<svg><desc>Legacy &lt;source&gt; &amp; review notes</desc><image href="data:image/png;base64,iVBORw0KGgo="></image><image></image><defs><clipPath id="review-clip"><path d="M0 0"></path></clipPath></defs><g clip-path="url(#review-clip)" mask="url(https://source.example.test/import/posts/masks/review.svg#mask)"><path d="M0 0" fill="url(#paint)"></path></g></svg>',
@@ -126,7 +130,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<source srcset="data:image/png;base64,iVBORw0KGgo= 1x" type="image/png">',
         '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif">',
         '<img src="https://source.example.test/import/posts/fallback.jpg" alt="Responsive cover">',
-        '<img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline raster"><img alt="HTML data">',
+        '<img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline raster"><span data-pandoc-image-alt-fallback="true">HTML data</span>',
         '<p>Send reviewPreview packetImage submit</p>',
         '<!--review- -->',
         '<!-- wp:html -->',
@@ -135,7 +139,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
+    foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', ' popover=', 'popovertarget=', 'popovertargetaction=', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }

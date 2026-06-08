@@ -242,7 +242,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2516,6 +2516,15 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($name) === 'popover') {
+                $attrs['data-pandoc-popover-state'] = self::normalizeHtmlPopoverAttribute(
+                    $value,
+                    $tagName,
+                    $diagnostics
+                );
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
@@ -2635,6 +2644,37 @@ final class Html5DomFragment
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlPopoverAttribute(string $value, string $tagName, array &$diagnostics): string
+    {
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($state === '') {
+            $state = 'auto';
+        }
+
+        if (!in_array($state, ['auto', 'manual', 'hint'], true)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'popover',
+                'value' => $state,
+            ];
+            $state = 'manual';
+        }
+
+        $diagnostics[] = [
+            'code' => 'popover-review',
+            'tag' => $tagName,
+            'attribute' => 'popover',
+            'state' => $state,
+            'reason' => 'popover-content-preserved',
+        ];
+
+        return $state;
     }
 
     /**
@@ -3181,6 +3221,8 @@ final class Html5DomFragment
         return str_starts_with($lower, 'on')
             || $lower === 'download'
             || $lower === 'ping'
+            || $lower === 'popovertarget'
+            || $lower === 'popovertargetaction'
             || $lower === 'style'
             || $lower === 'srcdoc'
             || $lower === 'target'

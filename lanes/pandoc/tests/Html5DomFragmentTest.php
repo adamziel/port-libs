@@ -1099,6 +1099,86 @@ return [
         $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned data-pandoc hidden metadata to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe links inside hidden content to be stripped');
     },
+    'converts popover states into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<button popovertarget="review-pop" popovertargetaction="show">Open note</button>'
+            . '<aside id="review-pop" popover data-pandoc-popover-state="source-spoof"><p>Auto <a href="./auto.html">note</a><a href="java&#10;script:alert(1)">bad</a></p></aside>'
+            . '<section id="manual-pop" popover="manual"><p>Manual note</p></section>'
+            . '<div id="hint-pop" popover="hint"><p>Hint note</p></div>'
+            . '<div id="invalid-pop" popover="bad state"><p>Invalid note</p></div>'
+            . '<a href="./control.html" popovertarget="manual-pop" popovertargetaction="hide">Control link</a>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/popover-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = 'Open note'
+            . '<aside id="review-pop" data-pandoc-popover-state="auto"><p>Auto <a href="https://source.example.test/import/posts/auto.html">note</a><a>bad</a></p></aside>'
+            . '<section id="manual-pop" data-pandoc-popover-state="manual"><p>Manual note</p></section>'
+            . '<div id="hint-pop" data-pandoc-popover-state="hint"><p>Hint note</p></div>'
+            . '<div id="invalid-pop" data-pandoc-popover-state="manual"><p>Invalid note</p></div>'
+            . '<a href="https://source.example.test/import/posts/control.html">Control link</a>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Open noteAuto notebadManual noteHint noteInvalid noteControl link', $fragment->textContent());
+        $t->same(['a', 'aside', 'div', 'p', 'section'], $summary['elementNames']);
+        $t->same(['base', 'button'], $summary['blockedTags']);
+        $t->same(['data-pandoc-popover-state', 'href', 'popover', 'popovertarget', 'popovertargetaction'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'blocked-tag',
+            'popover-review',
+            'unsafe-attribute',
+            'unsafe-url',
+            'popover-review',
+            'popover-review',
+            'unsafe-attribute',
+            'popover-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], $policyDiagnostics);
+        $t->same('text', $nodes[0]['type']);
+        $t->same('Open note', $nodes[0]['text']);
+        $t->same('aside', $nodes[1]['name']);
+        $t->same([
+            'id' => 'review-pop',
+            'data-pandoc-popover-state' => 'auto',
+        ], $nodes[1]['attrs']);
+        $t->same('https://source.example.test/import/posts/auto.html', $nodes[1]['children'][0]['children'][1]['attrs']['href']);
+        $t->same([], $nodes[1]['children'][0]['children'][2]['attrs']);
+        $t->same([
+            'id' => 'manual-pop',
+            'data-pandoc-popover-state' => 'manual',
+        ], $nodes[2]['attrs']);
+        $t->same([
+            'id' => 'hint-pop',
+            'data-pandoc-popover-state' => 'hint',
+        ], $nodes[3]['attrs']);
+        $t->same([
+            'id' => 'invalid-pop',
+            'data-pandoc-popover-state' => 'manual',
+        ], $nodes[4]['attrs']);
+        $t->same(['href' => 'https://source.example.test/import/posts/control.html'], $nodes[5]['attrs']);
+        $t->same('/migration/popover-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, ' popover'), 'Expected live popover attributes to be replaced with inert metadata');
+        $t->true(!str_contains($html, 'popovertarget'), 'Expected popover invoker attributes to be stripped');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned popover metadata to be stripped');
+        $t->true(!str_contains($html, 'bad state'), 'Expected invalid popover token to stay diagnostic-only');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe popover links to be stripped');
+        $t->true(!str_contains($blocks, ' popover'), 'Expected WordPress blocks to omit live popover attributes');
+    },
     'converts microdata and rdfa attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article itemscope itemtype="https://schema.org/Article ./types/Local" itemid="./articles/42" itemref="headline author bad<tag">'
