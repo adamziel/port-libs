@@ -8302,6 +8302,8 @@ final class PdfTextExtractor
             $imageMask ? 1 : $colorSpaceComponentCount,
             $imageMask
         );
+        $imageDecodeNativeRasterBlocked = $imageDecode !== null
+            && ($imageDecode['valid_for_components'] ?? false) !== true;
         $ccittDecodeBoundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight);
         $ccittFilterBoundary = $this->ccittFaxFilterBoundaryReview($filterDetails);
         $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($filterDetails);
@@ -8462,6 +8464,10 @@ final class PdfTextExtractor
                 && ($imageDecode['valid_for_components'] ?? false) === true,
             'image_decode_component_mismatch' => $imageDecode !== null
                 && ($imageDecode['valid_for_components'] ?? false) !== true,
+            'image_decode_native_raster_blocked' => $imageDecodeNativeRasterBlocked,
+            'image_decode_boundary_policy' => $imageDecodeNativeRasterBlocked
+                ? 'reject_image_decode_component_mismatch_for_native_raster'
+                : null,
             'image_mask' => $imageMask,
             'image_mask_uses_current_nonstroking_color' => $imageMask,
             'image_mask_paint_colors' => $imageMask ? $imageMaskPaintColors : [],
@@ -8523,6 +8529,7 @@ final class PdfTextExtractor
                 && $previewOnlyFilters === []
                 && $imageDimensionsValid
                 && $bitsPerComponentBoundary === null
+                && !$imageDecodeNativeRasterBlocked
                 && !$softMaskReferenceOperandBlocksNativeRaster
                 && !$maskReferenceOperandBlocksNativeRaster,
             'raw_length' => strlen($reviewStream),
