@@ -1814,6 +1814,150 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/missing.xml'));
     },
+    'preflights OPC package signature object manifest references' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+  <Override PartName="/_xmlsignatures/sig-manifest.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $signatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSignatureManifest" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-manifest.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml"/>
+  </ds:SignedInfo>
+  <ds:Object Id="idPackageSignatureObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestPackageParts">
+      <ds:Reference URI="/word/document.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="../docProps/core.xml?ContentType=application/vnd.openxmlformats-package.core-properties+xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+        <ds:DigestValue>U291cmNl</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/word/media/missing.png">
+        <ds:DigestValue>bad base64!</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="https://example.test/document.xml">
+        <ds:DigestMethod Algorithm="urn:example:digest"/>
+        <ds:DigestValue></ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="#local-object">
+        <ds:DigestMethod Algorithm="urn:example:digest"/>
+        <ds:DigestValue>AA==</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
+    <ds:SignatureProperties>
+      <ds:SignatureProperty Target="#idPackageSignature">
+        <mdssi:SignatureTime>
+          <mdssi:Value>2026-06-08T13:51:28Z</mdssi:Value>
+        </mdssi:SignatureTime>
+      </ds:SignatureProperty>
+    </ds:SignatureProperties>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
+            ['name' => '_xmlsignatures/sig-manifest.xml', 'data' => $signatureXml],
+        ]));
+
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-manifest.xml');
+        $object = $metadata['objects'][0];
+        $references = [];
+        foreach ($object['manifestReferences'] as $reference) {
+            $references[$reference['uri']] = $reference;
+        }
+
+        $t->same('/_xmlsignatures/sig-manifest.xml', $metadata['signaturePart']);
+        $t->same(false, $metadata['valid']);
+        $t->same([
+            'manifest-reference-target-missing',
+            'missing-manifest-reference-digest-method',
+            'invalid-manifest-reference-digest-value-base64',
+            'manifest-reference-external-uri',
+            'missing-manifest-reference-digest-value',
+            'manifest-reference-fragment-uri',
+        ], $metadata['issues']);
+        $t->same(1, $object['manifestCount']);
+        $t->same(5, $object['manifestReferenceCount']);
+        $t->same(['SignatureTime', 'Value'], $object['packageSignatureElements']);
+        $t->same(false, $object['valid']);
+
+        $t->same('manifestPackageParts', $references['/word/document.xml']['manifestId']);
+        $t->same(0, $references['/word/document.xml']['referenceIndex']);
+        $t->same('/word/document.xml', $references['/word/document.xml']['targetPart']);
+        $t->same(true, $references['/word/document.xml']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $references['/word/document.xml']['contentType']);
+        $t->same('http://www.w3.org/2001/04/xmlenc#sha256', $references['/word/document.xml']['digestAlgorithm']);
+        $t->same(8, $references['/word/document.xml']['digestValueBase64Length']);
+        $t->same(5, $references['/word/document.xml']['digestValueDecodedBytes']);
+        $t->same(true, $references['/word/document.xml']['valid']);
+        $t->same([], $references['/word/document.xml']['issues']);
+
+        $coreReference = $references['../docProps/core.xml?ContentType=application/vnd.openxmlformats-package.core-properties+xml'];
+        $t->same('/docProps/core.xml', $coreReference['targetPart']);
+        $t->same(true, $coreReference['exists']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $coreReference['contentType']);
+        $t->same(6, $coreReference['digestValueDecodedBytes']);
+        $t->same(true, $coreReference['valid']);
+
+        $missingReference = $references['/word/media/missing.png'];
+        $t->same('/word/media/missing.png', $missingReference['targetPart']);
+        $t->same(false, $missingReference['exists']);
+        $t->same('image/png', $missingReference['contentType']);
+        $t->same(null, $missingReference['digestAlgorithm']);
+        $t->same(null, $missingReference['digestValueDecodedBytes']);
+        $t->same(false, $missingReference['valid']);
+        $t->same([
+            'manifest-reference-target-missing',
+            'missing-manifest-reference-digest-method',
+            'invalid-manifest-reference-digest-value-base64',
+        ], $missingReference['issues']);
+
+        $externalReference = $references['https://example.test/document.xml'];
+        $t->same(null, $externalReference['targetPart']);
+        $t->same(null, $externalReference['exists']);
+        $t->same(null, $externalReference['contentType']);
+        $t->same(false, $externalReference['valid']);
+        $t->same([
+            'manifest-reference-external-uri',
+            'missing-manifest-reference-digest-value',
+        ], $externalReference['issues']);
+
+        $fragmentReference = $references['#local-object'];
+        $t->same(null, $fragmentReference['targetPart']);
+        $t->same(null, $fragmentReference['exists']);
+        $t->same(1, $fragmentReference['digestValueDecodedBytes']);
+        $t->same(false, $fragmentReference['valid']);
+        $t->same(['manifest-reference-fragment-uri'], $fragmentReference['issues']);
+    },
     'flags invalid OPC digital signature relationship packages' => static function (TestRunner $t): void {
         $badSignedContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

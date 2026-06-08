@@ -114,6 +114,16 @@ $signatureXml = <<<'XML'
     </ds:X509Data>
   </ds:KeyInfo>
   <ds:Object Id="idPackageSignatureObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestPackageParts">
+      <ds:Reference URI="/word/document.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/docProps/core.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+        <ds:DigestValue>U291cmNl</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
     <ds:SignatureProperties>
       <ds:SignatureProperty Target="#idPackageSignature">
         <mdssi:SignatureTime>
@@ -1897,6 +1907,19 @@ $summary = [
         )),
         'digitalSignatureCertificateCount' => $digitalSignatureMetadata['certificateCount'],
         'digitalSignatureTime' => $digitalSignatureMetadata['objects'][0]['signatureTimeValue'] ?? null,
+        'digitalSignatureManifestReferences' => array_values(array_map(
+            static fn (array $reference): array => [
+                'manifestId' => $reference['manifestId'],
+                'uri' => $reference['uri'],
+                'targetPart' => $reference['targetPart'],
+                'contentType' => $reference['contentType'],
+                'digestAlgorithm' => $reference['digestAlgorithm'],
+                'digestValueDecodedBytes' => $reference['digestValueDecodedBytes'],
+                'valid' => $reference['valid'],
+                'issues' => $reference['issues'],
+            ],
+            $digitalSignatureMetadata['objects'][0]['manifestReferences'] ?? []
+        )),
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
         'nestedEmbeddedOfficeDocuments' => $nestedEmbeddedOfficeDocuments,
@@ -2079,12 +2102,31 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValue'] ?? null) !== '2026-06-06T22:33:48Z'
         || ($summary['digitalSignatureMetadata']['objects'][0]['signatureTimeValid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['objects'][0]['packageSignatureElements'] ?? null) !== ['SignatureTime', 'Format', 'Value']
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestCount'] ?? null) !== 1
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferenceCount'] ?? null) !== 2
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['manifestId'] ?? null) !== 'manifestPackageParts'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['uri'] ?? null) !== '/word/document.xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][0]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['uri'] ?? null) !== '/docProps/core.xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['targetPart'] ?? null) !== '/docProps/core.xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2000/09/xmldsig#sha1'
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['digestValueDecodedBytes'] ?? null) !== 6
+        || ($summary['digitalSignatureMetadata']['objects'][0]['manifestReferences'][1]['valid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['certificates'][0]['decodedBytes'] ?? null) !== 17
         || ($summary['digitalSignatureMetadata']['certificates'][0]['sha256'] ?? null) !== '339af39211d5f1a9de3c16e229830accd22d7063980248a5ea57edf61cac6c6d'
         || ($summary['digitalSignatureMetadata']['certificates'][0]['valid'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureRoleIssues'] ?? null) !== []
         || ($summary['wordpressImport']['digitalSignatureCertificateCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureTime'] ?? null) !== '2026-06-06T22:33:48Z'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['targetPart'] ?? null) !== '/docProps/core.xml'
+        || ($summary['wordpressImport']['digitalSignatureManifestReferences'][1]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.core-properties+xml'
         || ($summary['integrity']['emptySignatureOriginGuard']['id'] ?? null) !== 'rIdSignatureOrigin'
         || ($summary['integrity']['emptySignatureOriginGuard']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
         || ($summary['integrity']['emptySignatureOriginGuard']['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'

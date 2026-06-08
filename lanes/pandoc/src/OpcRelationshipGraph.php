@@ -1876,7 +1876,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
+     * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightDigitalSignatureMetadata(string $signaturePartName): array
     {
@@ -1909,7 +1909,12 @@ final class OpcRelationshipGraph
                     && $child->namespaceURI === self::XML_SIGNATURE_NAMESPACE_URI
                     && $child->localName === 'Object'
                 ) {
-                    $objectMetadata = self::digitalSignatureObjectMetadata($child);
+                    $objectMetadata = self::digitalSignatureObjectMetadata(
+                        $child,
+                        $signaturePartName,
+                        $this->package,
+                        $this->contentTypes,
+                    );
                     foreach ($objectMetadata['issues'] as $issue) {
                         self::appendUniqueString($issues, $issue);
                     }
@@ -2513,9 +2518,14 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, valid:bool, issues:list<string>}
+     * @return array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, manifestCount:int, manifestReferenceCount:int, manifestReferences:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>, valid:bool, issues:list<string>}
      */
-    private static function digitalSignatureObjectMetadata(\DOMElement $object): array
+    private static function digitalSignatureObjectMetadata(
+        \DOMElement $object,
+        string $signaturePartName,
+        ZipPackage $package,
+        OpcContentTypes $contentTypes,
+    ): array
     {
         $issues = [];
         $id = self::optionalElementAttribute($object, 'Id');
@@ -2541,6 +2551,18 @@ final class OpcRelationshipGraph
             }
         }
 
+        $manifestPreflight = self::digitalSignatureObjectManifestReferences(
+            $object,
+            $signaturePartName,
+            $package,
+            $contentTypes,
+        );
+        foreach ($manifestPreflight['references'] as $manifestReference) {
+            foreach ($manifestReference['issues'] as $issue) {
+                self::appendUniqueString($issues, $issue);
+            }
+        }
+
         return [
             'id' => $id,
             'mimeType' => self::optionalElementAttribute($object, 'MimeType'),
@@ -2549,8 +2571,146 @@ final class OpcRelationshipGraph
             'signatureTimeValue' => $signatureTimeValue,
             'signatureTimeValid' => $signatureTimeValid,
             'packageSignatureElements' => self::descendantElementLocalNamesByNamespace($object, self::DIGITAL_SIGNATURE_NAMESPACE_URI),
+            'manifestCount' => $manifestPreflight['manifestCount'],
+            'manifestReferenceCount' => count($manifestPreflight['references']),
+            'manifestReferences' => $manifestPreflight['references'],
             'valid' => $issues === [],
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @return array{manifestCount:int, references:list<array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>}
+     */
+    private static function digitalSignatureObjectManifestReferences(
+        \DOMElement $object,
+        string $signaturePartName,
+        ZipPackage $package,
+        OpcContentTypes $contentTypes,
+    ): array {
+        $references = [];
+        $manifests = self::descendantElementsByNamespace($object, self::XML_SIGNATURE_NAMESPACE_URI, 'Manifest');
+        foreach ($manifests as $manifest) {
+            $manifestId = self::optionalElementAttribute($manifest, 'Id');
+            foreach ($manifest->childNodes as $child) {
+                if (
+                    !$child instanceof \DOMElement
+                    || $child->namespaceURI !== self::XML_SIGNATURE_NAMESPACE_URI
+                    || $child->localName !== 'Reference'
+                ) {
+                    continue;
+                }
+
+                $references[] = self::digitalSignatureManifestReferenceMetadata(
+                    $child,
+                    count($references),
+                    $manifestId,
+                    $signaturePartName,
+                    $package,
+                    $contentTypes,
+                );
+            }
+        }
+
+        return [
+            'manifestCount' => count($manifests),
+            'references' => $references,
+        ];
+    }
+
+    /**
+     * @return array{manifestId:?string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
+     */
+    private static function digitalSignatureManifestReferenceMetadata(
+        \DOMElement $reference,
+        int $referenceIndex,
+        ?string $manifestId,
+        string $signaturePartName,
+        ZipPackage $package,
+        OpcContentTypes $contentTypes,
+    ): array {
+        $issues = [];
+        $parseError = null;
+        $targetPart = null;
+        $exists = null;
+        $contentType = null;
+        $uri = $reference->hasAttribute('URI') ? trim($reference->getAttribute('URI')) : null;
+
+        if ($uri === null || $uri === '') {
+            $issues[] = 'missing-manifest-reference-uri';
+        } elseif (
+            preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1
+            || str_starts_with($uri, '//')
+        ) {
+            $issues[] = 'manifest-reference-external-uri';
+        } elseif (str_starts_with($uri, '#')) {
+            $issues[] = 'manifest-reference-fragment-uri';
+        } else {
+            try {
+                $targetPart = OpcPackagePath::stripQueryAndFragment(
+                    OpcPackagePath::resolveInternalTarget($signaturePartName, $uri),
+                );
+                $exists = $package->has($targetPart);
+                $contentType = $contentTypes->contentTypeForPart($targetPart);
+                if (!$exists) {
+                    $issues[] = 'manifest-reference-target-missing';
+                }
+                if ($contentType === null) {
+                    $issues[] = 'manifest-reference-content-type-missing';
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $issues[] = 'invalid-manifest-reference-uri';
+                $parseError = $exception->getMessage();
+            }
+        }
+
+        $digestMethod = self::firstChildElementByNamespace($reference, self::XML_SIGNATURE_NAMESPACE_URI, 'DigestMethod');
+        $digestAlgorithm = $digestMethod instanceof \DOMElement
+            ? self::optionalElementAttribute($digestMethod, 'Algorithm')
+            : null;
+        if ($digestAlgorithm === null) {
+            $issues[] = 'missing-manifest-reference-digest-method';
+        }
+
+        $digestValueElement = self::firstChildElementByNamespace($reference, self::XML_SIGNATURE_NAMESPACE_URI, 'DigestValue');
+        $digestValue = null;
+        $digestValueBase64Length = null;
+        $digestValueDecodedBytes = null;
+        if ($digestValueElement instanceof \DOMElement) {
+            $digestValue = preg_replace('/\s+/', '', trim($digestValueElement->textContent));
+            if (!is_string($digestValue)) {
+                $digestValue = trim($digestValueElement->textContent);
+            }
+        }
+
+        if ($digestValue === null || $digestValue === '') {
+            $issues[] = 'missing-manifest-reference-digest-value';
+        } else {
+            $digestValueBase64Length = strlen($digestValue);
+            $decodedDigest = base64_decode($digestValue, true);
+            if ($decodedDigest === false) {
+                $issues[] = 'invalid-manifest-reference-digest-value-base64';
+            } else {
+                $digestValueDecodedBytes = strlen($decodedDigest);
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'manifestId' => $manifestId,
+            'referenceIndex' => $referenceIndex,
+            'uri' => $uri,
+            'targetPart' => $targetPart,
+            'exists' => $exists,
+            'contentType' => $contentType,
+            'digestAlgorithm' => $digestAlgorithm,
+            'digestValue' => $digestValue,
+            'digestValueBase64Length' => $digestValueBase64Length,
+            'digestValueDecodedBytes' => $digestValueDecodedBytes,
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'parseError' => $parseError,
         ];
     }
 
@@ -2614,6 +2774,21 @@ final class OpcRelationshipGraph
         return null;
     }
 
+    private static function firstChildElementByNamespace(\DOMElement $element, string $namespaceUri, string $localName): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $child->namespaceURI === $namespaceUri
+                && $child->localName === $localName
+            ) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
     private static function firstDescendantElementByNamespace(\DOMElement $element, string $namespaceUri, string $localName): ?\DOMElement
     {
         foreach ($element->childNodes as $child) {
@@ -2632,6 +2807,21 @@ final class OpcRelationshipGraph
         }
 
         return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function descendantElementsByNamespace(\DOMElement $element, string $namespaceUri, string $localName): array
+    {
+        $elements = [];
+        foreach ($element->getElementsByTagNameNS($namespaceUri, $localName) as $child) {
+            if ($child instanceof \DOMElement) {
+                $elements[] = $child;
+            }
+        }
+
+        return $elements;
     }
 
     /**
