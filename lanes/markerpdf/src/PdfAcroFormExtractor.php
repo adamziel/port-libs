@@ -8588,7 +8588,7 @@ final class PdfAcroFormExtractor
                 if ($nested === null || $endOffset === null) {
                     break;
                 }
-                $parts = $this->scalarValuesFromArrayBody($nested, $objects);
+                $parts = $this->topLevelScalarValuesFromArrayBody($nested, $objects);
                 if (count($parts) >= 2) {
                     $options[] = ['export' => $parts[0], 'label' => $parts[1]];
                 }
@@ -8611,6 +8611,59 @@ final class PdfAcroFormExtractor
         }
 
         return $options;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topLevelScalarValuesFromArrayBody(string $body, array $objects): array
+    {
+        $values = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
+                continue;
+            }
+
+            if (substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 2;
+                continue;
+            }
+
+            $item = $this->readScalarAt($body, $offset, $objects, $scalarEnd);
+            if ($item !== null) {
+                $values[] = $item['value'];
+                $offset = $item['end'];
+                continue;
+            }
+            if ($scalarEnd !== null && $scalarEnd > $offset) {
+                $offset = $scalarEnd;
+                continue;
+            }
+
+            $endOffset = null;
+            $this->readPdfValueAt($body, $offset, $endOffset);
+            $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
+        }
+
+        return $values;
     }
 
     /**

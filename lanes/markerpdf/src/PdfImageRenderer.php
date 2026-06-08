@@ -11145,7 +11145,7 @@ final class PdfImageRenderer
      */
     private function resolvePdfValueWithSeen(string $value, array $objects, array $seenObjects = []): array
     {
-        $trimmed = trim($value);
+        $trimmed = $this->trimPdfValueBoundary($value);
         $reference = $this->pdfIndirectReferenceTokenAt($trimmed, 0);
         if ($reference === null || $this->skipPdfWhitespace($trimmed, $reference['endOffset']) !== strlen($trimmed)) {
             return ['value' => $trimmed, 'seen' => $seenObjects];
@@ -11161,7 +11161,15 @@ final class PdfImageRenderer
 
         $seenObjects[$seenKey] = true;
 
-        return $this->resolvePdfValueWithSeen(trim($objectBody), $objects, $seenObjects);
+        return $this->resolvePdfValueWithSeen($objectBody, $objects, $seenObjects);
+    }
+
+    private function trimPdfValueBoundary(string $value): string
+    {
+        $trimmed = trim($value);
+        $start = $this->skipPdfWhitespace($trimmed, 0);
+
+        return $start <= 0 ? $trimmed : ltrim(substr($trimmed, $start));
     }
 
     /**

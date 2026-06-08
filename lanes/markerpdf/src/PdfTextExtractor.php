@@ -16604,6 +16604,10 @@ final class PdfTextExtractor
         }
 
         $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
+        if ($entries !== [] && $localLimits === null) {
+            // Unbounded /Nums nodes are number-tree leaves; keep the existing bounded repair path below.
+            return $entries;
+        }
 
         foreach ($this->pageLabelKidDictionaryNodeGroups($dictionary, $objects, $seen) as $kidDictionaryNodes) {
             $kidNodes = [];

@@ -1858,6 +1858,10 @@ final class MarkerAppPreview
 
             break;
         }
+        if ($sections !== [] && $localLimits === null) {
+            // Unbounded /Nums nodes are number-tree leaves; keep the existing bounded repair path below.
+            return $sections;
+        }
 
         $kidNodeGroups = [];
         foreach ($this->valueEntriesAfterName($value, 'Kids') as $entry) {

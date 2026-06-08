@@ -478,7 +478,157 @@ final class PdfTextDocumentExtractor
             return null;
         }
 
-        return is_array($decoded) || $decoded instanceof \stdClass ? $decoded : null;
+        if (!is_array($decoded) && !$decoded instanceof \stdClass) {
+            return null;
+        }
+
+        $this->assertSuppliedDictionaryJsonEnvelopeHasUniqueObjectKeys($trimmed);
+
+        return $decoded;
+    }
+
+    /**
+     * json_decode keeps the last duplicate object member. At the supplied
+     * pdftext cache boundary that can silently replace an earlier page-map row,
+     * so detect duplicate decoded keys before normalizing into PHP arrays.
+     */
+    private function assertSuppliedDictionaryJsonEnvelopeHasUniqueObjectKeys(string $json): void
+    {
+        $offset = $this->skipJsonWhitespace($json, 0);
+        $this->scanSuppliedDictionaryJsonValue($json, $offset);
+    }
+
+    private function scanSuppliedDictionaryJsonValue(string $json, int $offset): int
+    {
+        $offset = $this->skipJsonWhitespace($json, $offset);
+        if ($offset >= strlen($json)) {
+            return $offset;
+        }
+
+        return match ($json[$offset]) {
+            '{' => $this->scanSuppliedDictionaryJsonObject($json, $offset),
+            '[' => $this->scanSuppliedDictionaryJsonArray($json, $offset),
+            '"' => $this->readSuppliedDictionaryJsonString($json, $offset)['next'],
+            default => $this->skipSuppliedDictionaryJsonPrimitive($json, $offset),
+        };
+    }
+
+    private function scanSuppliedDictionaryJsonObject(string $json, int $offset): int
+    {
+        $length = strlen($json);
+        $offset++;
+        $seenKeys = [];
+
+        while ($offset < $length) {
+            $offset = $this->skipJsonWhitespace($json, $offset);
+            if ($offset < $length && $json[$offset] === '}') {
+                return $offset + 1;
+            }
+
+            $key = $this->readSuppliedDictionaryJsonString($json, $offset);
+            $fingerprint = 'key:' . $key['value'];
+            if (isset($seenKeys[$fingerprint])) {
+                throw new InvalidArgumentException('Supplied pdftext JSON envelope contains duplicate object keys.');
+            }
+            $seenKeys[$fingerprint] = true;
+
+            $offset = $this->skipJsonWhitespace($json, $key['next']);
+            if ($offset < $length && $json[$offset] === ':') {
+                $offset++;
+            }
+
+            $offset = $this->scanSuppliedDictionaryJsonValue($json, $offset);
+            $offset = $this->skipJsonWhitespace($json, $offset);
+            if ($offset < $length && $json[$offset] === ',') {
+                $offset++;
+                continue;
+            }
+            if ($offset < $length && $json[$offset] === '}') {
+                return $offset + 1;
+            }
+        }
+
+        return $offset;
+    }
+
+    private function scanSuppliedDictionaryJsonArray(string $json, int $offset): int
+    {
+        $length = strlen($json);
+        $offset++;
+
+        while ($offset < $length) {
+            $offset = $this->skipJsonWhitespace($json, $offset);
+            if ($offset < $length && $json[$offset] === ']') {
+                return $offset + 1;
+            }
+
+            $offset = $this->scanSuppliedDictionaryJsonValue($json, $offset);
+            $offset = $this->skipJsonWhitespace($json, $offset);
+            if ($offset < $length && $json[$offset] === ',') {
+                $offset++;
+                continue;
+            }
+            if ($offset < $length && $json[$offset] === ']') {
+                return $offset + 1;
+            }
+        }
+
+        return $offset;
+    }
+
+    /**
+     * @return array{value: string, next: int}
+     */
+    private function readSuppliedDictionaryJsonString(string $json, int $offset): array
+    {
+        $length = strlen($json);
+        $index = $offset + 1;
+        $escaped = false;
+
+        while ($index < $length) {
+            $char = $json[$index];
+            if ($escaped) {
+                $escaped = false;
+                $index++;
+                continue;
+            }
+            if ($char === '\\') {
+                $escaped = true;
+                $index++;
+                continue;
+            }
+            if ($char === '"') {
+                $token = substr($json, $offset, $index - $offset + 1);
+                $value = json_decode($token, false, 16, JSON_THROW_ON_ERROR);
+                return [
+                    'value' => is_string($value) ? $value : '',
+                    'next' => $index + 1,
+                ];
+            }
+            $index++;
+        }
+
+        return ['value' => '', 'next' => $index];
+    }
+
+    private function skipSuppliedDictionaryJsonPrimitive(string $json, int $offset): int
+    {
+        $length = strlen($json);
+        while ($offset < $length && !in_array($json[$offset], [',', ']', '}'], true)) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function skipJsonWhitespace(string $json, int $offset): int
+    {
+        $length = strlen($json);
+        while ($offset < $length && str_contains(" \n\r\t", $json[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     /**
