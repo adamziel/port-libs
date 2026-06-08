@@ -2322,11 +2322,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['externalCount'] ?? null) !== 3
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['internalCount'] ?? null) !== 1
         || ($summary['relationshipTypeInventory']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink']['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'office-document'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['sourceScope'] ?? null) !== 'package-root'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['singletonScope'] ?? null) !== 'package'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeValid'] ?? null) !== false
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['relationshipCount'] ?? null) !== 1
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['sourceCount'] ?? null) !== 1
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'thumbnail'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['singletonScope'] ?? null) !== 'source'
+        || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/docProps/thumbnail.png']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['contentTypes'] ?? null) !== ['image/png']
         || ($summary['contentTypeInventory']['application/vnd.openxmlformats-package.relationships+xml']['parts'] ?? null) !== [

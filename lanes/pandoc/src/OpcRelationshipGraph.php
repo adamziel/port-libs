@@ -868,7 +868,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, issues:list<string>}>
+     * @return list<array{type:string, relationshipCount:int, sourceCount:int, sources:list<string>, idsBySource:array<string, list<string>>, internalCount:int, externalCount:int, validCount:int, invalidCount:int, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, targetParts:list<string>, contentTypes:list<string>, knownRole:?string, sourceScope:string, singletonScope:?string, policyValid:bool, policyIssues:list<string>, issues:list<string>}>
      */
     public function relationshipTypeInventory(?string $sourcePartName = null): array
     {
@@ -895,6 +895,11 @@ final class OpcRelationshipGraph
                         'relationshipTypeIssues' => [],
                         'targetParts' => [],
                         'contentTypes' => [],
+                        'knownRole' => null,
+                        'sourceScope' => 'any-source',
+                        'singletonScope' => null,
+                        'policyValid' => true,
+                        'policyIssues' => [],
                         'issues' => [],
                     ];
                 }
@@ -950,6 +955,12 @@ final class OpcRelationshipGraph
             sort($entry['contentTypes'], SORT_STRING);
             sort($entry['relationshipTypeIssues'], SORT_STRING);
             sort($entry['issues'], SORT_STRING);
+            $policy = self::relationshipTypePolicyForInventoryEntry($entry);
+            $entry['knownRole'] = $policy['knownRole'];
+            $entry['sourceScope'] = $policy['sourceScope'];
+            $entry['singletonScope'] = $policy['singletonScope'];
+            $entry['policyValid'] = $policy['policyValid'];
+            $entry['policyIssues'] = $policy['policyIssues'];
         }
         unset($entry);
 
@@ -3259,6 +3270,105 @@ final class OpcRelationshipGraph
                 'role' => 'diagram-colors',
                 'expectedContentType' => self::DRAWINGML_DIAGRAM_COLORS_CONTENT_TYPE,
                 'expectedExternal' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param array{type:string, relationshipCount:int, sources:list<string>, idsBySource:array<string, list<string>>} $entry
+     * @return array{knownRole:?string, sourceScope:string, singletonScope:?string, policyValid:bool, policyIssues:list<string>}
+     */
+    private static function relationshipTypePolicyForInventoryEntry(array $entry): array
+    {
+        $definition = self::relationshipTypePolicyDefinitions()[$entry['type']] ?? null;
+        if ($definition === null) {
+            return [
+                'knownRole' => null,
+                'sourceScope' => 'any-source',
+                'singletonScope' => null,
+                'policyValid' => true,
+                'policyIssues' => [],
+            ];
+        }
+
+        $issues = [];
+        if (($definition['sourceScope'] ?? 'any-source') === 'package-root') {
+            foreach ($entry['sources'] as $source) {
+                if ($source !== '/') {
+                    self::appendUniqueString($issues, $definition['sourceIssue']);
+                }
+            }
+        }
+
+        if (($definition['singletonScope'] ?? null) === 'package' && $entry['relationshipCount'] > 1) {
+            self::appendUniqueString($issues, $definition['multipleIssue']);
+        }
+
+        if (($definition['singletonScope'] ?? null) === 'source') {
+            foreach ($entry['idsBySource'] as $relationshipIds) {
+                if (count($relationshipIds) > 1) {
+                    self::appendUniqueString($issues, $definition['multipleIssue']);
+                }
+            }
+        }
+
+        sort($issues, SORT_STRING);
+
+        return [
+            'knownRole' => $definition['role'],
+            'sourceScope' => $definition['sourceScope'] ?? 'any-source',
+            'singletonScope' => $definition['singletonScope'] ?? null,
+            'policyValid' => $issues === [],
+            'policyIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array<string, array{role:string, sourceScope?:string, singletonScope?:string, sourceIssue?:string, multipleIssue?:string}>
+     */
+    private static function relationshipTypePolicyDefinitions(): array
+    {
+        return [
+            self::OFFICE_DOCUMENT_RELATIONSHIP_TYPE => [
+                'role' => 'office-document',
+                'sourceScope' => 'package-root',
+                'singletonScope' => 'package',
+                'sourceIssue' => 'office-document-relationship-source-not-package-root',
+                'multipleIssue' => 'multiple-office-document-relationships',
+            ],
+            self::CORE_PROPERTIES_RELATIONSHIP_TYPE => [
+                'role' => 'core-properties',
+                'sourceScope' => 'package-root',
+                'singletonScope' => 'package',
+                'sourceIssue' => 'core-properties-relationship-source-not-package-root',
+                'multipleIssue' => 'multiple-core-properties-relationships',
+            ],
+            self::EXTENDED_PROPERTIES_RELATIONSHIP_TYPE => [
+                'role' => 'extended-properties',
+                'sourceScope' => 'package-root',
+                'singletonScope' => 'package',
+                'sourceIssue' => 'extended-properties-relationship-source-not-package-root',
+                'multipleIssue' => 'multiple-extended-properties-relationships',
+            ],
+            self::CUSTOM_PROPERTIES_RELATIONSHIP_TYPE => [
+                'role' => 'custom-properties',
+                'sourceScope' => 'package-root',
+                'singletonScope' => 'package',
+                'sourceIssue' => 'custom-properties-relationship-source-not-package-root',
+                'multipleIssue' => 'multiple-custom-properties-relationships',
+            ],
+            self::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE => [
+                'role' => 'digital-signature-origin',
+                'sourceScope' => 'package-root',
+                'singletonScope' => 'package',
+                'sourceIssue' => 'digital-signature-origin-source-not-package-root',
+                'multipleIssue' => 'multiple-digital-signature-origins',
+            ],
+            self::THUMBNAIL_RELATIONSHIP_TYPE => [
+                'role' => 'thumbnail',
+                'sourceScope' => 'any-source',
+                'singletonScope' => 'source',
+                'multipleIssue' => 'multiple-thumbnail-relationships-for-source',
             ],
         ];
     }

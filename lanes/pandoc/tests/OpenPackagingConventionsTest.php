@@ -3990,6 +3990,101 @@ XML;
         $t->same(2, $documentInventory[$imageType]['relationshipCount']);
         $t->same([], $graph->relationshipTypeInventory('/word/missing.xml'));
     },
+    'classifies OPC relationship type scope and singleton policy for import review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/second.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocumentA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdDocumentB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/second.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdPackageThumb" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumb.png"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMisplacedDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="comments.xml"/>
+  <Relationship Id="rIdMisplacedCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="../docProps/core.xml"/>
+  <Relationship Id="rIdThumbA" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="media/thumb-a.png"/>
+  <Relationship Id="rIdThumbB" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="media/thumb-b.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/second.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/thumb-a.png', 'data' => 'PNG'],
+            ['name' => 'word/media/thumb-b.png', 'data' => 'PNG'],
+            ['name' => 'docProps/thumb.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+        ]));
+
+        $inventory = [];
+        foreach ($graph->relationshipTypeInventory() as $type) {
+            $inventory[$type['type']] = $type;
+        }
+
+        $officeDocument = $inventory[OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE];
+        $coreProperties = $inventory[OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE];
+        $thumbnail = $inventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE];
+        $signatureOrigin = $inventory[OpcRelationshipGraph::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE];
+
+        $t->same('office-document', $officeDocument['knownRole']);
+        $t->same('package-root', $officeDocument['sourceScope']);
+        $t->same('package', $officeDocument['singletonScope']);
+        $t->same(false, $officeDocument['policyValid']);
+        $t->same(['multiple-office-document-relationships', 'office-document-relationship-source-not-package-root'], $officeDocument['policyIssues']);
+        $t->same(['/', '/word/document.xml'], $officeDocument['sources']);
+        $t->same(['rIdDocumentA', 'rIdDocumentB'], $officeDocument['idsBySource']['/']);
+        $t->same(['rIdMisplacedDocument'], $officeDocument['idsBySource']['/word/document.xml']);
+
+        $t->same('core-properties', $coreProperties['knownRole']);
+        $t->same('package-root', $coreProperties['sourceScope']);
+        $t->same('package', $coreProperties['singletonScope']);
+        $t->same(false, $coreProperties['policyValid']);
+        $t->same(['core-properties-relationship-source-not-package-root', 'multiple-core-properties-relationships'], $coreProperties['policyIssues']);
+
+        $t->same('thumbnail', $thumbnail['knownRole']);
+        $t->same('any-source', $thumbnail['sourceScope']);
+        $t->same('source', $thumbnail['singletonScope']);
+        $t->same(false, $thumbnail['policyValid']);
+        $t->same(['multiple-thumbnail-relationships-for-source'], $thumbnail['policyIssues']);
+        $t->same(3, $thumbnail['relationshipCount']);
+        $t->same(2, $thumbnail['sourceCount']);
+
+        $t->same('digital-signature-origin', $signatureOrigin['knownRole']);
+        $t->same('package-root', $signatureOrigin['sourceScope']);
+        $t->same('package', $signatureOrigin['singletonScope']);
+        $t->same(true, $signatureOrigin['policyValid']);
+        $t->same([], $signatureOrigin['policyIssues']);
+
+        $documentInventory = [];
+        foreach ($graph->relationshipTypeInventory('/word/document.xml') as $type) {
+            $documentInventory[$type['type']] = $type;
+        }
+
+        $t->same(false, $documentInventory[OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyValid']);
+        $t->same(['office-document-relationship-source-not-package-root'], $documentInventory[OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues']);
+        $t->same(false, $documentInventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyValid']);
+        $t->same(['multiple-thumbnail-relationships-for-source'], $documentInventory[OpcRelationshipGraph::THUMBNAIL_RELATIONSHIP_TYPE]['policyIssues']);
+    },
     'summarizes package-wide OPC relationship source inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
