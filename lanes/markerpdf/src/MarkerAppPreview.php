@@ -2005,22 +2005,12 @@ final class MarkerAppPreview
                     $pageIndex = $section['page_index'];
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
-                            // Keep accepted singleton endpoint kids, but block ranges that cross a claimed endpoint.
-                            $sameLowerBound = $claimedLimits['claims_lower']
-                                && $kidNode['local_limits'][0] === $claimedLimits['local_limits'][0];
-                            $claimedRange = $claimedLimits['limits'];
-                            $startsInsideClaim = $claimableLimits[0] > $claimedRange[0]
-                                && $claimableLimits[0] < $claimedRange[1];
-                            $crossesUpperEndpoint = $claimableLimits[0] === $claimedRange[1]
-                                && $claimableLimits[1] > $claimedRange[1];
-                            if (
-                                $sameLowerBound
-                                || (
-                                    ($startsInsideClaim || $crossesUpperEndpoint)
-                                    && $pageIndex >= $claimedRange[0]
-                                    && $pageIndex <= $claimedRange[1]
-                                )
-                            ) {
+                            if ($this->pageLabelKidLimitsSuppressPage(
+                                $claimedLimits,
+                                $claimableLimits,
+                                $kidNode['local_limits'],
+                                $pageIndex
+                            )) {
                                 continue 2;
                             }
                         }
@@ -2054,6 +2044,35 @@ final class MarkerAppPreview
         }
 
         return $sections;
+    }
+
+    /**
+     * @param array{limits: array{0: int, 1: int}, local_limits: array{0: int, 1: int}, claims_lower: bool} $claimedLimits
+     * @param array{0: int, 1: int} $claimableLimits
+     * @param array{0: int, 1: int} $localLimits
+     */
+    private function pageLabelKidLimitsSuppressPage(
+        array $claimedLimits,
+        array $claimableLimits,
+        array $localLimits,
+        int $pageIndex
+    ): bool {
+        // Keep accepted singleton endpoint kids, but block stale entries inside already claimed child ranges.
+        $sameLowerBound = $claimedLimits['claims_lower']
+            && $localLimits[0] === $claimedLimits['local_limits'][0];
+        if ($sameLowerBound) {
+            return true;
+        }
+
+        $claimedRange = $claimedLimits['limits'];
+        $startsInsideClaim = $claimableLimits[0] > $claimedRange[0]
+            && $claimableLimits[0] < $claimedRange[1];
+        $crossesUpperEndpoint = $claimableLimits[0] === $claimedRange[1]
+            && $claimableLimits[1] > $claimedRange[1];
+
+        return ($startsInsideClaim || $crossesUpperEndpoint)
+            && $pageIndex >= $claimedRange[0]
+            && $pageIndex <= $claimedRange[1];
     }
 
     /**
