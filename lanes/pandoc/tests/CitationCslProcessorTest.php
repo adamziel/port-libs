@@ -4543,6 +4543,70 @@ XML);
         $t->contains('<p>Redactor source Smith (2026) preserves redactor role aliases.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Redacted Source Dossier. Review Press, 2026. Name annotations: Redactor 1: redacted source notes. Redacted by Roe, Pat; Migration Desk.</dd>', $blocks);
     },
+    'renders bounded csl redactor text variable from creator names' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'redactor-text-source',
+                'type' => 'manuscript',
+                'title' => 'Redacted Source Dossier',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'redactor' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                    ['literal' => 'Migration Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text value="redactor-text"/>
+        <text variable="redactor"/>
+        <names variable="redactor"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="redactor"/>
+      <names variable="redactor"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('redactor', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('text', $summary['citationRendering'][0]['children'][1]['type'] ?? null);
+        $t->same('names', $summary['citationRendering'][0]['children'][2]['type'] ?? null);
+        $t->same(
+            '[redactor-text | Roe and Migration Desk | Roe and Migration Desk]',
+            $processor->renderCitationCluster([
+                $citation('redactor-text-source', '[@redactor-text-source]'),
+            ])
+        );
+        $t->same(
+            'Redacted Source Dossier :: Roe, Pat; Migration Desk :: Roe, Pat; Migration Desk',
+            $processor->renderBibliographyEntry('redactor-text-source')
+        );
+
+        $document = (new MarkdownReader())->read('Redactor source [@redactor-text-source] keeps text variables visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+
+        $t->contains(
+            '<p>Redactor source [redactor-text | Roe and Migration Desk | Roe and Migration Desk] keeps text variables visible.</p>',
+            $blocks
+        );
+        $t->contains(
+            '<dt>Smith 2026</dt><dd>Redacted Source Dossier :: Roe, Pat; Migration Desk :: Roe, Pat; Migration Desk</dd>',
+            $blocks
+        );
+    },
     'maps bounded biblatex extended editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{extended-editor-roles,

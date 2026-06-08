@@ -7058,6 +7058,7 @@ final class CitationCslProcessor
             'illustrator' => $this->renderNamesElement(['variable' => 'illustrator'], $item, $scope),
             'interviewer' => $this->renderNamesElement(['variable' => 'interviewer'], $item, $scope),
             'reviewed-author' => $this->renderNamesElement(['variable' => 'reviewed-author'], $item, $scope),
+            'redactor' => $this->renderNamesElement(['variable' => 'redactor'], $item, $scope),
             'founder' => $this->renderNamesElement(['variable' => 'founder'], $item, $scope),
             'continuator' => $this->renderNamesElement(['variable' => 'continuator'], $item, $scope),
             'reviser' => $this->renderNamesElement(['variable' => 'reviser'], $item, $scope),
