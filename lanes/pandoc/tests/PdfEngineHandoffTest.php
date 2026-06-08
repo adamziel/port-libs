@@ -5668,6 +5668,99 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAcroFormMetadata']);
     },
 
+    'fake runner resolves bounded pdf acroform calculation order fields from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-calculation-order.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 6 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (review.subtotal) /TM (subtotal) /V (42) /Ff 1 >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (review.total) /TU (Review total) /TM (review_total) /V (50) /Ff 4097 >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (review.approved) /V /Off >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /CO [5 0 R 99 0 R 4 0 R] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/acroform-calculation-order.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/acroform-calculation-order.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'order' => 1,
+                'fieldObject' => '5 0 R',
+                'fieldName' => 'review.total',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'alternateName' => 'Review total',
+                'mappingName' => 'review_total',
+                'flags' => 4097,
+                'flagNames' => ['readOnly', 'multiline'],
+                'missing' => false,
+            ],
+            [
+                'order' => 2,
+                'fieldObject' => '99 0 R',
+                'fieldName' => null,
+                'fieldType' => null,
+                'fieldTypeLabel' => null,
+                'alternateName' => null,
+                'mappingName' => null,
+                'flags' => null,
+                'flagNames' => [],
+                'missing' => true,
+            ],
+            [
+                'order' => 3,
+                'fieldObject' => '4 0 R',
+                'fieldName' => 'review.subtotal',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'alternateName' => null,
+                'mappingName' => 'subtotal',
+                'flags' => 1,
+                'flagNames' => ['readOnly'],
+                'missing' => false,
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAcroFormCalculationOrder']);
+        $t->contains('pdf-byte-acroform-calculation-order:3', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-order-fields:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-order-missing:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfAcroFormCalculationOrder']);
+    },
+
     'fake runner extracts bounded pdf digital signature metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed.pdf']);
