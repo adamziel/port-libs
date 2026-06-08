@@ -403,6 +403,7 @@ final class DocTemplate
             'default.html5' => $this->defaultHtml5Template(),
             'default.chunkedhtml' => $this->defaultChunkedHtmlTemplate(),
             'default.plain' => $this->defaultPlainTemplate(),
+            'default.ansi' => $this->defaultAnsiTemplate(),
             'default.markdown', 'default.commonmark' => $this->defaultMarkdownTemplate(),
             'default.rst' => $this->defaultRstTemplate(),
             'default.rtf' => $this->defaultRtfTemplate(),
@@ -424,6 +425,7 @@ final class DocTemplate
             'default.texinfo' => $this->defaultTexinfoTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
+            'default.biblatex', 'default.bibtex' => $this->defaultBibliographyTemplate(),
             'default.revealjs' => $this->defaultRevealJsTemplate(),
             'default.s5' => $this->defaultS5Template(),
             'default.slidy' => $this->defaultSlidyTemplate(),
@@ -460,6 +462,7 @@ final class DocTemplate
             'default.html5',
             'default.chunkedhtml',
             'default.plain',
+            'default.ansi',
             'default.markdown',
             'default.commonmark',
             'default.rst',
@@ -483,6 +486,8 @@ final class DocTemplate
             'default.texinfo',
             'default.latex',
             'default.beamer',
+            'default.biblatex',
+            'default.bibtex',
             'default.revealjs',
             'default.s5',
             'default.slidy',
@@ -2950,6 +2955,50 @@ HTML;
         return <<<'PLAIN'
 $body$
 PLAIN;
+    }
+
+    private function defaultAnsiTemplate(): string
+    {
+        return <<<'ANSI'
+$if(titleblock)$
+$titleblock$
+$endif$
+$for(header-includes)$
+$header-includes$
+$endfor$
+$for(include-before)$
+$include-before$
+$endfor$
+$if(toc)$
+$table-of-contents$
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+ANSI;
+    }
+
+    private function defaultBibliographyTemplate(): string
+    {
+        return <<<'BIBLIOGRAPHY'
+$if(titleblock)$
+$titleblock$
+$endif$
+$for(header-includes)$
+$header-includes$
+$endfor$
+$for(include-before)$
+$include-before$
+$endfor$
+$if(toc)$
+$table-of-contents$
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+BIBLIOGRAPHY;
     }
 
     private function defaultMuseTemplate(): string

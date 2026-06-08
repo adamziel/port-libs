@@ -301,18 +301,18 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
         $html = $fragment->serialize();
 
-        $expected = '<p><a href="https://example.test/review">Absolute source</a><a href="https://source.example.test/import/media/source.html#note">Relative source</a><img src="https://source.example.test/import/posts/cover.png" srcset="https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover"></p><blockquote cite="https://source.example.test/import/posts/post.html?review=1">Quoted source</blockquote><a>Bad source</a>';
+        $expected = '<p><a href="https://example.test/review">Absolute source</a><a href="https://source.example.test/import/media/source.html#note">Relative source</a><img src="https://source.example.test/import/posts/cover.png" srcset="https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover"></p><blockquote data-pandoc-quote-cite="https://source.example.test/import/posts/post.html?review=1">Quoted source</blockquote><a>Bad source</a>';
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
         $t->same(['base'], $summary['blockedTags']);
-        $t->same(['href'], $summary['filteredAttributes']);
-        $t->same(6, $summary['diagnostics']);
-        $t->same(['blocked-tag', 'normalized-url', 'normalized-url', 'normalized-url', 'normalized-url', 'unsafe-url'], $fragment->diagnosticCodes());
+        $t->same(['cite', 'href'], $summary['filteredAttributes']);
+        $t->same(7, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'normalized-url', 'normalized-url', 'normalized-url', 'normalized-url', 'quote-cite-review', 'unsafe-url'], $fragment->diagnosticCodes());
         $t->same('https://example.test/review', $nodes[0]['children'][0]['attrs']['href']);
         $t->same('https://source.example.test/import/media/source.html#note', $nodes[0]['children'][1]['attrs']['href']);
         $t->same('https://source.example.test/import/posts/cover.png', $nodes[0]['children'][2]['attrs']['src']);
-        $t->same('https://source.example.test/import/posts/post.html?review=1', $nodes[1]['attrs']['cite']);
+        $t->same('https://source.example.test/import/posts/post.html?review=1', $nodes[1]['attrs']['data-pandoc-quote-cite']);
         $t->same('/migration/url-normalization-review.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($html, "h\t"), 'Expected control-separated safe schemes to be canonicalized');
         $t->true(!str_contains($html, "\n"), 'Expected newline-containing URL attributes to be canonicalized');
@@ -1676,6 +1676,55 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe revision cite URL to stay diagnostic-only');
         $t->true(!str_contains($blocks, ' datetime='), 'Expected WordPress blocks to omit source revision datetime attributes');
     },
+    'converts quote citation sources into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<blockquote cite=" ./quotes/source.html#quote " data-pandoc-quote-cite="source-spoof"><p>Quoted <q cite=" h&#9;ttps://review.example.test/inline.html ">inline</q><q cite="java&#10;script:alert(1)">bad cite</q></p></blockquote>'
+            . '<blockquote cite="mailto:editor@example.test">Mail quote source</blockquote>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/quote-cite-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<blockquote data-pandoc-quote-cite="https://source.example.test/import/posts/quotes/source.html#quote"><p>Quoted <q data-pandoc-quote-cite="https://review.example.test/inline.html">inline</q><q>bad cite</q></p></blockquote><blockquote>Mail quote source</blockquote>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Quoted inlinebad citeMail quote source', $fragment->textContent());
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['cite', 'data-pandoc-quote-cite'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'normalized-url',
+            'quote-cite-review',
+            'unsafe-attribute',
+            'normalized-url',
+            'quote-cite-review',
+            'unsafe-url',
+            'unsafe-url',
+        ], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-quote-cite' => 'https://source.example.test/import/posts/quotes/source.html#quote',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-quote-cite' => 'https://review.example.test/inline.html',
+        ], $nodes[0]['children'][0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][0]['children'][2]['attrs']);
+        $t->same([], $nodes[1]['attrs']);
+        $t->same('/migration/quote-cite-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, ' cite='), 'Expected source quote cite attributes to be replaced by inert metadata');
+        $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned quote metadata to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe quote cite URL to stay diagnostic-only');
+        $t->true(!str_contains($html, 'mailto:editor@example.test'), 'Expected non-fetch quote cite URL to stay diagnostic-only');
+        $t->true(!str_contains($blocks, ' cite='), 'Expected WordPress blocks to omit source quote cite attributes');
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();
@@ -2229,22 +2278,22 @@ return [
         $t->same('https://example.test/import/posts/source.html?draft=1', $fragment->baseUrl());
         $t->same('https://example.test/import/posts/source.html?draft=1', $summary['baseUrl']);
         $t->same(['base'], $summary['blockedTags']);
-        $t->same(['srcset'], $summary['filteredAttributes']);
+        $t->same(['cite', 'srcset'], $summary['filteredAttributes']);
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
         ));
-        $t->same(['blocked-tag', 'unsafe-url'], $policyDiagnostics);
+        $t->same(['blocked-tag', 'unsafe-url', 'quote-cite-review'], $policyDiagnostics);
         $t->contains('<a href="https://example.test/import/media/doc.html#section">doc</a>', $html);
         $t->contains('<img src="https://example.test/import/posts/cover.png" srcset="https://example.test/import/posts/cover.png 1x, https://example.test/import/media/cover@2x.png 2x" alt="Cover">', $html);
         $t->contains('<a href="https://example.test/import/posts/source.html?draft=1#note">note</a>', $html);
-        $t->contains('<blockquote cite="https://example.test/import/posts/source.html?review=1">quoted</blockquote>', $html);
+        $t->contains('<blockquote data-pandoc-quote-cite="https://example.test/import/posts/source.html?review=1">quoted</blockquote>', $html);
         $t->contains('<a href="mailto:review@example.test">mail</a>', $html);
         $t->same('https://example.test/import/media/doc.html#section', $nodes[0]['children'][0]['attrs']['href']);
         $t->same('https://example.test/import/posts/cover.png', $nodes[0]['children'][1]['attrs']['src']);
         $t->same('https://example.test/import/posts/cover.png 1x, https://example.test/import/media/cover@2x.png 2x', $nodes[0]['children'][1]['attrs']['srcset']);
         $t->same('https://example.test/import/posts/source.html?draft=1#note', $nodes[0]['children'][2]['attrs']['href']);
-        $t->same('https://example.test/import/posts/source.html?review=1', $nodes[0]['children'][3]['attrs']['cite']);
+        $t->same('https://example.test/import/posts/source.html?review=1', $nodes[0]['children'][3]['attrs']['data-pandoc-quote-cite']);
         $t->same('mailto:review@example.test', $nodes[0]['children'][4]['attrs']['href']);
         $t->same('/migration/base-url-review.html', $ast->attr('part'));
         $t->same('https://example.test/import/posts/source.html?draft=1', $ast->attr('baseUrl'));

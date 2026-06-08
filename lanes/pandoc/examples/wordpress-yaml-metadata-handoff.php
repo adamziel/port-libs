@@ -345,6 +345,11 @@ writer-hashtag-labels:
   - "#migration"
   - "#wp-import"
   - safe#fragment
+writer-colon-label: ":needs-review"
+writer-colon-labels:
+  - ":migration"
+  - ":wp-import"
+  - safe:fragment
 plain-key-review:
   source owner: Import Desk
   owner role: content steward
@@ -1472,6 +1477,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['writer-hashtag-labels'] ?? []) !== ['#migration', '#wp-import', 'safe#fragment']) {
         throw new RuntimeException('YAML metadata self-test missing writer hashtag label list source metadata');
     }
+    if (($meta['writer-colon-label'] ?? '') !== ':needs-review') {
+        throw new RuntimeException('YAML metadata self-test missing writer colon label source metadata');
+    }
+    if (($meta['writer-colon-labels'] ?? []) !== [':migration', ':wp-import', 'safe:fragment']) {
+        throw new RuntimeException('YAML metadata self-test missing writer colon label list source metadata');
+    }
     if (($meta['plain-key-review']['source owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing nested plain spaced key metadata');
     }
@@ -1686,6 +1697,14 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('YAML metadata self-test did not quote comment-looking writer scalars');
     }
+    if (
+        !str_contains($metadataMarkdown, "writer-colon-label: \":needs-review\"")
+        || !str_contains($metadataMarkdown, "  - \":migration\"")
+        || !str_contains($metadataMarkdown, "  - \":wp-import\"")
+        || !str_contains($metadataMarkdown, "  - safe:fragment")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not quote colon-indicator writer scalars');
+    }
     if (str_contains($metadataMarkdown, 'Source abstract keeps **review** emphasis\\n\\n') || str_contains($metadataMarkdown, 'Review steps:\\n')) {
         throw new RuntimeException('YAML metadata self-test leaked escaped newline metadata after writer block-scalar handoff');
     }
@@ -1703,6 +1722,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($metadataRoundTripMeta['writer-hashtag-labels'] ?? []) !== ['#migration', '#wp-import', 'safe#fragment']) {
         throw new RuntimeException('YAML metadata self-test lost comment-looking writer sequence scalars during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-colon-label'] ?? '') !== ':needs-review') {
+        throw new RuntimeException('YAML metadata self-test lost colon-indicator writer scalar during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-colon-labels'] ?? []) !== [':migration', ':wp-import', 'safe:fragment']) {
+        throw new RuntimeException('YAML metadata self-test lost colon-indicator writer sequence scalars during round trip');
     }
     if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
@@ -1864,6 +1889,7 @@ echo 'Sequence item explicit null key: '
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Writer hashtag labels: ' . ($metadataRoundTripMeta['writer-hashtag-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-hashtag-labels'] ?? []) . "\n";
+echo 'Writer colon labels: ' . ($metadataRoundTripMeta['writer-colon-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-colon-labels'] ?? []) . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYamlDiagnostics, 'field')) . "\n";

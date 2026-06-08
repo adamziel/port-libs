@@ -704,6 +704,45 @@ HTML,
         exit(1);
     }
 
+    $ansiFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'titleblock' => "ANSI Review Packet\n==================",
+        'header-includes' => ['ANSI header metadata'],
+        'include-before' => ['Before ANSI import'],
+        'toc' => true,
+        'table-of-contents' => 'ANSI contents',
+        'body' => 'ANSI review body',
+        'include-after' => ['After ANSI import'],
+    ], null, 'ansi+smart');
+    foreach ([
+        'ANSI Review Packet',
+        'ANSI header metadata',
+        'Before ANSI import',
+        'ANSI contents',
+        'ANSI review body',
+        'After ANSI import',
+    ] as $needle) {
+        if (!str_contains($ansiFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate ANSI default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $bibtexFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'body' => '@book{review2026, title = {Review Packet}}',
+    ], null, 'bibtex');
+    if (!str_contains($bibtexFallback, '@book{review2026, title = {Review Packet}}')) {
+        fwrite(STDERR, "Missing expected doctemplate BibTeX default fallback\n");
+        exit(1);
+    }
+
+    $biblatexFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'body' => '@online{migration2026, title = {Migration Review}}',
+    ], null, 'biblatex+smart');
+    if (!str_contains($biblatexFallback, '@online{migration2026, title = {Migration Review}}')) {
+        fwrite(STDERR, "Missing expected doctemplate BibLaTeX default fallback\n");
+        exit(1);
+    }
+
     $rtfFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'header-includes' => ['{\\*\\generator PortLibs Review;}'],
         'title' => 'RTF Review Packet',

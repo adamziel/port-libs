@@ -117,6 +117,10 @@ final class OpcRelationships
             throw new \InvalidArgumentException('OPC relationship part names must identify a source part');
         }
 
+        if (str_contains($base, '/')) {
+            throw new \InvalidArgumentException('OPC relationship part names must store a single .rels file inside a _rels directory');
+        }
+
         return OpcPackagePath::canonicalPartNameFromUri(($dir === '' ? '/' : $dir . '/') . $base);
     }
 

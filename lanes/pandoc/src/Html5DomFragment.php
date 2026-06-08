@@ -244,7 +244,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'value-metadata-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'value-metadata-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -3279,6 +3279,14 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlQuoteCitationAttribute($tagName, $name)) {
+                $cite = self::normalizeHtmlQuoteCitationAttribute($value, $tagName, $diagnostics, $baseUrl);
+                if ($cite !== null) {
+                    $attrs['data-pandoc-quote-cite'] = $cite;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlLanguageDirectionAttribute($name)) {
                 $languageDirectionMetadata = self::normalizeHtmlLanguageDirectionAttribute(
                     $name,
@@ -3778,6 +3786,54 @@ final class Html5DomFragment
     {
         return in_array(strtolower($tagName), ['del', 'ins'], true)
             && in_array(strtolower($name), ['cite', 'datetime'], true);
+    }
+
+    private static function isHtmlQuoteCitationAttribute(string $tagName, string $name): bool
+    {
+        return in_array(strtolower($tagName), ['blockquote', 'q'], true)
+            && strtolower($name) === 'cite';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlQuoteCitationAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        $normalized = self::normalizeUrlAttributeValue($value);
+        if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => 'cite',
+            ];
+
+            return null;
+        }
+
+        if ($normalized !== $value) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => $tagName,
+                'attribute' => 'cite',
+            ];
+        }
+
+        if ($baseUrl !== null) {
+            $normalized = self::resolveRelativeUrl($baseUrl, $normalized);
+        }
+
+        $diagnostics[] = [
+            'code' => 'quote-cite-review',
+            'tag' => $tagName,
+            'attribute' => 'cite',
+            'reason' => 'quote-cite-preserved-as-metadata',
+        ];
+
+        return $normalized;
     }
 
     /**

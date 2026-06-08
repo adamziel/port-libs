@@ -6748,6 +6748,12 @@ XML;
 </Relationships>
 XML;
 
+        $nestedPayloadSegmentRelationshipXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHiddenPayload" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../hidden.png"/>
+</Relationships>
+XML;
+
         $commentsRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
@@ -6963,6 +6969,8 @@ XML;
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
             ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/document.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/media/document.xml.rels', 'data' => $nestedPayloadSegmentRelationshipXml],
             ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
             ['name' => 'word/targetmode.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
@@ -6984,6 +6992,7 @@ XML;
         $t->same([
             '/_rels/.rels',
             '/word/_rels/document.xml.rels',
+            '/word/_rels/media/document.xml.rels',
             '/word/_rels/comments.xml.rels',
             '/word/_rels/targetmode.xml.rels',
             '/word/_rels/malformed.xml.rels',
@@ -7005,6 +7014,17 @@ XML;
         $t->same('loaded', $loads['/word/_rels/document.xml.rels']['loadAction']);
         $t->same('loaded', $loads['/word/_rels/document.xml.rels']['loadReason']);
         $t->same(1, $loads['/word/_rels/document.xml.rels']['relationshipCount']);
+
+        $t->same(null, $loads['/word/_rels/media/document.xml.rels']['relationshipSource']);
+        $t->same(null, $loads['/word/_rels/media/document.xml.rels']['sourceExists']);
+        $t->same(false, $loads['/word/_rels/media/document.xml.rels']['loaded']);
+        $t->same('skipped', $loads['/word/_rels/media/document.xml.rels']['loadAction']);
+        $t->same('invalid-relationship-part-name', $loads['/word/_rels/media/document.xml.rels']['loadReason']);
+        $t->same(null, $loads['/word/_rels/media/document.xml.rels']['relationshipCount']);
+        $t->same(false, $loads['/word/_rels/media/document.xml.rels']['valid']);
+        $t->same(['invalid-relationship-part-name'], $loads['/word/_rels/media/document.xml.rels']['issues']);
+        $t->contains('single .rels file inside a _rels directory', $loads['/word/_rels/media/document.xml.rels']['parseError'] ?? '');
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::sourcePartNameForRelationshipPart('/word/_rels/media/document.xml.rels'));
 
         $t->same('/word/comments.xml', $loads['/word/_rels/comments.xml.rels']['relationshipSource']);
         $t->same('application/xml', $loads['/word/_rels/comments.xml.rels']['contentType']);

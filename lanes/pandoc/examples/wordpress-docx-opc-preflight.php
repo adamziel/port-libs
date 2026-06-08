@@ -445,6 +445,25 @@ $relationshipTargetModePackage = ZipPackage::fromParts([
     ['name' => 'word/_rels/targetmode.xml.rels', 'data' => $targetModeDiagnosticRelationshipsXml],
 ]);
 
+$nestedRelationshipPayloadSegmentRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPayloadSegmentAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/media/document.xml"/>
+</Relationships>
+XML;
+
+$nestedRelationshipPayloadSegmentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHiddenPayload" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../hidden.png"/>
+</Relationships>
+XML;
+
+$nestedRelationshipPayloadSegmentPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $targetModeDiagnosticContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $nestedRelationshipPayloadSegmentRootRelationshipsXml],
+    ['name' => 'word/media/document.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/media/document.xml.rels', 'data' => $nestedRelationshipPayloadSegmentRelationshipsXml],
+]);
+
 $packageRootExternalTargetContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1044,6 +1063,26 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
     }
 
     $relationshipTargetModeGuards[$part['partName']] = [
+        'partName' => $part['partName'],
+        'relationshipSource' => $part['relationshipSource'],
+        'sourceExists' => $part['sourceExists'],
+        'loaded' => $part['loaded'],
+        'loadAction' => $part['loadAction'],
+        'loadReason' => $part['loadReason'],
+        'relationshipCount' => $part['relationshipCount'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+        'parseError' => $part['parseError'],
+    ];
+}
+
+$nestedRelationshipPayloadSegmentGuard = null;
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($nestedRelationshipPayloadSegmentPackage) as $part) {
+    if ($part['partName'] !== '/word/_rels/media/document.xml.rels') {
+        continue;
+    }
+
+    $nestedRelationshipPayloadSegmentGuard = [
         'partName' => $part['partName'],
         'relationshipSource' => $part['relationshipSource'],
         'sourceExists' => $part['sourceExists'],
@@ -2000,6 +2039,7 @@ $summary = [
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
+    'nestedRelationshipPayloadSegmentGuard' => $nestedRelationshipPayloadSegmentGuard,
     'packageRootExternalTargetGuards' => $packageRootExternalTargetGuards,
     'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
@@ -2578,6 +2618,18 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'invalid-relationship-target-mode']
         || !str_contains((string) ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['parseError'] ?? ''), 'Unsupported OPC relationship TargetMode: external')
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['partName'] ?? null) !== '/word/_rels/media/document.xml.rels'
+        || !array_key_exists('relationshipSource', $summary['nestedRelationshipPayloadSegmentGuard'] ?? [])
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['relationshipSource'] ?? null) !== null
+        || !array_key_exists('sourceExists', $summary['nestedRelationshipPayloadSegmentGuard'] ?? [])
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['sourceExists'] ?? null) !== null
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['loaded'] ?? null) !== false
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['loadAction'] ?? null) !== 'skipped'
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['loadReason'] ?? null) !== 'invalid-relationship-part-name'
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['relationshipCount'] ?? null) !== null
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['valid'] ?? null) !== false
+        || ($summary['nestedRelationshipPayloadSegmentGuard']['issues'] ?? null) !== ['invalid-relationship-part-name']
+        || !str_contains((string) ($summary['nestedRelationshipPayloadSegmentGuard']['parseError'] ?? ''), 'single .rels file inside a _rels directory')
         || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['kind'] ?? null) !== 'relative-reference'
         || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['allowed'] ?? null) !== true
         || ($summary['packageRootExternalTargetGuards']['rIdPackageRelative']['requiresBaseUri'] ?? null) !== true

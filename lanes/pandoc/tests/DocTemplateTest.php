@@ -1777,6 +1777,71 @@ HTML;
         ], null, 'plain'));
     },
 
+    'renders bounded pandoc default ansi and bibliography template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $ansi = $renderer->renderResource('templates/default', [], [
+            'titleblock' => "ANSI Review Packet\n==================",
+            'header-includes' => ['ANSI header metadata'],
+            'include-before' => ['Before ANSI import'],
+            'toc' => true,
+            'table-of-contents' => 'ANSI contents',
+            'body' => 'ANSI body handoff',
+            'include-after' => ['After ANSI import'],
+        ], null, 'ansi+smart');
+
+        foreach ([
+            "ANSI Review Packet\n==================",
+            'ANSI header metadata',
+            'Before ANSI import',
+            'ANSI contents',
+            'ANSI body handoff',
+            'After ANSI import',
+        ] as $needle) {
+            $t->contains($needle, $ansi);
+        }
+
+        $t->contains('Direct ANSI body', $renderer->renderResource('templates/default.ansi', [], [
+            'body' => "Direct ANSI body\n\n",
+        ]));
+
+        $t->same('custom ansi', $renderer->renderResource('templates/default', [
+            'templates/default.ansi' => 'custom $body$',
+        ], [
+            'body' => 'ansi',
+        ], null, 'ansi'));
+
+        $bibtex = $renderer->renderResource('templates/default', [], [
+            'header-includes' => ['% BibTeX header audit'],
+            'include-before' => ['@comment{before-import}'],
+            'toc' => true,
+            'table-of-contents' => '@comment{contents}',
+            'body' => '@book{review2026, title = {Review Packet}}',
+            'include-after' => ['@comment{after-import}'],
+        ], null, 'bibtex');
+
+        foreach ([
+            '% BibTeX header audit',
+            '@comment{before-import}',
+            '@comment{contents}',
+            '@book{review2026, title = {Review Packet}}',
+            '@comment{after-import}',
+        ] as $needle) {
+            $t->contains($needle, $bibtex);
+        }
+
+        $biblatex = $renderer->renderResource('templates/default.biblatex', [], [
+            'body' => '@online{migration2026, title = {Migration Review}}',
+        ]);
+        $t->contains('@online{migration2026, title = {Migration Review}}', $biblatex);
+
+        $t->same('custom biblatex', $renderer->renderResource('templates/default', [
+            'templates/default.biblatex' => 'custom $body$',
+        ], [
+            'body' => 'biblatex',
+        ], null, 'biblatex+smart'));
+    },
+
     'renders bounded pandoc default muse template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
