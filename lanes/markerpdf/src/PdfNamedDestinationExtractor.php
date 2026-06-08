@@ -2486,6 +2486,10 @@ final class PdfNamedDestinationExtractor
         }
 
         if (array_key_exists('S', $destination)) {
+            if ($this->valueHasTrailingOperandAfterResolution($destination['S'], $objects, $cache)) {
+                return null;
+            }
+
             $actionType = $this->nameValue($this->resolve($destination['S'], $objects, $cache));
             if ($actionType !== 'GoTo') {
                 return null;

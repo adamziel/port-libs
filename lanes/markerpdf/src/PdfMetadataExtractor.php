@@ -5868,8 +5868,13 @@ final class PdfMetadataExtractor
 
             $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
             if (isset($entries['D'])) {
-                if (isset($entries['S']) && $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo') {
-                    return false;
+                if (isset($entries['S'])) {
+                    if (
+                        $this->destinationValueHasTrailingOperandAfterResolution($entries['S'], $objects)
+                        || $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo'
+                    ) {
+                        return false;
+                    }
                 }
 
                 return $this->documentDestinationValueAllowedForMap($entries['D'], $objects, $pageIndexes, $seenObjects, $depth + 1);
@@ -8774,8 +8779,13 @@ final class PdfMetadataExtractor
 
             $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
             if (isset($entries['D'])) {
-                if (isset($entries['S']) && $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo') {
-                    return null;
+                if (isset($entries['S'])) {
+                    if (
+                        $this->destinationValueHasTrailingOperandAfterResolution($entries['S'], $objects)
+                        || $this->destinationActionNameFromRaw($entries['S'], $objects) !== 'GoTo'
+                    ) {
+                        return null;
+                    }
                 }
 
                 return $this->documentDestinationDetails(

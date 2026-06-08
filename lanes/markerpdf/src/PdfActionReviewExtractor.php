@@ -1145,7 +1145,12 @@ final class PdfActionReviewExtractor
                 return null;
             }
 
-            return $this->destinationViewDetails($dict['D'], $destinationName, $seenNames);
+            $localDestination = $this->localDestinationDictionaryValue($dict);
+            if ($localDestination === null) {
+                return null;
+            }
+
+            return $this->destinationViewDetails($localDestination['value'], $destinationName, $seenNames);
         }
 
         $array = $this->arrayItems($resolved);
@@ -1274,7 +1279,9 @@ final class PdfActionReviewExtractor
                 return false;
             }
 
-            return $this->destinationValueAllowedForMap($dict['D'], $depth + 1);
+            $localDestination = $this->localDestinationDictionaryValue($dict);
+            return $localDestination !== null
+                && $this->destinationValueAllowedForMap($localDestination['value'], $depth + 1);
         }
 
         $array = $this->arrayItems($resolved);
@@ -1298,6 +1305,30 @@ final class PdfActionReviewExtractor
         $dictionary = $this->dictionaryItems($this->resolveValue($value));
 
         return $dictionary !== null && $this->nameTreeNodeHasStreamCarrierType($dictionary);
+    }
+
+    /**
+     * @param array<string, mixed> $dict
+     * @return array{value: mixed}|null
+     */
+    private function localDestinationDictionaryValue(array $dict): ?array
+    {
+        if (!array_key_exists('D', $dict)) {
+            return null;
+        }
+
+        if (array_key_exists('S', $dict)) {
+            if ($this->valueHasTrailingOperandAfterResolution($dict['S'])) {
+                return null;
+            }
+
+            $type = $this->nameValue($this->resolveValue($dict['S']));
+            if ($type !== 'GoTo') {
+                return null;
+            }
+        }
+
+        return ['value' => $dict['D']];
     }
 
     /**

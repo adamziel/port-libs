@@ -16435,11 +16435,13 @@ final class PdfTextExtractor
                 $kidLimits = $kidNode['limits'];
                 $claimableLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
                 $kidContributed = false;
+                $contributedPageIndexes = [];
                 foreach ($kidNode['entries'] as $pageIndex => $section) {
                     if ($claimableLimits !== null) {
                         foreach ($claimedKidLimits as $claimedLimits) {
                             // Keep accepted singleton endpoint kids, but block ranges that cross a claimed endpoint.
-                            $sameLowerBound = $kidNode['local_limits'][0] === $claimedLimits['local_limits'][0];
+                            $sameLowerBound = $claimedLimits['claims_lower']
+                                && $kidNode['local_limits'][0] === $claimedLimits['local_limits'][0];
                             $claimedRange = $claimedLimits['limits'];
                             $startsInsideClaim = $claimableLimits[0] > $claimedRange[0]
                                 && $claimableLimits[0] < $claimedRange[1];
@@ -16462,14 +16464,17 @@ final class PdfTextExtractor
                     if (!array_key_exists($pageIndex, $entries)) {
                         $entries[$pageIndex] = $section;
                         $kidContributed = true;
+                        $contributedPageIndexes[] = $pageIndex;
                         $groupContributed = true;
                     }
                 }
 
                 if ($claimableLimits !== null && $kidContributed) {
+                    $claimLower = max($claimableLimits[0], min($contributedPageIndexes));
                     $claimedKidLimits[] = [
-                        'limits' => $claimableLimits,
+                        'limits' => [$claimLower, $claimableLimits[1]],
                         'local_limits' => $kidNode['local_limits'],
+                        'claims_lower' => $claimLower === $claimableLimits[0],
                     ];
                 }
             }

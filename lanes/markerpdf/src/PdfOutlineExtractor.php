@@ -6785,7 +6785,7 @@ final class PdfOutlineExtractor
                 return null;
             }
 
-            $localDestination = $this->localDestinationDictionaryValue($dict);
+            $localDestination = $this->localDestinationDictionaryValue($dict, $objects);
             if ($localDestination !== null) {
                 return $this->destinationViewDetails($localDestination['value'], $objects, $pageIndexes, $destinations, $destinationName, $seenNames);
             }
@@ -7004,7 +7004,7 @@ final class PdfOutlineExtractor
                 return null;
             }
 
-            $localDestination = $this->localDestinationDictionaryValue($dict);
+            $localDestination = $this->localDestinationDictionaryValue($dict, $objects);
             if ($localDestination !== null) {
                 return $this->destinationPageIndex($localDestination['value'], $objects, $pageIndexes, $destinations, $seenNames);
             }
@@ -7119,15 +7119,24 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $dict
      * @return array{value: mixed}|null
      */
-    private function localDestinationDictionaryValue(array $dict): ?array
+    private function localDestinationDictionaryValue(array $dict, array $objects): ?array
     {
         if (!array_key_exists('D', $dict)) {
             return null;
         }
 
-        $type = $this->nameValue($dict['S'] ?? null);
-        if ($type !== null && $type !== 'GoTo') {
-            return null;
+        if (array_key_exists('S', $dict)) {
+            if (
+                $this->isReferenceValue($dict['S'])
+                && !$this->referenceTargetsSingleTopLevelValue($dict['S'], $objects)
+            ) {
+                return null;
+            }
+
+            $type = $this->nameValue($this->resolveValue($dict['S'], $objects));
+            if ($type !== 'GoTo') {
+                return null;
+            }
         }
 
         return ['value' => $dict['D']];

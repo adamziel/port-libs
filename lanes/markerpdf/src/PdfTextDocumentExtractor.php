@@ -488,7 +488,13 @@ final class PdfTextDocumentExtractor
         }
 
         $number = ltrim($match[2], '0');
-        $integer = (int) ($number === '' ? '0' : $number);
+        $number = $number === '' ? '0' : $number;
+        $maxInteger = (string) PHP_INT_MAX;
+        if (strlen($number) > strlen($maxInteger) || (strlen($number) === strlen($maxInteger) && strcmp($number, $maxInteger) > 0)) {
+            throw new InvalidArgumentException('Supplied pdftext page map keys must fit in a PHP integer.');
+        }
+
+        $integer = (int) $number;
 
         return $match[1] === '-' ? -$integer : $integer;
     }
