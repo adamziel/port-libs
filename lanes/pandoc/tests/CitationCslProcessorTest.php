@@ -4753,6 +4753,93 @@ XML);
             ],
         ]]));
     },
+    'maps bounded biblatex field annotations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{field-annotation-review,
+  author     = {Smith, Ada},
+  title      = {Annotated Field Packet},
+  title+an   = {=title verified; source=OCR headline normalized},
+  url        = {https://example.test/source},
+  url+an:source = {=archived before WordPress import},
+  date       = {2026},
+  publisher  = {Review Press}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('field-annotation-review', $items[0]['id']);
+        $t->same([
+            'title' => [
+                ['name' => 'default', 'value' => 'title verified'],
+                ['name' => 'source', 'value' => 'OCR headline normalized'],
+            ],
+            'url' => [
+                ['name' => 'source', 'value' => 'archived before WordPress import'],
+            ],
+        ], $items[0]['biblatex-field-annotations'] ?? null);
+        $t->same('=title verified; source=OCR headline normalized', $items[0]['rawBibtex']['fields']['title+an'] ?? null);
+        $t->same('=archived before WordPress import', $items[0]['rawBibtex']['fields']['url+an:source'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('field-annotation-review');
+        $t->same('title verified', $item['biblatexFieldAnnotations']['title'][0]['value'] ?? null);
+        $t->same('source', $item['biblatexFieldAnnotations']['url'][0]['name'] ?? null);
+        $t->same('title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import', $item['biblatexFieldAnnotationSummary'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('field-annotation-review', '[@field-annotation-review]')]));
+        $t->same(
+            'Smith, Ada. Annotated Field Packet. Review Press, 2026. BibLaTeX field annotations: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import. https://example.test/source.',
+            $processor->renderBibliographyEntry('field-annotation-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="biblatex-field-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-field-annotations"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import]', $styled->renderCitationCluster([$citation('field-annotation-review', '[@field-annotation-review]')]));
+        $t->same('Annotated Field Packet :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import', $styled->renderBibliographyEntry('field-annotation-review'));
+
+        $document = (new MarkdownReader())->read('Annotated field source @field-annotation-review keeps import review metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Annotated field source Smith (2026) keeps import review metadata.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Field Packet. Review Press, 2026. BibLaTeX field annotations: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import. https://example.test/source.</dd>', $blocks);
+
+        $manualProcessor = CitationCslProcessor::fromItems([[
+            'id' => 'manual-field-annotation',
+            'title' => 'Manual Field Annotation',
+            'biblatex-field-annotations' => [
+                'title' => ['default' => 'Manual title note'],
+                'url' => [
+                    ['name' => 'source', 'value' => 'Manual URL source'],
+                ],
+            ],
+        ]]);
+        $manual = $manualProcessor->item('manual-field-annotation');
+        $t->same('Manual title note', $manual['biblatexFieldAnnotations']['title'][0]['value'] ?? null);
+        $t->same('title default: Manual title note; url source: Manual URL source', $manual['biblatexFieldAnnotationSummary'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-field-annotation',
+            'title' => 'Bad Field Annotation',
+            'biblatex-field-annotations' => [
+                'title' => [['name' => ['bad'], 'value' => 'nested']],
+            ],
+        ]]));
+    },
     'maps bounded biblatex shorthand labels and short creator lists' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{shorthand-review,

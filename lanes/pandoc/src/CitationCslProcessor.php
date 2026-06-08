@@ -736,6 +736,7 @@ final class CitationCslProcessor
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
         $biblatexCustomLists = self::biblatexCustomLists($item, $id);
         $biblatexCustomNames = self::biblatexCustomNames($item, $id);
+        $biblatexFieldAnnotations = self::biblatexFieldAnnotations($item, $id);
 
         return [
             'id' => $id,
@@ -856,6 +857,8 @@ final class CitationCslProcessor
             'dateSeasonSummary' => $dateSeasonSummary,
             'biblatexOptions' => $biblatexOptions,
             'biblatexOptionSummary' => implode('; ', $biblatexOptions),
+            'biblatexFieldAnnotations' => $biblatexFieldAnnotations,
+            'biblatexFieldAnnotationSummary' => self::biblatexFieldAnnotationSummary($biblatexFieldAnnotations),
             'biblatexCustomFields' => $biblatexCustomFields,
             'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
             'biblatexCustomLists' => $biblatexCustomLists,
@@ -1099,6 +1102,168 @@ final class CitationCslProcessor
         $parts = [];
         foreach (self::orderedBiblatexCustomFields($fields) as $field => $value) {
             $parts[] = $field . ': ' . $value;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, list<array{name:string, value:string}>>
+     */
+    private static function biblatexFieldAnnotations(array $item, string $id): array
+    {
+        $value = $item['biblatex-field-annotations'] ?? $item['biblatexFieldAnnotations'] ?? null;
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if (!is_array($value) || array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations must be an object map');
+        }
+
+        $annotations = [];
+        foreach ($value as $field => $fieldValue) {
+            $field = self::biblatexFieldAnnotationFieldName((string) $field, $id);
+            $fieldAnnotations = self::biblatexFieldAnnotationValues($fieldValue, $id, $field);
+            if ($fieldAnnotations !== []) {
+                $annotations[$field] = $fieldAnnotations;
+            }
+        }
+
+        return $annotations;
+    }
+
+    private static function biblatexFieldAnnotationFieldName(string $field, string $id): string
+    {
+        $field = strtolower(str_replace('_', '-', trim($field)));
+        if ($field === '' || preg_match('/^[a-z][a-z0-9_.-]*$/', $field) !== 1) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations contains invalid field ' . $field);
+        }
+
+        return $field;
+    }
+
+    /**
+     * @return list<array{name:string, value:string}>
+     */
+    private static function biblatexFieldAnnotationValues(mixed $value, string $id, string $field): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_scalar($value)) {
+            $text = trim((string) $value);
+            return $text === '' ? [] : [['name' => 'default', 'value' => $text]];
+        }
+
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations.' . $field . ' must be scalar, list, or object map');
+        }
+
+        if (!array_is_list($value) && (array_key_exists('value', $value) || array_key_exists('text', $value))) {
+            $entry = self::biblatexFieldAnnotationObject($value, $id, $field);
+            return $entry === null ? [] : [$entry];
+        }
+
+        $annotations = [];
+        if (array_is_list($value)) {
+            foreach ($value as $index => $entryValue) {
+                if ($entryValue === null || $entryValue === '') {
+                    continue;
+                }
+
+                if (is_scalar($entryValue)) {
+                    $text = trim((string) $entryValue);
+                    if ($text !== '') {
+                        $annotations[] = ['name' => 'default', 'value' => $text];
+                    }
+                    continue;
+                }
+
+                if (!is_array($entryValue)) {
+                    throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations.' . $field . '[' . $index . '] must be scalar or object');
+                }
+
+                $entry = self::biblatexFieldAnnotationObject($entryValue, $id, $field);
+                if ($entry !== null) {
+                    $annotations[] = $entry;
+                }
+            }
+
+            return $annotations;
+        }
+
+        foreach ($value as $name => $entryValue) {
+            if (!is_scalar($entryValue) && $entryValue !== null) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations.' . $field . '.' . (string) $name . ' must be scalar');
+            }
+
+            $text = trim((string) ($entryValue ?? ''));
+            if ($text === '') {
+                continue;
+            }
+
+            $annotations[] = [
+                'name' => self::biblatexFieldAnnotationName((string) $name),
+                'value' => $text,
+            ];
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array{name:string, value:string}|null
+     */
+    private static function biblatexFieldAnnotationObject(array $value, string $id, string $field): ?array
+    {
+        $name = $value['name'] ?? 'default';
+        if (!is_scalar($name) && $name !== null) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations.' . $field . '.name must be scalar');
+        }
+
+        $text = $value['value'] ?? $value['text'] ?? '';
+        if (!is_scalar($text) && $text !== null) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations.' . $field . '.value must be scalar');
+        }
+
+        $text = trim((string) ($text ?? ''));
+        if ($text === '') {
+            return null;
+        }
+
+        return [
+            'name' => self::biblatexFieldAnnotationName((string) ($name ?? '')),
+            'value' => $text,
+        ];
+    }
+
+    private static function biblatexFieldAnnotationName(string $name): string
+    {
+        $name = strtolower(str_replace(['_', ' '], '-', trim($name)));
+
+        return $name === '' ? 'default' : $name;
+    }
+
+    /**
+     * @param array<string, list<array{name:string, value:string}>> $annotations
+     */
+    private static function biblatexFieldAnnotationSummary(array $annotations): string
+    {
+        $parts = [];
+        foreach ($annotations as $field => $fieldAnnotations) {
+            foreach ($fieldAnnotations as $annotation) {
+                $value = trim($annotation['value']);
+                if ($value === '') {
+                    continue;
+                }
+
+                $name = trim($annotation['name']);
+                $parts[] = $field . ' ' . ($name === '' ? 'default' : $name) . ': ' . $value;
+            }
         }
 
         return implode('; ', $parts);
@@ -5269,6 +5434,11 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($dateSeasonSummary);
         }
 
+        $fieldAnnotationSummary = trim((string) ($item['biblatexFieldAnnotationSummary'] ?? ''));
+        if ($fieldAnnotationSummary !== '') {
+            $parts[] = 'BibLaTeX field annotations: ' . $this->withTerminalPunctuation($fieldAnnotationSummary);
+        }
+
         $biblatexOptionSummary = trim((string) ($item['biblatexOptionSummary'] ?? ''));
         if ($biblatexOptionSummary !== '') {
             $parts[] = 'BibLaTeX options: ' . $this->withTerminalPunctuation($biblatexOptionSummary);
@@ -6820,6 +6990,7 @@ final class CitationCslProcessor
             'event-end-time' => $this->dateEndTimeForVariable($item, 'event-date'),
             'original-time' => $this->dateTimeForVariable($item, 'original-date'),
             'original-end-time' => $this->dateEndTimeForVariable($item, 'original-date'),
+            'biblatex-field-annotations', 'biblatex-field-annotation-summary', 'biblatex-field-annotations-summary', 'field-annotation-summary' => (string) ($item['biblatexFieldAnnotationSummary'] ?? ''),
             'biblatex-options', 'biblatexoptions' => implode(', ', is_array($item['biblatexOptions'] ?? null) ? $item['biblatexOptions'] : []),
             'biblatex-option-summary', 'biblatex-options-summary', 'biblatexoptionssummary' => (string) ($item['biblatexOptionSummary'] ?? ''),
             'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),

@@ -9,6 +9,31 @@ final class BibtexCslParser
     private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
     private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
+    private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
+        'author',
+        'editor',
+        'shortauthor',
+        'shorteditor',
+        'holder',
+        'translator',
+        'bookauthor',
+        'eventorganizer',
+        'organizer',
+        'organization',
+        'origauthor',
+        'originalauthor',
+        'commentator',
+        'annotator',
+        'introduction',
+        'foreword',
+        'afterword',
+        'editora',
+        'editorb',
+        'editorc',
+        'namea',
+        'nameb',
+        'namec',
+    ];
 
     private int $offset = 0;
     private readonly int $length;
@@ -721,6 +746,11 @@ final class BibtexCslParser
             $item['biblatex-custom-names'] = $biblatexCustomNames;
         }
 
+        $biblatexFieldAnnotations = self::biblatexFieldAnnotationsFromFields($fields);
+        if ($biblatexFieldAnnotations !== []) {
+            $item['biblatex-field-annotations'] = $biblatexFieldAnnotations;
+        }
+
         $biblatexOptions = self::biblatexOptionList($fields['options'] ?? '');
         if ($biblatexOptions !== []) {
             $item['biblatex-options'] = $biblatexOptions;
@@ -1202,6 +1232,77 @@ final class BibtexCslParser
         }
 
         return $customNames;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, list<array{name:string, value:string}>>
+     */
+    private static function biblatexFieldAnnotationsFromFields(array $fields): array
+    {
+        $annotations = [];
+        foreach ($fields as $field => $value) {
+            if (preg_match('/^([A-Za-z0-9_.-]+)\+an(?::([A-Za-z][A-Za-z0-9_-]*))?$/u', $field, $matches) !== 1) {
+                continue;
+            }
+
+            $baseField = strtolower($matches[1]);
+            if (in_array($baseField, self::BIBLATEX_NAME_ANNOTATION_FIELDS, true)) {
+                continue;
+            }
+
+            $defaultName = self::normalizedBiblatexFieldAnnotationName((string) ($matches[2] ?? ''));
+            foreach (self::biblatexFieldAnnotationEntries($value, $defaultName) as $annotation) {
+                $annotations[$baseField][] = $annotation;
+            }
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @return list<array{name:string, value:string}>
+     */
+    private static function biblatexFieldAnnotationEntries(string $value, string $defaultName): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $separator = str_contains($value, ';') ? ';' : ',';
+        $entries = [];
+        foreach (self::splitTopLevel($value, $separator) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            $name = $defaultName;
+            $text = $entry;
+            if (preg_match('/^([A-Za-z][A-Za-z0-9_-]*)?\s*=\s*(.+)$/u', $entry, $matches) === 1) {
+                if (($matches[1] ?? '') !== '') {
+                    $name = self::normalizedBiblatexFieldAnnotationName($matches[1]);
+                }
+                $text = $matches[2];
+            }
+
+            $text = self::cleanBibtexText($text);
+            if ($text === '') {
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $name === '' ? 'default' : $name,
+                'value' => $text,
+            ];
+        }
+
+        return $entries;
+    }
+
+    private static function normalizedBiblatexFieldAnnotationName(string $name): string
+    {
+        return strtolower(str_replace('_', '-', trim($name)));
     }
 
     /**
