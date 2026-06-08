@@ -893,6 +893,12 @@ $unsupportedXzInspection = ArchiveCompressionStream::inspectUnsupportedCompressi
     $unsupportedXzUpload,
     'wordpress-documents.zip.xz'
 );
+$sourceNamePolicyInspection = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+    $gzip,
+    'wordpress-review-packet.docx',
+    strlen($archive->bytes()),
+    strlen($manifestBytes) + strlen($contentBytes)
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -1063,6 +1069,15 @@ if (in_array('--self-test', $argv, true)) {
         'unsupportedXzCandidateFormat' => 'xz-zip',
         'unsupportedXzFlags' => '0004',
         'unsupportedPolicy' => 'unsupported-compression-stream-blocked',
+        'sourceNamePolicyExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
+        'sourceNamePolicyExpectedFormat' => ArchiveCompressionStream::FORMAT_ZIP,
+        'sourceNamePolicyDetectedKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'sourceNamePolicyDetectedFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'sourceNamePolicyReason' => 'extension:zip-package',
+        'sourceNamePolicyDiagnostics' => [
+            'archive-source-name-package-kind-mismatch',
+            'archive-source-name-compression-format-mismatch',
+        ],
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -1323,6 +1338,16 @@ if (in_array('--self-test', $argv, true)) {
         || $unsupportedXzInspection['streamFlagsHex'] !== $expected['unsupportedXzFlags']
         || $unsupportedXzInspection['extractionPolicy'] !== $expected['unsupportedPolicy']
         || ($unsupportedXzInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-xz-not-decoded'
+        || $sourceNamePolicyInspection['sourceName'] !== 'wordpress-review-packet.docx'
+        || $sourceNamePolicyInspection['sourceNameReason'] !== $expected['sourceNamePolicyReason']
+        || $sourceNamePolicyInspection['expectedKind'] !== $expected['sourceNamePolicyExpectedKind']
+        || $sourceNamePolicyInspection['expectedFormat'] !== $expected['sourceNamePolicyExpectedFormat']
+        || $sourceNamePolicyInspection['detectedKind'] !== $expected['sourceNamePolicyDetectedKind']
+        || $sourceNamePolicyInspection['detectedFormat'] !== $expected['sourceNamePolicyDetectedFormat']
+        || $sourceNamePolicyInspection['handoffPolicy'] !== 'review-before-conversion'
+        || $sourceNamePolicyInspection['diagnostics'] !== $expected['sourceNamePolicyDiagnostics']
+        || isset($sourceNamePolicyInspection['archive'])
+        || isset($sourceNamePolicyInspection['tarBytes'])
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -1471,3 +1496,8 @@ echo 'unsupportedXz.format=' . $unsupportedXzInspection['format'] . "\n";
 echo 'unsupportedXz.candidateFormat=' . $unsupportedXzInspection['candidateFormat'] . "\n";
 echo 'unsupportedXz.extractionPolicy=' . $unsupportedXzInspection['extractionPolicy'] . "\n";
 echo 'unsupportedXz.diagnostics=' . implode(',', $unsupportedXzInspection['diagnostics']) . "\n";
+echo 'sourceNamePolicy.sourceName=' . $sourceNamePolicyInspection['sourceName'] . "\n";
+echo 'sourceNamePolicy.expected=' . $sourceNamePolicyInspection['expectedKind'] . '/' . $sourceNamePolicyInspection['expectedFormat'] . "\n";
+echo 'sourceNamePolicy.detected=' . $sourceNamePolicyInspection['detectedKind'] . '/' . $sourceNamePolicyInspection['detectedFormat'] . "\n";
+echo 'sourceNamePolicy.handoffPolicy=' . $sourceNamePolicyInspection['handoffPolicy'] . "\n";
+echo 'sourceNamePolicy.diagnostics=' . implode(',', $sourceNamePolicyInspection['diagnostics']) . "\n";

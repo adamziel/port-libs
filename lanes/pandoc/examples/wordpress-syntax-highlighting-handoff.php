@@ -382,6 +382,12 @@ if (!$elixirCodeBlock instanceof PortLibs\Pandoc\AstNode || $elixirCodeBlock->ty
 }
 $elixir = $highlighter->highlightCodeBlock($elixirCodeBlock, 'tango');
 $elixirWordpressBlock = $highlighter->wordpressHtmlBlock($elixirCodeBlock, 'tango');
+$vueCodeBlock = $document->children[60] ?? null;
+if (!$vueCodeBlock instanceof PortLibs\Pandoc\AstNode || $vueCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Vue SFC code block');
+}
+$vue = $highlighter->highlightCodeBlock($vueCodeBlock, 'breezedark');
+$vueWordpressBlock = $highlighter->wordpressHtmlBlock($vueCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1631,6 +1637,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($elixirWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Elixir WordPress style metadata');
     }
+    if (($vue['language'] ?? '') !== 'vue') {
+        throw new RuntimeException('Expected Vue SFC language handoff');
+    }
+    if (($vue['lineNumbering']['start'] ?? null) !== 840) {
+        throw new RuntimeException('Expected Vue SFC source startFrom line-number handoff');
+    }
+    if (!str_contains($vue['html'], '<span class="kw">&lt;template</span><span class="op">&gt;</span>')) {
+        throw new RuntimeException('Expected Vue template token handoff');
+    }
+    if (!str_contains($vue['html'], '<span class="ot">:data-source</span><span class="op">=</span><span class="st">&quot;packet.sourceId&quot;</span>')) {
+        throw new RuntimeException('Expected Vue bound attribute token handoff');
+    }
+    if (!str_contains($vue['html'], '<span class="op">&gt;{{</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">?.</span><span class="fu">trim</span><span class="op">()</span>')) {
+        throw new RuntimeException('Expected Vue interpolation expression token handoff');
+    }
+    if (!str_contains($vue['html'], '<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="op">=</span>')) {
+        throw new RuntimeException('Expected Vue embedded TypeScript token handoff');
+    }
+    if (!str_contains($vue['html'], '<span class="ot">--accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span><span class="op">;</span>')) {
+        throw new RuntimeException('Expected Vue embedded CSS token handoff');
+    }
+    if (!str_contains($vueWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Vue WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1711,6 +1741,7 @@ echo "typstHighlightedHtml:\n" . $typst['html'] . "\n";
 echo "kotlinHighlightedHtml:\n" . $kotlin['html'] . "\n";
 echo "scalaHighlightedHtml:\n" . $scala['html'] . "\n";
 echo "elixirHighlightedHtml:\n" . $elixir['html'] . "\n";
+echo "vueHighlightedHtml:\n" . $vue['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1761,4 +1792,5 @@ echo "jsoncWordpressBlock:\n" . $jsoncWordpressBlock . "\n";
 echo "kotlinWordpressBlock:\n" . $kotlinWordpressBlock . "\n";
 echo "scalaWordpressBlock:\n" . $scalaWordpressBlock . "\n";
 echo "elixirWordpressBlock:\n" . $elixirWordpressBlock . "\n";
+echo "vueWordpressBlock:\n" . $vueWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

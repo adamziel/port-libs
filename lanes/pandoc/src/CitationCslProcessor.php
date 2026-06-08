@@ -745,6 +745,8 @@ final class CitationCslProcessor
         $biblatexCustomLists = self::biblatexCustomLists($item, $id);
         $biblatexCustomNames = self::biblatexCustomNames($item, $id);
         $biblatexFieldAnnotations = self::biblatexFieldAnnotations($item, $id);
+        $biblatexRefsection = self::firstStringField($item, ['biblatexRefsection', 'biblatex-refsection', 'refsection', 'ref-section']);
+        $biblatexRefsegment = self::firstStringField($item, ['biblatexRefsegment', 'biblatex-refsegment', 'refsegment', 'ref-segment']);
 
         return [
             'id' => $id,
@@ -875,6 +877,9 @@ final class CitationCslProcessor
             'biblatexCustomListSummary' => self::biblatexCustomListSummary($biblatexCustomLists),
             'biblatexCustomNames' => $biblatexCustomNames,
             'biblatexCustomNameSummary' => self::biblatexCustomNameSummary($biblatexCustomNames),
+            'biblatexRefsection' => $biblatexRefsection,
+            'biblatexRefsegment' => $biblatexRefsegment,
+            'biblatexReferenceContextSummary' => self::biblatexReferenceContextSummary($biblatexRefsection, $biblatexRefsegment),
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
@@ -1437,6 +1442,20 @@ final class CitationCslProcessor
             if ($values !== []) {
                 $parts[] = $field . ': ' . implode('; ', $values);
             }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    private static function biblatexReferenceContextSummary(string $refsection, string $refsegment): string
+    {
+        $parts = [];
+        if ($refsection !== '') {
+            $parts[] = 'refsection ' . $refsection;
+        }
+
+        if ($refsegment !== '') {
+            $parts[] = 'refsegment ' . $refsegment;
         }
 
         return implode('; ', $parts);
@@ -5480,6 +5499,11 @@ final class CitationCslProcessor
             $parts[] = 'BibLaTeX language options: ' . $this->withTerminalPunctuation($biblatexLanguageOptionSummary);
         }
 
+        $referenceContextSummary = trim((string) ($item['biblatexReferenceContextSummary'] ?? ''));
+        if ($referenceContextSummary !== '') {
+            $parts[] = 'BibLaTeX reference context: ' . $this->withTerminalPunctuation($referenceContextSummary);
+        }
+
         $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
         if ($customFieldSummary !== '') {
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
@@ -7170,6 +7194,9 @@ final class CitationCslProcessor
             'biblatex-option-summary', 'biblatex-options-summary', 'biblatexoptionssummary' => (string) ($item['biblatexOptionSummary'] ?? ''),
             'biblatex-language-options', 'biblatexlanguageoptions', 'langidopts', 'language-options' => implode(', ', is_array($item['biblatexLanguageOptions'] ?? null) ? $item['biblatexLanguageOptions'] : []),
             'biblatex-language-option-summary', 'biblatex-language-options-summary', 'biblatexlanguageoptionssummary', 'language-option-summary', 'language-options-summary' => (string) ($item['biblatexLanguageOptionSummary'] ?? ''),
+            'refsection', 'ref-section', 'biblatex-refsection', 'biblatexrefsection' => (string) ($item['biblatexRefsection'] ?? ''),
+            'refsegment', 'ref-segment', 'biblatex-refsegment', 'biblatexrefsegment' => (string) ($item['biblatexRefsegment'] ?? ''),
+            'reference-context', 'biblatex-reference-context', 'biblatex-reference-context-summary', 'biblatexreferencecontextsummary' => (string) ($item['biblatexReferenceContextSummary'] ?? ''),
             'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),
             'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
             'biblatex-custom-lists', 'biblatex-custom-list-summary', 'biblatex-custom-lists-summary' => (string) ($item['biblatexCustomListSummary'] ?? ''),

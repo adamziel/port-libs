@@ -3723,6 +3723,7 @@ final class OdfReader
             'subject',
             'description',
             'keywords',
+            'user-defined',
             'initial-creator',
             'creation-date',
             'creation-time',

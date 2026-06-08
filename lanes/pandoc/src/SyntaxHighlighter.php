@@ -105,6 +105,7 @@ final class SyntaxHighlighter
         'html-mst' => 'mustache',
         'html-mu' => 'mustache',
         'html-rac' => 'mustache',
+        'html-vue' => 'vue',
         'htaccess' => 'apache',
         'haskell' => 'haskell',
         'hs' => 'haskell',
@@ -255,6 +256,10 @@ final class SyntaxHighlighter
         'typescriptreact' => 'tsx',
         'udiff' => 'diff',
         'unified-diff' => 'diff',
+        'vue' => 'vue',
+        'vue-component' => 'vue',
+        'vue-sfc' => 'vue',
+        'vuejs' => 'vue',
         'xhtml' => 'html',
         'xml' => 'xml',
         'xsd' => 'xml',
@@ -723,6 +728,7 @@ final class SyntaxHighlighter
             'tsx' => $this->tokenizeTsx($code),
             'typst' => $this->tokenizeTypst($code),
             'typescript' => $this->tokenizeTypeScript($code),
+            'vue' => $this->tokenizeVue($code),
             'xml' => $this->tokenizeXml($code),
             'xslt' => $this->tokenizeXml($code),
             'yaml' => $this->tokenizeYaml($code),
@@ -1727,6 +1733,148 @@ final class SyntaxHighlighter
     }
 
     /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeVue(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $match = self::nextHtmlRawTextTag($code, $offset);
+            if ($match === null) {
+                $this->scanVueFragment(substr($code, $offset), $tokens);
+                break;
+            }
+
+            [$tag, $tagOffset] = $match;
+            if ($tagOffset > $offset) {
+                $this->scanVueFragment(substr($code, $offset, $tagOffset - $offset), $tokens);
+            }
+
+            $openingEnd = self::htmlTagEndOffset($code, $tagOffset);
+            if ($openingEnd === null) {
+                $this->scanVueFragment(substr($code, $tagOffset), $tokens);
+                break;
+            }
+
+            $openingTag = substr($code, $tagOffset, $openingEnd - $tagOffset + 1);
+            $this->scanVueFragment($openingTag, $tokens);
+            $contentOffset = $openingEnd + 1;
+            $closing = self::htmlClosingRawTextTag($code, $tag, $contentOffset);
+            if ($closing === null) {
+                $this->appendEmbeddedVueRawTextTokens($tag, $openingTag, substr($code, $contentOffset), $tokens);
+                break;
+            }
+
+            [$closingOffset, $closingLength] = $closing;
+            $this->appendEmbeddedVueRawTextTokens($tag, $openingTag, substr($code, $contentOffset, $closingOffset - $contentOffset), $tokens);
+            $this->scanVueFragment(substr($code, $closingOffset, $closingLength), $tokens);
+            $offset = $closingOffset + $closingLength;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function scanVueFragment(string $code, array &$tokens): void
+    {
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $interpolationOffset = strpos($code, '{{', $offset);
+            if ($interpolationOffset === false) {
+                $this->scanPlainVueFragment(substr($code, $offset), $tokens);
+                break;
+            }
+
+            if ($interpolationOffset > $offset) {
+                $this->scanPlainVueFragment(substr($code, $offset, $interpolationOffset - $offset), $tokens);
+            }
+
+            $end = strpos($code, '}}', $interpolationOffset + 2);
+            if ($end === false) {
+                $this->appendToken($tokens, 'operator', substr($code, $interpolationOffset, 2));
+                $this->appendEmbeddedVueExpressionTokens(substr($code, $interpolationOffset + 2), $tokens);
+                break;
+            }
+
+            $this->appendToken($tokens, 'operator', '{{');
+            $this->appendEmbeddedVueExpressionTokens(substr($code, $interpolationOffset + 2, $end - $interpolationOffset - 2), $tokens);
+            $this->appendToken($tokens, 'operator', '}}');
+            $offset = $end + 2;
+        }
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function scanPlainVueFragment(string $code, array &$tokens): void
+    {
+        $this->scanInto($code, [
+            ['comment', '/^<!--[\\s\\S]*?-->/'],
+            ['function', '/^<\\/?[A-Z][A-Za-z0-9:.-]*/'],
+            ['keyword', '/^<\\/?[A-Za-z][A-Za-z0-9:.-]*/'],
+            ['attribute', '/^(?:v-[A-Za-z][A-Za-z0-9:.-]*|[:@#][A-Za-z_][A-Za-z0-9_.:-]*)(?=\\s*=|\\s|\\/?>)/'],
+            ['attribute', '/^\\b(?:async|defer|disabled|multiple|readonly|required|scoped|selected|setup)\\b(?=\\s|\\/?>)/'],
+            ['attribute', '/^[A-Za-z_:][A-Za-z0-9_.:-]*(?=\\s*=)/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['operator', '/^\\/?>|^=/'],
+        ], $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendEmbeddedVueExpressionTokens(string $code, array &$tokens): void
+    {
+        foreach ($this->tokenizeJavaScript($code) as $token) {
+            $this->appendToken($tokens, $token['type'], $token['text']);
+        }
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendEmbeddedVueRawTextTokens(string $tag, string $openingTag, string $code, array &$tokens): void
+    {
+        $language = self::vueEmbeddedLanguage($tag, $openingTag);
+        $embedded = match ($language) {
+            'css' => $this->tokenizeCss($code),
+            'less' => $this->tokenizeLess($code),
+            'sass', 'scss' => $this->tokenizeScss($code),
+            'typescript' => $this->tokenizeTypeScript($code),
+            default => $this->tokenizeJavaScript($code),
+        };
+
+        foreach ($embedded as $token) {
+            $this->appendToken($tokens, $token['type'], $token['text']);
+        }
+    }
+
+    private static function vueEmbeddedLanguage(string $tag, string $openingTag): string
+    {
+        if ($tag === 'style') {
+            if (preg_match('/\\blang\\s*=\\s*([\'"]?)(less|sass|scss)\\1/i', $openingTag, $matches) === 1) {
+                return strtolower($matches[2]);
+            }
+
+            return 'css';
+        }
+
+        if (preg_match('/\\blang\\s*=\\s*([\'"]?)(ts|typescript|tsx)\\1/i', $openingTag, $matches) === 1) {
+            return 'typescript';
+        }
+
+        return 'javascript';
+    }
+
+    /**
      * @param list<array{type:string, text:string, class:string}> $tokens
      */
     private function scanHtmlFragment(string $code, array &$tokens): void
@@ -2176,6 +2324,7 @@ final class SyntaxHighlighter
             ['constant', '/^\\b(?:false|true)\\b/'],
             ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_$]*(?=\\s*(?:[<:={]|\\b))/'],
+            ['function', '/^\\b[a-z_$][A-Za-z0-9_$]*(?=\\s*<[^>\\n]+>\\s*\\()/'],
             ['function', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*\\b/'],
             ['operator', '/^(?:=>|===|!==|==|!=|<=|>=|&&|\\|\\||\\?\\?|\\?\\.|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:|-])/'],

@@ -511,6 +511,27 @@ return [
         $t->same(['unknown-charset-label-defaulted-to-utf-8'], $unknown['diagnostics']);
         $t->same(['encoding' => null, 'label' => null, 'source' => null, 'offset' => null, 'diagnostics' => []], $none);
     },
+    'detects unicode byte order marks before declared charset labels' => static function (TestRunner $t) use ($utf32le): void {
+        $utf8 = UnicodeText::declaredCharset("\xEF\xBB\xBF<meta charset=windows-1252><p>x</p>", 'text/html; charset=windows-1252');
+        $utf16 = UnicodeText::declaredCharset("\xFE\xFF\x00<\x00?\x00x\x00m\x00l encoding=\"windows-1252\"?>");
+        $utf32 = UnicodeText::declaredCharset("\xFF\xFE\x00\x00" . $utf32le([0x003c, 0x006d, 0x0065, 0x0074, 0x0061]));
+        $decoded = UnicodeText::decodeBytes("\xEF\xBB\xBF# Bom\n\nSource", $utf8['encoding']);
+
+        $t->same('byte-order-mark', $utf8['source']);
+        $t->same('utf-8', $utf8['label']);
+        $t->same('utf-8', $utf8['encoding']);
+        $t->same(0, $utf8['offset']);
+        $t->same([], $utf8['diagnostics']);
+        $t->same('byte-order-mark', $utf16['source']);
+        $t->same('utf-16be', $utf16['encoding']);
+        $t->same('utf-16be', $utf16['label']);
+        $t->same('byte-order-mark', $utf32['source']);
+        $t->same('utf-32le', $utf32['encoding']);
+        $t->same('utf-32le', $utf32['label']);
+        $t->same("# Bom\n\nSource", $decoded['text']);
+        $t->same('utf-8', $decoded['encoding']);
+        $t->same('utf-8', $decoded['bom']);
+    },
     'decodes x user defined private use bytes from declared html charset labels into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Private Glyphs\n\nLegacy \x80\x81\xFE\xFF source.";
         $decoded = UnicodeText::decodeBytes($bytes, 'x-user-defined');

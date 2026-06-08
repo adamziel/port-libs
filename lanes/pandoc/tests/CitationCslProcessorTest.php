@@ -13422,6 +13422,102 @@ XML);
         $t->contains('<p>Language option source Garcia (2026) keeps BibLaTeX locale switches visible.</p>', $blocks);
         $t->contains('<dt>Garcia 2026</dt><dd>Garcia, Nia. Language Option Review Manual. Review Press, 2026. BibLaTeX language options: variant=mexican; hyphenation=traditional; sentencecase=false.</dd>', $blocks);
     },
+    'maps bounded biblatex refsection and refsegment provenance into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{sectioned-manual,
+  author     = {Smith, Ada},
+  title      = {Sectioned Review Manual},
+  date       = {2026},
+  publisher  = {Review Press},
+  refsection = {2},
+  refsegment = {migration-import}
+}
+
+@online{segment-snapshot,
+  author     = {{Archive Desk}},
+  title      = {Segment Snapshot},
+  date       = {2025},
+  url        = {https://example.test/segment-snapshot},
+  refsegment = {media-audit}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('2', $items[0]['biblatex-refsection'] ?? null);
+        $t->same('migration-import', $items[0]['biblatex-refsegment'] ?? null);
+        $t->same('media-audit', $items[1]['biblatex-refsegment'] ?? null);
+        $t->same('2', $items[0]['rawBibtex']['fields']['refsection'] ?? null);
+        $t->same('migration-import', $items[0]['rawBibtex']['fields']['refsegment'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('sectioned-manual');
+        $snapshot = $processor->item('segment-snapshot');
+        $t->same('2', $manual['biblatexRefsection'] ?? null);
+        $t->same('migration-import', $manual['biblatexRefsegment'] ?? null);
+        $t->same('refsection 2; refsegment migration-import', $manual['biblatexReferenceContextSummary'] ?? null);
+        $t->same('', $snapshot['biblatexRefsection'] ?? null);
+        $t->same('media-audit', $snapshot['biblatexRefsegment'] ?? null);
+        $t->same('refsegment media-audit', $snapshot['biblatexReferenceContextSummary'] ?? null);
+        $t->same(
+            'Smith, Ada. Sectioned Review Manual. Review Press, 2026. BibLaTeX reference context: refsection 2; refsegment migration-import.',
+            $processor->renderBibliographyEntry('sectioned-manual')
+        );
+        $t->same(
+            'Archive Desk. Segment Snapshot. 2025. BibLaTeX reference context: refsegment media-audit. https://example.test/segment-snapshot.',
+            $processor->renderBibliographyEntry('segment-snapshot')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Reference Context Review</title>
+    <id>https://example.test/styles/bounded-biblatex-reference-context-review</id>
+    <updated>2026-06-08T14:01:36+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="refsection"/>
+        <text variable="refsegment"/>
+        <text variable="biblatex-reference-context-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-refsection"/>
+      <text variable="biblatex-refsegment"/>
+      <text variable="reference-context"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | 2 | migration-import | refsection 2; refsegment migration-import; Archive Desk | media-audit | refsegment media-audit]', $styled->renderCitationCluster([
+            $citation('sectioned-manual', '[@sectioned-manual]'),
+            $citation('segment-snapshot', '[@segment-snapshot]'),
+        ]));
+        $t->same('Sectioned Review Manual :: 2 :: migration-import :: refsection 2; refsegment migration-import', $styled->renderBibliographyEntry('sectioned-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-reference-context',
+            'title' => 'Direct Reference Context',
+            'refsection' => 4,
+            'biblatex-refsegment' => 'appendix-review',
+        ]])->item('direct-reference-context');
+        $t->same('4', $direct['biblatexRefsection'] ?? null);
+        $t->same('appendix-review', $direct['biblatexRefsegment'] ?? null);
+        $t->same('refsection 4; refsegment appendix-review', $direct['biblatexReferenceContextSummary'] ?? null);
+
+        $document = (new MarkdownReader())->read('Reference-context source @sectioned-manual and segment [@segment-snapshot] keep review partitions visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Reference-context source Smith (2026) and segment (Archive Desk 2025) keep review partitions visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Sectioned Review Manual. Review Press, 2026. BibLaTeX reference context: refsection 2; refsegment migration-import.</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Segment Snapshot. 2025. BibLaTeX reference context: refsegment media-audit. https://example.test/segment-snapshot.</dd>', $blocks);
+    },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

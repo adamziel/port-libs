@@ -1060,3 +1060,43 @@ defmodule Importer.ReviewPacket do
   end
 end
 ```
+
+``` {.vue #vue-sfc-review .numberLines startFrom=840}
+<!-- Vue WordPress import card review -->
+<template>
+  <article class="wp-block-import-card" :data-source="packet.sourceId">
+    <h2>{{ packet.title?.trim() || "Untitled" }}</h2>
+    <button v-if="packet.reviewUrl" @click="openReview(packet.reviewUrl)">
+      Review in WordPress
+    </button>
+  </article>
+</template>
+
+<script setup lang="ts">
+import { computed } from "vue";
+
+type ReviewPacket = {
+  sourceId: string;
+  title?: string;
+  reviewUrl?: string;
+};
+
+const props = defineProps<{ packet: ReviewPacket }>();
+const packet = computed(() => props.packet);
+
+function openReview(url: string) {
+  window.location.href = url;
+}
+</script>
+
+<style scoped>
+.wp-block-import-card {
+  --accent-color: #005cc5;
+  color: var(--accent-color);
+}
+
+.wp-block-import-card button:hover {
+  text-decoration: underline;
+}
+</style>
+```

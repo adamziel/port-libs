@@ -3783,6 +3783,122 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamAuto($zipUpload, strlen($zipPackage->bytes()) - 1));
     },
 
+    'preflights source-name package stream mismatches before conversion handoff' => static function (TestRunner $t): void {
+        $tarPacket = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"source-name-policy","format":"tar"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Source-name policy TAR packet\n\nReady for archive review.\n",
+            ],
+        ]);
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Source-name policy ZIP package</w:p></w:body></w:document>',
+            ],
+        ]);
+        $gzipTar = GzipStream::build($tarPacket->bytes(), [
+            'filename' => 'actual-review-packet.tar',
+            'comment' => 'actual gzip tar upload',
+        ]);
+        $gzipZip = GzipStream::build($zipPackage->bytes(), [
+            'filename' => 'actual-office-package.zip',
+            'comment' => 'actual gzip zip upload',
+        ]);
+
+        $matchingTar = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+            $gzipTar,
+            'review-packet.tar.gz',
+            strlen($tarPacket->bytes()),
+            strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/content.md'))
+        );
+        $matchingDocx = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+            $zipPackage->bytes(),
+            'word-export.docx',
+            strlen($zipPackage->bytes())
+        );
+        $mismatchedDocx = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+            $gzipTar,
+            'word-export.docx',
+            strlen($tarPacket->bytes())
+        );
+        $mismatchedTar = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+            $gzipZip,
+            'review-packet.tar.gz',
+            strlen($zipPackage->bytes())
+        );
+        $unknownName = ArchiveCompressionStream::inspectPackageSourceNamePolicyAuto(
+            $gzipZip,
+            'opaque-upload.bin',
+            strlen($zipPackage->bytes())
+        );
+
+        $t->same('archive-package-source-name-policy', $matchingTar['type']);
+        $t->same('review-packet.tar.gz', $matchingTar['sourceName']);
+        $t->same(true, $matchingTar['sourceNameCandidate']);
+        $t->same('extension:gzip-tar', $matchingTar['sourceNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $matchingTar['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $matchingTar['expectedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $matchingTar['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $matchingTar['detectedFormat']);
+        $t->same(strlen($gzipTar), $matchingTar['compressedSize']);
+        $t->same(strlen($tarPacket->bytes()), $matchingTar['decodedPackageSize']);
+        $t->same(2, $matchingTar['entryCount']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $matchingTar['entryNames']);
+        $t->same('within-thresholds', $matchingTar['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $matchingTar['extractionPolicy']);
+        $t->same([], $matchingTar['diagnostics']);
+        $t->same('gzip', $matchingTar['stream']['type']);
+        $t->same('actual-review-packet.tar', $matchingTar['stream']['members'][0]['filename']);
+        $t->same(false, isset($matchingTar['tarBytes']));
+        $t->same(false, isset($matchingTar['archive']));
+        $t->same(false, isset($matchingTar['package']));
+
+        $t->same('extension:zip-package', $matchingDocx['sourceNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $matchingDocx['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $matchingDocx['expectedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $matchingDocx['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $matchingDocx['detectedFormat']);
+        $t->same('within-thresholds', $matchingDocx['handoffPolicy']);
+        $t->same([], $matchingDocx['diagnostics']);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $mismatchedDocx['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZIP, $mismatchedDocx['expectedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $mismatchedDocx['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $mismatchedDocx['detectedFormat']);
+        $t->same('review-before-conversion', $mismatchedDocx['handoffPolicy']);
+        $t->same([
+            'archive-source-name-package-kind-mismatch',
+            'archive-source-name-compression-format-mismatch',
+        ], $mismatchedDocx['diagnostics']);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $mismatchedTar['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $mismatchedTar['expectedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $mismatchedTar['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $mismatchedTar['detectedFormat']);
+        $t->same('review-before-conversion', $mismatchedTar['handoffPolicy']);
+        $t->same([
+            'archive-source-name-package-kind-mismatch',
+            'archive-source-name-compression-format-mismatch',
+        ], $mismatchedTar['diagnostics']);
+
+        $t->same(false, $unknownName['sourceNameCandidate']);
+        $t->same(null, $unknownName['expectedKind']);
+        $t->same(null, $unknownName['expectedFormat']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $unknownName['detectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $unknownName['detectedFormat']);
+        $t->same('review-before-conversion', $unknownName['handoffPolicy']);
+        $t->same(['archive-source-name-package-type-unknown'], $unknownName['diagnostics']);
+    },
+
     'discovers nested archive package streams without extracting package entries' => static function (TestRunner $t): void {
         $innerZip = ZipPackage::fromParts([
             [

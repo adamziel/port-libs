@@ -204,6 +204,9 @@ return [
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('typst'));
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('typ'));
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('language-typst-source'));
+        $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue'));
+        $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue-sfc'));
+        $t->same('vue', SyntaxHighlighter::normalizeLanguage('language-html-vue'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -1836,6 +1839,59 @@ return [
         $t->contains('<span class="kw">defmodule</span> <span class="dt">Importer</span><span class="op">.</span><span class="dt">Script</span> <span class="kw">do</span>', $directExs['html']);
         $t->contains('<span class="ot">@spec</span> <span class="fu">run</span><span class="op">(</span><span class="dt">String</span><span class="op">.</span><span class="fu">t</span><span class="op">())</span> <span class="op">::</span> <span class="cn">:ok</span>', $directExs['html']);
         $t->contains('<span class="kw">def</span> <span class="fu">run</span><span class="op">(</span><span class="va">title</span><span class="op">),</span> <span class="ot">do</span><span class="op">:</span> <span class="va">title</span> <span class="op">|&gt;</span> <span class="dt">String</span><span class="op">.</span><span class="fu">trim</span><span class="op">();</span>', $directExs['html']);
+    },
+    'highlights vue sfc review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[60] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Vue SFC code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directVue = $highlighter->highlight(
+            '<template><ImportCard :title="post.title">{{ post.title ?? "Untitled" }}</ImportCard></template>',
+            'html-vue'
+        );
+
+        $t->same('vue', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue'));
+        $t->same('vue', SyntaxHighlighter::normalizeLanguage('vuejs'));
+        $t->same('vue', SyntaxHighlighter::normalizeLanguage('vue-component'));
+        $t->same('vue', $highlighted['language']);
+        $t->same('vue', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(840, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource vue numberLines"><code class="sourceCode vue" style="counter-reset: source-line 839;">', $highlighted['html']);
+        $t->contains('<span id="vue-sfc-review-840"><a href="#vue-sfc-review-840"></a><span class="co">&lt;!-- Vue WordPress import card review --&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;template</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;article</span> <span class="ot">class</span><span class="op">=</span><span class="st">&quot;wp-block-import-card&quot;</span> <span class="ot">:data-source</span><span class="op">=</span><span class="st">&quot;packet.sourceId&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="op">&gt;{{</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">?.</span><span class="fu">trim</span><span class="op">()</span> <span class="op">||</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;button</span> <span class="ot">v-if</span><span class="op">=</span><span class="st">&quot;packet.reviewUrl&quot;</span> <span class="ot">@click</span><span class="op">=</span><span class="st">&quot;openReview(packet.reviewUrl)&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;script</span> <span class="ot">setup</span> <span class="ot">lang</span><span class="op">=</span><span class="st">&quot;ts&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="op">{</span> <span class="va">computed</span> <span class="op">}</span> <span class="kw">from</span> <span class="st">&quot;vue&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="va">reviewUrl</span><span class="op">?:</span> <span class="dt">string</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">const</span> <span class="va">props</span> <span class="op">=</span> <span class="fu">defineProps</span><span class="op">&lt;{</span> <span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">}&gt;();</span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span> <span class="fu">openReview</span><span class="op">(</span><span class="va">url</span><span class="op">:</span> <span class="dt">string</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="va">window</span><span class="op">.</span><span class="va">location</span><span class="op">.</span><span class="va">href</span> <span class="op">=</span> <span class="va">url</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;style</span> <span class="ot">scoped</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.wp-block-import-card</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">--accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">text-decoration</span><span class="op">:</span> underline<span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="ot">@click</span><span class="op">=</span><span class="st">&quot;openReview(packet.reviewUrl)&quot;</span>', $wordpressBlock);
+        $t->same('vue', $directVue['language']);
+        $t->same('html-vue', $directVue['requestedLanguage']);
+        $t->contains('<span class="fu">&lt;ImportCard</span> <span class="ot">:title</span><span class="op">=</span><span class="st">&quot;post.title&quot;</span><span class="op">&gt;{{</span>', $directVue['html']);
+        $t->contains('<span class="op">&gt;{{</span> <span class="va">post</span><span class="op">.</span><span class="va">title</span> <span class="op">??</span> <span class="st">&quot;Untitled&quot;</span> <span class="op">}}</span>', $directVue['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

@@ -4984,7 +4984,7 @@ CSS;
         }
 
         if (is_bool($value)) {
-            return $value ? 'true' : '';
+            return $value ? 'true' : 'false';
         }
 
         if (is_string($value)) {

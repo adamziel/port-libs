@@ -761,6 +761,16 @@ final class BibtexCslParser
             $item['biblatex-language-options'] = $biblatexLanguageOptions;
         }
 
+        $refsection = self::firstField($fields, ['refsection', 'ref-section']);
+        if ($refsection !== '') {
+            $item['biblatex-refsection'] = $refsection;
+        }
+
+        $refsegment = self::firstField($fields, ['refsegment', 'ref-segment']);
+        if ($refsegment !== '') {
+            $item['biblatex-refsegment'] = $refsegment;
+        }
+
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;

@@ -2081,26 +2081,11 @@ final class UnicodeText
     {
         $normalized = self::normalizeEncoding($encoding);
         $bom = null;
-        if (str_starts_with($bytes, "\xFF\xFE\x00\x00")) {
-            $bom = 'utf-32le';
-            $bytes = substr($bytes, 4);
-            $normalized = 'utf-32le';
-        } elseif (str_starts_with($bytes, "\x00\x00\xFE\xFF")) {
-            $bom = 'utf-32be';
-            $bytes = substr($bytes, 4);
-            $normalized = 'utf-32be';
-        } elseif (str_starts_with($bytes, "\xEF\xBB\xBF")) {
-            $bom = 'utf-8';
-            $bytes = substr($bytes, 3);
-            $normalized = 'utf-8';
-        } elseif (str_starts_with($bytes, "\xFF\xFE")) {
-            $bom = 'utf-16le';
-            $bytes = substr($bytes, 2);
-            $normalized = 'utf-16le';
-        } elseif (str_starts_with($bytes, "\xFE\xFF")) {
-            $bom = 'utf-16be';
-            $bytes = substr($bytes, 2);
-            $normalized = 'utf-16be';
+        $bomInfo = self::byteOrderMarkEncoding($bytes);
+        if ($bomInfo !== null) {
+            $bom = $bomInfo['encoding'];
+            $bytes = substr($bytes, $bomInfo['length']);
+            $normalized = $bomInfo['encoding'];
         }
 
         $normalized ??= 'utf-8';
@@ -2192,6 +2177,11 @@ final class UnicodeText
      */
     public static function declaredCharset(string $bytes, ?string $contentType = null): array
     {
+        $bomInfo = self::byteOrderMarkEncoding($bytes);
+        if ($bomInfo !== null) {
+            return self::declaredCharsetResult($bomInfo['encoding'], 'byte-order-mark', 0);
+        }
+
         if ($contentType !== null) {
             $candidate = self::contentTypeCharsetCandidate($contentType);
             if ($candidate !== null) {
@@ -2240,6 +2230,30 @@ final class UnicodeText
             'offset' => null,
             'diagnostics' => [],
         ];
+    }
+
+    /**
+     * @return array{encoding:string, length:int}|null
+     */
+    private static function byteOrderMarkEncoding(string $bytes): ?array
+    {
+        if (str_starts_with($bytes, "\xFF\xFE\x00\x00")) {
+            return ['encoding' => 'utf-32le', 'length' => 4];
+        }
+        if (str_starts_with($bytes, "\x00\x00\xFE\xFF")) {
+            return ['encoding' => 'utf-32be', 'length' => 4];
+        }
+        if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+            return ['encoding' => 'utf-8', 'length' => 3];
+        }
+        if (str_starts_with($bytes, "\xFF\xFE")) {
+            return ['encoding' => 'utf-16le', 'length' => 2];
+        }
+        if (str_starts_with($bytes, "\xFE\xFF")) {
+            return ['encoding' => 'utf-16be', 'length' => 2];
+        }
+
+        return null;
     }
 
     public static function repair(string $text): string

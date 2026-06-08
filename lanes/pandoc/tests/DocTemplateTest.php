@@ -183,7 +183,7 @@ TPL;
         ]), $output);
     },
 
-    'renders pandoc doctemplate false booleans as empty text' => static function (TestRunner $t): void {
+    'renders pandoc doctemplate false booleans as literal text while branching false' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 False: <$flag$>
 List: <$items[, ]$>
@@ -200,12 +200,31 @@ TPL;
         ]);
 
         $t->same(implode("\n", [
-            'False: <>',
-            'List: <true, , kept>',
-            'Loop: [true][][kept]',
+            'False: <false>',
+            'List: <true, false, kept>',
+            'Loop: [true][false][kept]',
             'Map: <true>',
-            'Block: <>',
+            'Block: <false>',
             'false branch',
+        ]), $output);
+    },
+
+    'matches upstream pandoc doctemplates boolean fixture rendering' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+$foo$
+$bar$
+$if(foo)$XXX$else$YYY$endif$
+$if(bar)$XXX$else$YYY$endif$
+TPL, [
+            'foo' => true,
+            'bar' => false,
+        ]);
+
+        $t->same(implode("\n", [
+            'true',
+            'false',
+            'XXX',
+            'YYY',
         ]), $output);
     },
 
@@ -889,7 +908,7 @@ TPL;
 
         $t->same(implode("\n", [
             'Meta: true',
-            'Flags: true, ',
+            'Flags: true, false',
         ]), $output);
     },
 

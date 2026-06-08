@@ -3103,6 +3103,63 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps ODT user-defined content fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithUserDefinedFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Custom source id <text:user-defined text:name="wp-source-id" office:value-type="string" office:string-value="packet-42" text:fixed="true">packet-42</text:user-defined>, review state <text:user-defined text:name="review-state" office:value-type="boolean" office:boolean-value="true"/> on <text:user-defined text:name="review-date" office:value-type="date" office:date-value="2026-06-08">June 8, 2026</text:user-defined>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithUserDefinedFields));
+        $paragraph = $result['document']->children[0];
+        $sourceId = $paragraph->children[1];
+        $reviewState = $paragraph->children[3];
+        $reviewDate = $paragraph->children[5];
+
+        $t->same('Custom source id packet-42, review state true on June 8, 2026.', $paragraph->attr('text'));
+        $t->same('span', $sourceId->type);
+        $t->same(['odf-field', 'odf-field-user-defined'], $sourceId->attr('classes'));
+        $t->same('user-defined', $sourceId->attr('fieldType'));
+        $t->same('wp-source-id', $sourceId->attr('fieldName'));
+        $t->same('string', $sourceId->attr('fieldMetadata')['valueType']);
+        $t->same('packet-42', $sourceId->attr('fieldMetadata')['stringValue']);
+        $t->same(true, $sourceId->attr('fieldMetadata')['fixed']);
+        $t->same('packet-42', $sourceId->children[0]->attr('text'));
+        $t->same('wp-source-id', $sourceId->attr('attributes')['data-odf-field-name']);
+        $t->same('packet-42', $sourceId->attr('attributes')['data-odf-field-string-value']);
+        $t->same('true', $sourceId->attr('attributes')['data-odf-field-fixed']);
+
+        $t->same('span', $reviewState->type);
+        $t->same('user-defined', $reviewState->attr('fieldType'));
+        $t->same('review-state', $reviewState->attr('fieldName'));
+        $t->same('boolean', $reviewState->attr('fieldMetadata')['valueType']);
+        $t->same(true, $reviewState->attr('fieldMetadata')['booleanValue']);
+        $t->same('true', $reviewState->children[0]->attr('text'));
+        $t->same('true', $reviewState->attr('attributes')['data-odf-field-boolean-value']);
+
+        $t->same('user-defined', $reviewDate->attr('fieldType'));
+        $t->same('review-date', $reviewDate->attr('fieldName'));
+        $t->same('date', $reviewDate->attr('fieldMetadata')['valueType']);
+        $t->same('2026-06-08', $reviewDate->attr('fieldMetadata')['dateValue']);
+        $t->same('June 8, 2026', $reviewDate->children[0]->attr('text'));
+        $t->same('2026-06-08', $reviewDate->attr('attributes')['data-odf-field-date-value']);
+        $t->same(3, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[packet-42]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="wp-source-id" data-odf-field-value-type="string" data-odf-field-string-value="packet-42" data-odf-field-fixed="true"}', $markdown);
+        $t->contains('[true]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="review-state" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true"}', $markdown);
+        $t->contains('[June 8, 2026]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="review-date" data-odf-field-value-type="date" data-odf-field-date-value="2026-06-08"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="wp-source-id" data-odf-field-value-type="string" data-odf-field-string-value="packet-42" data-odf-field-fixed="true">packet-42</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="review-state" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true">true</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="review-date" data-odf-field-value-type="date" data-odf-field-date-value="2026-06-08">June 8, 2026</span>', $blocksHtml);
+    },
     'maps ODT field style names into review span metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithStyledFields = <<<'XML'
 <office:document-content

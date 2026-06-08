@@ -217,6 +217,75 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     sourceName:string,
+     *     sourceNameCandidate:bool,
+     *     sourceNameReason:?string,
+     *     expectedKind:?string,
+     *     expectedFormat:?string,
+     *     detectedKind:string,
+     *     detectedFormat:string,
+     *     compressedSize:int,
+     *     decodedPackageSize:?int,
+     *     entryCount:int,
+     *     entryNames:list<string>,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectPackageSourceNamePolicyAuto(
+        string $bytes,
+        string $sourceName,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($sourceName === '') {
+            throw new \RuntimeException('Archive package source-name policy requires a non-empty source name');
+        }
+
+        $candidate = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+        $nameCandidate = self::supportedPackageSourceNameCandidate($sourceName);
+        $entryNames = self::candidateEntryNames($candidate);
+        $diagnostics = [];
+
+        if ($nameCandidate === null) {
+            $diagnostics[] = 'archive-source-name-package-type-unknown';
+        } else {
+            if ($nameCandidate['kind'] !== $candidate['kind']) {
+                $diagnostics[] = 'archive-source-name-package-kind-mismatch';
+            }
+
+            if ($nameCandidate['format'] !== $candidate['format']) {
+                $diagnostics[] = 'archive-source-name-compression-format-mismatch';
+            }
+        }
+
+        return [
+            'type' => 'archive-package-source-name-policy',
+            'sourceName' => $sourceName,
+            'sourceNameCandidate' => $nameCandidate !== null,
+            'sourceNameReason' => $nameCandidate['reason'] ?? null,
+            'expectedKind' => $nameCandidate['kind'] ?? null,
+            'expectedFormat' => $nameCandidate['format'] ?? null,
+            'detectedKind' => $candidate['kind'],
+            'detectedFormat' => $candidate['format'],
+            'compressedSize' => strlen($bytes),
+            'decodedPackageSize' => self::candidatePackageByteSize($candidate),
+            'entryCount' => count($entryNames),
+            'entryNames' => $entryNames,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $diagnostics,
+            'stream' => self::streamInspection($bytes, $candidate['format'], $maxUncompressedBytes),
+        ];
+    }
+
+    /**
      * @param array<int|string, string> $dictionaries
      * @return array<string, mixed>
      */
@@ -2835,6 +2904,47 @@ final class ArchiveCompressionStream
                 'streamFlagsHex' => strlen($bytes) >= 8 ? bin2hex(substr($bytes, 6, 2)) : null,
                 'blockSize100k' => null,
             ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{kind:string, format:string, reason:string}|null
+     */
+    private static function supportedPackageSourceNameCandidate(string $sourceName): ?array
+    {
+        $lower = strtolower($sourceName);
+        $suffixes = [
+            '.tar.gz' => [self::PACKAGE_KIND_TAR, self::FORMAT_GZIP_TAR, 'extension:gzip-tar'],
+            '.tgz' => [self::PACKAGE_KIND_TAR, self::FORMAT_GZIP_TAR, 'extension:gzip-tar'],
+            '.tar.zlib' => [self::PACKAGE_KIND_TAR, self::FORMAT_ZLIB_TAR, 'extension:zlib-tar'],
+            '.tar.deflate' => [self::PACKAGE_KIND_TAR, self::FORMAT_RAW_DEFLATE_TAR, 'extension:raw-deflate-tar'],
+            '.tar.lz4' => [self::PACKAGE_KIND_TAR, self::FORMAT_LZ4_TAR, 'extension:lz4-tar'],
+            '.tlz4' => [self::PACKAGE_KIND_TAR, self::FORMAT_LZ4_TAR, 'extension:lz4-tar'],
+            '.tar' => [self::PACKAGE_KIND_TAR, self::FORMAT_TAR, 'extension:tar'],
+            '.zip.gz' => [self::PACKAGE_KIND_ZIP, self::FORMAT_GZIP_ZIP, 'extension:gzip-zip'],
+            '.zip.zlib' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZLIB_ZIP, 'extension:zlib-zip'],
+            '.zip.deflate' => [self::PACKAGE_KIND_ZIP, self::FORMAT_RAW_DEFLATE_ZIP, 'extension:raw-deflate-zip'],
+            '.zip.lz4' => [self::PACKAGE_KIND_ZIP, self::FORMAT_LZ4_ZIP, 'extension:lz4-zip'],
+            '.zip' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip'],
+            '.docx' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+            '.dotx' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+            '.docm' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+            '.odt' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+            '.ods' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+            '.odp' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+            '.epub' => [self::PACKAGE_KIND_ZIP, self::FORMAT_ZIP, 'extension:zip-package'],
+        ];
+
+        foreach ($suffixes as $suffix => [$kind, $format, $reason]) {
+            if (str_ends_with($lower, $suffix)) {
+                return [
+                    'kind' => $kind,
+                    'format' => $format,
+                    'reason' => $reason,
+                ];
+            }
         }
 
         return null;
