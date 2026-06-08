@@ -4358,11 +4358,11 @@ final class PdfAcroFormExtractor
     private function signatureLockFieldNames(string $lockBody, array $objects, array $fieldNamesByObject): array
     {
         $value = $this->valueAfterName($lockBody, 'Fields');
-        if ($value === null || !str_starts_with(trim($value), '[')) {
+        if ($value === null) {
             return [];
         }
 
-        $body = $this->arrayBodyFromValue($value);
+        $body = $this->arrayBodyFromValueOrReference($value, $objects);
         if ($body === null) {
             return [];
         }
@@ -4373,6 +4373,26 @@ final class PdfAcroFormExtractor
             $this->skipWhitespace($body, $offset);
             if ($offset >= strlen($body)) {
                 break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
             }
 
             $referenceEnd = null;
@@ -4417,11 +4437,11 @@ final class PdfAcroFormExtractor
     private function calculationOrderFromAcroForm(string $acroForm, array $objects, array $fieldNamesByObject): array
     {
         $value = $this->valueAfterName($acroForm, 'CO');
-        if ($value === null || !str_starts_with(trim($value), '[')) {
+        if ($value === null) {
             return [];
         }
 
-        $body = $this->arrayBodyFromValue($value);
+        $body = $this->arrayBodyFromValueOrReference($value, $objects);
         if ($body === null) {
             return [];
         }
@@ -4445,11 +4465,11 @@ final class PdfAcroFormExtractor
     private function calculationOrderReviewFromAcroForm(string $acroForm, array $objects, array $fieldNamesByObject): array
     {
         $value = $this->valueAfterName($acroForm, 'CO');
-        if ($value === null || !str_starts_with(trim($value), '[')) {
+        if ($value === null) {
             return [];
         }
 
-        $body = $this->arrayBodyFromValue($value);
+        $body = $this->arrayBodyFromValueOrReference($value, $objects);
         if ($body === null) {
             return [];
         }
@@ -7782,7 +7802,11 @@ final class PdfAcroFormExtractor
     private function fieldTargetsFromValue(string $value, array $objects, array $fieldNamesByObject): array
     {
         $value = trim($value);
-        $body = str_starts_with($value, '[') ? $this->arrayBodyFromValue($value) : $value;
+        if (str_starts_with($value, '[')) {
+            $body = $this->arrayBodyFromValue($value);
+        } else {
+            $body = $this->arrayBodyFromValueOrReference($value, $objects) ?? $value;
+        }
         if ($body === null) {
             return [
                 'field_objects' => [],
@@ -7989,7 +8013,7 @@ final class PdfAcroFormExtractor
         int $flags
     ): array {
         $fields = $this->valueAfterName($actionBody, 'Fields');
-        if ($fields === null || !str_starts_with(trim($fields), '[')) {
+        if ($fields === null) {
             return [
                 'fields_mode' => $actionType === 'SubmitForm' ? 'all_exportable' : 'all',
                 'field_objects' => [],
@@ -7998,8 +8022,22 @@ final class PdfAcroFormExtractor
             ];
         }
 
-        $arrayBody = $this->arrayBodyFromValue($fields);
+        $fields = trim($fields);
+        $arrayBody = $this->arrayBodyFromValueOrReference($fields, $objects);
         if ($arrayBody === null) {
+            $reference = $this->validObjectReferenceFromValue($fields, $objects);
+            $referenceIsArrayLike = $reference !== null
+                && isset($objects[$reference])
+                && str_starts_with(ltrim($objects[$reference]), '[');
+            if (!str_starts_with($fields, '[') && !$referenceIsArrayLike) {
+                return [
+                    'fields_mode' => $actionType === 'SubmitForm' ? 'all_exportable' : 'all',
+                    'field_objects' => [],
+                    'field_names' => [],
+                    'unresolved_field_objects' => [],
+                ];
+            }
+
             return [
                 'fields_mode' => $this->hasFlagBit($flags, 1) ? 'exclude' : 'include',
                 'field_objects' => [],
@@ -8021,7 +8059,7 @@ final class PdfAcroFormExtractor
         }
 
         foreach ($this->scalarValuesFromArrayBody($arrayBody, $objects) as $fieldName) {
-            if (!in_array($fieldName, $fieldNames, true)) {
+            if ($fieldName !== '' && !in_array($fieldName, $fieldNames, true)) {
                 $fieldNames[] = $fieldName;
             }
         }
@@ -8476,6 +8514,30 @@ final class PdfAcroFormExtractor
         $offset = 0;
         while ($offset < strlen($body)) {
             $this->skipWhitespace($body, $offset);
+            if ($offset >= strlen($body)) {
+                break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
+            }
+
             $item = $this->readScalarAt($body, $offset, $objects, $scalarEnd);
             if ($item === null) {
                 if ($scalarEnd !== null && $scalarEnd > $offset) {
