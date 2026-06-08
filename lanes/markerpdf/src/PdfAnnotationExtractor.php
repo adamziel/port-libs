@@ -2084,6 +2084,13 @@ final class PdfAnnotationExtractor
     {
         $bs = $this->valueAfterName($body, 'BS');
         if ($bs !== null) {
+            if (
+                $this->dictionaryValueHasTrailingOperand($body, 'BS')
+                || $this->resolvedValueHasTrailingOperand($bs, $objects)
+            ) {
+                return null;
+            }
+
             $dictionary = $this->resolvedDictionaryFromValue($bs, $objects);
             if ($dictionary !== null) {
                 $width = $this->floatValueAfterName($dictionary['body'], 'W', $objects) ?? 1.0;
@@ -2104,6 +2111,12 @@ final class PdfAnnotationExtractor
 
         $border = $this->valueAfterName($body, 'Border');
         if ($border === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($body, 'Border')
+            || $this->resolvedValueHasTrailingOperand($border, $objects)
+        ) {
             return null;
         }
 
@@ -2158,6 +2171,12 @@ final class PdfAnnotationExtractor
     {
         $value = $this->valueAfterName($body, $name);
         if ($value === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($body, $name)
+            || $this->resolvedValueHasTrailingOperand($value, $objects)
+        ) {
             return null;
         }
 
@@ -2218,6 +2237,17 @@ final class PdfAnnotationExtractor
 
     private function opacityFromAnnotation(string $body, array $objects): ?float
     {
+        $value = $this->valueAfterName($body, 'CA');
+        if (
+            $value !== null
+            && (
+                $this->dictionaryValueHasTrailingOperand($body, 'CA')
+                || $this->resolvedValueHasTrailingOperand($value, $objects)
+            )
+        ) {
+            return null;
+        }
+
         $opacity = $this->floatValueAfterName($body, 'CA', $objects);
 
         return $opacity === null ? null : $this->clamp($opacity);
@@ -2946,6 +2976,52 @@ final class PdfAnnotationExtractor
         }
 
         return $selectedMalformed;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resolvedValueHasTrailingOperand(string $value, array $objects): bool
+    {
+        $trimmed = trim($value);
+        $reference = $this->objectReferenceWithGenerationFromValue($trimmed);
+        if ($reference !== null) {
+            $body = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+            if ($body === null) {
+                return false;
+            }
+
+            $trimmed = trim($body);
+        }
+
+        return $this->topLevelValueHasTrailingOperand($trimmed);
+    }
+
+    private function topLevelValueHasTrailingOperand(string $value): bool
+    {
+        $offset = 0;
+        $this->skipWhitespaceAndComments($value, $offset);
+        if ($offset >= strlen($value)) {
+            return false;
+        }
+
+        $endOffset = null;
+        if (($value[$offset] ?? '') === '[') {
+            $this->readPdfArrayAt($value, $offset, $endOffset);
+        } elseif (substr($value, $offset, 2) === '<<') {
+            $this->readPdfDictionaryAt($value, $offset, $endOffset);
+        } else {
+            $this->valueStartingAtOffsetWithEnd($value, $offset, $endOffset);
+        }
+
+        if ($endOffset === null || $endOffset <= $offset) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipWhitespaceAndComments($value, $tailOffset);
+
+        return $tailOffset < strlen($value);
     }
 
     /**

@@ -2051,6 +2051,17 @@ final class PdfLinkAnnotationExtractor
      */
     private function opacityFromAnnotation(string $annotationBody, array $objects): ?float
     {
+        $value = $this->valueAfterName($annotationBody, 'CA');
+        if (
+            $value !== null
+            && (
+                $this->dictionaryValueHasTrailingOperand($annotationBody, 'CA')
+                || $this->resolvedValueHasTrailingOperand($value, $objects)
+            )
+        ) {
+            return null;
+        }
+
         $opacity = $this->floatValueAfterName($annotationBody, 'CA', $objects);
 
         return $opacity === null ? null : $this->clamp($opacity);
@@ -2062,7 +2073,23 @@ final class PdfLinkAnnotationExtractor
      */
     private function colorValueAfterName(string $body, string $name, array $objects): ?array
     {
-        $arrayBody = $this->arrayBodyValueAfterName($body, $name, $objects);
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($body, $name)
+            || $this->resolvedValueHasTrailingOperand($value, $objects)
+        ) {
+            return null;
+        }
+
+        $value = trim($this->resolveIndirectObjectValue($value, $objects));
+        if (!str_starts_with($value, '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($value);
         if ($arrayBody === null) {
             return null;
         }
@@ -2119,7 +2146,24 @@ final class PdfLinkAnnotationExtractor
      */
     private function highlightModeFromAnnotation(string $annotationBody, array $objects = []): ?string
     {
-        return $this->nameValueAfterName($annotationBody, 'H', $objects);
+        $value = $this->valueAfterName($annotationBody, 'H');
+        if ($value === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($annotationBody, 'H')
+            || $this->resolvedValueHasTrailingOperand($value, $objects)
+        ) {
+            return null;
+        }
+
+        $trimmed = trim($this->resolveIndirectObjectValue($value, $objects));
+        if ($trimmed === '' || $trimmed[0] !== '/') {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfName($trimmed, 0);
+        return $this->decodePdfName(substr($trimmed, 1, $endOffset - 1));
     }
 
     /**
@@ -2130,6 +2174,13 @@ final class PdfLinkAnnotationExtractor
     {
         $bs = $this->valueAfterName($annotationBody, 'BS');
         if ($bs !== null) {
+            if (
+                $this->dictionaryValueHasTrailingOperand($annotationBody, 'BS')
+                || $this->resolvedValueHasTrailingOperand($bs, $objects)
+            ) {
+                return null;
+            }
+
             $dictionary = $this->dictionaryBodyFromValue($bs, $objects);
             if ($dictionary !== null) {
                 $width = $this->floatValueAfterName($dictionary, 'W', $objects) ?? 1.0;
@@ -2148,7 +2199,23 @@ final class PdfLinkAnnotationExtractor
             }
         }
 
-        $arrayBody = $this->arrayBodyValueAfterName($annotationBody, 'Border', $objects);
+        $border = $this->valueAfterName($annotationBody, 'Border');
+        if ($border === null) {
+            return null;
+        }
+        if (
+            $this->dictionaryValueHasTrailingOperand($annotationBody, 'Border')
+            || $this->resolvedValueHasTrailingOperand($border, $objects)
+        ) {
+            return null;
+        }
+
+        $borderValue = trim($this->resolveIndirectObjectValue($border, $objects));
+        if (!str_starts_with($borderValue, '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->arrayBodyFromValue($borderValue);
         if ($arrayBody === null) {
             return null;
         }
@@ -2786,6 +2853,52 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $selectedMalformed;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resolvedValueHasTrailingOperand(string $value, array $objects): bool
+    {
+        $trimmed = trim($value);
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            $body = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+            if ($body === null) {
+                return false;
+            }
+
+            $trimmed = trim($body);
+        }
+
+        return $this->topLevelValueHasTrailingOperand($trimmed);
+    }
+
+    private function topLevelValueHasTrailingOperand(string $value): bool
+    {
+        $offset = 0;
+        $this->skipWhitespaceAndComments($value, $offset);
+        if ($offset >= strlen($value)) {
+            return false;
+        }
+
+        $endOffset = null;
+        if (($value[$offset] ?? '') === '[') {
+            $this->readPdfArrayAt($value, $offset, $endOffset);
+        } elseif (substr($value, $offset, 2) === '<<') {
+            $this->readPdfDictionaryAt($value, $offset, $endOffset);
+        } else {
+            $this->valueStartingAtOffsetWithEnd($value, $offset, $endOffset);
+        }
+
+        if ($endOffset === null || $endOffset <= $offset) {
+            return false;
+        }
+
+        $tailOffset = $endOffset;
+        $this->skipWhitespaceAndComments($value, $tailOffset);
+
+        return $tailOffset < strlen($value);
     }
 
     private function skipWhitespaceAndComments(string $value, int &$offset): void
