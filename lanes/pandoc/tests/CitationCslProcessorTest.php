@@ -13286,6 +13286,70 @@ XML);
             ],
         ]]));
     },
+    'maps bounded biblatex language options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{language-options-manual,
+  author     = {Garcia, Nia},
+  title      = {Language Option Review Manual},
+  date       = {2026},
+  publisher  = {Review Press},
+  langid     = {spanish},
+  langidopts = {variant=mexican, hyphenation=traditional, sentencecase=false}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(['variant=mexican', 'hyphenation=traditional', 'sentencecase=false'], $items[0]['biblatex-language-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('language-options-manual');
+        $t->same('spanish', $item['language'] ?? null);
+        $t->same(['spanish'], $item['languageList'] ?? null);
+        $t->same(['variant=mexican', 'hyphenation=traditional', 'sentencecase=false'], $item['biblatexLanguageOptions'] ?? null);
+        $t->same('variant=mexican; hyphenation=traditional; sentencecase=false', $item['biblatexLanguageOptionSummary'] ?? null);
+        $t->same(
+            'Garcia, Nia. Language Option Review Manual. Review Press, 2026. BibLaTeX language options: variant=mexican; hyphenation=traditional; sentencecase=false.',
+            $processor->renderBibliographyEntry('language-options-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Language Options Review</title>
+    <id>https://example.test/styles/bounded-biblatex-language-options-review</id>
+    <updated>2026-06-08T13:23:07+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <text variable="biblatex-language-options"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-language-option-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(variant=mexican, hyphenation=traditional, sentencecase=false)', $styled->renderCitationCluster([$citation('language-options-manual', '[@language-options-manual]')]));
+        $t->same('Language Option Review Manual :: variant=mexican; hyphenation=traditional; sentencecase=false', $styled->renderBibliographyEntry('language-options-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-language-options',
+            'type' => 'book',
+            'title' => 'Direct Language Options',
+            'language-options' => 'autolang=other, clearlang=true',
+        ]])->item('direct-language-options');
+        $t->same(['autolang=other', 'clearlang=true'], $direct['biblatexLanguageOptions'] ?? null);
+        $t->same('autolang=other; clearlang=true', $direct['biblatexLanguageOptionSummary'] ?? null);
+
+        $document = (new MarkdownReader())->read('Language option source @language-options-manual keeps BibLaTeX locale switches visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Language option source Garcia (2026) keeps BibLaTeX locale switches visible.</p>', $blocks);
+        $t->contains('<dt>Garcia 2026</dt><dd>Garcia, Nia. Language Option Review Manual. Review Press, 2026. BibLaTeX language options: variant=mexican; hyphenation=traditional; sentencecase=false.</dd>', $blocks);
+    },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

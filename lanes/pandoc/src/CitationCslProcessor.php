@@ -732,6 +732,14 @@ final class CitationCslProcessor
             'event-date' => $eventDate,
         ]);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
+        $biblatexLanguageOptions = self::stringListFromFirstField($item, [
+            'biblatexLanguageOptions',
+            'biblatex-language-options',
+            'biblatexlanguageoptions',
+            'langidopts',
+            'language-options',
+            'languageOptions',
+        ]);
         $biblatexGender = self::firstStringField($item, ['biblatexGender', 'biblatex-gender', 'gender']);
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
         $biblatexCustomLists = self::biblatexCustomLists($item, $id);
@@ -857,6 +865,8 @@ final class CitationCslProcessor
             'dateSeasonSummary' => $dateSeasonSummary,
             'biblatexOptions' => $biblatexOptions,
             'biblatexOptionSummary' => implode('; ', $biblatexOptions),
+            'biblatexLanguageOptions' => $biblatexLanguageOptions,
+            'biblatexLanguageOptionSummary' => implode('; ', $biblatexLanguageOptions),
             'biblatexFieldAnnotations' => $biblatexFieldAnnotations,
             'biblatexFieldAnnotationSummary' => self::biblatexFieldAnnotationSummary($biblatexFieldAnnotations),
             'biblatexCustomFields' => $biblatexCustomFields,
@@ -5444,6 +5454,11 @@ final class CitationCslProcessor
             $parts[] = 'BibLaTeX options: ' . $this->withTerminalPunctuation($biblatexOptionSummary);
         }
 
+        $biblatexLanguageOptionSummary = trim((string) ($item['biblatexLanguageOptionSummary'] ?? ''));
+        if ($biblatexLanguageOptionSummary !== '') {
+            $parts[] = 'BibLaTeX language options: ' . $this->withTerminalPunctuation($biblatexLanguageOptionSummary);
+        }
+
         $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
         if ($customFieldSummary !== '') {
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
@@ -6993,6 +7008,8 @@ final class CitationCslProcessor
             'biblatex-field-annotations', 'biblatex-field-annotation-summary', 'biblatex-field-annotations-summary', 'field-annotation-summary' => (string) ($item['biblatexFieldAnnotationSummary'] ?? ''),
             'biblatex-options', 'biblatexoptions' => implode(', ', is_array($item['biblatexOptions'] ?? null) ? $item['biblatexOptions'] : []),
             'biblatex-option-summary', 'biblatex-options-summary', 'biblatexoptionssummary' => (string) ($item['biblatexOptionSummary'] ?? ''),
+            'biblatex-language-options', 'biblatexlanguageoptions', 'langidopts', 'language-options' => implode(', ', is_array($item['biblatexLanguageOptions'] ?? null) ? $item['biblatexLanguageOptions'] : []),
+            'biblatex-language-option-summary', 'biblatex-language-options-summary', 'biblatexlanguageoptionssummary', 'language-option-summary', 'language-options-summary' => (string) ($item['biblatexLanguageOptionSummary'] ?? ''),
             'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),
             'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
             'biblatex-custom-lists', 'biblatex-custom-list-summary', 'biblatex-custom-lists-summary' => (string) ($item['biblatexCustomListSummary'] ?? ''),

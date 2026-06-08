@@ -756,6 +756,11 @@ final class BibtexCslParser
             $item['biblatex-options'] = $biblatexOptions;
         }
 
+        $biblatexLanguageOptions = self::biblatexOptionList($fields['langidopts'] ?? '');
+        if ($biblatexLanguageOptions !== []) {
+            $item['biblatex-language-options'] = $biblatexLanguageOptions;
+        }
+
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
