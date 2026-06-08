@@ -25859,6 +25859,10 @@ final class PdfTextExtractor
             return [];
         }
 
+        if ($lastCode !== null && count($this->pdfArrayItems($widthArray)) < ($lastCode - $firstCode + 1)) {
+            return [];
+        }
+
         $widths = [];
         foreach ($this->nullableSingleNumbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
             $metric = $this->finiteHorizontalFontAdvanceMetric($width);

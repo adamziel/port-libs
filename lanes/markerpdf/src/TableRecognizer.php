@@ -3287,6 +3287,19 @@ final class TableRecognizer
                 }
             }
 
+            $namedBbox = $this->bboxFromNamedFields($container);
+            if ($namedBbox !== null) {
+                $sourceKey = $this->bboxNamedFieldSource($container) ?? 'bbox_named_fields';
+
+                return $this->tableCropBboxCandidateWithCoordinateSpace(
+                    $namedBbox,
+                    $containerKey . '.' . $sourceKey,
+                    $this->tableCropBboxCoordinateSpace($container, $sourceKey, true),
+                    $source,
+                    $source
+                );
+            }
+
             foreach (array_merge($this->sourceGeometryFallbackKeys(), $this->wrappedGeometryKeys()) as $bboxKey) {
                 if (!array_key_exists($bboxKey, $container)) {
                     continue;
