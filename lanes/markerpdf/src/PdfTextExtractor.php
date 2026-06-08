@@ -20608,6 +20608,10 @@ final class PdfTextExtractor
             return false;
         }
 
+        if ($filter !== 'Crypt' && $this->decodeParmsHasName($decodeParms, 'Name')) {
+            return false;
+        }
+
         foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
             if (
                 $this->decodeParmsHasName($decodeParms, $name)
