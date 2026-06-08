@@ -600,6 +600,59 @@ HTML;
         $t->true(!str_contains($blocks, 'width="34%"'), 'Raw source col width attributes should not override normalized geometry widths');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html table summary accessibility metadata into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="summary-source-grid" summary="Legacy source table describes post counts by import state." data-source="html-reader">
+<caption>Summary source review</caption>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('Legacy source table describes post counts by import state.', $table->attr('htmlAttributes')['summary'] ?? null);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('Legacy source table describes post counts by import state.', $packet['sourceSummary']['text'] ?? null);
+        $t->same('html-table-summary', $packet['sourceSummary']['source'] ?? null);
+        $t->same('summary', $packet['sourceSummary']['attribute'] ?? null);
+        $t->same(true, $packet['summary']['hasSourceSummary'] ?? null);
+        $t->same('Legacy source table describes post counts by import state.', $packet['summary']['sourceSummaryText'] ?? null);
+
+        $markdownSummaryDiagnostics = array_values(array_filter(
+            $packet['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-table-summary-require-raw-html'
+        ));
+        $t->same(1, count($markdownSummaryDiagnostics));
+        $t->same('table-summary', $markdownSummaryDiagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-table-summary', $markdownSummaryDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('html-table-summary', $markdownSummaryDiagnostics[0]['source'] ?? null);
+        $t->same('Legacy source table describes post counts by import state.', $markdownSummaryDiagnostics[0]['summaryText'] ?? null);
+
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $t->same(['asciidoc-table-summary-review-required'], array_values(array_filter(
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $asciidocDiagnostics),
+            static fn (string $code): bool => $code === 'asciidoc-table-summary-review-required'
+        )));
+        $t->same(['latex-table-summary-review-required'], array_values(array_filter(
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $latexDiagnostics),
+            static fn (string $code): bool => $code === 'latex-table-summary-review-required'
+        )));
+
+        $t->contains('<table id="summary-source-grid" summary="Legacy source table describes post counts by import state." data-source="html-reader">', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Summary source review</figcaption>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'groups html colgroup element span runs in table geometry packets' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="colgroup-span-grid" data-source="html-reader">

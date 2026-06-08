@@ -1548,6 +1548,7 @@ final class TableGeometry
      *     diagnostics:list<array<string, mixed>>,
      *     accessibility:array<string, array{id?:string,scope?:string,headers?:list<string>}>,
      *     headerAssociations:array<string, mixed>,
+     *     sourceSummary?:array{text:string,source:string,attribute:string},
      *     summary:array<string, mixed>
      * }
      */
@@ -1562,6 +1563,7 @@ final class TableGeometry
         $widthSummary = self::columnWidthSummary($table, $columnCount);
         $columnGroups = self::columnGroups($table, $columnCount);
         $rowGroups = self::rowGroups($table, $columnCount);
+        $sourceSummary = self::sourceSummaryRecord($table);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
         $writerDowngrades = [];
@@ -1603,9 +1605,14 @@ final class TableGeometry
                 $columnGroups,
                 $rowGroups,
                 $headerAssociations,
-                $rowHeaderMap
+                $rowHeaderMap,
+                (string) ($sourceSummary['text'] ?? '')
             ),
         ];
+
+        if ($sourceSummary !== []) {
+            $packet['sourceSummary'] = $sourceSummary;
+        }
 
         $sourceAttributes = self::sourceAttributeSummary($table);
         if ($sourceAttributes !== []) {
@@ -2264,6 +2271,23 @@ final class TableGeometry
         }
 
         return '';
+    }
+
+    /**
+     * @return array{text:string,source:string,attribute:string}
+     */
+    private static function sourceSummaryRecord(AstNode $table): array
+    {
+        $summary = self::sourceHtmlAttribute($table, 'summary');
+        if ($summary === '') {
+            return [];
+        }
+
+        return [
+            'text' => $summary,
+            'source' => 'html-table-summary',
+            'attribute' => 'summary',
+        ];
     }
 
     private static function normalizeVerticalAlignment(string $alignment): string
@@ -3222,7 +3246,8 @@ final class TableGeometry
         array $columnGroups,
         array $rowGroups,
         array $headerAssociations,
-        array $rowHeaderMap
+        array $rowHeaderMap,
+        string $sourceSummary
     ): array
     {
         $rowCount = 0;
@@ -3442,6 +3467,8 @@ final class TableGeometry
             'captionPlacement' => (string) ($captions['long']['captionPlacement'] ?? ''),
             'captionBeforeTable' => (bool) ($captions['long']['captionBeforeTable'] ?? false),
             'captionAfterTable' => (bool) ($captions['long']['captionAfterTable'] ?? false),
+            'hasSourceSummary' => $sourceSummary !== '',
+            'sourceSummaryText' => $sourceSummary,
             'hasShortCaptionBlocks' => (int) ($captions['short']['blockCount'] ?? 0) > 0,
             'shortCaptionBlockCount' => (int) ($captions['short']['blockCount'] ?? 0),
             'shortCaptionBlockTypes' => array_values(array_map(
@@ -3736,6 +3763,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
@@ -3805,6 +3833,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
@@ -3886,6 +3915,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+            array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
@@ -4111,6 +4141,41 @@ final class TableGeometry
         }
 
         return $cells;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableSummaryWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $summary = self::sourceHtmlAttribute($table, 'summary');
+        if ($summary === '') {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-summary-require-raw-html', 'raw-html-table-summary'],
+            'asciidoc' => ['asciidoc-table-summary-review-required', 'table-summary-review'],
+            'latex' => ['latex-table-summary-review-required', 'table-summary-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+        $caption = (string) $table->attr('caption', '');
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-summary',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-summary',
+            'attribute' => 'summary',
+            'caption' => $caption,
+            'hasCaption' => trim($caption) !== '',
+            'summaryText' => $summary,
+        ]];
     }
 
     /**

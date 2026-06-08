@@ -1223,7 +1223,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'bgcolor', 'headers', 'scope', 'style', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'bgcolor', 'headers', 'scope', 'style', 'summary', 'title', 'valign'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string

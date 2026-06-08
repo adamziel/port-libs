@@ -122,6 +122,21 @@ $captionSourceTables = array_values(array_filter(
     $captionSourceDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$summarySourceDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="summary-source-grid" summary="Legacy source table describes post counts by import state." data-source="html-reader">
+<caption>Summary source review</caption>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$summarySourceTables = array_values(array_filter(
+    $summarySourceDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionMetadataTables = [
     new AstNode('table', [
         'caption' => 'Long caption for reviewer',
@@ -980,9 +995,10 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     $rstWriterRequirements = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'rst-grid-table');
     if (
-        array_map(static fn (array $diagnostic): string => $diagnostic['code'], $rstWriterRequirements) !== ['rst-grid-table-required']
+        array_map(static fn (array $diagnostic): string => $diagnostic['code'], $rstWriterRequirements) !== ['rst-grid-table-required', 'rst-grid-table-required']
         || ($rstWriterRequirements[0]['requiredFeature'] ?? null) !== 'grid-table'
-        || ($rstWriterRequirements[0]['requiredSlots'] ?? null) !== [['row' => 1, 'column' => 0, 'covering' => 'rowspan']]
+        || ($rstWriterRequirements[0]['requiredSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]
+        || ($rstWriterRequirements[1]['requiredSlots'] ?? null) !== [['row' => 1, 'column' => 0, 'covering' => 'rowspan']]
     ) {
         throw new RuntimeException('Table geometry self-test missing RST grid-table writer requirement diagnostics');
     }
@@ -1015,13 +1031,16 @@ if (($argv[1] ?? '') === '--self-test') {
         'writers' => ['markdown', 'restructuredtext'],
     ]);
     if (
-        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 5
+        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 6
         || ($multiWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required']
         || ($multiWriterPacket['summary']['writerDowngradeWriters'] ?? null) !== ['markdown', 'rst']
     ) {
         throw new RuntimeException('Table geometry self-test missing multi-writer downgrade summary');
     }
-    if (($multiWriterPacket['writerDowngrades']['rst'][0]['requiredSlots'] ?? null) !== [['row' => 1, 'column' => 0, 'covering' => 'rowspan']]) {
+    if (
+        ($multiWriterPacket['writerDowngrades']['rst'][0]['requiredSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]
+        || ($multiWriterPacket['writerDowngrades']['rst'][1]['requiredSlots'] ?? null) !== [['row' => 1, 'column' => 0, 'covering' => 'rowspan']]
+    ) {
         throw new RuntimeException('Table geometry self-test missing RST grid-table required-slot report');
     }
     json_encode($multiWriterPacket, JSON_THROW_ON_ERROR);
@@ -1762,6 +1781,29 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test rendered unsafe caption source event attributes');
     }
     json_encode($captionSourcePacket, JSON_THROW_ON_ERROR);
+
+    $summarySourceTable = $summarySourceTables[0] ?? null;
+    $summarySourcePacket = $summarySourceTable instanceof AstNode ? $summarySourceTable->attr('tableGeometry') : null;
+    $summarySourceBlocks = (new WordPressBlockWriter())->write($summarySourceDocument);
+    $summaryWriterDowngrades = is_array($summarySourcePacket) && is_array($summarySourcePacket['writerDowngrades']['markdown'] ?? null)
+        ? $summarySourcePacket['writerDowngrades']['markdown']
+        : [];
+    $summaryDiagnostics = array_values(array_filter(
+        $summaryWriterDowngrades,
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'markdown-table-summary-require-raw-html'
+    ));
+    if (
+        !is_array($summarySourcePacket)
+        || ($summarySourcePacket['sourceSummary']['text'] ?? null) !== 'Legacy source table describes post counts by import state.'
+        || ($summarySourcePacket['summary']['hasSourceSummary'] ?? null) !== true
+        || ($summaryDiagnostics[0]['summaryText'] ?? null) !== 'Legacy source table describes post counts by import state.'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source table summary handoff metadata');
+    }
+    if (!str_contains($summarySourceBlocks, '<table id="summary-source-grid" summary="Legacy source table describes post counts by import state." data-source="html-reader">')) {
+        throw new RuntimeException('Table geometry self-test missing source summary attribute in WordPress output');
+    }
+    json_encode($summarySourcePacket, JSON_THROW_ON_ERROR);
 
     $captionMetadataTable = null;
     foreach ($document->children as $node) {
