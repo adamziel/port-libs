@@ -22726,15 +22726,9 @@ final class PdfTextExtractor
 
             $verticalDefaultMetrics = $this->topLevelPdfLastSingleArrayValueAfterNameResolvingObjects($body, 'DW2', $objects);
             if ($verticalDefaultMetrics !== null) {
-                $metrics = $this->nullableSingleNumbersFromPdfArrayResolvingObjects($verticalDefaultMetrics, $objects);
-                if (count($metrics) >= 2) {
-                    $metricValue = $metrics[1];
-                    $metric = (is_int($metricValue) || is_float($metricValue))
-                        ? $this->finiteFontAdvanceMetric((float) $metricValue)
-                        : null;
-                    if ($metric !== null) {
-                        $defaultVerticalDisplacement = $metric;
-                    }
+                $metric = $this->cidVerticalDefaultDisplacementFromDW2Array($verticalDefaultMetrics, $objects);
+                if ($metric !== null) {
+                    $defaultVerticalDisplacement = $metric;
                 }
             }
 
@@ -24585,6 +24579,25 @@ final class PdfTextExtractor
         }
 
         return $displacements;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cidVerticalDefaultDisplacementFromDW2Array(string $arrayBody, array $objects): ?float
+    {
+        $metrics = $this->nullableSingleNumbersFromPdfArrayResolvingObjects($arrayBody, $objects);
+        if (count($metrics) !== 2) {
+            return null;
+        }
+
+        $positionY = $this->finiteFontAdvanceMetric($metrics[0]);
+        $verticalDisplacement = $this->finiteFontAdvanceMetric($metrics[1]);
+        if ($positionY === null || $verticalDisplacement === null) {
+            return null;
+        }
+
+        return $verticalDisplacement;
     }
 
     /**
