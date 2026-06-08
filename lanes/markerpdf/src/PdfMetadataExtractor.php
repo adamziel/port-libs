@@ -6012,7 +6012,9 @@ final class PdfMetadataExtractor
     private function documentOutlineMetadataMalformedOperandReview(string $dictionary, bool $root): array
     {
         $body = $this->normalizedDictionaryBody($dictionary);
+        $metadataEntryCount = count($this->dictionaryTopLevelRawValues($dictionary, 'Metadata'));
         $metadataEntryIndex = 0;
+        $selectedMalformedReview = [];
         for ($offset = 0, $length = strlen($body); $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
             if ($offset >= $length) {
@@ -6046,6 +6048,7 @@ final class PdfMetadataExtractor
 
             $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
             if ($trailingOperands === []) {
+                $selectedMalformedReview = [];
                 $metadataEntryIndex++;
                 $offset = $afterValue;
                 continue;
@@ -6060,7 +6063,7 @@ final class PdfMetadataExtractor
                 'status' => $root
                     ? 'rejected_malformed_outline_root_metadata_operand'
                     : 'rejected_malformed_outline_item_metadata_operand',
-                'metadata_entry_count' => count($this->dictionaryTopLevelRawValues($dictionary, 'Metadata')),
+                'metadata_entry_count' => $metadataEntryCount,
                 'selected_entry_index' => $metadataEntryIndex,
                 'metadata_operand_count' => 1 + count($trailingOperands),
                 'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
@@ -6089,10 +6092,12 @@ final class PdfMetadataExtractor
                 $review['trailing_operand_shapes'] = $this->uniqueStrings($trailingOperandShapes);
             }
 
-            return $review;
+            $selectedMalformedReview = $review;
+            $metadataEntryIndex++;
+            $offset = $afterValue;
         }
 
-        return [];
+        return $selectedMalformedReview;
     }
 
     /**
