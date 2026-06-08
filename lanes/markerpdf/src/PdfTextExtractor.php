@@ -6039,6 +6039,10 @@ final class PdfTextExtractor
         array $markedContentProperties,
         bool $hasPropertyOperand
     ): ?array {
+        if (!$this->markedContentSpanOperandsAreWellFormed($operands, $hasPropertyOperand)) {
+            return null;
+        }
+
         $tagOperand = $operands[0] ?? null;
         if (!is_string($tagOperand) || !str_starts_with($tagOperand, '/')) {
             return null;
@@ -6083,6 +6087,24 @@ final class PdfTextExtractor
             'alt_text' => $altText,
             'review_only' => true,
         ];
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function markedContentSpanOperandsAreWellFormed(array $operands, bool $hasPropertyOperand): bool
+    {
+        if ($hasPropertyOperand) {
+            return count($operands) === 2
+                && is_string($operands[0])
+                && is_string($operands[1])
+                && $this->markedContentTagOperand($operands[0])
+                && $this->markedContentPropertyOperand($operands[1]);
+        }
+
+        return count($operands) === 1
+            && is_string($operands[0])
+            && $this->markedContentTagOperand($operands[0]);
     }
 
     /**
@@ -14319,7 +14341,7 @@ final class PdfTextExtractor
 
         foreach ($this->contentTokens($content) as $token) {
             if ($token === 'BMC' || $token === 'BDC') {
-                $hidden = $hiddenDepth > 0 || $this->markedContentTagIsArtifact($operands);
+                $hidden = $hiddenDepth > 0 || $this->markedContentTagIsArtifact($operands, $token === 'BDC');
                 if ($hidden) {
                     $hiddenDepth++;
                     $operands = [];
@@ -14383,15 +14405,13 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function markedContentTagIsArtifact(array $operands): bool
+    private function markedContentTagIsArtifact(array $operands, bool $hasPropertyOperand): bool
     {
-        foreach ($operands as $operand) {
-            if (is_string($operand) && str_starts_with($operand, '/')) {
-                return $this->decodePdfName(substr($operand, 1)) === 'Artifact';
-            }
+        if (!$this->markedContentSpanOperandsAreWellFormed($operands, $hasPropertyOperand)) {
+            return false;
         }
 
-        return false;
+        return $this->decodePdfName(substr($operands[0], 1)) === 'Artifact';
     }
 
     /**
@@ -14407,30 +14427,21 @@ final class PdfTextExtractor
         array $optionalContentStates = []
     ): bool
     {
-        if (count($operands) < 2) {
-            return false;
-        }
-
-        $tagIndex = count($operands) - 2;
-        $propertyOperand = $operands[count($operands) - 1];
-        if (
-            count($operands) >= 4
-            && $operands[count($operands) - 1] === 'R'
-            && preg_match('/^\d+$/', $operands[count($operands) - 3]) === 1
-            && preg_match('/^\d+$/', $operands[count($operands) - 2]) === 1
+        if (count($operands) === 2) {
+            $tagOperand = $operands[0];
+            $propertyOperand = $operands[1];
+        } elseif (
+            count($operands) === 4
+            && $operands[3] === 'R'
+            && preg_match('/^\d+$/', $operands[1]) === 1
+            && preg_match('/^\d+$/', $operands[2]) === 1
         ) {
-            $tagIndex = count($operands) - 4;
-            $propertyOperand = $operands[count($operands) - 3]
-                . ' '
-                . $operands[count($operands) - 2]
-                . ' R';
-        }
-
-        if (!isset($operands[$tagIndex])) {
+            $tagOperand = $operands[0];
+            $propertyOperand = $operands[1] . ' ' . $operands[2] . ' R';
+        } else {
             return false;
         }
 
-        $tagOperand = $operands[$tagIndex];
         if (!str_starts_with($tagOperand, '/') || $this->decodePdfName(substr($tagOperand, 1)) !== 'OC') {
             return false;
         }

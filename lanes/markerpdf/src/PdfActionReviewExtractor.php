@@ -1288,7 +1288,7 @@ final class PdfActionReviewExtractor
             return $resolved;
         }
 
-        return $this->destinationViewDetails($resolved)['page'] ?? null;
+        return null;
     }
 
     private function destinationValueAllowedForMap(mixed $value, int $depth = 0): bool
@@ -1346,7 +1346,7 @@ final class PdfActionReviewExtractor
                 return false;
             }
 
-            return $this->destinationValueAllowedForMap($array[0], $depth + 1);
+            return $this->destinationPageFromValue($array[0]) !== null;
         }
 
         return false;

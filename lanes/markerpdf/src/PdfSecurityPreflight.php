@@ -1385,6 +1385,10 @@ final class PdfSecurityPreflight
                 'crypt_filter_dictionary_declaration_status' => $cryptFilterDictionaryReview['status'] ?? null,
                 'crypt_filter_dictionary_declared_entry_count' => (int) ($cryptFilterDictionaryReview['declared_entry_count'] ?? 0),
                 'crypt_filter_dictionary_duplicate_entries' => (bool) ($cryptFilterDictionaryReview['duplicate_entries'] ?? false),
+                'crypt_filter_dictionary_duplicate_filter_names' => is_array($cryptFilterDictionaryReview['duplicate_filter_names'] ?? null)
+                    ? $cryptFilterDictionaryReview['duplicate_filter_names']
+                    : [],
+                'crypt_filter_dictionary_duplicate_filter_name_count' => (int) ($cryptFilterDictionaryReview['duplicate_filter_name_count'] ?? 0),
                 'crypt_filter_dictionary_malformed_entry_count' => (int) ($cryptFilterDictionaryReview['malformed_entry_count'] ?? 0),
                 'crypt_filter_dictionary_fail_closed' => (bool) ($cryptFilterDictionaryReview['fail_closed'] ?? false),
                 'text_content_policy' => 'review_only_encrypted_document_boundary',
@@ -1473,6 +1477,10 @@ final class PdfSecurityPreflight
             'crypt_filter_dictionary_declared_entry_count' => (int) ($cryptFilterDictionaryReview['declared_entry_count'] ?? 0),
             'crypt_filter_dictionary_resolved_entry_count' => (int) ($cryptFilterDictionaryReview['resolved_dictionary_entry_count'] ?? 0),
             'crypt_filter_dictionary_duplicate_entries' => (bool) ($cryptFilterDictionaryReview['duplicate_entries'] ?? false),
+            'crypt_filter_dictionary_duplicate_filter_names' => is_array($cryptFilterDictionaryReview['duplicate_filter_names'] ?? null)
+                ? $cryptFilterDictionaryReview['duplicate_filter_names']
+                : [],
+            'crypt_filter_dictionary_duplicate_filter_name_count' => (int) ($cryptFilterDictionaryReview['duplicate_filter_name_count'] ?? 0),
             'crypt_filter_dictionary_malformed_entry_count' => (int) ($cryptFilterDictionaryReview['malformed_entry_count'] ?? 0),
             'crypt_filter_dictionary_entry_statuses' => is_array($cryptFilterDictionaryReview['entry_statuses'] ?? null)
                 ? $cryptFilterDictionaryReview['entry_statuses']
@@ -1709,6 +1717,10 @@ final class PdfSecurityPreflight
             'crypt_filter_dictionary_declared_entry_count' => (int) ($declaration['declared_entry_count'] ?? 0),
             'crypt_filter_dictionary_resolved_entry_count' => (int) ($declaration['resolved_dictionary_entry_count'] ?? 0),
             'crypt_filter_dictionary_duplicate_entries' => (bool) ($declaration['duplicate_entries'] ?? false),
+            'crypt_filter_dictionary_duplicate_filter_names' => is_array($declaration['duplicate_filter_names'] ?? null)
+                ? $declaration['duplicate_filter_names']
+                : [],
+            'crypt_filter_dictionary_duplicate_filter_name_count' => (int) ($declaration['duplicate_filter_name_count'] ?? 0),
             'crypt_filter_dictionary_malformed_entry_count' => (int) ($declaration['malformed_entry_count'] ?? 0),
             'crypt_filter_dictionary_selected_entry_index' => $declaration['selected_entry_index'] ?? null,
             'crypt_filter_dictionary_selected_filter_names' => is_array($declaration['selected_filter_names'] ?? null)
@@ -2162,6 +2174,7 @@ final class PdfSecurityPreflight
         if (($row['crypt_filter_dictionary_fail_closed'] ?? false) === true) {
             return match ($dictionaryStatus) {
                 'duplicate_crypt_filter_dictionary_entries_review' => 'duplicate_crypt_filter_dictionary_entries_fail_closed',
+                'duplicate_crypt_filter_name_entries_review' => 'duplicate_crypt_filter_name_entries_fail_closed',
                 'malformed_crypt_filter_dictionary_entry_review' => 'malformed_crypt_filter_dictionary_entry_fail_closed',
                 default => 'malformed_crypt_filter_dictionary_entry_fail_closed',
             };
@@ -2211,6 +2224,7 @@ final class PdfSecurityPreflight
     {
         return match ($textPolicy) {
             'duplicate_crypt_filter_dictionary_entries_fail_closed' => 'blocked_by_duplicate_document_crypt_filter_dictionary',
+            'duplicate_crypt_filter_name_entries_fail_closed' => 'blocked_by_duplicate_document_crypt_filter_name',
             'malformed_crypt_filter_dictionary_entry_fail_closed' => 'blocked_by_malformed_document_crypt_filter_dictionary',
             'missing_declared_filter_fail_closed' => 'blocked_by_missing_document_crypt_filter',
             'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_document_crypt_filter',
@@ -2234,6 +2248,7 @@ final class PdfSecurityPreflight
     {
         return match ($payloadPolicy) {
             'duplicate_crypt_filter_dictionary_entries_fail_closed' => 'blocked_by_duplicate_embedded_file_crypt_filter_dictionary',
+            'duplicate_crypt_filter_name_entries_fail_closed' => 'blocked_by_duplicate_embedded_file_crypt_filter_name',
             'malformed_crypt_filter_dictionary_entry_fail_closed' => 'blocked_by_malformed_embedded_file_crypt_filter_dictionary',
             'missing_declared_filter_fail_closed' => 'blocked_by_missing_embedded_file_crypt_filter',
             'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_embedded_file_crypt_filter',

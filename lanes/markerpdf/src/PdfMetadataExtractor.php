@@ -9946,17 +9946,25 @@ final class PdfMetadataExtractor
 
         $entries = [];
         $declaredFilterNames = [];
+        $duplicateFilterNames = [];
         foreach ($values as $index => $value) {
             $resolved = $this->resolvePdfValue($value, $objects);
             $valueForReview = trim($resolved ?? $value);
             $operandShape = $this->encryptMetadataOperandShape($valueForReview);
             $filterDictionary = $this->resolveDictionaryFromValue($value, $objects);
             $filterNames = [];
+            $entryDuplicateFilterNames = [];
             if ($filterDictionary !== null) {
                 $filterNames = array_keys($this->dictionaryTopLevelEntries($filterDictionary['body']));
+                $entryDuplicateFilterNames = array_keys($this->dictionaryTopLevelDuplicateKeys($filterDictionary['body']));
                 foreach ($filterNames as $name) {
                     if (!in_array($name, $declaredFilterNames, true)) {
                         $declaredFilterNames[] = $name;
+                    }
+                }
+                foreach ($entryDuplicateFilterNames as $name) {
+                    if (!in_array($name, $duplicateFilterNames, true)) {
+                        $duplicateFilterNames[] = $name;
                     }
                 }
             }
@@ -9970,6 +9978,8 @@ final class PdfMetadataExtractor
                 'operand_shape' => $operandShape,
                 'dictionary_resolved' => $filterDictionary !== null,
                 'filter_names' => $filterNames,
+                'duplicate_filter_names' => $entryDuplicateFilterNames,
+                'duplicate_filter_name_count' => count($entryDuplicateFilterNames),
                 'status' => $filterDictionary !== null
                     ? 'crypt_filter_dictionary_entry_resolved'
                     : $this->cryptFilterDictionaryOperandStatus($value, $operandShape, $resolved !== null),
@@ -9988,10 +9998,14 @@ final class PdfMetadataExtractor
         $duplicate = count($values) > 1;
         $selectedIndex = count($entries) - 1;
         $selectedEntry = $selectedIndex >= 0 ? $entries[$selectedIndex] : [];
-        $ambiguous = $duplicate || $malformedEntries !== [];
-        $status = $duplicate
-            ? 'duplicate_crypt_filter_dictionary_entries_review'
-            : ($malformedEntries !== [] ? 'malformed_crypt_filter_dictionary_entry_review' : 'well_formed_crypt_filter_dictionary');
+        $hasDuplicateFilterNames = $duplicateFilterNames !== [];
+        $ambiguous = $duplicate || $hasDuplicateFilterNames || $malformedEntries !== [];
+        $status = match (true) {
+            $duplicate => 'duplicate_crypt_filter_dictionary_entries_review',
+            $hasDuplicateFilterNames => 'duplicate_crypt_filter_name_entries_review',
+            $malformedEntries !== [] => 'malformed_crypt_filter_dictionary_entry_review',
+            default => 'well_formed_crypt_filter_dictionary',
+        };
 
         return [
             'source' => 'encryption_crypt_filter_dictionary_declaration_review',
@@ -9999,6 +10013,9 @@ final class PdfMetadataExtractor
             'declared_entry_count' => count($values),
             'resolved_dictionary_entry_count' => count($resolvedEntries),
             'duplicate_entries' => $duplicate,
+            'duplicate_filter_name_entries' => $hasDuplicateFilterNames,
+            'duplicate_filter_names' => $duplicateFilterNames,
+            'duplicate_filter_name_count' => count($duplicateFilterNames),
             'malformed_entries' => $malformedEntries !== [],
             'malformed_entry_count' => count($malformedEntries),
             'ambiguous' => $ambiguous,
@@ -10015,6 +10032,9 @@ final class PdfMetadataExtractor
             'selected_entry_index' => $selectedIndex >= 0 ? $selectedIndex : null,
             'selected_filter_names' => is_array($selectedEntry['filter_names'] ?? null)
                 ? $selectedEntry['filter_names']
+                : [],
+            'selected_entry_duplicate_filter_names' => is_array($selectedEntry['duplicate_filter_names'] ?? null)
+                ? $selectedEntry['duplicate_filter_names']
                 : [],
             'entries' => $entries,
             'review_only' => true,
