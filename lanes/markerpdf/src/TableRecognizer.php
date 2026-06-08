@@ -2109,8 +2109,28 @@ final class TableRecognizer
         if (!$this->usesSourceBboxFallback($record)) {
             return null;
         }
-        if (isset($record['source_coordinate_space']) && is_scalar($record['source_coordinate_space'])) {
-            return $this->normalizeCoordinateSpace((string) $record['source_coordinate_space']);
+
+        return $this->sourceFallbackCoordinateSpaceMetadata($record);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function sourceFallbackCoordinateSpaceMetadata(array $record): ?string
+    {
+        foreach ([
+            'source_coordinate_space',
+            'source_geometry_space',
+            'source_bbox_coordinate_space',
+            'source_bbox_geometry_space',
+            'original_coordinate_space',
+            'original_geometry_space',
+            'original_bbox_coordinate_space',
+            'original_bbox_geometry_space',
+        ] as $key) {
+            if (isset($record[$key]) && is_scalar($record[$key])) {
+                return $this->normalizeCoordinateSpace((string) $record[$key]);
+            }
         }
 
         return null;
@@ -3144,7 +3164,7 @@ final class TableRecognizer
                 }
             }
 
-            foreach (array_merge(['source_bbox'], $this->wrappedGeometryKeys()) as $bboxKey) {
+            foreach (array_merge($this->sourceGeometryFallbackKeys(), $this->wrappedGeometryKeys()) as $bboxKey) {
                 if (!array_key_exists($bboxKey, $container)) {
                     continue;
                 }
@@ -7821,8 +7841,9 @@ final class TableRecognizer
             }
         }
 
-        if (isset($source['source_coordinate_space']) && is_scalar($source['source_coordinate_space'])) {
-            $target['source_coordinate_space'] = $this->normalizeCoordinateSpace((string) $source['source_coordinate_space']);
+        $sourceCoordinateSpace = $this->sourceFallbackCoordinateSpaceMetadata($source);
+        if ($sourceCoordinateSpace !== null) {
+            $target['source_coordinate_space'] = $sourceCoordinateSpace;
         }
         if (isset($source['source_coordinate_source']) && is_scalar($source['source_coordinate_source'])) {
             $target['source_coordinate_source'] = (string) $source['source_coordinate_source'];
