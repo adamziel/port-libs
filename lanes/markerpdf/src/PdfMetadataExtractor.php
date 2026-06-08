@@ -9932,10 +9932,20 @@ final class PdfMetadataExtractor
                 $value = is_string($valueReview['value'] ?? null) ? $valueReview['value'] : '';
                 $reference = $this->objectReferenceFromValue($value);
                 $resolved = $this->resolvePdfValue($value, $objects);
-                $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+                $resolvedValue = $resolved ?? $value;
+                $unresolvedReference = $resolved === null && $reference !== null;
+                $firstToken = $this->firstPdfValueToken($resolvedValue);
+                $singleValue = ($valueReview['single_value'] ?? true) === true
+                    && (
+                        $unresolvedReference
+                        || $firstToken === ''
+                        || $this->pdfValueIsSingleToken($resolvedValue, $firstToken)
+                    );
+                $valueForReview = $unresolvedReference
+                    ? $value
+                    : ($firstToken !== '' ? $firstToken : $this->trimPdfWhitespaceAndComments($resolvedValue));
                 $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
                 $rawOperandShape = $this->standardSecurityHandlerParameterOperandShape($value);
-                $firstToken = $this->firstPdfValueToken($valueForReview);
                 $integerValue = $pdfName !== 'Filter' && $operandShape === 'token' && preg_match('/^[+-]?\d+$/', $firstToken) === 1
                     ? (int) $firstToken
                     : null;
@@ -9943,7 +9953,7 @@ final class PdfMetadataExtractor
                 if ($pdfName === 'Filter' && $operandShape === 'name' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $valueForReview, $match) === 1) {
                     $nameValue = $this->decodePdfName($match[1]);
                 }
-                $trailingOperand = ($valueReview['trailing_operand'] ?? false) === true;
+                $trailingOperand = ($valueReview['trailing_operand'] ?? false) === true || !$singleValue;
                 $status = $trailingOperand
                     ? 'standard_security_handler_parameter_trailing_operand_review'
                     : $this->standardSecurityHandlerParameterEntryStatus(
@@ -9964,7 +9974,7 @@ final class PdfMetadataExtractor
                     'integer' => $integerValue !== null,
                     'integer_value' => $integerValue,
                     'name_value' => $nameValue,
-                    'single_value' => ($valueReview['single_value'] ?? true) === true,
+                    'single_value' => $singleValue,
                     'status' => $status,
                     'review_only' => true,
                 ];
@@ -9977,7 +9987,9 @@ final class PdfMetadataExtractor
                     }
                 }
                 if ($trailingOperand) {
-                    $entry += $this->topLevelTrailingOperandReviewFromValueReview($valueReview);
+                    $entry += ($valueReview['trailing_operand'] ?? false) === true
+                        ? $this->topLevelTrailingOperandReviewFromValueReview($valueReview)
+                        : $this->topLevelTrailingOperandReview($resolvedValue, $firstToken);
                 }
                 $entries[] = $entry;
             }
