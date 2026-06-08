@@ -873,9 +873,9 @@ final class MarkerAppPreview
                 substr($pdfBytes, $startxrefOffset + strlen('startxref'), 64)
             );
             if ($declaredOffset !== null) {
-                $xrefStreamRoot = $this->xrefStreamRootReferenceAtOffset($pdfBytes, $declaredOffset);
-                if ($xrefStreamRoot !== null) {
-                    return $xrefStreamRoot;
+                $xrefRoot = $this->xrefSectionRootReferenceAtOffset($pdfBytes, $declaredOffset, $bodyRanges);
+                if ($xrefRoot !== null) {
+                    return $xrefRoot;
                 }
             }
         }
@@ -924,7 +924,97 @@ final class MarkerAppPreview
     /**
      * @return array{object_id: int, generation: int}|null
      */
-    private function xrefStreamRootReferenceAtOffset(string $pdfBytes, int $offset): ?array
+    private function xrefSectionRootReferenceAtOffset(
+        string $pdfBytes,
+        int $offset,
+        array $bodyRanges,
+        array $seenOffsets = []
+    ): ?array {
+        $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
+        if (
+            $offset < 0
+            || $offset >= strlen($pdfBytes)
+            || isset($seenOffsets[$offset])
+            || $this->offsetInRanges($offset, $bodyRanges)
+            || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $offset, $bodyRanges)
+        ) {
+            return null;
+        }
+        $seenOffsets[$offset] = true;
+
+        $xrefStream = $this->xrefStreamDictionaryAtOffset($pdfBytes, $offset);
+        if ($xrefStream !== null) {
+            $root = $this->referenceValue($this->valueAfterName($xrefStream, 'Root'));
+            if ($root !== null) {
+                return $root;
+            }
+
+            $previousOffset = $this->integerValueFromPdfValue($this->valueAfterName($xrefStream, 'Prev'));
+            return $previousOffset === null
+                ? null
+                : $this->xrefSectionRootReferenceAtOffset($pdfBytes, $previousOffset, $bodyRanges, $seenOffsets);
+        }
+
+        $trailer = $this->classicXrefTrailerDictionaryAtOffset($pdfBytes, $offset, $bodyRanges);
+        if ($trailer === null) {
+            return null;
+        }
+
+        $root = $this->referenceValue($this->valueAfterName($trailer, 'Root'));
+        if ($root !== null) {
+            return $root;
+        }
+
+        $hybridOffset = $this->integerValueFromPdfValue($this->valueAfterName($trailer, 'XRefStm'));
+        if ($hybridOffset !== null && !isset($seenOffsets[$hybridOffset])) {
+            $hybridRoot = $this->xrefSectionRootReferenceAtOffset($pdfBytes, $hybridOffset, $bodyRanges, $seenOffsets);
+            if ($hybridRoot !== null) {
+                return $hybridRoot;
+            }
+        }
+
+        $previousOffset = $this->integerValueFromPdfValue($this->valueAfterName($trailer, 'Prev'));
+        return $previousOffset === null
+            ? null
+            : $this->xrefSectionRootReferenceAtOffset($pdfBytes, $previousOffset, $bodyRanges, $seenOffsets);
+    }
+
+    /**
+     * @return array{object_id: int, generation: int}|null
+     */
+    private function referenceValue(?string $value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceValueAt($value, 0);
+        if ($reference === null) {
+            return null;
+        }
+
+        $tailOffset = $this->skipPdfWhitespace($value, $reference['endOffset']);
+        if ($tailOffset < strlen($value)) {
+            return null;
+        }
+
+        return [
+            'object_id' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
+        ];
+    }
+
+    private function integerValueFromPdfValue(?string $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        return preg_match('/^[+-]?\d+$/', $value) === 1 ? (int) $value : null;
+    }
+
+    private function xrefStreamDictionaryAtOffset(string $pdfBytes, int $offset): ?string
     {
         if ($offset < 0 || $offset >= strlen($pdfBytes)) {
             return null;
@@ -939,15 +1029,55 @@ final class MarkerAppPreview
             return null;
         }
 
-        $root = $this->valueAfterName($body, 'Root');
-        if ($root === null || preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($root), $reference) !== 1) {
+        $dictionaryOffset = strpos($body, '<<');
+        if (!is_int($dictionaryOffset)) {
             return null;
         }
 
-        return [
-            'object_id' => (int) $reference[1],
-            'generation' => (int) $reference[2],
-        ];
+        $dictionary = $this->readBalancedDictionary($body, $dictionaryOffset);
+        return $dictionary[0] ?? null;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $bodyRanges
+     */
+    private function classicXrefTrailerDictionaryAtOffset(string $pdfBytes, int $offset, array $bodyRanges): ?string
+    {
+        if (
+            !$this->pdfKeywordAt($pdfBytes, $offset, 'xref')
+            || $this->offsetInRanges($offset, $bodyRanges)
+            || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $offset, $bodyRanges)
+        ) {
+            return null;
+        }
+
+        $index = $offset + strlen('xref');
+        $length = strlen($pdfBytes);
+        while ($index < $length) {
+            if (substr($pdfBytes, $index, 5) === '%%EOF' || $this->pdfKeywordAt($pdfBytes, $index, 'startxref')) {
+                return null;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $index, 'trailer')) {
+                $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $index + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
+                    return null;
+                }
+
+                $dictionary = $this->readBalancedDictionary($pdfBytes, $dictionaryOffset);
+                return $dictionary[0] ?? null;
+            }
+
+            $skipped = $this->skipCompositeValueBytes($pdfBytes, $index);
+            if ($skipped !== null) {
+                $index = $skipped;
+                continue;
+            }
+
+            $index++;
+        }
+
+        return null;
     }
 
     /**
