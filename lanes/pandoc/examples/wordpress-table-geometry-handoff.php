@@ -1781,6 +1781,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing HTML row-group source attributes');
     }
     $rowspanZeroFlatGrid = TableGeometry::flatGrid($rowspanZeroTable);
+    $rowspanZeroFallbacks = TableGeometry::flatGridFallbackDiagnostics($rowspanZeroTable);
     if (
         ($rowspanZeroFlatGrid['summary']['rowCount'] ?? null) !== 4
         || ($rowspanZeroFlatGrid['summary']['slotCount'] ?? null) !== 12
@@ -1792,6 +1793,21 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($rowspanZeroPacket['summary']['flatGridCoveredSlotCount'] ?? null) !== 2
     ) {
         throw new RuntimeException('Table geometry self-test missing flat-grid fallback handoff metadata');
+    }
+    if (
+        ($rowspanZeroFallbacks[0]['code'] ?? null) !== 'flat-grid-covered-slots-require-anchor-replay'
+        || ($rowspanZeroFallbacks[1]['code'] ?? null) !== 'flat-grid-missing-slots-require-empty-placeholders'
+        || count($rowspanZeroFallbacks) !== 2
+        || ($rowspanZeroFallbacks[0]['slotCount'] ?? null) !== 2
+        || ($rowspanZeroFallbacks[0]['requiredFeature'] ?? null) !== 'span-anchor-replay'
+        || ($rowspanZeroFallbacks[1]['slotCount'] ?? null) !== 1
+        || ($rowspanZeroFallbacks[1]['requiredFeature'] ?? null) !== 'empty-cell-placeholders'
+        || ($rowspanZeroPacket['flatGridFallbacks'] ?? null) !== $rowspanZeroFallbacks
+        || ($rowspanZeroPacket['summary']['flatGridFallbackCount'] ?? null) !== 2
+        || ($rowspanZeroPacket['summary']['flatGridFallbackCoveredSlotCount'] ?? null) !== 2
+        || ($rowspanZeroPacket['summary']['flatGridFallbackMissingSlotCount'] ?? null) !== 1
+    ) {
+        throw new RuntimeException('Table geometry self-test missing flat-grid visual-slot fallback diagnostics');
     }
     if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-table-bodies-flattened', 'markdown-row-headers-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero Markdown downgrade packet');

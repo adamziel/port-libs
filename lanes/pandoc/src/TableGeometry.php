@@ -675,6 +675,14 @@ final class TableGeometry
     /**
      * @return list<array<string, mixed>>
      */
+    public static function flatGridFallbackDiagnostics(AstNode $table): array
+    {
+        return self::flatGridFallbackDiagnosticsFromGrid(self::flatGrid($table));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function diagnostics(AstNode $table): array
     {
         $diagnostics = self::columnDiagnostics($table);
@@ -1596,6 +1604,7 @@ final class TableGeometry
      *     sourceSummary?:array{text:string,source:string,attribute:string},
      *     rowMatrix:array{rows:list<array<string, mixed>>,summary:array<string, mixed>},
      *     flatGrid:array{columnCount:int,rows:list<array<string, mixed>>,summary:array<string, mixed>},
+     *     flatGridFallbacks:list<array<string, mixed>>,
      *     summary:array<string, mixed>
      * }
      */
@@ -1629,6 +1638,7 @@ final class TableGeometry
             : self::emptyRowHeaderMap();
         $rowMatrix = self::rowMatrixFromAssociations($sections, $headerAssociations);
         $flatGrid = self::flatGridFromSections($sections);
+        $flatGridFallbacks = self::flatGridFallbackDiagnosticsFromGrid($flatGrid);
 
         $packet = [
             'caption' => (string) $table->attr('caption', ''),
@@ -1649,6 +1659,7 @@ final class TableGeometry
             'rowHeaderMap' => $rowHeaderMap,
             'rowMatrix' => $rowMatrix,
             'flatGrid' => $flatGrid,
+            'flatGridFallbacks' => $flatGridFallbacks,
             'summary' => self::reviewPacketSummary(
                 $sections,
                 $coverage,
@@ -1662,6 +1673,7 @@ final class TableGeometry
                 $rowHeaderMap,
                 $rowMatrix,
                 $flatGrid,
+                $flatGridFallbacks,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
@@ -2126,6 +2138,194 @@ final class TableGeometry
         $colspan = max(1, (int) ($slot['colspan'] ?? 1));
 
         return self::integerRange($anchorColumn, $anchorColumn + $colspan);
+    }
+
+    /**
+     * @param array{rows?:list<array<string, mixed>>} $flatGrid
+     * @return list<array<string, mixed>>
+     */
+    private static function flatGridFallbackDiagnosticsFromGrid(array $flatGrid): array
+    {
+        $coveredSlots = [];
+        $missingSlots = [];
+        $rows = is_array($flatGrid['rows'] ?? null) ? $flatGrid['rows'] : [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $cells = is_array($row['cells'] ?? null) ? $row['cells'] : [];
+            foreach ($cells as $slot) {
+                if (!is_array($slot)) {
+                    continue;
+                }
+
+                $kind = (string) ($slot['kind'] ?? '');
+                if ($kind === 'covered') {
+                    $coveredSlots[] = self::flatGridFallbackSlotRecord($slot);
+                } elseif ($kind === 'missing') {
+                    $missingSlots[] = self::flatGridFallbackSlotRecord($slot);
+                }
+            }
+        }
+
+        $diagnostics = [];
+        if ($coveredSlots !== []) {
+            $diagnostics[] = self::flatGridFallbackRecord(
+                'flat-grid-covered-slots-require-anchor-replay',
+                'covered-slots',
+                'span-anchor-replay',
+                $coveredSlots
+            );
+        }
+        if ($missingSlots !== []) {
+            $diagnostics[] = self::flatGridFallbackRecord(
+                'flat-grid-missing-slots-require-empty-placeholders',
+                'missing-slots',
+                'empty-cell-placeholders',
+                $missingSlots
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return array<string, mixed>
+     */
+    private static function flatGridFallbackSlotRecord(array $slot): array
+    {
+        $kind = (string) ($slot['kind'] ?? 'missing');
+        if (!in_array($kind, ['covered', 'missing'], true)) {
+            $kind = 'missing';
+        }
+
+        $record = [
+            'kind' => $kind,
+            'section' => (string) ($slot['section'] ?? ''),
+            'row' => max(0, (int) ($slot['row'] ?? 0)),
+            'globalRow' => max(0, (int) ($slot['globalRow'] ?? 0)),
+            'column' => max(0, (int) ($slot['column'] ?? 0)),
+            'text' => is_scalar($slot['text'] ?? null) ? (string) $slot['text'] : '',
+        ];
+
+        if (isset($slot['headerCell'])) {
+            $record['headerCell'] = (bool) $slot['headerCell'];
+        }
+
+        if ($kind === 'missing') {
+            return $record;
+        }
+
+        foreach (['covering', 'anchorKey', 'anchorText'] as $attribute) {
+            if (is_scalar($slot[$attribute] ?? null)) {
+                $value = (string) $slot[$attribute];
+                if ($value !== '') {
+                    $record[$attribute] = $value;
+                }
+            }
+        }
+
+        foreach ([
+            'anchorRow',
+            'anchorColumn',
+            'sourceCell',
+            'sourceColumn',
+            'colspan',
+            'rowspan',
+            'sourceRow',
+            'sourceRowEnd',
+            'sourceRowspan',
+            'globalRowEnd',
+            'anchorSourceRow',
+            'anchorSourceRowEnd',
+            'anchorGlobalRow',
+            'anchorGlobalRowEnd',
+        ] as $attribute) {
+            if (is_numeric($slot[$attribute] ?? null)) {
+                $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach ([
+            'spanColumns',
+            'sourceRows',
+            'sourceRowRange',
+            'globalRows',
+            'globalRowRange',
+            'anchorSourceRows',
+            'anchorSourceRowRange',
+            'anchorGlobalRows',
+            'anchorGlobalRowRange',
+        ] as $attribute) {
+            $values = self::intList($slot[$attribute] ?? []);
+            if ($values !== []) {
+                $record[$attribute] = $values;
+            }
+        }
+
+        if (($slot['rowspanToEnd'] ?? false) === true) {
+            $record['rowspanToEnd'] = true;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $slots
+     * @return array<string, mixed>
+     */
+    private static function flatGridFallbackRecord(
+        string $code,
+        string $reason,
+        string $requiredFeature,
+        array $slots
+    ): array {
+        $sections = [];
+        $rows = [];
+        $globalRows = [];
+        $columns = [];
+        $coverings = [];
+        foreach ($slots as $slot) {
+            $section = (string) ($slot['section'] ?? '');
+            if ($section !== '') {
+                $sections[] = $section;
+            }
+            if (is_numeric($slot['row'] ?? null)) {
+                $rows[] = (int) $slot['row'];
+            }
+            if (is_numeric($slot['globalRow'] ?? null)) {
+                $globalRows[] = (int) $slot['globalRow'];
+            }
+            if (is_numeric($slot['column'] ?? null)) {
+                $columns[] = (int) $slot['column'];
+            }
+
+            $covering = (string) ($slot['covering'] ?? '');
+            if ($covering !== '') {
+                $coverings[] = $covering;
+            }
+        }
+
+        $record = [
+            'code' => $code,
+            'source' => 'pandoc-flat-grid',
+            'reason' => $reason,
+            'requiredFeature' => $requiredFeature,
+            'slotCount' => count($slots),
+            'sections' => array_values(array_unique($sections)),
+            'rows' => self::uniqueIntList($rows),
+            'globalRows' => self::uniqueIntList($globalRows),
+            'columns' => self::uniqueIntList($columns),
+            'slots' => $slots,
+        ];
+
+        if ($coverings !== []) {
+            $record['coverings'] = array_values(array_unique($coverings));
+        }
+
+        return $record;
     }
 
     /**
@@ -4069,6 +4269,7 @@ final class TableGeometry
      * @param array<string, mixed> $rowHeaderMap
      * @param array<string, mixed> $rowMatrix
      * @param array<string, mixed> $flatGrid
+     * @param list<array<string, mixed>> $flatGridFallbacks
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -4084,6 +4285,7 @@ final class TableGeometry
         array $rowHeaderMap,
         array $rowMatrix,
         array $flatGrid,
+        array $flatGridFallbacks,
         string $sourceSummary
     ): array
     {
@@ -4239,6 +4441,7 @@ final class TableGeometry
         $flatGridSummary = is_array($flatGrid['summary'] ?? null)
             ? $flatGrid['summary']
             : [];
+        $flatGridFallbackSummary = self::flatGridFallbackSummary($flatGridFallbacks);
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
         $columnRollup = self::columnSummaryRollup($columnSummaries);
@@ -4415,9 +4618,82 @@ final class TableGeometry
             'flatGridMissingSlotCount' => (int) ($flatGridSummary['missingSlotCount'] ?? 0),
             'flatGridSpanAnchorCount' => (int) ($flatGridSummary['spanAnchorCount'] ?? 0),
             'hasFlatGridSpans' => (bool) ($flatGridSummary['hasSpans'] ?? false),
+            'flatGridFallbackCount' => count($flatGridFallbacks),
+            'hasFlatGridFallbacks' => $flatGridFallbacks !== [],
+            'flatGridFallbackCodes' => $flatGridFallbackSummary['codes'],
+            'flatGridFallbackSections' => $flatGridFallbackSummary['sections'],
+            'flatGridFallbackRows' => $flatGridFallbackSummary['rows'],
+            'flatGridFallbackGlobalRows' => $flatGridFallbackSummary['globalRows'],
+            'flatGridFallbackColumns' => $flatGridFallbackSummary['columns'],
+            'flatGridFallbackCoveredSlotCount' => $flatGridFallbackSummary['coveredSlotCount'],
+            'flatGridFallbackMissingSlotCount' => $flatGridFallbackSummary['missingSlotCount'],
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
             'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fallbacks
+     * @return array{
+     *     codes:list<string>,
+     *     sections:list<string>,
+     *     rows:list<int>,
+     *     globalRows:list<int>,
+     *     columns:list<int>,
+     *     coveredSlotCount:int,
+     *     missingSlotCount:int
+     * }
+     */
+    private static function flatGridFallbackSummary(array $fallbacks): array
+    {
+        $codes = [];
+        $sections = [];
+        $rows = [];
+        $globalRows = [];
+        $columns = [];
+        $coveredSlotCount = 0;
+        $missingSlotCount = 0;
+        foreach ($fallbacks as $fallback) {
+            if (!is_array($fallback)) {
+                continue;
+            }
+
+            $code = (string) ($fallback['code'] ?? '');
+            if ($code !== '') {
+                $codes[] = $code;
+            }
+
+            foreach (self::stringList($fallback['sections'] ?? []) as $section) {
+                $sections[] = $section;
+            }
+            foreach (self::intList($fallback['rows'] ?? []) as $row) {
+                $rows[] = $row;
+            }
+            foreach (self::intList($fallback['globalRows'] ?? []) as $globalRow) {
+                $globalRows[] = $globalRow;
+            }
+            foreach (self::intList($fallback['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+
+            $slotCount = max(0, (int) ($fallback['slotCount'] ?? 0));
+            $reason = (string) ($fallback['reason'] ?? '');
+            if ($reason === 'covered-slots') {
+                $coveredSlotCount += $slotCount;
+            } elseif ($reason === 'missing-slots') {
+                $missingSlotCount += $slotCount;
+            }
+        }
+
+        return [
+            'codes' => array_values(array_unique($codes)),
+            'sections' => array_values(array_unique($sections)),
+            'rows' => self::uniqueIntList($rows),
+            'globalRows' => self::uniqueIntList($globalRows),
+            'columns' => self::uniqueIntList($columns),
+            'coveredSlotCount' => $coveredSlotCount,
+            'missingSlotCount' => $missingSlotCount,
         ];
     }
 

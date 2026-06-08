@@ -1753,6 +1753,65 @@ return [
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($completePacket, JSON_THROW_ON_ERROR);
     },
+    'reports flat grid fallback diagnostics for importer visual-slot handoff' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildOverfullColumnWidthDocument): void {
+        $table = $buildSectionGridDocument()->children[0];
+        $fallbacks = TableGeometry::flatGridFallbackDiagnostics($table);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $completeFallbacks = TableGeometry::flatGridFallbackDiagnostics($buildOverfullColumnWidthDocument()->children[0]);
+        $codes = array_map(static fn (array $fallback): string => $fallback['code'], $fallbacks);
+
+        $t->same([
+            'flat-grid-covered-slots-require-anchor-replay',
+            'flat-grid-missing-slots-require-empty-placeholders',
+        ], $codes);
+
+        $coveredFallback = $fallbacks[0];
+        $missingFallback = $fallbacks[1];
+        $t->same('pandoc-flat-grid', $coveredFallback['source'] ?? null);
+        $t->same('covered-slots', $coveredFallback['reason'] ?? null);
+        $t->same('span-anchor-replay', $coveredFallback['requiredFeature'] ?? null);
+        $t->same(4, $coveredFallback['slotCount'] ?? null);
+        $t->same(['head', 'body'], $coveredFallback['sections'] ?? null);
+        $t->same([0, 1], $coveredFallback['rows'] ?? null);
+        $t->same([0, 1, 2], $coveredFallback['globalRows'] ?? null);
+        $t->same([0, 1], $coveredFallback['columns'] ?? null);
+        $t->same(['colspan', 'rowspan', 'rowspan-colspan'], $coveredFallback['coverings'] ?? null);
+        $t->same('colspan', $coveredFallback['slots'][0]['covering'] ?? null);
+        $t->same('head:0:0:0', $coveredFallback['slots'][0]['anchorKey'] ?? null);
+        $t->same('Scope', $coveredFallback['slots'][0]['anchorText'] ?? null);
+        $t->same([0, 1], $coveredFallback['slots'][0]['spanColumns'] ?? null);
+        $t->same('rowspan-colspan', $coveredFallback['slots'][3]['covering'] ?? null);
+        $t->same('body:0:0:0', $coveredFallback['slots'][3]['anchorKey'] ?? null);
+        $t->same('Posts', $coveredFallback['slots'][3]['anchorText'] ?? null);
+        $t->same([0, 1], $coveredFallback['slots'][3]['spanColumns'] ?? null);
+
+        $t->same('pandoc-flat-grid', $missingFallback['source'] ?? null);
+        $t->same('missing-slots', $missingFallback['reason'] ?? null);
+        $t->same('empty-cell-placeholders', $missingFallback['requiredFeature'] ?? null);
+        $t->same(3, $missingFallback['slotCount'] ?? null);
+        $t->same(['head', 'body'], $missingFallback['sections'] ?? null);
+        $t->same([0, 1], $missingFallback['rows'] ?? null);
+        $t->same([0, 1, 2], $missingFallback['globalRows'] ?? null);
+        $t->same([3], $missingFallback['columns'] ?? null);
+        $t->same('missing', $missingFallback['slots'][0]['kind'] ?? null);
+        $t->same('head', $missingFallback['slots'][0]['section'] ?? null);
+        $t->same(3, $missingFallback['slots'][0]['column'] ?? null);
+        $t->same('', $missingFallback['slots'][0]['text'] ?? null);
+
+        $t->same($fallbacks, $packet['flatGridFallbacks'] ?? null);
+        $t->same(2, $packet['summary']['flatGridFallbackCount'] ?? null);
+        $t->same(true, $packet['summary']['hasFlatGridFallbacks'] ?? null);
+        $t->same($codes, $packet['summary']['flatGridFallbackCodes'] ?? null);
+        $t->same(['head', 'body'], $packet['summary']['flatGridFallbackSections'] ?? null);
+        $t->same([0, 1], $packet['summary']['flatGridFallbackRows'] ?? null);
+        $t->same([0, 1, 2], $packet['summary']['flatGridFallbackGlobalRows'] ?? null);
+        $t->same([0, 1, 3], $packet['summary']['flatGridFallbackColumns'] ?? null);
+        $t->same(4, $packet['summary']['flatGridFallbackCoveredSlotCount'] ?? null);
+        $t->same(3, $packet['summary']['flatGridFallbackMissingSlotCount'] ?? null);
+        $t->same([], $completeFallbacks);
+        json_encode($fallbacks, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes spanned cell occupied slots for importer geometry audits' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSectionScopedRowspanDocument): void {
         $document = $buildSectionGridDocument();
         $table = $document->children[0];
