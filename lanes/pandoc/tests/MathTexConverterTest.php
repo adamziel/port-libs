@@ -34,6 +34,19 @@ return [
         $t->contains('<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mi>k</mi></mroot>', $docxRootMathml);
         $t->contains('<annotation encoding="application/x-tex">\\sqrt[k]{x_i + y_i}</annotation>', $docxRootMathml);
     },
+    'converts bounded plain tex root of syntax to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $plainRootMathml = $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}', true);
+        $groupDegreeMathml = $converter->texToMathMl('\\root {k+2} \\of{\\operatorname{media}_i}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $plainRootMathml);
+        $t->contains('<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot>', $plainRootMathml);
+        $t->contains('<mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>', $plainRootMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}</annotation>', $plainRootMathml);
+        $t->contains('<mroot><msub><mi>media</mi><mi>i</mi></msub><mrow><mi>k</mi><mo>+</mo><mn>2</mn></mrow></mroot>', $groupDegreeMathml);
+        $t->true(!str_contains($plainRootMathml . $groupDegreeMathml, '<mi>\\root</mi>'));
+        $t->true(!str_contains($plainRootMathml . $groupDegreeMathml, '<mi>\\of</mi>'));
+    },
     'converts bounded texmath command aliases and wrappers to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $stackrelMathml = $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\stackrel\\alpha\\beta', true);
@@ -1661,6 +1674,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[]{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[3{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\root'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\root \\of{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\root 3 x'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\root 3 \\of{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\surd'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\surd{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\surd_1'));

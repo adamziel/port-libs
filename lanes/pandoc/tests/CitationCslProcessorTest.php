@@ -15622,6 +15622,105 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Versioned Export Data :: versions ii-iv</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Channel Build :: version release candidate</dd>', $blocks);
     },
+    'applies bounded csl section number labels and text forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'sectioned-rule',
+                'type' => 'legislation',
+                'title' => 'Sectioned Import Rule',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'section' => '2',
+            ],
+            [
+                'id' => 'section-range',
+                'type' => 'report',
+                'title' => 'Section Range Review',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'section' => '3-5',
+            ],
+            [
+                'id' => 'named-section',
+                'type' => 'article-newspaper',
+                'title' => 'Named Section Notice',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'section' => 'metro review',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Section Number Review</title>
+    <id>https://example.test/styles/bounded-section-number-review</id>
+    <updated>2026-06-08T20:23:22+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <choose>
+          <if is-numeric="section">
+            <group delimiter=" ">
+              <label variable="section" form="symbol"/>
+              <number variable="section" form="ordinal"/>
+              <text variable="section" form="roman" prefix="roman "/>
+            </group>
+          </if>
+          <else>
+            <text variable="section" prefix="section "/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="section" form="short"/>
+        <text variable="section" form="long-ordinal"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $branches = $children[1]['branches'] ?? [];
+        $sectionBranchChildren = $branches[0]['children'][0]['children'] ?? [];
+        $t->same(['section'], $branches[0]['isNumeric'] ?? null);
+        $t->same('section', $sectionBranchChildren[0]['variable'] ?? null);
+        $t->same('symbol', $sectionBranchChildren[0]['form'] ?? null);
+        $t->same('section', $sectionBranchChildren[1]['variable'] ?? null);
+        $t->same('ordinal', $sectionBranchChildren[1]['form'] ?? null);
+        $t->same('section', $sectionBranchChildren[2]['variable'] ?? null);
+        $t->same('roman', $sectionBranchChildren[2]['form'] ?? null);
+
+        $t->same('(Smith § 2nd roman ii; Ng §§ 3rd-5th roman iii-v; Roe section metro review)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'sectioned-rule', 'text' => '[@sectioned-rule]']),
+            new AstNode('citation', ['id' => 'section-range', 'text' => '[@section-range]']),
+            new AstNode('citation', ['id' => 'named-section', 'text' => '[@named-section]']),
+        ]));
+        $t->same('Sectioned Import Rule :: sec. second', $processor->renderBibliographyEntry('sectioned-rule'));
+        $t->same('Section Range Review :: secs. third-fifth', $processor->renderBibliographyEntry('section-range'));
+        $t->same('Named Section Notice :: sec. metro review', $processor->renderBibliographyEntry('named-section'));
+
+        $document = (new MarkdownReader())->read('Sectioned sources [@sectioned-rule; @section-range; @named-section] keep legal and newspaper sections visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Sectioned sources (Smith § 2nd roman ii; Ng §§ 3rd-5th roman iii-v; Roe section metro review) keep legal and newspaper sections visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Sectioned Import Rule :: sec. second</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Section Range Review :: secs. third-fifth</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Named Section Notice :: sec. metro review</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

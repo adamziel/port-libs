@@ -6245,8 +6245,35 @@ final class ZipPackage
         $locatorDiskWithEndOfCentralDirectory = self::readUInt32($bytes, $locatorOffset + 4);
         $recordOffset = self::readUInt64($bytes, $locatorOffset + 8);
         $totalDisks = self::readUInt32($bytes, $locatorOffset + 16);
-        if (substr($bytes, $recordOffset, 4) !== self::ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE) {
-            throw new \RuntimeException('ZIP64 end-of-central-directory locator points to an invalid record');
+        if (
+            !self::isRangeAvailable($bytes, $recordOffset, 4)
+            || substr($bytes, $recordOffset, 4) !== self::ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE
+        ) {
+            return [
+                'hasZip64EndOfCentralDirectoryLocator' => true,
+                'hasZip64EndOfCentralDirectory' => false,
+                'zip64EndOfCentralDirectoryLocatorOffset' => $locatorOffset,
+                'zip64EndOfCentralDirectoryOffset' => $recordOffset,
+                'zip64EndOfCentralDirectorySize' => null,
+                'zip64EndOfCentralDirectoryPayloadSize' => null,
+                'zip64LocatorDiskWithEndOfCentralDirectory' => $locatorDiskWithEndOfCentralDirectory,
+                'zip64TotalDisks' => $totalDisks,
+                'zip64VersionMadeBy' => null,
+                'zip64VersionNeededToExtract' => null,
+                'zip64DiskNumber' => null,
+                'zip64CentralDirectoryDisk' => null,
+                'zip64DiskEntryCount' => null,
+                'zip64TotalEntryCount' => null,
+                'zip64CentralDirectorySize' => null,
+                'zip64CentralDirectoryOffset' => null,
+                'zip64CentralDirectoryEnd' => null,
+                'zip64IsSingleDisk' => null,
+                'zip64CentralDirectoryEndMatchesRecordOffset' => null,
+                'zip64Issues' => [
+                    'zip64-end-of-central-directory',
+                    'zip64-end-of-central-directory-record-missing',
+                ],
+            ];
         }
 
         self::assertRange($bytes, $recordOffset, 56, 'ZIP64 end-of-central-directory record');

@@ -1302,6 +1302,58 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const IBM860_REPLACEMENTS = [
+        0x80 => 0x00c7,
+        0x81 => 0x00fc,
+        0x82 => 0x00e9,
+        0x83 => 0x00e2,
+        0x84 => 0x00e3,
+        0x85 => 0x00e0,
+        0x86 => 0x00c1,
+        0x87 => 0x00e7,
+        0x88 => 0x00ea,
+        0x89 => 0x00ca,
+        0x8a => 0x00e8,
+        0x8b => 0x00cd,
+        0x8c => 0x00d4,
+        0x8d => 0x00ec,
+        0x8e => 0x00c3,
+        0x8f => 0x00c2,
+        0x90 => 0x00c9,
+        0x91 => 0x00c0,
+        0x92 => 0x00c8,
+        0x93 => 0x00f4,
+        0x94 => 0x00f5,
+        0x95 => 0x00f2,
+        0x96 => 0x00da,
+        0x97 => 0x00f9,
+        0x98 => 0x00cc,
+        0x99 => 0x00d5,
+        0x9a => 0x00dc,
+        0x9b => 0x00a2,
+        0x9c => 0x00a3,
+        0x9d => 0x00d9,
+        0x9e => 0x20a7,
+        0x9f => 0x00d3,
+        0xa0 => 0x00e1,
+        0xa1 => 0x00ed,
+        0xa2 => 0x00f3,
+        0xa3 => 0x00fa,
+        0xa4 => 0x00f1,
+        0xa5 => 0x00d1,
+        0xa6 => 0x00aa,
+        0xa7 => 0x00ba,
+        0xa8 => 0x00bf,
+        0xa9 => 0x00d2,
+        0xaa => 0x00ac,
+        0xab => 0x00bd,
+        0xac => 0x00bc,
+        0xad => 0x00a1,
+        0xae => 0x00ab,
+        0xaf => 0x00bb,
+    ];
+
+    /** @var array<int, int> */
     private const IBM866_REPLACEMENTS = [
         0x80 => 0x0410,
         0x81 => 0x0411,
@@ -2863,6 +2915,7 @@ final class UnicodeText
             || $normalized === 'ibm437'
             || $normalized === 'ibm850'
             || $normalized === 'ibm852'
+            || $normalized === 'ibm860'
             || $normalized === 'ibm866'
             || $normalized === 'iso-8859-1'
             || $normalized === 'iso-8859-2'
@@ -3493,6 +3546,7 @@ final class UnicodeText
             '437', 'cp437', 'ibm437', 'dos437', 'xcp437', 'oem437', 'cspc8codepage437', 'csibm437' => 'ibm437',
             '850', 'cp850', 'ibm850', 'dos850', 'xcp850', 'oem850', 'cspc850multilingual', 'csibm850' => 'ibm850',
             '852', 'cp852', 'ibm852', 'dos852', 'xcp852', 'oem852', 'cspc852', 'cspcp852', 'csibm852' => 'ibm852',
+            '860', 'cp860', 'ibm860', 'dos860', 'xcp860', 'oem860', 'csibm860' => 'ibm860',
             '866', 'cp866', 'csibm866', 'dos866', 'ibm866', 'xcp866' => 'ibm866',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso88592', 'iso88592:1987', 'latin2', 'latin-2', 'l2', 'isoir101', 'csisolatin2' => 'iso-8859-2',
@@ -4149,6 +4203,10 @@ final class UnicodeText
             }
             if ($encoding === 'ibm852' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::IBM852_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'ibm860' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::IBM860_REPLACEMENTS[$byte] ?? self::IBM437_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'iso-8859-2' && isset(self::ISO_8859_2_REPLACEMENTS[$byte])) {

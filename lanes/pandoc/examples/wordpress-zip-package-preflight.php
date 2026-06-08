@@ -2874,10 +2874,24 @@ try {
 } catch (RuntimeException $exception) {
     $zip64LocatorRejected = str_contains($exception->getMessage(), 'ZIP64 end-of-central-directory');
 }
+$zip64MalformedLocatorBytes = substr_replace(
+    $zip64LocatorBytes,
+    $packUInt64(0),
+    ($zip64LocatorPreflight['zip64EndOfCentralDirectoryLocatorOffset'] ?? 0) + 8,
+    8
+);
+$zip64MalformedLocatorPreflight = ZipPackage::endOfCentralDirectoryPreflight($zip64MalformedLocatorBytes);
+$zip64MalformedLocatorRejected = false;
+try {
+    ZipPackage::fromString($zip64MalformedLocatorBytes);
+} catch (RuntimeException $exception) {
+    $zip64MalformedLocatorRejected = str_contains($exception->getMessage(), 'ZIP64 end-of-central-directory');
+}
 $rawStrictSplitZipPreflight = ZipPackage::rawStrictImportPreflight($splitZipBytes, 4096, 100.0, 4096);
 $rawStrictArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight($archiveExtraDataRecordBytes, 4096, 100.0, 4096);
 $rawStrictZip64EocdPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdBytes, 4096, 100.0, 4096);
 $rawStrictZip64LocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64LocatorBytes, 4096, 100.0, 4096);
+$rawStrictZip64MalformedLocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64MalformedLocatorBytes, 4096, 100.0, 4096);
 $rawStrictLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildLocalHeaderNameMismatchBackedPackage(), 4096, 100.0, 4096);
 $rawStrictLocalHeaderSpanPreflight = ZipPackage::rawStrictImportPreflight($buildUnclaimedLocalHeaderBackedPackage(), 4096, 100.0, 4096);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
@@ -4455,6 +4469,27 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected raw strict ZIP import preflight to reject ZIP64 locator bytes');
     }
 
+    if (
+        ($zip64MalformedLocatorPreflight['hasZip64EndOfCentralDirectoryLocator'] ?? null) !== true
+        || ($zip64MalformedLocatorPreflight['hasZip64EndOfCentralDirectory'] ?? null) !== false
+        || !in_array('zip64-end-of-central-directory-record-missing', $zip64MalformedLocatorPreflight['zip64Issues'] ?? [], true)
+        || !$zip64MalformedLocatorRejected
+    ) {
+        throw new RuntimeException('Expected malformed ZIP64 locator metadata to be reported and rejected before import');
+    }
+
+    if (
+        ($rawStrictZip64MalformedLocatorPreflight['isValid'] ?? null) !== false
+        || ($rawStrictZip64MalformedLocatorPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictZip64MalformedLocatorPreflight['zip64EndOfCentralDirectory']['hasZip64EndOfCentralDirectoryLocator'] ?? null) !== true
+        || ($rawStrictZip64MalformedLocatorPreflight['zip64EndOfCentralDirectory']['hasZip64EndOfCentralDirectory'] ?? null) !== false
+        || ($rawStrictZip64MalformedLocatorPreflight['centralDirectoryInventory'] ?? null) !== null
+        || !in_array('zip64-end-of-central-directory-record-missing', $rawStrictZip64MalformedLocatorPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictZip64MalformedLocatorPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to reject malformed ZIP64 locator bytes');
+    }
+
     if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
         throw new RuntimeException('Expected local ZIP entry order to be inspectable for package preflight');
     }
@@ -5412,6 +5447,8 @@ echo 'zip64LocatorDetected=' . ($zip64LocatorPreflight['hasZip64EndOfCentralDire
 echo 'zip64LocatorRecordSize=' . ($zip64LocatorPreflight['zip64EndOfCentralDirectorySize'] ?? 'none') . "\n";
 echo 'zipRawStrictZip64LocatorPolicy=' . ($rawStrictZip64LocatorPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictZip64LocatorDiagnostics=' . implode(',', $rawStrictZip64LocatorPreflight['diagnostics']) . "\n";
+echo 'zip64MalformedLocatorPolicy=' . ($zip64MalformedLocatorRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipRawStrictZip64MalformedLocatorDiagnostics=' . implode(',', $rawStrictZip64MalformedLocatorPreflight['diagnostics']) . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 echo 'descriptor.entryCount=' . $descriptorDataDescriptorPreflight['descriptorEntryCount'] . "\n";
 echo 'descriptor.signedEntryCount=' . $descriptorDataDescriptorPreflight['signedDescriptorEntryCount'] . "\n";

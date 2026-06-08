@@ -490,6 +490,26 @@ return [
         $t->contains('<h1 id="dos-852">DOS 852</h1>', $blocks);
         $t->contains('<p>Czech Čč Ěě Šš Žž Řř; Polish Łł Ąą Żż; Hungarian Őő Űű; box ╔═╗; ˝.</p>', $blocks);
     },
+    'decodes ibm860 dos portuguese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Importa\x87\x84o\n\nPortugu\x88s: Conte\xA3do, \x8Cnibus, S\x84o Tom\x82, a\x87\xA3car; \xAEcita\x87\x84o\xAF; \x9C/\x9E.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp860');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm860');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x84\x86\x8C\x8E\x9D\xA9\xAE\xAF", 'ibm860');
+        $ibm437Comparison = UnicodeText::decodeBytes("\x84\x86\x8C\x8E\x9D\xA9", 'ibm437');
+
+        $t->same('ibm860', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Importação\n\nPortuguês: Conteúdo, Ônibus, São Tomé, açúcar; «citação»; £/₧.", $decoded['text']);
+        $t->same('ãÁÔÃÙÒ«»', $specials['text']);
+        $t->same('äåîÄ¥⌐', $ibm437Comparison['text']);
+        $t->same(['encoding' => 'ibm860', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Importação', $document->children[0]->attr('text'));
+        $t->same('Português: Conteúdo, Ônibus, São Tomé, açúcar; «citação»; £/₧.', $document->children[1]->attr('text'));
+        $t->same(62, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="importação">Importação</h1>', $blocks);
+        $t->contains('<p>Português: Conteúdo, Ônibus, São Tomé, açúcar; «citação»; £/₧.</p>', $blocks);
+    },
     'decodes iso 8859 5 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-144');

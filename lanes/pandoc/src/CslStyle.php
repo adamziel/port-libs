@@ -1578,6 +1578,7 @@ final class CslStyle
             'number-of-pages',
             'number-of-volumes',
             'collection-number',
+            'section',
             'part-number',
             'part',
             'version',

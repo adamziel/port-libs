@@ -2215,6 +2215,10 @@ final class MathTexConverter
             return '<msqrt>' . $radicand . '</msqrt>';
         }
 
+        if ($command === 'root') {
+            return $this->parsePlainRootCommand($source, $offset);
+        }
+
         if ($command === 'surd') {
             return '<msqrt>'
                 . $this->parseRequiredAtomOrGroup($source, $offset, 'surd radicand')
@@ -5833,6 +5837,63 @@ final class MathTexConverter
         $offset++;
 
         return $this->row($children);
+    }
+
+    private function parsePlainRootCommand(string $source, int &$offset): string
+    {
+        $degreeSource = $this->readPlainRootDegreeSource($source, $offset);
+        $degree = $this->parseTexFragment($degreeSource, 'root degree');
+        $radicand = $this->parseRequiredAtomOrGroup($source, $offset, 'root radicand');
+
+        return '<mroot>' . $radicand . $degree . '</mroot>';
+    }
+
+    private function readPlainRootDegreeSource(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        $depth = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '\\') {
+                $commandOffset = $offset + 1;
+                $command = $this->readCommandName($source, $commandOffset);
+                if ($depth === 0 && $command === 'of') {
+                    $degreeSource = trim(substr($source, $start, $offset - $start));
+                    if ($degreeSource === '') {
+                        throw new \InvalidArgumentException('Expected TeX root degree before \\of at offset ' . $offset);
+                    }
+
+                    $offset = $commandOffset;
+
+                    return $degreeSource;
+                }
+
+                $offset = $commandOffset;
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth === 0) {
+                    break;
+                }
+                $depth--;
+                $offset++;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        throw new \InvalidArgumentException('Expected TeX \\of after \\root degree at offset ' . $offset);
     }
 
     private function readRequiredGroupText(string $source, int &$offset): string

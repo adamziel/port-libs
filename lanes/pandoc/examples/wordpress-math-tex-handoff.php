@@ -38,6 +38,8 @@ Dot and named symbol alias audit $\ldots + \cdots + \ddots + \aleph + \ell + \Re
 Display audit:
 $$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \sqrt[3]{x_i + y_i} + \binom{n}{k} + \tbinom{p_i}{2} + \dbinom{a+b}{c} + \dfrac{q_i}{r_i} + \genfrac{\langle}{\rangle}{0pt}{0}{n}{k} + \widehat{\operatorname{quality}} + \vec{v}_i + \begin{pmatrix}p_1 & m_1 \\ p_2 & m_2\end{pmatrix} + \begin{aligned}x_i &= \operatorname{score}(p_i) \\ y_i &= \frac{a_i}{b_i}\end{aligned} + \begin{array}{l|c|r}\alpha & \beta & \omega \\ \hline 1 & 2 & 3\end{array} + \begin{cases}p_i & p_i \in P \\ 0 & \text{otherwise}\end{cases} + \forall p_i \in P \Rightarrow p_i \notin \emptyset + \alpha \times \omega$$
 
+Plain root audit $\root 3 \of{x_i + y_i} + \root n+1 \of{\frac{a}{b}}$ stays semantic.
+
 Partial array rule audit $\begin{array}{l|c|r}p_i & m_i & 1 \\ \cline{2-3} q_i & n_i & 2 \\ \cline{1-1}\cline{3-3} r_i & s_i & 3\end{array}$ stays semantic.
 
 Repeated array preamble audit $\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\ p_2 & m_2 & 2\end{array}$ stays semantic.
@@ -200,6 +202,7 @@ $summary = [
     'declaredPairedDelimiterSizedMathml' => $converter->texToMathMl('\\wpabs*{p_i + m_i} + \\wpabs[\\Big]{q_i} + \\wpabs[\\bigg]{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
+    'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
     'arrayRepeatedPreambleMathml' => $converter->texToMathMl('\\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\\\ p_2 & m_2 & 2\\end{array}'),
     'arrayWidthColumnMathml' => $converter->texToMathMl('\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i & \\text{middle review} & 1 \\\\ q_i & n_i & 2\\end{array}'),
@@ -361,6 +364,14 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['plainRootMathml'], '<mi>\\root</mi>')
+        || str_contains($summary['plainRootMathml'], '<mi>\\of</mi>')
+        || !str_contains($summary['plainRootMathml'], '<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map plain TeX root syntax');
+    }
+
+    if (
         str_contains($summary['bracedNotRelationMathml'], '<menclose notation="updiagonalstrike"><mo>')
         || !str_contains($summary['bracedNotRelationMathml'], '<mi>x</mi><mo>∉</mo><mi>S</mi><mo>+</mo><mi>y</mi><mo>≠</mo><mi>z</mi><mo>+</mo><mi>q</mi><mo>≰</mo><mi>r</mi><mo>+</mo><mi>u</mi><mo>≱</mo><mi>v</mi>')
     ) {
@@ -378,6 +389,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}\\)</span>',
         '<span class="math inline">\\(\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ \\hline 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
+        '<span class="math inline">\\(\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}\\)</span>',
+        '<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot><mo>+</mo><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>',
+        '<annotation encoding="application/x-tex">\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}</annotation>',
         '<span class="math inline">\\(\\begin{array}{l|c|r}p_i &amp; m_i &amp; 1 \\\\ \\cline{2-3} q_i &amp; n_i &amp; 2 \\\\ \\cline{1-1}\\cline{3-3} r_i &amp; s_i &amp; 3\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{*{2}{c|}r}p_1 &amp; m_1 &amp; 1 \\\\ p_2 &amp; m_2 &amp; 2\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i &amp; \\text{middle review} &amp; 1 \\\\ q_i &amp; n_i &amp; 2\\end{array}\\)</span>',

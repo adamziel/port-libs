@@ -3307,6 +3307,50 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($sentinelOnlyZip));
     },
 
+    'preflights malformed zip64 end of central directory locators before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage, $packUInt64): void {
+        $zip = $buildZip64EndOfCentralDirectoryPackage();
+        $validSummary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+        $locatorOffset = $validSummary['zip64EndOfCentralDirectoryLocatorOffset'];
+        if ($locatorOffset === null) {
+            throw new \RuntimeException('Expected ZIP64 locator offset in fixture');
+        }
+
+        $malformedZip = substr_replace($zip, $packUInt64(0), $locatorOffset + 8, 8);
+        $summary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($malformedZip);
+        $archive = ZipPackage::endOfCentralDirectoryPreflight($malformedZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($malformedZip, 512, 20.0, 512);
+
+        $t->same(true, $summary['requiresZip64']);
+        $t->same(true, $summary['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(false, $summary['hasZip64EndOfCentralDirectory']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['zip64-end-of-central-directory', 'zip64-end-of-central-directory-record-missing'], $summary['issues']);
+        $t->same($validSummary['eocdOffset'], $summary['eocdOffset']);
+        $t->same($locatorOffset, $summary['locatorOffset']);
+        $t->same(0, $summary['locatorRecordOffset']);
+        $t->same(0, $summary['recordOffset']);
+        $t->same(null, $summary['recordSize']);
+        $t->same(null, $summary['recordPayloadSize']);
+        $t->same(0, $summary['locatorDiskWithEndOfCentralDirectory']);
+        $t->same(1, $summary['locatorTotalDisks']);
+        $t->same(true, $archive['requiresZip64']);
+        $t->same(true, $archive['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(false, $archive['hasZip64EndOfCentralDirectory']);
+        $t->same(['zip64-end-of-central-directory', 'zip64-end-of-central-directory-record-missing'], $archive['zip64Issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(0xffff, $rawStrict['entryCount']);
+        $t->same($summary, $rawStrict['zip64EndOfCentralDirectory']);
+        $t->same(true, $rawStrict['archive']['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(false, $rawStrict['archive']['hasZip64EndOfCentralDirectory']);
+        $t->same(null, $rawStrict['centralDirectoryInventory']);
+        $t->contains('unsupported-archive-layout', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip64-end-of-central-directory-record-missing', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($malformedZip));
+    },
+
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {
         $rawName = "word/media/caf\x82.png";
         $decodedName = "word/media/caf\u{00e9}.png";
