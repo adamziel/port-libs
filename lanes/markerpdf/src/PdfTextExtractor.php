@@ -21722,6 +21722,16 @@ final class PdfTextExtractor
             }
         }
 
+        $bitsPerComponent = $this->decodeParmsInt($decodeParms, 'BitsPerComponent', $objects);
+        if (
+            $predictor !== null
+            && $predictor !== 1
+            && $bitsPerComponent !== null
+            && !in_array($bitsPerComponent, [1, 2, 4, 8, 16], true)
+        ) {
+            return false;
+        }
+
         $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
         if (
             $earlyChange !== null

@@ -1010,6 +1010,26 @@ final class PdfMetadataExtractor
 
                 return $review;
             }
+            if (($xmpSummary['status'] ?? null) === 'rejected_malformed_xmp_encoding') {
+                $review = $base + [
+                    'status' => 'rejected_malformed_document_xmp_encoding',
+                    'object_number' => $objectNumber,
+                    'bytes' => strlen($stream['content']),
+                    'sha256' => hash('sha256', $stream['content']),
+                    'xmp_summary' => $xmpSummary,
+                ];
+
+                foreach ($this->metadataStreamDictionaryLabels($stream['dictionary'], $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $filters = $this->streamFilters($stream['dictionary'], $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                return $review;
+            }
 
             return [];
         }
@@ -16707,7 +16727,8 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        $converted = @iconv($encoding, 'UTF-8//IGNORE', $xml);
+        $targetEncoding = $fallback ? 'UTF-8//IGNORE' : 'UTF-8';
+        $converted = @iconv($encoding, $targetEncoding, $xml);
         if ($converted === false || $converted === '') {
             return null;
         }
@@ -16774,6 +16795,67 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpMalformedEncodingReviewSummary(string $xml): array
+    {
+        $boundary = $this->xmpUtf16EncodingBoundary($xml);
+        if ($boundary === null || !function_exists('iconv')) {
+            return [];
+        }
+
+        $converted = @iconv($boundary['encoding'], 'UTF-8', $boundary['bytes']);
+        if ($converted !== false) {
+            return [];
+        }
+
+        return [
+            'source' => 'xmp_packet_review',
+            'status' => 'rejected_malformed_xmp_encoding',
+            'encoding_boundary' => 'strict_xmp_encoding_decode',
+            'reason' => 'invalid_utf16_code_unit',
+            'field_names' => [],
+            'field_count' => 0,
+            'author_count' => 0,
+            'keyword_count' => 0,
+            'packet_encoding' => $boundary['encoding'],
+            'payload_included' => false,
+            'text_values_redacted' => true,
+            'redacted_fields' => ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords'],
+        ];
+    }
+
+    /**
+     * @return array{bytes: string, encoding: string}|null
+     */
+    private function xmpUtf16EncodingBoundary(string $xml): ?array
+    {
+        if (str_starts_with($xml, "\xfe\xff")) {
+            return [
+                'bytes' => substr($xml, 2),
+                'encoding' => 'UTF-16BE',
+            ];
+        }
+
+        if (str_starts_with($xml, "\xff\xfe")) {
+            return [
+                'bytes' => substr($xml, 2),
+                'encoding' => 'UTF-16LE',
+            ];
+        }
+
+        $sniffedUtf16Encoding = $this->sniffBomlessUtf16XmlEncoding($xml);
+        if ($sniffedUtf16Encoding === null) {
+            return null;
+        }
+
+        return [
+            'bytes' => $xml,
+            'encoding' => $sniffedUtf16Encoding,
+        ];
     }
 
     private function forceUtf8XmlDeclaration(string $xml): string
@@ -22263,6 +22345,11 @@ final class PdfMetadataExtractor
             $malformedPacket = $this->xmpMalformedFirstPacketReviewSummary($xml);
             if ($malformedPacket !== []) {
                 return $malformedPacket;
+            }
+
+            $malformedEncoding = $this->xmpMalformedEncodingReviewSummary($xml);
+            if ($malformedEncoding !== []) {
+                return $malformedEncoding;
             }
 
             return $this->xmpPacketSafetyReviewSummary($xml);
