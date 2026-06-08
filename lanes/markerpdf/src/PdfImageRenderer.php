@@ -4659,6 +4659,18 @@ final class PdfImageRenderer
         ));
     }
 
+    private function canonicalNativeImageStreamFilterName(string $filter): string
+    {
+        return match ($filter) {
+            'AHx' => 'ASCIIHexDecode',
+            'A85' => 'ASCII85Decode',
+            'RL' => 'RunLengthDecode',
+            'Fl' => 'FlateDecode',
+            'LZW' => 'LZWDecode',
+            default => $filter,
+        };
+    }
+
     /**
      * @param array<int, string> $objects
      * @return list<string|null>
@@ -6057,6 +6069,7 @@ final class PdfImageRenderer
         $filters = [];
         $previewOnly = [];
         $nativePrefix = [];
+        $canonicalNativePrefix = [];
         foreach ($filterDetails as $detailIndex => $detail) {
             $filter = $detail['filter'] ?? null;
             if (!is_string($filter)) {
@@ -6088,6 +6101,9 @@ final class PdfImageRenderer
                     'non_null_filter_index' => count($filters),
                     'filters_before_ccitt' => $filters,
                     'native_prefix_filters' => $nativePrefix,
+                    ...($canonicalNativePrefix !== $nativePrefix ? [
+                        'canonical_native_prefix_filters' => $canonicalNativePrefix,
+                    ] : []),
                     'preview_only_filters_before_ccitt' => $previewOnly,
                     ...($previewOnly !== [] ? [
                         'pre_ccitt_preview_filters_block_native_prefix_decode' => true,
@@ -6109,6 +6125,7 @@ final class PdfImageRenderer
                 $previewOnly[] = $filter;
             } else {
                 $nativePrefix[] = $filter;
+                $canonicalNativePrefix[] = $this->canonicalNativeImageStreamFilterName($filter);
             }
         }
 

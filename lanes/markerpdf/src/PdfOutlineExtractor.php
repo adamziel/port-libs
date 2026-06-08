@@ -3882,6 +3882,9 @@ final class PdfOutlineExtractor
         if ($this->nameTreeNodeHasStreamCarrierType($node, $objects)) {
             return;
         }
+        if ($this->nameTreeNodeHasMalformedIndirectArrayOperand($node, $objects)) {
+            return;
+        }
         if ($this->nameTreeNodeHasMalformedKidsOperand($node, $objects)) {
             return;
         }
@@ -3978,6 +3981,9 @@ final class PdfOutlineExtractor
             return;
         }
         if ($this->nameTreeNodeHasStreamCarrierType($node, $objects)) {
+            return;
+        }
+        if ($this->nameTreeNodeHasMalformedIndirectArrayOperand($node, $objects)) {
             return;
         }
         if ($this->nameTreeNodeHasMalformedKidsOperand($node, $objects)) {
@@ -4095,7 +4101,11 @@ final class PdfOutlineExtractor
             }
 
             $child = $this->resolveDictionary($kid, $objects);
-            if ($child === null || $this->nameTreeNodeHasStreamCarrierType($child, $objects)) {
+            if (
+                $child === null
+                || $this->nameTreeNodeHasStreamCarrierType($child, $objects)
+                || $this->nameTreeNodeHasMalformedIndirectArrayOperand($child, $objects)
+            ) {
                 $kidNodes[] = $node;
                 continue;
             }
@@ -4162,6 +4172,28 @@ final class PdfOutlineExtractor
     {
         return array_key_exists('Kids', $node)
             && $this->resolveArray($node['Kids'], $objects) === null;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, mixed> $objects
+     */
+    private function nameTreeNodeHasMalformedIndirectArrayOperand(array $node, array $objects): bool
+    {
+        foreach (self::NAME_TREE_NODE_BOUNDARY_KEYS as $key) {
+            if (!array_key_exists($key, $node) || !$this->isReferenceValue($node[$key])) {
+                continue;
+            }
+
+            if (
+                $this->resolveArray($node[$key], $objects) === null
+                || !$this->referenceTargetsSingleTopLevelValue($node[$key], $objects)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

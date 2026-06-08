@@ -1201,6 +1201,9 @@ final class PdfNamedDestinationExtractor
         if ($this->nameTreeNodeDictionaryHasStreamCarrierType($dictionary, $objects, $cache)) {
             return [];
         }
+        if ($this->nameTreeNodeHasMalformedIndirectArrayOperand($dictionary, $objects)) {
+            return [];
+        }
         if ($this->nameTreeNodeHasMalformedKidsOperand($dictionary, $objects, $cache)) {
             return [];
         }
@@ -1464,6 +1467,45 @@ final class PdfNamedDestinationExtractor
         $kids = $this->resolve($node['Kids'], $objects, $cache);
 
         return !is_array($kids) || !array_is_list($kids);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function nameTreeNodeHasMalformedIndirectArrayOperand(array $node, array $objects): bool
+    {
+        foreach (['Kids', 'Names', 'Limits'] as $key) {
+            if (!array_key_exists($key, $node)) {
+                continue;
+            }
+
+            $operand = $node[$key];
+            if (!$this->isRefValue($operand)) {
+                continue;
+            }
+
+            $objectId = $this->validRefObjectId($operand, $objects);
+            if ($objectId === null) {
+                return true;
+            }
+
+            $body = $this->objectBody($objectId, $objects, $this->refGeneration($operand));
+            if ($body === null || !$this->objectBodyIsSingleTopLevelArray($body)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function objectBodyIsSingleTopLevelArray(string $body): bool
+    {
+        $tokens = $this->tokens($body);
+        $index = 0;
+        $value = $this->parseValue($tokens, $index);
+
+        return is_array($value) && array_is_list($value) && $index === count($tokens);
     }
 
     /**

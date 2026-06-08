@@ -7645,6 +7645,10 @@ final class PdfMetadataExtractor
             return;
         }
 
+        if ($this->nameTreeNodeHasMalformedIndirectArrayOperand($node, $objects)) {
+            return;
+        }
+
         if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($node, $objects)) {
             return;
         }
@@ -7750,6 +7754,38 @@ final class PdfMetadataExtractor
         $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($kidsValue, $objects) ?? $kidsValue);
 
         return $this->arrayBody($resolved) === null;
+    }
+
+    /**
+     * @param array{body: string, object: int|null, generation?: int} $node
+     * @param array<int, string> $objects
+     */
+    private function nameTreeNodeHasMalformedIndirectArrayOperand(array $node, array $objects): bool
+    {
+        foreach (self::DESTINATION_NAME_TREE_NODE_BOUNDARY_KEYS as $key) {
+            $value = $this->dictionaryTopLevelRawValue($node['body'], $key);
+            if ($value === null || $this->objectNumberFromReference($value) === null) {
+                continue;
+            }
+
+            $resolved = $this->resolvePdfValue($value, $objects);
+            if ($resolved === null || !$this->pdfValueIsSingleTopLevelArray($resolved)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function pdfValueIsSingleTopLevelArray(string $value): bool
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        $array = $this->readPdfArrayAt($trimmed, 0);
+        if ($array === null || strlen($array) < 2) {
+            return false;
+        }
+
+        return $this->skipPdfWhitespace($trimmed, strlen($array)) >= strlen($trimmed);
     }
 
     /**

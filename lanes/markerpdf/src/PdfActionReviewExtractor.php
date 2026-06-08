@@ -3526,6 +3526,9 @@ final class PdfActionReviewExtractor
         if ($this->nameTreeNodeHasStreamCarrierType($node)) {
             return;
         }
+        if ($this->nameTreeNodeHasMalformedIndirectArrayOperand($node)) {
+            return;
+        }
         if ($this->nameTreeNodeHasMalformedKidsOperand($node)) {
             return;
         }
@@ -3684,7 +3687,11 @@ final class PdfActionReviewExtractor
             }
 
             $child = $this->resolveDictionary($kid);
-            if ($child === null || $this->nameTreeNodeHasStreamCarrierType($child)) {
+            if (
+                $child === null
+                || $this->nameTreeNodeHasStreamCarrierType($child)
+                || $this->nameTreeNodeHasMalformedIndirectArrayOperand($child)
+            ) {
                 $kidNodes[] = $node;
                 continue;
             }
@@ -3744,6 +3751,32 @@ final class PdfActionReviewExtractor
     {
         return array_key_exists('Kids', $node)
             && $this->resolveArray($node['Kids']) === null;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function nameTreeNodeHasMalformedIndirectArrayOperand(array $node): bool
+    {
+        foreach (self::NAME_TREE_NODE_BOUNDARY_KEYS as $key) {
+            if (!array_key_exists($key, $node)) {
+                continue;
+            }
+
+            $reference = $this->referenceObject($node[$key]);
+            if ($reference === null) {
+                continue;
+            }
+
+            if (
+                $this->resolveArray($node[$key]) === null
+                || $this->referenceObjectBodyHasTrailingOperand($reference)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function nameTreeNodeReferenceHasTopLevelStream(mixed $value): bool
