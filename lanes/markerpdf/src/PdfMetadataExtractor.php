@@ -13725,6 +13725,11 @@ final class PdfMetadataExtractor
             }
         }
 
+        $literal = $this->xmpParseTypeLiteralTextValue($element);
+        if ($literal !== null) {
+            return $literal;
+        }
+
         foreach ($this->xmpChildElements($element, self::NS_RDF, 'value') as $valueElement) {
             $value = $this->xmpQualifiedTextValue($valueElement, $seenResourceIds);
             if ($value !== null) {
@@ -13770,6 +13775,11 @@ final class PdfMetadataExtractor
             if ($value !== null) {
                 return $value;
             }
+        }
+
+        $literal = $this->xmpParseTypeLiteralTextValue($target);
+        if ($literal !== null) {
+            return $literal;
         }
 
         foreach ($this->xmpChildElements($target, self::NS_RDF, 'value') as $valueElement) {
@@ -13996,10 +14006,7 @@ final class PdfMetadataExtractor
      */
     private function xmpParseTypeCollectionItems(DOMElement $element): array
     {
-        if (
-            !$element->hasAttributeNS(self::NS_RDF, 'parseType')
-            || strcasecmp(trim($element->getAttributeNS(self::NS_RDF, 'parseType')), 'Collection') !== 0
-        ) {
+        if (!$this->xmpElementHasRdfParseType($element, 'Collection')) {
             return [];
         }
 
@@ -14011,6 +14018,21 @@ final class PdfMetadataExtractor
         }
 
         return $items;
+    }
+
+    private function xmpParseTypeLiteralTextValue(DOMElement $element): ?string
+    {
+        if (!$this->xmpElementHasRdfParseType($element, 'Literal')) {
+            return null;
+        }
+
+        return $this->cleanText($element->textContent);
+    }
+
+    private function xmpElementHasRdfParseType(DOMElement $element, string $parseType): bool
+    {
+        return $element->hasAttributeNS(self::NS_RDF, 'parseType')
+            && strcasecmp(trim($element->getAttributeNS(self::NS_RDF, 'parseType')), $parseType) === 0;
     }
 
     /**
@@ -15838,6 +15860,7 @@ final class PdfMetadataExtractor
             $item->hasAttributeNS(self::NS_RDF, 'value')
             || $item->hasAttributeNS(self::NS_RDF, 'resource')
             || $item->hasAttributeNS(self::NS_RDF, 'nodeID')
+            || $this->xmpElementHasRdfParseType($item, 'Literal')
         ) {
             return true;
         }
