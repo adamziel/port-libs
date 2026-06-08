@@ -483,6 +483,9 @@ final class PdfSecurityPreflight
             'permission_bits_reliable' => $permissionBitsReliable,
             'permission_authentication_trust_review' => $permissionAuthenticationTrustReview,
             'permission_bits_authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
+            'permission_bits_authentication_material_usable' => (bool) ($permissionAuthenticationTrustReview['authentication_material_usable_for_permission_trust'] ?? false),
+            'permission_bits_trust_requires_password_validation' => (bool) ($permissionAuthenticationTrustReview['permission_trust_requires_password_validation'] ?? false),
+            'permission_bits_trust_blocker' => $permissionAuthenticationTrustReview['permission_trust_blocker'] ?? null,
             'permission_bits_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
             'authenticated_permission_bits_reliable' => (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false),
             'permission_authentication_status' => $permissionAuthenticationTrustReview['status'] ?? null,
@@ -783,6 +786,28 @@ final class PdfSecurityPreflight
             $status = 'permission_bits_decoded_but_authentication_material_incomplete';
         }
 
+        $authenticationMaterialUsableForPermissionTrust = $authenticationRequired
+            && $syntacticPermissionBitsReliable
+            && $authenticationMaterialReady
+            && (
+                !$permissionDigestRequired
+                || (
+                    $permissionDigestPresent
+                    && $permissionDigestLengthValid === true
+                    && $permissionDigestStatus === 'permission_digest_ciphertext_review'
+                )
+            );
+        $permissionTrustBlocker = null;
+        if ($authenticationRequired) {
+            if ($authenticationMaterialUsableForPermissionTrust) {
+                $permissionTrustBlocker = 'password_validation_not_performed';
+            } elseif (!$syntacticPermissionBitsReliable) {
+                $permissionTrustBlocker = 'decoded_permission_bits_not_syntactically_reliable';
+            } else {
+                $permissionTrustBlocker = $status;
+            }
+        }
+
         return [
             'source' => 'standard_permission_authentication_trust_review',
             'present' => $standardHandler && ($permissionWordDecoded || $syntacticPermissionBitsReliable),
@@ -804,6 +829,9 @@ final class PdfSecurityPreflight
                 ? $standardAuthenticationMaterialReview['permission_digest_entry_operand_shapes']
                 : [],
             'authentication_material_ready_for_password_attempt' => $authenticationMaterialReady,
+            'authentication_material_usable_for_permission_trust' => $authenticationMaterialUsableForPermissionTrust,
+            'permission_trust_requires_password_validation' => $authenticationMaterialUsableForPermissionTrust,
+            'permission_trust_blocker' => $permissionTrustBlocker,
             'password_validation_performed' => false,
             'permissions_authenticated' => false,
             'decryption_performed' => false,
@@ -6235,6 +6263,9 @@ final class PdfSecurityPreflight
             'permission_bits_reliable' => $permissionBitsReliable,
             'permission_authentication_trust_review' => $permissionAuthenticationTrustReview,
             'permission_bits_authentication_required' => (bool) ($permissionAuthenticationTrustReview['authentication_required'] ?? false),
+            'permission_bits_authentication_material_usable' => (bool) ($permissionAuthenticationTrustReview['authentication_material_usable_for_permission_trust'] ?? false),
+            'permission_bits_trust_requires_password_validation' => (bool) ($permissionAuthenticationTrustReview['permission_trust_requires_password_validation'] ?? false),
+            'permission_bits_trust_blocker' => $permissionAuthenticationTrustReview['permission_trust_blocker'] ?? null,
             'permission_bits_authenticated' => (bool) ($permissionAuthenticationTrustReview['permissions_authenticated'] ?? false),
             'authenticated_permission_bits_reliable' => (bool) ($permissionAuthenticationTrustReview['authenticated_permission_bits_reliable'] ?? false),
             'permission_authentication_status' => $permissionAuthenticationTrustReview['status'] ?? null,

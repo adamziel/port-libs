@@ -35968,6 +35968,14 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '{') {
+                $procedureEnd = $this->cMapProcedureEndOffset($cmap, $index);
+                if ($procedureEnd !== null) {
+                    $index = $procedureEnd + 1;
+                    continue;
+                }
+            }
+
             if ($char !== '/') {
                 $index++;
                 continue;

@@ -11100,6 +11100,34 @@ final class PdfMetadataExtractor
         $ambiguous = $duplicate || $conflicts !== [] || $malformedEntries !== [];
         $selectedEntryIndex = count($entries) - 1;
         $selectedEntry = $entries[$selectedEntryIndex] ?? [];
+        $entryOperandShapes = $this->uniqueStrings(array_values(array_filter(
+            array_map(
+                static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                $entries
+            ),
+            static fn (mixed $shape): bool => is_string($shape)
+        )));
+        $entryRawOperandShapes = $this->uniqueStrings(array_values(array_filter(
+            array_map(
+                static fn (array $entry): mixed => $entry['raw_operand_shape'] ?? null,
+                $entries
+            ),
+            static fn (mixed $shape): bool => is_string($shape)
+        )));
+        $malformedEntryIndexes = array_values(array_map(
+            static fn (array $entry): int => (int) $entry['index'],
+            array_values(array_filter(
+                $malformedEntries,
+                static fn (array $entry): bool => is_int($entry['index'] ?? null)
+            ))
+        ));
+        $malformedEntryStatuses = $this->uniqueStrings(array_values(array_filter(
+            array_map(
+                static fn (array $entry): mixed => $entry['status'] ?? null,
+                $malformedEntries
+            ),
+            static fn (mixed $status): bool => is_string($status)
+        )));
 
         return [
             'source' => 'standard_permission_word_declaration_review',
@@ -11118,6 +11146,25 @@ final class PdfMetadataExtractor
             'selected_entry_raw_operand_shape' => is_string($selectedEntry['raw_operand_shape'] ?? null)
                 ? $selectedEntry['raw_operand_shape']
                 : null,
+            'selected_entry_single_value' => array_key_exists('single_value', $selectedEntry)
+                ? (bool) $selectedEntry['single_value']
+                : null,
+            'selected_entry_trailing_operand' => (bool) ($selectedEntry['trailing_operand'] ?? false),
+            'selected_entry_trailing_operand_shape' => is_string($selectedEntry['trailing_operand_shape'] ?? null)
+                ? $selectedEntry['trailing_operand_shape']
+                : null,
+            'selected_entry_trailing_operand_preview' => is_string($selectedEntry['trailing_operand_preview'] ?? null)
+                ? $selectedEntry['trailing_operand_preview']
+                : null,
+            'selected_entry_trailing_operand_name' => is_string($selectedEntry['trailing_operand_name'] ?? null)
+                ? $selectedEntry['trailing_operand_name']
+                : null,
+            'selected_entry_trailing_operand_object_number' => is_int($selectedEntry['trailing_operand_object_number'] ?? null)
+                ? $selectedEntry['trailing_operand_object_number']
+                : null,
+            'selected_entry_trailing_operand_generation' => is_int($selectedEntry['trailing_operand_generation'] ?? null)
+                ? $selectedEntry['trailing_operand_generation']
+                : null,
             'selected_entry_reference_object_number' => is_int($selectedEntry['reference_object_number'] ?? null)
                 ? $selectedEntry['reference_object_number']
                 : null,
@@ -11133,6 +11180,12 @@ final class PdfMetadataExtractor
                 ? 'duplicate_standard_permission_entries_review'
                 : ($ambiguous ? 'malformed_standard_permission_word_review' : 'well_formed_standard_permissions'),
             'entry_statuses' => $entryStatuses,
+            'entry_operand_shapes' => $entryOperandShapes,
+            'entry_raw_operand_shapes' => $entryRawOperandShapes,
+            'malformed_entries' => $malformedEntries !== [],
+            'malformed_entry_count' => count($malformedEntries),
+            'malformed_entry_indexes' => $malformedEntryIndexes,
+            'malformed_entry_statuses' => $malformedEntryStatuses,
             'unsigned_values' => array_values(array_map(
                 static fn (array $entry): int => (int) $entry['unsigned'],
                 array_values(array_filter(

@@ -8654,7 +8654,8 @@ final class PdfAcroFormExtractor
             if (!isset($objects[$ref]) || !$this->referenceGenerationMatches($ref, $generation, $objects)) {
                 return null;
             }
-            $resolved = $this->pdfValueToString(trim($objects[$ref]), $objects);
+            $resolvedValue = $this->completePdfValueFromObjectBody($objects[$ref]);
+            $resolved = $resolvedValue === null ? null : $this->pdfValueToString($resolvedValue, $objects);
             return $resolved === null ? null : ['value' => $resolved, 'end' => $endOffset];
         }
 
@@ -10699,7 +10700,8 @@ final class PdfAcroFormExtractor
                 return null;
             }
 
-            return $this->pdfValueToString(trim($objects[$objectNumber]), $objects);
+            $resolvedValue = $this->completePdfValueFromObjectBody($objects[$objectNumber]);
+            return $resolvedValue === null ? null : $this->pdfValueToString($resolvedValue, $objects);
         }
 
         if ($value === 'null') {
@@ -10711,6 +10713,17 @@ final class PdfAcroFormExtractor
         }
 
         return null;
+    }
+
+    private function completePdfValueFromObjectBody(string $objectBody): ?string
+    {
+        $offset = 0;
+        $value = $this->readPdfValueAt($objectBody, $offset, $endOffset);
+        if ($value === null || $endOffset === null) {
+            return null;
+        }
+
+        return $this->hasOnlyPdfWhitespaceOrCommentsAfter($objectBody, $endOffset) ? $value : null;
     }
 
     private function pdfStringValueAfterName(string $body, string $name, array $objects): ?string
@@ -10799,7 +10812,8 @@ final class PdfAcroFormExtractor
             }
 
             $seen[$objectNumber] = true;
-            return $this->pdfNameFromValueResolvingObjects(trim($objects[$objectNumber]), $objects, $seen);
+            $resolvedValue = $this->completePdfValueFromObjectBody($objects[$objectNumber]);
+            return $resolvedValue === null ? null : $this->pdfNameFromValueResolvingObjects($resolvedValue, $objects, $seen);
         }
 
         if (!str_starts_with($value, '/')) {
@@ -12773,7 +12787,8 @@ final class PdfAcroFormExtractor
             }
 
             $seen[$objectNumber] = true;
-            return $this->pdfNumberFromValue(trim($objects[$objectNumber]), $objects, $seen);
+            $resolvedValue = $this->completePdfValueFromObjectBody($objects[$objectNumber]);
+            return $resolvedValue === null ? null : $this->pdfNumberFromValue($resolvedValue, $objects, $seen);
         }
 
         if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $value) !== 1) {
