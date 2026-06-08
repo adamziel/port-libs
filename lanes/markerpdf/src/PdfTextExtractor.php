@@ -38227,6 +38227,9 @@ final class PdfTextExtractor
                 if ($targets === []) {
                     continue;
                 }
+                if (!$this->cMapBfRangeArrayTargetsAreWellFormed($range)) {
+                    continue;
+                }
                 $mappedSourceCount = $this->cMapMappedSourceCountForRange(
                     $source,
                     $last,
@@ -38655,6 +38658,30 @@ final class PdfTextExtractor
 
         foreach ($tokens as $token) {
             if (!in_array($token['type'] ?? null, ['hex', 'literal'], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{targets?: list<string>, targetKinds?: list<string>} $range
+     */
+    private function cMapBfRangeArrayTargetsAreWellFormed(array $range): bool
+    {
+        $targets = $range['targets'] ?? null;
+        if (!is_array($targets) || $targets === []) {
+            return false;
+        }
+
+        $targetKinds = $range['targetKinds'] ?? [];
+        foreach ($targets as $index => $target) {
+            $kind = $targetKinds[$index] ?? 'hex';
+            if ($kind === 'literal') {
+                continue;
+            }
+            if (!$this->isWellFormedCMapUnicodeScalarTarget($target)) {
                 return false;
             }
         }
