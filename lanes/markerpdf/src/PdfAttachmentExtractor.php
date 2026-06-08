@@ -5985,10 +5985,7 @@ final class PdfAttachmentExtractor
         }
         $invalidStartxrefBoundary = $this->latestInvalidStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
         if ($invalidStartxrefBoundary !== null && ($boundary === null || $invalidStartxrefBoundary > $boundary)) {
-            $invalidEofBoundary = $this->firstTopLevelEofOffsetAfter($pdfBytes, $definitions, $invalidStartxrefBoundary);
-            if ($invalidEofBoundary !== null) {
-                $eofBoundary = $invalidEofBoundary;
-            }
+            return $invalidStartxrefBoundary;
         }
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
@@ -6214,7 +6211,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($this->startxrefDeclaredOffsetFromOperand(substr($pdfBytes, $tokenOffset + strlen('startxref'), 64)) === null) {
-                return $tokenOffset;
+                return $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $tokenOffset) ?? $tokenOffset;
             }
         }
 
@@ -6308,7 +6305,7 @@ final class PdfAttachmentExtractor
         $offsets = $this->xrefTableKeywordOffsets($pdfBytes, $definitions);
         for ($index = count($offsets) - 1; $index >= 0; $index--) {
             $offset = $offsets[$index];
-            if ($candidateBeforeOffset !== null && $offset > $candidateBeforeOffset) {
+            if ($candidateBeforeOffset !== null && $offset >= $candidateBeforeOffset) {
                 continue;
             }
 

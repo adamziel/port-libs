@@ -122,6 +122,11 @@ final class PdfClassicXrefRebuilder
         $boundary = $entry['token_offset'] ?? null;
         $eofBoundary = self::latestTopLevelEofOffset($pdfBytes, $definitions);
         $ignoredBoundary = self::latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        $malformedBoundary = self::latestMalformedStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($malformedBoundary !== null && ($boundary === null || $malformedBoundary > $boundary)) {
+            return $malformedBoundary;
+        }
+
         if ($boundary === null) {
             if ($ignoredBoundary !== null && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)) {
                 $latestBeforeEof = $eofBoundary === null
@@ -205,6 +210,37 @@ final class PdfClassicXrefRebuilder
             ) {
                 return $tokenOffset;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     */
+    private static function latestMalformedStartxrefRebuildBoundaryOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || !self::pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || self::tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || self::offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || self::tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            if (self::startxrefDeclaredOffsetFromOperand(substr($pdfBytes, $tokenOffset + strlen('startxref'), 64)) !== null) {
+                continue;
+            }
+
+            return self::latestClassicXrefTableOffset($pdfBytes, $definitions, $tokenOffset) ?? $tokenOffset;
         }
 
         return null;
