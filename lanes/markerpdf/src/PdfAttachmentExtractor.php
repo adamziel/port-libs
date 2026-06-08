@@ -5952,7 +5952,14 @@ final class PdfAttachmentExtractor
                 $definitions
             );
             $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
-            $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $table['trailer'], $previousOffset, $offset);
+            $entries = $this->repairOmittedCurrentUpdateGraphRows(
+                $pdfBytes,
+                $entries,
+                $definitions,
+                $table['trailer'],
+                $previousOffset,
+                $offset
+            );
             if ($previousOffset !== null) {
                 $previousEntries = $this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets);
                 foreach ($previousEntries as $objectNumber => $entry) {
@@ -6003,7 +6010,14 @@ final class PdfAttachmentExtractor
             $definitions
         );
         $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
-        $entries = $this->repairOmittedCurrentUpdateGraphRows($entries, $definitions, $stream['dictionary'], $previousOffset, $offset);
+        $entries = $this->repairOmittedCurrentUpdateGraphRows(
+            $pdfBytes,
+            $entries,
+            $definitions,
+            $stream['dictionary'],
+            $previousOffset,
+            $offset
+        );
         if ($previousOffset !== null) {
             $previousEntries = $this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets);
             foreach ($previousEntries as $objectNumber => $entry) {
@@ -6048,6 +6062,7 @@ final class PdfAttachmentExtractor
      * @return array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>
      */
     private function repairOmittedCurrentUpdateGraphRows(
+        string $pdfBytes,
         array $entries,
         array $definitions,
         array $sectionDictionary,
@@ -6067,11 +6082,30 @@ final class PdfAttachmentExtractor
 
         $pending = [];
         foreach (['Root', 'Info', 'Encrypt'] as $name) {
+            $hasValue = array_key_exists($name, $sectionDictionary);
             $reference = $this->refObjectReference($sectionDictionary[$name] ?? null);
             if ($reference !== null) {
                 $pending[] = [
                     'reference' => $reference,
                     'source' => 'trailer',
+                ];
+                continue;
+            }
+
+            if ($hasValue) {
+                continue;
+            }
+
+            $inheritedReference = $this->inheritedTrailerGraphReference(
+                $pdfBytes,
+                $previousOffset,
+                $name,
+                $definitions
+            );
+            if ($inheritedReference !== null) {
+                $pending[] = [
+                    'reference' => $inheritedReference,
+                    'source' => 'inherited_trailer',
                 ];
             }
         }
@@ -6199,6 +6233,62 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, true> $seenOffsets
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function inheritedTrailerGraphReference(
+        string $pdfBytes,
+        int $offset,
+        string $name,
+        array $definitions,
+        array $seenOffsets = []
+    ): ?array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return null;
+        }
+        $seenOffsets[$offset] = true;
+
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($table !== null) {
+            if (array_key_exists($name, $table['trailer'])) {
+                return $this->refObjectReference($table['trailer'][$name]);
+            }
+
+            $previousOffset = $this->previousXrefOffsetForSection(
+                $pdfBytes,
+                $this->previousXrefOffsetFromTableTrailer($table['trailer'], $definitions, $offset),
+                $offset,
+                $definitions
+            );
+
+            return $previousOffset === null
+                ? null
+                : $this->inheritedTrailerGraphReference($pdfBytes, $previousOffset, $name, $definitions, $seenOffsets);
+        }
+
+        $stream = $this->xrefStreamSectionAt($offset, $definitions);
+        if ($stream === null) {
+            return null;
+        }
+
+        if (array_key_exists($name, $stream['dictionary'])) {
+            return $this->refObjectReference($stream['dictionary'][$name]);
+        }
+
+        $previousOffset = $this->previousXrefOffsetForSection(
+            $pdfBytes,
+            $this->intValue($this->xrefStreamDictionaryValue($stream, 'Prev', $definitions)),
+            $offset,
+            $definitions
+        );
+
+        return $previousOffset === null
+            ? null
+            : $this->inheritedTrailerGraphReference($pdfBytes, $previousOffset, $name, $definitions, $seenOffsets);
     }
 
     /**
