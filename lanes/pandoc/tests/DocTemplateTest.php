@@ -2929,6 +2929,44 @@ HTML,
         ]), $output);
     },
 
+    'renders pandoc doctemplate digit-leading child metadata keys' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->renderResource('packets/review.html', [
+            'packets/review.html' => <<<'HTML'
+<article>
+Model: $article.3d-model$
+Revision: $article.2026-review.status$
+Checks: $for(checks)$$it.1st-pass$:$it.2nd-pass$$sep$; $endfor$
+Cards: ${ article.assets.360-view:components/asset-card()[ | ] }
+</article>
+HTML,
+            'packets/components/asset-card.html' => '$article.assets.360-view.name$=$it.1st-pass$',
+        ], [
+            'article' => [
+                '3d-model' => 'Cover mesh',
+                '2026-review' => ['status' => 'queued'],
+                'assets' => [
+                    '360-view' => [
+                        ['name' => 'spin-front', '1st-pass' => 'ok'],
+                        ['name' => 'spin-back', '1st-pass' => 'review'],
+                    ],
+                ],
+            ],
+            'checks' => [
+                ['1st-pass' => 'media-ok', '2nd-pass' => 'link-review'],
+                ['1st-pass' => 'layout-ok', '2nd-pass' => 'publish-ready'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<article>',
+            'Model: Cover mesh',
+            'Revision: queued',
+            'Checks: media-ok:link-review; layout-ok:publish-ready',
+            'Cards: spin-front=ok | spin-back=review',
+            '</article>',
+        ]), $output);
+    },
+
     'rejects unsafe pandoc doctemplate resource paths' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

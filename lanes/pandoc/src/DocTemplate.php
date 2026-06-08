@@ -3953,13 +3953,13 @@ CSS;
                 continue;
             }
 
-            if (!$this->isVariableIdentifierPart($segment)) {
+            if (!$this->isVariableIdentifierPart($segment, $offset > 0)) {
                 throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
             }
         }
     }
 
-    private function isVariableIdentifierPart(string $part): bool
+    private function isVariableIdentifierPart(string $part, bool $allowLeadingDigit = false): bool
     {
         if ($part === '') {
             return false;
@@ -3969,7 +3969,11 @@ CSS;
             return false;
         }
 
-        return preg_match('/^\\p{L}[\\p{L}\\p{N}_-]*(?::\\p{L}[\\p{L}\\p{N}_-]*)*$/u', $part) === 1;
+        $pattern = $allowLeadingDigit
+            ? '/^[\\p{L}\\p{N}][\\p{L}\\p{N}_-]*(?::[\\p{L}\\p{N}][\\p{L}\\p{N}_-]*)*$/u'
+            : '/^\\p{L}[\\p{L}\\p{N}_-]*(?::\\p{L}[\\p{L}\\p{N}_-]*)*$/u';
+
+        return preg_match($pattern, $part) === 1;
     }
 
     /**
