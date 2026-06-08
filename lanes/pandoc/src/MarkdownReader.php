@@ -1994,6 +1994,56 @@ final class MarkdownReader
         $this->yamlMetadataScalarProvenance[] = $entry;
     }
 
+    private function recordYamlTypedScalarProvenance(string $source, string $scalarType, mixed $value, ?string $explicitTag = null): void
+    {
+        $kind = $this->yamlMetadataValueKind($value);
+        if (
+            ($scalarType === 'boolean' && $kind !== 'boolean')
+            || ($scalarType === 'null' && $kind !== 'null')
+            || ($scalarType === 'number' && $kind !== 'number')
+            || ($scalarType === 'timestamp' && $kind !== 'scalar')
+        ) {
+            return;
+        }
+        if ($scalarType === 'timestamp') {
+            $timestampSource = (($source[0] === '"' && str_ends_with($source, '"')) || ($source[0] === "'" && str_ends_with($source, "'")))
+                ? $this->unquoteYamlScalar($source)
+                : $source;
+            if ($this->parseYamlTimestampScalar($timestampSource) === null) {
+                return;
+            }
+        }
+
+        $entry = [
+            'type' => 'yaml-typed-scalar',
+            'style' => 'plain',
+            'scalarType' => $scalarType,
+            'valueKind' => $kind,
+            'source' => $source,
+        ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $entry['path'] = $path;
+        }
+        if ($explicitTag !== null) {
+            $entry['explicitTag'] = $explicitTag;
+        }
+
+        $entry += $this->yamlMetadataSourceLineAttrs();
+        $this->yamlMetadataScalarProvenance[] = $entry;
+    }
+
+    private function yamlExplicitScalarProvenanceType(string $tag): ?string
+    {
+        return match ($tag) {
+            'bool' => 'boolean',
+            'null' => 'null',
+            'int', 'float' => 'number',
+            'timestamp' => 'timestamp',
+            default => null,
+        };
+    }
+
     /**
      * @param list<string> $lines
      * @param list<int|null>|null $sourceLines
@@ -2685,6 +2735,10 @@ final class MarkdownReader
         $explicitScalarTag = $this->yamlExplicitScalarTag($tags);
         if ($explicitScalarTag !== null) {
             $parsed = $this->parseYamlExplicitTaggedScalar($value, $explicitScalarTag);
+            $provenanceType = $this->yamlExplicitScalarProvenanceType($explicitScalarTag);
+            if ($provenanceType !== null) {
+                $this->recordYamlTypedScalarProvenance($value, $provenanceType, $parsed, $explicitScalarTag);
+            }
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -2716,13 +2770,21 @@ final class MarkdownReader
         $boolean = $this->parseYamlBooleanScalar($value);
         $timestamp = $this->parseYamlPlainTimestampScalar($value);
         $numeric = $this->parseYamlPlainNumericScalar($value);
-        $parsed = match (true) {
-            $boolean !== null => $boolean,
-            strtolower($value) === 'null' || $value === '~' => null,
-            $timestamp !== null => $timestamp,
-            $numeric !== null => $numeric,
-            default => $value,
-        };
+        if ($boolean !== null) {
+            $parsed = $boolean;
+            $this->recordYamlTypedScalarProvenance($value, 'boolean', $parsed);
+        } elseif (strtolower($value) === 'null' || $value === '~') {
+            $parsed = null;
+            $this->recordYamlTypedScalarProvenance($value, 'null', $parsed);
+        } elseif ($timestamp !== null) {
+            $parsed = $timestamp;
+            $this->recordYamlTypedScalarProvenance($value, 'timestamp', $parsed);
+        } elseif ($numeric !== null) {
+            $parsed = $numeric;
+            $this->recordYamlTypedScalarProvenance($value, 'number', $parsed);
+        } else {
+            $parsed = $value;
+        }
         $this->rememberYamlAnchor($anchorName, $parsed);
 
         return $parsed;

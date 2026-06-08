@@ -874,6 +874,34 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('YAML metadata self-test missing plain scalar provenance ' . str_replace("\0", ' ', $expectedPlainScalarPath));
         }
     }
+    $yamlTypedScalarProvenance = [];
+    foreach ($yamlScalarProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+            $yamlTypedScalarProvenance[$entry['path'] ?? ''] = $entry;
+        }
+    }
+    foreach ([
+        '/typed-review/typed-revision' => ['number', 'int', '"007"'],
+        '/typed-review/approved' => ['boolean', 'bool', '"true"'],
+        '/typed-review/withdrawn' => ['null', 'null', '"not carried"'],
+        '/source-captured-at' => ['timestamp', 'timestamp', '2026-06-05 06:46:51Z'],
+        '/typed-flow-review/elapsed' => ['number', 'int', '0:01:05'],
+        '/boolean-synonym-flow-review/published' => ['boolean', null, 'y'],
+    ] as $expectedTypedPath => [$expectedType, $expectedTag, $expectedSource]) {
+        $entry = $yamlTypedScalarProvenance[$expectedTypedPath] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing typed scalar provenance ' . $expectedTypedPath);
+        }
+        if (($entry['scalarType'] ?? '') !== $expectedType || ($entry['source'] ?? '') !== $expectedSource) {
+            throw new RuntimeException('YAML metadata self-test has wrong typed scalar provenance ' . $expectedTypedPath);
+        }
+        if ($expectedTag !== null && ($entry['explicitTag'] ?? '') !== $expectedTag) {
+            throw new RuntimeException('YAML metadata self-test missing typed scalar explicit tag ' . $expectedTypedPath);
+        }
+    }
+    if (array_key_exists('/typed-review/quoted-legacy-approved', $yamlTypedScalarProvenance)) {
+        throw new RuntimeException('YAML metadata self-test recorded quoted yes as a typed scalar');
+    }
     if (count($yamlStreamProvenance) !== 3) {
         throw new RuntimeException('YAML metadata self-test missing stream provenance records');
     }

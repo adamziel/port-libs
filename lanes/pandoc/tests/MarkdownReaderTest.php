@@ -4123,6 +4123,97 @@ return [
         $t->same('plain-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="plain-scalar-provenance-yaml-body">Plain scalar provenance YAML body</h1>', $blocks);
     },
+    'records pandoc yaml typed scalar source provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Typed provenance **Packet**',
+            'review:',
+            '  approved: yes',
+            '  withdrawn: null',
+            '  nullable: ~',
+            '  priority: 0x2A',
+            '  ratio: .5',
+            '  captured-at: 2026-06-08 09:58:32Z',
+            '  explicit-priority: !!int "007"',
+            '  explicit-published: !!bool "false"',
+            '  explicit-due: !!timestamp "2026-6-9"',
+            '  explicit-invalid-due: !!timestamp "2026-13-05"',
+            '  quoted-boolean: "yes"',
+            '  invalid-date: 2026-13-05',
+            'flow-review: {archived: n, score: +.INF, due: 2026-06-09, unset: ~, explicit: !!float "1.25", quoted: "0x2A"}',
+            'references:',
+            '  - id: typed-provenance-ref',
+            '    metadata: {duration: 2:03, ready: true}',
+            '...',
+            '',
+            '# Typed scalar provenance YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Typed provenance **Packet**', $meta['title']);
+        $t->same(true, $meta['review']['approved']);
+        $t->true(array_key_exists('withdrawn', $meta['review']) && $meta['review']['withdrawn'] === null);
+        $t->true(array_key_exists('nullable', $meta['review']) && $meta['review']['nullable'] === null);
+        $t->same(42, $meta['review']['priority']);
+        $t->same(0.5, $meta['review']['ratio']);
+        $t->same('2026-06-08T09:58:32Z', $meta['review']['captured-at']);
+        $t->same(7, $meta['review']['explicit-priority']);
+        $t->same(false, $meta['review']['explicit-published']);
+        $t->same('2026-06-09', $meta['review']['explicit-due']);
+        $t->same('2026-13-05', $meta['review']['explicit-invalid-due']);
+        $t->same('yes', $meta['review']['quoted-boolean']);
+        $t->same('2026-13-05', $meta['review']['invalid-date']);
+        $t->same(false, $meta['flow-review']['archived']);
+        $t->true(is_infinite($meta['flow-review']['score']) && $meta['flow-review']['score'] > 0, 'flow +.INF should stay numeric');
+        $t->same('2026-06-09', $meta['flow-review']['due']);
+        $t->true(array_key_exists('unset', $meta['flow-review']) && $meta['flow-review']['unset'] === null);
+        $t->same(1.25, $meta['flow-review']['explicit']);
+        $t->same('0x2A', $meta['flow-review']['quoted']);
+        $t->same(123, $meta['references'][0]['metadata']['duration']);
+        $t->same(true, $meta['references'][0]['metadata']['ready']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(16, count($typed));
+        $t->same('boolean', $typed['/review/approved']['scalarType'] ?? null);
+        $t->same('yes', $typed['/review/approved']['source'] ?? null);
+        $t->same('4', $typed['/review/approved']['sourceLine'] ?? null);
+        $t->same('null', $typed['/review/withdrawn']['scalarType'] ?? null);
+        $t->same('null', $typed['/review/withdrawn']['source'] ?? null);
+        $t->same('~', $typed['/review/nullable']['source'] ?? null);
+        $t->same('number', $typed['/review/priority']['scalarType'] ?? null);
+        $t->same('0x2A', $typed['/review/priority']['source'] ?? null);
+        $t->same('number', $typed['/review/ratio']['scalarType'] ?? null);
+        $t->same('timestamp', $typed['/review/captured-at']['scalarType'] ?? null);
+        $t->same('2026-06-08 09:58:32Z', $typed['/review/captured-at']['source'] ?? null);
+        $t->same('int', $typed['/review/explicit-priority']['explicitTag'] ?? null);
+        $t->same('"007"', $typed['/review/explicit-priority']['source'] ?? null);
+        $t->same('bool', $typed['/review/explicit-published']['explicitTag'] ?? null);
+        $t->same('timestamp', $typed['/review/explicit-due']['explicitTag'] ?? null);
+        $t->same('boolean', $typed['/flow-review/archived']['scalarType'] ?? null);
+        $t->same('16', $typed['/flow-review/archived']['sourceLine'] ?? null);
+        $t->same('number', $typed['/flow-review/score']['scalarType'] ?? null);
+        $t->same('timestamp', $typed['/flow-review/due']['scalarType'] ?? null);
+        $t->same('null', $typed['/flow-review/unset']['scalarType'] ?? null);
+        $t->same('float', $typed['/flow-review/explicit']['explicitTag'] ?? null);
+        $t->same('number', $typed['/references/0/metadata/duration']['scalarType'] ?? null);
+        $t->same('boolean', $typed['/references/0/metadata/ready']['scalarType'] ?? null);
+        $t->same(false, array_key_exists('/review/explicit-invalid-due', $typed));
+        $t->same(false, array_key_exists('/review/quoted-boolean', $typed));
+        $t->same(false, array_key_exists('/review/invalid-date', $typed));
+        $t->same(false, array_key_exists('/flow-review/quoted', $typed));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('typed-scalar-provenance-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="typed-scalar-provenance-yaml-body">Typed scalar provenance YAML body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
