@@ -34147,7 +34147,7 @@ final class PdfTextExtractor
      */
     private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
     {
-        $decoded = $this->decodeStreamObject($body, $objects);
+        $decoded = $this->decodeStreamObject($body, $objects, true);
         if ($decoded === null) {
             return null;
         }
