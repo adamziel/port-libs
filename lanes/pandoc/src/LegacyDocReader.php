@@ -75,6 +75,12 @@ final class LegacyDocReader
     private const FIB_LCB_PLF_LST = 0x02e6;
     private const FIB_FC_PLF_LFO = 0x02ea;
     private const FIB_LCB_PLF_LFO = 0x02ee;
+    private const SPRM_CFR_MARK_DEL = 0x0800;
+    private const SPRM_CFR_MARK_INS = 0x0801;
+    private const SPRM_CIBST_RMARK = 0x4804;
+    private const SPRM_CDTTM_RMARK = 0x6805;
+    private const SPRM_CIBST_RMARK_DEL = 0x4863;
+    private const SPRM_CDTTM_RMARK_DEL = 0x6864;
     private const FIB_RGLW97_CB_MAC = 0x0040;
     private const FIB_RGLW97_RESERVED3 = 0x0058;
     private const FIB_RGLW97_CCP_FIELDS = [
@@ -312,7 +318,13 @@ final class LegacyDocReader
             $metadata['styleCount'] = count($styles);
             $metadata['styles'] = $styles;
         }
-        $formattingRuns = $this->formattingRunReport($wordDocument, $tableStream);
+        $revisionAuthors = $this->revisionAuthorReport($wordDocument, $tableStream);
+        if ($revisionAuthors !== []) {
+            $metadata['revisionAuthorCount'] = count($revisionAuthors);
+            $metadata['revisionAuthors'] = $revisionAuthors;
+            $metadata['revisionAuthorPolicy'] = 'metadata-only-native-review';
+        }
+        $formattingRuns = $this->formattingRunReport($wordDocument, $tableStream, $revisionAuthors);
         if ($formattingRuns !== []) {
             $metadata['formattingRunCount'] = count($formattingRuns);
             $metadata['paragraphFormattingRunCount'] = count(array_filter(
@@ -323,6 +335,14 @@ final class LegacyDocReader
                 $formattingRuns,
                 static fn (array $run): bool => ($run['kind'] ?? null) === 'character'
             ));
+            $revisionMarkedFormattingRunCount = count(array_filter(
+                $formattingRuns,
+                static fn (array $run): bool => isset($run['revisionMarks']) && is_array($run['revisionMarks']) && $run['revisionMarks'] !== []
+            ));
+            if ($revisionMarkedFormattingRunCount > 0) {
+                $metadata['revisionMarkedFormattingRunCount'] = $revisionMarkedFormattingRunCount;
+                $metadata['formattingRevisionPolicy'] = 'metadata-only-native-review';
+            }
             $metadata['formattingRuns'] = $formattingRuns;
         }
         $listTable = $this->listTableReport($wordDocument, $tableStream);
@@ -364,12 +384,6 @@ final class LegacyDocReader
         if ($commentAuthors !== []) {
             $metadata['commentAuthorCount'] = count($commentAuthors);
             $metadata['commentAuthors'] = $commentAuthors;
-        }
-        $revisionAuthors = $this->revisionAuthorReport($wordDocument, $tableStream);
-        if ($revisionAuthors !== []) {
-            $metadata['revisionAuthorCount'] = count($revisionAuthors);
-            $metadata['revisionAuthors'] = $revisionAuthors;
-            $metadata['revisionAuthorPolicy'] = 'metadata-only-native-review';
         }
         $captionDefinitions = $this->captionDefinitionReport($wordDocument, $tableStream, $fib);
         if ($captionDefinitions !== []) {
@@ -3998,7 +4012,14 @@ final class LegacyDocReader
 
     private function readDttm(string $bytes, int $offset): ?string
     {
-        $value = self::u32($bytes, $offset);
+        return $this->readDttmFromValue(
+            self::u32($bytes, $offset),
+            'Legacy DOC DOP document properties contain an invalid DTTM timestamp'
+        );
+    }
+
+    private function readDttmFromValue(int $value, string $invalidMessage): ?string
+    {
         if ($value === 0) {
             return null;
         }
@@ -4009,7 +4030,7 @@ final class LegacyDocReader
         $month = ($value >> 16) & 0x0f;
         $year = (($value >> 20) & 0x01ff) + 1900;
         if ($minute > 59 || $hour > 23 || $day < 1 || $day > 31 || $month < 1 || $month > 12) {
-            throw new \RuntimeException('Legacy DOC DOP document properties contain an invalid DTTM timestamp');
+            throw new \RuntimeException($invalidMessage);
         }
 
         return sprintf('%04d-%02d-%02dT%02d:%02d:00', $year, $month, $day, $hour, $minute);
@@ -7680,9 +7701,10 @@ final class LegacyDocReader
     }
 
     /**
+     * @param list<array<string,mixed>> $revisionAuthors
      * @return list<array<string,mixed>>
      */
-    private function formattingRunReport(string $wordDocument, ?string $tableStream): array
+    private function formattingRunReport(string $wordDocument, ?string $tableStream, array $revisionAuthors): array
     {
         if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_BTE_PAPX + 4) {
             return [];
@@ -7695,7 +7717,8 @@ final class LegacyDocReader
                 $wordDocument,
                 $tableStream,
                 self::FIB_FC_PLCF_BTE_PAPX,
-                self::FIB_LCB_PLCF_BTE_PAPX
+                self::FIB_LCB_PLCF_BTE_PAPX,
+                $revisionAuthors
             ),
             $this->formattingTableReport(
                 'character',
@@ -7703,12 +7726,14 @@ final class LegacyDocReader
                 $wordDocument,
                 $tableStream,
                 self::FIB_FC_PLCF_BTE_CHPX,
-                self::FIB_LCB_PLCF_BTE_CHPX
+                self::FIB_LCB_PLCF_BTE_CHPX,
+                $revisionAuthors
             )
         );
     }
 
     /**
+     * @param list<array<string,mixed>> $revisionAuthors
      * @return list<array<string,mixed>>
      */
     private function formattingTableReport(
@@ -7717,7 +7742,8 @@ final class LegacyDocReader
         string $wordDocument,
         string $tableStream,
         int $fcOffset,
-        int $lcbOffset
+        int $lcbOffset,
+        array $revisionAuthors
     ): array {
         $fc = self::u32($wordDocument, $fcOffset);
         $lcb = self::u32($wordDocument, $lcbOffset);
@@ -7728,14 +7754,16 @@ final class LegacyDocReader
             $this->tableStreamSlice($tableStream, $fc, $lcb, $label),
             $kind,
             $label,
-            $wordDocument
+            $wordDocument,
+            $revisionAuthors
         );
     }
 
     /**
+     * @param list<array<string,mixed>> $revisionAuthors
      * @return list<array<string,mixed>>
      */
-    private function parsePlcBte(string $bytes, string $kind, string $label, string $wordDocument): array
+    private function parsePlcBte(string $bytes, string $kind, string $label, string $wordDocument, array $revisionAuthors): array
     {
         $length = strlen($bytes);
         if ($length < 12 || (($length - 4) % 8) !== 0) {
@@ -7786,11 +7814,209 @@ final class LegacyDocReader
             if ($unusedBits !== 0) {
                 $run['unusedPnFkpBits'] = $unusedBits;
             }
+            if ($kind === 'character') {
+                $revisionMarks = $this->chpxRevisionMarksForRun(
+                    $wordDocument,
+                    $fkpByteOffset,
+                    $fcs[$index],
+                    $fcs[$index + 1],
+                    $revisionAuthors
+                );
+                if ($revisionMarks !== []) {
+                    $run['revisionMarks'] = $revisionMarks;
+                    $run['revisionMarkCount'] = count($revisionMarks);
+                    $run['revisionExtractionPolicy'] = 'metadata-only-native-review';
+                }
+            }
 
             $runs[] = $run;
         }
 
         return $runs;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $revisionAuthors
+     * @return list<array<string,mixed>>
+     */
+    private function chpxRevisionMarksForRun(
+        string $wordDocument,
+        int $fkpByteOffset,
+        int $startFc,
+        int $endFc,
+        array $revisionAuthors
+    ): array {
+        $page = substr($wordDocument, $fkpByteOffset, 512);
+        $runCount = ord($page[511]);
+        if ($runCount === 0) {
+            return [];
+        }
+        if ($runCount > 0x65) {
+            throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata has too many runs');
+        }
+
+        $rgbOffset = ($runCount + 1) * 4;
+        if ($rgbOffset + $runCount > 511) {
+            throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata has an invalid rgb offset');
+        }
+
+        for ($index = 0; $index < $runCount; $index++) {
+            $chpxByteOffset = ord($page[$rgbOffset + $index]) * 2;
+            if ($chpxByteOffset === 0) {
+                continue;
+            }
+
+            $fkpStartFc = self::u32($page, $index * 4);
+            $fkpEndFc = self::u32($page, ($index + 1) * 4);
+            if ($fkpStartFc !== $startFc || $fkpEndFc !== $endFc) {
+                continue;
+            }
+            if ($chpxByteOffset < $rgbOffset + $runCount || $chpxByteOffset >= 511) {
+                throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata points outside its CHPX area');
+            }
+
+            $grpprlLength = ord($page[$chpxByteOffset]);
+            if ($chpxByteOffset + 1 + $grpprlLength > 511) {
+                throw new \RuntimeException('Legacy DOC ChpxFkp revision metadata CHPX points outside the FKP page');
+            }
+
+            return $this->parseChpxRevisionMarks(
+                substr($page, $chpxByteOffset + 1, $grpprlLength),
+                $revisionAuthors
+            );
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $revisionAuthors
+     * @return list<array<string,mixed>>
+     */
+    private function parseChpxRevisionMarks(string $grpprl, array $revisionAuthors): array
+    {
+        $length = strlen($grpprl);
+        $cursor = 0;
+        $states = [
+            'inserted' => [
+                'type' => 'inserted',
+                'active' => false,
+                'sourceSprms' => [],
+            ],
+            'deleted' => [
+                'type' => 'deleted',
+                'active' => false,
+                'sourceSprms' => [],
+            ],
+        ];
+
+        while ($cursor < $length) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC CHPX revision metadata contains a truncated SPRM');
+            }
+
+            $sprm = self::u16($grpprl, $cursor);
+            $cursor += 2;
+            $operandByteCount = $this->sprmOperandByteCount($sprm, $grpprl, $cursor);
+            if ($cursor + $operandByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC CHPX revision metadata contains a truncated SPRM operand');
+            }
+
+            $operandOffset = $cursor;
+            $cursor += $operandByteCount;
+
+            switch ($sprm) {
+                case self::SPRM_CFR_MARK_INS:
+                    $states['inserted']['active'] = ord($grpprl[$operandOffset]) === 1;
+                    $states['inserted']['sourceSprms'][] = 'sprmCFRMarkIns';
+                    break;
+                case self::SPRM_CIBST_RMARK:
+                    $states['inserted']['authorIndex'] = self::signed16(self::u16($grpprl, $operandOffset));
+                    $states['inserted']['sourceSprms'][] = 'sprmCIbstRMark';
+                    break;
+                case self::SPRM_CDTTM_RMARK:
+                    $states['inserted']['timestamp'] = $this->readDttmFromValue(
+                        self::u32($grpprl, $operandOffset),
+                        'Legacy DOC CHPX inserted revision mark contains an invalid DTTM timestamp'
+                    );
+                    $states['inserted']['sourceSprms'][] = 'sprmCDttmRMark';
+                    break;
+                case self::SPRM_CFR_MARK_DEL:
+                    $states['deleted']['active'] = ord($grpprl[$operandOffset]) === 1;
+                    $states['deleted']['sourceSprms'][] = 'sprmCFRMarkDel';
+                    break;
+                case self::SPRM_CIBST_RMARK_DEL:
+                    $states['deleted']['authorIndex'] = self::signed16(self::u16($grpprl, $operandOffset));
+                    $states['deleted']['sourceSprms'][] = 'sprmCIbstRMarkDel';
+                    break;
+                case self::SPRM_CDTTM_RMARK_DEL:
+                    $states['deleted']['timestamp'] = $this->readDttmFromValue(
+                        self::u32($grpprl, $operandOffset),
+                        'Legacy DOC CHPX deleted revision mark contains an invalid DTTM timestamp'
+                    );
+                    $states['deleted']['sourceSprms'][] = 'sprmCDttmRMarkDel';
+                    break;
+            }
+        }
+
+        $marks = [];
+        foreach ($states as $state) {
+            $sourceSprms = is_array($state['sourceSprms'] ?? null) ? $state['sourceSprms'] : [];
+            if ($sourceSprms === [] || (($state['active'] ?? false) !== true && !isset($state['authorIndex']) && !isset($state['timestamp']))) {
+                continue;
+            }
+
+            $record = [
+                'type' => $state['type'],
+                'source' => 'ChpxFkp',
+                'sourceSprms' => $sourceSprms,
+                'canApplyRevision' => false,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ];
+            if (isset($state['authorIndex'])) {
+                $authorIndex = (int) $state['authorIndex'];
+                if ($authorIndex < 0) {
+                    throw new \RuntimeException('Legacy DOC CHPX revision metadata contains a negative author index');
+                }
+                $record['authorIndex'] = $authorIndex;
+                if ($revisionAuthors !== []) {
+                    if (!isset($revisionAuthors[$authorIndex]) || !isset($revisionAuthors[$authorIndex]['name'])) {
+                        throw new \RuntimeException('Legacy DOC CHPX revision metadata author index is outside SttbfRMark');
+                    }
+                    $record['authorName'] = (string) $revisionAuthors[$authorIndex]['name'];
+                    $record['authorSourceTable'] = 'SttbfRMark';
+                }
+            }
+            if (array_key_exists('timestamp', $state)) {
+                $record['timestamp'] = $state['timestamp'];
+            }
+
+            $marks[] = $record;
+        }
+
+        return $marks;
+    }
+
+    private function sprmOperandByteCount(int $sprm, string $grpprl, int $operandOffset): int
+    {
+        $spra = ($sprm >> 13) & 0x07;
+
+        return match ($spra) {
+            0, 1 => 1,
+            2, 4, 5 => 2,
+            3 => 4,
+            6 => $this->variableSprmOperandByteCount($grpprl, $operandOffset),
+            7 => 3,
+        };
+    }
+
+    private function variableSprmOperandByteCount(string $grpprl, int $operandOffset): int
+    {
+        if ($operandOffset >= strlen($grpprl)) {
+            throw new \RuntimeException('Legacy DOC CHPX revision metadata contains a truncated variable SPRM operand');
+        }
+
+        return 1 + ord($grpprl[$operandOffset]);
     }
 
     /**

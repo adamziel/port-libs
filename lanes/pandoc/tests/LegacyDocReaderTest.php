@@ -11,6 +11,14 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $u16 = static fn (int $value): string => pack('v', $value);
 $u32 = static fn (int $value): string => pack('V', $value);
 $u64 = static fn (int $value): string => pack('V2', $value & 0xffffffff, intdiv($value, 4294967296));
+$dttm = static function (int $year, int $month, int $day, int $hour, int $minute, int $weekday = 0): int {
+    return ($minute & 0x3f)
+        | (($hour & 0x1f) << 6)
+        | (($day & 0x1f) << 11)
+        | (($month & 0x0f) << 16)
+        | ((($year - 1900) & 0x01ff) << 20)
+        | (($weekday & 0x07) << 29);
+};
 $filetime = static function (?string $iso8601) use ($u64): string {
     if ($iso8601 === null || $iso8601 === '') {
         return str_repeat("\0", 8);
@@ -1535,6 +1543,62 @@ $buildFormattingTableDocStreams = static function () use ($buildSimpleWordDocume
     $wordDocument = substr_replace($wordDocument, $u32(strlen($papx)), 0x0106, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($papx)), 0x00fa, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($chpx)), 0x00fe, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
+$buildRevisionMarkedFormattingDocStreams = static function (int $insertedAuthorIndex = 1, int $deletedAuthorIndex = 2) use ($buildExtendedFibWordDocument, $sttbUnicode, $u16, $u32, $dttm): array {
+    $firstRunText = "Inserted review\r";
+    $secondRunText = "Deleted review\r";
+    $text = $firstRunText . $secondRunText;
+    $wordDocument = $buildExtendedFibWordDocument($text);
+    $textStartFc = 768;
+    $firstRunEndFc = $textStartFc + strlen($firstRunText);
+    $textEndFc = $textStartFc + strlen($text);
+
+    $chpxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $chpxFkpOffset = $chpxFkpPage * 512;
+    $insertedGrpprl = $u16(0x0801) . "\x01"
+        . $u16(0x4804) . $u16($insertedAuthorIndex)
+        . $u16(0x6805) . $u32($dttm(2024, 5, 6, 7, 8, 1));
+    $deletedGrpprl = $u16(0x0800) . "\x01"
+        . $u16(0x4863) . $u16($deletedAuthorIndex)
+        . $u16(0x6864) . $u32($dttm(2024, 5, 7, 8, 9, 2));
+    $insertedChpxOffset = 64;
+    $deletedChpxOffset = 96;
+    $chpxFkp = str_repeat("\0", 512);
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        $u32($textStartFc) . $u32($firstRunEndFc) . $u32($textEndFc),
+        0,
+        12
+    );
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        chr(intdiv($insertedChpxOffset, 2)) . chr(intdiv($deletedChpxOffset, 2)),
+        12,
+        2
+    );
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($insertedGrpprl)) . $insertedGrpprl, $insertedChpxOffset, 1 + strlen($insertedGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($deletedGrpprl)) . $deletedGrpprl, $deletedChpxOffset, 1 + strlen($deletedGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(2), 511, 1);
+    $wordDocument = str_pad($wordDocument, $chpxFkpOffset, "\0") . $chpxFkp;
+
+    $plcBteChpx = $u32($textStartFc)
+        . $u32($firstRunEndFc)
+        . $u32($textEndFc)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage);
+    $revisionAuthorTable = $sttbUnicode(['Unknown', 'Migration Lead', 'Review Editor']);
+    $tableStream = $plcBteChpx . $revisionAuthorTable;
+
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x00fa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x0232, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
 
     return [
         'WordDocument' => $wordDocument,
@@ -4775,6 +4839,49 @@ return [
         $t->true(!isset($runs[2]['unusedPnFkpBits']), 'Zero PnFkp unused bits should stay omitted');
         $t->contains('<p>Styled first</p>', $blocks);
         $t->contains('<p>Plain second</p>', $blocks);
+    },
+    'links legacy DOC CHPX revision-mark runs to SttbfRMark authors for review' => static function (TestRunner $t) use ($buildCfb, $buildRevisionMarkedFormattingDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildRevisionMarkedFormattingDocStreams()));
+        $document = $result['document'];
+        $runs = $result['formattingRuns'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same($runs, $document->attr('formattingRuns'));
+        $t->same(2, $metadata['formattingRunCount']);
+        $t->same(2, $metadata['characterFormattingRunCount']);
+        $t->same(2, $metadata['revisionMarkedFormattingRunCount']);
+        $t->same('metadata-only-native-review', $metadata['formattingRevisionPolicy']);
+        $t->same(3, $metadata['revisionAuthorCount']);
+
+        $inserted = $runs[0]['revisionMarks'][0];
+        $t->same('inserted', $inserted['type']);
+        $t->same('ChpxFkp', $inserted['source']);
+        $t->same(['sprmCFRMarkIns', 'sprmCIbstRMark', 'sprmCDttmRMark'], $inserted['sourceSprms']);
+        $t->same(1, $inserted['authorIndex']);
+        $t->same('Migration Lead', $inserted['authorName']);
+        $t->same('SttbfRMark', $inserted['authorSourceTable']);
+        $t->same('2024-05-06T07:08:00', $inserted['timestamp']);
+        $t->same(false, $inserted['canApplyRevision']);
+        $t->same('metadata-only-native-review', $inserted['extractionPolicy']);
+
+        $deleted = $runs[1]['revisionMarks'][0];
+        $t->same('deleted', $deleted['type']);
+        $t->same(['sprmCFRMarkDel', 'sprmCIbstRMarkDel', 'sprmCDttmRMarkDel'], $deleted['sourceSprms']);
+        $t->same(2, $deleted['authorIndex']);
+        $t->same('Review Editor', $deleted['authorName']);
+        $t->same('2024-05-07T08:09:00', $deleted['timestamp']);
+
+        $t->contains('<p>Inserted review</p>', $blocks);
+        $t->contains('<p>Deleted review</p>', $blocks);
+        $t->contains('Inserted review', $markdown);
+        $t->contains('Deleted review', $markdown);
+        $t->true(!str_contains($blocks, 'Migration Lead'), 'Revision authors must stay metadata-only in WordPress blocks');
+        $t->true(!str_contains($blocks, 'Review Editor'), 'Deleted-revision authors must stay metadata-only in WordPress blocks');
+        $t->true(!str_contains($markdown, 'Review Editor'), 'Revision authors must stay metadata-only in Markdown');
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($buildRevisionMarkedFormattingDocStreams(9))));
     },
     'rejects malformed legacy DOC formatting table BTE ranges before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();

@@ -814,6 +814,31 @@ HTML,
         exit(1);
     }
 
+    $pdfDefault = (new DocTemplate())->renderResource('templates/default', [], [
+        'documentclass' => 'article',
+        'title' => 'PDF Template Review Packet',
+        'author' => ['Migration bot'],
+        'date' => '2026-06-08',
+        'include-before' => ['\\section*{WordPress Review}'],
+        'body' => '\\section{PDF Body}',
+        'include-after' => ['\\appendix'],
+    ], null, 'pdf');
+    foreach ([
+        '\\documentclass{article}',
+        '\\title{PDF Template Review Packet}',
+        '\\author{Migration bot}',
+        '\\date{2026-06-08}',
+        '\\section*{WordPress Review}',
+        '\\section{PDF Body}',
+        '\\appendix',
+        '\\end{document}',
+    ] as $needle) {
+        if (!str_contains($pdfDefault, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate PDF default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $rtfFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'header-includes' => ['{\\*\\generator PortLibs Review;}'],
         'title' => 'RTF Review Packet',

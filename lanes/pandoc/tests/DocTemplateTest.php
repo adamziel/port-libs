@@ -2482,6 +2482,43 @@ HTML;
         ], [
             'body' => 'latex',
         ], null, 'latex'));
+
+        $pdf = $renderer->renderResource('templates/default', [], [
+            'documentclass' => 'article',
+            'title' => 'PDF Template Review',
+            'author' => ['Migration bot'],
+            'date' => '2026-06-08',
+            'include-before' => ['\\section*{WordPress Review}'],
+            'body' => '\\section{PDF Body}',
+            'include-after' => ['\\appendix'],
+        ], null, 'pdf');
+
+        foreach ([
+            '\\documentclass{article}',
+            '\\title{PDF Template Review}',
+            '\\author{Migration bot}',
+            '\\date{2026-06-08}',
+            '\\section*{WordPress Review}',
+            '\\section{PDF Body}',
+            '\\appendix',
+            '\\end{document}',
+        ] as $needle) {
+            $t->contains($needle, $pdf);
+        }
+
+        $pdfExtension = $renderer->renderResource('templates/default', [], [
+            'documentclass' => 'article',
+            'title' => 'PDF Extension Review',
+            'body' => '\\section{PDF extension body}',
+        ], null, 'pdf+smart');
+
+        $t->contains('\\title{PDF Extension Review}', $pdfExtension);
+        $t->contains('\\section{PDF extension body}', $pdfExtension);
+        $t->same('custom pdf latex', $renderer->renderResource('templates/default', [
+            'templates/default.latex' => 'custom pdf $body$',
+        ], [
+            'body' => 'latex',
+        ], null, 'pdf'));
     },
 
     'renders bundled pandoc latex partial fallback resources' => static function (TestRunner $t): void {

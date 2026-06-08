@@ -1211,7 +1211,8 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($this->parseYamlDirectiveLine($trimmed)) {
+            if ($this->isYamlDirectiveLine($trimmed)) {
+                $this->recordYamlDirectiveAfterDocumentContentDiagnostic($trimmed);
                 $index++;
                 continue;
             }
@@ -1474,6 +1475,19 @@ final class MarkdownReader
             'directive' => 'TAG',
             'source' => $directive,
             'expected' => '%TAG <handle> <prefix>',
+        ] + $this->yamlMetadataSourceLineAttrs();
+    }
+
+    private function recordYamlDirectiveAfterDocumentContentDiagnostic(string $trimmed): void
+    {
+        $directive = trim($this->stripYamlTrailingComment($trimmed));
+        $name = preg_match('/^%YAML(?:[ \t]|$)/i', $directive) === 1 ? 'YAML' : 'TAG';
+        $this->yamlMetadataDiagnostics[] = [
+            'type' => 'yaml-directive',
+            'reason' => 'directive-after-document-content',
+            'directive' => $name,
+            'source' => $directive,
+            'expected' => 'YAML directives must precede document content',
         ] + $this->yamlMetadataSourceLineAttrs();
     }
 

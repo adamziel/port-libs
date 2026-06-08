@@ -722,6 +722,32 @@ $appendFkp = static function (string &$wordDocument, int $runCount): int {
 };
 $papxFkpPage = $appendFkp($wordDocument, 2);
 $chpxFkpPage = $appendFkp($wordDocument, 3);
+$revisionMarkGrpprl = $u16(0x0801) . "\x01"
+    . $u16(0x4804) . $u16(1)
+    . $u16(0x6805) . $u32($dttm(2024, 4, 7, 8, 9, 0));
+$chpxRevisionOffset = $chpxFkpPage * 512;
+$chpxRevisionRecordOffset = 80;
+$wordDocument = substr_replace(
+    $wordDocument,
+    $u32($firstPieceStart)
+        . $u32($secondPieceStart)
+        . $u32($mainTextByteEnd)
+        . $u32($mainTextByteEnd + 2),
+    $chpxRevisionOffset,
+    16
+);
+$wordDocument = substr_replace(
+    $wordDocument,
+    chr(intdiv($chpxRevisionRecordOffset, 2)) . "\0\0",
+    $chpxRevisionOffset + 16,
+    3
+);
+$wordDocument = substr_replace(
+    $wordDocument,
+    chr(strlen($revisionMarkGrpprl)) . $revisionMarkGrpprl,
+    $chpxRevisionOffset + $chpxRevisionRecordOffset,
+    1 + strlen($revisionMarkGrpprl)
+);
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x0409), 6, 2);
@@ -2005,6 +2031,19 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['formattingRuns'][0]['canApplyFormatting'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test should keep full SPRM formatting expansion disabled');
+    }
+    if (($summary['metadata']['revisionMarkedFormattingRunCount'] ?? null) !== 1 || ($summary['metadata']['formattingRevisionPolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CHPX revision-mark formatting metadata');
+    }
+    $formattingRevisionMark = $summary['formattingRuns'][1]['revisionMarks'][0] ?? [];
+    if (($formattingRevisionMark['type'] ?? '') !== 'inserted' || ($formattingRevisionMark['authorName'] ?? '') !== 'Migration Lead') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfRMark-linked CHPX revision author');
+    }
+    if (($formattingRevisionMark['timestamp'] ?? '') !== '2024-04-07T08:09:00' || ($formattingRevisionMark['canApplyRevision'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing metadata-only CHPX revision timestamp');
+    }
+    if (str_contains($summary['wordpressBlocks'], '2024-04-07T08:09:00')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered CHPX revision metadata into blocks');
     }
     if (($summary['metadata']['listFormatCount'] ?? null) !== 2 || ($summary['metadata']['listLevelCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing list format/level counts');

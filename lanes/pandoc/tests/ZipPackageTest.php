@@ -2645,6 +2645,8 @@ return [
         $t->same(3, $summary['reviewEntryCount']);
         $t->same(2, $summary['leadingOrTrailingWhitespaceEntryCount']);
         $t->same(1, $summary['trailingDotSegmentEntryCount']);
+        $t->same(0, $summary['windowsReservedNameEntryCount']);
+        $t->same(0, $summary['windowsAlternateDataStreamEntryCount']);
         $t->same('word/media/review image.png', $summary['entries'][1]['name']);
         $t->same(['word', 'media', 'review image.png'], $summary['entries'][1]['segments']);
         $t->same(false, $summary['entries'][1]['hasNameHygieneIssue']);
@@ -2670,6 +2672,8 @@ return [
         $t->same(3, $strictSummary['nameHygiene']['reviewEntryCount']);
         $t->same(2, $strictSummary['nameHygiene']['leadingOrTrailingWhitespaceEntryCount']);
         $t->same(1, $strictSummary['nameHygiene']['trailingDotSegmentEntryCount']);
+        $t->same(0, $strictSummary['nameHygiene']['windowsReservedNameEntryCount']);
+        $t->same(0, $strictSummary['nameHygiene']['windowsAlternateDataStreamEntryCount']);
         $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoNameHygieneReviewEntries());
         $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
 
@@ -2694,6 +2698,101 @@ return [
         $t->same(0, $safeSummary['reviewEntryCount']);
         $t->same(0, $safeSummary['leadingOrTrailingWhitespaceEntryCount']);
         $t->same(0, $safeSummary['trailingDotSegmentEntryCount']);
+        $t->same(0, $safeSummary['windowsReservedNameEntryCount']);
+        $t->same(0, $safeSummary['windowsAlternateDataStreamEntryCount']);
+        $t->same([], $safeSummary['reviewEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
+    'preflights windows reserved zip entry names before office package media handoff' => static function (TestRunner $t): void {
+        $reviewPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>windows name hygiene preflight</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/CON',
+                'data' => "windows device attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/aux.txt',
+                'data' => "windows device extension placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png:Zone.Identifier',
+                'data' => "alternate data stream attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/source-image.png',
+                'data' => "safe source image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $reviewPackage->nameHygienePreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(3, $summary['reviewEntryCount']);
+        $t->same(0, $summary['leadingOrTrailingWhitespaceEntryCount']);
+        $t->same(0, $summary['trailingDotSegmentEntryCount']);
+        $t->same(2, $summary['windowsReservedNameEntryCount']);
+        $t->same(1, $summary['windowsAlternateDataStreamEntryCount']);
+        $t->same('word/media/CON', $summary['entries'][1]['name']);
+        $t->same(['word', 'media', 'CON'], $summary['entries'][1]['segments']);
+        $t->same(true, $summary['entries'][1]['hasNameHygieneIssue']);
+        $t->same(['segment-windows-reserved-name'], $summary['entries'][1]['issues']);
+        $t->same('word/media/source-image.png', $summary['entries'][4]['name']);
+        $t->same(false, $summary['entries'][4]['hasNameHygieneIssue']);
+        $t->same([], $summary['entries'][4]['issues']);
+        $t->same([], $summary['entries'][4]['flaggedSegments']);
+        $t->same('word/media/CON', $summary['reviewEntries'][0]['name']);
+        $t->same(2, $summary['reviewEntries'][0]['flaggedSegments'][0]['index']);
+        $t->same('CON', $summary['reviewEntries'][0]['flaggedSegments'][0]['segment']);
+        $t->same(['segment-windows-reserved-name'], $summary['reviewEntries'][0]['flaggedSegments'][0]['issues']);
+        $t->same(['segment-windows-reserved-name'], $summary['reviewEntries'][0]['issues']);
+        $t->same('word/media/aux.txt', $summary['reviewEntries'][1]['name']);
+        $t->same('aux.txt', $summary['reviewEntries'][1]['flaggedSegments'][0]['segment']);
+        $t->same(['segment-windows-reserved-name'], $summary['reviewEntries'][1]['issues']);
+        $t->same('word/media/review.png:Zone.Identifier', $summary['reviewEntries'][2]['name']);
+        $t->same('review.png:Zone.Identifier', $summary['reviewEntries'][2]['flaggedSegments'][0]['segment']);
+        $t->same(['segment-windows-alternate-data-stream'], $summary['reviewEntries'][2]['issues']);
+        $t->same("windows device attachment placeholder\n", $reviewPackage->read('/word/media/CON'));
+        $t->same("windows device extension placeholder\n", $reviewPackage->read('/word/media/aux.txt'));
+        $t->same("alternate data stream attachment placeholder\n", $reviewPackage->read('/word/media/review.png:Zone.Identifier'));
+        $t->same("safe source image placeholder\n", $reviewPackage->read('/word/media/source-image.png'));
+
+        $strictSummary = $reviewPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['name-hygiene-review-entries'], $strictSummary['diagnostics']);
+        $t->same(3, $strictSummary['nameHygiene']['reviewEntryCount']);
+        $t->same(2, $strictSummary['nameHygiene']['windowsReservedNameEntryCount']);
+        $t->same(1, $strictSummary['nameHygiene']['windowsAlternateDataStreamEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoNameHygieneReviewEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>windows safe name hygiene</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/source-image.png',
+                'data' => "safe source image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/composition.png',
+                'data' => "safe composition placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoNameHygieneReviewEntries();
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['reviewEntryCount']);
+        $t->same(0, $safeSummary['windowsReservedNameEntryCount']);
+        $t->same(0, $safeSummary['windowsAlternateDataStreamEntryCount']);
         $t->same([], $safeSummary['reviewEntries']);
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },

@@ -1113,6 +1113,47 @@ return [
         $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($tagProvenance, 'tag'), true));
         $t->true(in_array('/review/owner', array_column($tagProvenance, 'path'), true));
     },
+    'records pandoc yaml directives after content as boundary diagnostics' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%TAG !wp! tag:example.test,2026:',
+            '---',
+            'title: Directive boundary **Packet**',
+            'review:',
+            '  owner: !wp!reviewer Import Desk',
+            '%TAG !wp! tag:late.example,2026:',
+            'late-review:',
+            '  owner: !wp!reviewer Late Desk',
+            '...',
+            '',
+            '# Directive boundary body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $directives = $document->attr('yamlMetadataDirectiveProvenance', []);
+        $tagProvenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Directive boundary **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('Late Desk', $meta['late-review']['owner']);
+        $t->same(1, count($diagnostics));
+        $t->same('yaml-directive', $diagnostics[0]['type'] ?? '');
+        $t->same('directive-after-document-content', $diagnostics[0]['reason'] ?? '');
+        $t->same('TAG', $diagnostics[0]['directive'] ?? '');
+        $t->same('%TAG !wp! tag:late.example,2026:', $diagnostics[0]['source'] ?? '');
+        $t->same('7', $diagnostics[0]['sourceLine'] ?? '');
+        $t->same(['TAG'], array_column($directives, 'directive'));
+        $t->same(['tag:example.test,2026:'], array_column($directives, 'prefix'));
+        $t->same(
+            ['!<tag:example.test,2026:reviewer>', '!<tag:example.test,2026:reviewer>'],
+            array_column($tagProvenance, 'tag')
+        );
+        $t->same(['/review/owner', '/late-review/owner'], array_column($tagProvenance, 'path'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same('directive-boundary-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="directive-boundary-body">Directive boundary body</h1>', $blocks);
+    },
     'records pandoc yaml source line provenance for diagnostics and review records' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

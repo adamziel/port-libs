@@ -2242,6 +2242,8 @@ final class ZipPackage
      *     reviewEntryCount:int,
      *     leadingOrTrailingWhitespaceEntryCount:int,
      *     trailingDotSegmentEntryCount:int,
+     *     windowsReservedNameEntryCount:int,
+     *     windowsAlternateDataStreamEntryCount:int,
      *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
      *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
      * }
@@ -2252,6 +2254,8 @@ final class ZipPackage
         $reviewEntries = [];
         $leadingOrTrailingWhitespaceEntryCount = 0;
         $trailingDotSegmentEntryCount = 0;
+        $windowsReservedNameEntryCount = 0;
+        $windowsAlternateDataStreamEntryCount = 0;
 
         foreach ($this->entries as $entry) {
             $path = rtrim($entry->name, '/');
@@ -2268,6 +2272,14 @@ final class ZipPackage
 
                 if (str_ends_with($segment, '.')) {
                     $segmentIssues[] = 'segment-trailing-dot';
+                }
+
+                if (self::isWindowsReservedDeviceNameSegment($segment)) {
+                    $segmentIssues[] = 'segment-windows-reserved-name';
+                }
+
+                if (str_contains($segment, ':')) {
+                    $segmentIssues[] = 'segment-windows-alternate-data-stream';
                 }
 
                 if ($segmentIssues === []) {
@@ -2292,6 +2304,12 @@ final class ZipPackage
             if (in_array('segment-trailing-dot', $issues, true)) {
                 $trailingDotSegmentEntryCount++;
             }
+            if (in_array('segment-windows-reserved-name', $issues, true)) {
+                $windowsReservedNameEntryCount++;
+            }
+            if (in_array('segment-windows-alternate-data-stream', $issues, true)) {
+                $windowsAlternateDataStreamEntryCount++;
+            }
 
             $summary = [
                 'name' => $entry->name,
@@ -2313,6 +2331,8 @@ final class ZipPackage
             'reviewEntryCount' => count($reviewEntries),
             'leadingOrTrailingWhitespaceEntryCount' => $leadingOrTrailingWhitespaceEntryCount,
             'trailingDotSegmentEntryCount' => $trailingDotSegmentEntryCount,
+            'windowsReservedNameEntryCount' => $windowsReservedNameEntryCount,
+            'windowsAlternateDataStreamEntryCount' => $windowsAlternateDataStreamEntryCount,
             'reviewEntries' => $reviewEntries,
             'entries' => $entries,
         ];
@@ -2324,6 +2344,8 @@ final class ZipPackage
      *     reviewEntryCount:int,
      *     leadingOrTrailingWhitespaceEntryCount:int,
      *     trailingDotSegmentEntryCount:int,
+     *     windowsReservedNameEntryCount:int,
+     *     windowsAlternateDataStreamEntryCount:int,
      *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
      *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
      * }
@@ -2347,6 +2369,29 @@ final class ZipPackage
         }
 
         return $summary;
+    }
+
+    private static function isWindowsReservedDeviceNameSegment(string $segment): bool
+    {
+        $candidate = rtrim($segment, " .");
+        if ($candidate === '') {
+            return false;
+        }
+
+        $streamBase = explode(':', $candidate, 2)[0];
+        $deviceBase = strtoupper(explode('.', $streamBase, 2)[0]);
+        if (in_array($deviceBase, ['CON', 'PRN', 'AUX', 'NUL'], true)) {
+            return true;
+        }
+
+        if (strlen($deviceBase) !== 4) {
+            return false;
+        }
+
+        $prefix = substr($deviceBase, 0, 3);
+        $suffix = substr($deviceBase, 3, 1);
+
+        return ($prefix === 'COM' || $prefix === 'LPT') && $suffix >= '1' && $suffix <= '9';
     }
 
     /**

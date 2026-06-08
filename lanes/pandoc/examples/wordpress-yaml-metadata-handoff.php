@@ -657,6 +657,28 @@ MARKDOWN;
 $plainNumericDocument = (new MarkdownReader())->read($plainNumericMarkdown);
 $plainNumericMeta = $plainNumericDocument->attr('meta', []);
 
+$lateDirectiveMarkdown = <<<'MARKDOWN'
+---
+%TAG !wp! tag:example.test,2026:
+---
+title: Directive boundary packet
+review:
+  owner: !wp!reviewer Import Desk
+%TAG !wp! tag:late.example,2026:
+late-review:
+  owner: !wp!reviewer Late Desk
+...
+
+# Directive boundary body
+MARKDOWN;
+
+$lateDirectiveDocument = (new MarkdownReader())->read($lateDirectiveMarkdown);
+$lateDirectiveMeta = $lateDirectiveDocument->attr('meta', []);
+$lateDirectiveDiagnostics = $lateDirectiveDocument->attr('yamlMetadataDiagnostics', []);
+$lateDirectiveDirectives = $lateDirectiveDocument->attr('yamlMetadataDirectiveProvenance', []);
+$lateDirectiveTagProvenance = $lateDirectiveDocument->attr('yamlMetadataTagProvenance', []);
+$lateDirectiveBlocks = (new WordPressBlockWriter())->write($lateDirectiveDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -685,6 +707,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($invalidTagDiagnostics[0]['expected'] ?? '') !== '%TAG <handle> <prefix>') {
         throw new RuntimeException('YAML metadata self-test missing invalid TAG directive expectation');
+    }
+    if (($lateDirectiveMeta['review']['owner'] ?? '') !== 'Import Desk' || ($lateDirectiveMeta['late-review']['owner'] ?? '') !== 'Late Desk') {
+        throw new RuntimeException('YAML metadata self-test missing late directive review metadata');
+    }
+    if (array_column($lateDirectiveDiagnostics, 'reason') !== ['directive-after-document-content']) {
+        throw new RuntimeException('YAML metadata self-test missing late directive boundary diagnostic');
+    }
+    if (($lateDirectiveDiagnostics[0]['source'] ?? '') !== '%TAG !wp! tag:late.example,2026:') {
+        throw new RuntimeException('YAML metadata self-test missing late directive source');
+    }
+    if (array_column($lateDirectiveDirectives, 'prefix') !== ['tag:example.test,2026:']) {
+        throw new RuntimeException('YAML metadata self-test let a late directive rebind the tag prefix');
+    }
+    if (array_column($lateDirectiveTagProvenance, 'tag') !== ['!<tag:example.test,2026:reviewer>', '!<tag:example.test,2026:reviewer>']) {
+        throw new RuntimeException('YAML metadata self-test did not preserve the preamble tag handle for late tagged values');
+    }
+    if (!str_contains($lateDirectiveBlocks, '<h1 id="directive-boundary-body">Directive boundary body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing late directive WordPress body handoff');
     }
     if (($meta['abstract'] ?? '') !== "Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).\n\n- Preserve front matter\n- Keep `source:key` audit\n") {
         throw new RuntimeException('YAML metadata self-test failed to preserve raw abstract metadata');

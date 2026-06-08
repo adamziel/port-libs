@@ -374,6 +374,7 @@ final class DocTemplate
     {
         return match ($format) {
             'html' => 'html5',
+            'pdf' => 'latex',
             'docx' => 'openxml',
             'odt' => 'opendocument',
             'epub' => 'epub3',
