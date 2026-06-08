@@ -291,7 +291,7 @@ final class PdfPageArtifactSelector
                 continue;
             }
 
-            $artifacts = self::normalizeSuppliedArtifactValue($value[$pageListKey]);
+            $artifacts = self::normalizeSuppliedArtifactEnvelopeValue($value[$pageListKey]);
             if (!is_array($artifacts)) {
                 continue;
             }
@@ -333,6 +333,40 @@ final class PdfPageArtifactSelector
         }
 
         return null;
+    }
+
+    /**
+     * Supplied artifact caches can mirror pdftext's CLI `--json` envelope:
+     * the page-list key is present, but its value is a raw JSON string. Decode
+     * only at explicit artifact-envelope boundaries so scalar payload text is
+     * not interpreted as trusted layout/order geometry.
+     */
+    private static function normalizeSuppliedArtifactEnvelopeValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            $decoded = self::decodeSuppliedArtifactJsonEnvelope($value);
+            if ($decoded !== null) {
+                return self::normalizeSuppliedArtifactValue($decoded);
+            }
+        }
+
+        return self::normalizeSuppliedArtifactValue($value);
+    }
+
+    private static function decodeSuppliedArtifactJsonEnvelope(string $value): mixed
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || !in_array($trimmed[0], ['[', '{'], true)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($trimmed, false, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        return is_array($decoded) || $decoded instanceof \stdClass ? $decoded : null;
     }
 
     /**
