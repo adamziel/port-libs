@@ -306,6 +306,40 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $orgDefault = (new DocTemplate())->renderResource('templates/default', [], [
+        'title' => 'Org Default Review',
+        'author' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-08',
+        'options' => [
+            'toc' => 'nil',
+            'num' => 't',
+        ],
+        'header-includes' => ['#+setupfile: reviewer.org'],
+        'abstract' => 'Review imported Org packet metadata.',
+        'include-before' => ['* Before Org import'],
+        'body' => 'Org body handoff',
+        'include-after' => ['* After Org import'],
+    ], null, 'org+smart');
+    foreach ([
+        '#+title: Org Default Review',
+        '#+author: Migration bot; Content editor',
+        '#+date: 2026-06-08',
+        '#+options: num:t',
+        '#+options: toc:nil',
+        '#+setupfile: reviewer.org',
+        '#+begin_abstract',
+        'Review imported Org packet metadata.',
+        '#+end_abstract',
+        '* Before Org import',
+        'Org body handoff',
+        '* After Org import',
+    ] as $needle) {
+        if (!str_contains($orgDefault, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate Org default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $html4DefaultAlias = (new DocTemplate())->renderResource('templates/default', [], [
         'pandoc-version' => '3.7.0',
         'pagetitle' => 'HTML4 Alias Review',

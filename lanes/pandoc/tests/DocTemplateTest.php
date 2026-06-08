@@ -1576,6 +1576,60 @@ HTML,
         ], null, 'muse'));
     },
 
+    'renders bounded pandoc default org template resource' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $org = $renderer->renderResource('templates/default', [], [
+            'title' => 'Org Review Packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'options' => [
+                'toc' => 'nil',
+                'num' => 't',
+            ],
+            'header-includes' => ['#+setupfile: reviewer.org'],
+            'abstract' => "Native Org default handoff.\nSecond abstract line.",
+            'include-before' => ['* Before import'],
+            'body' => "* Imported Body\nConverted content.",
+            'include-after' => ['* Handoff'],
+        ], null, 'org');
+
+        foreach ([
+            '#+title: Org Review Packet',
+            '#+author: Migration bot; Content editor',
+            '#+date: 2026-06-08',
+            '#+options: num:t',
+            '#+options: toc:nil',
+            '#+setupfile: reviewer.org',
+            '#+begin_abstract',
+            "Native Org default handoff.\nSecond abstract line.",
+            '#+end_abstract',
+            '* Before import',
+            "* Imported Body\nConverted content.",
+            '* Handoff',
+        ] as $needle) {
+            $t->contains($needle, $org);
+        }
+
+        $direct = $renderer->renderResource('templates/default.org', [], [
+            'body' => "Direct Org body\n\n",
+        ]);
+        $t->contains('Direct Org body', $direct);
+
+        $extensionQualified = $renderer->renderResource('templates/default', [], [
+            'title' => 'Org Extension Packet',
+            'body' => 'Org extension body',
+        ], null, 'org+smart');
+        $t->contains('#+title: Org Extension Packet', $extensionQualified);
+        $t->contains('Org extension body', $extensionQualified);
+
+        $t->same('custom org', $renderer->renderResource('templates/default', [
+            'templates/default.org' => 'custom $body$',
+        ], [
+            'body' => 'org',
+        ], null, 'org'));
+    },
+
     'renders bounded pandoc default rst template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

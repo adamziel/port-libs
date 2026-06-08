@@ -407,6 +407,7 @@ final class DocTemplate
             'default.bbcode' => $this->defaultBbcodeTemplate(),
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.muse' => $this->defaultMuseTemplate(),
+            'default.org' => $this->defaultOrgTemplate(),
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
             'default.revealjs' => $this->defaultRevealJsTemplate(),
@@ -449,6 +450,7 @@ final class DocTemplate
             'default.bbcode',
             'default.asciidoc',
             'default.muse',
+            'default.org',
             'default.latex',
             'default.beamer',
             'default.revealjs',
@@ -2595,6 +2597,47 @@ $for(include-after)$
 $include-after$
 $endfor$
 MUSE;
+    }
+
+    private function defaultOrgTemplate(): string
+    {
+        return <<<'ORG'
+$if(title)$
+#+title: $title$
+
+$endif$
+$if(author)$
+#+author: $for(author)$$author$$sep$; $endfor$
+$endif$
+$if(date)$
+#+date: $date$
+
+$endif$
+$if(options/pairs)$
+$for(options/pairs)$
+#+options: ${it.key}:${it.value}
+$endfor$
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$if(abstract)$
+#+begin_abstract
+$abstract$
+#+end_abstract
+$endif$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+ORG;
     }
 
     private function defaultBbcodeTemplate(): string
