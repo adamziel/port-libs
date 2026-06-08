@@ -45670,8 +45670,25 @@ final class PdfTextExtractor
             return $this->quoteTextShowingOperand($operands);
         }
 
-        $operand = end($operands);
-        return is_string($operand) && $this->isTextOperand($operand) ? $operand : null;
+        if (count($operands) !== 1) {
+            return null;
+        }
+
+        $operand = $operands[0];
+        if (!is_string($operand) || !$this->isTextOperand($operand)) {
+            return null;
+        }
+
+        $trimmed = ltrim($operand);
+        if ($operator === 'TJ') {
+            return str_starts_with($trimmed, '[') ? $operand : null;
+        }
+
+        if ($operator === 'Tj' || $operator === "'") {
+            return str_starts_with($trimmed, '[') ? null : $operand;
+        }
+
+        return null;
     }
 
     /**

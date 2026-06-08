@@ -13318,6 +13318,11 @@ final class PdfMetadataExtractor
             $result['xmp_dublin_core'] = $dublinCore;
         }
 
+        $xmpPdfSchema = $xmp['pdf_schema'] ?? null;
+        if (is_array($xmpPdfSchema) && $xmpPdfSchema !== []) {
+            $result['xmp_pdf'] = $xmpPdfSchema;
+        }
+
         $pdfaExtensionSchemas = $xmp['pdfa_extension_schemas'] ?? null;
         if (is_array($pdfaExtensionSchemas) && $pdfaExtensionSchemas !== []) {
             $result['pdfa_extension_schemas'] = array_values($pdfaExtensionSchemas);
@@ -13946,6 +13951,11 @@ final class PdfMetadataExtractor
             $metadata['dublin_core'] = $dublinCore;
         }
 
+        $pdfSchema = $this->xmpPdfSchemaReviewMetadata($document);
+        if ($pdfSchema !== []) {
+            $metadata['pdf_schema'] = $pdfSchema;
+        }
+
         $pdfaExtensionSchemas = $this->xmpPdfaExtensionSchemas($document);
         if ($pdfaExtensionSchemas !== []) {
             $metadata['pdfa_extension_schemas'] = $pdfaExtensionSchemas;
@@ -14031,6 +14041,67 @@ final class PdfMetadataExtractor
         }
 
         return count($row) > 3 ? $row : [];
+    }
+
+    /**
+     * PDF namespace XMP fields include import-review metadata that should not
+     * become visible body content. Keep producer and keyword values correlated
+     * with top-level promotion while exposing PDFVersion/Trapped as review.
+     *
+     * @return array<string, mixed>
+     */
+    private function xmpPdfSchemaReviewMetadata(DOMDocument $document): array
+    {
+        $row = [
+            'source' => 'xmp_pdf',
+            'review_only' => true,
+            'payload_included' => false,
+        ];
+        $hasPdfReviewScalar = false;
+
+        $producer = $this->xmpSingleValue($document, self::NS_PDF, 'Producer', false);
+        if ($producer !== null && $producer !== '') {
+            $row['producer'] = $producer;
+        }
+
+        $keywordsText = $this->xmpSingleValue($document, self::NS_PDF, 'Keywords', false);
+        if ($keywordsText !== null && $keywordsText !== '') {
+            $keywords = $this->splitKeywords($keywordsText);
+            if ($keywords !== []) {
+                $row['keywords'] = $keywords;
+                $row['keyword_count'] = count($keywords);
+            }
+        }
+
+        $pdfVersion = $this->xmpSingleValue($document, self::NS_PDF, 'PDFVersion', false);
+        if ($pdfVersion !== null && $pdfVersion !== '') {
+            $row['pdf_version'] = $pdfVersion;
+            $hasPdfReviewScalar = true;
+        }
+
+        $trapped = $this->xmpSingleValue($document, self::NS_PDF, 'Trapped', false);
+        if ($trapped !== null && $trapped !== '') {
+            $row['trapped'] = $trapped;
+            $hasPdfReviewScalar = true;
+            $normalized = $this->normalizedXmpPdfTrappedValue($trapped);
+            if ($normalized !== null) {
+                $row['trapped_normalized'] = $normalized;
+            } else {
+                $row['trapped_review'] = 'unrecognized_closed_choice';
+            }
+        }
+
+        return $hasPdfReviewScalar && count($row) > 3 ? $row : [];
+    }
+
+    private function normalizedXmpPdfTrappedValue(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'true' => 'True',
+            'false' => 'False',
+            'unknown' => 'Unknown',
+            default => null,
+        };
     }
 
     /**
@@ -21618,6 +21689,13 @@ final class PdfMetadataExtractor
             $fieldNames[] = 'dublin_core';
         }
 
+        $pdfSchema = is_array($parsed['pdf_schema'] ?? null)
+            ? $parsed['pdf_schema']
+            : [];
+        if ($pdfSchema !== []) {
+            $fieldNames[] = 'pdf_schema';
+        }
+
         $pdfaExtensionSchemas = is_array($parsed['pdfa_extension_schemas'] ?? null)
             ? array_values($parsed['pdfa_extension_schemas'])
             : [];
@@ -21655,6 +21733,9 @@ final class PdfMetadataExtractor
         $redactedFields = ['title', 'description', 'creator_tool', 'producer', 'authors', 'keywords', 'format', 'rights', 'languages'];
         if ($dublinCore !== []) {
             $redactedFields[] = 'dublin_core';
+        }
+        if ($pdfSchema !== []) {
+            $redactedFields[] = 'pdf_schema';
         }
         if ($resourceReferenceBoundary !== []) {
             $redactedFields[] = 'resource_reference_boundary';
@@ -21699,6 +21780,12 @@ final class PdfMetadataExtractor
             $summary['pdfa_extension_schema_count'] = count($pdfaExtensionSchemas);
             $summary['pdfa_extension_schema_namespaces'] = $this->uniqueStrings($namespaces);
         }
+        if ($pdfSchema !== []) {
+            $summary['pdf_schema_field_names'] = $this->xmpPdfSchemaSummaryFieldNames($pdfSchema);
+            $summary['pdf_schema_keyword_count'] = is_array($pdfSchema['keywords'] ?? null)
+                ? count($pdfSchema['keywords'])
+                : 0;
+        }
         if ($mediaManagement !== []) {
             $summary['media_management_field_names'] = $this->xmpMediaManagementSummaryFieldNames($mediaManagement);
             if (isset($mediaManagement['derived_from']) && is_array($mediaManagement['derived_from'])) {
@@ -21720,6 +21807,22 @@ final class PdfMetadataExtractor
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $pdfSchema
+     * @return list<string>
+     */
+    private function xmpPdfSchemaSummaryFieldNames(array $pdfSchema): array
+    {
+        $fields = [];
+        foreach (['producer', 'keywords', 'pdf_version', 'trapped'] as $field) {
+            if (array_key_exists($field, $pdfSchema)) {
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
     }
 
     /**
