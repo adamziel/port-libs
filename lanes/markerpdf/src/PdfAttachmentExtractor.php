@@ -47,6 +47,8 @@ final class PdfAttachmentExtractor
 
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
 
+    private const FILE_ATTACHMENT_ANNOTATION_BOUNDARY_KEYS = ['FS'];
+
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
     private const RELATED_FILE_DICTIONARY_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
@@ -1254,6 +1256,19 @@ final class PdfAttachmentExtractor
                     continue;
                 }
 
+                $annotationDictionaryBody = is_string($annotation['body'] ?? null)
+                    ? $this->topLevelDictionaryBodyFromObjectBody($annotation['body'])
+                    : null;
+                if (
+                    $annotationDictionaryBody !== null
+                    && (
+                        $this->dictionaryHasDuplicateKeys($annotationDictionaryBody, self::FILE_ATTACHMENT_ANNOTATION_BOUNDARY_KEYS)
+                        || $this->dictionaryHasTrailingOperandsAfterKeys($annotationDictionaryBody, self::FILE_ATTACHMENT_ANNOTATION_BOUNDARY_KEYS)
+                    )
+                ) {
+                    continue;
+                }
+
                 $entry = [
                     'pageNumber' => $pageIndex + 1,
                     'pageObjectId' => $pageObjectId,
@@ -1262,9 +1277,6 @@ final class PdfAttachmentExtractor
                     'rect' => $this->numberArray($dict['Rect'] ?? null),
                     'fileSpec' => $dict['FS'] ?? null,
                 ] + $this->fileAttachmentAnnotationReview($dict, $objects);
-                $annotationDictionaryBody = is_string($annotation['body'] ?? null)
-                    ? $this->topLevelDictionaryBodyFromObjectBody($annotation['body'])
-                    : null;
                 if ($annotationDictionaryBody !== null) {
                     $rawFileSpec = $this->rawDictionaryEntryValue($annotationDictionaryBody, 'FS');
                     if ($rawFileSpec !== null) {
