@@ -1740,6 +1740,7 @@ final class PdfOutlineExtractor
                 $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'First')
                 || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Last')
                 || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Count')
+                || $this->outlineDictionaryKeyReferencesMalformedSingleValue($outline, 'Count', $objects)
             )
         ) {
             return false;
@@ -1765,6 +1766,7 @@ final class PdfOutlineExtractor
                 $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'First')
                 || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'Last')
                 || $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineRootObject, 'Count')
+                || $this->outlineDictionaryKeyReferencesMalformedSingleValue($outlineRoot, 'Count', $objects)
             )
         ) {
             return false;
@@ -1793,6 +1795,25 @@ final class PdfOutlineExtractor
         $title = $this->stringOrNameValue($this->resolveValue($titleValue, $objects));
 
         return $title === null || trim($title) === '' ? null : $title;
+    }
+
+    /**
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     */
+    private function outlineDictionaryKeyReferencesMalformedSingleValue(
+        array $outline,
+        string $key,
+        array $objects
+    ): bool {
+        $value = $outline[$key] ?? null;
+        if (!$this->isReferenceValue($value)) {
+            return false;
+        }
+
+        $objectNumber = $this->validReferenceObjectNumber($value, $objects);
+
+        return $objectNumber !== null && !($this->objectSingleTopLevelValues[$objectNumber] ?? false);
     }
 
     /**
@@ -5088,7 +5109,10 @@ final class PdfOutlineExtractor
         $firstChild = $this->referenceObjectNumber($outline['First'] ?? null);
         $lastChild = $this->referenceObjectNumber($outline['Last'] ?? null);
         $hasChildren = $firstChild !== null || $lastChild !== null;
-        $count = $outlineObject !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Count')
+        $count = $outlineObject !== null && (
+            $this->outlineObjectDictionaryKeyHasTrailingOperands($outlineObject, 'Count')
+            || $this->outlineDictionaryKeyReferencesMalformedSingleValue($outline, 'Count', $objects)
+        )
             ? null
             : $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
 

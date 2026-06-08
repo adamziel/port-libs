@@ -2219,15 +2219,16 @@ final class PdfTextExtractor
     private function lightweightOutlineItemAllowsChildTraversal(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
         if (
             $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'First')
             || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Last')
             || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Count')
+            || $this->lightweightOutlineCountReferencesMalformedIndirectSingleValue($countValue, $objects)
         ) {
             return false;
         }
 
-        $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
         $count = $this->lightweightOutlineCountValue($countValue, $objects);
 
         return $count !== 0;
@@ -2242,18 +2243,67 @@ final class PdfTextExtractor
     private function lightweightOutlineRootAllowsItemTraversal(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
         if (
             $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'First')
             || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Last')
             || $this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, 'Count')
+            || $this->lightweightOutlineCountReferencesMalformedIndirectSingleValue($countValue, $objects)
         ) {
             return false;
         }
 
-        $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
         $count = $this->lightweightOutlineCountValue($countValue, $objects);
 
         return $count !== 0;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineCountReferencesMalformedIndirectSingleValue(
+        ?string $value,
+        array $objects
+    ): bool {
+        if ($value === null) {
+            return false;
+        }
+
+        $offset = $this->skipPdfWhitespace($value, 0);
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if (
+            $reference === null
+            || $this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)
+        ) {
+            return false;
+        }
+
+        $body = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $body !== null && !$this->pdfObjectBodyHasSingleTopLevelValue($body);
+    }
+
+    private function pdfObjectBodyHasSingleTopLevelValue(string $body): bool
+    {
+        $offset = 0;
+        $this->skipContentWhitespaceAndComments($body, $offset);
+        if ($offset >= strlen($body)) {
+            return false;
+        }
+
+        $token = $this->pdfValueAtOffset($body, $offset);
+        if ($token === null || $token === '') {
+            return false;
+        }
+
+        $after = $offset + strlen($token);
+        $this->skipContentWhitespaceAndComments($body, $after);
+
+        return $after >= strlen($body);
     }
 
     /**

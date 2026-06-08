@@ -6000,6 +6000,7 @@ final class PdfMetadataExtractor
             $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'First')
             || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Last')
             || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Count')
+            || $this->dictionaryTopLevelReferenceTargetsMalformedSingleValue($dictionary, 'Count', $objects)
         ) {
             return false;
         }
@@ -6021,6 +6022,7 @@ final class PdfMetadataExtractor
             $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'First')
             || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Last')
             || $this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary, 'Count')
+            || $this->dictionaryTopLevelReferenceTargetsMalformedSingleValue($dictionary, 'Count', $objects)
         ) {
             return false;
         }
@@ -6028,6 +6030,29 @@ final class PdfMetadataExtractor
         $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
 
         return $count !== 0;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryTopLevelReferenceTargetsMalformedSingleValue(
+        string $dictionary,
+        string $key,
+        array $objects
+    ): bool {
+        $value = $this->dictionaryTopLevelRawValue($dictionary, $key);
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectBody = $this->objectBodyForReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $objectBody !== null && !$this->objectBodyHasSingleTopLevelValue($objectBody);
     }
 
     /**
