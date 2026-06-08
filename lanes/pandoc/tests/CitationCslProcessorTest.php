@@ -3280,6 +3280,110 @@ XML)->withCslAbbreviations([
             ],
         ]));
     },
+    'applies bounded csl abbreviation json handoff to bibtex imported sources' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{abbrev-bib-source,
+  author       = {Vale, Vera},
+  title        = {Migration Review Source Packet},
+  journaltitle = {Journal of Imported Source Packets},
+  series       = {Migration Review Series},
+  publisher    = {WordPress Migration Press},
+  location     = {New York},
+  type         = {technical report},
+  date         = {2026}
+}
+BIB;
+
+        $abbreviationJson = <<<'JSON'
+{
+  "default": {
+    "title": {
+      "Migration Review Source Packet": "Migr. Rev. Source"
+    },
+    "container-title": {
+      "Journal of Imported Source Packets": "J. Imported Source Packets"
+    },
+    "collection-title": {
+      "Migration Review Series": "Migr. Rev. Ser."
+    },
+    "institution": {
+      "WordPress Migration Press": "WP Migr. Press"
+    },
+    "place": {
+      "New York": "N.Y."
+    },
+    "genre": {
+      "technical report": "tech. rep."
+    }
+  }
+}
+JSON;
+
+        $styleXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibTeX CSL Abbreviation JSON Review</title>
+    <id>https://example.test/styles/bounded-bibtex-csl-abbreviation-json-review</id>
+    <updated>2026-06-08T21:52:59+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title" form="short"/>
+        <text variable="container-title" form="short"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="publisher" form="short"/>
+        <text variable="publisher-place" form="short"/>
+        <text variable="genre" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title" form="short"/>
+      <text variable="container-title" form="short"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="publisher" form="short"/>
+      <text variable="publisher-place" form="short"/>
+      <text variable="genre" form="short"/>
+    </layout>
+  </bibliography>
+</style>
+XML;
+
+        $parsed = CitationCslProcessor::cslAbbreviationsFromJson($abbreviationJson);
+        $t->same('Migr. Rev. Source', $parsed['title']['Migration Review Source Packet'] ?? null);
+        $t->same('WP Migr. Press', $parsed['institution']['WordPress Migration Press'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)
+            ->withCslStyle($styleXml)
+            ->withCslAbbreviationsJson($abbreviationJson);
+
+        $item = $processor->item('abbrev-bib-source');
+        $t->same('Journal of Imported Source Packets', $item['containerTitle'] ?? null);
+        $t->same('Migration Review Series', $item['collectionTitle'] ?? null);
+        $t->same('WordPress Migration Press', $item['publisher'] ?? null);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded BibTeX CSL Abbreviation JSON Review', $summary['title'] ?? null);
+        $t->same('J. Imported Source Packets', $summary['abbreviations']['container-title']['Journal of Imported Source Packets'] ?? null);
+        $t->same('N.Y.', $summary['abbreviations']['place']['New York'] ?? null);
+
+        $t->same(
+            '[Migr. Rev. Source | J. Imported Source Packets | Migr. Rev. Ser. | WP Migr. Press | N.Y. | tech. rep.]',
+            $processor->renderCitationCluster([$citation('abbrev-bib-source', '[@abbrev-bib-source]')])
+        );
+        $t->same('Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.', $processor->renderBibliographyEntry('abbrev-bib-source'));
+
+        $document = (new MarkdownReader())->read('Abbreviation JSON source @abbrev-bib-source keeps supplied compact labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Abbreviation JSON source Vale (2026) keeps supplied compact labels visible.</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::cslAbbreviationsFromJson('[["bad"]]'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex($bibtex)->withCslAbbreviationsJson('{not json'));
+    },
     'maps bounded biblatex publication details identifiers and eprint metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{journal-detail,

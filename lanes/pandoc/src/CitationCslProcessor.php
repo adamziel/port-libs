@@ -139,6 +139,28 @@ final class CitationCslProcessor
         return new self($this->itemsById, $this->style, $this->primaryIds, $this->canonicalIdsById, $abbreviations);
     }
 
+    public function withCslAbbreviationsJson(string $json): self
+    {
+        return $this->withCslAbbreviations(self::cslAbbreviationsFromJson($json));
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    public static function cslAbbreviationsFromJson(string $json): array
+    {
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \InvalidArgumentException('Invalid CSL abbreviations JSON: ' . json_last_error_msg());
+        }
+
+        if (!is_array($decoded) || self::decodedJsonIsList($decoded, $json)) {
+            throw new \InvalidArgumentException('CSL abbreviations JSON must be an object map');
+        }
+
+        return self::normalizeCslAbbreviations($decoded);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -198,6 +220,18 @@ final class CitationCslProcessor
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<mixed> $decoded
+     */
+    private static function decodedJsonIsList(array $decoded, string $json): bool
+    {
+        if ($decoded === []) {
+            return str_starts_with(ltrim($json), '[');
+        }
+
+        return array_is_list($decoded);
     }
 
     /**

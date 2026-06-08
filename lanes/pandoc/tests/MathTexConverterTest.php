@@ -1395,6 +1395,22 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases}</annotation>', $casesMathml);
         $t->contains('<mo fence="true" stretchy="true">{</mo><mtable columnalign="left left"><mtr><mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd><mtd><mi>a</mi><mo>≥</mo><mi>b</mi></mtd></mtr><mtr><mtd><mroot><mi>x</mi><mi>n</mi></mroot></mtd><mtd><mi>a</mi><mo>&lt;</mo><mi>b</mi></mtd></mtr></mtable>', $nestedCasesMathml);
     },
+    'converts bounded tex starred matrix environment aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $starredMatrixMathml = $converter->texToMathMl('\\begin{pmatrix*}p_i & m_i \\\\ q_i & n_i\\end{pmatrix*}', true);
+        $starredCasesMathml = $converter->texToMathMl('\\begin{cases*}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{cases*}', true);
+        $starredSmallMatrixMathml = $converter->texToMathMl('\\left(\\begin{smallmatrix*}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix*}\\right)', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $starredMatrixMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mtable><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable><mo fence="true" stretchy="true">)</mo>', $starredMatrixMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{pmatrix*}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{pmatrix*}</annotation>', $starredMatrixMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><mtable columnalign="left left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable>', $starredCasesMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{cases*}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases*}</annotation>', $starredCasesMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mstyle scriptlevel="1"><mtable rowspacing="0.1em" columnspacing="0.2778em"><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd></mtr></mtable></mstyle><mo fence="true" stretchy="true">)</mo>', $starredSmallMatrixMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\left(\\begin{smallmatrix*}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix*}\\right)</annotation>', $starredSmallMatrixMathml);
+        $t->true(!str_contains($starredMatrixMathml, '<mo>*</mo>'), 'Expected starred matrix suffix to stay metadata-only instead of rendering as an operator');
+        $t->true(!str_contains($starredCasesMathml, '<mi>*</mi>'), 'Expected starred cases suffix to stay metadata-only instead of rendering as an identifier');
+    },
     'converts bounded tex array environments with column specs to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $arrayMathml = $converter->texToMathMl('\\begin{array}{rl}x_i &= p_i \\\\ y_i &= \\frac{a_i}{b_i}\\end{array}', true);
@@ -1720,6 +1736,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\end{matrix}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{cases}x & y'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{cases}\\end{cases}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{pmatrix*}a & b\\end{pmatrix}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{unknownmatrix*}a & b\\end{unknownmatrix*}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\end{matrix}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a & b & c\\end{align}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{gather}a & b\\end{gather}'));

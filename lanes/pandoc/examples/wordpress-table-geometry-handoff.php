@@ -190,6 +190,21 @@ $layoutWidthTables = array_values(array_filter(
     $layoutWidthDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$layoutHeightDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="layout-height-grid" data-source="html-reader" height="320">
+<caption>Layout height review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$layoutHeightTables = array_values(array_filter(
+    $layoutHeightDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $placementAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">
 <caption>Placement alignment review</caption>
@@ -1189,6 +1204,7 @@ $document = new AstNode('document', [], [
     ...$legacyFrameTables,
     ...$legacySpacingTables,
     ...$layoutWidthTables,
+    ...$layoutHeightTables,
     ...$placementAlignmentTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
@@ -2465,6 +2481,48 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($layoutWidthPacket, JSON_THROW_ON_ERROR);
     json_encode($layoutWidthDowngrades, JSON_THROW_ON_ERROR);
+
+    $layoutHeightTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'layout-height-grid') {
+            $layoutHeightTable = $node;
+            break;
+        }
+    }
+    $layoutHeightPacket = $layoutHeightTable instanceof AstNode ? $layoutHeightTable->attr('tableGeometry') : null;
+    $layoutHeightDowngrades = $layoutHeightTable instanceof AstNode ? TableGeometry::reviewPacket($layoutHeightTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $layoutHeightDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $layoutHeightDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-layout-height'
+        ));
+        $layoutHeightDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$layoutHeightTable instanceof AstNode
+        || !is_array($layoutHeightPacket)
+        || ($layoutHeightPacket['tableLayout']['attributes'] ?? null) !== [
+            'height' => '320',
+        ]
+        || ($layoutHeightPacket['tableLayout']['heightType'] ?? null) !== 'pixels'
+        || ($layoutHeightPacket['summary']['hasTableLayout'] ?? null) !== true
+        || ($layoutHeightPacket['summary']['tableHeight'] ?? null) !== '320'
+        || ($layoutHeightPacket['summary']['tableHeightType'] ?? null) !== 'pixels'
+        || ($layoutHeightDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-height-requires-raw-html'
+        || ($layoutHeightDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-height-review-required'
+        || ($layoutHeightDiagnostics['latex']['code'] ?? null) !== 'latex-table-height-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table height layout metadata');
+    }
+    if (!str_contains($blocks, '<table id="layout-height-grid" data-source="html-reader" height="320">')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress table height output');
+    }
+    json_encode($layoutHeightPacket, JSON_THROW_ON_ERROR);
+    json_encode($layoutHeightDowngrades, JSON_THROW_ON_ERROR);
 
     $placementAlignmentTable = null;
     $invalidPlacementAlignmentTable = null;

@@ -12,6 +12,8 @@ final class UpstreamRunnerDependencyAudit
         'cabal.project',
         'pandoc.cabal',
         'pandoc-lua-engine/pandoc-lua-engine.cabal',
+        'pandoc-server/pandoc-server.cabal',
+        'pandoc-cli/pandoc-cli.cabal',
         'test/test-pandoc.hs',
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
     ];
@@ -62,11 +64,25 @@ final class UpstreamRunnerDependencyAudit
             'cabalVersion' => '2.4',
             'buildType' => 'Simple',
         ],
+        'pandoc-server/pandoc-server.cabal' => [
+            'name' => 'pandoc-server',
+            'version' => '0.1.2',
+            'cabalVersion' => '2.4',
+            'buildType' => 'Simple',
+        ],
+        'pandoc-cli/pandoc-cli.cabal' => [
+            'name' => 'pandoc-cli',
+            'version' => '3.9.0.2',
+            'cabalVersion' => '2.4',
+            'buildType' => 'Simple',
+        ],
     ];
 
     private const PACKAGE_EXPECTED_SETUP_DEPENDENCIES = [
         'pandoc.cabal' => [],
         'pandoc-lua-engine/pandoc-lua-engine.cabal' => [],
+        'pandoc-server/pandoc-server.cabal' => [],
+        'pandoc-cli/pandoc-cli.cabal' => [],
     ];
 
     private const PACKAGE_EXPECTED_FLAG_DEFINITIONS = [
@@ -75,6 +91,13 @@ final class UpstreamRunnerDependencyAudit
             'http',
         ],
         'pandoc-lua-engine/pandoc-lua-engine.cabal' => [],
+        'pandoc-server/pandoc-server.cabal' => [],
+        'pandoc-cli/pandoc-cli.cabal' => [
+            'lua',
+            'nightly',
+            'repl',
+            'server',
+        ],
     ];
 
     private const PROJECT_SOURCE_REPOSITORY_PINS = [

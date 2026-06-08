@@ -2140,6 +2140,41 @@ $structuredDocumentTagXml = <<<'XML'
 </w:document>
 XML;
 
+$sdtDataBindingPrefixDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Mapped title </w:t></w:r>
+      <w:sdt>
+        <w:sdtPr>
+          <w:id w:val="150"/>
+          <w:alias w:val="Source Title"/>
+          <w:tag w:val="source_title"/>
+          <w:text/>
+          <w:dataBinding w:prefixMappings="xmlns:wpd='https://example.test/wp/docx' xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns='https://example.test/default'" w:xpath="/wpd:packet/dc:title" w:storeItemID="{33333333-4444-5555-6666-777777777777}"/>
+        </w:sdtPr>
+        <w:sdtContent>
+          <w:r><w:t>Migration packet</w:t></w:r>
+        </w:sdtContent>
+      </w:sdt>
+      <w:r><w:t xml:space="preserve"> stays mapped.</w:t></w:r>
+    </w:p>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="151"/>
+        <w:alias w:val="Source Summary"/>
+        <w:tag w:val="source_summary"/>
+        <w:richText/>
+        <w:dataBinding w:prefixMappings="xmlns:wpd='https://example.test/wp/docx' xmlns:review='https://example.test/review'" w:xpath="/wpd:packet/review:summary" w:storeItemID="{33333333-4444-5555-6666-777777777777}"/>
+      </w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:r><w:t>Mapped summary block.</w:t></w:r></w:p>
+      </w:sdtContent>
+    </w:sdt>
+  </w:body>
+</w:document>
+XML;
+
 $sdtFormControlDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3793,6 +3828,14 @@ $buildStructuredDocumentTagPackage = static function () use ($contentTypesXml, $
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $structuredDocumentTagXml],
+    ]);
+};
+
+$buildSdtDataBindingPrefixPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $sdtDataBindingPrefixDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sdtDataBindingPrefixDocumentXml],
     ]);
 };
 
@@ -7165,6 +7208,60 @@ return [
         $t->contains('data-docx-sdt-type="rich-text"', $blocks);
         $t->contains('data-docx-sdt-xpath="/packet/review/checklist"', $blocks);
         $t->contains('<table><tbody><tr><td><p>Owner</p></td><td><p>Migration desk</p></td></tr></tbody></table>', $blocks);
+    },
+    'preserves DOCX content-control data-binding namespace prefix mappings' => static function (TestRunner $t) use ($buildSdtDataBindingPrefixPackage): void {
+        $document = (new DocxReader())->readDocument($buildSdtDataBindingPrefixPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Mapped title ', $paragraph->children[0]->attr('text'));
+
+        $inlineControl = $paragraph->children[1];
+        $t->same('span', $inlineControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-text'], $inlineControl->attr('classes'));
+        $inlineAttrs = $inlineControl->attr('attributes');
+        $t->same('150', $inlineAttrs['data-docx-sdt-id']);
+        $t->same('Source Title', $inlineAttrs['data-docx-sdt-alias']);
+        $t->same('source_title', $inlineAttrs['data-docx-sdt-tag']);
+        $t->same('text', $inlineAttrs['data-docx-sdt-type']);
+        $t->same('/wpd:packet/dc:title', $inlineAttrs['data-docx-sdt-xpath']);
+        $t->same('{33333333-4444-5555-6666-777777777777}', $inlineAttrs['data-docx-sdt-store-item-id']);
+        $t->same("xmlns:wpd='https://example.test/wp/docx' xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns='https://example.test/default'", $inlineAttrs['data-docx-sdt-prefix-mappings']);
+        $t->same('3', $inlineAttrs['data-docx-sdt-prefix-count']);
+        $t->same('wpd', $inlineAttrs['data-docx-sdt-prefix-1-name']);
+        $t->same('https://example.test/wp/docx', $inlineAttrs['data-docx-sdt-prefix-1-uri']);
+        $t->same('dc', $inlineAttrs['data-docx-sdt-prefix-2-name']);
+        $t->same('http://purl.org/dc/elements/1.1/', $inlineAttrs['data-docx-sdt-prefix-2-uri']);
+        $t->same('default', $inlineAttrs['data-docx-sdt-prefix-3-name']);
+        $t->same('https://example.test/default', $inlineAttrs['data-docx-sdt-prefix-3-uri']);
+        $t->same('Migration packet', $inlineControl->children[0]->attr('text'));
+        $t->same(' stays mapped.', $paragraph->children[2]->attr('text'));
+
+        $blockControl = $document->children[1];
+        $t->same('div', $blockControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-rich-text'], $blockControl->attr('classes'));
+        $blockAttrs = $blockControl->attr('attributes');
+        $t->same('151', $blockAttrs['data-docx-sdt-id']);
+        $t->same('/wpd:packet/review:summary', $blockAttrs['data-docx-sdt-xpath']);
+        $t->same('2', $blockAttrs['data-docx-sdt-prefix-count']);
+        $t->same('review', $blockAttrs['data-docx-sdt-prefix-2-name']);
+        $t->same('https://example.test/review', $blockAttrs['data-docx-sdt-prefix-2-uri']);
+        $t->same('Mapped summary block.', $blockControl->children[0]->children[0]->attr('text'));
+
+        $t->contains('Mapped title [Migration packet]{.docx-content-control .docx-content-control-text data-docx-sdt-id="150"', $markdown);
+        $t->contains('data-docx-sdt-prefix-mappings="xmlns:wpd=\'https://example.test/wp/docx\' xmlns:dc=\'http://purl.org/dc/elements/1.1/\' xmlns=\'https://example.test/default\'"', $markdown);
+        $t->contains('data-docx-sdt-prefix-1-name="wpd" data-docx-sdt-prefix-1-uri="https://example.test/wp/docx"', $markdown);
+        $t->contains('data-docx-sdt-prefix-3-name="default"', $markdown);
+        $t->contains('::: {.docx-content-control .docx-content-control-rich-text data-docx-sdt-id="151"', $markdown);
+        $t->contains('data-docx-sdt-prefix-2-name="review"', $markdown);
+
+        $t->contains('<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="150"', $blocks);
+        $t->contains('data-docx-sdt-prefix-count="3"', $blocks);
+        $t->contains('data-docx-sdt-prefix-2-uri="http://purl.org/dc/elements/1.1/"', $blocks);
+        $t->contains('<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="151"', $blocks);
+        $t->contains('data-docx-sdt-prefix-2-name="review" data-docx-sdt-prefix-2-uri="https://example.test/review"', $blocks);
     },
     'preserves DOCX structured document tag form-control metadata' => static function (TestRunner $t) use ($buildSdtFormControlPackage): void {
         $document = (new DocxReader())->readDocument($buildSdtFormControlPackage());

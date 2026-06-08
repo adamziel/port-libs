@@ -1314,3 +1314,27 @@ nnoremap <leader>wr :execute 'edit ' . fnameescape(s:source_path)<CR>
 syntax match wpImportSource /\v(import_source|post_title)/
 highlight wpImportSource ctermfg=Green guifg=#005cc5
 ```
+
+``` {.racket #scheme-review .numberLines startFrom=1080}
+#lang racket
+; WordPress import review helper
+(struct packet (source-id title blocks) #:transparent)
+
+(define (normalize-title raw)
+  (let* ([trimmed (string-trim raw)]
+         [fallback "Untitled"])
+    (if (string-blank? trimmed)
+        fallback
+        trimmed)))
+
+(define (packet->blocks item)
+  (match item
+    [(packet source-id title blocks)
+     (for/list ([block blocks]
+                #:when (hash-ref block 'review? #t))
+       (hash 'source source-id
+             'title (normalize-title title)
+             'block-name (hash-ref block 'name "core/paragraph")))]))
+
+(provide normalize-title packet->blocks)
+```

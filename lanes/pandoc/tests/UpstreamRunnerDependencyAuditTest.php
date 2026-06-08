@@ -220,6 +220,78 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
     ]));
 };
 
+$serverCabal = static function (): string {
+    return implode("\n", [
+        'cabal-version: 2.4',
+        'name: pandoc-server',
+        'version: 0.1.2',
+        'build-type: Simple',
+        '',
+        'common common-options',
+        '  default-language: Haskell2010',
+        '  build-depends: base >= 4.12 && < 5',
+        '',
+        'library',
+        '  import: common-options',
+        '  build-depends:',
+        '    pandoc >= 3.9 && < 3.10,',
+        '    pandoc-types >= 1.22 && < 1.24,',
+        '    containers >= 0.6.0.1 && < 0.9,',
+        '    aeson >= 2.0 && < 2.3,',
+        '    bytestring >= 0.9 && < 0.13,',
+        '    base64-bytestring >= 0.1 && < 1.3,',
+        '    doctemplates >= 0.11 && < 0.12,',
+        '    data-default >= 0.4 && < 0.9,',
+        '    text >= 1.1.1.0 && < 2.2,',
+        '    unicode-collation >= 0.1.1 && < 0.2,',
+        '    servant-server >= 0.19 && < 0.21,',
+        '    skylighting >= 0.13 && < 0.15,',
+        '    wai >= 3.2 && < 3.3,',
+        '    wai-cors >= 0.2.7 && < 0.3',
+        '  hs-source-dirs: src',
+        '  exposed-modules: Text.Pandoc.Server',
+        '  buildable: True',
+    ]);
+};
+
+$cliCabal = static function (): string {
+    return implode("\n", [
+        'cabal-version: 2.4',
+        'name: pandoc-cli',
+        'version: 3.9.0.2',
+        'build-type: Simple',
+        '',
+        'flag lua',
+        '  description: Support custom modifications and conversions with the pandoc Lua scripting engine.',
+        '  default: True',
+        '',
+        'flag server',
+        '  description: Include support for running pandoc as an HTTP server.',
+        '  default: True',
+        '',
+        'flag repl',
+        '  description: Include support for running a pandoc Lua repl.',
+        '  default: True',
+        '',
+        'flag nightly',
+        '  description: Add nightly suffix to version output.',
+        '  default: False',
+        '',
+        'common common-options',
+        '  default-language: Haskell2010',
+        '  other-extensions: OverloadedStrings',
+        '  build-depends: base >= 4.18 && < 5',
+        '',
+        'executable pandoc',
+        '  import: common-options',
+        '  main-is: pandoc.hs',
+        '  hs-source-dirs: src',
+        '  buildable: True',
+        '  build-depends: pandoc == 3.9.0.2, text',
+        '  other-modules: PandocCLI.Lua, PandocCLI.Server',
+    ]);
+};
+
 $testPandocEntryPoint = static function (): string {
     return implode("\n", [
         'module Main (main) where',
@@ -459,11 +531,13 @@ $benchmarkArtifacts = static function () use ($benchmarkEntryPoint): array {
     return $files;
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true, ?string $serverPackage = null, ?string $cliPackage = null) use ($pandocCabal, $luaCabal, $serverCabal, $cliCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
     $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
         'pandoc-lua-engine/pandoc-lua-engine.cabal' => $luaPackage ?? $luaCabal(),
+        'pandoc-server/pandoc-server.cabal' => $serverPackage ?? $serverCabal(),
+        'pandoc-cli/pandoc-cli.cabal' => $cliPackage ?? $cliCabal(),
         'test/test-pandoc.hs' => $testPandocEntryPoint(),
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs' => $luaEntryPoint(),
     ];
@@ -494,6 +568,8 @@ return [
             'cabal.project',
             'pandoc.cabal',
             'pandoc-lua-engine/pandoc-lua-engine.cabal',
+            'pandoc-server/pandoc-server.cabal',
+            'pandoc-cli/pandoc-cli.cabal',
             'test/test-pandoc.hs',
             'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
         ], $audit['missingFiles']);
@@ -766,6 +842,8 @@ return [
             'cabal.project',
             'pandoc.cabal',
             'pandoc-lua-engine/pandoc-lua-engine.cabal',
+            'pandoc-server/pandoc-server.cabal',
+            'pandoc-cli/pandoc-cli.cabal',
             'test/test-pandoc.hs',
             'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
         ], $audit['requiredFileProvenance']['expected']);
@@ -1182,6 +1260,64 @@ return [
         $t->contains('missing Cabal package identity headers: pandoc-lua-engine/pandoc-lua-engine.cabal (cabalVersion)', $blocked);
         $t->contains('mismatched Cabal package identity headers: pandoc.cabal (name expected pandoc, found pandoc-core, version expected 3.9.0.2, found 3.9.0.1, buildType expected Simple, found Custom); pandoc-lua-engine/pandoc-lua-engine.cabal (version expected 0.5.2, found 0.5.1)', $blocked);
         $t->contains('Cabal package identity/version headers', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks workspace package identity and cli flag drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc-server/pandoc-server.cabal'] = str_replace('version: 0.1.2', 'version: 0.1.1', $files['pandoc-server/pandoc-server.cabal']);
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace('name: pandoc-cli', 'name: pandoc-runner-cli', $files['pandoc-cli/pandoc-cli.cabal']);
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(implode("\n", [
+            'flag server',
+            '  description: Include support for running pandoc as an HTTP server.',
+            '  default: True',
+            '',
+        ]), '', $files['pandoc-cli/pandoc-cli.cabal']);
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(implode("\n", [
+            'flag nightly',
+            '  description: Add nightly suffix to version output.',
+            '  default: False',
+            '',
+        ]), '', $files['pandoc-cli/pandoc-cli.cabal']);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same([
+            'expected' => '0.1.2',
+            'actual' => '0.1.1',
+        ], $audit['packageIdentityClosure']['mismatchedHeaders']['pandoc-server/pandoc-server.cabal']['version']);
+        $t->same([
+            'expected' => 'pandoc-cli',
+            'actual' => 'pandoc-runner-cli',
+        ], $audit['packageIdentityClosure']['mismatchedHeaders']['pandoc-cli/pandoc-cli.cabal']['name']);
+        $t->same([
+            'lua',
+            'repl',
+        ], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([
+            'nightly',
+            'server',
+        ], $audit['packageFlagDefinitionClosure']['missingFlags']['pandoc-cli/pandoc-cli.cabal']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal package identity headers: pandoc-server/pandoc-server.cabal (version expected 0.1.2, found 0.1.1); pandoc-cli/pandoc-cli.cabal (name expected pandoc-cli, found pandoc-runner-cli)', $blocked);
+        $t->contains('missing Cabal package flag definitions: pandoc-cli/pandoc-cli.cabal (nightly, server)', $blocked);
+        $t->contains('Cabal package identity/version headers', $audit['activationGate']);
+        $t->contains('package flag definitions for cabal.project flags', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks package custom setup dependencies before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {

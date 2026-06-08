@@ -4120,6 +4120,10 @@ final class DocxReader
                         $attributes[$attributeName] = $value;
                     }
                 }
+
+                foreach ($this->structuredDocumentTagPrefixMappingAttrs($dataBinding) as $name => $value) {
+                    $attributes[$name] = $value;
+                }
             }
 
             foreach ($this->structuredDocumentTagDocPartAttrs($properties) as $name => $value) {
@@ -4144,6 +4148,61 @@ final class DocxReader
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function structuredDocumentTagPrefixMappingAttrs(\DOMElement $dataBinding): array
+    {
+        $prefixMappings = $this->wordAttr($dataBinding, 'prefixMappings');
+        if ($prefixMappings === null || $prefixMappings === '') {
+            return [];
+        }
+
+        $attributes = [
+            'data-docx-sdt-prefix-mappings' => $prefixMappings,
+        ];
+
+        $mappings = $this->parseStructuredDocumentTagPrefixMappings($prefixMappings);
+        if ($mappings === []) {
+            return $attributes;
+        }
+
+        $attributes['data-docx-sdt-prefix-count'] = (string) count($mappings);
+        foreach ($mappings as $index => $mapping) {
+            $prefix = 'data-docx-sdt-prefix-' . ($index + 1);
+            $attributes[$prefix . '-name'] = $mapping['name'];
+            $attributes[$prefix . '-uri'] = $mapping['uri'];
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return list<array{name:string, uri:string}>
+     */
+    private function parseStructuredDocumentTagPrefixMappings(string $prefixMappings): array
+    {
+        if (preg_match_all('/(?:^|\s)xmlns(?::([A-Za-z_][A-Za-z0-9._-]*))?\s*=\s*([\'"])(.*?)\2/s', $prefixMappings, $matches, PREG_SET_ORDER) === false) {
+            return [];
+        }
+
+        $mappings = [];
+        foreach ($matches as $match) {
+            $uri = $match[3] ?? '';
+            if ($uri === '') {
+                continue;
+            }
+
+            $name = $match[1] ?? '';
+            $mappings[] = [
+                'name' => $name === '' ? 'default' : $name,
+                'uri' => $uri,
+            ];
+        }
+
+        return $mappings;
     }
 
     /**

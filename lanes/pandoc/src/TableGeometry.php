@@ -4875,6 +4875,8 @@ final class TableGeometry
             'hasTableLayout' => $tableLayout !== [],
             'tableWidth' => (string) ($tableLayout['width'] ?? ''),
             'tableWidthType' => (string) ($tableLayout['widthType'] ?? ''),
+            'tableHeight' => (string) ($tableLayout['height'] ?? ''),
+            'tableHeightType' => (string) ($tableLayout['heightType'] ?? ''),
             'tableLayoutAttributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
             'hasTableAlignment' => $tableAlignment !== [],
             'tableAlignment' => (string) ($tableAlignment['alignment'] ?? ''),
@@ -6163,31 +6165,46 @@ final class TableGeometry
         }
 
         $requirements = [
-            'markdown' => ['markdown-table-width-requires-raw-html', 'raw-html-table-width'],
-            'asciidoc' => ['asciidoc-table-width-review-required', 'table-width-review'],
-            'latex' => ['latex-table-width-review-required', 'table-width-review-comments'],
+            'width' => [
+                'markdown' => ['markdown-table-width-requires-raw-html', 'raw-html-table-width'],
+                'asciidoc' => ['asciidoc-table-width-review-required', 'table-width-review'],
+                'latex' => ['latex-table-width-review-required', 'table-width-review-comments'],
+            ],
+            'height' => [
+                'markdown' => ['markdown-table-height-requires-raw-html', 'raw-html-table-height'],
+                'asciidoc' => ['asciidoc-table-height-review-required', 'table-height-review'],
+                'latex' => ['latex-table-height-review-required', 'table-height-review-comments'],
+            ],
         ];
-        if (!isset($requirements[$writer])) {
-            return [];
+
+        $diagnostics = [];
+        foreach ($requirements as $dimension => $writerRequirements) {
+            if (!isset($writerRequirements[$writer]) || !array_key_exists($dimension, $tableLayout)) {
+                continue;
+            }
+
+            [$code, $requiredFeature] = $writerRequirements[$writer];
+            $diagnostic = [
+                'code' => $code,
+                'writer' => $writer,
+                'reason' => 'table-layout-' . $dimension,
+                'requiredFeature' => $requiredFeature,
+                'source' => 'html-table-layout',
+                'caption' => (string) $table->attr('caption', ''),
+                'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+                'attributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
+                'attributes' => $tableLayout['attributes'] ?? [],
+                'sourceAttributes' => $tableLayout['sourceAttributes'] ?? [],
+            ];
+            $diagnostic[$dimension] = (string) ($tableLayout[$dimension] ?? '');
+            $diagnostic[$dimension . 'Type'] = (string) ($tableLayout[$dimension . 'Type'] ?? '');
+            $diagnostic[$dimension . 'Value'] = is_numeric($tableLayout[$dimension . 'Value'] ?? null)
+                ? (float) $tableLayout[$dimension . 'Value']
+                : null;
+            $diagnostics[] = $diagnostic;
         }
 
-        [$code, $requiredFeature] = $requirements[$writer];
-
-        return [[
-            'code' => $code,
-            'writer' => $writer,
-            'reason' => 'table-layout-width',
-            'requiredFeature' => $requiredFeature,
-            'source' => 'html-table-layout',
-            'caption' => (string) $table->attr('caption', ''),
-            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
-            'width' => (string) ($tableLayout['width'] ?? ''),
-            'widthType' => (string) ($tableLayout['widthType'] ?? ''),
-            'widthValue' => is_numeric($tableLayout['widthValue'] ?? null) ? (float) $tableLayout['widthValue'] : null,
-            'attributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
-            'attributes' => $tableLayout['attributes'] ?? [],
-            'sourceAttributes' => $tableLayout['sourceAttributes'] ?? [],
-        ]];
+        return $diagnostics;
     }
 
     /**
@@ -7719,7 +7736,7 @@ final class TableGeometry
     }
 
     /**
-     * @return array{source:string,attributes:array<string, string>,width:string,widthType:string,widthValue:float,sourceAttributes?:array<string, mixed>}
+     * @return array{source:string,attributes:array<string, string>,width?:string,widthType?:string,widthValue?:float,height?:string,heightType?:string,heightValue?:float,sourceAttributes?:array<string, mixed>}
      */
     private static function tableLayoutMetadata(AstNode $table): array
     {
@@ -7731,24 +7748,42 @@ final class TableGeometry
             }
         }
 
-        if (!array_key_exists('width', $attributes)) {
+        $recordAttributes = [];
+        $width = [];
+        if (array_key_exists('width', $attributes)) {
+            $width = self::normalizeTableWidthAttribute((string) $attributes['width']);
+            if ($width !== []) {
+                $recordAttributes['width'] = (string) $width['width'];
+            }
+        }
+
+        $height = [];
+        if (array_key_exists('height', $attributes)) {
+            $height = self::normalizeTableHeightAttribute((string) $attributes['height']);
+            if ($height !== []) {
+                $recordAttributes['height'] = (string) $height['height'];
+            }
+        }
+
+        if ($recordAttributes === []) {
             return [];
         }
 
-        $width = self::normalizeTableWidthAttribute((string) $attributes['width']);
-        if ($width === []) {
-            return [];
-        }
-
+        ksort($recordAttributes);
         $record = [
             'source' => 'html-table-layout',
-            'attributes' => [
-                'width' => (string) $width['width'],
-            ],
-            'width' => (string) $width['width'],
-            'widthType' => (string) $width['widthType'],
-            'widthValue' => (float) $width['widthValue'],
+            'attributes' => $recordAttributes,
         ];
+        if ($width !== []) {
+            $record['width'] = (string) $width['width'];
+            $record['widthType'] = (string) $width['widthType'];
+            $record['widthValue'] = (float) $width['widthValue'];
+        }
+        if ($height !== []) {
+            $record['height'] = (string) $height['height'];
+            $record['heightType'] = (string) $height['heightType'];
+            $record['heightValue'] = (float) $height['heightValue'];
+        }
 
         $sourceAttributes = self::sourceAttributeSummary($table);
         if ($sourceAttributes !== []) {
@@ -7969,6 +8004,23 @@ final class TableGeometry
             'width' => ($formatted === '' ? '0' : $formatted) . '%',
             'widthType' => 'percent',
             'widthValue' => $width,
+        ];
+    }
+
+    /**
+     * @return array{height:string,heightType:string,heightValue:float}
+     */
+    private static function normalizeTableHeightAttribute(string $value): array
+    {
+        $height = self::normalizeTableWidthAttribute($value);
+        if ($height === []) {
+            return [];
+        }
+
+        return [
+            'height' => (string) $height['width'],
+            'heightType' => (string) $height['widthType'],
+            'heightValue' => (float) $height['widthValue'],
         ];
     }
 

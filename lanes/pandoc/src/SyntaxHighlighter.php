@@ -250,12 +250,17 @@ final class SyntaxHighlighter
         'rest' => 'rst',
         'restructured-text' => 'rst',
         'restructuredtext' => 'rst',
+        'racket' => 'scheme',
+        'rkt' => 'scheme',
+        'rktl' => 'scheme',
         'ruby' => 'ruby',
         'rst' => 'rst',
         'sass' => 'sass',
         'sbt' => 'scala',
         'scala' => 'scala',
         'scala-sbt' => 'scala',
+        'scheme' => 'scheme',
+        'scm' => 'scheme',
         'scss' => 'scss',
         'sed' => 'sed',
         'rs' => 'rust',
@@ -768,6 +773,7 @@ final class SyntaxHighlighter
             'rust' => $this->tokenizeRust($code),
             'sass', 'scss' => $this->tokenizeScss($code),
             'scala' => $this->tokenizeScala($code),
+            'scheme' => $this->tokenizeScheme($code),
             'sed' => $this->tokenizeSed($code),
             'sql' => $this->tokenizeSql($code),
             'swift' => $this->tokenizeSwift($code),
@@ -2817,6 +2823,31 @@ final class SyntaxHighlighter
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_.]*(?:\\/[A-Z][A-Za-z0-9_.]*)?\\b/'],
             ['variable', '/^[A-Za-z*!?+<>=_.$%&-][A-Za-z0-9*!?+<>=_.$%&\\/:-]*/'],
             ['operator', '/^(?:#\\{|#\\(|#\\[|~@|->>|->|::?|[{}()[\\]\'`~@^.,])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeScheme(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#\\|[\\s\\S]*?\\|#/'],
+            ['comment', '/^;[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['keyword', '/^#lang(?=$|\\s)/'],
+            ['attribute', '/^#:[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['constant', '/^#\\\\(?:newline|return|space|tab|u[0-9A-Fa-f]{4}|.)/'],
+            ['constant', '/^#(?:true|false|t|f)(?=$|[^A-Za-z0-9_])/'],
+            ['constant', "/^'[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/"],
+            ['keyword', '/^(?:define(?:-syntax|-values)?|lambda|let\\*?|letrec\\*?|if|cond|else|begin|case|do|delay|set!|quote|quasiquote|unquote(?:-splicing)?|import|export|require|provide|module|struct|match|for(?:\\*|\\/list)?|when|unless|and|or|guard)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['constant', '/^(?:nil|null)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['function', '/^(?:apply|append|car|cdr|cons|display|filter|format|hash|hash-ref|hash-set|length|list|map|member|not|null\\?|number->string|read|regexp-match|reverse|string-append|string-blank\\?|string-downcase|string-length|string-trim|string-upcase|symbol->string|values|vector)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['datatype', '/^(?:boolean|byte|string|symbol|vector|racket|scheme)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['number', '/^-?(?:#(?:b[01]+|o[0-7]+|x[0-9A-Fa-f]+)|\\d+\\/\\d+|(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eE][+-]?\\d+)?)(?=$|[^A-Za-z0-9_])/'],
+            ['datatype', '/^[A-Z][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/'],
+            ['variable', '/^[A-Za-z*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['operator', '/^(?:#\\(|#\\[|#\\{|,@|[{}()[\\]\'`.,])/'],
         ]);
     }
 

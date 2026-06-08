@@ -116,6 +116,8 @@ Multline audit $\begin{multline}p_i + m_i \\[.5em] = a_i + b_i \\ + \frac{x}{y}\
 
 Compact environment audit $\left(\begin{smallmatrix}p_1 & m_1 \\ p_2 & m_2\end{smallmatrix}\right) + \sum_{\begin{subarray}{c}i=1 \\ i\ne j\end{subarray}}^{n} a_i$ stays semantic.
 
+Starred matrix alias audit $\begin{pmatrix*}p_i & m_i \\ q_i & n_i\end{pmatrix*} + \begin{cases*}p_i & p_i \in P \\ 0 & \text{otherwise}\end{cases*}$ stays semantic.
+
 Texmath command wrapper audit $\stackrel{\text{audit}}{p_i} + \ensuremath{q_i + r_i} + \surd{s_i}$ stays semantic.
 
 Math choice audit $\mathchoice{\text{display branch}}{\text{text branch}}{\text{script branch}}{\text{tiny branch}} + q_i$ stays style-aware.
@@ -249,6 +251,7 @@ $summary = [
     'rowSpacingMathml' => $converter->texToMathMl('\\begin{aligned}a_i &= b_i \\\\[.5em] c_i &= d_i\\end{aligned}', true),
     'multlineMathml' => $converter->texToMathMl('\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)'),
     'compactEnvironmentMathml' => $converter->texToMathMl('\\left(\\begin{smallmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i'),
+    'starredMatrixAliasMathml' => $converter->texToMathMl('\\begin{pmatrix*}p_i & m_i \\\\ q_i & n_i\\end{pmatrix*} + \\begin{cases*}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{cases*}', true),
     'texmathCommandWrapperMathml' => $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}'),
     'mathChoiceMathml' => $converter->texToMathMl('\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i'),
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
@@ -371,6 +374,14 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test did not preserve AMS intertext rows');
     }
 
+    if (
+        str_contains($summary['starredMatrixAliasMathml'], '<mo>*</mo>')
+        || str_contains($summary['starredMatrixAliasMathml'], '<mi>*</mi>')
+        || !str_contains($summary['starredMatrixAliasMathml'], '<annotation encoding="application/x-tex">\\begin{pmatrix*}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{pmatrix*} + \\begin{cases*}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases*}</annotation>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not keep starred matrix aliases metadata-only');
+    }
+
     if (str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\ldots</mi>') || str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\cong</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted dot/relation symbol aliases as literal identifiers');
     }
@@ -472,6 +483,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{aligned}a_i &amp;= b_i \\\\[.5em] c_i &amp;= d_i\\end{aligned}\\)</span>',
         '<span class="math inline">\\(\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)\\)</span>',
         '<span class="math inline">\\(\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i\\)</span>',
+        '<span class="math inline">\\(\\begin{pmatrix*}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{pmatrix*} + \\begin{cases*}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases*}\\)</span>',
         '<span class="math inline">\\(\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}\\)</span>',
         '<span class="math inline">\\(\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i\\)</span>',
         '<span class="math display">\\[\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}\\]</span>',
@@ -684,6 +696,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\begin{eqnarray}p_i &amp;=&amp; m_i \\\\ x_i &amp;=&amp; y_i \\tag{WP-E}\\end{eqnarray}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline} + \\left(\\begin{multlined}u+v \\\\ w\\end{multlined}\\right)</annotation>',
         '<annotation encoding="application/x-tex">\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i</annotation>',
+        '<annotation encoding="application/x-tex">\\begin{pmatrix*}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{pmatrix*} + \\begin{cases*}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases*}</annotation>',
         '<mover><msub><mi>p</mi><mi>i</mi></msub><mtext>audit</mtext></mover><mo>+</mo><mrow><msub><mi>q</mi><mi>i</mi></msub><mo>+</mo><msub><mi>r</mi><mi>i</mi></msub></mrow><mo>+</mo><msqrt><msub><mi>s</mi><mi>i</mi></msub></msqrt>',
         '<annotation encoding="application/x-tex">\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}</annotation>',
         '<mtext>text branch</mtext><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub>',

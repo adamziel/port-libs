@@ -206,6 +206,11 @@ return [
         $t->same('rust', SyntaxHighlighter::normalizeLanguage('rs'));
         $t->same('rust', SyntaxHighlighter::normalizeLanguage('rust'));
         $t->same('rust', SyntaxHighlighter::normalizeLanguage('language-rs'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('scheme'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('scm'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('racket'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('rkt'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('language-racket'));
         $t->same('scss', SyntaxHighlighter::normalizeLanguage('scss'));
         $t->same('scss', SyntaxHighlighter::normalizeLanguage('language-scss'));
         $t->same('sass', SyntaxHighlighter::normalizeLanguage('sass'));
@@ -3433,6 +3438,54 @@ return [
         $t->same('vim', $directVim['language']);
         $t->same('vimscript', $directVim['requestedLanguage']);
         $t->contains('<span class="kw">let</span> <span class="va">g:title</span> <span class="op">=</span> <span class="fu">trim</span><span class="op">(</span><span class="va">a:title</span><span class="op">)</span> <span class="op">|</span> <span class="kw">return</span> <span class="cn">v:true</span>', $directVim['html']);
+    },
+    'highlights scheme and racket review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[71] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Scheme/Racket review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directScheme = $highlighter->highlight('(define (title raw) (if (string-blank? raw) "Untitled" raw))', 'scm');
+
+        $t->same('racket', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('scheme'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('scm'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('racket'));
+        $t->same('scheme', SyntaxHighlighter::normalizeLanguage('rkt'));
+        $t->same('scheme', $highlighted['language']);
+        $t->same('racket', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1080, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource racket numberLines"><code class="sourceCode scheme" style="counter-reset: source-line 1079;">', $highlighted['html']);
+        $t->contains('<span id="scheme-review-1080"><a href="#scheme-review-1080"></a><span class="kw">#lang</span> <span class="dt">racket</span></span>', $highlighted['html']);
+        $t->contains('<span class="co">; WordPress import review helper</span>', $highlighted['html']);
+        $t->contains('<span class="kw">struct</span> <span class="va">packet</span> <span class="op">(</span><span class="va">source-id</span> <span class="va">title</span> <span class="va">blocks</span><span class="op">)</span> <span class="ot">#:transparent</span>', $highlighted['html']);
+        $t->contains('<span class="kw">define</span> <span class="op">(</span><span class="va">normalize-title</span> <span class="va">raw</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let*</span> <span class="op">([</span><span class="va">trimmed</span> <span class="op">(</span><span class="fu">string-trim</span> <span class="va">raw</span><span class="op">)]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="fu">string-blank?</span> <span class="va">trimmed</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">match</span> <span class="va">item</span>', $highlighted['html']);
+        $t->contains('<span class="kw">for/list</span> <span class="op">([</span><span class="va">block</span> <span class="va">blocks</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="ot">#:when</span> <span class="op">(</span><span class="fu">hash-ref</span> <span class="va">block</span> <span class="cn">&#039;review?</span> <span class="cn">#t</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="fu">hash</span> <span class="cn">&#039;source</span> <span class="va">source-id</span>', $highlighted['html']);
+        $t->contains('<span class="cn">&#039;block-name</span> <span class="op">(</span><span class="fu">hash-ref</span> <span class="va">block</span> <span class="cn">&#039;name</span> <span class="st">&quot;core/paragraph&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">provide</span> <span class="va">normalize-title</span> <span class="va">packet-&gt;blocks</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="kw">#lang</span> <span class="dt">racket</span>', $wordpressBlock);
+        $t->same('scheme', $directScheme['language']);
+        $t->same('scm', $directScheme['requestedLanguage']);
+        $t->contains('<span class="kw">define</span> <span class="op">(</span><span class="va">title</span> <span class="va">raw</span><span class="op">)</span>', $directScheme['html']);
+        $t->contains('<span class="fu">string-blank?</span>', $directScheme['html']);
+        $t->contains('<span class="st">&quot;Untitled&quot;</span>', $directScheme['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

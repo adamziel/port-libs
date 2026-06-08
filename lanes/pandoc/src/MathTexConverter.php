@@ -2613,8 +2613,10 @@ final class MathTexConverter
             return $this->parseEquationWrapperEnvironment($source, $offset, $environment);
         }
 
-        if ($environment === 'smallmatrix') {
-            return $this->parseSmallMatrixEnvironment($source, $offset);
+        $matrixEnvironment = $this->normalizeStarredMatrixEnvironment($environment);
+
+        if ($matrixEnvironment === 'smallmatrix') {
+            return $this->parseSmallMatrixEnvironment($source, $offset, $environment);
         }
 
         if ($environment === 'subarray') {
@@ -2641,15 +2643,15 @@ final class MathTexConverter
             return $this->parseEqnarrayEnvironment($source, $offset, $environment);
         }
 
-        if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
+        if (!isset(self::MATRIX_ENVIRONMENTS[$matrixEnvironment])) {
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
 
-        $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $environment);
+        $positionAttributes = $this->readOptionalAmsEnvironmentPositionAttributes($source, $offset, $matrixEnvironment);
         $content = $this->readEnvironmentContent($source, $offset, $environment);
-        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $environment);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($content, $matrixEnvironment);
         $rows = $splitRows['rows'];
-        $spec = self::MATRIX_ENVIRONMENTS[$environment];
+        $spec = self::MATRIX_ENVIRONMENTS[$matrixEnvironment];
         $attributes = '';
         if (isset($spec['columnalign'])) {
             $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
@@ -2673,6 +2675,20 @@ final class MathTexConverter
         }
 
         return $table;
+    }
+
+    private function normalizeStarredMatrixEnvironment(string $environment): string
+    {
+        if (!str_ends_with($environment, '*')) {
+            return $environment;
+        }
+
+        $baseEnvironment = substr($environment, 0, -1);
+        if ($baseEnvironment === 'smallmatrix' || isset(self::MATRIX_ENVIRONMENTS[$baseEnvironment])) {
+            return $baseEnvironment;
+        }
+
+        return $environment;
     }
 
     private function parseEquationWrapperEnvironment(string $source, int &$offset, string $environment): string
@@ -2900,11 +2916,11 @@ final class MathTexConverter
         return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes'] . $rowSpacingAttributes, false, 'array', $columnSpec['columns']);
     }
 
-    private function parseSmallMatrixEnvironment(string $source, int &$offset): string
+    private function parseSmallMatrixEnvironment(string $source, int &$offset, string $environment = 'smallmatrix'): string
     {
-        $content = $this->readEnvironmentContent($source, $offset, 'smallmatrix');
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
         if ($this->endsWithTopLevelRowSeparator($content)) {
-            throw new \InvalidArgumentException('Expected TeX smallmatrix row content at final row');
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
         }
 
         $rows = $this->splitAlignmentRows($content, 'smallmatrix');

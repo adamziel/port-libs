@@ -448,6 +448,12 @@ if (!$vimCodeBlock instanceof PortLibs\Pandoc\AstNode || $vimCodeBlock->type !==
 }
 $vim = $highlighter->highlightCodeBlock($vimCodeBlock, 'monochrome');
 $vimWordpressBlock = $highlighter->wordpressHtmlBlock($vimCodeBlock, 'monochrome');
+$schemeCodeBlock = $document->children[71] ?? null;
+if (!$schemeCodeBlock instanceof PortLibs\Pandoc\AstNode || $schemeCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Scheme/Racket review code block');
+}
+$scheme = $highlighter->highlightCodeBlock($schemeCodeBlock, 'espresso');
+$schemeWordpressBlock = $highlighter->wordpressHtmlBlock($schemeCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1946,6 +1952,33 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($vimWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
         throw new RuntimeException('Expected Vimscript WordPress style metadata');
     }
+    if (($scheme['language'] ?? '') !== 'scheme') {
+        throw new RuntimeException('Expected Racket alias to normalize to Scheme highlighting');
+    }
+    if (($scheme['requestedLanguage'] ?? '') !== 'racket') {
+        throw new RuntimeException('Expected Racket requested-language wrapper handoff');
+    }
+    if (($scheme['lineNumbering']['start'] ?? null) !== 1080) {
+        throw new RuntimeException('Expected Scheme/Racket source startFrom line-number handoff');
+    }
+    if (!str_contains($scheme['html'], '<span class="kw">#lang</span> <span class="dt">racket</span>')) {
+        throw new RuntimeException('Expected Scheme/Racket #lang token handoff');
+    }
+    if (!str_contains($scheme['html'], '<span class="kw">struct</span> <span class="va">packet</span> <span class="op">(</span><span class="va">source-id</span>')) {
+        throw new RuntimeException('Expected Scheme/Racket struct token handoff');
+    }
+    if (!str_contains($scheme['html'], '<span class="kw">define</span> <span class="op">(</span><span class="va">normalize-title</span>')) {
+        throw new RuntimeException('Expected Scheme/Racket define token handoff');
+    }
+    if (!str_contains($scheme['html'], '<span class="ot">#:transparent</span>')) {
+        throw new RuntimeException('Expected Scheme/Racket keyword-argument token handoff');
+    }
+    if (!str_contains($scheme['html'], '<span class="ot">#:when</span> <span class="op">(</span><span class="fu">hash-ref</span> <span class="va">block</span> <span class="cn">&#039;review?</span> <span class="cn">#t</span>')) {
+        throw new RuntimeException('Expected Scheme/Racket keyword and boolean token handoff');
+    }
+    if (!str_contains($schemeWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected Scheme/Racket WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2036,6 +2069,7 @@ echo "matlabHighlightedHtml:\n" . $matlab['html'] . "\n";
 echo "fishHighlightedHtml:\n" . $fish['html'] . "\n";
 echo "sedHighlightedHtml:\n" . $sed['html'] . "\n";
 echo "vimHighlightedHtml:\n" . $vim['html'] . "\n";
+echo "schemeHighlightedHtml:\n" . $scheme['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2097,4 +2131,5 @@ echo "fishWordpressBlock:\n" . $fishWordpressBlock . "\n";
 echo "sedWordpressBlock:\n" . $sedWordpressBlock . "\n";
 echo "bibtexWordpressBlock:\n" . $bibtexWordpressBlock . "\n";
 echo "vimWordpressBlock:\n" . $vimWordpressBlock . "\n";
+echo "schemeWordpressBlock:\n" . $schemeWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

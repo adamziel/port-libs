@@ -2726,6 +2726,94 @@ return [
         $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
     },
 
+    'preflights gzip member count thresholds before package handoff' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"gzip-member-count","target":"wordpress"}';
+        $contentBytes = "# GZIP member count\n\nReady for bounded stream review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $firstLength = 512;
+        $secondLength = 768;
+        $thirdOffset = $firstLength + $secondLength;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $firstLength), [
+            'filename' => 'member-count-part-1.tar',
+            'comment' => 'first decoded package segment',
+        ]) . GzipStream::build(substr($tarBytes, $firstLength, $secondLength), [
+            'filename' => 'member-count-part-2.tar',
+            'comment' => 'second decoded package segment',
+        ]) . GzipStream::build(substr($tarBytes, $thirdOffset), [
+            'filename' => 'member-count-part-3.tar',
+            'comment' => 'third decoded package segment',
+        ]);
+
+        $reviewPolicy = ArchiveCompressionStream::inspectGzipMemberCountPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            2,
+            strlen($tarBytes)
+        );
+        $withinPolicy = ArchiveCompressionStream::inspectGzipMemberCountPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            3,
+            strlen($tarBytes)
+        );
+
+        $t->same('archive-gzip-member-count-policy', $reviewPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $reviewPolicy['format']);
+        $t->same(strlen($gzip), $reviewPolicy['compressedSize']);
+        $t->same(strlen($tarBytes), $reviewPolicy['uncompressedSize']);
+        $t->same(3, $reviewPolicy['memberCount']);
+        $t->same(2, $reviewPolicy['maxMemberCount']);
+        $t->same(1, $reviewPolicy['overLimitMemberCount']);
+        $t->same(2, $reviewPolicy['firstOverLimitMemberIndex']);
+        $t->same('review-before-conversion', $reviewPolicy['handoffPolicy']);
+        $t->same('gzip-member-count-review', $reviewPolicy['extractionPolicy']);
+        $t->same(['gzip-member-count-exceeds-threshold'], $reviewPolicy['diagnostics']);
+        $t->same(0, $reviewPolicy['trailingPaddingBytes']);
+        $t->same(['member-count-part-1.tar', 'member-count-part-2.tar', 'member-count-part-3.tar'], array_column($reviewPolicy['members'], 'filename'));
+        $t->same(['first decoded package segment', 'second decoded package segment', 'third decoded package segment'], array_column($reviewPolicy['members'], 'comment'));
+        $t->same([0, $firstLength, $thirdOffset], array_column($reviewPolicy['members'], 'decodedDataOffset'));
+        $t->same([$firstLength, $thirdOffset, strlen($tarBytes)], array_column($reviewPolicy['members'], 'decodedDataEndOffset'));
+        $t->same(['metadata', 'metadata', 'review-before-conversion'], array_column($reviewPolicy['members'], 'policy'));
+        $t->same([[], [], ['gzip-member-over-limit']], array_column($reviewPolicy['members'], 'diagnostics'));
+        $t->same(false, isset($reviewPolicy['members'][0]['data']));
+        $t->same(false, isset($reviewPolicy['archive']));
+        $t->same(false, isset($reviewPolicy['tarBytes']));
+
+        $t->same(0, $withinPolicy['overLimitMemberCount']);
+        $t->same(null, $withinPolicy['firstOverLimitMemberIndex']);
+        $t->same('within-thresholds', $withinPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $withinPolicy['extractionPolicy']);
+        $t->same([], $withinPolicy['diagnostics']);
+        $t->same(['metadata', 'metadata', 'metadata'], array_column($withinPolicy['members'], 'policy'));
+
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipMemberCountPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_TAR,
+            2
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipMemberCountPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            0
+        ));
+    },
+
     'preflights gzip member package boundaries before package handoff' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"gzip-member-boundary","target":"wordpress"}';
         $contentBytes = "# GZIP member boundary\n\nReady for split stream review.\n";

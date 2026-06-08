@@ -1549,6 +1549,111 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table height layout metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="layout-height-grid" data-source="html-reader" height="320">
+<caption>Layout height review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="layout-height-percent" height="75%">
+<tbody>
+<tr><td>Percent height</td><td>Preserved</td></tr>
+</tbody>
+</table>
+<table id="layout-height-invalid" height="calc(100% - 1px)">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $percentTable = $tables[1] ?? null;
+        $invalidTable = $tables[2] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($percentTable instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$percentTable instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $percentPacket = $percentTable->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $layoutDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-layout-height'
+            ));
+            $layoutDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'height' => '320',
+        ], $packet['tableLayout']['attributes'] ?? null);
+        $t->same('320', $packet['tableLayout']['height'] ?? null);
+        $t->same('pixels', $packet['tableLayout']['heightType'] ?? null);
+        $t->same(320.0, $packet['tableLayout']['heightValue'] ?? null);
+        $t->same('320', $packet['tableLayout']['sourceAttributes']['htmlAttributes']['height'] ?? null);
+        $t->same(true, $packet['summary']['hasTableLayout'] ?? null);
+        $t->same('320', $packet['summary']['tableHeight'] ?? null);
+        $t->same('pixels', $packet['summary']['tableHeightType'] ?? null);
+        $t->same(1, $packet['summary']['tableLayoutAttributeCount'] ?? null);
+
+        $t->same(true, is_array($percentPacket));
+        $percentPacket = is_array($percentPacket) ? $percentPacket : [];
+        $t->same('75%', $percentPacket['tableLayout']['height'] ?? null);
+        $t->same('percent', $percentPacket['tableLayout']['heightType'] ?? null);
+        $t->same(75.0, $percentPacket['tableLayout']['heightValue'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableLayout', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableLayout'] ?? null);
+
+        $t->same([
+            'markdown-table-height-requires-raw-html',
+            'asciidoc-table-height-review-required',
+            'latex-table-height-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $layoutDiagnostics['markdown'],
+            $layoutDiagnostics['asciidoc'],
+            $layoutDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-height', $layoutDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-layout', $layoutDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'height' => '320',
+        ], $layoutDiagnostics['markdown']['attributes'] ?? null);
+        $t->same('320', $layoutDiagnostics['markdown']['height'] ?? null);
+        $t->same('pixels', $layoutDiagnostics['markdown']['heightType'] ?? null);
+
+        $t->contains('<table id="layout-height-grid" data-source="html-reader" height="320">', $blocks);
+        $t->contains('<table id="layout-height-percent" height="75%">', $blocks);
+        $t->true(!str_contains($blocks, 'height="calc(100% - 1px)"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($percentPacket, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes legacy html table placement alignment for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">
