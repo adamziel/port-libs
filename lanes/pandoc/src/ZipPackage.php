@@ -25,6 +25,7 @@ final class ZipPackage
     private const MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT = 20;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
+    private const INFOZIP_UNIX_UID_GID_EXTRA_ID = 0x7875;
     private const WINZIP_AES_EXTRA_ID = 0x9901;
     private const UINT32_FACTOR = 4294967296;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
@@ -1938,6 +1939,19 @@ final class ZipPackage
         return null;
     }
 
+    /**
+     * @return array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}|null
+     */
+    public function localUnixUidGid(string $partName): ?array
+    {
+        $entry = $this->entry($partName);
+
+        return ZipPackageEntry::unixUidGidFromExtraField(
+            $this->localExtraField($entry->name, self::INFOZIP_UNIX_UID_GID_EXTRA_ID),
+            "local extra fields for {$entry->name}"
+        );
+    }
+
     public function localExtendedLastModifiedTimestamp(string $partName): ?int
     {
         $timestamps = $this->localExtendedTimestamps($partName);
@@ -3790,6 +3804,7 @@ final class ZipPackage
      *     dosAttributes:array<string, mixed>,
      *     internalAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
+     *     unixOwners:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
      *     readIntegrity:array<string, mixed>
@@ -3824,6 +3839,7 @@ final class ZipPackage
         $dosAttributes = $this->dosAttributePreflight();
         $internalAttributes = $this->internalAttributePreflight();
         $creatorHostSystems = $this->creatorHostSystemPreflight();
+        $unixOwners = $this->unixOwnerPreflight();
         $localHeaders = $this->localHeaderPreflight();
         $dataDescriptors = $this->dataDescriptorPreflight();
         $readIntegrity = $this->readIntegrityPreflight($maxEntryUncompressedBytes);
@@ -3901,6 +3917,10 @@ final class ZipPackage
             $diagnostics[] = 'unknown-creator-host-systems';
         }
 
+        if ($unixOwners['ownerMetadataEntryCount'] > 0) {
+            $diagnostics[] = 'unix-owner-extra-fields';
+        }
+
         if (
             $maxTotalUncompressedBytes !== null
             && $size['uncompressedBytes'] > $maxTotalUncompressedBytes
@@ -3947,6 +3967,7 @@ final class ZipPackage
             'dosAttributes' => $dosAttributes,
             'internalAttributes' => $internalAttributes,
             'creatorHostSystems' => $creatorHostSystems,
+            'unixOwners' => $unixOwners,
             'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
             'readIntegrity' => $readIntegrity,
@@ -3975,6 +3996,7 @@ final class ZipPackage
      *     dosAttributes:array<string, mixed>,
      *     internalAttributes:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
+     *     unixOwners:array<string, mixed>,
      *     localHeaders:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
      *     readIntegrity:array<string, mixed>
@@ -4582,6 +4604,125 @@ final class ZipPackage
             'unknownEntries' => $unknownEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     ownerMetadataEntryCount:int,
+     *     centralOwnerMetadataEntryCount:int,
+     *     localOwnerMetadataEntryCount:int,
+     *     mismatchedOwnerMetadataEntryCount:int,
+     *     ownerMetadataEntries:list<array{name:string, centralOwner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, localOwner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, hasCentralOwnerMetadata:bool, hasLocalOwnerMetadata:bool, ownerMetadataMatches:bool, issues:list<string>}>,
+     *     mismatchedOwnerMetadataEntries:list<array{name:string, centralOwner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, localOwner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, hasCentralOwnerMetadata:bool, hasLocalOwnerMetadata:bool, ownerMetadataMatches:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, centralOwner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, localOwner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, hasCentralOwnerMetadata:bool, hasLocalOwnerMetadata:bool, ownerMetadataMatches:bool, issues:list<string>}>
+     * }
+     */
+    public function unixOwnerPreflight(): array
+    {
+        $centralOwnerMetadataEntryCount = 0;
+        $localOwnerMetadataEntryCount = 0;
+        $ownerMetadataEntries = [];
+        $mismatchedOwnerMetadataEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $centralOwner = $entry->unixUidGid();
+            $localOwner = $this->localUnixUidGid($entry->name);
+            $hasCentralOwnerMetadata = $centralOwner !== null;
+            $hasLocalOwnerMetadata = $localOwner !== null;
+            $ownerMetadataMatches = !($hasCentralOwnerMetadata && $hasLocalOwnerMetadata)
+                || $centralOwner === $localOwner;
+            $issues = [];
+
+            if ($hasCentralOwnerMetadata) {
+                $issues[] = 'central-unix-uid-gid-extra-field';
+                $centralOwnerMetadataEntryCount++;
+            }
+
+            if ($hasLocalOwnerMetadata) {
+                $issues[] = 'local-unix-uid-gid-extra-field';
+                $localOwnerMetadataEntryCount++;
+            }
+
+            if (!$ownerMetadataMatches) {
+                $issues[] = 'unix-uid-gid-mismatch';
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'centralOwner' => $centralOwner,
+                'localOwner' => $localOwner,
+                'hasCentralOwnerMetadata' => $hasCentralOwnerMetadata,
+                'hasLocalOwnerMetadata' => $hasLocalOwnerMetadata,
+                'ownerMetadataMatches' => $ownerMetadataMatches,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+
+            if ($hasCentralOwnerMetadata || $hasLocalOwnerMetadata) {
+                $ownerMetadataEntries[] = $summary;
+            }
+
+            if (!$ownerMetadataMatches) {
+                $mismatchedOwnerMetadataEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'ownerMetadataEntryCount' => count($ownerMetadataEntries),
+            'centralOwnerMetadataEntryCount' => $centralOwnerMetadataEntryCount,
+            'localOwnerMetadataEntryCount' => $localOwnerMetadataEntryCount,
+            'mismatchedOwnerMetadataEntryCount' => count($mismatchedOwnerMetadataEntries),
+            'ownerMetadataEntries' => $ownerMetadataEntries,
+            'mismatchedOwnerMetadataEntries' => $mismatchedOwnerMetadataEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     ownerMetadataEntryCount:int,
+     *     centralOwnerMetadataEntryCount:int,
+     *     localOwnerMetadataEntryCount:int,
+     *     mismatchedOwnerMetadataEntryCount:int,
+     *     ownerMetadataEntries:list<array<string, mixed>>,
+     *     mismatchedOwnerMetadataEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public function assertNoUnixOwnerMetadata(): array
+    {
+        $summary = $this->unixOwnerPreflight();
+        if ($summary['ownerMetadataEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static function (array $entry): string {
+                        $parts = [];
+                        if ($entry['centralOwner'] !== null) {
+                            $parts[] = 'central uid ' . $entry['centralOwner']['uid']
+                                . ' gid ' . $entry['centralOwner']['gid'];
+                        }
+                        if ($entry['localOwner'] !== null) {
+                            $parts[] = 'local uid ' . $entry['localOwner']['uid']
+                                . ' gid ' . $entry['localOwner']['gid'];
+                        }
+
+                        return $entry['name'] . ' (' . implode('; ', $parts) . ')';
+                    },
+                    $summary['ownerMetadataEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains Unix UID/GID owner extra fields that require explicit import review: ' . $entries
+            );
+        }
+
+        return $summary;
     }
 
     /**
@@ -6286,9 +6427,18 @@ final class ZipPackage
         }
 
         if ($extraFieldData !== '') {
+            $extraFields = ZipPackageEntry::extraFieldsFromData($extraFieldData, "generated extra fields for {$name}");
+            foreach ($extraFields as $field) {
+                if ($field['id'] === self::INFOZIP_UNIX_UID_GID_EXTRA_ID) {
+                    throw new \RuntimeException(
+                        "ZIP entry {$name} generated extra fields must not contain Unix UID/GID owner metadata"
+                    );
+                }
+            }
+
             $extraFieldIds = array_map(
                 static fn (array $field): int => $field['id'],
-                ZipPackageEntry::extraFieldsFromData($extraFieldData, "generated extra fields for {$name}")
+                $extraFields
             );
             $duplicateExtraFieldIds = self::duplicateIntegerValues($extraFieldIds);
             if ($duplicateExtraFieldIds !== []) {

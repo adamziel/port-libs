@@ -27,6 +27,30 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
 
     return pack('vv', 0x000a, strlen($payload)) . $payload;
 };
+$packZipVariableUnsignedInteger = static function (int $value): string {
+    if ($value < 0) {
+        throw new \RuntimeException('ZIP variable unsigned integer value must be non-negative');
+    }
+
+    $bytes = '';
+    do {
+        $bytes .= chr($value & 0xff);
+        $value = intdiv($value, 256);
+    } while ($value > 0);
+
+    return $bytes;
+};
+$buildUnixOwnerExtra = static function (int $uid, int $gid) use ($packZipVariableUnsignedInteger): string {
+    $uidBytes = $packZipVariableUnsignedInteger($uid);
+    $gidBytes = $packZipVariableUnsignedInteger($gid);
+    $payload = chr(1)
+        . chr(strlen($uidBytes))
+        . $uidBytes
+        . chr(strlen($gidBytes))
+        . $gidBytes;
+
+    return pack('vv', 0x7875, strlen($payload)) . $payload;
+};
 
 /**
  * @param list<array{
@@ -3473,6 +3497,133 @@ return [
         $t->same($timestamps, $package->localNtfsTimestamps('/word/document.xml'));
         $t->same($modifiedAt, $package->localNtfsLastModifiedTimestamp('word/document.xml'));
         $t->same('<w:document><w:p>ntfs timestamps</w:p></w:document>', $package->read('/word/document.xml'));
+    },
+
+    'preflights unix uid gid zip owner extra fields before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnixOwnerExtra): void {
+        $ownerExtra = $buildUnixOwnerExtra(1001, 1002);
+        $owner = [
+            'version' => 1,
+            'uid' => 1001,
+            'gid' => 1002,
+            'uidByteLength' => 2,
+            'gidByteLength' => 2,
+        ];
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>unix owner preflight</w:p></w:document>',
+                'method' => 8,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => "reviewer media owner metadata\n",
+                'method' => 0,
+                'localExtra' => $ownerExtra,
+                'centralExtra' => $ownerExtra,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]));
+
+        $entry = $package->entry('/word/media/reviewer-note.txt');
+        $t->same($owner, $entry->unixUidGid());
+        $t->same($owner, $package->localUnixUidGid('/word/media/reviewer-note.txt'));
+
+        $summary = $package->unixOwnerPreflight();
+        $t->same(2, $summary['entryCount']);
+        $t->same(1, $summary['ownerMetadataEntryCount']);
+        $t->same(1, $summary['centralOwnerMetadataEntryCount']);
+        $t->same(1, $summary['localOwnerMetadataEntryCount']);
+        $t->same(0, $summary['mismatchedOwnerMetadataEntryCount']);
+        $t->same('word/media/reviewer-note.txt', $summary['ownerMetadataEntries'][0]['name']);
+        $t->same($owner, $summary['ownerMetadataEntries'][0]['centralOwner']);
+        $t->same($owner, $summary['ownerMetadataEntries'][0]['localOwner']);
+        $t->same(true, $summary['ownerMetadataEntries'][0]['ownerMetadataMatches']);
+        $t->same([
+            'central-unix-uid-gid-extra-field',
+            'local-unix-uid-gid-extra-field',
+        ], $summary['ownerMetadataEntries'][0]['issues']);
+
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['unix-owner-extra-fields'], $strictSummary['diagnostics']);
+        $t->same(1, $strictSummary['unixOwners']['ownerMetadataEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoUnixOwnerMetadata());
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
+        $t->same("reviewer media owner metadata\n", $package->read('/word/media/reviewer-note.txt'));
+
+        $localOnlyPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/local-owner.txt',
+                'data' => "local owner metadata\n",
+                'method' => 0,
+                'localExtra' => $buildUnixOwnerExtra(33, 44),
+                'centralExtra' => '',
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]));
+        $localOnlySummary = $localOnlyPackage->unixOwnerPreflight();
+        $t->same(1, $localOnlySummary['ownerMetadataEntryCount']);
+        $t->same(0, $localOnlySummary['centralOwnerMetadataEntryCount']);
+        $t->same(1, $localOnlySummary['localOwnerMetadataEntryCount']);
+        $t->same(null, $localOnlySummary['ownerMetadataEntries'][0]['centralOwner']);
+        $t->same(33, $localOnlySummary['ownerMetadataEntries'][0]['localOwner']['uid']);
+        $t->same([
+            'local-unix-uid-gid-extra-field',
+        ], $localOnlySummary['ownerMetadataEntries'][0]['issues']);
+
+        $mismatchedPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/mismatched-owner.txt',
+                'data' => "mismatched owner metadata\n",
+                'method' => 0,
+                'localExtra' => $buildUnixOwnerExtra(600, 601),
+                'centralExtra' => $buildUnixOwnerExtra(500, 501),
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]));
+        $mismatchedSummary = $mismatchedPackage->unixOwnerPreflight();
+        $t->same(1, $mismatchedSummary['ownerMetadataEntryCount']);
+        $t->same(1, $mismatchedSummary['mismatchedOwnerMetadataEntryCount']);
+        $t->same(false, $mismatchedSummary['mismatchedOwnerMetadataEntries'][0]['ownerMetadataMatches']);
+        $t->same([
+            'central-unix-uid-gid-extra-field',
+            'local-unix-uid-gid-extra-field',
+            'unix-uid-gid-mismatch',
+        ], $mismatchedSummary['mismatchedOwnerMetadataEntries'][0]['issues']);
+        $t->contains('unix-owner-extra-fields', implode(',', $mismatchedPackage->strictImportPreflight(2048, 100.0, 2048)['diagnostics']));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/truncated-owner.txt',
+                'data' => 'truncated owner extra field',
+                'method' => 0,
+                'centralExtra' => pack('vvCC', 0x7875, 2, 1, 1),
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/unsupported-owner-version.txt',
+                'data' => 'unsupported owner extra version',
+                'method' => 0,
+                'centralExtra' => pack('vvCCCCC', 0x7875, 5, 2, 1, 1, 1, 2),
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/empty-owner-id.txt',
+                'data' => 'empty owner id',
+                'method' => 0,
+                'centralExtra' => pack('vvCC', 0x7875, 2, 1, 0),
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/generated-owner.txt',
+                'data' => "generated owner metadata\n",
+                'extraFieldData' => $ownerExtra,
+            ],
+        ]));
     },
 
     'rejects malformed and mismatched ntfs zip extra field metadata' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {

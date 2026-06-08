@@ -39,6 +39,30 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
 
     return pack('vv', 0x000a, strlen($payload)) . $payload;
 };
+$packZipVariableUnsignedInteger = static function (int $value): string {
+    if ($value < 0) {
+        throw new RuntimeException('ZIP owner fixture values must be non-negative');
+    }
+
+    $bytes = '';
+    do {
+        $bytes .= chr($value & 0xff);
+        $value = intdiv($value, 256);
+    } while ($value > 0);
+
+    return $bytes;
+};
+$buildUnixOwnerExtra = static function (int $uid, int $gid) use ($packZipVariableUnsignedInteger): string {
+    $uidBytes = $packZipVariableUnsignedInteger($uid);
+    $gidBytes = $packZipVariableUnsignedInteger($gid);
+    $payload = chr(1)
+        . chr(strlen($uidBytes))
+        . $uidBytes
+        . chr(strlen($gidBytes))
+        . $gidBytes;
+
+    return pack('vv', 0x7875, strlen($payload)) . $payload;
+};
 $packUInt64 = static function (int $value): string {
     if ($value < 0) {
         throw new RuntimeException('ZIP64 fixture values must be non-negative');
@@ -1632,6 +1656,54 @@ $buildDuplicateExtraFieldBackedPackage = static function () use ($crc32): string
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnixOwnerBackedPackage = static function () use ($crc32, $buildUnixOwnerExtra): string {
+    $name = 'word/media/unix-owner-review.txt';
+    $data = "Unix UID/GID owner metadata should stay reviewable\n";
+    $crc = $crc32($data);
+    $extra = $buildUnixOwnerExtra(1001, 1002);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($extra)
+    );
+    $body .= $name . $extra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($extra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $extra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildExtraFieldValueMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/split-extra-value-review.bin';
     $data = "Central and local ZIP extra-field values should stay reviewable\n";
@@ -2089,6 +2161,7 @@ $packageDosAttributePreflight = $package->dosAttributePreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
+$packageUnixOwnerPreflight = $package->unixOwnerPreflight();
 $packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
 $packageCaseInsensitiveNamePreflight = $package->caseInsensitiveNamePreflight();
 $packageLocalHeaderPreflight = $package->localHeaderPreflight();
@@ -2212,6 +2285,34 @@ try {
     ]);
 } catch (RuntimeException $exception) {
     $generatedDuplicateExtraFieldRejected = str_contains($exception->getMessage(), 'duplicate extra field ids');
+}
+$unixOwnerExtra = $buildUnixOwnerExtra(1001, 1002);
+$unixOwnerPackage = ZipPackage::fromString($buildUnixOwnerBackedPackage());
+$unixOwnerPreflight = $unixOwnerPackage->unixOwnerPreflight();
+$unixOwnerStrictPreflight = $unixOwnerPackage->strictImportPreflight(4096, 100.0, 4096);
+$unixOwnerRejected = false;
+try {
+    $unixOwnerPackage->assertNoUnixOwnerMetadata();
+} catch (RuntimeException $exception) {
+    $unixOwnerRejected = str_contains($exception->getMessage(), 'Unix UID/GID owner extra fields');
+}
+$unixOwnerStrictRejected = false;
+try {
+    $unixOwnerPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $unixOwnerStrictRejected = str_contains($exception->getMessage(), 'unix-owner-extra-fields');
+}
+$generatedUnixOwnerExtraFieldRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/generated-unix-owner-review.txt',
+            'data' => "Generated ZIP owner metadata should fail before output\n",
+            'extraFieldData' => $unixOwnerExtra,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $generatedUnixOwnerExtraFieldRejected = str_contains($exception->getMessage(), 'Unix UID/GID owner metadata');
 }
 $duplicateExtraFieldPackage = ZipPackage::fromString($buildDuplicateExtraFieldBackedPackage());
 $duplicateExtraFieldPreflight = $duplicateExtraFieldPackage->extraFieldPreflight();
@@ -3552,6 +3653,30 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected generated ZIP writer to reject duplicate extra field ids before package output');
     }
 
+    if ($package->assertNoUnixOwnerMetadata() !== $packageUnixOwnerPreflight) {
+        throw new RuntimeException('Expected generated ZIP package Unix owner preflight to return the accepted summary');
+    }
+
+    if (($packageUnixOwnerPreflight['ownerMetadataEntryCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected generated ZIP package to avoid Unix UID/GID owner metadata');
+    }
+
+    if (
+        !$unixOwnerRejected
+        || !$unixOwnerStrictRejected
+        || ($unixOwnerPreflight['ownerMetadataEntryCount'] ?? null) !== 1
+        || ($unixOwnerPreflight['ownerMetadataEntries'][0]['name'] ?? null) !== 'word/media/unix-owner-review.txt'
+        || ($unixOwnerPreflight['ownerMetadataEntries'][0]['centralOwner']['uid'] ?? null) !== 1001
+        || ($unixOwnerPreflight['ownerMetadataEntries'][0]['localOwner']['gid'] ?? null) !== 1002
+        || ($unixOwnerStrictPreflight['diagnostics'][0] ?? null) !== 'unix-owner-extra-fields'
+    ) {
+        throw new RuntimeException('Expected ZIP Unix UID/GID owner extra fields to stay blocked before media import');
+    }
+
+    if (!$generatedUnixOwnerExtraFieldRejected) {
+        throw new RuntimeException('Expected generated ZIP writer to reject Unix UID/GID owner metadata before package output');
+    }
+
     if (($packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 0) {
         throw new RuntimeException('Expected generated ZIP package to avoid central/local extra field id mismatches');
     }
@@ -4546,6 +4671,7 @@ echo 'zipDosHiddenSystemVolumeEntry=' . ($hiddenDosAttributePreflight['hiddenSys
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";
+echo 'packageUnixOwners.ownerMetadataEntryCount=' . $packageUnixOwnerPreflight['ownerMetadataEntryCount'] . "\n";
 echo 'packagePathHierarchy.collisionEntryCount=' . $packagePathHierarchyPreflight['collisionEntryCount'] . "\n";
 echo 'packageCaseInsensitiveNames.collisionEntryCount=' . $packageCaseInsensitiveNamePreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
@@ -4611,6 +4737,14 @@ echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPre
 echo 'zipUnknownCreatorHostPolicy=' . ($unknownCreatorHostRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnknownCreatorHostEntry=' . ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipGeneratedDuplicateExtraFieldPolicy=' . ($generatedDuplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipGeneratedUnixOwnerExtraFieldPolicy=' . ($generatedUnixOwnerExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnixOwnerExtraFieldPolicy=' . ($unixOwnerRejected && $unixOwnerStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnixOwnerExtraFieldEntry=' . ($unixOwnerPreflight['ownerMetadataEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipUnixOwnerExtraFieldUidGid='
+    . ($unixOwnerPreflight['ownerMetadataEntries'][0]['centralOwner']['uid'] ?? 'none')
+    . ':'
+    . ($unixOwnerPreflight['ownerMetadataEntries'][0]['centralOwner']['gid'] ?? 'none')
+    . "\n";
 echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -26,6 +26,7 @@ final class ZipPackageEntry
     private const DOS_ARCHIVE_ATTRIBUTE = 0x20;
     private const INTERNAL_TEXT_ATTRIBUTE = 0x0001;
     private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
+    private const INFOZIP_UNIX_UID_GID_EXTRA_ID = 0x7875;
     private const WINZIP_AES_EXTRA_ID = 0x9901;
 
     public function __construct(
@@ -376,6 +377,17 @@ final class ZipPackageEntry
     }
 
     /**
+     * @return array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}|null
+     */
+    public function unixUidGid(): ?array
+    {
+        return self::unixUidGidFromExtraField(
+            $this->centralExtraField(self::INFOZIP_UNIX_UID_GID_EXTRA_ID),
+            "central extra fields for {$this->name}"
+        );
+    }
+
+    /**
      * @return list<array{id:int, data:string}>
      */
     public static function extraFieldsFromData(string $bytes, string $label, bool $allowZip64 = false): array
@@ -411,6 +423,14 @@ final class ZipPackageEntry
         }
 
         return self::parseNtfsTimestamps($data, $label);
+    }
+
+    /**
+     * @return array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}|null
+     */
+    public static function unixUidGidFromExtraField(?string $data, string $label): ?array
+    {
+        return self::parseUnixUidGid($data, $label);
     }
 
     public static function validateExtraFieldData(string $bytes, string $label): void
@@ -451,6 +471,9 @@ final class ZipPackageEntry
             if ($id === self::WINZIP_AES_EXTRA_ID) {
                 throw new \RuntimeException("WinZip AES extra field for {$label} is not supported by this bounded package reader");
             }
+            if ($id === self::INFOZIP_UNIX_UID_GID_EXTRA_ID) {
+                self::parseUnixUidGid($data, $label);
+            }
             if ($id === 0x5455) {
                 self::parseExtendedTimestamps($data, $label);
             }
@@ -466,6 +489,104 @@ final class ZipPackageEntry
         }
 
         return $fields;
+    }
+
+    /**
+     * @return array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}|null
+     */
+    private static function parseUnixUidGid(?string $data, string $label): ?array
+    {
+        if ($data === null) {
+            return null;
+        }
+
+        $length = strlen($data);
+        if ($length < 3) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} is truncated");
+        }
+
+        $version = ord($data[0]);
+        if ($version !== 1) {
+            throw new \RuntimeException(
+                "Info-ZIP Unix UID/GID extra field for {$label} uses unsupported version {$version}"
+            );
+        }
+
+        $cursor = 1;
+        $uidByteLength = ord($data[$cursor]);
+        $cursor++;
+        if ($uidByteLength < 1) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} has an empty UID");
+        }
+
+        if ($cursor + $uidByteLength > $length) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} has a truncated UID");
+        }
+
+        $uidBytes = substr($data, $cursor, $uidByteLength);
+        $cursor += $uidByteLength;
+        if ($cursor >= $length) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} is missing a GID length");
+        }
+
+        $gidByteLength = ord($data[$cursor]);
+        $cursor++;
+        if ($gidByteLength < 1) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} has an empty GID");
+        }
+
+        if ($cursor + $gidByteLength > $length) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} has a truncated GID");
+        }
+
+        $gidBytes = substr($data, $cursor, $gidByteLength);
+        $cursor += $gidByteLength;
+        if ($cursor !== $length) {
+            throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} has trailing bytes");
+        }
+
+        return [
+            'version' => $version,
+            'uid' => self::parseLittleEndianUnsignedInteger($uidBytes, $label, 'UID'),
+            'gid' => self::parseLittleEndianUnsignedInteger($gidBytes, $label, 'GID'),
+            'uidByteLength' => $uidByteLength,
+            'gidByteLength' => $gidByteLength,
+        ];
+    }
+
+    private static function parseLittleEndianUnsignedInteger(string $bytes, string $label, string $fieldName): int
+    {
+        $value = 0;
+        $factor = 1;
+        $length = strlen($bytes);
+
+        for ($index = 0; $index < $length; $index++) {
+            $byte = ord($bytes[$index]);
+            if ($byte !== 0 && $factor > intdiv(PHP_INT_MAX, $byte)) {
+                throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} {$fieldName} is too large");
+            }
+
+            $addend = $byte * $factor;
+            if ($value > PHP_INT_MAX - $addend) {
+                throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} {$fieldName} is too large");
+            }
+
+            $value += $addend;
+            if ($index === $length - 1) {
+                continue;
+            }
+
+            if ($factor > intdiv(PHP_INT_MAX, 256)) {
+                if (substr($bytes, $index + 1) !== str_repeat("\0", $length - $index - 1)) {
+                    throw new \RuntimeException("Info-ZIP Unix UID/GID extra field for {$label} {$fieldName} is too large");
+                }
+                break;
+            }
+
+            $factor *= 256;
+        }
+
+        return $value;
     }
 
     /**
