@@ -476,6 +476,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdftext-dictionary-layout-order-typed-direct-envelope-currentbase.php` maps selected pdftext dictionary pages through typed supplied `layout_result` and `order_result` wrappers whose geometry is stored under one `pages` or `dictionary_output` envelope. It promotes the selected heading/body order, excludes cover text and raw envelope payloads, and avoids Python pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-nested-json-pages-currentbase.php` maps WordPress adapter caches where an explicit `dictionary_output` envelope stores only its nested `pages` member as raw JSON. It unwraps the selected pdftext page before Marker block conversion, promotes safe span links and synthesized refs, excludes stale adapter pages plus raw payload markers, and avoids Python pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

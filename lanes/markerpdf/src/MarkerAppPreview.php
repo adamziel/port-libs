@@ -2444,6 +2444,9 @@ final class MarkerAppPreview
         if ($dict === null) {
             return null;
         }
+        if (!$this->pageLabelDictionaryTypeIsValid($dict, $objects, $seen)) {
+            return null;
+        }
         if ($this->pageLabelDictionaryHasNumberTreeKeys($dict)) {
             return null;
         }
@@ -2453,6 +2456,32 @@ final class MarkerAppPreview
             'style' => $this->pageLabelStyleValueAfterName($dict, 'S', $objects, $seen),
             'start' => $this->pageLabelStartValueAfterName($dict, 'St', $objects, $seen),
         ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelDictionaryTypeIsValid(string $dict, array $objects, array $seen): bool
+    {
+        $sawType = false;
+        foreach ($this->valueEntriesAfterName($dict, 'Type') as $entry) {
+            $sawType = true;
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $typeValue = $this->pageLabelSinglePdfToken(
+                $this->resolvePageLabelPdfValue($entry['value'], $objects, $seen)
+            );
+            if ($typeValue === null || !str_starts_with($typeValue, '/')) {
+                continue;
+            }
+
+            return $this->decodePdfName(substr($typeValue, 1)) === 'PageLabel';
+        }
+
+        return !$sawType;
     }
 
     private function pageLabelDictionaryHasNumberTreeKeys(string $dict): bool

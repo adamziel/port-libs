@@ -15742,8 +15742,13 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $section = $this->parsePageLabelDictionary($labelDictionary, $objects);
+            if ($section === null) {
+                continue;
+            }
+
             if (!array_key_exists($pageIndex, $entries)) {
-                $entries[$pageIndex] = $this->parsePageLabelDictionary($labelDictionary, $objects);
+                $entries[$pageIndex] = $section;
             }
         }
 
@@ -16202,6 +16207,29 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function pageLabelDictionaryTypeIsValid(string $dictionary, array $objects): bool
+    {
+        $sawType = false;
+        foreach ($this->pageLabelTopLevelValueEntriesAfterName($dictionary, 'Type') as $entry) {
+            $sawType = true;
+            if ($entry['has_trailing_operand']) {
+                continue;
+            }
+
+            $type = $this->pageLabelNameValue($entry['value'], $objects);
+            if ($type === null) {
+                continue;
+            }
+
+            return $type === 'PageLabel';
+        }
+
+        return !$sawType;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function pageLabelArrayValueAfterNameResolved(string $body, string $name, array $objects): ?string
     {
         return $this->pageLabelArrayValuesAfterNameResolved($body, $name, $objects)[0] ?? null;
@@ -16376,10 +16404,14 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{prefix: string, style: string|null, start: int}
+     * @return array{prefix: string, style: string|null, start: int}|null
      */
-    private function parsePageLabelDictionary(string $dictionary, array $objects): array
+    private function parsePageLabelDictionary(string $dictionary, array $objects): ?array
     {
+        if (!$this->pageLabelDictionaryTypeIsValid($dictionary, $objects)) {
+            return null;
+        }
+
         $candidate = $this->pageLabelNameValueAfterName($dictionary, 'S', $objects);
         $style = in_array($candidate, ['D', 'R', 'r', 'A', 'a'], true) ? $candidate : null;
 

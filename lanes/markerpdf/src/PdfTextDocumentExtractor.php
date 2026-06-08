@@ -143,7 +143,7 @@ final class PdfTextDocumentExtractor
             }
 
             if (!array_key_exists('blocks', $pages) && array_key_exists('pages', $pages)) {
-                $nestedPages = $this->normalizeSuppliedDictionaryValue($pages['pages']);
+                $nestedPages = $this->normalizeSuppliedDictionaryEnvelopeValue($pages['pages']);
                 if (is_array($nestedPages)) {
                     return $this->orderedSuppliedDictionaryPageList($nestedPages);
                 }
@@ -269,7 +269,7 @@ final class PdfTextDocumentExtractor
             }
 
             if (array_key_exists('pages', $candidate)) {
-                $candidatePages = $this->normalizeSuppliedDictionaryValue($candidate['pages']);
+                $candidatePages = $this->normalizeSuppliedDictionaryEnvelopeValue($candidate['pages']);
                 if (is_array($candidatePages)) {
                     $pageList = $this->orderedSuppliedDictionaryPageList($candidatePages);
                     if (count($pageList) === 1 && is_array($pageList[0]) && array_key_exists('blocks', $pageList[0])) {
@@ -351,7 +351,7 @@ final class PdfTextDocumentExtractor
         }
 
         if (array_key_exists('pages', $value)) {
-            $pages = $this->normalizeSuppliedDictionaryValue($value['pages']);
+            $pages = $this->normalizeSuppliedDictionaryEnvelopeValue($value['pages']);
             if (is_array($pages)) {
                 if ($pages === []) {
                     return [];
