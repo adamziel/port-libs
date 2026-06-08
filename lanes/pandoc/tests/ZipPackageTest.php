@@ -3272,6 +3272,8 @@ return [
         $t->same($summary['centralDirectoryOffset'] + $summary['centralDirectorySize'], $summary['centralDirectoryEnd']);
         $t->same($summary['recordOffset'], $summary['centralDirectoryEnd']);
         $t->same(true, $summary['centralDirectoryEndMatchesRecordOffset']);
+        $t->same(true, $summary['eocdFieldsMatchZip64Record']);
+        $t->same([], $summary['eocdZip64MismatchedFields']);
         $t->same(true, $summary['isSingleDisk']);
 
         $locatorOffset = $summary['locatorOffset'];
@@ -3287,6 +3289,23 @@ return [
             'zip64-split-archive',
             'zip64-locator-total-disks-mismatch',
         ], $mismatchedLocatorSummary['issues']);
+
+        $eocdMismatchZip = substr_replace($zip, pack('v', 2), $summary['eocdOffset'] + 8, 2);
+        $eocdMismatchZip = substr_replace($eocdMismatchZip, pack('v', 2), $summary['eocdOffset'] + 10, 2);
+        $eocdMismatchSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($eocdMismatchZip);
+        $eocdMismatchRaw = ZipPackage::rawStrictImportPreflight($eocdMismatchZip, 512, 20.0, 512);
+        $t->same(false, $eocdMismatchSummary['eocdFieldsMatchZip64Record']);
+        $t->same([
+            'diskEntryCount',
+            'totalEntryCount',
+        ], $eocdMismatchSummary['eocdZip64MismatchedFields']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-eocd-field-mismatch',
+        ], $eocdMismatchSummary['issues']);
+        $t->same(false, $eocdMismatchRaw['isValid']);
+        $t->same($eocdMismatchSummary, $eocdMismatchRaw['zip64EndOfCentralDirectory']);
+        $t->contains('zip64-eocd-field-mismatch', implode(',', $eocdMismatchRaw['diagnostics']));
 
         $sentinelOnlyZip = $rewriteEndOfCentralDirectory($buildZipPackage([
             [
@@ -3304,6 +3323,8 @@ return [
         $t->same(false, $sentinelOnlySummary['hasZip64EndOfCentralDirectory']);
         $t->same(false, $sentinelOnlySummary['isSupportedByBoundedReader']);
         $t->same(['zip64-end-of-central-directory-required'], $sentinelOnlySummary['issues']);
+        $t->same(null, $sentinelOnlySummary['eocdFieldsMatchZip64Record']);
+        $t->same([], $sentinelOnlySummary['eocdZip64MismatchedFields']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($sentinelOnlyZip));
     },
 

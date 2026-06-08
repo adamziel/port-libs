@@ -1748,6 +1748,109 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'maps bounded biblatex season dates into csl date metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{seasonal-source,
+  author    = {{Season Desk}},
+  title     = {Seasonal Source Packet},
+  date      = {2026-22},
+  origdate  = {1999-23},
+  publisher = {Review Press},
+  url       = {https://example.test/seasonal-source},
+  urldate   = {2026-24}
+}
+
+@inproceedings{spring-event-review,
+  author    = {Ng, Nia},
+  title     = {Spring Event Packet},
+  booktitle = {Migration Conference},
+  eventdate = {2025-21},
+  date      = {2025},
+  pages     = {7--9}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['date-parts' => [[2026]], 'season' => 2], $items[0]['issued']);
+        $t->same(['date-parts' => [[1999]], 'season' => 3], $items[0]['original-date']);
+        $t->same(['date-parts' => [[2026]], 'season' => 4], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2025]], 'season' => 1], $items[1]['event-date']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $seasonal = $processor->item('seasonal-source');
+        $event = $processor->item('spring-event-review');
+        $t->same('Summer 2026', $seasonal['issuedDate']['display'] ?? null);
+        $t->same(2, $seasonal['issuedDate']['season'] ?? null);
+        $t->same('Summer', $seasonal['issuedDate']['seasonName'] ?? null);
+        $t->same('Autumn 1999', $seasonal['originalDate']['display'] ?? null);
+        $t->same('Autumn', $seasonal['originalDate']['seasonName'] ?? null);
+        $t->same('Winter 2026', $seasonal['accessedDate']['display'] ?? null);
+        $t->same('Date seasons: issued Summer; accessed Winter; original-date Autumn', $seasonal['dateSeasonSummary'] ?? null);
+        $t->same('Spring 2025', $event['eventDate']['display'] ?? null);
+        $t->same('Date seasons: event-date Spring', $event['dateSeasonSummary'] ?? null);
+        $t->same('(Season Desk 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('seasonal-source', '[@seasonal-source]'),
+            $citation('spring-event-review', '[@spring-event-review]'),
+        ]));
+        $t->same('Season Desk. Seasonal Source Packet. Review Press, 2026. Date seasons: issued Summer; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/seasonal-source. Accessed Winter 2026.', $processor->renderBibliographyEntry('seasonal-source'));
+        $t->same('Ng, Nia. Spring Event Packet. Migration Conference. Event date Spring 2025. 2025. 7-9. Date seasons: event-date Spring.', $processor->renderBibliographyEntry('spring-event-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="issued" form="text"/>
+        <text variable="issued-season-name"/>
+        <date variable="accessed" form="text"/>
+        <date variable="original-date" form="text"/>
+        <date variable="event-date" form="text"/>
+        <text variable="date-season-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued" form="text"/>
+      <text variable="issued-season-name"/>
+      <date variable="accessed" form="text"/>
+      <date variable="original-date" form="text"/>
+      <date variable="event-date" form="text"/>
+      <text variable="date-season-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Season Desk | Summer 2026 | Summer | Winter 2026 | Autumn 1999 | Date seasons: issued Summer; accessed Winter; original-date Autumn; Ng | 2025 | Spring 2025 | Date seasons: event-date Spring]', $styled->renderCitationCluster([
+            $citation('seasonal-source', '[@seasonal-source]'),
+            $citation('spring-event-review', '[@spring-event-review]'),
+        ]));
+        $t->same('Seasonal Source Packet :: Summer 2026 :: Summer :: Winter 2026 :: Autumn 1999 :: Date seasons: issued Summer; accessed Winter; original-date Autumn', $styled->renderBibliographyEntry('seasonal-source'));
+        $t->same('Spring Event Packet :: 2025 :: Spring 2025 :: Date seasons: event-date Spring', $styled->renderBibliographyEntry('spring-event-review'));
+
+        $document = (new MarkdownReader())->read('Season-coded source @seasonal-source and event source [@spring-event-review] preserve season dates.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Season-coded source Season Desk (2026) and event source (Ng 2025) preserve season dates.</p>', $blocks);
+        $t->contains('<dt>Season Desk 2026</dt><dd>Season Desk. Seasonal Source Packet. Review Press, 2026. Date seasons: issued Summer; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/seasonal-source. Accessed Winter 2026.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Spring Event Packet. Migration Conference. Event date Spring 2025. 2025. 7-9. Date seasons: event-date Spring.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::bibtexItems(<<<'BIB'
+@book{bad-season,
+  title = {Bad Season},
+  date  = {2026-25}
+}
+BIB));
+        $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::bibtexItems(<<<'BIB'
+@book{bad-season-day,
+  title = {Bad Season Day},
+  date  = {2026-22-04}
+}
+BIB));
+    },
     'maps open ended biblatex date ranges into csl date metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{open-ended-manual,

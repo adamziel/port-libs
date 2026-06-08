@@ -3101,6 +3101,45 @@ $embeddedObjectDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$subdocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMasterSubDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="https://example.test/subdocuments/source-review.docx" TargetMode="External"/>
+  <Relationship Id="rIdInternalSubDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/internal.docx"/>
+  <Relationship Id="rIdWrongSubDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/not-subdocument" TargetMode="External"/>
+</Relationships>
+XML;
+
+$subdocumentDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Master packet includes </w:t></w:r>
+      <w:subDoc r:id="rIdMasterSubDoc"/>
+      <w:r><w:t xml:space="preserve"> for review.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t xml:space="preserve">Internal source </w:t>
+        <w:subDoc r:id="rIdInternalSubDoc"/>
+        <w:t xml:space="preserve"> and missing </w:t>
+        <w:subDoc r:id="rIdMissingSubDoc"/>
+        <w:t xml:space="preserve"> plus wrong type </w:t>
+        <w:subDoc r:id="rIdWrongSubDoc"/>
+        <w:t>.</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t xml:space="preserve">No id </w:t>
+        <w:subDoc/>
+        <w:t> remains flagged.</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $settingsContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3996,6 +4035,21 @@ $buildEmbeddedObjectPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $embeddedObjectDocumentRelationshipsXml],
         ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLEWORKBOOK'],
         ['name' => 'word/embeddings/source-audit.xlsx', 'data' => 'XLSXPACKAGE'],
+    ]);
+};
+
+$buildSubdocumentPackage = static function () use (
+    $embeddedObjectContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $subdocumentRelationshipsXml,
+    $subdocumentDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $embeddedObjectContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $subdocumentDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $subdocumentRelationshipsXml],
+        ['name' => 'word/subdocuments/internal.docx', 'data' => 'INTERNALDOCX'],
     ]);
 };
 
@@ -8513,6 +8567,118 @@ return [
         $t->same(false, $embeddedObjects['items'][2]['exists']);
         $t->same(null, $embeddedObjects['items'][2]['bytes']);
         $t->same(['missing-in-package'], $embeddedObjects['items'][2]['issues']);
+    },
+    'preserves DOCX subdocument relationships as review placeholders' => static function (TestRunner $t) use ($buildSubdocumentPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildSubdocumentPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $firstParagraph = $document->children[0];
+        $t->same('paragraph', $firstParagraph->type);
+        $t->same(3, count($firstParagraph->children));
+        $t->same('Master packet includes ', $firstParagraph->children[0]->attr('text'));
+
+        $external = $firstParagraph->children[1];
+        $t->same('span', $external->type);
+        $t->same(['docx-subdocument'], $external->attr('classes'));
+        $t->same('DOCX subdocument: https://example.test/subdocuments/source-review.docx', $external->children[0]->attr('text'));
+        $externalAttrs = $external->attr('attributes');
+        $t->same('true', $externalAttrs['data-docx-subdocument']);
+        $t->same('rIdMasterSubDoc', $externalAttrs['data-docx-relationship-id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument', $externalAttrs['data-docx-relationship-type']);
+        $t->same('https://example.test/subdocuments/source-review.docx', $externalAttrs['data-docx-target']);
+        $t->same('true', $externalAttrs['data-docx-external']);
+        $t->same('absolute-uri', $externalAttrs['data-docx-external-kind']);
+        $t->same('https', $externalAttrs['data-docx-external-scheme']);
+        $t->same('true', $externalAttrs['data-docx-external-allowed']);
+        $t->true(!isset($externalAttrs['data-docx-issues']), 'Valid external subdocument should not carry importer issues');
+        $t->same(' for review.', $firstParagraph->children[2]->attr('text'));
+
+        $secondParagraph = $document->children[1];
+        $t->same(7, count($secondParagraph->children));
+        $internal = $secondParagraph->children[1];
+        $t->same(['docx-subdocument'], $internal->attr('classes'));
+        $t->same('DOCX subdocument: /word/subdocuments/internal.docx', $internal->children[0]->attr('text'));
+        $internalAttrs = $internal->attr('attributes');
+        $t->same('rIdInternalSubDoc', $internalAttrs['data-docx-relationship-id']);
+        $t->same('/word/subdocuments/internal.docx', $internalAttrs['data-docx-target-part']);
+        $t->same('false', $internalAttrs['data-docx-external']);
+        $t->same('true', $internalAttrs['data-docx-exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document', $internalAttrs['data-docx-content-type']);
+        $t->same('internal-subdocument-target', $internalAttrs['data-docx-issues']);
+
+        $missing = $secondParagraph->children[3];
+        $t->same('DOCX subdocument: rIdMissingSubDoc', $missing->children[0]->attr('text'));
+        $missingAttrs = $missing->attr('attributes');
+        $t->same('rIdMissingSubDoc', $missingAttrs['data-docx-relationship-id']);
+        $t->same('missing-relationship', $missingAttrs['data-docx-issues']);
+        $t->true(!isset($missingAttrs['data-docx-target']), 'Unknown subdocument relationship should not expose a target');
+
+        $wrongType = $secondParagraph->children[5];
+        $t->same('DOCX subdocument: https://example.test/not-subdocument', $wrongType->children[0]->attr('text'));
+        $wrongTypeAttrs = $wrongType->attr('attributes');
+        $t->same('rIdWrongSubDoc', $wrongTypeAttrs['data-docx-relationship-id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $wrongTypeAttrs['data-docx-relationship-type']);
+        $t->same('https://example.test/not-subdocument', $wrongTypeAttrs['data-docx-target']);
+        $t->same('true', $wrongTypeAttrs['data-docx-external']);
+        $t->same('unexpected-relationship-type', $wrongTypeAttrs['data-docx-issues']);
+
+        $thirdParagraph = $document->children[2];
+        $noId = $thirdParagraph->children[1];
+        $t->same('DOCX subdocument: unresolved', $noId->children[0]->attr('text'));
+        $noIdAttrs = $noId->attr('attributes');
+        $t->same('true', $noIdAttrs['data-docx-subdocument']);
+        $t->same('missing-relationship-id', $noIdAttrs['data-docx-issues']);
+        $t->true(!isset($noIdAttrs['data-docx-relationship-id']), 'Subdocument without r:id should not fabricate a relationship id');
+
+        $t->contains('[DOCX subdocument: https://example.test/subdocuments/source-review.docx]{.docx-subdocument data-docx-subdocument="true"', $markdown);
+        $t->contains('data-docx-relationship-id="rIdMasterSubDoc"', $markdown);
+        $t->contains('data-docx-target="https://example.test/subdocuments/source-review.docx"', $markdown);
+        $t->contains('data-docx-issues="internal-subdocument-target"', $markdown);
+        $t->contains('data-docx-issues="missing-relationship"', $markdown);
+        $t->contains('data-docx-issues="unexpected-relationship-type"', $markdown);
+        $t->contains('data-docx-issues="missing-relationship-id"', $markdown);
+
+        $t->contains('<span class="docx-subdocument" data-docx-subdocument="true" data-docx-relationship-id="rIdMasterSubDoc"', $blocks);
+        $t->contains('data-docx-target="https://example.test/subdocuments/source-review.docx"', $blocks);
+        $t->contains('DOCX subdocument: https://example.test/subdocuments/source-review.docx</span>', $blocks);
+        $t->contains('data-docx-issues="internal-subdocument-target"', $blocks);
+        $t->contains('DOCX subdocument: /word/subdocuments/internal.docx</span>', $blocks);
+        $t->contains('data-docx-issues="missing-relationship"', $blocks);
+        $t->contains('data-docx-issues="unexpected-relationship-type"', $blocks);
+        $t->contains('data-docx-issues="missing-relationship-id"', $blocks);
+
+        $subdocuments = $result['importReport']['subdocuments'];
+        $t->same(5, $subdocuments['count']);
+        $t->same(2, $subdocuments['externalCount']);
+        $t->same(1, $subdocuments['internalCount']);
+        $t->same(2, $subdocuments['missingCount']);
+        $t->same(4, $subdocuments['issueCount']);
+        $t->same('rIdMasterSubDoc', $subdocuments['items'][0]['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument', $subdocuments['items'][0]['type']);
+        $t->same('https://example.test/subdocuments/source-review.docx', $subdocuments['items'][0]['target']);
+        $t->same(true, $subdocuments['items'][0]['external']);
+        $t->same(null, $subdocuments['items'][0]['exists']);
+        $t->same(1, $subdocuments['items'][0]['usedCount']);
+        $t->same(['DOCX subdocument: https://example.test/subdocuments/source-review.docx'], $subdocuments['items'][0]['descriptions']);
+        $t->same([], $subdocuments['items'][0]['issues']);
+        $t->same('rIdInternalSubDoc', $subdocuments['items'][1]['id']);
+        $t->same('/word/subdocuments/internal.docx', $subdocuments['items'][1]['targetPart']);
+        $t->same(false, $subdocuments['items'][1]['external']);
+        $t->same(true, $subdocuments['items'][1]['exists']);
+        $t->same(['internal-subdocument-target'], $subdocuments['items'][1]['issues']);
+        $t->same('rIdMissingSubDoc', $subdocuments['items'][2]['id']);
+        $t->same(null, $subdocuments['items'][2]['target']);
+        $t->same(['missing-relationship'], $subdocuments['items'][2]['issues']);
+        $t->same('rIdWrongSubDoc', $subdocuments['items'][3]['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $subdocuments['items'][3]['type']);
+        $t->same(['unexpected-relationship-type'], $subdocuments['items'][3]['issues']);
+        $t->same(null, $subdocuments['items'][4]['id']);
+        $t->same(['missing-relationship-id'], $subdocuments['items'][4]['issues']);
     },
     'reports DOCX document settings policy metadata and attached template relationships' => static function (TestRunner $t) use ($buildSettingsPackage): void {
         $reader = new DocxReader();

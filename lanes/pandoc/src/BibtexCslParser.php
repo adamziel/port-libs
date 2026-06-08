@@ -2290,6 +2290,18 @@ final class BibtexCslParser
         $parts = [(int) $matches[1]];
         if (isset($matches[2]) && $matches[2] !== '') {
             $month = (int) $matches[2];
+            $season = self::seasonFromBiblatexDateMonthCode($month);
+            if ($season !== null) {
+                if (isset($matches[3]) && $matches[3] !== '') {
+                    throw new \InvalidArgumentException('BibTeX ' . $field . ' season date must not include a day');
+                }
+
+                $dateObject = self::dateObjectWithMarkers([[(int) $matches[1]]], (string) ($matches[4] ?? ''), $date);
+                $dateObject['season'] = $season;
+
+                return $dateObject;
+            }
+
             if ($month < 1 || $month > 12) {
                 throw new \InvalidArgumentException('BibTeX ' . $field . ' month must be between 1 and 12');
             }
@@ -2307,6 +2319,17 @@ final class BibtexCslParser
         }
 
         return self::dateObjectWithMarkers([$parts], (string) ($matches[4] ?? ''), $date);
+    }
+
+    private static function seasonFromBiblatexDateMonthCode(int $month): ?int
+    {
+        return match ($month) {
+            21 => 1,
+            22 => 2,
+            23 => 3,
+            24 => 4,
+            default => null,
+        };
     }
 
     /**

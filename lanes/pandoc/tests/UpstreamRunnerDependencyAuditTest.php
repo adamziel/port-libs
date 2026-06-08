@@ -620,6 +620,9 @@ return [
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedDataFiles']);
         $t->same([], $audit['benchmarkDependencyClosure']['unexpectedConditionalBranches']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDependencies(), $audit['luaEngineLibraryClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultLanguage(), $audit['luaEngineLibraryClosure']['expectedDefaultLanguage']);
+        $t->same('Haskell2010', $audit['luaEngineLibraryClosure']['presentDefaultLanguage']);
+        $t->same(null, $audit['luaEngineLibraryClosure']['mismatchedDefaultLanguage']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultExtensions(), $audit['luaEngineLibraryClosure']['expectedDefaultExtensions']);
         $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryOtherExtensions(), $audit['luaEngineLibraryClosure']['expectedOtherExtensions']);
         $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
@@ -705,6 +708,7 @@ return [
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
         $t->contains('test-suite type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal custom-setup/setup-depends, no unexpected common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, and exact other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('Haskell2010 library default-language', $audit['nonMutatingPlan'][2]);
         $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
@@ -2404,6 +2408,58 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('unexpected pandoc-lua-engine library conditional branches: library default: if os(windows), library default: else', $blocked);
         $t->contains('no unexpected pandoc-lua-engine library conditional branches', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks lua engine library default-language drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
+        $luaPackage = str_replace(
+            '  default-language: Haskell2010',
+            '  default-language: Haskell98',
+            $luaCabal()
+        );
+        $luaPackage = str_replace(
+            "  type: exitcode-stdio-1.0\n  main-is: test-pandoc-lua-engine.hs",
+            "  type: exitcode-stdio-1.0\n  default-language: Haskell2010\n  main-is: test-pandoc-lua-engine.hs",
+            $luaPackage
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            $luaPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['unexpectedDependencies']);
+        $t->same([], $audit['benchmarkDependencyClosure']['mismatchedDefaultLanguages']);
+        $t->same([], $audit['luaEngineLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedLuaEngineLibraryDefaultLanguage(), $audit['luaEngineLibraryClosure']['expectedDefaultLanguage']);
+        $t->same('Haskell98', $audit['luaEngineLibraryClosure']['presentDefaultLanguage']);
+        $t->same([
+            'expected' => 'Haskell2010',
+            'actual' => 'Haskell98',
+        ], $audit['luaEngineLibraryClosure']['mismatchedDefaultLanguage']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedOtherExtensions']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraSourceFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraDocFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedExtraTmpFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedDataFiles']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedConditionalBranches']);
+        $t->same([], $audit['luaEngineLibraryClosure']['unexpectedNativeSystemFields']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched pandoc-lua-engine library default-language: expected Haskell2010, found Haskell98', $blocked);
+        $t->contains('Haskell2010 pandoc-lua-engine library default-language', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks unexpected lua engine library native system fields before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

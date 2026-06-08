@@ -45,6 +45,8 @@ Date-range sources @range-manual and @range-rule preserve interval metadata for 
 
 Open-ended date source @open-ended-window preserves ongoing and predecessor interval metadata for review.
 
+Season-coded source @seasonal-source preserves seasonal publication metadata for review.
+
 Timestamped source @timestamped-source preserves imported date-part time metadata for review.
 
 Approximate date source @circa-manual preserves review date markers.
@@ -366,6 +368,16 @@ $bibtex = <<<'BIB'
   publisher = {Review Press},
   url       = {https://example.test/open-ended-window},
   urldate   = {2026-06-01/}
+}
+
+@book{seasonal-source,
+  author    = {{Season Desk}},
+  title     = {Seasonal Source Packet},
+  date      = {2026-22},
+  origdate  = {1999-23},
+  publisher = {Review Press},
+  url       = {https://example.test/seasonal-source},
+  urldate   = {2026-24}
 }
 
 @online{timestamped-source,
@@ -1030,6 +1042,19 @@ XML);
     }
     if (($openEndedWindow['accessedDate']['display'] ?? null) !== '2026-06-01/') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve open-ended access date metadata');
+    }
+    $seasonalSource = $processor->item('seasonal-source');
+    if (($seasonalSource['issuedDate']['display'] ?? null) !== 'Summer 2026') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve seasonal issued date metadata');
+    }
+    if (($seasonalSource['accessedDate']['display'] ?? null) !== 'Winter 2026') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve seasonal access date metadata');
+    }
+    if (($seasonalSource['originalDate']['seasonName'] ?? null) !== 'Autumn') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve seasonal original date metadata');
+    }
+    if (($seasonalSource['dateSeasonSummary'] ?? null) !== 'Date seasons: issued Summer; accessed Winter; original-date Autumn') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize seasonal date metadata');
     }
     $timestampedSource = $processor->item('timestamped-source');
     if (($timestampedSource['issuedDate']['time'] ?? null) !== '09:15:30+02:00') {
@@ -1792,6 +1817,8 @@ XML);
         '<dt>Import Review Rule 2024/2025</dt><dd>Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.</dd>',
         '<p>Open-ended date source Smith (2020/) preserves ongoing and predecessor interval metadata for review.</p>',
         '<dt>Smith 2020/</dt><dd>Smith, Ada. Open Source Review Window. Review Press, 2020/. Original work published /2018. https://example.test/open-ended-window. Accessed 2026-06-01/.</dd>',
+        '<p>Season-coded source Season Desk (2026) preserves seasonal publication metadata for review.</p>',
+        '<dt>Season Desk 2026</dt><dd>Season Desk. Seasonal Source Packet. Review Press, 2026. Date seasons: issued Summer; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/seasonal-source. Accessed Winter 2026.</dd>',
         '<p>Timestamped source Timeline Desk (2026) preserves imported date-part time metadata for review.</p>',
         '<dt>Timeline Desk 2026</dt><dd>Timeline Desk. Timestamped Source Capture. 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.</dd>',
         '<p>Approximate date source Smith (2026) preserves review date markers.</p>',

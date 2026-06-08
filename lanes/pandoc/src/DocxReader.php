@@ -50,6 +50,7 @@ final class DocxReader
     public const REL_TYPE_DIAGRAM_COLORS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors';
     public const REL_TYPE_OLE_OBJECT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     public const REL_TYPE_EMBEDDED_PACKAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    public const REL_TYPE_SUBDOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
 
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
@@ -240,6 +241,7 @@ final class DocxReader
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
             'embeddedObjects' => $this->embeddedObjectImportReport($package, $reachableRelationships, $document),
+            'subdocuments' => $this->subdocumentImportReport($document),
             'alternativeFormats' => $alternativeFormats,
             'notes' => $notes,
             'revisions' => $revisions,
@@ -464,6 +466,137 @@ final class DocxReader
         }
 
         return array_keys($descriptions);
+    }
+
+    /**
+     * @return array{count:int, externalCount:int, internalCount:int, missingCount:int, issueCount:int, items:list<array{id:?string, type:?string, target:?string, targetPart:?string, contentType:?string, external:?bool, exists:?bool, usedCount:int, descriptions:list<string>, issues:list<string>}>}
+     */
+    private function subdocumentImportReport(AstNode $document): array
+    {
+        $itemsByKey = [];
+        foreach ($this->subdocumentNodesByReportKey($document) as $key => $nodes) {
+            $first = $nodes[0];
+            $attributes = $first->attr('attributes', []);
+            $issues = [];
+            foreach ($nodes as $node) {
+                $issues = array_merge($issues, $this->subdocumentNodeIssues($node));
+            }
+            $issues = array_values(array_unique($issues));
+
+            $external = $this->booleanDataAttribute($attributes, 'data-docx-external');
+            $exists = $this->booleanDataAttribute($attributes, 'data-docx-exists');
+            $itemsByKey[$key] = [
+                'id' => isset($attributes['data-docx-relationship-id']) && is_string($attributes['data-docx-relationship-id']) ? $attributes['data-docx-relationship-id'] : null,
+                'type' => isset($attributes['data-docx-relationship-type']) && is_string($attributes['data-docx-relationship-type']) ? $attributes['data-docx-relationship-type'] : null,
+                'target' => isset($attributes['data-docx-target']) && is_string($attributes['data-docx-target']) ? $attributes['data-docx-target'] : null,
+                'targetPart' => isset($attributes['data-docx-target-part']) && is_string($attributes['data-docx-target-part']) ? $attributes['data-docx-target-part'] : null,
+                'contentType' => isset($attributes['data-docx-content-type']) && is_string($attributes['data-docx-content-type']) ? $attributes['data-docx-content-type'] : null,
+                'external' => $external,
+                'exists' => $exists,
+                'usedCount' => count($nodes),
+                'descriptions' => $this->subdocumentDescriptions($nodes),
+                'issues' => $issues,
+            ];
+        }
+
+        $items = array_values($itemsByKey);
+
+        return [
+            'count' => count($items),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false)),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['id'] === null
+                    || in_array('missing-relationships', $item['issues'], true)
+                    || in_array('missing-relationship', $item['issues'], true)
+                    || $item['exists'] === false,
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, list<AstNode>>
+     */
+    private function subdocumentNodesByReportKey(AstNode $node): array
+    {
+        $nodes = [];
+        $this->collectSubdocumentNodesByReportKey($node, $nodes);
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, list<AstNode>> $nodes
+     */
+    private function collectSubdocumentNodesByReportKey(AstNode $node, array &$nodes): void
+    {
+        if ($node->type === 'span') {
+            $classes = $node->attr('classes', []);
+            $attributes = $node->attr('attributes', []);
+            if (
+                is_array($classes)
+                && in_array('docx-subdocument', $classes, true)
+                && is_array($attributes)
+            ) {
+                $relationshipId = $attributes['data-docx-relationship-id'] ?? null;
+                $key = is_string($relationshipId) && $relationshipId !== '' ? 'id:' . $relationshipId : 'node:' . count($nodes);
+                $nodes[$key] ??= [];
+                $nodes[$key][] = $node;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectSubdocumentNodesByReportKey($child, $nodes);
+        }
+    }
+
+    /**
+     * @param list<AstNode> $subdocumentNodes
+     * @return list<string>
+     */
+    private function subdocumentDescriptions(array $subdocumentNodes): array
+    {
+        $descriptions = [];
+        foreach ($subdocumentNodes as $subdocumentNode) {
+            $description = $this->plainInlineText($subdocumentNode->children);
+            if ($description !== '') {
+                $descriptions[$description] = true;
+            }
+        }
+
+        return array_keys($descriptions);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function subdocumentNodeIssues(AstNode $node): array
+    {
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes) || !isset($attributes['data-docx-issues']) || !is_string($attributes['data-docx-issues'])) {
+            return [];
+        }
+
+        return array_values(array_filter(explode(' ', $attributes['data-docx-issues']), static fn (string $issue): bool => $issue !== ''));
+    }
+
+    /**
+     * @param mixed $attributes
+     */
+    private function booleanDataAttribute($attributes, string $name): ?bool
+    {
+        if (!is_array($attributes) || !isset($attributes[$name]) || !is_string($attributes[$name])) {
+            return null;
+        }
+
+        return match ($attributes[$name]) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
     }
 
     /**
@@ -3649,6 +3782,10 @@ final class DocxReader
             return $this->simpleFieldNodes($element, $package, $relationships, $referencedNotes);
         }
 
+        if ($this->isWordElement($element, 'subDoc')) {
+            return $this->subdocumentReferenceNodes($element, $package, $relationships);
+        }
+
         if ($this->isMarkupCompatibilityElement($element, 'AlternateContent')) {
             return $this->alternateContentInlineNodes($element, $package, $relationships, $referencedNotes);
         }
@@ -4354,6 +4491,10 @@ final class DocxReader
 
         if ($this->isMathElement($child, 'oMathPara')) {
             return $this->mathNodes($child, true);
+        }
+
+        if ($this->isWordElement($child, 'subDoc')) {
+            return $this->subdocumentReferenceNodes($child, $package, $relationships);
         }
 
         if ($this->isWordElement($child, 'drawing')) {
@@ -7564,6 +7705,92 @@ final class DocxReader
         $kindLabel = $kind === 'ole-object' ? 'OLE object' : str_replace('-', ' ', $kind);
 
         return 'DOCX embedded ' . $kindLabel . ($label === '' ? '' : ': ' . $label);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function subdocumentReferenceNodes(\DOMElement $subDoc, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        $relationshipId = $this->relationshipAttr($subDoc, 'id');
+        if ($relationshipId === null || $relationshipId === '') {
+            return [$this->subdocumentPlaceholderNode(null, null, $package, $relationships, ['missing-relationship-id'])];
+        }
+
+        if (!$relationships instanceof OpcRelationships) {
+            return [$this->subdocumentPlaceholderNode($relationshipId, null, $package, $relationships, ['missing-relationships'])];
+        }
+
+        $relationship = $relationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            return [$this->subdocumentPlaceholderNode($relationshipId, null, $package, $relationships, ['missing-relationship'])];
+        }
+
+        $issues = [];
+        if ($relationship->type !== self::REL_TYPE_SUBDOCUMENT) {
+            $issues[] = 'unexpected-relationship-type';
+        }
+        if (!$relationship->isExternal()) {
+            $issues[] = 'internal-subdocument-target';
+        }
+
+        return [$this->subdocumentPlaceholderNode($relationshipId, $relationship, $package, $relationships, $issues)];
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private function subdocumentPlaceholderNode(
+        ?string $relationshipId,
+        ?OpcRelationship $relationship,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $issues
+    ): AstNode {
+        $attrs = [
+            'classes' => ['docx-subdocument'],
+            'attributes' => [
+                'data-docx-subdocument' => 'true',
+            ],
+        ];
+
+        if ($relationshipId !== null && $relationshipId !== '') {
+            $attrs['attributes']['data-docx-relationship-id'] = $relationshipId;
+        }
+
+        if ($relationship instanceof OpcRelationship && $relationships instanceof OpcRelationships) {
+            $attrs['attributes']['data-docx-relationship-type'] = $relationship->type;
+            foreach ($this->drawingRelationshipTargetAttrs($relationship, $package, $relationships) as $name => $value) {
+                $attrs['attributes']['data-docx-' . $name] = $value;
+            }
+        }
+
+        if (
+            ($attrs['attributes']['data-docx-external'] ?? null) === 'false'
+            && ($attrs['attributes']['data-docx-exists'] ?? null) === 'false'
+        ) {
+            $issues[] = 'missing-in-package';
+        }
+
+        if ($issues !== []) {
+            $attrs['attributes']['data-docx-issues'] = implode(' ', array_values(array_unique($issues)));
+        }
+
+        return new AstNode('span', $attrs, [
+            new AstNode('text', ['text' => $this->subdocumentPlaceholderText($relationshipId, $relationship, $relationships)]),
+        ]);
+    }
+
+    private function subdocumentPlaceholderText(?string $relationshipId, ?OpcRelationship $relationship, ?OpcRelationships $relationships): string
+    {
+        $label = null;
+        if ($relationship instanceof OpcRelationship && $relationships instanceof OpcRelationships) {
+            $label = $relationships->resolveTarget($relationship);
+        } elseif ($relationshipId !== null && $relationshipId !== '') {
+            $label = $relationshipId;
+        }
+
+        return 'DOCX subdocument: ' . ($label ?? 'unresolved');
     }
 
     private function vmlShapeForOleObject(\DOMElement $oleObject, \DOMElement $object): ?\DOMElement

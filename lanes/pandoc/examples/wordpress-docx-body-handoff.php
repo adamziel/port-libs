@@ -74,6 +74,7 @@ XML],
   <Relationship Id="rIdReviewDiagramColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/review-colors.xml"/>
   <Relationship Id="rIdReviewOleWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/review-workbook.bin"/>
   <Relationship Id="rIdReviewEmbeddedPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-audit.xlsx"/>
+  <Relationship Id="rIdSourceSubdocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="https://example.test/source-master/subdocument.docx" TargetMode="External"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -653,6 +654,13 @@ XML],
       </w:r>
       <w:r><w:t xml:space="preserve"> remain reviewable.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r>
+        <w:t xml:space="preserve">Master document reference </w:t>
+        <w:subDoc r:id="rIdSourceSubdocument"/>
+        <w:t> stays reviewable.</w:t>
+      </w:r>
+    </w:p>
     <w:tbl>
       <w:tblPr>
         <w:tblCaption w:val="DOCX review table"/>
@@ -1115,6 +1123,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['embeddedObjects']['items'][0]['bytes'] ?? 0) !== 11) {
         throw new RuntimeException('DOCX body handoff self-test missing embedded OLE byte count');
     }
+    if (($summary['importReport']['subdocuments']['count'] ?? 0) !== 1 || ($summary['importReport']['subdocuments']['externalCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing subdocument relationship report');
+    }
+    if (($summary['importReport']['subdocuments']['items'][0]['target'] ?? '') !== 'https://example.test/source-master/subdocument.docx') {
+        throw new RuntimeException('DOCX body handoff self-test missing subdocument target');
+    }
     if (($summary['importReport']['notes']['count'] ?? 0) !== 8) {
         throw new RuntimeException('DOCX body handoff self-test missing note-reference import report');
     }
@@ -1341,6 +1355,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-embedded-object docx-embedded-package" data-docx-embedded-kind="package" data-docx-relationship-id="rIdReviewEmbeddedPackage"',
         'data-docx-target-part="/word/embeddings/source-audit.xlsx"',
         'DOCX embedded package: Source audit package</span>',
+        '<span class="docx-subdocument" data-docx-subdocument="true" data-docx-relationship-id="rIdSourceSubdocument"',
+        'data-docx-target="https://example.test/source-master/subdocument.docx"',
+        'DOCX subdocument: https://example.test/source-master/subdocument.docx</span>',
         '<table class="docx-table-metadata" aria-description="Reviewer summary table from the source DOCX package." data-docx-table-description="Reviewer summary table from the source DOCX package.">',
         '<tr class="docx-table-row-repeat-header" data-docx-table-row-repeat-header="true">',
         '<td class="docx-cell-width docx-cell-width-pct docx-cell-margin docx-cell-margin-top docx-cell-margin-start docx-cell-margin-bottom docx-cell-margin-end docx-cell-margin-dxa docx-cell-vertical-align docx-cell-vertical-align-center docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7"',

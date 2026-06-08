@@ -2726,6 +2726,8 @@ final class ZipPackage
      *     centralDirectoryEnd:?int,
      *     isSingleDisk:?bool,
      *     centralDirectoryEndMatchesRecordOffset:?bool,
+     *     eocdFieldsMatchZip64Record:?bool,
+     *     eocdZip64MismatchedFields:list<string>,
      *     eocdDiskNumber:int,
      *     eocdCentralDirectoryDisk:int,
      *     eocdDiskEntryCount:int,
@@ -2738,6 +2740,9 @@ final class ZipPackage
     {
         $eocdOffset = self::findEndOfCentralDirectory($bytes);
         $zip64 = self::zip64EndOfCentralDirectoryPreflight($bytes, $eocdOffset);
+        $eocdDiskNumber = self::readUInt16($bytes, $eocdOffset + 4);
+        $eocdCentralDirectoryDisk = self::readUInt16($bytes, $eocdOffset + 6);
+        $eocdDiskEntryCount = self::readUInt16($bytes, $eocdOffset + 8);
         $eocdTotalEntryCount = self::readUInt16($bytes, $eocdOffset + 10);
         $eocdCentralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
         $eocdCentralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
@@ -2746,9 +2751,31 @@ final class ZipPackage
             || $eocdCentralDirectorySize === 0xffffffff
             || $eocdCentralDirectoryOffset === 0xffffffff;
         $issues = $zip64['zip64Issues'];
+        $eocdZip64MismatchedFields = [];
+        $eocdFieldsMatchZip64Record = null;
+        if ($zip64['hasZip64EndOfCentralDirectory']) {
+            foreach ([
+                ['diskNumber', $eocdDiskNumber, 0xffff, $zip64['zip64DiskNumber']],
+                ['centralDirectoryDisk', $eocdCentralDirectoryDisk, 0xffff, $zip64['zip64CentralDirectoryDisk']],
+                ['diskEntryCount', $eocdDiskEntryCount, 0xffff, $zip64['zip64DiskEntryCount']],
+                ['totalEntryCount', $eocdTotalEntryCount, 0xffff, $zip64['zip64TotalEntryCount']],
+                ['centralDirectorySize', $eocdCentralDirectorySize, 0xffffffff, $zip64['zip64CentralDirectorySize']],
+                ['centralDirectoryOffset', $eocdCentralDirectoryOffset, 0xffffffff, $zip64['zip64CentralDirectoryOffset']],
+            ] as [$field, $eocdValue, $sentinel, $zip64Value]) {
+                if ($eocdValue !== $sentinel && $zip64Value !== null && $eocdValue !== $zip64Value) {
+                    $eocdZip64MismatchedFields[] = $field;
+                }
+            }
+
+            $eocdFieldsMatchZip64Record = $eocdZip64MismatchedFields === [];
+            if ($eocdZip64MismatchedFields !== []) {
+                $issues[] = 'zip64-eocd-field-mismatch';
+            }
+        }
         if ($requiresZip64 && $issues === []) {
             $issues[] = 'zip64-end-of-central-directory-required';
         }
+        $issues = array_values(array_unique($issues));
 
         return [
             'eocdOffset' => $eocdOffset,
@@ -2775,9 +2802,11 @@ final class ZipPackage
             'centralDirectoryEnd' => $zip64['zip64CentralDirectoryEnd'],
             'isSingleDisk' => $zip64['zip64IsSingleDisk'],
             'centralDirectoryEndMatchesRecordOffset' => $zip64['zip64CentralDirectoryEndMatchesRecordOffset'],
-            'eocdDiskNumber' => self::readUInt16($bytes, $eocdOffset + 4),
-            'eocdCentralDirectoryDisk' => self::readUInt16($bytes, $eocdOffset + 6),
-            'eocdDiskEntryCount' => self::readUInt16($bytes, $eocdOffset + 8),
+            'eocdFieldsMatchZip64Record' => $eocdFieldsMatchZip64Record,
+            'eocdZip64MismatchedFields' => $eocdZip64MismatchedFields,
+            'eocdDiskNumber' => $eocdDiskNumber,
+            'eocdCentralDirectoryDisk' => $eocdCentralDirectoryDisk,
+            'eocdDiskEntryCount' => $eocdDiskEntryCount,
             'eocdTotalEntryCount' => $eocdTotalEntryCount,
             'eocdCentralDirectorySize' => $eocdCentralDirectorySize,
             'eocdCentralDirectoryOffset' => $eocdCentralDirectoryOffset,
