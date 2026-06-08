@@ -14,6 +14,7 @@ $fragment = <<<'HTML'
   <h2>Source packet</h2>
   <p>Imported<br>line with &amp; entity</p>
   <p data-review="character-references">References: A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>
+  <p data-review="math-spacing">Math refs: f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>
   <svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>
   <math><mi definitionURL="#review-x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>
   <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
@@ -60,6 +61,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($html, '&amp;NoBreak;') || str_contains($html, '&amp;hopf;')) {
         throw new RuntimeException('Expected extra HTML5 named character references to avoid literal ampersand fallback');
+    }
+    if (!str_contains($html, '<p data-review="math-spacing">Math refs: f' . "\u{2061}" . 'g' . "\u{2062}" . 'h' . "\u{205F}" . 'comma' . "\u{2063}" . 'zero' . "\u{200B}" . 'neg' . "\u{200B}" . '</p>')) {
+        throw new RuntimeException('Expected bounded HTML5 math and spacing character references to decode before review serialization');
+    }
+    if (str_contains($html, '&amp;ApplyFunction;') || str_contains($html, '&amp;ZeroWidthSpace;')) {
+        throw new RuntimeException('Expected math and spacing HTML5 named character references to avoid literal ampersand fallback');
     }
     if (!str_contains($html, '<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>')) {
         throw new RuntimeException('Expected SVG foreign-content casing to survive review handoff');

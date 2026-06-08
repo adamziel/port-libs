@@ -62,11 +62,20 @@ final class XmlHtmlDom
 
     /** @var array<string, string> */
     private const HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES = [
+        'ApplyFunction' => '&#x2061;',
+        'InvisibleComma' => '&#x2063;',
+        'InvisibleTimes' => '&#x2062;',
+        'MediumSpace' => '&#x205F;',
+        'NegativeThinSpace' => '&#x200B;',
         'NoBreak' => '&#x2060;',
         'NewLine' => '&#x000A;',
         'Tab' => '&#x0009;',
+        'ZeroWidthSpace' => '&#x200B;',
+        'af' => '&#x2061;',
         'copy' => '&#x00A9;',
         'hopf' => '&#x1D559;',
+        'ic' => '&#x2063;',
+        'it' => '&#x2062;',
         'nbsp' => '&#x00A0;',
     ];
 

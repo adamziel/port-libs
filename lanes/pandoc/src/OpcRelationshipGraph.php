@@ -3297,19 +3297,7 @@ final class OpcRelationshipGraph
 
     private static function contentTypeComparisonKey(string $contentType): string
     {
-        $segments = explode(';', $contentType);
-        $mediaType = self::contentTypeMediaTypeKey($contentType);
-        array_shift($segments);
-        $parameters = array_values(array_filter(
-            array_map(static fn (string $parameter): string => trim($parameter), $segments),
-            static fn (string $parameter): bool => $parameter !== '',
-        ));
-
-        if ($parameters === []) {
-            return $mediaType;
-        }
-
-        return $mediaType . ';' . implode(';', $parameters);
+        return self::contentTypeMediaTypeKey($contentType);
     }
 
     /**

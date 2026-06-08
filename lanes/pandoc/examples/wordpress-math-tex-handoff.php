@@ -222,6 +222,7 @@ $summary = [
     'spacingMathml' => $converter->texToMathMl('p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\>z'),
     'allowBreakMathml' => $converter->texToMathMl('p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak'),
     'commentMathml' => $converter->texToMathMl("p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n"),
+    'environmentCommentMathml' => $converter->texToMathMl("\\begin{aligned}p_i &= m_i % hidden & ignored\n\\\\ x_i &= y_i\\end{aligned} + \\begin{array}{cc}a & b % hidden \\\\ no row sep\n\\\\ c & d\\end{array}", true),
     'explicitSpacingMathml' => $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b'),
     'sizedDelimiterMathml' => $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/'),
     'delimiterAliasMathml' => $converter->texToMathMl('\\left\\lVert p_i + m_i \\right\\rVert + \\left\\lceil \\frac{x}{y} \\right\\rfloor + \\lbrack q_i \\rbrack'),
@@ -274,6 +275,14 @@ if (($argv[1] ?? '') === '--self-test') {
 
     if (str_contains($summary['commentMathml'], '<mo>%</mo>') || str_contains($summary['commentMathml'], '<mi>\\badcommand</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted TeX comment content as rendered MathML');
+    }
+
+    if (
+        str_contains($summary['environmentCommentMathml'], '<mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi>')
+        || str_contains($summary['environmentCommentMathml'], '<mi>i</mi><mi>g</mi><mi>n</mi><mi>o</mi><mi>r</mi><mi>e</mi><mi>d</mi>')
+        || str_contains($summary['environmentCommentMathml'], '<mi>n</mi><mi>o</mi><mi>r</mi><mi>o</mi><mi>w</mi><mi>s</mi><mi>e</mi><mi>p</mi>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test emitted environment comment content as rendered MathML');
     }
 
     if (str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\bm</mi>') || str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\mathbfit</mi>')) {
@@ -535,6 +544,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mi>slug</mi>',
         '<annotation encoding="application/x-tex">p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak</annotation>',
         "<annotation encoding=\"application/x-tex\">p_i % reviewer note with \\badcommand\n+ m_i + \\operatorname{slug}% trailing reviewer note\n</annotation>",
+        '<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr></mtable>',
+        '<mtable columnalign="center center"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>',
         '<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>',
         '<annotation encoding="application/x-tex">\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\bigm| x \\in S + \\Bigg/ y \\Bigg/</annotation>',
         '<annotation encoding="application/x-tex">\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle</annotation>',

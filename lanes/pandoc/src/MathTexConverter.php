@@ -3504,6 +3504,11 @@ final class MathTexConverter
                 continue;
             }
 
+            if ($char === '%') {
+                $this->skipTexLineComment($content, $offset);
+                continue;
+            }
+
             if ($char === '{') {
                 $depth++;
                 $separatorIsLastSignificantToken = false;
@@ -4751,6 +4756,14 @@ final class MathTexConverter
                 continue;
             }
 
+            if ($char === '%') {
+                $this->skipTexLineComment($content, $offset);
+                if ($cell !== '' && !ctype_space(substr($cell, -1))) {
+                    $cell .= ' ';
+                }
+                continue;
+            }
+
             if ($char === '{') {
                 $depth++;
                 $cell .= $char;
@@ -5542,19 +5555,28 @@ final class MathTexConverter
                 return;
             }
 
+            $this->skipTexLineComment($source, $offset);
+        }
+    }
+
+    private function skipTexLineComment(string $source, int &$offset): void
+    {
+        if (($source[$offset] ?? '') !== '%') {
+            return;
+        }
+
+        $offset++;
+        while (($source[$offset] ?? '') !== '' && $source[$offset] !== "\n" && $source[$offset] !== "\r") {
             $offset++;
-            while (($source[$offset] ?? '') !== '' && $source[$offset] !== "\n" && $source[$offset] !== "\r") {
-                $offset++;
-            }
+        }
 
-            if (($source[$offset] ?? '') === "\r" && ($source[$offset + 1] ?? '') === "\n") {
-                $offset += 2;
-                continue;
-            }
+        if (($source[$offset] ?? '') === "\r" && ($source[$offset + 1] ?? '') === "\n") {
+            $offset += 2;
+            return;
+        }
 
-            if (($source[$offset] ?? '') === "\n" || ($source[$offset] ?? '') === "\r") {
-                $offset++;
-            }
+        if (($source[$offset] ?? '') === "\n" || ($source[$offset] ?? '') === "\r") {
+            $offset++;
         }
     }
 

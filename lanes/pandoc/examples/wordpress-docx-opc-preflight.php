@@ -791,13 +791,13 @@ foreach ($caseEquivalentTargetGraph->preflightSignatureRelationshipTransforms('/
 
 $roleCaseContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="Application/Vnd.Openxmlformats-Package.Relationships+Xml"/>
-  <Default Extension="xml" ContentType="Application/Xml"/>
-  <Default Extension="png" ContentType="Image/Png"/>
-  <Override PartName="/word/document.xml" ContentType="Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml"/>
-  <Override PartName="/docProps/core.xml" ContentType="Application/Vnd.Openxmlformats-Package.Core-Properties+Xml"/>
-  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin"/>
-  <Override PartName="/_xmlsignatures/sig-case.xml" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml"/>
+  <Default Extension="rels" ContentType="Application/Vnd.Openxmlformats-Package.Relationships+Xml; Charset=UTF-8"/>
+  <Default Extension="xml" ContentType="Application/Xml; Charset=UTF-8"/>
+  <Default Extension="png" ContentType="Image/Png; review=thumbnail"/>
+  <Override PartName="/word/document.xml" ContentType="Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml; Profile=Docx"/>
+  <Override PartName="/docProps/core.xml" ContentType="Application/Vnd.Openxmlformats-Package.Core-Properties+Xml; Audit=Core"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin; Profile=OPC"/>
+  <Override PartName="/_xmlsignatures/sig-case.xml" ContentType="Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml; Profile=OPC"/>
 </Types>
 XML;
 
@@ -2268,13 +2268,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['documentRelationshipPartLoaded'] ?? null) !== true
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureOriginRelationshipPartLoaded'] ?? null) !== true
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['officeDocumentValid'] ?? null) !== true
-        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['officeDocumentContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['officeDocumentContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Officedocument.Wordprocessingml.Document.Main+Xml; Profile=Docx'
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['corePropertiesValid'] ?? null) !== true
-        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['corePropertiesContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Core-Properties+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['corePropertiesContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Core-Properties+Xml; Audit=Core'
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureValid'] ?? null) !== true
-        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureOriginContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin'
-        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml'
-        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceTargetContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Relationships+Xml'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureOriginContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Digital-Signature-Origin; Profile=OPC'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['digitalSignatureContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Digital-Signature-XmlSignature+Xml; Profile=OPC'
+        || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceTargetContentType'] ?? null) !== 'Application/Vnd.Openxmlformats-Package.Relationships+Xml; Charset=UTF-8'
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceContentType'] ?? null) !== 'Application/Vnd.OpenXMLFormats-Package.Relationships+XML'
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureReferenceContentTypeMatches'] ?? null) !== true
         || ($summary['integrity']['caseInsensitiveRoleContentTypes']['signatureTransformValid'] ?? null) !== true

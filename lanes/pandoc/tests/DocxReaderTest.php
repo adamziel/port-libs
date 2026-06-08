@@ -2366,6 +2366,22 @@ $reviewMarkupRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$runEffectDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Run effects </w:t></w:r>
+      <w:r><w:rPr><w:vanish/><w:webHidden/></w:rPr><w:t>hidden source clue</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r><w:rPr><w:caps/><w:outline/><w:shadow/><w:emboss/><w:imprint w:val="0"/></w:rPr><w:t>outlined alert</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:em w:val="dot"/><w:effect w:val="blinkBackground"/></w:rPr><w:t>emphasis mark</w:t></w:r>
+      <w:r><w:rPr><w:vanish w:val="0"/><w:webHidden w:val="false"/><w:caps w:val="off"/><w:effect w:val="none"/></w:rPr><w:t xml:space="preserve"> plain.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $runLanguageDirectionDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -3448,6 +3464,14 @@ $buildReviewMarkupRunPackage = static function () use ($contentTypesXml, $packag
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $reviewMarkupRunDocumentXml],
+    ]);
+};
+
+$buildRunEffectPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $runEffectDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $runEffectDocumentXml],
     ]);
 };
 
@@ -6820,6 +6844,53 @@ return [
         $t->contains('<span class="docx-highlight docx-highlight-green docx-shading" data-docx-highlight="green" data-docx-shading-fill="FFE699"><strong>bold flagged text</strong></span> and color <span class="docx-color docx-color-c00000 docx-theme-color docx-theme-color-accent2" data-docx-color="C00000" data-docx-theme-color="accent2" data-docx-theme-tint="33">redline label</span> plain text.', $blocks);
         $t->true(!str_contains($markdown, 'data-docx-highlight="none"'), 'DOCX highlight none should not create reviewer markup');
         $t->true(!str_contains($blocks, 'data-docx-highlight="none"'), 'DOCX highlight none should not create WordPress reviewer markup');
+    },
+    'preserves DOCX run effect metadata as reviewer spans' => static function (TestRunner $t) use ($buildRunEffectPackage): void {
+        $document = (new DocxReader())->readDocument($buildRunEffectPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Run effects ', $paragraph->children[0]->attr('text'));
+
+        $hidden = $paragraph->children[1];
+        $t->same('span', $hidden->type);
+        $t->same(['docx-run-effect', 'docx-run-hidden', 'docx-run-web-hidden'], $hidden->attr('classes'));
+        $t->same('true', $hidden->attr('attributes')['data-docx-run-hidden']);
+        $t->same('true', $hidden->attr('attributes')['data-docx-run-web-hidden']);
+        $t->same('hidden source clue', $hidden->children[0]->attr('text'));
+
+        $t->same(' plus ', $paragraph->children[2]->attr('text'));
+        $outlined = $paragraph->children[3];
+        $t->same('span', $outlined->type);
+        $t->same(['docx-run-effect', 'docx-run-caps', 'docx-run-outline', 'docx-run-shadow', 'docx-run-emboss'], $outlined->attr('classes'));
+        $t->same('true', $outlined->attr('attributes')['data-docx-run-caps']);
+        $t->same('true', $outlined->attr('attributes')['data-docx-run-outline']);
+        $t->same('true', $outlined->attr('attributes')['data-docx-run-shadow']);
+        $t->same('true', $outlined->attr('attributes')['data-docx-run-emboss']);
+        $t->true(!isset($outlined->attr('attributes')['data-docx-run-imprint']), 'Disabled DOCX imprint should not create run-effect metadata');
+        $t->same('outlined alert', $outlined->children[0]->attr('text'));
+
+        $t->same(' and ', $paragraph->children[4]->attr('text'));
+        $emphasis = $paragraph->children[5];
+        $t->same('span', $emphasis->type);
+        $t->same(['docx-run-effect', 'docx-emphasis-mark', 'docx-emphasis-mark-dot', 'docx-text-effect', 'docx-text-effect-blinkbackground'], $emphasis->attr('classes'));
+        $t->same('dot', $emphasis->attr('attributes')['data-docx-emphasis-mark']);
+        $t->same('blinkBackground', $emphasis->attr('attributes')['data-docx-text-effect']);
+        $t->same('emphasis mark', $emphasis->children[0]->attr('text'));
+        $t->same(' plain.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[hidden source clue]{.docx-run-effect .docx-run-hidden .docx-run-web-hidden data-docx-run-hidden="true" data-docx-run-web-hidden="true"}', $markdown);
+        $t->contains('[outlined alert]{.docx-run-effect .docx-run-caps .docx-run-outline .docx-run-shadow .docx-run-emboss data-docx-run-caps="true" data-docx-run-outline="true" data-docx-run-shadow="true" data-docx-run-emboss="true"}', $markdown);
+        $t->contains('[emphasis mark]{.docx-run-effect .docx-emphasis-mark .docx-emphasis-mark-dot .docx-text-effect .docx-text-effect-blinkbackground data-docx-emphasis-mark="dot" data-docx-text-effect="blinkBackground"} plain.', $markdown);
+
+        $t->contains('<span class="docx-run-effect docx-run-hidden docx-run-web-hidden" data-docx-run-hidden="true" data-docx-run-web-hidden="true">hidden source clue</span>', $blocks);
+        $t->contains('<span class="docx-run-effect docx-run-caps docx-run-outline docx-run-shadow docx-run-emboss" data-docx-run-caps="true" data-docx-run-outline="true" data-docx-run-shadow="true" data-docx-run-emboss="true">outlined alert</span>', $blocks);
+        $t->contains('<span class="docx-run-effect docx-emphasis-mark docx-emphasis-mark-dot docx-text-effect docx-text-effect-blinkbackground" data-docx-emphasis-mark="dot" data-docx-text-effect="blinkBackground">emphasis mark</span> plain.', $blocks);
+        $t->true(!str_contains($markdown, 'data-docx-text-effect="none"'), 'DOCX effect none should not create Markdown run-effect metadata');
+        $t->true(!str_contains($blocks, 'data-docx-run-caps="off"'), 'DOCX off caps should not create WordPress run-effect metadata');
     },
     'preserves DOCX run language and RTL metadata as reviewer spans' => static function (TestRunner $t) use ($buildRunLanguageDirectionPackage): void {
         $document = (new DocxReader())->readDocument($buildRunLanguageDirectionPackage());

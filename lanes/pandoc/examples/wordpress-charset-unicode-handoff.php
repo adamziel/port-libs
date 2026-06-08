@@ -149,6 +149,8 @@ $southeastAsianConjunctSlices = UnicodeText::splitByDisplayBreakpoints($myanmarC
 $thaiSaraAm = "\u{0E01}\u{0E33}";
 $laoSaraAm = "\u{0EA5}\u{0EB3}";
 $thaiLaoAmSlices = UnicodeText::splitByDisplayBreakpoints($thaiSaraAm . $laoSaraAm . 'X', [2, 4]);
+$tibetanTshegText = "\u{0F56}\u{0F7C}\u{0F51}\u{0F0B}\u{0F61}\u{0F72}\u{0F42}\u{0F0B}\u{0F51}\u{0F54}\u{0F7A}\u{0F0B}\u{0F58}\u{0F5B}\u{0F7C}\u{0F51} tail";
+$tibetanTshegWrap = UnicodeText::wrapByDisplayWidth($tibetanTshegText, 8, '  ');
 $softBreakAuditLines = UnicodeText::wrapByDisplayWidth("Zero\u{200B}width\u{200B}breaks soft\u{00AD}hyphen \u{9B5A}\u{200B}\u{9B5A} tail", 10, '  ');
 $unicodeSeparatorAuditLines = UnicodeText::wrapByDisplayWidth(
     "CJK\u{3000}review\u{2003}queue\u{2028}Hard reset\u{2029}\u{9B5A}\u{3000}\u{9B5A} tail",
@@ -278,6 +280,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Thai/Lao AM'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $thaiLaoAmSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $thaiLaoAmSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Tibetan tsheg'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $tibetanTshegWrap)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $tibetanTshegWrap))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Wrapped note'])]),
@@ -642,6 +649,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Thai/Lao AM</td><td>' . $thaiSaraAm . ' / ' . $laoSaraAm . ' / X</td><td>2,2,1</td>')) {
         throw new RuntimeException('charset handoff self-test missing Thai/Lao AM display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Tibetan tsheg</td><td>བོད་ཡིག་ /   དཔེ་མཛོད /   tail</td><td>6,8,6</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Tibetan tsheg wrap audit');
     }
     if (!str_contains($blocks, "<td>Wrapped note</td><td>Import \u{9B5A}\u{9B5A} /   emoji \u{1F44D}\u{1F3FD} /   flag \u{1F1FA}\u{1F1F8} /   Cafe\u{0301} trail</td><td>11,10,9,12</td>")) {
         throw new RuntimeException('charset handoff self-test missing display-width wrap audit');

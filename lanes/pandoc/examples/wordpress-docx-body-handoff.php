@@ -233,6 +233,13 @@ XML],
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Run effect review </w:t></w:r>
+      <w:r><w:rPr><w:vanish/><w:webHidden/></w:rPr><w:t>hidden source clue</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:em w:val="dot"/><w:effect w:val="blinkBackground"/></w:rPr><w:t>emphasis mark</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:pPr>
         <w:jc w:val="center"/>
         <w:pPrChange w:id="24" w:author="Layout Reviewer" w:date="2026-06-05T18:30:00Z">
@@ -1178,6 +1185,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Ruby reviewer term <span class="docx-ruby" data-docx-ruby-text="とうきょう" data-docx-ruby-align="center" data-docx-ruby-lang="ja-JP" data-docx-ruby-hps="14" data-docx-ruby-hps-raise="18" data-docx-ruby-hps-base-text="24"><strong>東京</strong></span> keeps pronunciation metadata.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span> plus <span class="docx-color docx-color-c00000 docx-theme-color docx-theme-color-accent2" data-docx-color="C00000" data-docx-theme-color="accent2" data-docx-theme-tint="33">redline label</span>.</p>',
+        '<p>Run effect review <span class="docx-run-effect docx-run-hidden docx-run-web-hidden" data-docx-run-hidden="true" data-docx-run-web-hidden="true">hidden source clue</span> and <span class="docx-run-effect docx-emphasis-mark docx-emphasis-mark-dot docx-text-effect docx-text-effect-blinkbackground" data-docx-emphasis-mark="dot" data-docx-text-effect="blinkBackground">emphasis mark</span>.</p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-formatting-change docx-paragraph-formatting-change" data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="24" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReviewLayout" data-docx-previous-paragraph-align="left">Tracked paragraph formatting remains auditable.</span></p>',
         '<p>Tracked run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="25" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>',
         '<p>Proof and permissions <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> plus <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>review window</strong></span> stay labeled.</p>',

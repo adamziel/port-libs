@@ -354,18 +354,7 @@ final class OpcRelationships
 
     private static function contentTypeComparisonKey(string $contentType): string
     {
-        $segments = explode(';', $contentType);
-        $mediaType = strtolower(trim(array_shift($segments) ?? ''));
-        $parameters = array_values(array_filter(
-            array_map(static fn (string $parameter): string => trim($parameter), $segments),
-            static fn (string $parameter): bool => $parameter !== '',
-        ));
-
-        if ($parameters === []) {
-            return $mediaType;
-        }
-
-        return $mediaType . ';' . implode(';', $parameters);
+        return strtolower(trim(explode(';', $contentType, 2)[0]));
     }
 
     private static function partNameEquivalenceKey(string $partName): string

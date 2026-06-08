@@ -1233,6 +1233,27 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 9, 'Thai/Lao AM wrapped line exceeds requested width');
         }
     },
+    'wraps tibetan tsheg as a visible break after separator' => static function (TestRunner $t): void {
+        $bod = "\u{0F56}\u{0F7C}\u{0F51}\u{0F0B}";
+        $yig = "\u{0F61}\u{0F72}\u{0F42}\u{0F0B}";
+        $dpe = "\u{0F51}\u{0F54}\u{0F7A}\u{0F0B}";
+        $mdzod = "\u{0F58}\u{0F5B}\u{0F7C}\u{0F51}";
+        $text = $bod . $yig . $dpe . $mdzod . ' tail';
+        $mixed = $bod . 'review' . "\u{0F0B}" . 'queue';
+
+        $t->same(17, UnicodeText::displayWidth($text));
+        $t->same(15, UnicodeText::displayWidth($mixed));
+        $t->same([
+            $bod . $yig,
+            '  ' . $dpe . $mdzod,
+            '  tail',
+        ], UnicodeText::wrapByDisplayWidth($text, 8, '  '));
+        $t->same([
+            $bod,
+            '  review' . "\u{0F0B}",
+            '  queue',
+        ], UnicodeText::wrapByDisplayWidth($mixed, 9, '  '));
+    },
     'measures emoji presentation sequences as single display clusters' => static function (TestRunner $t): void {
         $checkbox = "\u{2611}\u{FE0F}";
         $keycap = "1\u{FE0F}\u{20E3}";

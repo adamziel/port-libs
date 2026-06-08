@@ -851,6 +851,27 @@ return [
         $t->true(!str_contains($commentMathml, '<mo>%</mo>'), 'Expected raw TeX comments to be omitted from rendered MathML');
         $t->true(!str_contains($commentMathml, '<mi>\\badcommand</mi>'), 'Expected raw TeX comment payload to remain annotation-only');
     },
+    'ignores bounded tex comments while splitting environment rows' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignedMathml = $converter->texToMathMl("\\begin{aligned}p_i &= m_i % hidden & ignored\n\\\\ x_i &= y_i\\end{aligned}", true);
+        $arrayMathml = $converter->texToMathMl("\\begin{array}{cc}p_i & m_i % hidden \\\\ no row sep\n\\\\ x_i & y_i\\end{array}", true);
+        $fullRowCommentMathml = $converter->texToMathMl("\\begin{array}{cc}p_i & m_i \\\\ % full row comment & hidden\n x_i & y_i\\end{array}", true);
+        $alignedRendered = (string) strstr($alignedMathml, '<annotation', true);
+        $arrayRendered = (string) strstr($arrayMathml, '<annotation', true);
+        $fullRowCommentRendered = (string) strstr($fullRowCommentMathml, '<annotation', true);
+
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr></mtable>', $alignedMathml);
+        $t->contains("<annotation encoding=\"application/x-tex\">\\begin{aligned}p_i &amp;= m_i % hidden &amp; ignored\n\\\\ x_i &amp;= y_i\\end{aligned}</annotation>", $alignedMathml);
+        $t->true(!str_contains($alignedRendered, '<mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi>'));
+        $t->true(!str_contains($alignedRendered, '<mi>i</mi><mi>g</mi><mi>n</mi><mi>o</mi><mi>r</mi><mi>e</mi><mi>d</mi>'));
+        $t->contains('<mtable columnalign="center center"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr></mtable>', $arrayMathml);
+        $t->contains("<annotation encoding=\"application/x-tex\">\\begin{array}{cc}p_i &amp; m_i % hidden \\\\ no row sep\n\\\\ x_i &amp; y_i\\end{array}</annotation>", $arrayMathml);
+        $t->true(!str_contains($arrayRendered, '<mi>n</mi><mi>o</mi><mi>r</mi><mi>o</mi><mi>w</mi><mi>s</mi><mi>e</mi><mi>p</mi>'));
+        $t->contains('<mtable columnalign="center center"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr></mtable>', $fullRowCommentMathml);
+        $t->contains("<annotation encoding=\"application/x-tex\">\\begin{array}{cc}p_i &amp; m_i \\\\ % full row comment &amp; hidden\n x_i &amp; y_i\\end{array}</annotation>", $fullRowCommentMathml);
+        $t->true(!str_contains($fullRowCommentRendered, '<mi>f</mi><mi>u</mi><mi>l</mi><mi>l</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl("\\begin{smallmatrix}a & b \\\\ % ignored final row\n\\end{smallmatrix}"));
+    },
     'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $explicitMathml = $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b', true);

@@ -2600,6 +2600,14 @@ final class UnicodeText
                 $separatorText = '';
                 continue;
             }
+            if (self::isVisibleBreakAfterSeparator($codepoint)) {
+                $buffer .= $char;
+                self::appendWrapFragment($fragments, $separator, $separatorText, $buffer);
+                $buffer = '';
+                $separator = 'soft';
+                $separatorText = '';
+                continue;
+            }
 
             $buffer .= $char;
         }
@@ -2632,6 +2640,11 @@ final class UnicodeText
     private static function wrapWhitespaceSeparatorText(int $codepoint, string $char): string
     {
         return $codepoint <= 0x20 ? ' ' : $char;
+    }
+
+    private static function isVisibleBreakAfterSeparator(int $codepoint): bool
+    {
+        return $codepoint === 0x0f0b;
     }
 
     private static function wrapBreakLineText(

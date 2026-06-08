@@ -4912,6 +4912,16 @@ final class DocxReader
             'lang' => 'language',
             'rtl' => 'rtl',
             'rFonts' => 'font',
+            'vanish' => 'run-hidden',
+            'webHidden' => 'run-web-hidden',
+            'specVanish' => 'run-spec-hidden',
+            'caps' => 'run-caps',
+            'outline' => 'run-outline',
+            'shadow' => 'run-shadow',
+            'emboss' => 'run-emboss',
+            'imprint' => 'run-imprint',
+            'em' => 'emphasis-mark',
+            'effect' => 'text-effect',
         ] as $childName => $family) {
             if ($this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $childName) instanceof \DOMElement) {
                 $families[] = $family;
@@ -5008,6 +5018,7 @@ final class DocxReader
         $removeClassPrefixes = [];
         $removeExactAttributes = [];
         $removeAttributePrefixes = [];
+        $runEffectFamily = false;
 
         if ($family === 'highlight') {
             $removeExactClasses[] = 'docx-highlight';
@@ -5032,6 +5043,48 @@ final class DocxReader
         } elseif ($family === 'rtl') {
             $removeExactClasses[] = 'docx-rtl';
             $removeExactAttributes[] = 'dir';
+        } elseif ($family === 'run-hidden') {
+            $removeExactClasses[] = 'docx-run-hidden';
+            $removeExactAttributes[] = 'data-docx-run-hidden';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-web-hidden') {
+            $removeExactClasses[] = 'docx-run-web-hidden';
+            $removeExactAttributes[] = 'data-docx-run-web-hidden';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-spec-hidden') {
+            $removeExactClasses[] = 'docx-run-spec-hidden';
+            $removeExactAttributes[] = 'data-docx-run-spec-hidden';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-caps') {
+            $removeExactClasses[] = 'docx-run-caps';
+            $removeExactAttributes[] = 'data-docx-run-caps';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-outline') {
+            $removeExactClasses[] = 'docx-run-outline';
+            $removeExactAttributes[] = 'data-docx-run-outline';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-shadow') {
+            $removeExactClasses[] = 'docx-run-shadow';
+            $removeExactAttributes[] = 'data-docx-run-shadow';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-emboss') {
+            $removeExactClasses[] = 'docx-run-emboss';
+            $removeExactAttributes[] = 'data-docx-run-emboss';
+            $runEffectFamily = true;
+        } elseif ($family === 'run-imprint') {
+            $removeExactClasses[] = 'docx-run-imprint';
+            $removeExactAttributes[] = 'data-docx-run-imprint';
+            $runEffectFamily = true;
+        } elseif ($family === 'emphasis-mark') {
+            $removeExactClasses[] = 'docx-emphasis-mark';
+            $removeClassPrefixes[] = 'docx-emphasis-mark-';
+            $removeExactAttributes[] = 'data-docx-emphasis-mark';
+            $runEffectFamily = true;
+        } elseif ($family === 'text-effect') {
+            $removeExactClasses[] = 'docx-text-effect';
+            $removeClassPrefixes[] = 'docx-text-effect-';
+            $removeExactAttributes[] = 'data-docx-text-effect';
+            $runEffectFamily = true;
         }
 
         $classes = array_values(array_filter(
@@ -5065,6 +5118,10 @@ final class DocxReader
             }
         }
 
+        if ($runEffectFamily && !$this->hasRunEffectMetadataClass($classes)) {
+            $classes = array_values(array_diff($classes, ['docx-run-effect']));
+        }
+
         if ($family === 'font') {
             $classes = array_values(array_diff($classes, ['docx-font', 'docx-theme-font']));
             foreach (array_keys($attributes) as $name) {
@@ -5078,6 +5135,35 @@ final class DocxReader
     }
 
     /**
+     * @param list<string> $classes
+     */
+    private function hasRunEffectMetadataClass(array $classes): bool
+    {
+        foreach ($classes as $class) {
+            if (in_array($class, [
+                'docx-run-hidden',
+                'docx-run-web-hidden',
+                'docx-run-spec-hidden',
+                'docx-run-caps',
+                'docx-run-outline',
+                'docx-run-shadow',
+                'docx-run-emboss',
+                'docx-run-imprint',
+                'docx-emphasis-mark',
+                'docx-text-effect',
+            ], true)) {
+                return true;
+            }
+
+            if (str_starts_with($class, 'docx-emphasis-mark-') || str_starts_with($class, 'docx-text-effect-')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
     private function runMetadataAttrs(\DOMElement $properties, bool $includeFormattingChange = true): ?array
@@ -5088,6 +5174,7 @@ final class DocxReader
             $this->runColorAttrs($properties),
             $this->runLanguageDirectionAttrs($properties),
             $this->runFontAttrs($properties),
+            $this->runEffectAttrs($properties),
             $includeFormattingChange ? $this->runFormattingChangeAttrs($properties) : null,
         ] as $source) {
             if ($source === null) {
@@ -5107,6 +5194,66 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runEffectAttrs(\DOMElement $properties): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        foreach ([
+            'vanish' => ['docx-run-hidden', 'data-docx-run-hidden'],
+            'webHidden' => ['docx-run-web-hidden', 'data-docx-run-web-hidden'],
+            'specVanish' => ['docx-run-spec-hidden', 'data-docx-run-spec-hidden'],
+            'caps' => ['docx-run-caps', 'data-docx-run-caps'],
+            'outline' => ['docx-run-outline', 'data-docx-run-outline'],
+            'shadow' => ['docx-run-shadow', 'data-docx-run-shadow'],
+            'emboss' => ['docx-run-emboss', 'data-docx-run-emboss'],
+            'imprint' => ['docx-run-imprint', 'data-docx-run-imprint'],
+        ] as $childName => [$class, $attribute]) {
+            if ($this->onOffChildValue($properties, $childName) !== true) {
+                continue;
+            }
+
+            $classes[] = 'docx-run-effect';
+            $classes[] = $class;
+            $attributes[$attribute] = 'true';
+        }
+
+        foreach ([
+            'em' => ['docx-emphasis-mark', 'data-docx-emphasis-mark'],
+            'effect' => ['docx-text-effect', 'data-docx-text-effect'],
+        ] as $childName => [$class, $attribute]) {
+            $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $childName);
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = trim((string) ($this->wordAttr($child, 'val') ?? ''));
+            if ($value === '' || in_array(strtolower($value), ['none', '0', 'false', 'off'], true)) {
+                continue;
+            }
+
+            $classes[] = 'docx-run-effect';
+            $classes[] = $class;
+            $suffix = $this->metadataClassSuffix($value);
+            if ($suffix !== null) {
+                $classes[] = $class . '-' . $suffix;
+            }
+            $attributes[$attribute] = $value;
+        }
+
+        if ($attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
     }
 
     /**

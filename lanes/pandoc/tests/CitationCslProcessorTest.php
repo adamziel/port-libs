@@ -10148,6 +10148,125 @@ XML
         $t->contains('<p>Extended locators (Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12).</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Extended Locator Packet.</dd>', $blocks);
     },
+    'applies bounded csl uncommon locator vocabulary and markdown inference' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'uncommon-locator-source',
+                'type' => 'report',
+                'title' => 'Uncommon Locator Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Uncommon Locator Vocabulary Review Style</title>
+    <id>https://example.test/styles/uncommon-locator-vocabulary-review</id>
+    <updated>2026-06-08T12:01:06+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="article-locator" form="short"><single>art.</single><multiple>arts.</multiple></term>
+      <term name="book" form="short"><single>bk.</single><multiple>bks.</multiple></term>
+      <term name="canon" form="short"><single>c.</single><multiple>cc.</multiple></term>
+      <term name="elocation" form="short"><single>e-loc.</single><multiple>e-locs.</multiple></term>
+      <term name="folio" form="short"><single>fol.</single><multiple>fols.</multiple></term>
+      <term name="opus" form="short"><single>op.</single><multiple>opp.</multiple></term>
+      <term name="part" form="short"><single>pt.</single><multiple>pts.</multiple></term>
+      <term name="rule" form="short"><single>r.</single><multiple>rr.</multiple></term>
+      <term name="sub-verbo" form="short"><single>s.v.</single><multiple>s.vv.</multiple></term>
+      <term name="supplement" form="short"><single>supp.</single><multiple>supps.</multiple></term>
+      <term name="timestamp" form="short"><single>ts.</single><multiple>ts.</multiple></term>
+      <term name="title" form="short"><single>ttl.</single><multiple>ttls.</multiple></term>
+    </terms>
+  </locale>
+  <macro name="locator-route">
+    <choose>
+      <if locator="article-locator book canon elocation folio opus part rule sub-verbo supplement timestamp title" match="any">
+        <group delimiter=" ">
+          <text value="extended"/>
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+      <else>
+        <text variable="locator" prefix="fallback "/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <text macro="locator-route"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same([
+            'article-locator',
+            'book',
+            'canon',
+            'elocation',
+            'folio',
+            'opus',
+            'part',
+            'rule',
+            'sub-verbo',
+            'supplement',
+            'timestamp',
+            'title',
+        ], $summary['macros']['locator-route'][0]['branches'][0]['locators'] ?? null);
+
+        $document = (new MarkdownReader())->read('Uncommon locators [@uncommon-locator-source, bk. 2-3; @uncommon-locator-source, cc. 4-5; @uncommon-locator-source, fol. 12r; @uncommon-locator-source, op. 9; @uncommon-locator-source, rule 5-6; @uncommon-locator-source, s.v. migration; @uncommon-locator-source, supp. A; @uncommon-locator-source, timestamp 01:02:03; @uncommon-locator-source, title 7; @uncommon-locator-source, art. 3-4; @uncommon-locator-source, eloc 55; @uncommon-locator-source, part II].');
+        $cluster = $document->children[0]->children[1];
+        $t->same('citation_group', $cluster->type);
+        $t->same([
+            ['book', '2-3'],
+            ['canon', '4-5'],
+            ['folio', '12r'],
+            ['opus', '9'],
+            ['rule', '5-6'],
+            ['sub-verbo', 'migration'],
+            ['supplement', 'A'],
+            ['timestamp', '01:02:03'],
+            ['title', '7'],
+            ['article-locator', '3-4'],
+            ['elocation', '55'],
+            ['part', 'II'],
+        ], array_map(
+            static fn (AstNode $citation): array => [$citation->attr('locatorLabel'), $citation->attr('locatorValue')],
+            $cluster->children
+        ));
+
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $processedCluster = $processed->children[0]->children[1];
+        $t->same('(Smith, extended bks. 2–3; Smith, extended cc. 4–5; Smith, extended fol. 12r; Smith, extended op. 9; Smith, extended rr. 5–6; Smith, extended s.v. migration; Smith, extended supp. A; Smith, extended ts. 01:02:03; Smith, extended ttl. 7; Smith, extended arts. 3–4; Smith, extended e-loc. 55; Smith, extended pt. II)', $processedCluster->attr('rendered'));
+
+        $direct = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'uncommon-locator-source', 'text' => '[@uncommon-locator-source]', 'locatorLabel' => 's. v.', 'locatorValue' => 'archive']),
+            new AstNode('citation', ['id' => 'uncommon-locator-source', 'text' => '[@uncommon-locator-source]', 'locatorLabel' => 'article', 'locatorValue' => '10-11']),
+        ]);
+        $t->same('(Smith, extended s.v. archive; Smith, extended arts. 10–11)', $direct);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Uncommon locators (Smith, extended bks. 2–3; Smith, extended cc. 4–5; Smith, extended fol. 12r; Smith, extended op. 9; Smith, extended rr. 5–6; Smith, extended s.v. migration; Smith, extended supp. A; Smith, extended ts. 01:02:03; Smith, extended ttl. 7; Smith, extended arts. 3–4; Smith, extended e-loc. 55; Smith, extended pt. II).</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Uncommon Locator Packet.</dd>', $blocks);
+    },
     'applies bounded csl locator range delimiter rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
