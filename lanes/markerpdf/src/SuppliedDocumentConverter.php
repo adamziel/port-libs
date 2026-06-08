@@ -383,8 +383,9 @@ final class SuppliedDocumentConverter
                 continue;
             }
 
-            $cellsByTable = isset($tableOrPageResult['cells']) && is_array($tableOrPageResult['cells'])
-                ? array_values($tableOrPageResult['cells'])
+            $cellsSource = $this->pageResultCellsSource($tableOrPageResult);
+            $cellsByTable = $cellsSource !== null && isset($tableOrPageResult[$cellsSource]) && is_array($tableOrPageResult[$cellsSource])
+                ? array_values($tableOrPageResult[$cellsSource])
                 : [];
             $rowsColsByTable = isset($tableOrPageResult['rows_cols']) && is_array($tableOrPageResult['rows_cols'])
                 ? array_values($tableOrPageResult['rows_cols'])
@@ -453,6 +454,9 @@ final class SuppliedDocumentConverter
                 }
 
                 $table = $this->withPageResultGeometryMetadata($table, $tableOrPageResult);
+                if ($cellsSource === 'table_cells') {
+                    $table = $this->withPageResultTableCellsGeometryMetadata($table, $tableOrPageResult);
+                }
 
                 if (isset($tableOrPageResult['pnum']) && (is_int($tableOrPageResult['pnum']) || is_float($tableOrPageResult['pnum']) || is_string($tableOrPageResult['pnum']))) {
                     $table['pnum'] = is_numeric($tableOrPageResult['pnum'])
@@ -472,6 +476,8 @@ final class SuppliedDocumentConverter
                 'flattened_table_indexes' => $tableCount > 0
                     ? range($firstFlattenedIndex, $firstFlattenedIndex + $tableCount - 1)
                     : [],
+                'cells_source' => $cellsSource,
+                'cells_source_alias' => $cellsSource === 'cells' ? null : $cellsSource,
                 'cells_table_count' => count($cellsByTable),
                 'rows_cols_table_count' => count($rowsColsByTable),
                 'table_bbox_count' => count($tableBboxes),
@@ -499,7 +505,8 @@ final class SuppliedDocumentConverter
      */
     private function isRecognizedTablePageResult(array $entry): bool
     {
-        if (!isset($entry['cells']) || !is_array($entry['cells']) || !array_is_list($entry['cells'])) {
+        $cellsSource = $this->pageResultCellsSource($entry);
+        if ($cellsSource === null) {
             return false;
         }
 
@@ -507,13 +514,33 @@ final class SuppliedDocumentConverter
             return false;
         }
 
-        foreach ($entry['cells'] as $tableCells) {
+        foreach ($entry[$cellsSource] as $tableCells) {
             if (is_array($tableCells) && array_is_list($tableCells)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $pageResult
+     */
+    private function pageResultCellsSource(array $pageResult): ?string
+    {
+        foreach (['cells', 'table_cells'] as $source) {
+            if (!isset($pageResult[$source]) || !is_array($pageResult[$source]) || !array_is_list($pageResult[$source])) {
+                continue;
+            }
+
+            foreach ($pageResult[$source] as $tableCells) {
+                if (is_array($tableCells) && array_is_list($tableCells)) {
+                    return $source;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1219,6 +1246,43 @@ final class SuppliedDocumentConverter
     }
 
     /**
+     * @param array<string, mixed> $table
+     * @param array<string, mixed> $pageResult
+     * @return array<string, mixed>
+     */
+    private function withPageResultTableCellsGeometryMetadata(array $table, array $pageResult): array
+    {
+        foreach ($this->pageResultTableCellsCoordinateSpaceKeys() as $key) {
+            if (array_key_exists('cells_coordinate_space', $table) || !isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                continue;
+            }
+
+            $table['cells_coordinate_space'] = (string) $pageResult[$key];
+            break;
+        }
+
+        foreach ($this->pageResultTableCellsCoordinateOrderKeys() as $key) {
+            if (array_key_exists('cells_bbox_order', $table) || !isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                continue;
+            }
+
+            $table['cells_bbox_order'] = (string) $pageResult[$key];
+            break;
+        }
+
+        foreach ($this->pageResultTableCellsCoordinateFormatKeys() as $key) {
+            if (array_key_exists('cells_bbox_format', $table) || !isset($pageResult[$key]) || !is_scalar($pageResult[$key])) {
+                continue;
+            }
+
+            $table['cells_bbox_format'] = (string) $pageResult[$key];
+            break;
+        }
+
+        return $table;
+    }
+
+    /**
      * Page-level ExtractPageResult envelopes name table crop rectangles as
      * bboxes, but flattened recognized-table records expose the selected crop
      * as bbox. Preserve field-specific metadata under the singular keys that
@@ -1308,6 +1372,51 @@ final class SuppliedDocumentConverter
             'table_bboxes_coordinate_format',
             'table_bbox_format',
             'table_bbox_coordinate_format',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultTableCellsCoordinateSpaceKeys(): array
+    {
+        return [
+            'table_cells_coordinate_space',
+            'table_cell_coordinate_space',
+            'table_cells_geometry_space',
+            'table_cell_geometry_space',
+            'table_cells_bbox_coordinate_space',
+            'table_cell_bbox_coordinate_space',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultTableCellsCoordinateOrderKeys(): array
+    {
+        return [
+            'table_cells_bbox_order',
+            'table_cell_bbox_order',
+            'table_cells_order',
+            'table_cell_order',
+            'table_cells_coordinate_order',
+            'table_cell_coordinate_order',
+            'table_cells_bbox_coordinate_order',
+            'table_cell_bbox_coordinate_order',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageResultTableCellsCoordinateFormatKeys(): array
+    {
+        return [
+            'table_cells_bbox_format',
+            'table_cell_bbox_format',
+            'table_cells_coordinate_format',
+            'table_cell_coordinate_format',
         ];
     }
 
