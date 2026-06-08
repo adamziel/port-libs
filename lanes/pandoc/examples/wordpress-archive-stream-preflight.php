@@ -720,6 +720,17 @@ $archiveBombInspection = ArchiveCompressionStream::inspectArchiveBombPolicyAuto(
     4.0,
     4.0
 );
+$unsupportedBzip2Upload = 'BZh9' . 'compressed tar payload bytes stay opaque to WordPress preflight';
+$unsupportedXzUpload = "\xfd" . '7zXZ' . "\0" . "\0\x04" . "\0\0\0\0"
+    . 'compressed zip payload bytes stay opaque to WordPress preflight';
+$unsupportedBzip2Inspection = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+    $unsupportedBzip2Upload,
+    'wordpress-review-packet.tar.bz2'
+);
+$unsupportedXzInspection = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+    $unsupportedXzUpload,
+    'wordpress-documents.zip.xz'
+);
 
 $layoutSummary = array_map(
     static fn (array $layout): string => implode(':', [
@@ -851,6 +862,15 @@ if (in_array('--self-test', $argv, true)) {
         ],
         'archiveBombFilename' => 'wordpress-compressed-review.tar',
         'archiveBombContentSize' => strlen($archiveBombContentBytes),
+        'unsupportedBzip2Format' => 'bzip2',
+        'unsupportedBzip2Kind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'unsupportedBzip2CandidateFormat' => 'bzip2-tar',
+        'unsupportedBzip2BlockSize' => 9,
+        'unsupportedXzFormat' => 'xz',
+        'unsupportedXzKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
+        'unsupportedXzCandidateFormat' => 'xz-zip',
+        'unsupportedXzFlags' => '0004',
+        'unsupportedPolicy' => 'unsupported-compression-stream-blocked',
     ];
 
     if ($inspection['kind'] !== $expected['kind']
@@ -1051,6 +1071,18 @@ if (in_array('--self-test', $argv, true)) {
         || $archiveBombInspection['entryUncompressedSize'] !== $expected['archiveBombContentSize']
         || $archiveBombInspection['streamCompressionRatio'] <= 4.0
         || $archiveBombInspection['totalExpansionRatio'] <= 4.0
+        || $unsupportedBzip2Inspection['format'] !== $expected['unsupportedBzip2Format']
+        || $unsupportedBzip2Inspection['candidateKind'] !== $expected['unsupportedBzip2Kind']
+        || $unsupportedBzip2Inspection['candidateFormat'] !== $expected['unsupportedBzip2CandidateFormat']
+        || $unsupportedBzip2Inspection['blockSize100k'] !== $expected['unsupportedBzip2BlockSize']
+        || $unsupportedBzip2Inspection['extractionPolicy'] !== $expected['unsupportedPolicy']
+        || ($unsupportedBzip2Inspection['diagnostics'][1] ?? null) !== 'archive-compression-format-bzip2-not-decoded'
+        || $unsupportedXzInspection['format'] !== $expected['unsupportedXzFormat']
+        || $unsupportedXzInspection['candidateKind'] !== $expected['unsupportedXzKind']
+        || $unsupportedXzInspection['candidateFormat'] !== $expected['unsupportedXzCandidateFormat']
+        || $unsupportedXzInspection['streamFlagsHex'] !== $expected['unsupportedXzFlags']
+        || $unsupportedXzInspection['extractionPolicy'] !== $expected['unsupportedPolicy']
+        || ($unsupportedXzInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-xz-not-decoded'
     ) {
         throw new RuntimeException('archive stream preflight self-test failed');
     }
@@ -1169,3 +1201,11 @@ echo 'archiveBomb.handoffPolicy=' . $archiveBombInspection['handoffPolicy'] . "\
 echo 'archiveBomb.diagnostics=' . implode(',', $archiveBombInspection['diagnostics']) . "\n";
 echo 'archiveBomb.streamRatio=' . number_format($archiveBombInspection['streamCompressionRatio'], 2, '.', '') . "\n";
 echo 'archiveBomb.totalRatio=' . number_format($archiveBombInspection['totalExpansionRatio'], 2, '.', '') . "\n";
+echo 'unsupportedBzip2.format=' . $unsupportedBzip2Inspection['format'] . "\n";
+echo 'unsupportedBzip2.candidateFormat=' . $unsupportedBzip2Inspection['candidateFormat'] . "\n";
+echo 'unsupportedBzip2.extractionPolicy=' . $unsupportedBzip2Inspection['extractionPolicy'] . "\n";
+echo 'unsupportedBzip2.diagnostics=' . implode(',', $unsupportedBzip2Inspection['diagnostics']) . "\n";
+echo 'unsupportedXz.format=' . $unsupportedXzInspection['format'] . "\n";
+echo 'unsupportedXz.candidateFormat=' . $unsupportedXzInspection['candidateFormat'] . "\n";
+echo 'unsupportedXz.extractionPolicy=' . $unsupportedXzInspection['extractionPolicy'] . "\n";
+echo 'unsupportedXz.diagnostics=' . implode(',', $unsupportedXzInspection['diagnostics']) . "\n";

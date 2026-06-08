@@ -435,6 +435,68 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     type:string,
+     *     format:string,
+     *     sourceName:?string,
+     *     candidateKind:?string,
+     *     candidateFormat:?string,
+     *     compressedSize:int,
+     *     signatureMatched:bool,
+     *     signatureName:?string,
+     *     signatureBytesHex:?string,
+     *     streamHeaderSize:?int,
+     *     streamFlagsHex:?string,
+     *     blockSize100k:?int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>
+     * }
+     */
+    public static function inspectUnsupportedCompressionStreamPolicy(string $bytes, ?string $sourceName = null): array
+    {
+        $signature = self::unsupportedCompressionSignature($bytes);
+        $nameCandidate = $sourceName === null ? null : self::unsupportedCompressionNameCandidate($sourceName);
+
+        if ($signature === null && $nameCandidate === null) {
+            throw new \RuntimeException('Unsupported archive compression policy requires a BZip2 or XZ stream signature or source name');
+        }
+
+        $format = $signature['format'] ?? $nameCandidate['format'];
+        $candidateKind = $nameCandidate['kind'] ?? null;
+        $diagnostics = [
+            'archive-compression-format-unsupported',
+            'archive-compression-format-' . $format . '-not-decoded',
+            'archive-external-decompressor-not-run',
+            'archive-package-bytes-not-exposed',
+        ];
+
+        if ($signature === null) {
+            $diagnostics[] = 'archive-compression-signature-unverified';
+        } elseif ($nameCandidate !== null && $nameCandidate['format'] !== $signature['format']) {
+            $diagnostics[] = 'archive-compression-signature-source-name-mismatch';
+        }
+
+        return [
+            'type' => 'unsupported-archive-compression-stream',
+            'format' => $format,
+            'sourceName' => $sourceName,
+            'candidateKind' => $candidateKind,
+            'candidateFormat' => $candidateKind === null ? null : $format . '-' . $candidateKind,
+            'compressedSize' => strlen($bytes),
+            'signatureMatched' => $signature !== null,
+            'signatureName' => $signature['name'] ?? null,
+            'signatureBytesHex' => $signature['signatureBytesHex'] ?? null,
+            'streamHeaderSize' => $signature['streamHeaderSize'] ?? null,
+            'streamFlagsHex' => $signature['streamFlagsHex'] ?? null,
+            'blockSize100k' => $signature['blockSize100k'] ?? null,
+            'handoffPolicy' => 'review-before-conversion',
+            'extractionPolicy' => 'unsupported-compression-stream-blocked',
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
      *     format:string,
      *     tarBytes:string,
      *     archive:TarArchive,
@@ -2411,6 +2473,77 @@ final class ArchiveCompressionStream
                 substr($bytes, 257, 6) === "ustar\0"
                 || substr($bytes, 257, 8) === "ustar  \0"
             );
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     name:string,
+     *     signatureBytesHex:string,
+     *     streamHeaderSize:int,
+     *     streamFlagsHex:?string,
+     *     blockSize100k:?int
+     * }|null
+     */
+    private static function unsupportedCompressionSignature(string $bytes): ?array
+    {
+        if (strlen($bytes) >= 4
+            && str_starts_with($bytes, 'BZh')
+            && ord($bytes[3]) >= ord('1')
+            && ord($bytes[3]) <= ord('9')
+        ) {
+            return [
+                'format' => 'bzip2',
+                'name' => 'bzip2',
+                'signatureBytesHex' => bin2hex(substr($bytes, 0, 4)),
+                'streamHeaderSize' => 4,
+                'streamFlagsHex' => null,
+                'blockSize100k' => (int) $bytes[3],
+            ];
+        }
+
+        if (str_starts_with($bytes, "\xfd" . '7zXZ' . "\0")) {
+            return [
+                'format' => 'xz',
+                'name' => 'xz',
+                'signatureBytesHex' => bin2hex(substr($bytes, 0, 6)),
+                'streamHeaderSize' => 12,
+                'streamFlagsHex' => strlen($bytes) >= 8 ? bin2hex(substr($bytes, 6, 2)) : null,
+                'blockSize100k' => null,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{format:string, kind:?string}|null
+     */
+    private static function unsupportedCompressionNameCandidate(string $sourceName): ?array
+    {
+        $lower = strtolower($sourceName);
+        $compressedSuffixes = [
+            '.tar.bz2' => ['bzip2', self::PACKAGE_KIND_TAR],
+            '.tbz2' => ['bzip2', self::PACKAGE_KIND_TAR],
+            '.tbz' => ['bzip2', self::PACKAGE_KIND_TAR],
+            '.zip.bz2' => ['bzip2', self::PACKAGE_KIND_ZIP],
+            '.tar.xz' => ['xz', self::PACKAGE_KIND_TAR],
+            '.txz' => ['xz', self::PACKAGE_KIND_TAR],
+            '.zip.xz' => ['xz', self::PACKAGE_KIND_ZIP],
+            '.bz2' => ['bzip2', null],
+            '.xz' => ['xz', null],
+        ];
+
+        foreach ($compressedSuffixes as $suffix => [$format, $kind]) {
+            if (str_ends_with($lower, $suffix)) {
+                return [
+                    'format' => $format,
+                    'kind' => $kind,
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**

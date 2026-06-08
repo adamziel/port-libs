@@ -3140,6 +3140,84 @@ return [
         $t->same('unsupported zip compression reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
     },
 
+    'preflights unsupported bzip2 and xz archive streams without exposing package bytes' => static function (TestRunner $t): void {
+        $bzip2TarUpload = 'BZh9' . 'compressed tar payload bytes stay opaque to the native preflight';
+        $xzZipUpload = "\xfd" . '7zXZ' . "\0" . "\0\x04" . "\0\0\0\0"
+            . 'compressed zip payload bytes stay opaque to the native preflight';
+
+        $bzip2Policy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $bzip2TarUpload,
+            'wordpress-review-packet.tar.bz2'
+        );
+        $xzPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $xzZipUpload,
+            'wordpress-documents.zip.xz'
+        );
+        $nameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            '',
+            'offline-review-packet.txz'
+        );
+        $mismatchPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $bzip2TarUpload,
+            'wrong-extension.tar.xz'
+        );
+
+        $t->same('unsupported-archive-compression-stream', $bzip2Policy['type']);
+        $t->same('bzip2', $bzip2Policy['format']);
+        $t->same('wordpress-review-packet.tar.bz2', $bzip2Policy['sourceName']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $bzip2Policy['candidateKind']);
+        $t->same('bzip2-tar', $bzip2Policy['candidateFormat']);
+        $t->same(strlen($bzip2TarUpload), $bzip2Policy['compressedSize']);
+        $t->same(true, $bzip2Policy['signatureMatched']);
+        $t->same('bzip2', $bzip2Policy['signatureName']);
+        $t->same('425a6839', $bzip2Policy['signatureBytesHex']);
+        $t->same(4, $bzip2Policy['streamHeaderSize']);
+        $t->same(9, $bzip2Policy['blockSize100k']);
+        $t->same(null, $bzip2Policy['streamFlagsHex']);
+        $t->same('review-before-conversion', $bzip2Policy['handoffPolicy']);
+        $t->same('unsupported-compression-stream-blocked', $bzip2Policy['extractionPolicy']);
+        $t->same([
+            'archive-compression-format-unsupported',
+            'archive-compression-format-bzip2-not-decoded',
+            'archive-external-decompressor-not-run',
+            'archive-package-bytes-not-exposed',
+        ], $bzip2Policy['diagnostics']);
+
+        $t->same('xz', $xzPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $xzPolicy['candidateKind']);
+        $t->same('xz-zip', $xzPolicy['candidateFormat']);
+        $t->same(true, $xzPolicy['signatureMatched']);
+        $t->same('xz', $xzPolicy['signatureName']);
+        $t->same('fd377a585a00', $xzPolicy['signatureBytesHex']);
+        $t->same(12, $xzPolicy['streamHeaderSize']);
+        $t->same('0004', $xzPolicy['streamFlagsHex']);
+        $t->same(null, $xzPolicy['blockSize100k']);
+        $t->same([
+            'archive-compression-format-unsupported',
+            'archive-compression-format-xz-not-decoded',
+            'archive-external-decompressor-not-run',
+            'archive-package-bytes-not-exposed',
+        ], $xzPolicy['diagnostics']);
+
+        $t->same('xz', $nameOnlyPolicy['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $nameOnlyPolicy['candidateKind']);
+        $t->same('xz-tar', $nameOnlyPolicy['candidateFormat']);
+        $t->same(false, $nameOnlyPolicy['signatureMatched']);
+        $t->same([
+            'archive-compression-format-unsupported',
+            'archive-compression-format-xz-not-decoded',
+            'archive-external-decompressor-not-run',
+            'archive-package-bytes-not-exposed',
+            'archive-compression-signature-unverified',
+        ], $nameOnlyPolicy['diagnostics']);
+        $t->same('bzip2', $mismatchPolicy['format']);
+        $t->same('bzip2-tar', $mismatchPolicy['candidateFormat']);
+        $t->same('archive-compression-signature-source-name-mismatch', $mismatchPolicy['diagnostics'][4] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectPackageKindAuto($bzip2TarUpload));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamAuto($xzZipUpload));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy('not a compressed archive', 'notes.txt'));
+    },
+
     'auto-detects bounded zip package fixture compression streams' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             [
