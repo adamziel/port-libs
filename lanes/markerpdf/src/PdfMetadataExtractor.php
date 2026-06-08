@@ -6390,7 +6390,7 @@ final class PdfMetadataExtractor
         ?int $selectedEntryIndex = null
     ): array
     {
-        if ($value === null || $this->trimPdfWhitespaceAndComments($value) === 'null') {
+        if ($value === null) {
             return [];
         }
 
@@ -6405,6 +6405,15 @@ final class PdfMetadataExtractor
             $base['declared_entry_count'] = $declaredEntryCount;
             $base['duplicate_entries'] = $declaredEntryCount > 1;
             $base['selected_entry_index'] = $selectedEntryIndex;
+        }
+
+        if ($this->trimPdfWhitespaceAndComments($value) === 'null') {
+            return $base + [
+                'status' => 'selected_null_outline_item_metadata_reference',
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+                'selected_null_entry' => true,
+                'indirect_reference_required' => true,
+            ];
         }
 
         $reference = $this->objectReferenceFromValue($value);
