@@ -985,6 +985,15 @@ final class PdfXrefFreeObjectMap
                 continue;
             }
 
+            if ($filter === 'ASCII85Decode' || $filter === 'A85') {
+                $decoded = self::decodeAscii85Stream($decoded);
+                if ($decoded === null) {
+                    return null;
+                }
+
+                continue;
+            }
+
             if ($filter === 'FlateDecode' || $filter === 'Fl') {
                 $inflated = @gzuncompress($decoded);
                 if (!is_string($inflated)) {
@@ -999,6 +1008,107 @@ final class PdfXrefFreeObjectMap
         }
 
         return $decoded;
+    }
+
+    private static function decodeAscii85Stream(string $stream): ?string
+    {
+        $body = self::trimPdfWhitespace($stream);
+        if (str_starts_with($body, '<~')) {
+            $body = substr($body, 2);
+        }
+
+        $terminator = strpos($body, '~>');
+        if ($terminator === false) {
+            return null;
+        }
+        $body = substr($body, 0, $terminator);
+
+        $out = '';
+        $group = [];
+        for ($index = 0, $length = strlen($body); $index < $length; $index++) {
+            $char = $body[$index];
+            if (self::isPdfWhitespace($char)) {
+                continue;
+            }
+
+            if ($char === 'z') {
+                if ($group !== []) {
+                    return null;
+                }
+                $out .= "\0\0\0\0";
+                continue;
+            }
+
+            $ord = ord($char);
+            if ($ord < 33 || $ord > 117) {
+                return null;
+            }
+
+            $group[] = $ord - 33;
+            if (count($group) === 5) {
+                $decodedGroup = self::decodeAscii85Group($group, 4);
+                if ($decodedGroup === null) {
+                    return null;
+                }
+
+                $out .= $decodedGroup;
+                $group = [];
+            }
+        }
+
+        if ($group !== []) {
+            $groupLength = count($group);
+            if ($groupLength === 1) {
+                return null;
+            }
+            while (count($group) < 5) {
+                $group[] = 84;
+            }
+
+            $decodedGroup = self::decodeAscii85Group($group, $groupLength - 1);
+            if ($decodedGroup === null) {
+                return null;
+            }
+
+            $out .= $decodedGroup;
+        }
+
+        return $out;
+    }
+
+    private static function trimPdfWhitespace(string $value): string
+    {
+        $start = 0;
+        $end = strlen($value);
+        while ($start < $end && self::isPdfWhitespace($value[$start])) {
+            $start++;
+        }
+        while ($end > $start && self::isPdfWhitespace($value[$end - 1])) {
+            $end--;
+        }
+
+        return substr($value, $start, $end - $start);
+    }
+
+    /**
+     * @param list<int> $group
+     */
+    private static function decodeAscii85Group(array $group, int $bytesToReturn): ?string
+    {
+        $value = 0;
+        foreach ($group as $digit) {
+            $value = ($value * 85) + $digit;
+        }
+        if ($value > 0xffffffff) {
+            return null;
+        }
+
+        $bytes = '';
+        for ($shift = 24; $shift >= 0; $shift -= 8) {
+            $bytes .= chr(($value >> $shift) & 0xff);
+        }
+
+        return substr($bytes, 0, $bytesToReturn);
     }
 
     /**

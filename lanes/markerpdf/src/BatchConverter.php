@@ -5030,6 +5030,7 @@ final class BatchConverter
         $hasMetadataFile = $absoluteMetadataFile !== null;
         $input = $hasMetadataFile ? (string) $metadataFile : null;
         $isAbsoluteInput = $input !== null && str_starts_with($input, DIRECTORY_SEPARATOR);
+        $isDashLiteral = $input === '-';
         $processCwd = $hasMetadataFile ? $this->absolutePath('.') : null;
         $inputFolderCandidate = $hasMetadataFile && !$isAbsoluteInput
             ? $this->normalizeAbsolutePath($absoluteInputFolder . DIRECTORY_SEPARATOR . $input)
@@ -5048,6 +5049,11 @@ final class BatchConverter
             'metadata_file_abspath_order' => $hasMetadataFile ? 'after_chunk_files_before_json_load' : null,
             'metadata_file_abspath_base' => $hasMetadataFile ? ($isAbsoluteInput ? 'already_absolute' : 'process_cwd') : null,
             'metadata_file_process_cwd' => $processCwd,
+            'metadata_file_is_dash_literal' => $isDashLiteral,
+            'metadata_file_dash_path' => $isDashLiteral ? $absoluteMetadataFile : null,
+            'metadata_file_dash_treated_as_stdin' => false,
+            'metadata_file_stdin_read' => false,
+            'metadata_file_open_uses_filesystem_path' => $hasMetadataFile,
             'metadata_file_path_exists' => $metadataPathExists,
             'metadata_file_path_type' => $metadataPathType,
             'metadata_file_is_symlink' => $metadataPathIsSymlink,

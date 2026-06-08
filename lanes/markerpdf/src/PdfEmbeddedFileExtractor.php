@@ -2408,6 +2408,7 @@ final class PdfEmbeddedFileExtractor
         }
         if (
             $this->dictionaryHasDuplicateKeys($match[1], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($match[1], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
             || $this->embeddedFileStreamHasDuplicateParamsBoundaryKeys($match[1], $objects)
         ) {
             return null;
@@ -2440,6 +2441,7 @@ final class PdfEmbeddedFileExtractor
         }
         if (
             $this->dictionaryHasDuplicateKeys($stream['dictionary'], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($stream['dictionary'], self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
             || $this->embeddedFileStreamHasDuplicateParamsBoundaryKeys($stream['dictionary'], $objects)
         ) {
             return null;

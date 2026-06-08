@@ -3259,7 +3259,10 @@ final class PdfAttachmentExtractor
             return false;
         }
 
-        if ($this->dictionaryHasDuplicateKeys($dictionaryBody, self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)) {
+        if (
+            $this->dictionaryHasDuplicateKeys($dictionaryBody, self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
+            || $this->dictionaryHasTrailingOperandsAfterKeys($dictionaryBody, self::EMBEDDED_FILE_STREAM_BOUNDARY_KEYS)
+        ) {
             return true;
         }
 

@@ -45260,11 +45260,11 @@ final class PdfTextExtractor
      */
     private function textHorizontalScaleOperand(array $operands): ?float
     {
-        if ($operands === []) {
+        if (count($operands) !== 1) {
             return null;
         }
 
-        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[0]));
     }
 
     /**
