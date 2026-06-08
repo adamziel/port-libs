@@ -3708,7 +3708,7 @@ final class PdfAcroFormExtractor
             ? $this->buttonExportReviewForField($objectNumber, $name, $valueState, $options, $widgets)
             : null;
 
-        $actionReview = $this->actionsWithReviewFromDictionary($body, $objects, $fieldNamesByObject, 'field', $objectNumber);
+        $actionReview = $this->actionsWithReviewFromEffectiveFieldDictionary($body, $effective, $objects, $fieldNamesByObject, $objectNumber);
 
         $field = [
             'object' => $objectNumber,
@@ -3781,7 +3781,7 @@ final class PdfAcroFormExtractor
         $inheritedAttributes = [];
         $localAttributes = [];
         $localValueAttributes = [];
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen', 'AA'] as $name) {
             if (!isset($effective[$name])) {
                 continue;
             }
@@ -4881,7 +4881,7 @@ final class PdfAcroFormExtractor
     private function mergeFieldAttributes(string $body, array $inherited, int $objectNumber): array
     {
         $effective = $inherited;
-        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen'] as $name) {
+        foreach (['FT', 'Ff', 'V', 'DV', 'RV', 'DS', 'DA', 'DR', 'Q', 'Opt', 'I', 'TI', 'MaxLen', 'AA'] as $name) {
             $value = $this->lastTopLevelValueAfterName($body, $name);
             if ($value === null) {
                 continue;
@@ -7160,6 +7160,57 @@ final class PdfAcroFormExtractor
      * @param array<int, string> $fieldNamesByObject
      * @return array{actions: list<array<string, mixed>>, review: array<string, mixed>}
      */
+    private function actionsWithReviewFromEffectiveFieldDictionary(
+        string $body,
+        array $effective,
+        array $objects,
+        array $fieldNamesByObject,
+        int $fieldObject
+    ): array {
+        $actions = [];
+        $chainSafety = $this->emptyActionChainSafety();
+
+        $activation = $this->valueAfterName($body, 'A');
+        if ($activation !== null) {
+            foreach ($this->actionMetadataFromValue($activation, $objects, $fieldNamesByObject, 'activation', 'field', $fieldObject, $chainSafety) as $action) {
+                $actions[] = $action;
+            }
+        }
+
+        $additionalActions = $effective['AA']['value'] ?? null;
+        $additionalActionsSourceObject = is_int($effective['AA']['source_object'] ?? null)
+            ? $effective['AA']['source_object']
+            : $fieldObject;
+        $additionalActionsDictionary = $additionalActions === null ? null : $this->resolvedDictionaryFromValue($additionalActions, $objects);
+        if ($additionalActionsDictionary === null) {
+            return [
+                'actions' => $actions,
+                'review' => $this->actionReviewSummary('field', $fieldObject, $actions, $chainSafety),
+            ];
+        }
+
+        foreach (['E', 'X', 'D', 'U', 'Fo', 'Bl', 'K', 'F', 'V', 'C'] as $trigger) {
+            $value = $this->valueAfterName($additionalActionsDictionary['body'], $trigger);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($this->actionMetadataFromValue($value, $objects, $fieldNamesByObject, $trigger, 'field', $additionalActionsSourceObject, $chainSafety) as $action) {
+                $actions[] = $action;
+            }
+        }
+
+        return [
+            'actions' => $actions,
+            'review' => $this->actionReviewSummary('field', $fieldObject, $actions, $chainSafety),
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, string> $fieldNamesByObject
+     * @return array{actions: list<array<string, mixed>>, review: array<string, mixed>}
+     */
     private function actionsWithReviewFromDictionary(
         string $body,
         array $objects,
@@ -7483,6 +7534,7 @@ final class PdfAcroFormExtractor
             'field_names' => $selection['field_names'],
             'unresolved_field_objects' => $selection['unresolved_field_objects'],
             'executes_action' => false,
+            'executes_javascript' => false,
         ];
 
         if ($actionType === 'SubmitForm') {

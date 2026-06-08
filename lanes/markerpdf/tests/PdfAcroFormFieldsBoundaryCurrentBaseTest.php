@@ -662,7 +662,7 @@ return [
         $t->same([8], array_column($field['widgets'], 'object'));
         $t->same([0], array_column($field['widgets'], 'page_annotation_index'));
         $t->same([true], array_column($field['widgets'], 'referenced_from_page_annots'));
-        $t->same(['FT', 'V'], $field['field_hierarchy']['local_attributes']);
+        $t->same(['FT', 'V', 'AA'], $field['field_hierarchy']['local_attributes']);
         $t->same(['DA'], $field['field_hierarchy']['inherited_attributes']);
         $t->same('Named', $field['actions'][0]['action_type']);
         $t->same('K', $field['actions'][0]['trigger']);

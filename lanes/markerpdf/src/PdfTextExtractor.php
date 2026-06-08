@@ -7671,6 +7671,10 @@ final class PdfTextExtractor
             $colorSpace,
             $jpxEmbeddedSoftMaskPresent || (is_array($softMaskReview) && ($softMaskReview['present'] ?? false) === true)
         );
+        $softMaskReferenceOperandBlocksNativeRaster = is_array($softMaskReview)
+            && ($softMaskReview['native_raster_decode_blocked'] ?? false) === true;
+        $maskReferenceOperandBlocksNativeRaster = is_array($maskReview)
+            && ($maskReview['native_raster_decode_blocked'] ?? false) === true;
         $invocationMatrices = [];
         $invocationBboxes = [];
         $invocationClipBboxes = [];
@@ -8057,7 +8061,9 @@ final class PdfTextExtractor
                 && $decodedWithCurrentFilters
                 && $previewOnlyFilters === []
                 && $imageDimensionsValid
-                && $bitsPerComponentBoundary === null,
+                && $bitsPerComponentBoundary === null
+                && !$softMaskReferenceOperandBlocksNativeRaster
+                && !$maskReferenceOperandBlocksNativeRaster,
             'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decodedWithCurrentFilters,
             'decoded_length' => $decodedForMetadata === null ? null : strlen($decodedForMetadata),
@@ -8430,7 +8436,23 @@ final class PdfTextExtractor
             return null;
         }
 
-        if ($this->pdfNameValueAt($value, 0, $objects) === 'None') {
+        $referenceOperandBoundary = $this->imageXObjectTopLevelReferenceOperandBoundaryReview(
+            $imageDictionary,
+            'SMask',
+            $objects,
+            true
+        );
+        if ($referenceOperandBoundary !== null) {
+            return [
+                'type' => 'soft_mask_reference_operand_boundary',
+                'present' => true,
+                'object_number' => null,
+                'object_generation' => null,
+                ...$referenceOperandBoundary,
+            ];
+        }
+
+        if ($this->imageXObjectSingleNameOperandValue($value, $objects) === 'None') {
             return [
                 'type' => 'soft_mask_none',
                 'present' => false,
@@ -8441,7 +8463,7 @@ final class PdfTextExtractor
             ];
         }
 
-        $reference = $this->objectReferencePairs($value)[0] ?? null;
+        $reference = $this->pdfIndirectReferenceValue($value);
         if ($reference === null) {
             return null;
         }
@@ -8611,12 +8633,38 @@ final class PdfTextExtractor
             return null;
         }
 
-        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        $referenceOperandBoundary = $this->imageXObjectTopLevelReferenceOperandBoundaryReview(
+            $imageDictionary,
+            'Mask',
+            $objects,
+            true
+        );
+        if ($referenceOperandBoundary !== null) {
+            return [
+                'type' => 'mask_reference_operand_boundary',
+                ...$referenceOperandBoundary,
+            ];
+        }
+
+        $arrayBody = $this->pdfSingleArrayFromValue($value, $objects);
         if ($arrayBody !== null) {
             return $this->imageXObjectColorKeyMaskReview($arrayBody, $objects, $parentColorSpace, $softMaskPresent);
         }
 
-        $reference = $this->objectReferencePairs($value)[0] ?? null;
+        $arrayOperandBoundary = $this->imageXObjectIndirectArrayOperandBoundaryReview(
+            'Mask',
+            $value,
+            $objects,
+            true
+        );
+        if ($arrayOperandBoundary !== null) {
+            return [
+                'type' => 'mask_array_operand_boundary',
+                ...$arrayOperandBoundary,
+            ];
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
         if ($reference === null) {
             return null;
         }
@@ -8631,6 +8679,147 @@ final class PdfTextExtractor
         }
 
         return $this->imageXObjectMaskStreamReview($reference['objectNumber'], $reference['generation'], $objectBody, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectTopLevelReferenceOperandBoundaryReview(
+        string $dictionary,
+        string $name,
+        array $objects,
+        bool $blocksNativeRasterDecode
+    ): ?array {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+        if ($value === null || !$this->topLevelPdfNameHasTrailingTopLevelOperand($dictionary, $name)) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
+        $resolved = false;
+        if ($reference !== null) {
+            $resolved = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            ) !== null;
+        }
+
+        return [
+            'name' => $name,
+            'present' => true,
+            'resolved' => $resolved,
+            'valid_reference_operand' => false,
+            'trailing_top_level_operand' => true,
+            ...($reference === null ? [] : [
+                'tailed_object_number' => $reference['objectNumber'],
+                'tailed_generation' => $reference['generation'],
+            ]),
+            'value_preview' => $this->imageXObjectOperandPreview($value),
+            'native_raster_decode_blocked' => $blocksNativeRasterDecode,
+            'reason' => 'trailing_top_level_operand',
+            'policy' => 'reject_malformed_image_reference_operand',
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectIndirectArrayOperandBoundaryReview(
+        string $name,
+        string $value,
+        array $objects,
+        bool $blocksNativeRasterDecode
+    ): ?array {
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null) {
+            return null;
+        }
+
+        $trimmed = trim($objectBody);
+        if (!str_starts_with($trimmed, '[')) {
+            return null;
+        }
+
+        $arrayBody = $this->readPdfArrayAt($trimmed, 0);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $afterArray = $this->skipPdfWhitespace($trimmed, strlen($arrayBody) + 2);
+        if ($afterArray >= strlen($trimmed)) {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'present' => true,
+            'resolved' => true,
+            'valid_array_operand' => false,
+            'trailing_indirect_array_operand' => true,
+            'tailed_object_number' => $reference['objectNumber'],
+            'tailed_generation' => $reference['generation'],
+            'value_preview' => $this->imageXObjectOperandPreview($value),
+            'indirect_value_preview' => $this->imageXObjectOperandPreview($objectBody),
+            'native_raster_decode_blocked' => $blocksNativeRasterDecode,
+            'reason' => 'trailing_indirect_array_operand',
+            'policy' => 'reject_malformed_image_array_operand',
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function imageXObjectSingleNameOperandValue(string $value, array $objects, array $seen = []): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if ($reference['objectNumber'] <= 0 || $reference['generation'] < 0 || isset($seen[$key])) {
+                return null;
+            }
+
+            $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$key] = true;
+            return $this->imageXObjectSingleNameOperandValue($body, $objects, $seen);
+        }
+
+        if (($value[$offset] ?? '') !== '/') {
+            return null;
+        }
+
+        $end = $offset + 1;
+        while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
+            $end++;
+        }
+
+        $after = $this->skipPdfWhitespace($value, $end);
+        if ($after < strlen($value)) {
+            return null;
+        }
+
+        return $this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1));
     }
 
     /**
@@ -9313,7 +9502,29 @@ final class PdfTextExtractor
      */
     private function imageXObjectMetadataStreamReview(string $imageDictionary, array $objects): ?array
     {
-        $reference = $this->objectReferenceAfterName($imageDictionary, 'Metadata');
+        $referenceOperandBoundary = $this->imageXObjectTopLevelReferenceOperandBoundaryReview(
+            $imageDictionary,
+            'Metadata',
+            $objects,
+            false
+        );
+        if ($referenceOperandBoundary !== null) {
+            return [
+                'status' => 'rejected_malformed_image_xobject_metadata_stream_reference_operand',
+                ...$referenceOperandBoundary,
+                'reference_operand_policy' => 'reject_malformed_reference_operands',
+                'filters' => [],
+                'preview_only_filters' => [],
+                'decoded_with_current_filters' => false,
+                'decoded_length' => null,
+                'decoded_sha256' => null,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'Metadata');
+        $reference = $value === null ? null : $this->pdfIndirectReferenceValue($value);
         if ($reference === null) {
             return null;
         }

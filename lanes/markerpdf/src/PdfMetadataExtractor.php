@@ -1402,6 +1402,46 @@ final class PdfMetadataExtractor
                 return $review;
             }
 
+            $typeName = $typeValues[count($typeValues) - 1];
+            if ($typeName === 'Metadata') {
+                if ($subtypeRawValues === []) {
+                    return [
+                        'status' => 'rejected_missing_metadata_stream_subtype',
+                        'type_entry_count' => count($typeRawValues),
+                        'subtype_entry_count' => 0,
+                        'type' => $typeName,
+                        'type_values' => $this->uniqueStrings($typeValues),
+                    ];
+                }
+
+                if ($subtypeValues === []) {
+                    $subtypeOperand = $subtypeRawValues[0] ?? '';
+
+                    return [
+                        'status' => 'rejected_non_name_metadata_stream_subtype',
+                        'type_entry_count' => count($typeRawValues),
+                        'subtype_entry_count' => count($subtypeRawValues),
+                        'type' => $typeName,
+                        'type_values' => $this->uniqueStrings($typeValues),
+                        'subtype_operand_type' => $this->metadataStreamFilterOperandTokenType($subtypeOperand),
+                        'subtype_operand_preview' => $this->metadataStreamFilterOperandPreview($subtypeOperand),
+                    ];
+                }
+
+                $subtypeName = $subtypeValues[count($subtypeValues) - 1];
+                if ($subtypeName !== 'XML') {
+                    return [
+                        'status' => 'rejected_non_xml_metadata_stream_subtype',
+                        'type_entry_count' => count($typeRawValues),
+                        'subtype_entry_count' => count($subtypeRawValues),
+                        'type' => $typeName,
+                        'type_values' => $this->uniqueStrings($typeValues),
+                        'subtype' => $subtypeName,
+                        'subtype_values' => $this->uniqueStrings($subtypeValues),
+                    ];
+                }
+            }
+
             return [];
         }
 
