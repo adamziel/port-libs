@@ -6515,6 +6515,7 @@ final class DocxReader
         $attrs = null;
         foreach ([
             $this->tableCellWidthAttrs($cell),
+            $this->tableCellMarginAttrs($cell),
             $this->tableCellBorderAttrs($cell),
             $this->tableCellVerticalAlignmentAttrs($cell),
             $this->tableCellShadingAttrs($cell),
@@ -6575,6 +6576,122 @@ final class DocxReader
         }
 
         return $base;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}
+     */
+    private function tableCellMarginAttrs(\DOMElement $cell): array
+    {
+        $properties = $this->firstChildElement($cell, self::WORDPROCESSINGML_NS, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $margins = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tcMar');
+        if (!$margins instanceof \DOMElement) {
+            return [];
+        }
+
+        $classes = ['docx-cell-margin'];
+        $typeClasses = [];
+        $attributes = [];
+        $styles = [];
+        foreach ([
+            'top' => 'padding-top',
+            'start' => 'padding-inline-start',
+            'left' => 'padding-left',
+            'bottom' => 'padding-bottom',
+            'end' => 'padding-inline-end',
+            'right' => 'padding-right',
+        ] as $localName => $cssProperty) {
+            $margin = $this->firstChildElement($margins, self::WORDPROCESSINGML_NS, $localName);
+            if (!$margin instanceof \DOMElement) {
+                continue;
+            }
+
+            $edgeAttributes = $this->tableCellMarginEdgeAttrs($margin, $cssProperty);
+            if ($edgeAttributes === []) {
+                continue;
+            }
+
+            $classes[] = 'docx-cell-margin-' . $localName;
+            $typeClasses[] = 'docx-cell-margin-' . $edgeAttributes['type'];
+            foreach ($edgeAttributes as $name => $value) {
+                if ($name === 'style') {
+                    continue;
+                }
+
+                $attributes['data-docx-cell-margin-' . $localName . '-' . $name] = $value;
+            }
+
+            if (isset($edgeAttributes['style'])) {
+                $styles[] = $edgeAttributes['style'];
+            }
+        }
+
+        if ($attributes === []) {
+            return [];
+        }
+
+        $attrs = [
+            'classes' => array_values(array_unique([
+                ...$classes,
+                ...$typeClasses,
+            ])),
+            'attributes' => $attributes,
+        ];
+        if ($styles !== []) {
+            $attrs['htmlAttributes'] = [
+                'style' => implode('; ', $styles),
+            ];
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{type:string, value?:string, points?:string, percent?:string, style?:string}|array{}
+     */
+    private function tableCellMarginEdgeAttrs(\DOMElement $margin, string $cssProperty): array
+    {
+        $type = strtolower(trim((string) ($this->wordAttr($margin, 'type') ?? 'dxa')));
+        if ($type === '') {
+            $type = 'dxa';
+        }
+        if (in_array($type, ['nil', 'none', '0', 'false', 'off'], true)) {
+            return [];
+        }
+        if (!in_array($type, ['dxa', 'pct', 'auto'], true)) {
+            return [];
+        }
+
+        $edgeAttributes = [
+            'type' => $type,
+        ];
+        $value = trim((string) ($this->wordAttr($margin, 'w') ?? ''));
+        if ($value !== '') {
+            $edgeAttributes['value'] = $value;
+        }
+        if ($value === '' || preg_match('/^\d+(?:\.\d+)?$/D', $value) !== 1) {
+            return $edgeAttributes;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue <= 0.0) {
+            return $edgeAttributes;
+        }
+        if ($type === 'dxa') {
+            $points = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+            $edgeAttributes['points'] = $points;
+            $edgeAttributes['style'] = $cssProperty . ':' . $points . 'pt';
+        } elseif ($type === 'pct') {
+            $percent = $this->formatOpenXmlCssNumber($numericValue / 50.0);
+            $edgeAttributes['percent'] = $percent;
+            $edgeAttributes['style'] = $cssProperty . ':' . $percent . '%';
+        }
+
+        return $edgeAttributes;
     }
 
     /**

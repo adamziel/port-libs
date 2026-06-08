@@ -853,6 +853,51 @@ $tableCellWidthDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableCellMarginDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1800" w:type="dxa"/>
+            <w:tcMar>
+              <w:top w:w="120" w:type="dxa"/>
+              <w:start w:w="240" w:type="dxa"/>
+              <w:bottom w:w="60" w:type="dxa"/>
+              <w:end w:w="500" w:type="pct"/>
+            </w:tcMar>
+            <w:shd w:val="clear" w:fill="EAF2F8"/>
+          </w:tcPr>
+          <w:p><w:r><w:t>Padded review scope</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcMar>
+              <w:left w:w="0" w:type="auto"/>
+              <w:right w:w="360" w:type="dxa"/>
+            </w:tcMar>
+          </w:tcPr>
+          <w:p><w:r><w:t>Legacy margin edge</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcMar>
+              <w:top w:w="120" w:type="nil"/>
+              <w:bottom w:w="240" w:type="unsupported"/>
+            </w:tcMar>
+          </w:tcPr>
+          <w:p><w:r><w:t>No margin fallback</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Plain marginless cell</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableGridColumnDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2734,6 +2779,14 @@ $buildTableCellWidthPackage = static function () use ($contentTypesXml, $package
     ]);
 };
 
+$buildTableCellMarginPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellMarginDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableCellMarginDocumentXml],
+    ]);
+};
+
 $buildTableGridColumnPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableGridColumnDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -4196,6 +4249,74 @@ return [
         $t->contains('<td class="docx-cell-width docx-cell-width-pct" data-docx-cell-width-type="pct" data-docx-cell-width-value="2500" data-docx-cell-width-percent="50" style="width:50%"><p>Half width review cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-width docx-cell-width-auto" data-docx-cell-width-type="auto" data-docx-cell-width-value="0"><p>Auto width cell</p></td><td><p>Nil width fallback</p></td>', $blocks);
         $t->contains('<td><p>Unknown width fallback</p></td>', $blocks);
+    },
+    'preserves DOCX table cell margin metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellMarginPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableCellMarginPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $body = $table->children[0];
+        $padded = $body->children[0]->children[0];
+        $legacy = $body->children[0]->children[1];
+        $disabled = $body->children[1]->children[0];
+        $plain = $body->children[1]->children[1];
+
+        $t->same([
+            'docx-cell-width',
+            'docx-cell-width-dxa',
+            'docx-cell-margin',
+            'docx-cell-margin-top',
+            'docx-cell-margin-start',
+            'docx-cell-margin-bottom',
+            'docx-cell-margin-end',
+            'docx-cell-margin-dxa',
+            'docx-cell-margin-pct',
+            'docx-cell-shading',
+            'docx-cell-shading-clear',
+            'docx-cell-fill-eaf2f8',
+        ], $padded->attr('classes'));
+        $paddedAttrs = $padded->attr('attributes');
+        $t->same('dxa', $paddedAttrs['data-docx-cell-margin-top-type']);
+        $t->same('120', $paddedAttrs['data-docx-cell-margin-top-value']);
+        $t->same('6', $paddedAttrs['data-docx-cell-margin-top-points']);
+        $t->same('dxa', $paddedAttrs['data-docx-cell-margin-start-type']);
+        $t->same('12', $paddedAttrs['data-docx-cell-margin-start-points']);
+        $t->same('3', $paddedAttrs['data-docx-cell-margin-bottom-points']);
+        $t->same('pct', $paddedAttrs['data-docx-cell-margin-end-type']);
+        $t->same('10', $paddedAttrs['data-docx-cell-margin-end-percent']);
+        $t->same('width:90pt; padding-top:6pt; padding-inline-start:12pt; padding-bottom:3pt; padding-inline-end:10%; background-color:#EAF2F8', $padded->attr('htmlAttributes')['style']);
+        $t->same('Padded review scope', $padded->attr('text'));
+
+        $t->same(['docx-cell-margin', 'docx-cell-margin-left', 'docx-cell-margin-right', 'docx-cell-margin-auto', 'docx-cell-margin-dxa'], $legacy->attr('classes'));
+        $legacyAttrs = $legacy->attr('attributes');
+        $t->same('auto', $legacyAttrs['data-docx-cell-margin-left-type']);
+        $t->same('0', $legacyAttrs['data-docx-cell-margin-left-value']);
+        $t->same('dxa', $legacyAttrs['data-docx-cell-margin-right-type']);
+        $t->same('18', $legacyAttrs['data-docx-cell-margin-right-points']);
+        $t->same('padding-right:18pt', $legacy->attr('htmlAttributes')['style']);
+
+        $t->true(!isset($disabled->attr('attributes', [])['data-docx-cell-margin-top-type']), 'DOCX nil cell margin should not create reviewer metadata');
+        $t->same('No margin fallback', $disabled->attr('text'));
+        $t->true(!isset($plain->attr('attributes', [])['data-docx-cell-margin-top-type']), 'Plain DOCX cell should not create margin metadata');
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('6', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-margin-top-points'] ?? null);
+        $t->same('10', $geometry['coverage'][0]['sourceAttributes']['attributes']['data-docx-cell-margin-end-percent'] ?? null);
+        $t->same('width:90pt; padding-top:6pt; padding-inline-start:12pt; padding-bottom:3pt; padding-inline-end:10%; background-color:#EAF2F8', $geometry['coverage'][0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same('auto', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-margin-left-type'] ?? null);
+        $t->true(!isset($geometry['coverage'][2]['sourceAttributes']), 'Disabled DOCX cell margin should not appear in geometry source-attribute packet');
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Padded review scope | Legacy margin edge |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-cell-margin'), 'Pipe-table Markdown handoff should not leak DOCX cell margin metadata');
+        $t->contains('<td class="docx-cell-width docx-cell-width-dxa docx-cell-margin docx-cell-margin-top docx-cell-margin-start docx-cell-margin-bottom docx-cell-margin-end docx-cell-margin-dxa docx-cell-margin-pct docx-cell-shading docx-cell-shading-clear docx-cell-fill-eaf2f8" data-docx-cell-width-type="dxa" data-docx-cell-width-value="1800" data-docx-cell-width-points="90" data-docx-cell-margin-top-type="dxa"', $blocks);
+        $t->contains('style="width:90pt; padding-top:6pt; padding-inline-start:12pt; padding-bottom:3pt; padding-inline-end:10%; background-color:#EAF2F8"><p>Padded review scope</p></td>', $blocks);
+        $t->contains('<td class="docx-cell-margin docx-cell-margin-left docx-cell-margin-right docx-cell-margin-auto docx-cell-margin-dxa" data-docx-cell-margin-left-type="auto" data-docx-cell-margin-left-value="0" data-docx-cell-margin-right-type="dxa" data-docx-cell-margin-right-value="360" data-docx-cell-margin-right-points="18" style="padding-right:18pt"><p>Legacy margin edge</p></td>', $blocks);
+        $t->contains('<td><p>No margin fallback</p></td><td><p>Plain marginless cell</p></td>', $blocks);
     },
     'preserves DOCX table grid column widths as table geometry metadata' => static function (TestRunner $t) use ($buildTableGridColumnPackage): void {
         $document = (new DocxReader())->readDocument($buildTableGridColumnPackage());
