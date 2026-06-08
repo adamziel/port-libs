@@ -8795,7 +8795,12 @@ final class PdfAttachmentExtractor
 
     private function isPdfWhitespace(string $char): bool
     {
-        return $char === "\0" || ctype_space($char);
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     private function isPdfFilterWhitespace(string $char): bool

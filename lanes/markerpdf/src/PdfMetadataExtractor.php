@@ -19303,7 +19303,12 @@ final class PdfMetadataExtractor
 
     private function isPdfWhitespace(string $char): bool
     {
-        return $char === "\0" || ctype_space($char);
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     /**
