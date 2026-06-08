@@ -7894,12 +7894,24 @@ final class PdfMetadataExtractor
             return false;
         }
 
+        if (!$this->nameTreeRawItemIsDirectString($items[$valueIndex])) {
+            return false;
+        }
+
         $valueName = $this->destinationNameDetailsFromRaw($items[$valueIndex], $objects);
         if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
         return $this->destinationNameDetailsFromRaw($items[$nextIndex], $objects) === null;
+    }
+
+    private function nameTreeRawItemIsDirectString(string $value): bool
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+
+        return $trimmed !== ''
+            && ($trimmed[0] === '(' || $trimmed[0] === '<' && ($trimmed[1] ?? '') !== '<');
     }
 
     /**

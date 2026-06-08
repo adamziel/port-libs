@@ -3476,12 +3476,21 @@ final class PdfActionReviewExtractor
             return false;
         }
 
+        if (!$this->nameTreeItemIsDirectString($items[$valueIndex])) {
+            return false;
+        }
+
         $valueName = $this->pdfStringDetails($this->resolveValue($items[$valueIndex]));
         if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
         return $this->pdfStringDetails($this->resolveValue($items[$nextIndex])) === null;
+    }
+
+    private function nameTreeItemIsDirectString(mixed $value): bool
+    {
+        return is_array($value) && ($value['pdfType'] ?? null) === 'string';
     }
 
     /**

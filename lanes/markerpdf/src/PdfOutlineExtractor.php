@@ -4254,12 +4254,21 @@ final class PdfOutlineExtractor
             return false;
         }
 
+        if (!$this->nameTreeItemIsDirectString($items[$valueIndex])) {
+            return false;
+        }
+
         $valueName = $this->destinationNameDetails($items[$valueIndex], $objects);
         if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
         return $this->destinationNameDetails($items[$nextIndex], $objects) === null;
+    }
+
+    private function nameTreeItemIsDirectString(mixed $value): bool
+    {
+        return is_array($value) && ($value['pdfType'] ?? null) === 'string';
     }
 
     /**

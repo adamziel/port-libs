@@ -1548,12 +1548,22 @@ final class PdfNamedDestinationExtractor
             return false;
         }
 
+        if (!$this->nameTreeItemIsDirectString($items[$valueIndex])) {
+            return false;
+        }
+
         $valueName = $this->destinationNameDetails($items[$valueIndex], $objects, $cache);
         if ($valueName === null || $valueName['text'] === '') {
             return false;
         }
 
         return $this->destinationNameDetails($items[$nextIndex], $objects, $cache) === null;
+    }
+
+    private function nameTreeItemIsDirectString(mixed $value): bool
+    {
+        return is_string($value)
+            || is_array($value) && array_key_exists('__pdf_string', $value);
     }
 
     /**
