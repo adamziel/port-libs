@@ -523,7 +523,7 @@ final class PdfMarkupAnnotationExtractor
             }
 
             $dictionary = $this->dictionaryObjectBody($objectBody);
-            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)
+            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)
                 ? []
                 : [['body' => $dictionary, 'object' => $reference['object'], 'generation' => $reference['generation']]];
         }
@@ -538,7 +538,7 @@ final class PdfMarkupAnnotationExtractor
 
         if (str_starts_with($value, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($value, 0);
-            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)
+            return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)
                 ? []
                 : [['body' => $dictionary, 'object' => null]];
         }
@@ -596,7 +596,7 @@ final class PdfMarkupAnnotationExtractor
             $value = trim($value);
             if (str_starts_with($value, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($value, 0);
-                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)) {
+                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)) {
                     $annotations[] = ['body' => $dictionary, 'object' => null];
                 }
                 $offset = $endOffset;
@@ -607,7 +607,7 @@ final class PdfMarkupAnnotationExtractor
             if ($reference !== null) {
                 $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
-                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)) {
+                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)) {
                     $annotations[] = [
                         'body' => $dictionary,
                         'object' => $reference['object'],
@@ -624,8 +624,16 @@ final class PdfMarkupAnnotationExtractor
         return $annotations;
     }
 
-    private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber, ?int $pageGeneration): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function annotationBelongsToPage(string $annotationBody, int $pageObjectNumber, ?int $pageGeneration, array $objects = []): bool
     {
+        $annotationType = $this->nameValueAfterName($annotationBody, 'Type', $objects);
+        if ($annotationType !== null && $annotationType !== 'Annot') {
+            return false;
+        }
+
         if ($this->dictionaryValueHasTrailingOperand($annotationBody, 'P')) {
             return false;
         }
