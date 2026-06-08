@@ -24,6 +24,9 @@ final class PdfEngineHandoff
     private const MAX_TRANSCRIPT_BYTES = 1048576;
     private const XMP_PDF_A_ID_NAMESPACE = 'http://www.aiim.org/pdfa/ns/id/';
     private const XMP_PDF_UA_ID_NAMESPACE = 'http://www.aiim.org/pdfua/ns/id/';
+    private const XMP_PDF_A_EXTENSION_NAMESPACE = 'http://www.aiim.org/pdfa/ns/extension/';
+    private const XMP_PDF_A_SCHEMA_NAMESPACE = 'http://www.aiim.org/pdfa/ns/schema#';
+    private const XMP_PDF_A_PROPERTY_NAMESPACE = 'http://www.aiim.org/pdfa/ns/property#';
 
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
@@ -1444,6 +1447,25 @@ final class PdfEngineHandoff
                                 : '';
                             if ($corrigendum !== '') {
                                 $diagnostics[] = 'pdf-byte-pdfua-corrigendum:' . $corrigendum;
+                            }
+                        }
+                        if (isset($pdfXmpMetadata['pdfaExtensionSchemas']) && is_array($pdfXmpMetadata['pdfaExtensionSchemas'])) {
+                            $schemaPropertyCount = 0;
+                            $schemaPrefixes = [];
+                            foreach ($pdfXmpMetadata['pdfaExtensionSchemas'] as $schema) {
+                                if (isset($schema['properties']) && is_array($schema['properties'])) {
+                                    $schemaPropertyCount += count($schema['properties']);
+                                }
+                                if (is_string($schema['prefix'] ?? null) && $schema['prefix'] !== '') {
+                                    $schemaPrefixes[$schema['prefix']] = true;
+                                }
+                            }
+                            $diagnostics[] = 'pdf-byte-pdfa-extension-schemas:' . count($pdfXmpMetadata['pdfaExtensionSchemas']);
+                            if ($schemaPropertyCount > 0) {
+                                $diagnostics[] = 'pdf-byte-pdfa-extension-properties:' . $schemaPropertyCount;
+                            }
+                            foreach (array_keys($schemaPrefixes) as $schemaPrefix) {
+                                $diagnostics[] = 'pdf-byte-pdfa-extension-prefix:' . $schemaPrefix;
                             }
                         }
                     }
@@ -4681,7 +4703,143 @@ final class PdfEngineHandoff
             ];
         }
 
+        $extensionSchemas = $this->xmpPdfaExtensionSchemas($xml);
+        if ($extensionSchemas !== []) {
+            $metadata['pdfaExtensionSchemas'] = $extensionSchemas;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * @return list<array{schema:string|null, namespaceUri:string|null, prefix:string|null, properties:list<array{name:string, valueType:string|null, category:string|null, description:string|null}>}>
+     */
+    private function xmpPdfaExtensionSchemas(string $xml): array
+    {
+        if (
+            !str_contains($xml, self::XMP_PDF_A_EXTENSION_NAMESPACE)
+            && !str_contains($xml, self::XMP_PDF_A_SCHEMA_NAMESPACE)
+            && !str_contains($xml, 'pdfaExtension:schemas')
+            && !str_contains($xml, 'pdfaSchema:schema')
+        ) {
+            return [];
+        }
+
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_COMPACT);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        if (!$loaded) {
+            return [];
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('pdfaSchema', self::XMP_PDF_A_SCHEMA_NAMESPACE);
+        $schemaNodes = $xpath->query('//pdfaSchema:schema');
+        if (!$schemaNodes instanceof \DOMNodeList || $schemaNodes->length === 0) {
+            return [];
+        }
+
+        $schemas = [];
+        $seen = [];
+        foreach ($schemaNodes as $schemaNode) {
+            if (!$schemaNode instanceof \DOMElement || !$schemaNode->parentNode instanceof \DOMElement) {
+                continue;
+            }
+
+            $schemaContainer = $schemaNode->parentNode;
+            $schema = $this->normalizeXmpText($schemaNode->textContent);
+            $namespaceUri = $this->xmpDirectChildText($schemaContainer, self::XMP_PDF_A_SCHEMA_NAMESPACE, 'namespaceURI');
+            $prefix = $this->xmpDirectChildText($schemaContainer, self::XMP_PDF_A_SCHEMA_NAMESPACE, 'prefix');
+            $key = implode("\0", [$schema ?? '', $namespaceUri ?? '', $prefix ?? '']);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $schemas[] = [
+                'schema' => $schema,
+                'namespaceUri' => $namespaceUri,
+                'prefix' => $prefix,
+                'properties' => $this->xmpPdfaExtensionSchemaProperties($schemaContainer),
+            ];
+            if (count($schemas) >= 64) {
+                break;
+            }
+        }
+
+        usort(
+            $schemas,
+            static fn (array $a, array $b): int => [
+                $a['prefix'] ?? '',
+                $a['schema'] ?? '',
+                $a['namespaceUri'] ?? '',
+            ] <=> [
+                $b['prefix'] ?? '',
+                $b['schema'] ?? '',
+                $b['namespaceUri'] ?? '',
+            ]
+        );
+
+        return $schemas;
+    }
+
+    /**
+     * @return list<array{name:string, valueType:string|null, category:string|null, description:string|null}>
+     */
+    private function xmpPdfaExtensionSchemaProperties(\DOMElement $schemaContainer): array
+    {
+        $properties = [];
+        $seen = [];
+        foreach ($this->xmpDescendantElements($schemaContainer, self::XMP_PDF_A_PROPERTY_NAMESPACE, 'name') as $nameNode) {
+            if (!$nameNode->parentNode instanceof \DOMElement) {
+                continue;
+            }
+
+            $propertyContainer = $nameNode->parentNode;
+            $name = $this->normalizeXmpText($nameNode->textContent);
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $valueType = $this->xmpDirectChildText($propertyContainer, self::XMP_PDF_A_PROPERTY_NAMESPACE, 'valueType');
+            $category = $this->xmpDirectChildText($propertyContainer, self::XMP_PDF_A_PROPERTY_NAMESPACE, 'category');
+            $description = $this->xmpDirectChildText($propertyContainer, self::XMP_PDF_A_PROPERTY_NAMESPACE, 'description');
+            $key = implode("\0", [$name, $valueType ?? '', $category ?? '', $description ?? '']);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $properties[] = [
+                'name' => $name,
+                'valueType' => $valueType,
+                'category' => $category,
+                'description' => $description,
+            ];
+            if (count($properties) >= 256) {
+                break;
+            }
+        }
+
+        usort(
+            $properties,
+            static fn (array $a, array $b): int => [
+                $a['name'],
+                $a['valueType'] ?? '',
+            ] <=> [
+                $b['name'],
+                $b['valueType'] ?? '',
+            ]
+        );
+
+        return $properties;
     }
 
     /**
@@ -5697,9 +5855,16 @@ final class PdfEngineHandoff
 
     private function xmpLocalizedText(string $xml, string $name): ?string
     {
-        $block = $this->xmpElementBlock($xml, $name);
+        $block = null;
+        foreach ($this->xmpNamespacePrefixes($xml, 'http://purl.org/dc/elements/1.1/', ['dc']) as $prefix) {
+            $block = $this->xmpQualifiedElementBlock($xml, $prefix, $name);
+            if ($block !== null) {
+                break;
+            }
+        }
+        $block ??= $this->xmpUnqualifiedElementBlock($xml, $name);
         if ($block === null) {
-            return $this->xmpScalarText($xml, $name);
+            return $this->xmpUnqualifiedScalarText($xml, $name);
         }
 
         if (preg_match('/<[^:>]*(?::)?li\b[^>]*\bxml:lang\s*=\s*["\']x-default["\'][^>]*>(.*?)<\/[^:>]*(?::)?li>/s', $block, $matches) === 1) {
@@ -5820,6 +5985,62 @@ final class PdfEngineHandoff
         }
 
         return $matches[1];
+    }
+
+    private function xmpUnqualifiedElementBlock(string $xml, string $name): ?string
+    {
+        if (preg_match('/<' . preg_quote($name, '/') . '\b[^>]*>(.*?)<\/' . preg_quote($name, '/') . '>/s', $xml, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function xmpUnqualifiedScalarText(string $xml, string $name): ?string
+    {
+        if (preg_match('/\b' . preg_quote($name, '/') . '\s*=\s*(["\'])(.*?)\1/s', $xml, $matches) !== 1) {
+            return null;
+        }
+
+        return $this->normalizeXmpText($matches[2]);
+    }
+
+    private function xmpDirectChildText(\DOMElement $element, string $namespaceUri, string $localName): ?string
+    {
+        foreach ($element->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $child->namespaceURI === $namespaceUri
+                && $child->localName === $localName
+            ) {
+                return $this->normalizeXmpText($child->textContent);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function xmpDescendantElements(\DOMNode $node, string $namespaceUri, string $localName): array
+    {
+        $elements = [];
+        foreach ($node->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $child->namespaceURI === $namespaceUri
+                && $child->localName === $localName
+            ) {
+                $elements[] = $child;
+            }
+
+            foreach ($this->xmpDescendantElements($child, $namespaceUri, $localName) as $descendant) {
+                $elements[] = $descendant;
+            }
+        }
+
+        return $elements;
     }
 
     /**

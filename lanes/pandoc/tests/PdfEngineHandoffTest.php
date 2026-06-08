@@ -2519,6 +2519,117 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },
 
+    'fake runner extracts bounded pdfa xmp extension schemas from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xmp-extension-schema.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">',
+            '<pdfaExtension:schemas>',
+            '<rdf:Bag>',
+            '<rdf:li rdf:parseType="Resource">',
+            '<pdfaSchema:schema>WordPress Review Metadata</pdfaSchema:schema>',
+            '<pdfaSchema:namespaceURI>https://example.test/ns/wp-review/1.0/</pdfaSchema:namespaceURI>',
+            '<pdfaSchema:prefix>wpreview</pdfaSchema:prefix>',
+            '<pdfaSchema:property>',
+            '<rdf:Seq>',
+            '<rdf:li rdf:parseType="Resource">',
+            '<pdfaProperty:name>sourceSlug</pdfaProperty:name>',
+            '<pdfaProperty:valueType>Text</pdfaProperty:valueType>',
+            '<pdfaProperty:category>external</pdfaProperty:category>',
+            '<pdfaProperty:description>Original WordPress source slug</pdfaProperty:description>',
+            '</rdf:li>',
+            '<rdf:li rdf:parseType="Resource">',
+            '<pdfaProperty:name>reviewerRole</pdfaProperty:name>',
+            '<pdfaProperty:valueType>Text</pdfaProperty:valueType>',
+            '<pdfaProperty:category>external</pdfaProperty:category>',
+            '<pdfaProperty:description>Reviewer role imported from handoff packet</pdfaProperty:description>',
+            '</rdf:li>',
+            '</rdf:Seq>',
+            '</pdfaSchema:property>',
+            '</rdf:li>',
+            '</rdf:Bag>',
+            '</pdfaExtension:schemas>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/xmp-extension-schema.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/xmp-extension-schema.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'packetBytes' => strlen($xmp),
+            'packetSha256' => hash('sha256', $xmp),
+            'pdfaExtensionSchemas' => [
+                [
+                    'schema' => 'WordPress Review Metadata',
+                    'namespaceUri' => 'https://example.test/ns/wp-review/1.0/',
+                    'prefix' => 'wpreview',
+                    'properties' => [
+                        [
+                            'name' => 'reviewerRole',
+                            'valueType' => 'Text',
+                            'category' => 'external',
+                            'description' => 'Reviewer role imported from handoff packet',
+                        ],
+                        [
+                            'name' => 'sourceSlug',
+                            'valueType' => 'Text',
+                            'category' => 'external',
+                            'description' => 'Original WordPress source slug',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfXmpMetadata']);
+        $t->contains('pdf-byte-xmp-metadata:3', $diagnostics);
+        $t->contains('pdf-byte-pdfa-extension-schemas:1', $diagnostics);
+        $t->contains('pdf-byte-pdfa-extension-properties:2', $diagnostics);
+        $t->contains('pdf-byte-pdfa-extension-prefix:wpreview', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfXmpMetadata']);
+    },
+
     'fake runner extracts bounded pdf page metadata streams from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-metadata.pdf']);
