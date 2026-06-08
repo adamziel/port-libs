@@ -2205,13 +2205,56 @@ final class SuppliedDocumentConverter
             return false;
         }
 
+        $hasArtifact = false;
         foreach ($value as $key => $candidate) {
-            if (!$this->isIntegerArrayKey($key) || !is_array($candidate) || array_is_list($candidate)) {
-                return false;
+            if ($this->isIntegerArrayKey($key) && is_array($candidate) && !array_is_list($candidate) && $this->hasSourcePageArtifactPayload($candidate)) {
+                $hasArtifact = true;
+                continue;
+            }
+
+            if ($this->isIgnorableSourcePageArtifactSidecar($candidate)) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return $hasArtifact;
+    }
+
+    private function isIgnorableSourcePageArtifactSidecar(mixed $candidate): bool
+    {
+        return !is_array($candidate) || !$this->hasSourcePageArtifactPayload($candidate);
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function hasSourcePageArtifactPayload(array $value): bool
+    {
+        foreach ([
+            'blocks',
+            'bbox',
+            'bboxes',
+            'image',
+            'image_bbox',
+            'layout',
+            'layout_result',
+            'order',
+            'order_result',
+            'prediction',
+            'result',
+            'model_output',
+            'output',
+            'page_data',
+            'page_result',
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
             }
         }
 
-        return true;
+        return false;
     }
 
     private function isIntegerArrayKey(int|string $key): bool

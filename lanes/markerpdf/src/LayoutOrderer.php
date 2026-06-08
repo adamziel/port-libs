@@ -371,18 +371,14 @@ final class LayoutOrderer
         foreach ($value as $key => $candidate) {
             $pageKey = $this->integerValue($key);
             if (!is_array($candidate) || array_is_list($candidate)) {
-                if ($pageKey !== null) {
-                    return $candidates;
-                }
-
                 continue;
             }
 
-            if (!$this->hasOrderPayload($candidate) && $pageKey === null) {
+            if (!$this->hasOrderPayload($candidate)) {
                 continue;
             }
 
-            if ($pageKey !== null && $this->hasOrderPayload($candidate)) {
+            if ($pageKey !== null) {
                 $candidate[self::ENVELOPE_PAGE_KEY_MARKER] = $pageKey;
             }
             $mapped[] = $candidate;

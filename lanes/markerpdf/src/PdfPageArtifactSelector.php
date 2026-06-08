@@ -242,15 +242,11 @@ final class PdfPageArtifactSelector
         $artifacts = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey === null) {
+            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     continue;
                 }
 
-                return null;
-            }
-
-            if (!is_array($candidate) || array_is_list($candidate)) {
                 return null;
             }
 
@@ -309,7 +305,7 @@ final class PdfPageArtifactSelector
 
                     $singleKeyedPayload = self::singleKeyedDirectArtifactPayload($nested);
                     if ($singleKeyedPayload !== null) {
-                        return self::hasPotentialPageMarker($value) ? null : [$singleKeyedPayload];
+                        return [self::withEnvelopePageMarkers($singleKeyedPayload, $value)];
                     }
 
                     $keyedArtifacts = self::keyedEnvelopeArtifacts($nested);
@@ -326,7 +322,7 @@ final class PdfPageArtifactSelector
             }
             $singleKeyedPayload = self::singleKeyedDirectArtifactPayload($artifacts);
             if ($singleKeyedPayload !== null) {
-                return self::hasPotentialPageMarker($value) ? null : [$singleKeyedPayload];
+                return [self::withEnvelopePageMarkers($singleKeyedPayload, $value)];
             }
             $keyedArtifacts = self::keyedEnvelopeArtifacts($artifacts);
             if ($keyedArtifacts !== null) {
@@ -337,6 +333,24 @@ final class PdfPageArtifactSelector
         }
 
         return null;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private static function withEnvelopePageMarkers(array $payload, array $value): array
+    {
+        foreach (self::PAGE_MARKER_FIELD_GROUPS as $fields) {
+            foreach ($fields as $field) {
+                if (!array_key_exists($field, $value) || array_key_exists($field, $payload)) {
+                    continue;
+                }
+
+                $payload[$field] = $value[$field];
+            }
+        }
+
+        return $payload;
     }
 
     /**
@@ -421,8 +435,8 @@ final class PdfPageArtifactSelector
         $ignoredEntries = 0;
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if (!is_array($candidate) || array_is_list($candidate)) {
-                if ($pageKey === null) {
+            if (!is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
+                if (self::isIgnorableArtifactMapEntry($candidate)) {
                     $ignoredEntries++;
                     continue;
                 }
@@ -478,15 +492,11 @@ final class PdfPageArtifactSelector
         $artifacts = [];
         foreach ($value as $key => $candidate) {
             $pageKey = self::integerArrayKey($key);
-            if ($pageKey === null) {
+            if ($pageKey === null || !is_array($candidate) || array_is_list($candidate) || !self::hasDirectArtifactPayload($candidate)) {
                 if (self::isIgnorableArtifactMapEntry($candidate)) {
                     continue;
                 }
 
-                return null;
-            }
-
-            if (!is_array($candidate) || array_is_list($candidate)) {
                 return null;
             }
 
