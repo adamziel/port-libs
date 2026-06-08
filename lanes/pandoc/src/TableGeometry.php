@@ -665,6 +665,14 @@ final class TableGeometry
     }
 
     /**
+     * @return array{columnCount:int,rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    public static function flatGrid(AstNode $table): array
+    {
+        return self::flatGridFromSections(self::sectionGrids($table));
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function diagnostics(AstNode $table): array
@@ -1587,6 +1595,7 @@ final class TableGeometry
      *     headerAssociations:array<string, mixed>,
      *     sourceSummary?:array{text:string,source:string,attribute:string},
      *     rowMatrix:array{rows:list<array<string, mixed>>,summary:array<string, mixed>},
+     *     flatGrid:array{columnCount:int,rows:list<array<string, mixed>>,summary:array<string, mixed>},
      *     summary:array<string, mixed>
      * }
      */
@@ -1619,6 +1628,7 @@ final class TableGeometry
             ? self::rowHeaderMapFromAssociations($sections, $headerAssociations)
             : self::emptyRowHeaderMap();
         $rowMatrix = self::rowMatrixFromAssociations($sections, $headerAssociations);
+        $flatGrid = self::flatGridFromSections($sections);
 
         $packet = [
             'caption' => (string) $table->attr('caption', ''),
@@ -1638,6 +1648,7 @@ final class TableGeometry
             'headerAssociations' => $headerAssociations,
             'rowHeaderMap' => $rowHeaderMap,
             'rowMatrix' => $rowMatrix,
+            'flatGrid' => $flatGrid,
             'summary' => self::reviewPacketSummary(
                 $sections,
                 $coverage,
@@ -1650,6 +1661,7 @@ final class TableGeometry
                 $headerAssociations,
                 $rowHeaderMap,
                 $rowMatrix,
+                $flatGrid,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
@@ -1871,6 +1883,249 @@ final class TableGeometry
                 'hasUnassociatedDataCells' => false,
             ],
         ];
+    }
+
+    /**
+     * @param list<array{
+     *     section:string,
+     *     columnCount:int,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>,
+     *     rows:list<list<array<string, mixed>>>
+     * }> $sections
+     * @return array{columnCount:int,rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    private static function flatGridFromSections(array $sections): array
+    {
+        $columnCount = 0;
+        $rows = [];
+        $summary = [
+            'rowCount' => 0,
+            'columnCount' => 0,
+            'slotCount' => 0,
+            'anchorSlotCount' => 0,
+            'coveredSlotCount' => 0,
+            'missingSlotCount' => 0,
+            'headerRowCount' => 0,
+            'dataRowCount' => 0,
+            'headerSlotCount' => 0,
+            'dataSlotCount' => 0,
+            'spanAnchorCount' => 0,
+            'colspanAnchorCount' => 0,
+            'rowspanAnchorCount' => 0,
+            'rowspanToEndAnchorCount' => 0,
+            'maxVisualWidth' => 0,
+            'sections' => [],
+            'hasCoveredSlots' => false,
+            'hasMissingSlots' => false,
+            'hasSpans' => false,
+        ];
+
+        foreach ($sections as $sectionGrid) {
+            $section = (string) ($sectionGrid['section'] ?? '');
+            if ($section !== '' && !in_array($section, $summary['sections'], true)) {
+                $summary['sections'][] = $section;
+            }
+
+            $columnCount = max($columnCount, max(0, (int) ($sectionGrid['columnCount'] ?? 0)));
+            $globalRowStart = max(0, (int) ($sectionGrid['globalRowStart'] ?? 0));
+            foreach ($sectionGrid['rows'] ?? [] as $rowIndex => $slots) {
+                if (!is_array($slots)) {
+                    continue;
+                }
+
+                $entry = $sectionGrid['rowEntries'][$rowIndex] ?? [
+                    'header' => false,
+                    'rowHeadColumns' => 0,
+                    'rowRole' => $section,
+                ];
+                $globalRow = self::rowGlobalRow($slots, $globalRowStart + (int) $rowIndex);
+                $cells = [];
+                $rowAnchorSlotCount = 0;
+                $rowCoveredSlotCount = 0;
+                $rowMissingSlotCount = 0;
+                $rowHeaderSlotCount = 0;
+                $rowDataSlotCount = 0;
+
+                foreach ($slots as $slot) {
+                    if (!is_array($slot)) {
+                        continue;
+                    }
+
+                    $record = self::flatGridSlotRecord($section, (int) $rowIndex, $globalRow, $slot);
+                    $cells[] = $record;
+                    $summary['slotCount']++;
+                    $kind = (string) ($record['kind'] ?? '');
+                    if ($kind === 'cell') {
+                        $rowAnchorSlotCount++;
+                        $summary['anchorSlotCount']++;
+                        $colspan = max(1, (int) ($record['colspan'] ?? 1));
+                        $rowspan = max(1, (int) ($record['rowspan'] ?? 1));
+                        if ($colspan > 1 || $rowspan > 1) {
+                            $summary['spanAnchorCount']++;
+                            $summary['hasSpans'] = true;
+                        }
+                        if ($colspan > 1) {
+                            $summary['colspanAnchorCount']++;
+                        }
+                        if ($rowspan > 1) {
+                            $summary['rowspanAnchorCount']++;
+                        }
+                        if (($record['rowspanToEnd'] ?? false) === true) {
+                            $summary['rowspanToEndAnchorCount']++;
+                        }
+                    } elseif ($kind === 'covered') {
+                        $rowCoveredSlotCount++;
+                        $summary['coveredSlotCount']++;
+                    } elseif ($kind === 'missing') {
+                        $rowMissingSlotCount++;
+                        $summary['missingSlotCount']++;
+                    }
+
+                    if (($record['headerCell'] ?? false) === true) {
+                        $rowHeaderSlotCount++;
+                        $summary['headerSlotCount']++;
+                    } elseif ($kind !== 'missing') {
+                        $rowDataSlotCount++;
+                        $summary['dataSlotCount']++;
+                    }
+                }
+
+                $summary['rowCount']++;
+                if (($entry['header'] ?? false) === true) {
+                    $summary['headerRowCount']++;
+                } else {
+                    $summary['dataRowCount']++;
+                }
+                $summary['maxVisualWidth'] = max($summary['maxVisualWidth'], count($cells));
+
+                $rows[] = [
+                    'section' => $section,
+                    'row' => (int) $rowIndex,
+                    'globalRow' => $globalRow,
+                    'rowRole' => (string) ($entry['rowRole'] ?? $section),
+                    'header' => (bool) ($entry['header'] ?? false),
+                    'rowHeadColumns' => max(0, (int) ($entry['rowHeadColumns'] ?? 0)),
+                    'slotCount' => count($cells),
+                    'anchorSlotCount' => $rowAnchorSlotCount,
+                    'coveredSlotCount' => $rowCoveredSlotCount,
+                    'missingSlotCount' => $rowMissingSlotCount,
+                    'headerSlotCount' => $rowHeaderSlotCount,
+                    'dataSlotCount' => $rowDataSlotCount,
+                    'cells' => $cells,
+                ];
+            }
+        }
+
+        $summary['columnCount'] = $columnCount;
+        $summary['hasCoveredSlots'] = $summary['coveredSlotCount'] > 0;
+        $summary['hasMissingSlots'] = $summary['missingSlotCount'] > 0;
+
+        return [
+            'columnCount' => $columnCount,
+            'rows' => $rows,
+            'summary' => $summary,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return array<string, mixed>
+     */
+    private static function flatGridSlotRecord(string $section, int $rowIndex, int $globalRow, array $slot): array
+    {
+        $kind = (string) ($slot['kind'] ?? 'missing');
+        if (!in_array($kind, ['cell', 'covered', 'missing'], true)) {
+            $kind = 'missing';
+        }
+
+        $record = [
+            'kind' => $kind,
+            'section' => $section,
+            'row' => $rowIndex,
+            'globalRow' => $globalRow,
+            'column' => max(0, (int) ($slot['column'] ?? 0)),
+            'text' => '',
+        ];
+
+        if ($kind === 'missing') {
+            return $record;
+        }
+
+        $node = $slot['node'] ?? null;
+        $anchorRow = max(0, (int) ($slot['anchorRow'] ?? $slot['row'] ?? $rowIndex));
+        $anchorColumn = max(0, (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0));
+        $sourceCell = max(0, (int) ($slot['sourceCell'] ?? 0));
+        $sourceColumn = max(0, (int) ($slot['sourceColumn'] ?? 0));
+        $anchorText = $node instanceof AstNode ? self::plainText($node) : '';
+        $record = array_replace($record, [
+            'anchorKey' => self::accessibilityKey($section, $anchorRow, $sourceCell, $sourceColumn),
+            'anchorRow' => $anchorRow,
+            'anchorColumn' => $anchorColumn,
+            'sourceCell' => $sourceCell,
+            'sourceColumn' => $sourceColumn,
+            'headerCell' => (bool) ($slot['headerCell'] ?? false),
+            'colspan' => max(1, (int) ($slot['colspan'] ?? 1)),
+            'rowspan' => max(1, (int) ($slot['rowspan'] ?? 1)),
+            'spanColumns' => self::flatGridSpanColumns($slot),
+        ]);
+
+        foreach ([
+            'sourceRow',
+            'sourceRowEnd',
+            'sourceRowspan',
+            'globalRowEnd',
+            'anchorSourceRow',
+            'anchorSourceRowEnd',
+            'anchorGlobalRow',
+            'anchorGlobalRowEnd',
+        ] as $attribute) {
+            if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
+                $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach ([
+            'sourceRows',
+            'sourceRowRange',
+            'globalRows',
+            'globalRowRange',
+            'anchorSourceRows',
+            'anchorSourceRowRange',
+            'anchorGlobalRows',
+            'anchorGlobalRowRange',
+        ] as $attribute) {
+            $values = self::intList($slot[$attribute] ?? []);
+            if ($values !== []) {
+                $record[$attribute] = $values;
+            }
+        }
+
+        if (($slot['rowspanToEnd'] ?? false) === true) {
+            $record['rowspanToEnd'] = true;
+        }
+
+        if ($kind === 'covered') {
+            $record['covering'] = (string) ($slot['covering'] ?? '');
+            $record['anchorText'] = $anchorText;
+
+            return $record;
+        }
+
+        $record['text'] = $anchorText;
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return list<int>
+     */
+    private static function flatGridSpanColumns(array $slot): array
+    {
+        $anchorColumn = max(0, (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0));
+        $colspan = max(1, (int) ($slot['colspan'] ?? 1));
+
+        return self::integerRange($anchorColumn, $anchorColumn + $colspan);
     }
 
     /**
@@ -3813,6 +4068,7 @@ final class TableGeometry
      * @param array<string, mixed> $headerAssociations
      * @param array<string, mixed> $rowHeaderMap
      * @param array<string, mixed> $rowMatrix
+     * @param array<string, mixed> $flatGrid
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -3827,6 +4083,7 @@ final class TableGeometry
         array $headerAssociations,
         array $rowHeaderMap,
         array $rowMatrix,
+        array $flatGrid,
         string $sourceSummary
     ): array
     {
@@ -3978,6 +4235,9 @@ final class TableGeometry
         }
         $rowMatrixSummary = is_array($rowMatrix['summary'] ?? null)
             ? $rowMatrix['summary']
+            : [];
+        $flatGridSummary = is_array($flatGrid['summary'] ?? null)
+            ? $flatGrid['summary']
             : [];
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
@@ -4147,6 +4407,14 @@ final class TableGeometry
             'rowMatrixMaxCellCountPerRow' => (int) ($rowMatrixSummary['maxCellCountPerRow'] ?? 0),
             'rowMatrixMaxHeaderCellsPerRow' => (int) ($rowMatrixSummary['maxHeaderCellsPerRow'] ?? 0),
             'rowMatrixMaxDataCellsPerRow' => (int) ($rowMatrixSummary['maxDataCellsPerRow'] ?? 0),
+            'flatGridRowCount' => (int) ($flatGridSummary['rowCount'] ?? 0),
+            'flatGridColumnCount' => (int) ($flatGridSummary['columnCount'] ?? 0),
+            'flatGridSlotCount' => (int) ($flatGridSummary['slotCount'] ?? 0),
+            'flatGridAnchorSlotCount' => (int) ($flatGridSummary['anchorSlotCount'] ?? 0),
+            'flatGridCoveredSlotCount' => (int) ($flatGridSummary['coveredSlotCount'] ?? 0),
+            'flatGridMissingSlotCount' => (int) ($flatGridSummary['missingSlotCount'] ?? 0),
+            'flatGridSpanAnchorCount' => (int) ($flatGridSummary['spanAnchorCount'] ?? 0),
+            'hasFlatGridSpans' => (bool) ($flatGridSummary['hasSpans'] ?? false),
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
             'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),

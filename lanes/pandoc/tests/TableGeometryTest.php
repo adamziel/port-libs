@@ -2897,6 +2897,67 @@ return [
         json_encode($sourceMatrix, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'builds flattened visual grids for fallback writer handoffs' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
+        $table = $buildAccessibleHeaderDocument()->children[0];
+        $flatGrid = TableGeometry::flatGrid($table);
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Migration Grid']);
+
+        $t->same(3, $flatGrid['columnCount'] ?? null);
+        $t->same(4, $flatGrid['summary']['rowCount'] ?? null);
+        $t->same(12, $flatGrid['summary']['slotCount'] ?? null);
+        $t->same(10, $flatGrid['summary']['anchorSlotCount'] ?? null);
+        $t->same(2, $flatGrid['summary']['coveredSlotCount'] ?? null);
+        $t->same(0, $flatGrid['summary']['missingSlotCount'] ?? null);
+        $t->same(2, $flatGrid['summary']['spanAnchorCount'] ?? null);
+        $t->same(1, $flatGrid['summary']['colspanAnchorCount'] ?? null);
+        $t->same(1, $flatGrid['summary']['rowspanAnchorCount'] ?? null);
+        $t->same(true, $flatGrid['summary']['hasCoveredSlots'] ?? null);
+        $t->same(false, $flatGrid['summary']['hasMissingSlots'] ?? null);
+        $t->same(['head', 'body'], $flatGrid['summary']['sections'] ?? null);
+
+        $headRow = $flatGrid['rows'][0] ?? [];
+        $t->same('head', $headRow['section'] ?? null);
+        $t->same(true, $headRow['header'] ?? null);
+        $t->same(3, $headRow['slotCount'] ?? null);
+        $t->same(2, $headRow['anchorSlotCount'] ?? null);
+        $t->same(1, $headRow['coveredSlotCount'] ?? null);
+        $t->same('cell', $headRow['cells'][0]['kind'] ?? null);
+        $t->same('Document', $headRow['cells'][0]['text'] ?? null);
+        $t->same('head:0:0:0', $headRow['cells'][0]['anchorKey'] ?? null);
+        $t->same([0, 1], $headRow['cells'][0]['spanColumns'] ?? null);
+        $t->same('covered', $headRow['cells'][1]['kind'] ?? null);
+        $t->same('', $headRow['cells'][1]['text'] ?? null);
+        $t->same('Document', $headRow['cells'][1]['anchorText'] ?? null);
+        $t->same('colspan', $headRow['cells'][1]['covering'] ?? null);
+        $t->same('head:0:0:0', $headRow['cells'][1]['anchorKey'] ?? null);
+        $t->same(0, $headRow['cells'][1]['anchorColumn'] ?? null);
+
+        $coveredBodyRow = $flatGrid['rows'][3] ?? [];
+        $t->same('body', $coveredBodyRow['section'] ?? null);
+        $t->same(2, $coveredBodyRow['row'] ?? null);
+        $t->same(3, $coveredBodyRow['globalRow'] ?? null);
+        $t->same(1, $coveredBodyRow['coveredSlotCount'] ?? null);
+        $t->same('covered', $coveredBodyRow['cells'][0]['kind'] ?? null);
+        $t->same('rowspan', $coveredBodyRow['cells'][0]['covering'] ?? null);
+        $t->same('', $coveredBodyRow['cells'][0]['text'] ?? null);
+        $t->same('Posts', $coveredBodyRow['cells'][0]['anchorText'] ?? null);
+        $t->same('body:1:0:0', $coveredBodyRow['cells'][0]['anchorKey'] ?? null);
+        $t->same(1, $coveredBodyRow['cells'][0]['anchorRow'] ?? null);
+        $t->same(2, $coveredBodyRow['cells'][0]['anchorGlobalRow'] ?? null);
+        $t->same([1, 3], $coveredBodyRow['cells'][0]['sourceRowRange'] ?? null);
+        $t->same('cell', $coveredBodyRow['cells'][1]['kind'] ?? null);
+        $t->same('7', $coveredBodyRow['cells'][1]['text'] ?? null);
+        $t->same('cell', $coveredBodyRow['cells'][2]['kind'] ?? null);
+        $t->same('Import', $coveredBodyRow['cells'][2]['text'] ?? null);
+
+        $t->same($flatGrid, $packet['flatGrid'] ?? null);
+        $t->same(4, $packet['summary']['flatGridRowCount'] ?? null);
+        $t->same(12, $packet['summary']['flatGridSlotCount'] ?? null);
+        $t->same(2, $packet['summary']['flatGridCoveredSlotCount'] ?? null);
+        $t->same(0, $packet['summary']['flatGridMissingSlotCount'] ?? null);
+        json_encode($flatGrid, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports row header writer requirements for plain table handoff' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Row header review',
