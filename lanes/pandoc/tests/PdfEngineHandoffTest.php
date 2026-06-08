@@ -5762,6 +5762,97 @@ MARKDOWN);
         $t->same($result['pdfFormFieldActionTypes'], $sequence['finalPdfFormFieldActionTypes']);
     },
 
+    'fake runner extracts bounded pdf acroform action target lists from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/form-action-targets.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 7 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /A << /S /SubmitForm /F (https://example.test/review/form-submit) /Fields [(reviewer.name) 5 0 R] /Flags 34 >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (approved) /V /Yes >>',
+            'endobj',
+            '6 0 obj',
+            '<< /FT /Ch /T (routing) /Kids [7 0 R] >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Annot /Subtype /Widget /T (queue) /AA << /Fo << /S /ResetForm /Fields [4 0 R (approved)] /Flags 1 >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /NeedAppearances true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/form-action-targets.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/form-action-targets.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'fieldName' => 'reviewer.name',
+                'fieldObject' => '4 0 R',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'trigger' => 'A',
+                'source' => 'field:4 0 R.A',
+                'actionType' => 'SubmitForm',
+                'actionTarget' => 'https://example.test/review/form-submit',
+                'flags' => 34,
+                'flagNames' => ['includeNoValueFields', 'xfdf'],
+                'fieldNames' => ['reviewer.name', 'approved'],
+                'fieldSelection' => 'include-listed',
+            ],
+            [
+                'fieldName' => 'routing.queue',
+                'fieldObject' => '7 0 R',
+                'fieldType' => 'Ch',
+                'fieldTypeLabel' => 'choice',
+                'trigger' => 'AA.Fo',
+                'source' => 'field:7 0 R.AA.Fo',
+                'actionType' => 'ResetForm',
+                'actionTarget' => null,
+                'flags' => 1,
+                'flagNames' => ['excludeListedFields'],
+                'fieldNames' => ['reviewer.name', 'approved'],
+                'fieldSelection' => 'exclude-listed',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfFormFieldActionTargets']);
+        $t->contains('pdf-byte-form-field-action-targets:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-target-fields:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-target-flags:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-target-type:ResetForm:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-target-type:SubmitForm:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-target-selection:exclude-listed:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-target-selection:include-listed:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfFormFieldActionTargets']);
+    },
+
     'fake runner extracts bounded pdf acroform dictionary metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-dictionary.pdf']);

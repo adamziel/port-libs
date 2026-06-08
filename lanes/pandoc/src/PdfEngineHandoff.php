@@ -347,6 +347,7 @@ final class PdfEngineHandoff
      *     pdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     pdfFormFieldTypes: array<string, int>,
      *     pdfFormFieldActions: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     pdfFormFieldActionTargets: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>,
      *     pdfFormFieldActionTypes: array<string, int>,
      *     pdfEncrypted: bool,
      *     pdfEncryptionFilter: string|null,
@@ -789,6 +790,7 @@ final class PdfEngineHandoff
         $pdfFormFields = [];
         $pdfFormFieldTypes = [];
         $pdfFormFieldActions = [];
+        $pdfFormFieldActionTargets = [];
         $pdfFormFieldActionTypes = [];
         $pdfEncrypted = false;
         $pdfEncryptionFilter = null;
@@ -889,6 +891,7 @@ final class PdfEngineHandoff
                 $pdfFormFields = $pdfInspection['formFields'];
                 $pdfFormFieldTypes = $pdfInspection['formFieldTypes'];
                 $pdfFormFieldActions = $pdfInspection['formFieldActions'];
+                $pdfFormFieldActionTargets = $pdfInspection['formFieldActionTargets'];
                 $pdfFormFieldActionTypes = $pdfInspection['formFieldActionTypes'];
                 $pdfEncryption = $pdfInspection['encryption'];
                 $pdfEncrypted = $pdfEncryption['encrypted'];
@@ -2234,6 +2237,43 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-form-field-action-trigger:' . $trigger . ':' . $triggerCount;
                     }
                 }
+                if ($pdfFormFieldActionTargets !== []) {
+                    $diagnostics[] = 'pdf-byte-form-field-action-targets:' . count($pdfFormFieldActionTargets);
+                    $targetFieldCount = 0;
+                    $flaggedTargetCount = 0;
+                    $targetActionTypes = [];
+                    $targetSelections = [];
+                    foreach ($pdfFormFieldActionTargets as $formFieldActionTarget) {
+                        if (isset($formFieldActionTarget['fieldNames']) && is_array($formFieldActionTarget['fieldNames'])) {
+                            $targetFieldCount += count($formFieldActionTarget['fieldNames']);
+                        }
+                        if (($formFieldActionTarget['flags'] ?? null) !== null) {
+                            $flaggedTargetCount++;
+                        }
+                        $actionType = is_string($formFieldActionTarget['actionType'] ?? null) && $formFieldActionTarget['actionType'] !== ''
+                            ? $formFieldActionTarget['actionType']
+                            : 'unknown';
+                        $targetActionTypes[$actionType] = ($targetActionTypes[$actionType] ?? 0) + 1;
+                        $selection = is_string($formFieldActionTarget['fieldSelection'] ?? null) && $formFieldActionTarget['fieldSelection'] !== ''
+                            ? $formFieldActionTarget['fieldSelection']
+                            : 'unknown';
+                        $targetSelections[$selection] = ($targetSelections[$selection] ?? 0) + 1;
+                    }
+                    if ($targetFieldCount > 0) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-target-fields:' . $targetFieldCount;
+                    }
+                    if ($flaggedTargetCount > 0) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-target-flags:' . $flaggedTargetCount;
+                    }
+                    ksort($targetActionTypes);
+                    foreach ($targetActionTypes as $actionType => $targetCount) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-target-type:' . $actionType . ':' . $targetCount;
+                    }
+                    ksort($targetSelections);
+                    foreach ($targetSelections as $selection => $selectionCount) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-target-selection:' . $selection . ':' . $selectionCount;
+                    }
+                }
                 if ($pdfFormFieldActionTypes !== []) {
                     $diagnostics[] = 'pdf-byte-form-field-action-types:' . count($pdfFormFieldActionTypes);
                     foreach ($pdfFormFieldActionTypes as $actionType => $actionCount) {
@@ -2464,6 +2504,7 @@ final class PdfEngineHandoff
             'pdfFormFields' => $pdfFormFields,
             'pdfFormFieldTypes' => $pdfFormFieldTypes,
             'pdfFormFieldActions' => $pdfFormFieldActions,
+            'pdfFormFieldActionTargets' => $pdfFormFieldActionTargets,
             'pdfFormFieldActionTypes' => $pdfFormFieldActionTypes,
             'pdfEncrypted' => $pdfEncrypted,
             'pdfEncryptionFilter' => $pdfEncryptionFilter,
@@ -2585,6 +2626,7 @@ final class PdfEngineHandoff
      *     finalPdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     finalPdfFormFieldTypes: array<string, int>,
      *     finalPdfFormFieldActions: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     finalPdfFormFieldActionTargets: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>,
      *     finalPdfFormFieldActionTypes: array<string, int>,
      *     finalPdfEncrypted: bool,
      *     finalPdfEncryptionFilter: string|null,
@@ -2820,6 +2862,7 @@ final class PdfEngineHandoff
             'finalPdfFormFields' => is_array($finalRun) && is_array($finalRun['pdfFormFields'] ?? null) ? $finalRun['pdfFormFields'] : [],
             'finalPdfFormFieldTypes' => is_array($finalRun) && is_array($finalRun['pdfFormFieldTypes'] ?? null) ? $finalRun['pdfFormFieldTypes'] : [],
             'finalPdfFormFieldActions' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActions'] ?? null) ? $finalRun['pdfFormFieldActions'] : [],
+            'finalPdfFormFieldActionTargets' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActionTargets'] ?? null) ? $finalRun['pdfFormFieldActionTargets'] : [],
             'finalPdfFormFieldActionTypes' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActionTypes'] ?? null) ? $finalRun['pdfFormFieldActionTypes'] : [],
             'finalPdfEncrypted' => is_array($finalRun) && ($finalRun['pdfEncrypted'] ?? false) === true,
             'finalPdfEncryptionFilter' => is_array($finalRun) && is_string($finalRun['pdfEncryptionFilter'] ?? null) ? $finalRun['pdfEncryptionFilter'] : null,
@@ -3927,6 +3970,9 @@ final class PdfEngineHandoff
      *     acroFormCalculationOrder:list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     formFields:list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     formFieldTypes:array<string, int>,
+     *     formFieldActions:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     formFieldActionTargets:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>,
+     *     formFieldActionTypes:array<string, int>,
      *     encryption:array{
      *         encrypted:bool,
      *         filter:string|null,
@@ -3951,6 +3997,7 @@ final class PdfEngineHandoff
         $catalogVersion = $this->extractPdfCatalogName($catalog, 'Version');
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
         $formFieldActions = $this->extractPdfFormFieldActions($pdfBytes, $catalog);
+        $formFieldActionTargets = $this->extractPdfFormFieldActionTargets($pdfBytes, $catalog);
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
         $xrefStreams = $this->extractPdfXrefStreams($pdfBytes);
         $objectStreams = $this->extractPdfObjectStreams($pdfBytes);
@@ -4067,6 +4114,7 @@ final class PdfEngineHandoff
             'formFields' => $formFields,
             'formFieldTypes' => $this->summarizePdfFormFieldTypes($formFields),
             'formFieldActions' => $formFieldActions,
+            'formFieldActionTargets' => $formFieldActionTargets,
             'formFieldActionTypes' => $this->summarizePdfFormFieldActionTypes($formFieldActions),
             'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
             'headerVersion' => $headerVersion,
@@ -7783,7 +7831,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array{kind:string, value:string, next?:int}|null $value
      * @param array<string, string> $objects
      */
     private function pdfLaunchFileTargetFromValue(?array $value, array $objects, int $depth = 0): ?string
@@ -16229,32 +16277,7 @@ final class PdfEngineHandoff
     private function extractPdfFormFieldActions(string $pdfBytes, ?string $catalog): array
     {
         $objects = $this->pdfObjectBodiesByReference($pdfBytes);
-        $candidates = [];
-        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
-
-        if ($acroForm !== null) {
-            $visited = [];
-            foreach ($this->extractPdfReferenceArray($acroForm, 'Fields') as $reference) {
-                $this->collectPdfFormFieldActionCandidates(
-                    $objects,
-                    $reference,
-                    ['name' => null, 'type' => null],
-                    $candidates,
-                    $visited,
-                    0
-                );
-            }
-        }
-
-        if ($candidates === []) {
-            foreach ($objects as $reference => $body) {
-                if ((!str_contains($body, '/A') && !str_contains($body, '/AA')) || !str_contains($body, '/FT')) {
-                    continue;
-                }
-
-                $candidates[$reference] = $this->pdfFormFieldActionCandidate($body, $reference . ' R', null, null);
-            }
-        }
+        $candidates = $this->pdfFormFieldActionCandidates($pdfBytes, $catalog, $objects);
 
         $actions = [];
         foreach ($candidates as $candidate) {
@@ -16289,6 +16312,42 @@ final class PdfEngineHandoff
         );
 
         return $actions;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array<string, array{dictionary:string, fieldObject:string|null, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null}>
+     */
+    private function pdfFormFieldActionCandidates(string $pdfBytes, ?string $catalog, array $objects): array
+    {
+        $candidates = [];
+        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
+
+        if ($acroForm !== null) {
+            $visited = [];
+            foreach ($this->extractPdfReferenceArray($acroForm, 'Fields') as $reference) {
+                $this->collectPdfFormFieldActionCandidates(
+                    $objects,
+                    $reference,
+                    ['name' => null, 'type' => null],
+                    $candidates,
+                    $visited,
+                    0
+                );
+            }
+        }
+
+        if ($candidates === []) {
+            foreach ($objects as $reference => $body) {
+                if ((!str_contains($body, '/A') && !str_contains($body, '/AA')) || !str_contains($body, '/FT')) {
+                    continue;
+                }
+
+                $candidates[$reference] = $this->pdfFormFieldActionCandidate($body, $reference . ' R', null, null);
+            }
+        }
+
+        return $candidates;
     }
 
     /**
@@ -16462,6 +16521,246 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    /**
+     * @return list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>
+     */
+    private function extractPdfFormFieldActionTargets(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $candidates = $this->pdfFormFieldActionCandidates($pdfBytes, $catalog, $objects);
+        $targets = [];
+
+        foreach ($candidates as $candidate) {
+            $this->addPdfFormFieldActionTargetFromNamedValue($targets, $candidate, 'A', $candidate['dictionary'], 'A', $objects);
+
+            $additionalActions = $this->extractPdfDictionaryOrReferenceValue($candidate['dictionary'], 'AA', $objects);
+            if ($additionalActions === null) {
+                continue;
+            }
+
+            foreach (['E', 'X', 'D', 'U', 'Fo', 'Bl', 'PO', 'PC', 'PV', 'PI', 'O', 'C', 'K', 'F', 'V', 'WC', 'WS', 'DS', 'WP', 'DP'] as $trigger) {
+                $this->addPdfFormFieldActionTargetFromNamedValue($targets, $candidate, 'AA.' . $trigger, $additionalActions, $trigger, $objects);
+            }
+        }
+
+        $targets = array_values($targets);
+        usort(
+            $targets,
+            static fn (array $left, array $right): int => [
+                $left['fieldName'] ?? '',
+                $left['fieldObject'] ?? '',
+                $left['trigger'],
+                $left['actionType'],
+                $left['actionTarget'] ?? '',
+            ] <=> [
+                $right['fieldName'] ?? '',
+                $right['fieldObject'] ?? '',
+                $right['trigger'],
+                $right['actionType'],
+                $right['actionTarget'] ?? '',
+            ]
+        );
+
+        return $targets;
+    }
+
+    /**
+     * @param array<string, array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}> $targets
+     * @param array{dictionary:string, fieldObject:string|null, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null} $candidate
+     * @param array<string, string> $objects
+     */
+    private function addPdfFormFieldActionTargetFromNamedValue(
+        array &$targets,
+        array $candidate,
+        string $trigger,
+        string $dictionary,
+        string $name,
+        array $objects
+    ): void {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return;
+        }
+
+        $summary = $this->summarizePdfFormFieldActionTargetValue($this->pdfFormFieldActionSource($candidate, $trigger), $value, $objects);
+        if ($summary === null) {
+            return;
+        }
+
+        $entry = [
+            'fieldName' => $candidate['fieldName'],
+            'fieldObject' => $candidate['fieldObject'],
+            'fieldType' => $candidate['fieldType'],
+            'fieldTypeLabel' => $candidate['fieldTypeLabel'],
+            'trigger' => $trigger,
+            'source' => $summary['source'],
+            'actionType' => $summary['type'],
+            'actionTarget' => $summary['target'],
+            'flags' => $summary['flags'],
+            'flagNames' => $summary['flagNames'],
+            'fieldNames' => $summary['fieldNames'],
+            'fieldSelection' => $summary['fieldSelection'],
+        ];
+        $key = implode("\0", [
+            $entry['fieldObject'] ?? '',
+            $entry['fieldName'] ?? '',
+            $entry['trigger'],
+            $entry['actionType'],
+            $entry['actionTarget'] ?? '',
+            (string) ($entry['flags'] ?? ''),
+            implode('|', $entry['fieldNames']),
+        ]);
+        $targets[$key] = $entry;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int} $value
+     * @param array<string, string> $objects
+     * @return array{source:string, type:string, target:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}|null
+     */
+    private function summarizePdfFormFieldActionTargetValue(string $source, array $value, array $objects): ?array
+    {
+        $dictionary = $this->pdfDictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $type = $this->extractPdfNameToken($dictionary, 'S');
+        if (!in_array($type, ['ImportData', 'ResetForm', 'SubmitForm'], true)) {
+            return null;
+        }
+
+        $fieldNames = $this->pdfFormActionFieldNames($this->extractPdfValueForName($dictionary, 'Fields'), $objects);
+        $flags = $this->extractPdfIntegerToken($dictionary, 'Flags');
+        if ($fieldNames === [] && $flags === null) {
+            return null;
+        }
+
+        return [
+            'source' => $source,
+            'type' => $type,
+            'target' => $this->pdfActiveActionTarget($dictionary, $type, $objects, null),
+            'flags' => $flags,
+            'flagNames' => $flags === null ? [] : $this->pdfFormActionFlagNames($type, $flags),
+            'fieldNames' => $fieldNames,
+            'fieldSelection' => $this->pdfFormActionFieldSelection($type, $flags, $fieldNames),
+        ];
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function pdfFormActionFieldNames(?array $value, array $objects, int $depth = 0): array
+    {
+        if ($value === null || $depth > 8) {
+            return [];
+        }
+
+        if ($value['kind'] === 'array') {
+            $names = [];
+            foreach ($this->pdfTopLevelArrayValues($value['value']) as $item) {
+                foreach ($this->pdfFormActionFieldNames($item, $objects, $depth + 1) as $name) {
+                    $names[] = $name;
+                }
+            }
+
+            return $this->uniqueStrings($names);
+        }
+
+        if (in_array($value['kind'], ['literal', 'hex', 'name'], true)) {
+            $name = trim($value['value']);
+
+            return $name === '' ? [] : [$name];
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $field = $this->summarizePdfFormField($value['value']);
+            $name = $field['name'] ?? $this->extractPdfStringOrNameValue($value['value'], 'T');
+
+            return $name === null || $name === '' ? [] : [$name];
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return [];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null && $resolved['kind'] !== 'number') {
+                $names = $this->pdfFormActionFieldNames($resolved, $objects, $depth + 1);
+                if ($names !== []) {
+                    return $names;
+                }
+            }
+
+            $field = $this->summarizePdfFormField($body);
+            $name = $field['name'] ?? $this->extractPdfStringOrNameValue($body, 'T');
+
+            return $name === null || $name === '' ? [] : [$name];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfFormActionFlagNames(string $type, int $flags): array
+    {
+        if ($flags === 0) {
+            return [];
+        }
+
+        $definitions = [];
+        if ($type === 'ResetForm') {
+            $definitions[0x001] = 'excludeListedFields';
+        } elseif ($type === 'SubmitForm') {
+            $definitions = [
+                0x001 => 'excludeListedFields',
+                0x002 => 'includeNoValueFields',
+                0x004 => 'exportFormat',
+                0x008 => 'getMethod',
+                0x010 => 'submitCoordinates',
+                0x020 => 'xfdf',
+                0x040 => 'includeAppendSaves',
+                0x080 => 'includeAnnotations',
+                0x100 => 'submitPdf',
+                0x200 => 'canonicalFormat',
+                0x400 => 'excludeNonUserAnnotations',
+                0x800 => 'excludeFKey',
+                0x2000 => 'embedForm',
+            ];
+        }
+
+        $names = [];
+        foreach ($definitions as $bit => $name) {
+            if (($flags & $bit) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<string> $fieldNames
+     */
+    private function pdfFormActionFieldSelection(string $type, ?int $flags, array $fieldNames): string
+    {
+        if ($fieldNames === []) {
+            return 'all-fields';
+        }
+
+        if (($type === 'ResetForm' || $type === 'SubmitForm') && $flags !== null && ($flags & 0x001) !== 0) {
+            return 'exclude-listed';
+        }
+
+        return 'include-listed';
     }
 
     /**
