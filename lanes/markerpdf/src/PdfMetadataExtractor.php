@@ -12224,9 +12224,17 @@ final class PdfMetadataExtractor
             );
         }
 
+        $permissionDigestApplicable = isset($expectedLengths['Perms']);
+        $permissionDigestUnexpected = $perms !== null
+            && !$permissionDigestApplicable
+            && $revision !== null
+            && $revision < 5;
         $permissionDigest = [
             'source' => 'standard_permissions_validation_ciphertext',
             'present' => $perms !== null,
+            'applicable_for_revision' => $permissionDigestApplicable,
+            'unexpected_for_revision' => $permissionDigestUnexpected,
+            'ignored_for_permission_authentication' => $permissionDigestUnexpected,
             'bytes' => $perms['bytes'] ?? null,
             'sha256' => $perms['sha256'] ?? null,
             'declared_entry_count' => $perms['declared_entry_count'] ?? 0,
@@ -12238,9 +12246,9 @@ final class PdfMetadataExtractor
             'entry_operand_shapes' => is_array($perms['entry_operand_shapes'] ?? null) ? $perms['entry_operand_shapes'] : [],
             'entry_reviews' => is_array($perms['entries'] ?? null) ? $perms['entries'] : [],
             'expected_bytes' => $expectedLengths['Perms'] ?? null,
-            'length_valid' => $perms !== null && isset($expectedLengths['Perms'])
+            'length_valid' => $perms !== null && $permissionDigestApplicable
                 ? $perms['bytes'] === $expectedLengths['Perms']
-                : ($perms === null ? null : true),
+                : ($perms === null || $permissionDigestUnexpected ? null : true),
             'status' => $this->standardPermissionDigestStatus($perms, $expectedLengths['Perms'] ?? null, $revision),
             'raw_bytes_exposed' => false,
             'permissions_authenticated' => false,
@@ -12499,6 +12507,10 @@ final class PdfMetadataExtractor
             return $revision !== null && $revision >= 5
                 ? 'required_permission_digest_missing'
                 : 'permission_digest_absent_for_legacy_revision';
+        }
+
+        if ($revision !== null && $revision < 5) {
+            return 'unexpected_permission_digest_for_legacy_revision_review';
         }
 
         if (($perms['duplicate_entries'] ?? false) === true) {

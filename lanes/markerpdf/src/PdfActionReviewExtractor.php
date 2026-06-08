@@ -1569,6 +1569,7 @@ final class PdfActionReviewExtractor
             );
             $entries = $this->repairOmittedCurrentUpdateGraphEntries(
                 $entries,
+                $pdfBytes,
                 $definitions,
                 $section['dictionary'],
                 $previousOffset,
@@ -1600,6 +1601,7 @@ final class PdfActionReviewExtractor
         );
         $entries = $this->repairOmittedCurrentUpdateGraphEntries(
             $entries,
+            $pdfBytes,
             $definitions,
             $tableSection['trailer'],
             $previousOffset,
@@ -1997,6 +1999,7 @@ final class PdfActionReviewExtractor
      */
     private function repairOmittedCurrentUpdateGraphEntries(
         array $entries,
+        string $pdfBytes,
         array $definitions,
         array $sectionDictionary,
         ?int $previousOffset,
@@ -2008,9 +2011,25 @@ final class PdfActionReviewExtractor
 
         $pending = [];
         foreach (['Root', 'Info', 'Encrypt'] as $name) {
+            $hasCurrentValue = array_key_exists($name, $sectionDictionary);
             $reference = $this->referenceObject($sectionDictionary[$name] ?? null);
             if ($reference !== null) {
                 $pending[] = $reference;
+                continue;
+            }
+
+            if ($hasCurrentValue) {
+                continue;
+            }
+
+            $inheritedReference = $this->inheritedTrailerGraphReference(
+                $pdfBytes,
+                $previousOffset,
+                $name,
+                $definitions
+            );
+            if ($inheritedReference !== null) {
+                $pending[] = $inheritedReference;
             }
         }
 
@@ -2090,6 +2109,52 @@ final class PdfActionReviewExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
+     * @param array<int, true> $visited
+     * @return array{object: int, generation: int}|null
+     */
+    private function inheritedTrailerGraphReference(
+        string $pdfBytes,
+        int $offset,
+        string $name,
+        array $definitions,
+        array $visited = []
+    ): ?array {
+        if ($offset < 0 || isset($visited[$offset])) {
+            return null;
+        }
+        $visited[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAtOffset($pdfBytes, $offset);
+        if ($tableSection !== null) {
+            if (array_key_exists($name, $tableSection['trailer'])) {
+                return $this->referenceObject($tableSection['trailer'][$name]);
+            }
+
+            $previousOffset = $this->previousXrefTableOffset($pdfBytes, $tableSection, $definitions, $offset);
+
+            return $previousOffset === null
+                ? null
+                : $this->inheritedTrailerGraphReference($pdfBytes, $previousOffset, $name, $definitions, $visited);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection !== null) {
+            if (array_key_exists($name, $streamSection['dictionary'])) {
+                return $this->referenceObject($streamSection['dictionary'][$name]);
+            }
+
+            $previousOffset = $this->previousXrefStreamOffset($pdfBytes, $streamSection, $definitions, $offset);
+
+            return $previousOffset === null
+                ? null
+                : $this->inheritedTrailerGraphReference($pdfBytes, $previousOffset, $name, $definitions, $visited);
+        }
+
+        return null;
     }
 
     /**

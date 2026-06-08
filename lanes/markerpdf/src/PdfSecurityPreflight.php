@@ -525,6 +525,11 @@ final class PdfSecurityPreflight
             'standard_authentication_ready_for_password_attempt' => ($standardAuthenticationMaterialReview['present'] ?? false) === true
                 ? (bool) ($standardAuthenticationMaterialReview['ready_for_password_attempt'] ?? false)
                 : null,
+            'standard_permission_digest_applicable_for_revision' => array_key_exists('permission_digest_applicable_for_revision', $standardAuthenticationMaterialReview)
+                ? (bool) $standardAuthenticationMaterialReview['permission_digest_applicable_for_revision']
+                : (bool) ($standardAuthenticationMaterialReview['permission_digest_required'] ?? false),
+            'standard_permission_digest_unexpected_for_revision' => (bool) ($standardAuthenticationMaterialReview['permission_digest_unexpected_for_revision'] ?? false),
+            'standard_permission_digest_ignored_for_permission_authentication' => (bool) ($standardAuthenticationMaterialReview['permission_digest_ignored_for_permission_authentication'] ?? false),
             'public_key_recipient_review' => $publicKeyRecipientReview,
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
@@ -709,6 +714,11 @@ final class PdfSecurityPreflight
             ? $standardAuthenticationReview['permission_digest']
             : [];
         $permissionDigestRequired = is_int($permissionDigest['expected_bytes'] ?? null);
+        $permissionDigestApplicable = array_key_exists('applicable_for_revision', $permissionDigest)
+            ? (bool) $permissionDigest['applicable_for_revision']
+            : $permissionDigestRequired;
+        $permissionDigestUnexpected = ($permissionDigest['unexpected_for_revision'] ?? false) === true;
+        $permissionDigestIgnored = ($permissionDigest['ignored_for_permission_authentication'] ?? false) === true;
         $permissionDigestStatus = is_string($permissionDigest['status'] ?? null) ? $permissionDigest['status'] : null;
         $permissionDigestDuplicateEntries = ($permissionDigest['duplicate_entries'] ?? false) === true;
         $permissionDigestReady = !$permissionDigestRequired
@@ -741,6 +751,9 @@ final class PdfSecurityPreflight
             'duplicate_required_entry_count' => count($duplicateRequiredEntries),
             'required_entry_statuses' => $requiredEntryStatuses,
             'permission_digest_required' => $permissionDigestRequired,
+            'permission_digest_applicable_for_revision' => $permissionDigestApplicable,
+            'permission_digest_unexpected_for_revision' => $permissionDigestUnexpected,
+            'permission_digest_ignored_for_permission_authentication' => $permissionDigestIgnored,
             'permission_digest_present' => (bool) ($permissionDigest['present'] ?? false),
             'permission_digest_bytes' => $permissionDigest['bytes'] ?? null,
             'permission_digest_expected_bytes' => $permissionDigest['expected_bytes'] ?? null,
@@ -779,6 +792,11 @@ final class PdfSecurityPreflight
         $revision = is_int($encryption['revision'] ?? null) ? $encryption['revision'] : null;
         $permissionDigestRequired = (bool) ($standardAuthenticationMaterialReview['permission_digest_required'] ?? false);
         $permissionDigestPresent = (bool) ($standardAuthenticationMaterialReview['permission_digest_present'] ?? false);
+        $permissionDigestApplicable = array_key_exists('permission_digest_applicable_for_revision', $standardAuthenticationMaterialReview)
+            ? (bool) $standardAuthenticationMaterialReview['permission_digest_applicable_for_revision']
+            : $permissionDigestRequired;
+        $permissionDigestUnexpected = (bool) ($standardAuthenticationMaterialReview['permission_digest_unexpected_for_revision'] ?? false);
+        $permissionDigestIgnored = (bool) ($standardAuthenticationMaterialReview['permission_digest_ignored_for_permission_authentication'] ?? false);
         $permissionDigestLengthValid = $standardAuthenticationMaterialReview['permission_digest_length_valid'] ?? null;
         $permissionDigestStatus = is_string($standardAuthenticationMaterialReview['permission_digest_status'] ?? null)
             ? $standardAuthenticationMaterialReview['permission_digest_status']
@@ -847,6 +865,9 @@ final class PdfSecurityPreflight
             'syntactic_permission_bits_reliable' => $syntacticPermissionBitsReliable,
             'authentication_required' => $authenticationRequired,
             'permission_digest_required' => $permissionDigestRequired,
+            'permission_digest_applicable_for_revision' => $permissionDigestApplicable,
+            'permission_digest_unexpected_for_revision' => $permissionDigestUnexpected,
+            'permission_digest_ignored_for_permission_authentication' => $permissionDigestIgnored,
             'permission_digest_present' => $permissionDigestPresent,
             'permission_digest_bytes' => $standardAuthenticationMaterialReview['permission_digest_bytes'] ?? null,
             'permission_digest_expected_bytes' => $standardAuthenticationMaterialReview['permission_digest_expected_bytes'] ?? null,
@@ -921,6 +942,11 @@ final class PdfSecurityPreflight
                 ? $permissionAuthenticationTrustReview['status']
                 : null,
             'permission_digest_required' => (bool) ($permissionAuthenticationTrustReview['permission_digest_required'] ?? false),
+            'permission_digest_applicable_for_revision' => array_key_exists('permission_digest_applicable_for_revision', $permissionAuthenticationTrustReview)
+                ? (bool) $permissionAuthenticationTrustReview['permission_digest_applicable_for_revision']
+                : (bool) ($permissionAuthenticationTrustReview['permission_digest_required'] ?? false),
+            'permission_digest_unexpected_for_revision' => (bool) ($permissionAuthenticationTrustReview['permission_digest_unexpected_for_revision'] ?? false),
+            'permission_digest_ignored_for_permission_authentication' => (bool) ($permissionAuthenticationTrustReview['permission_digest_ignored_for_permission_authentication'] ?? false),
             'permission_digest_present' => (bool) ($permissionAuthenticationTrustReview['permission_digest_present'] ?? false),
             'permission_digest_length_valid' => $permissionAuthenticationTrustReview['permission_digest_length_valid'] ?? null,
             'permission_digest_status' => is_string($permissionAuthenticationTrustReview['permission_digest_status'] ?? null)
@@ -1094,6 +1120,11 @@ final class PdfSecurityPreflight
             'authenticated_permission_bits_reliable' => $authenticatedReliable,
             'permission_authentication_status' => $permissionAuthenticationStatus,
             'permission_digest_required' => (bool) ($permissionAuthenticationTrustReview['permission_digest_required'] ?? false),
+            'permission_digest_applicable_for_revision' => array_key_exists('permission_digest_applicable_for_revision', $permissionAuthenticationTrustReview)
+                ? (bool) $permissionAuthenticationTrustReview['permission_digest_applicable_for_revision']
+                : (bool) ($permissionAuthenticationTrustReview['permission_digest_required'] ?? false),
+            'permission_digest_unexpected_for_revision' => (bool) ($permissionAuthenticationTrustReview['permission_digest_unexpected_for_revision'] ?? false),
+            'permission_digest_ignored_for_permission_authentication' => (bool) ($permissionAuthenticationTrustReview['permission_digest_ignored_for_permission_authentication'] ?? false),
             'permission_digest_present' => (bool) ($permissionAuthenticationTrustReview['permission_digest_present'] ?? false),
             'permission_digest_length_valid' => $permissionAuthenticationTrustReview['permission_digest_length_valid'] ?? null,
             'permission_digest_status' => $permissionDigestStatus,
@@ -6447,6 +6478,12 @@ final class PdfSecurityPreflight
             'permission_authentication_status' => $permissionAuthenticationTrustReview['status'] ?? null,
             'reserved_bit_violations' => $reservedViolations,
             'perms_hash_present' => isset($encryption['perms']['sha256']),
+            'perms_unexpected_for_revision' => (bool) ($standardAuthenticationMaterialReview['permission_digest_unexpected_for_revision'] ?? false),
+            'standard_permission_digest_applicable_for_revision' => array_key_exists('permission_digest_applicable_for_revision', $standardAuthenticationMaterialReview)
+                ? (bool) $standardAuthenticationMaterialReview['permission_digest_applicable_for_revision']
+                : (bool) ($standardAuthenticationMaterialReview['permission_digest_required'] ?? false),
+            'standard_permission_digest_unexpected_for_revision' => (bool) ($standardAuthenticationMaterialReview['permission_digest_unexpected_for_revision'] ?? false),
+            'standard_permission_digest_ignored_for_permission_authentication' => (bool) ($standardAuthenticationMaterialReview['permission_digest_ignored_for_permission_authentication'] ?? false),
             'standard_authentication_review' => $standardAuthenticationReview,
             'standard_authentication_material_review' => $standardAuthenticationMaterialReview,
             'standard_authentication_ready_for_password_attempt' => ($standardAuthenticationMaterialReview['present'] ?? false) === true
@@ -6649,6 +6686,9 @@ final class PdfSecurityPreflight
                 }
             } elseif ($permissionPolicy === 'permissions_unsupported_handler_blocked_without_decryption') {
                 $reasons[] = 'encryption_handler_permissions_unsupported';
+            }
+            if (($permissionPreflight['standard_permission_digest_ignored_for_permission_authentication'] ?? false) === true) {
+                $reasons[] = 'legacy_permission_digest_ignored';
             }
             if ($signatureByteRangeCount > 0) {
                 $reasons[] = 'encrypted_signature_byte_range_present';
