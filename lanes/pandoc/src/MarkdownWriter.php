@@ -442,9 +442,15 @@ final class MarkdownWriter
 
         return is_numeric($value)
             || $this->isYamlMetadataSexagesimalNumericScalar(str_replace('_', '', trim($value)))
+            || $this->isYamlMetadataSpecialFloatScalar($normalized)
             || preg_match('/^[+-]?0x[0-9a-f]+$/i', $value) === 1
             || preg_match('/^[+-]?0o[0-7]+$/i', $value) === 1
             || preg_match('/^[+-]?0b[01]+$/i', $value) === 1;
+    }
+
+    private function isYamlMetadataSpecialFloatScalar(string $value): bool
+    {
+        return in_array($value, ['.inf', '+.inf', '-.inf', '.nan', '+.nan', '-.nan'], true);
     }
 
     private function isYamlMetadataSexagesimalNumericScalar(string $value): bool

@@ -6619,6 +6619,48 @@ MD;
         $t->same('yaml-writer-sexagesimal-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-writer-sexagesimal-body">YAML writer sexagesimal body</h1>', $blocks);
     },
+    'writes pandoc yaml special float-looking metadata scalars as quoted strings' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Writer special float **Packet**',
+                'review' => [
+                    'score' => '.inf',
+                    'ceiling' => '+.INF',
+                    'floor' => '-.Inf',
+                    'missing' => '.NaN',
+                    'labels' => ['-.inf', '+.nan', 'safe.inf'],
+                ],
+                'keywords' => ['.nan'],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-special-float-body'], [$text('YAML writer special float body')]),
+        ]);
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains('score: ".inf"', $markdown);
+        $t->contains('ceiling: "+.INF"', $markdown);
+        $t->contains('floor: "-.Inf"', $markdown);
+        $t->contains('missing: ".NaN"', $markdown);
+        $t->contains('  - "-.inf"', $markdown);
+        $t->contains('  - "+.nan"', $markdown);
+        $t->contains('  - safe.inf', $markdown);
+        $t->contains('  - ".nan"', $markdown);
+        $t->same(false, str_contains($markdown, 'score: .inf'));
+        $t->same(false, str_contains($markdown, 'missing: .NaN'));
+        $t->same('.inf', $meta['review']['score']);
+        $t->same('+.INF', $meta['review']['ceiling']);
+        $t->same('-.Inf', $meta['review']['floor']);
+        $t->same('.NaN', $meta['review']['missing']);
+        $t->same(['-.inf', '+.nan', 'safe.inf'], $meta['review']['labels']);
+        $t->same('.nan', $meta['keywords'][0]);
+        $t->same('yaml-writer-special-float-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-writer-special-float-body">YAML writer special float body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

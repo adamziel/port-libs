@@ -355,6 +355,11 @@ writer-sexagesimal-labels:
   - "0:01"
   - "1:20:30.5"
   - safe:fragment
+writer-special-float-status: ".inf"
+writer-special-float-labels:
+  - "-.inf"
+  - "+.nan"
+  - safe.inf
 plain-key-review:
   source owner: Import Desk
   owner role: content steward
@@ -1521,6 +1526,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['writer-sexagesimal-labels'] ?? []) !== ['0:01', '1:20:30.5', 'safe:fragment']) {
         throw new RuntimeException('YAML metadata self-test missing writer sexagesimal-looking label list source metadata');
     }
+    if (($meta['writer-special-float-status'] ?? '') !== '.inf') {
+        throw new RuntimeException('YAML metadata self-test missing writer special-float-looking status source metadata');
+    }
+    if (($meta['writer-special-float-labels'] ?? []) !== ['-.inf', '+.nan', 'safe.inf']) {
+        throw new RuntimeException('YAML metadata self-test missing writer special-float-looking label list source metadata');
+    }
     if (($meta['plain-key-review']['source owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing nested plain spaced key metadata');
     }
@@ -1751,8 +1762,19 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('YAML metadata self-test did not quote sexagesimal-looking writer scalars');
     }
+    if (
+        !str_contains($metadataMarkdown, "writer-special-float-status: \".inf\"")
+        || !str_contains($metadataMarkdown, "  - \"-.inf\"")
+        || !str_contains($metadataMarkdown, "  - \"+.nan\"")
+        || !str_contains($metadataMarkdown, "  - safe.inf")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not quote special-float-looking writer scalars');
+    }
     if (str_contains($metadataMarkdown, 'writer-sexagesimal-duration: 2:03')) {
         throw new RuntimeException('YAML metadata self-test emitted ambiguous sexagesimal writer scalar');
+    }
+    if (str_contains($metadataMarkdown, 'writer-special-float-status: .inf')) {
+        throw new RuntimeException('YAML metadata self-test emitted ambiguous special-float writer scalar');
     }
     if (str_contains($metadataMarkdown, 'Source abstract keeps **review** emphasis\\n\\n') || str_contains($metadataMarkdown, 'Review steps:\\n')) {
         throw new RuntimeException('YAML metadata self-test leaked escaped newline metadata after writer block-scalar handoff');
@@ -1783,6 +1805,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($metadataRoundTripMeta['writer-sexagesimal-labels'] ?? []) !== ['0:01', '1:20:30.5', 'safe:fragment']) {
         throw new RuntimeException('YAML metadata self-test lost sexagesimal-looking writer sequence scalars during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-special-float-status'] ?? '') !== '.inf') {
+        throw new RuntimeException('YAML metadata self-test lost special-float-looking writer scalar during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-special-float-labels'] ?? []) !== ['-.inf', '+.nan', 'safe.inf']) {
+        throw new RuntimeException('YAML metadata self-test lost special-float-looking writer sequence scalars during round trip');
     }
     if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
@@ -1946,6 +1974,7 @@ echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . 
 echo 'Writer hashtag labels: ' . ($metadataRoundTripMeta['writer-hashtag-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-hashtag-labels'] ?? []) . "\n";
 echo 'Writer colon labels: ' . ($metadataRoundTripMeta['writer-colon-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-colon-labels'] ?? []) . "\n";
 echo 'Writer sexagesimal labels: ' . ($metadataRoundTripMeta['writer-sexagesimal-duration'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-sexagesimal-labels'] ?? []) . "\n";
+echo 'Writer special float labels: ' . ($metadataRoundTripMeta['writer-special-float-status'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-special-float-labels'] ?? []) . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYamlDiagnostics, 'field')) . "\n";
