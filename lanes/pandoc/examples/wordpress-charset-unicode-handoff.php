@@ -59,6 +59,9 @@ $koi8RText = (string) $koi8RSource->children[1]->attr('text');
 $koi8UBytes = "# \xF5\xCB\xD2\xC1\xA7\xCE\xC1\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xEB\xC9\xA7\xD7; \xA7\xD6\xC1\xCB \xA6 \xAD\xC1\xCE\xCF\xCB; \xB4\xB6\xB7\xBD.";
 $koi8USource = (new MarkdownReader())->readBytes($koi8UBytes, 'koi8-u');
 $koi8UText = (string) $koi8USource->children[1]->attr('text');
+$ibm437Bytes = "# DOS 437\n\nBox \xC9\xCD\xBB\xBA\xCC; r\x82sum\x82; \xE0\xE1 \xF8\xF1.";
+$ibm437Source = (new MarkdownReader())->readBytes($ibm437Bytes, 'cp437');
+$ibm437Text = (string) $ibm437Source->children[1]->attr('text');
 $iso88595Bytes = "# \xB8\xDC\xDF\xDE\xE0\xE2\n\n\xC0\xD5\xD4\xD0\xDA\xE2\xDE\xE0 \xDF\xE0\xD8\xD2\xD5\xE2; \xA1\xDB\xDA\xD0 \xF0 7.";
 $iso88595Source = (new MarkdownReader())->readBytes($iso88595Bytes, 'iso-ir-144');
 $iso88595Text = (string) $iso88595Source->children[1]->attr('text');
@@ -439,6 +442,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8USource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8UText) . '/' . UnicodeText::displayWidth($koi8UText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM437 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm437Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm437Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm437Text) . '/' . UnicodeText::displayWidth($ibm437Text, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-8859-5 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso88595Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso88595Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso88595Text)])]),
@@ -741,6 +749,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>KOI8-U source</td><td>Редактор Київ; їжак і ґанок; ЄІЇҐ.</td><td>koi8-u:34/52</td>')) {
         throw new RuntimeException('charset handoff self-test missing KOI8-U Ukrainian decode audit row');
+    }
+    if (($ibm437Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm437') {
+        throw new RuntimeException('charset handoff self-test missing IBM437 source encoding');
+    }
+    if (!str_contains($blocks, '<td>IBM437 source</td><td>Box ╔═╗║╠; résumé; αß °±.</td><td>ibm437:25/36</td>')) {
+        throw new RuntimeException('charset handoff self-test missing IBM437 DOS decode audit row');
     }
     if (($iso88595Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-5') {
         throw new RuntimeException('charset handoff self-test missing ISO-8859-5 source encoding');
