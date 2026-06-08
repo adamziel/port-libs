@@ -1897,6 +1897,119 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     reviewEntryCount:int,
+     *     leadingOrTrailingWhitespaceEntryCount:int,
+     *     trailingDotSegmentEntryCount:int,
+     *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
+     * }
+     */
+    public function nameHygienePreflight(): array
+    {
+        $entries = [];
+        $reviewEntries = [];
+        $leadingOrTrailingWhitespaceEntryCount = 0;
+        $trailingDotSegmentEntryCount = 0;
+
+        foreach ($this->entries as $entry) {
+            $path = rtrim($entry->name, '/');
+            $segments = explode('/', $path);
+            $flaggedSegments = [];
+            $issues = [];
+
+            foreach ($segments as $index => $segment) {
+                $segmentIssues = [];
+
+                if ($segment !== trim($segment)) {
+                    $segmentIssues[] = 'segment-leading-or-trailing-whitespace';
+                }
+
+                if (str_ends_with($segment, '.')) {
+                    $segmentIssues[] = 'segment-trailing-dot';
+                }
+
+                if ($segmentIssues === []) {
+                    continue;
+                }
+
+                $flaggedSegments[] = [
+                    'index' => $index,
+                    'segment' => $segment,
+                    'issues' => $segmentIssues,
+                ];
+                foreach ($segmentIssues as $issue) {
+                    if (!in_array($issue, $issues, true)) {
+                        $issues[] = $issue;
+                    }
+                }
+            }
+
+            if (in_array('segment-leading-or-trailing-whitespace', $issues, true)) {
+                $leadingOrTrailingWhitespaceEntryCount++;
+            }
+            if (in_array('segment-trailing-dot', $issues, true)) {
+                $trailingDotSegmentEntryCount++;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'path' => $path,
+                'isDirectory' => $entry->isDirectory(),
+                'segments' => $segments,
+                'flaggedSegments' => $flaggedSegments,
+                'hasNameHygieneIssue' => $issues !== [],
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($issues !== []) {
+                $reviewEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'reviewEntryCount' => count($reviewEntries),
+            'leadingOrTrailingWhitespaceEntryCount' => $leadingOrTrailingWhitespaceEntryCount,
+            'trailingDotSegmentEntryCount' => $trailingDotSegmentEntryCount,
+            'reviewEntries' => $reviewEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     reviewEntryCount:int,
+     *     leadingOrTrailingWhitespaceEntryCount:int,
+     *     trailingDotSegmentEntryCount:int,
+     *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoNameHygieneReviewEntries(): array
+    {
+        $summary = $this->nameHygienePreflight();
+        if ($summary['reviewEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' (' . implode('/', $entry['issues']) . ')',
+                    $summary['reviewEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains entry name hygiene issues that require explicit import review: '
+                . $entries
+            );
+        }
+
+        return $summary;
+    }
+
     public function has(string $partName): bool
     {
         return isset($this->entriesByName[$this->normalizeLookupPartName($partName)]);
@@ -3843,6 +3956,7 @@ final class ZipPackage
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
      *     rawNames:array<string, mixed>,
+     *     nameHygiene:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
      *     internalAttributes:array<string, mixed>,
@@ -3878,6 +3992,7 @@ final class ZipPackage
         $pathHierarchy = $this->pathHierarchyPreflight();
         $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
         $rawNames = $this->rawNamePreflight();
+        $nameHygiene = $this->nameHygienePreflight();
         $permissions = $this->permissionPreflight();
         $dosAttributes = $this->dosAttributePreflight();
         $internalAttributes = $this->internalAttributePreflight();
@@ -3944,6 +4059,10 @@ final class ZipPackage
             $diagnostics[] = 'raw-name-collisions';
         }
 
+        if ($nameHygiene['reviewEntryCount'] > 0) {
+            $diagnostics[] = 'name-hygiene-review-entries';
+        }
+
         if ($permissions['executableFileCount'] > 0) {
             $diagnostics[] = 'executable-file-entries';
         }
@@ -4006,6 +4125,7 @@ final class ZipPackage
             'pathHierarchy' => $pathHierarchy,
             'caseInsensitiveNames' => $caseInsensitiveNames,
             'rawNames' => $rawNames,
+            'nameHygiene' => $nameHygiene,
             'permissions' => $permissions,
             'dosAttributes' => $dosAttributes,
             'internalAttributes' => $internalAttributes,
@@ -4035,6 +4155,7 @@ final class ZipPackage
      *     pathHierarchy:array<string, mixed>,
      *     caseInsensitiveNames:array<string, mixed>,
      *     rawNames:array<string, mixed>,
+     *     nameHygiene:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
      *     internalAttributes:array<string, mixed>,

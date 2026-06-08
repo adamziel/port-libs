@@ -2416,6 +2416,46 @@ try {
 } catch (RuntimeException $exception) {
     $pathHierarchyCollisionRejected = str_contains($exception->getMessage(), 'file/directory path hierarchy collisions');
 }
+$nameHygieneReviewPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Name hygiene review</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => 'word/media/review image.png',
+        'data' => "Safe internal-space media placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/ leading.png',
+        'data' => "Leading-space media placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/review.png ',
+        'data' => "Trailing-space media placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/trailing./review.png',
+        'data' => "Trailing-dot segment media placeholder\n",
+        'compressionMethod' => 0,
+    ],
+]);
+$nameHygienePreflight = $nameHygieneReviewPackage->nameHygienePreflight();
+$nameHygieneStrictPreflight = $nameHygieneReviewPackage->strictImportPreflight(4096, 100.0, 4096);
+$nameHygieneRejected = false;
+try {
+    $nameHygieneReviewPackage->assertNoNameHygieneReviewEntries();
+} catch (RuntimeException $exception) {
+    $nameHygieneRejected = str_contains($exception->getMessage(), 'entry name hygiene issues');
+}
+$nameHygieneStrictRejected = false;
+try {
+    $nameHygieneReviewPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $nameHygieneStrictRejected = str_contains($exception->getMessage(), 'name-hygiene-review-entries');
+}
 $caseInsensitiveNameCollisionPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -3563,6 +3603,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['modificationTimes']['invalidDosTimestampEntryCount'] ?? null) !== 0
+        || ($strictImportPreflight['nameHygiene']['reviewEntryCount'] ?? null) !== 0
     ) {
         throw new RuntimeException('Expected strict ZIP import preflight to accept the clean WordPress package');
     }
@@ -3816,6 +3857,19 @@ if (in_array('--self-test', $argv, true)) {
         || ($pathHierarchyCollisionPreflight['collisionEntries'][2]['ancestorFileNames'][0] ?? null) !== 'word/media'
     ) {
         throw new RuntimeException('Expected ZIP file/directory path hierarchy collisions to stay blocked for strict media import');
+    }
+
+    if (
+        !$nameHygieneRejected
+        || !$nameHygieneStrictRejected
+        || ($nameHygienePreflight['reviewEntryCount'] ?? null) !== 3
+        || ($nameHygienePreflight['leadingOrTrailingWhitespaceEntryCount'] ?? null) !== 2
+        || ($nameHygienePreflight['trailingDotSegmentEntryCount'] ?? null) !== 1
+        || ($nameHygienePreflight['entries'][1]['hasNameHygieneIssue'] ?? null) !== false
+        || ($nameHygienePreflight['reviewEntries'][0]['flaggedSegments'][0]['segment'] ?? null) !== ' leading.png'
+        || ($nameHygieneStrictPreflight['diagnostics'] ?? null) !== ['name-hygiene-review-entries']
+    ) {
+        throw new RuntimeException('Expected ZIP entry name hygiene issues to stay blocked for strict media import');
     }
 
     if (
@@ -4736,6 +4790,7 @@ echo 'packageModificationTimes.timestampEntryCount=' . $packageModificationTimeP
 echo 'packageModificationTimes.invalidDosTimestampEntryCount=' . $packageModificationTimePreflight['invalidDosTimestampEntryCount'] . "\n";
 echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
+echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
@@ -4756,6 +4811,9 @@ echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHost
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";
 echo 'packageUnixOwners.ownerMetadataEntryCount=' . $packageUnixOwnerPreflight['ownerMetadataEntryCount'] . "\n";
 echo 'packagePathHierarchy.collisionEntryCount=' . $packagePathHierarchyPreflight['collisionEntryCount'] . "\n";
+echo 'zipNameHygieneReviewPolicy=' . ($nameHygieneRejected && $nameHygieneStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipNameHygieneReviewEntries=' . $nameHygienePreflight['reviewEntryCount'] . "\n";
+echo 'zipNameHygieneReviewIssues=' . implode(',', $nameHygienePreflight['reviewEntries'][0]['issues'] ?? []) . "\n";
 echo 'packageCaseInsensitiveNames.collisionEntryCount=' . $packageCaseInsensitiveNamePreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";

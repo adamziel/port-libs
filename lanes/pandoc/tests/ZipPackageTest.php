@@ -2222,6 +2222,92 @@ return [
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
+    'preflights zip entry name hygiene before office package media handoff' => static function (TestRunner $t): void {
+        $reviewPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>name hygiene preflight</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review image.png',
+                'data' => "safe internal-space attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/ leading.png',
+                'data' => "leading-space attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png ',
+                'data' => "trailing-space attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/trailing./review.png',
+                'data' => "trailing-dot segment attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $reviewPackage->nameHygienePreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(3, $summary['reviewEntryCount']);
+        $t->same(2, $summary['leadingOrTrailingWhitespaceEntryCount']);
+        $t->same(1, $summary['trailingDotSegmentEntryCount']);
+        $t->same('word/media/review image.png', $summary['entries'][1]['name']);
+        $t->same(['word', 'media', 'review image.png'], $summary['entries'][1]['segments']);
+        $t->same(false, $summary['entries'][1]['hasNameHygieneIssue']);
+        $t->same([], $summary['entries'][1]['issues']);
+        $t->same([], $summary['entries'][1]['flaggedSegments']);
+        $t->same('word/media/ leading.png', $summary['reviewEntries'][0]['name']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $summary['reviewEntries'][0]['issues']);
+        $t->same(2, $summary['reviewEntries'][0]['flaggedSegments'][0]['index']);
+        $t->same(' leading.png', $summary['reviewEntries'][0]['flaggedSegments'][0]['segment']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $summary['reviewEntries'][0]['flaggedSegments'][0]['issues']);
+        $t->same('word/media/review.png ', $summary['reviewEntries'][1]['name']);
+        $t->same('review.png ', $summary['reviewEntries'][1]['flaggedSegments'][0]['segment']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $summary['reviewEntries'][1]['issues']);
+        $t->same('word/media/trailing./review.png', $summary['reviewEntries'][2]['name']);
+        $t->same('trailing.', $summary['reviewEntries'][2]['flaggedSegments'][0]['segment']);
+        $t->same(['segment-trailing-dot'], $summary['reviewEntries'][2]['issues']);
+        $t->same("safe internal-space attachment placeholder\n", $reviewPackage->read('/word/media/review image.png'));
+        $t->same("trailing-space attachment placeholder\n", $reviewPackage->read('/word/media/review.png '));
+
+        $strictSummary = $reviewPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['name-hygiene-review-entries'], $strictSummary['diagnostics']);
+        $t->same(3, $strictSummary['nameHygiene']['reviewEntryCount']);
+        $t->same(2, $strictSummary['nameHygiene']['leadingOrTrailingWhitespaceEntryCount']);
+        $t->same(1, $strictSummary['nameHygiene']['trailingDotSegmentEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoNameHygieneReviewEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe name hygiene</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review image.png',
+                'data' => "safe internal-space attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/source-diagram.svg',
+                'data' => "<svg />\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoNameHygieneReviewEntries();
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['reviewEntryCount']);
+        $t->same(0, $safeSummary['leadingOrTrailingWhitespaceEntryCount']);
+        $t->same(0, $safeSummary['trailingDotSegmentEntryCount']);
+        $t->same([], $safeSummary['reviewEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
