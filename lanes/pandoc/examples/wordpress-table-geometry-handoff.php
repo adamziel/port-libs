@@ -137,6 +137,21 @@ $summarySourceTables = array_values(array_filter(
     $summarySourceDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$axisSourceDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="axis-source-grid" data-source="html-reader">
+<caption>Axis source review</caption>
+<thead>
+<tr><th id="axis-document" axis="document, import" scope="col">Document</th><th id="axis-state" axis="state review" scope="col">State</th></tr>
+</thead>
+<tbody>
+<tr><th id="axis-posts" axis="content-type" scope="row">Posts</th><td headers="axis-document axis-state axis-posts">Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$axisSourceTables = array_values(array_filter(
+    $axisSourceDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionMetadataTables = [
     new AstNode('table', [
         'caption' => 'Long caption for reviewer',
@@ -1030,6 +1045,7 @@ $document = new AstNode('document', [], [
     ...$verticalAlignmentTables,
     ...$readerHandoffTables,
     ...$captionSourceTables,
+    ...$axisSourceTables,
     ...$captionMetadataTables,
     $blockCaptionTable,
     $malformedSpanTable,
@@ -2014,6 +2030,34 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source summary attribute in WordPress output');
     }
     json_encode($summarySourcePacket, JSON_THROW_ON_ERROR);
+
+    $axisSourceTable = $axisSourceTables[0] ?? null;
+    $axisSourcePacket = $axisSourceTable instanceof AstNode ? $axisSourceTable->attr('tableGeometry') : null;
+    $axisSourceBlocks = (new WordPressBlockWriter())->write($axisSourceDocument);
+    $axisWriterDowngrades = is_array($axisSourcePacket) && is_array($axisSourcePacket['writerDowngrades']['markdown'] ?? null)
+        ? $axisSourcePacket['writerDowngrades']['markdown']
+        : [];
+    $axisDiagnostics = array_values(array_filter(
+        $axisWriterDowngrades,
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'markdown-header-axis-require-raw-html'
+    ));
+    if (
+        !is_array($axisSourcePacket)
+        || ($axisSourcePacket['summary']['headerAxisCount'] ?? null) !== 3
+        || ($axisSourcePacket['summary']['headerAxes'] ?? null) !== ['document', 'import', 'state', 'review', 'content-type']
+        || ($axisSourcePacket['headerAssociations']['dataCells'][0]['sourceHeaderReferences'][0]['targetAxis'] ?? null) !== ['document', 'import']
+        || ($axisDiagnostics[0]['requiredFeature'] ?? null) !== 'raw-html-table-header-axis'
+        || ($axisDiagnostics[0]['axes'] ?? null) !== ['document', 'import', 'state', 'review', 'content-type']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source header axis handoff metadata');
+    }
+    if (!str_contains($axisSourceBlocks, '<th id="axis-document" axis="document, import" scope="col">Document</th>')) {
+        throw new RuntimeException('Table geometry self-test missing source header axis in WordPress output');
+    }
+    if (!str_contains($axisSourceBlocks, '<th id="axis-posts" axis="content-type" scope="row">Posts</th><td headers="axis-document axis-state axis-posts">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing row header axis and headers handoff in WordPress output');
+    }
+    json_encode($axisSourcePacket, JSON_THROW_ON_ERROR);
 
     $captionMetadataTable = null;
     foreach ($document->children as $node) {

@@ -762,6 +762,86 @@ HTML;
         json_encode($associations, JSON_THROW_ON_ERROR);
         json_encode($matrix, JSON_THROW_ON_ERROR);
     },
+    'carries html table header axis metadata into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="axis-source-grid" data-source="html-reader">
+<caption>Axis source review</caption>
+<thead>
+<tr><th id="axis-document" axis="document, import" scope="col">Document</th><th id="axis-state" axis="state review" scope="col">State</th></tr>
+</thead>
+<tbody>
+<tr><th id="axis-posts" axis="content-type" scope="row">Posts</th><td headers="axis-document axis-state axis-posts">Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $associations = TableGeometry::headerAssociations($table, 'Axis Source Grid');
+        $rowHeaderMap = TableGeometry::rowHeaderMap($table, 'Axis Source Grid');
+        $matrix = TableGeometry::rowMatrix($table, 'Axis Source Grid');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdownAxisDiagnostics = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'markdown'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-header-axis-require-raw-html'
+        ));
+        $asciidocAxisDiagnostics = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'asciidoc'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'asciidoc-header-axis-review-required'
+        ));
+        $latexAxisDiagnostics = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'latex'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'latex-header-axis-review-required'
+        ));
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('document, import', $packet['coverage'][0]['sourceAttributes']['htmlAttributes']['axis'] ?? null);
+        $t->same('state review', $packet['coverage'][1]['sourceAttributes']['htmlAttributes']['axis'] ?? null);
+        $t->same('content-type', $packet['coverage'][2]['sourceAttributes']['htmlAttributes']['axis'] ?? null);
+
+        $t->same(3, $associations['summary']['headerAxisCount'] ?? null);
+        $t->same(true, $associations['summary']['hasHeaderAxes'] ?? null);
+        $t->same(['document', 'import', 'state', 'review', 'content-type'], $associations['summary']['headerAxes'] ?? null);
+        $t->same(['document', 'import'], $associations['headerCells'][0]['axis'] ?? null);
+        $t->same(['state', 'review'], $associations['headerCells'][1]['axis'] ?? null);
+        $t->same(['content-type'], $associations['headerCells'][2]['axis'] ?? null);
+        $t->same(['axis-document', 'axis-state', 'axis-posts'], $associations['dataCells'][0]['sourceHeaders'] ?? null);
+        $t->same(['document', 'import'], $associations['dataCells'][0]['sourceHeaderReferences'][0]['targetAxis'] ?? null);
+        $t->same(['state', 'review'], $associations['dataCells'][0]['sourceHeaderReferences'][1]['targetAxis'] ?? null);
+        $t->same(['content-type'], $associations['dataCells'][0]['sourceHeaderReferences'][2]['targetAxis'] ?? null);
+
+        $t->same(['content-type'], $rowHeaderMap['rows'][0]['headers'][0]['axis'] ?? null);
+        $t->same(['document', 'import'], $matrix['rows'][0]['headerCells'][0]['axis'] ?? null);
+        $t->same(['content-type'], $matrix['rows'][1]['headerCells'][0]['axis'] ?? null);
+        $t->same(['axis-document', 'axis-state', 'axis-posts'], $matrix['rows'][1]['dataCells'][0]['sourceHeaders'] ?? null);
+        $t->same(['document', 'import'], $matrix['rows'][1]['dataCells'][0]['sourceHeaderReferences'][0]['targetAxis'] ?? null);
+
+        $t->same(3, $packet['summary']['headerAxisCount'] ?? null);
+        $t->same(true, $packet['summary']['hasHeaderAxes'] ?? null);
+        $t->same(['document', 'import', 'state', 'review', 'content-type'], $packet['summary']['headerAxes'] ?? null);
+        $t->same($associations, $packet['headerAssociations'] ?? null);
+        $t->same($rowHeaderMap, $packet['rowHeaderMap'] ?? null);
+        $t->same($matrix, $packet['rowMatrix'] ?? null);
+
+        $t->same(1, count($markdownAxisDiagnostics));
+        $t->same('header-axis', $markdownAxisDiagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-table-header-axis', $markdownAxisDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(['document', 'import', 'state', 'review', 'content-type'], $markdownAxisDiagnostics[0]['axes'] ?? null);
+        $t->same(['document', 'import'], $markdownAxisDiagnostics[0]['headerCells'][0]['axis'] ?? null);
+        $t->same(1, count($asciidocAxisDiagnostics));
+        $t->same('header-axis-review', $asciidocAxisDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(1, count($latexAxisDiagnostics));
+        $t->same('table-header-axis-comments', $latexAxisDiagnostics[0]['requiredFeature'] ?? null);
+
+        $t->contains('<th id="axis-document" axis="document, import" scope="col">Document</th>', $blocks);
+        $t->contains('<th id="axis-posts" axis="content-type" scope="row">Posts</th><td headers="axis-document axis-state axis-posts">Ready</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+        json_encode($rowHeaderMap, JSON_THROW_ON_ERROR);
+        json_encode($matrix, JSON_THROW_ON_ERROR);
+    },
     'reports html colgroup count mismatches while preserving usable geometry metadata' => static function (TestRunner $t): void {
         $underdeclaredHtml = <<<'HTML'
 <table id="colgroup-underdeclared-grid" data-source="html-reader">

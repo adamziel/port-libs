@@ -531,6 +531,8 @@ final class TableGeometry
         $associatedDataCellCount = 0;
         $sourceHeaderOverrideCount = 0;
         $headerAbbreviationCount = 0;
+        $headerAxisCount = 0;
+        $headerAxes = [];
 
         foreach (self::sectionGrids($table) as $sectionGrid) {
             $section = (string) $sectionGrid['section'];
@@ -573,6 +575,13 @@ final class TableGeometry
                         if ($abbr !== '') {
                             $record['abbr'] = $abbr;
                             $headerAbbreviationCount++;
+                        }
+
+                        $axis = self::cellSourceHtmlAxis($slot['node'] ?? null);
+                        if ($axis !== []) {
+                            $record['axis'] = $axis;
+                            $headerAxisCount++;
+                            array_push($headerAxes, ...$axis);
                         }
 
                         $record['headers'] = self::stringList($attributes['headers'] ?? []);
@@ -626,6 +635,9 @@ final class TableGeometry
                 'duplicateHeaderIds' => $sourceHeaderReferenceSummary['duplicateHeaderIds'],
                 'headerAbbreviationCount' => $headerAbbreviationCount,
                 'hasHeaderAbbreviations' => $headerAbbreviationCount > 0,
+                'headerAxisCount' => $headerAxisCount,
+                'hasHeaderAxes' => $headerAxisCount > 0,
+                'headerAxes' => array_values(array_unique($headerAxes)),
             ],
         ];
     }
@@ -1791,6 +1803,9 @@ final class TableGeometry
                 'duplicateHeaderIds' => [],
                 'headerAbbreviationCount' => 0,
                 'hasHeaderAbbreviations' => false,
+                'headerAxisCount' => 0,
+                'hasHeaderAxes' => false,
+                'headerAxes' => [],
             ],
         ];
     }
@@ -2107,6 +2122,11 @@ final class TableGeometry
                 if ($value !== '') {
                     $record[$attribute] = $value;
                 }
+            }
+
+            $axis = self::stringList($association['axis'] ?? []);
+            if ($axis !== []) {
+                $record['axis'] = $axis;
             }
 
             $headers = self::stringList($association['headers'] ?? []);
@@ -2459,6 +2479,11 @@ final class TableGeometry
             $record['columns'] = $columns;
         }
 
+        $axis = self::stringList($headerCell['axis'] ?? []);
+        if ($axis !== []) {
+            $record['axis'] = $axis;
+        }
+
         if (($headerCell['rowspanToEnd'] ?? false) === true) {
             $record['rowspanToEnd'] = true;
         }
@@ -2585,6 +2610,11 @@ final class TableGeometry
         $columns = self::intList($headerCell['columns'] ?? []);
         if ($columns !== []) {
             $record['targetColumns'] = $columns;
+        }
+
+        $axis = self::stringList($headerCell['axis'] ?? []);
+        if ($axis !== []) {
+            $record['targetAxis'] = $axis;
         }
 
         return $record;
@@ -2767,6 +2797,19 @@ final class TableGeometry
     private static function cellSourceHtmlAbbr(mixed $node): string
     {
         return self::sourceHtmlAttribute($node, 'abbr');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function cellSourceHtmlAxis(mixed $node): array
+    {
+        $axis = preg_split('/[\s,;]+/', self::sourceHtmlAttribute($node, 'axis'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_unique(array_map(
+            static fn (string $value): string => trim($value),
+            $axis
+        )));
     }
 
     /**
@@ -4061,6 +4104,9 @@ final class TableGeometry
             'duplicateHeaderIds' => self::stringList($headerAssociationSummary['duplicateHeaderIds'] ?? []),
             'headerAbbreviationCount' => (int) ($headerAssociationSummary['headerAbbreviationCount'] ?? 0),
             'hasHeaderAbbreviations' => (bool) ($headerAssociationSummary['hasHeaderAbbreviations'] ?? false),
+            'headerAxisCount' => (int) ($headerAssociationSummary['headerAxisCount'] ?? 0),
+            'hasHeaderAxes' => (bool) ($headerAssociationSummary['hasHeaderAxes'] ?? false),
+            'headerAxes' => self::stringList($headerAssociationSummary['headerAxes'] ?? []),
             'headerAssociationScopes' => array_values(array_map(
                 static fn (mixed $scope): string => (string) $scope,
                 $headerAssociationScopes
@@ -4313,6 +4359,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
@@ -4383,6 +4430,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
@@ -4465,6 +4513,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
+            array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
         }
         foreach ($coverage as $record) {
@@ -4638,6 +4687,86 @@ final class TableGeometry
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private static function headerAxisWriterDiagnostics(AstNode $table, string $writer, ?string $idPrefix = null): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-header-axis-require-raw-html', 'raw-html-table-header-axis'],
+            'asciidoc' => ['asciidoc-header-axis-review-required', 'header-axis-review'],
+            'latex' => ['latex-header-axis-review-required', 'table-header-axis-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $associations = self::headerAssociations($table, $idPrefix ?? self::reviewPacketIdPrefix($table, []));
+        $summary = is_array($associations['summary'] ?? null) ? $associations['summary'] : [];
+        $axisCount = (int) ($summary['headerAxisCount'] ?? 0);
+        if ($axisCount <= 0) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'header-axis',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-axis',
+            'caption' => (string) $table->attr('caption', ''),
+            'headerAxisCount' => $axisCount,
+            'hasHeaderAxes' => (bool) ($summary['hasHeaderAxes'] ?? false),
+            'axes' => self::stringList($summary['headerAxes'] ?? []),
+            'headerCells' => self::headerAxisCells($associations),
+        ]];
+    }
+
+    /**
+     * @param array<string, mixed> $associations
+     * @return list<array<string, mixed>>
+     */
+    private static function headerAxisCells(array $associations): array
+    {
+        $cells = [];
+        $headerCells = is_array($associations['headerCells'] ?? null) ? $associations['headerCells'] : [];
+        foreach ($headerCells as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $axis = self::stringList($record['axis'] ?? []);
+            if ($axis === []) {
+                continue;
+            }
+
+            $cell = [];
+            foreach (['key', 'section', 'rowRole', 'id', 'scope', 'text', 'abbr'] as $key) {
+                $value = trim((string) ($record[$key] ?? ''));
+                if ($value !== '') {
+                    $cell[$key] = $value;
+                }
+            }
+
+            foreach (['row', 'column', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = (int) $record[$key];
+                }
+            }
+
+            $columns = self::intList($record['columns'] ?? []);
+            if ($columns !== []) {
+                $cell['columns'] = $columns;
+            }
+            $cell['axis'] = $axis;
+            $cells[] = $cell;
+        }
+
+        return $cells;
+    }
+
+    /**
      * @param array<string, mixed> $associations
      * @return list<array<string, mixed>>
      */
@@ -4675,7 +4804,7 @@ final class TableGeometry
                     }
                 }
 
-                foreach (['columns', 'headers', 'sourceHeaders'] as $key) {
+                foreach (['columns', 'headers', 'sourceHeaders', 'axis'] as $key) {
                     $values = $key === 'columns' ? self::intList($record[$key] ?? []) : self::stringList($record[$key] ?? []);
                     if ($values !== []) {
                         $cell[$key] = $values;
