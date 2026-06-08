@@ -6672,13 +6672,15 @@ final class PdfMetadataExtractor
             $rows[] = $row;
         }
 
-        foreach ($this->documentOutlineActionChainRows(
-            $this->dictionaryTopLevelRawValue($dictionary['body'], 'Next'),
-            $objects,
-            $seen,
-            $depth + 1
-        ) as $nextRow) {
-            $rows[] = $nextRow;
+        if (!$this->dictionaryTopLevelSelectedValueHasTrailingOperands($dictionary['body'], 'Next')) {
+            foreach ($this->documentOutlineActionChainRows(
+                $this->dictionaryTopLevelRawValue($dictionary['body'], 'Next'),
+                $objects,
+                $seen,
+                $depth + 1
+            ) as $nextRow) {
+                $rows[] = $nextRow;
+            }
         }
 
         return $rows;

@@ -2217,7 +2217,10 @@ final class PdfOutlineExtractor
             }
         }
 
-        if (array_key_exists('Next', $dict)) {
+        if (
+            array_key_exists('Next', $dict)
+            && !$this->actionDictionaryReferenceHasTrailingOperands($actionObject, 'Next')
+        ) {
             return $this->actionChainTargetContext(
                 $dict['Next'],
                 $objects,
@@ -5801,7 +5804,10 @@ final class PdfOutlineExtractor
             $actions[] = $action;
         }
 
-        if (array_key_exists('Next', $dict)) {
+        if (
+            array_key_exists('Next', $dict)
+            && !$this->actionDictionaryReferenceHasTrailingOperands($actionObject, 'Next')
+        ) {
             foreach ($this->reviewActionsFromValue($dict['Next'], $objects, $pageIndexes, $destinations, $seen, $depth + 1) as $nextAction) {
                 $nextAction['chained'] = true;
                 $actions[] = $nextAction;
@@ -5809,6 +5815,11 @@ final class PdfOutlineExtractor
         }
 
         return $actions;
+    }
+
+    private function actionDictionaryReferenceHasTrailingOperands(?int $objectNumber, string $key): bool
+    {
+        return $objectNumber !== null && $this->outlineObjectDictionaryKeyHasTrailingOperands($objectNumber, $key);
     }
 
     private function directionValue(mixed $value): float|string|null
