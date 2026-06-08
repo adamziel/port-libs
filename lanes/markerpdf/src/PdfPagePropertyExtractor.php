@@ -1874,6 +1874,19 @@ final class PdfPagePropertyExtractor
                 break;
             }
 
+            if ($this->pageParentValueAllowsCatalogPath($parentValue, $objects)) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
+                if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
+                    return $catalogLineage;
+                }
+
+                if ($catalogLineage !== []) {
+                    return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
+                break;
+            }
+
             if ($this->topLevelDirectDictionaryValueHasTrailingNonName($dictionary, 'Parent')) {
                 break;
             }
@@ -2081,6 +2094,30 @@ final class PdfPagePropertyExtractor
         }
 
         return $prefix;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageParentValueAllowsCatalogPath(string $parentValue, array $objects): bool
+    {
+        $trimmed = trim($parentValue);
+        if ($trimmed === 'null') {
+            return true;
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
+            return false;
+        }
+
+        $resolved = $this->resolvedObjectValueFromReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $resolved !== null && trim($resolved['body']) === 'null';
     }
 
     /**

@@ -21245,6 +21245,23 @@ final class PdfTextExtractor
                 break;
             }
 
+            if ($this->pageParentValueAllowsCatalogPath($parentValue, $objects)) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
+                if ($this->pageObjectLineageIsPrefix($lineage, $catalogLineage)) {
+                    return [
+                        'lineage' => $catalogLineage,
+                        'blocked' => false,
+                    ];
+                }
+
+                if ($catalogLineage !== []) {
+                    $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                    $blocked = true;
+                }
+
+                break;
+            }
+
             if ($this->topLevelDirectDictionaryValueHasTrailingNonName($dictionary, 'Parent')) {
                 $blocked = true;
                 break;
@@ -21430,6 +21447,30 @@ final class PdfTextExtractor
         }
 
         return $prefix;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageParentValueAllowsCatalogPath(string $parentValue, array $objects): bool
+    {
+        $trimmed = trim($parentValue);
+        if ($trimmed === 'null') {
+            return true;
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($trimmed);
+        if ($reference === null) {
+            return false;
+        }
+
+        $resolved = $this->resolvedPageTreeReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+
+        return $resolved !== null && trim($resolved['body']) === 'null';
     }
 
     /**
