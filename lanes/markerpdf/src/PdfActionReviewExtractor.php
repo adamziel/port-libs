@@ -478,7 +478,12 @@ final class PdfActionReviewExtractor
             }
 
             $uriReview = $this->uriReview($uri);
-            $isMap = $this->boolValue($action['IsMap'] ?? null) ?? false;
+            $isMapReview = $this->uriIsMapReview(
+                $action['IsMap'] ?? null,
+                isset($malformedValueKeys['IsMap']),
+                array_key_exists('IsMap', $action)
+            );
+            $isMap = $isMapReview['is_map'];
             $safety = $uriReview['is_safe_uri']
                 ? ($isMap ? 'coordinate-dependent-uri-review' : 'review-uri')
                 : 'blocked-unsafe-uri';
@@ -495,7 +500,7 @@ final class PdfActionReviewExtractor
                 null,
                 null,
                 $uriReview['is_safe_uri']
-            ) + $uriReview['metadata'] + [
+            ) + $uriReview['metadata'] + $isMapReview['metadata'] + [
                 'uri_is_map' => $isMap,
                 'requires_activation_coordinates' => $isMap,
             ];
@@ -1106,9 +1111,43 @@ final class PdfActionReviewExtractor
 
     private function boolValue(mixed $value): ?bool
     {
+        if ($this->valueHasTrailingOperandAfterResolution($value)) {
+            return null;
+        }
+
         $resolved = $this->resolveValue($value);
 
         return is_bool($resolved) ? $resolved : null;
+    }
+
+    /**
+     * @return array{is_map: bool, metadata: array<string, mixed>}
+     */
+    private function uriIsMapReview(mixed $value, bool $malformedValueOperand, bool $hasOperand): array
+    {
+        if (!$hasOperand) {
+            return ['is_map' => false, 'metadata' => []];
+        }
+
+        $hasTrailingOperand = $this->valueHasTrailingOperandAfterResolution($value);
+        $resolved = $hasTrailingOperand ? null : $this->resolveValue($value);
+        if (!$malformedValueOperand && !$hasTrailingOperand && is_bool($resolved)) {
+            return ['is_map' => $resolved, 'metadata' => []];
+        }
+
+        return [
+            'is_map' => true,
+            'metadata' => [
+                'uri_is_map_operand_malformed' => true,
+                'uri_is_map_operand_review' => [
+                    'source' => 'uri_action_ismap_boolean_operand',
+                    'review_only' => true,
+                    'payload_included' => false,
+                    'visible_text_source' => false,
+                    'selected_value_policy' => 'coordinate_dependent_review_for_malformed_boolean',
+                ],
+            ],
+        ];
     }
 
     /**

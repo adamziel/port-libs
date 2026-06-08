@@ -45232,7 +45232,14 @@ final class PdfTextExtractor
             || str_starts_with($token, '[')
             || str_starts_with($token, '<<')
             || str_starts_with($token, '(')
-            || (str_starts_with($token, '<') && !str_starts_with($token, '<<'));
+            || (str_starts_with($token, '<') && !str_starts_with($token, '<<'))
+            || $this->inlineImageMalformedDictionaryBareTailOperandToken($token);
+    }
+
+    private function inlineImageMalformedDictionaryBareTailOperandToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9_.-]*$/', $token) === 1
+            && !in_array($token, ['BI', 'ID', 'EI'], true);
     }
 
     /**

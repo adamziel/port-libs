@@ -4537,7 +4537,9 @@ final class PdfImageRenderer
         while ($offset < $length) {
             $key = $this->readPdfValueWithOffset($body, $offset);
             if ($key === null) {
-                return false;
+                $tail = $this->inlineImageBareTailTokenAt($body, $offset);
+
+                return $tail !== null && $sawImageKey && $this->inlineImageMalformedDictionaryTailOperandToken($tail);
             }
 
             $keyValue = trim($key['value']);
@@ -4579,6 +4581,21 @@ final class PdfImageRenderer
         return false;
     }
 
+    private function inlineImageBareTailTokenAt(string $body, int $offset): ?string
+    {
+        $offset = $this->skipPdfWhitespace($body, $offset);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        $length = strcspn($body, " \t\r\n\f[]()<>{}/%", $offset);
+        if ($length <= 0) {
+            return null;
+        }
+
+        return substr($body, $offset, $length);
+    }
+
     private function inlineImageMalformedDictionaryTailOperandToken(string $token): bool
     {
         if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/', $token) === 1) {
@@ -4592,7 +4609,14 @@ final class PdfImageRenderer
             || str_starts_with($token, '[')
             || str_starts_with($token, '<<')
             || str_starts_with($token, '(')
-            || (str_starts_with($token, '<') && !str_starts_with($token, '<<'));
+            || (str_starts_with($token, '<') && !str_starts_with($token, '<<'))
+            || $this->inlineImageMalformedDictionaryBareTailOperandToken($token);
+    }
+
+    private function inlineImageMalformedDictionaryBareTailOperandToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9_.-]*$/', $token) === 1
+            && !in_array($token, ['BI', 'ID', 'EI'], true);
     }
 
     private function canonicalInlineImageKey(string $token): string
