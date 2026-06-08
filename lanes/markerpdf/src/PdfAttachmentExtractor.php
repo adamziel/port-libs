@@ -41,7 +41,7 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
 
-    private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF'];
+    private const FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac', 'EF', 'AFRelationship'];
 
     private const FILE_SPEC_RELATED_FILE_BOUNDARY_KEYS = ['RF'];
 
