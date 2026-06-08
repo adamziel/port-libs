@@ -375,7 +375,7 @@ final class PdfDocumentSecurityStoreExtractor
 
         $table = $this->xrefTableSectionAt($pdfBytes, $offset);
         if ($table !== null) {
-            $previousOffset = $this->previousXrefOffsetFromSectionBody($table['trailer']);
+            $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $table['trailer'], $offset, $definitions);
             $entries = $this->repairCurrentXrefRows($table['entries'], $definitions, $previousOffset, $offset);
             $entries = $this->repairOmittedCurrentUpdateGraphEntries(
                 $entries,
@@ -394,7 +394,12 @@ final class PdfDocumentSecurityStoreExtractor
         }
 
         $entries = $this->xrefStreamEntriesFromDefinition($stream['definition']);
-        $previousOffset = $this->previousXrefOffsetFromSectionBody($stream['dictionary']);
+        $previousOffset = $this->previousXrefOffsetForSectionBody(
+            $pdfBytes,
+            $stream['dictionary'],
+            $stream['definition']['offset'],
+            $definitions
+        );
         $entries = $this->repairCurrentXrefRows($entries, $definitions, $previousOffset, $stream['definition']['offset']);
         $entries = $this->repairOmittedCurrentUpdateGraphEntries(
             $entries,
@@ -431,6 +436,86 @@ final class PdfDocumentSecurityStoreExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function previousXrefOffsetForSectionBody(
+        string $pdfBytes,
+        string $body,
+        int $currentOffset,
+        array $definitions
+    ): ?int {
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($body);
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $previousOffset;
+        }
+
+        if ($previousOffset >= $currentOffset) {
+            return $this->latestXrefSectionOffsetBefore($pdfBytes, $currentOffset, $definitions);
+        }
+
+        if ($this->xrefSectionExistsAtOffset($pdfBytes, $previousOffset, $definitions)) {
+            return $previousOffset;
+        }
+
+        return $this->latestXrefSectionOffsetBefore($pdfBytes, $previousOffset + 1, $definitions)
+            ?? $this->latestXrefSectionOffsetBefore($pdfBytes, $currentOffset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function xrefSectionExistsAtOffset(string $pdfBytes, int $offset, array $definitions): bool
+    {
+        return $this->xrefTableSectionAt($pdfBytes, $offset) !== null
+            || $this->xrefStreamSectionAtOffset($pdfBytes, $offset, $definitions) !== null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function latestXrefSectionOffsetBefore(string $pdfBytes, int $currentOffset, array $definitions): ?int
+    {
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes);
+        foreach ($definitions as $objectDefinitions) {
+            foreach ($objectDefinitions as $definition) {
+                if ($definition['offset'] < $currentOffset && $this->objectBodyHasTypeName($definition['body'], 'XRef')) {
+                    $offsets[] = $definition['offset'];
+                }
+            }
+        }
+        rsort($offsets, SORT_NUMERIC);
+
+        foreach ($offsets as $offset) {
+            if ($offset >= $currentOffset) {
+                continue;
+            }
+
+            if ($this->xrefSectionExistsAtOffset($pdfBytes, $offset, $definitions)) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function xrefTableKeywordOffsets(string $pdfBytes): array
+    {
+        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return [];
+        }
+
+        $offsets = [];
+        foreach ($matches[0] as $match) {
+            $offsets[] = (int) $match[1];
+        }
+
+        return $offsets;
     }
 
     /**

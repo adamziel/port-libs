@@ -915,6 +915,7 @@ final class PdfImageRenderer
     {
         $decodeTrailingOperandInvalid = $this->inlineImageDecodeHasMalformedTrailingOperand($inlineImageDictionary);
         $dictionaryOperandInvalid = $this->inlineImageDictionaryHasMalformedTailOperand($inlineImageDictionary);
+        $sourceFilterValues = $this->inlineImageSourceFilterValues($inlineImageDictionary, $objects);
         $canonical = $this->canonicalInlineImageDictionary($inlineImageDictionary);
         $plan = $this->imageColorSpaceSoftMaskPlan($canonical, $objects);
         if ($decodeTrailingOperandInvalid) {
@@ -931,6 +932,12 @@ final class PdfImageRenderer
         }
         $filters = $plan['image_filters'];
         $filterValues = $this->imageFilterValues($canonical, $objects);
+        $sourceFilters = $this->publicInlineImageSourceFilterList($sourceFilterValues);
+        $sourcePreviewOnlyFilters = $this->publicInlineImageSourceFilterList(array_values(array_filter(
+            $sourceFilterValues,
+            fn (?string $filter): bool => is_string($filter) && $this->isPreviewOnlyImageFilter($filter)
+        )));
+        $sourceFilterAliases = $this->inlineImageSourceFilterAliasRows($sourceFilterValues, $filterValues);
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
         $unsupportedFilters = $this->unsupportedInlineImageFilters($filterValues, $canonical, $objects);
@@ -959,6 +966,10 @@ final class PdfImageRenderer
             'uses_abbreviations' => trim($canonical) !== trim($inlineImageDictionary),
             'has_object_number' => false,
             'excluded_from_visible_text' => true,
+            'source_filters' => $sourceFilters,
+            'source_preview_only_filters' => $sourcePreviewOnlyFilters,
+            'source_filter_aliases' => $sourceFilterAliases,
+            'source_ccitt_alias_used' => in_array('CCF', $sourceFilterValues, true),
             'review_only_filters' => $previewOnlyFilters,
             'unsupported_filters' => $unsupportedFilters,
             'native_raster_decode' => $previewOnlyFilters === []
@@ -1009,6 +1020,9 @@ final class PdfImageRenderer
         }
         if (in_array('CCITTFaxDecode', $filters, true) || in_array('CCF', $filters, true)) {
             $plan['notes'][] = 'inline_ccitt_fax_image_filter_review_only';
+            if (in_array('CCF', $sourceFilterValues, true)) {
+                $plan['notes'][] = 'inline_ccitt_fax_source_alias_preserved';
+            }
             if (($plan['ccitt_fax_imagemask_polarity_boundary'] ?? null) !== null) {
                 $plan['notes'][] = 'inline_ccitt_fax_imagemask_polarity_review_before_rgb_conversion';
             }
@@ -4322,6 +4336,122 @@ final class PdfImageRenderer
         return '<< ' . implode(' ', $entries) . ' >>';
     }
 
+    /**
+     * @param array<int|string, mixed> $objects
+     * @return list<string|null>
+     */
+    private function inlineImageSourceFilterValues(string $dictionary, array $objects): array
+    {
+        $body = trim($dictionary);
+        if (str_starts_with($body, '<<')) {
+            $read = $this->readBalancedDictionary($body, 0);
+            if ($read !== null) {
+                $body = trim(substr($read['value'], 2, -2));
+            }
+        }
+
+        $values = [];
+        $hasMalformedExtraOperand = false;
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $readKey = $this->readPdfValueWithOffset($body, $offset);
+            if ($readKey === null || !str_starts_with(trim($readKey['value']), '/')) {
+                break;
+            }
+
+            $readValue = $this->readPdfValueWithOffset($body, $readKey['next']);
+            if ($readValue === null) {
+                break;
+            }
+
+            $canonicalKey = $this->canonicalInlineImageKey($readKey['value']);
+            $value = $readValue['value'];
+            $nextOffset = $readValue['next'];
+            if ($canonicalKey === '/Filter') {
+                $extraOperandEnd = $this->imageDirectFilterExtraOperandEndAfterValue($body, $readValue['next']);
+                if ($extraOperandEnd !== null) {
+                    $valueStart = $this->skipPdfWhitespace($body, $readKey['next']);
+                    $value = substr($body, $valueStart, $extraOperandEnd - $valueStart);
+                    $nextOffset = $extraOperandEnd;
+                    $hasMalformedExtraOperand = true;
+                }
+                $values[] = $value;
+            }
+
+            $offset = $nextOffset;
+        }
+
+        if ($values === []) {
+            return [];
+        }
+
+        if (count($values) > 1) {
+            $filters = [self::MALFORMED_IMAGE_FILTER_OPERAND];
+            foreach ($values as $value) {
+                foreach ($this->imageFilterValuesFromValue($value, $objects) as $filter) {
+                    $filters[] = $filter;
+                }
+            }
+
+            return $filters;
+        }
+
+        $filters = $this->imageFilterValuesFromValue($values[0], $objects);
+        if ($hasMalformedExtraOperand && !in_array(self::MALFORMED_IMAGE_FILTER_OPERAND, $filters, true)) {
+            array_unshift($filters, self::MALFORMED_IMAGE_FILTER_OPERAND);
+        }
+
+        return $filters;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @return list<string>
+     */
+    private function publicInlineImageSourceFilterList(array $filters): array
+    {
+        return array_values(array_filter(
+            $filters,
+            static fn (?string $filter): bool => is_string($filter)
+        ));
+    }
+
+    /**
+     * @param list<string|null> $sourceFilters
+     * @param list<string|null> $canonicalFilters
+     * @return list<array{index: int, source: string, canonical: string}>
+     */
+    private function inlineImageSourceFilterAliasRows(array $sourceFilters, array $canonicalFilters): array
+    {
+        $rows = [];
+        foreach ($sourceFilters as $index => $sourceFilter) {
+            if (!is_string($sourceFilter)) {
+                continue;
+            }
+
+            $canonical = $this->canonicalInlineImageFilterName($sourceFilter);
+            if ($canonical === $sourceFilter) {
+                continue;
+            }
+
+            $rows[] = [
+                'index' => $index,
+                'source' => $sourceFilter,
+                'canonical' => is_string($canonicalFilters[$index] ?? null)
+                    ? (string) $canonicalFilters[$index]
+                    : $canonical,
+            ];
+        }
+
+        return $rows;
+    }
+
     private function inlineImageDecodeHasMalformedTrailingOperand(string $dictionary): bool
     {
         $body = trim($dictionary);
@@ -4496,6 +4626,11 @@ final class PdfImageRenderer
         }
 
         return $this->canonicalInlineImageArrayValue($trimmed);
+    }
+
+    private function canonicalInlineImageFilterName(string $filter): string
+    {
+        return self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$filter] ?? $filter;
     }
 
     private function canonicalInlineImageColorSpaceArrayValue(string $value): string

@@ -12,6 +12,7 @@ final class PdfTextExtractor
     private const MAX_CMAP_RANGE_ENTRIES = 4096;
     private const MAX_GRAPHICS_COLOR_OPERANDS = 32;
     private const MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES = 4096;
+    private const MAX_PAGE_LABEL_PREFIX_BYTES = 4096;
     private const MAX_PAGE_LABEL_TREE_DEPTH = 100;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
@@ -17184,7 +17185,7 @@ final class PdfTextExtractor
             }
 
             $prefix = $this->pageLabelTextStringValue($entry['value'], $objects);
-            if ($prefix !== null) {
+            if ($prefix !== null && strlen($prefix) <= self::MAX_PAGE_LABEL_PREFIX_BYTES) {
                 return $prefix;
             }
         }

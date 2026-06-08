@@ -134,7 +134,7 @@ final class PdfTextDocumentExtractor
                 continue;
             }
 
-            $pages = $this->normalizeSuppliedDictionaryValue($pdftextPages[$pageListKey]);
+            $pages = $this->normalizeSuppliedDictionaryEnvelopeValue($pdftextPages[$pageListKey]);
             if (!is_array($pages)) {
                 continue;
             }
