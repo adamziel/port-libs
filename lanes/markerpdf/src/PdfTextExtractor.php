@@ -6811,7 +6811,12 @@ final class PdfTextExtractor
         }
 
         $fonts = [];
+        $duplicateResourceNames = $this->duplicateTopLevelResourceEntryNames($fontDictionary);
         foreach ($this->topLevelResourceReferenceEntries($fontDictionary, true) as $resourceName => $resource) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             $resolved = $this->resolvedResourceObjectBody(
                 $objects,
                 $resource['objectNumber'],
@@ -6831,6 +6836,10 @@ final class PdfTextExtractor
         }
 
         foreach ($this->directFontResourceDictionaries($fontDictionary) as $resourceName => $fontBody) {
+            if (isset($duplicateResourceNames[$resourceName])) {
+                continue;
+            }
+
             if (!isset($fonts[$resourceName]) && $this->isType3FontBody($fontBody)) {
                 $fonts[$resourceName] = [
                     'objectNumber' => null,
