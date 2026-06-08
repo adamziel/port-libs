@@ -332,7 +332,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, internalAttributes?:int, extraFieldData?:string}> $parts
+     * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, internalAttributes?:int, extraFieldData?:string, creatorHostSystem?:int}> $parts
      */
     public static function build(array $parts, string $packageComment = ''): string
     {
@@ -417,6 +417,8 @@ final class ZipPackage
             if (!is_int($internalAttributes)) {
                 throw new \RuntimeException("ZIP entry {$name} internal attributes must be an integer");
             }
+            $creatorHostSystem = self::resolveGeneratedCreatorHostSystem($part, $name);
+            $versionMadeBy = ($creatorHostSystem << 8) | 20;
             self::assertUnixFileTypeMatchesEntryName($name, $externalAttributes);
             if (self::isUnixSymlinkExternalAttributes($externalAttributes)) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package writer: {$name}");
@@ -452,7 +454,7 @@ final class ZipPackage
             $central .= pack(
                 'VvvvvvvVVVvvvvvVV',
                 0x02014b50,
-                0x0314,
+                $versionMadeBy,
                 20,
                 self::UTF8_GENERAL_PURPOSE_FLAG,
                 $method,
@@ -8141,6 +8143,29 @@ final class ZipPackage
         }
 
         return $extraFieldData;
+    }
+
+    /**
+     * @param array<string, mixed> $part
+     */
+    private static function resolveGeneratedCreatorHostSystem(array $part, string $name): int
+    {
+        $hostSystem = $part['creatorHostSystem'] ?? 3;
+        if (!is_int($hostSystem)) {
+            throw new \RuntimeException("ZIP entry {$name} creator host system must be an integer");
+        }
+
+        if ($hostSystem < 0 || $hostSystem > 0xff) {
+            throw new \RuntimeException("ZIP entry {$name} creator host system must fit in one byte");
+        }
+
+        if (!self::isKnownCreatorHostSystem($hostSystem)) {
+            throw new \RuntimeException(
+                "ZIP entry {$name} creator host system {$hostSystem} is not supported by the bounded package writer"
+            );
+        }
+
+        return $hostSystem;
     }
 
     /**

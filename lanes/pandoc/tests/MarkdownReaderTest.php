@@ -4684,6 +4684,70 @@ return [
         $t->same('typed-sequence-scalar-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="typed-sequence-scalar-yaml-body">Typed sequence scalar YAML body</h1>', $blocks);
     },
+    'records pandoc yaml explicit typed mapping child scalar provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Typed mapping child scalar **Packet**',
+            'review:',
+            '  source-revision: !!str',
+            '    007',
+            '  priority: !!int',
+            '    0x2A',
+            '  approved: !!bool',
+            '    true',
+            '  captured-at: !!timestamp',
+            '    2026-06-08 12:34:56Z',
+            '  withdrawn: !!null',
+            '    reviewer note is intentionally nulled',
+            '  invalid-priority: !!int',
+            '    not-a-number',
+            '...',
+            '',
+            '# Typed mapping child scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Typed mapping child scalar **Packet**', $meta['title']);
+        $t->same('007', $meta['review']['source-revision']);
+        $t->same(42, $meta['review']['priority']);
+        $t->same(true, $meta['review']['approved']);
+        $t->same('2026-06-08T12:34:56Z', $meta['review']['captured-at']);
+        $t->true(array_key_exists('withdrawn', $meta['review']) && $meta['review']['withdrawn'] === null);
+        $t->same('not-a-number', $meta['review']['invalid-priority']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $typed = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(4, count($typed));
+        $t->same(false, array_key_exists('/review/source-revision', $typed));
+        $t->same('number', $typed['/review/priority']['scalarType'] ?? null);
+        $t->same('int', $typed['/review/priority']['explicitTag'] ?? null);
+        $t->same('0x2A', $typed['/review/priority']['source'] ?? null);
+        $t->same('6', $typed['/review/priority']['sourceLine'] ?? null);
+        $t->same('boolean', $typed['/review/approved']['scalarType'] ?? null);
+        $t->same('bool', $typed['/review/approved']['explicitTag'] ?? null);
+        $t->same('true', $typed['/review/approved']['source'] ?? null);
+        $t->same('8', $typed['/review/approved']['sourceLine'] ?? null);
+        $t->same('timestamp', $typed['/review/captured-at']['scalarType'] ?? null);
+        $t->same('timestamp', $typed['/review/captured-at']['explicitTag'] ?? null);
+        $t->same('2026-06-08 12:34:56Z', $typed['/review/captured-at']['source'] ?? null);
+        $t->same('10', $typed['/review/captured-at']['sourceLine'] ?? null);
+        $t->same('null', $typed['/review/withdrawn']['scalarType'] ?? null);
+        $t->same('null', $typed['/review/withdrawn']['explicitTag'] ?? null);
+        $t->same('reviewer note is intentionally nulled', $typed['/review/withdrawn']['source'] ?? null);
+        $t->same('12', $typed['/review/withdrawn']['sourceLine'] ?? null);
+        $t->same(false, array_key_exists('/review/invalid-priority', $typed));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('typed-mapping-child-scalar-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="typed-mapping-child-scalar-yaml-body">Typed mapping child scalar YAML body</h1>', $blocks);
+    },
     'records pandoc yaml quoted scalar source provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

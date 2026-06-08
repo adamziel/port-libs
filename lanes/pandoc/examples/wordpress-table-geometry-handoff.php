@@ -175,6 +175,21 @@ $legacySpacingTables = array_values(array_filter(
     $legacySpacingDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$cellNoWrapDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="cell-nowrap-grid" data-source="html-reader">
+<caption>Cell nowrap review</caption>
+<thead>
+<tr><th nowrap="nowrap">Source label</th><th>Status</th><th>Wrap</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td nowrap="nowrap">Long unbroken review value</td><td nowrap="false">Review wraps</td></tr>
+</tbody>
+</table>
+HTML);
+$cellNoWrapTables = array_values(array_filter(
+    $cellNoWrapDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $backgroundColorDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="background-color-grid" data-source="html-reader" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
 <caption>Background color review</caption>
@@ -1218,6 +1233,7 @@ $document = new AstNode('document', [], [
     ...$verticalAlignmentTables,
     ...$legacyFrameTables,
     ...$legacySpacingTables,
+    ...$cellNoWrapTables,
     ...$backgroundColorTables,
     ...$layoutWidthTables,
     ...$layoutHeightTables,
@@ -2455,6 +2471,51 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($legacySpacingPacket, JSON_THROW_ON_ERROR);
     json_encode($legacySpacingDowngrades, JSON_THROW_ON_ERROR);
+
+    $cellNoWrapTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'cell-nowrap-grid') {
+            $cellNoWrapTable = $node;
+            break;
+        }
+    }
+    $cellNoWrapPacket = $cellNoWrapTable instanceof AstNode ? $cellNoWrapTable->attr('tableGeometry') : null;
+    $cellNoWrapDowngrades = $cellNoWrapTable instanceof AstNode ? TableGeometry::reviewPacket($cellNoWrapTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $cellNoWrapDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $cellNoWrapDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-nowrap'
+        ));
+        $cellNoWrapDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$cellNoWrapTable instanceof AstNode
+        || !is_array($cellNoWrapPacket)
+        || ($cellNoWrapPacket['summary']['hasCellNoWraps'] ?? null) !== true
+        || ($cellNoWrapPacket['summary']['cellNoWrapCount'] ?? null) !== 2
+        || ($cellNoWrapPacket['summary']['cellNoWrapColumns'] ?? null) !== [0, 1]
+        || ($cellNoWrapPacket['summary']['cellNoWrapSections'] ?? null) !== ['head', 'body']
+        || ($cellNoWrapPacket['cellNoWraps'][0]['htmlAttributes'] ?? null) !== ['nowrap' => 'nowrap']
+        || ($cellNoWrapPacket['cellNoWraps'][1]['text'] ?? null) !== 'Long unbroken review value'
+        || ($cellNoWrapDiagnostics['markdown']['code'] ?? null) !== 'markdown-cell-nowrap-require-raw-html'
+        || ($cellNoWrapDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-cell-nowrap-review-required'
+        || ($cellNoWrapDiagnostics['latex']['code'] ?? null) !== 'latex-cell-nowrap-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML cell nowrap metadata');
+    }
+    if (
+        !str_contains($blocks, '<th nowrap="nowrap">Source label</th><th>Status</th><th>Wrap</th>')
+        || !str_contains($blocks, '<td>Posts</td><td nowrap="nowrap">Long unbroken review value</td><td>Review wraps</td>')
+        || str_contains($blocks, 'nowrap="false"')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing sanitized WordPress cell nowrap output');
+    }
+    json_encode($cellNoWrapPacket, JSON_THROW_ON_ERROR);
+    json_encode($cellNoWrapDowngrades, JSON_THROW_ON_ERROR);
 
     $backgroundColorTable = null;
     foreach ($document->children as $node) {

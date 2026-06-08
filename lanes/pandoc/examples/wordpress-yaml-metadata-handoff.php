@@ -86,6 +86,19 @@ typed-sequence-review:
     reviewer note is intentionally nulled
   - !!int
     not-a-number
+typed-mapping-child-review:
+  source-revision: !!str
+    007
+  priority: !!int
+    0x2A
+  approved: !!bool
+    true
+  captured-at: !!timestamp
+    2026-06-08 12:34:56Z
+  withdrawn: !!null
+    reviewer note is intentionally nulled
+  invalid-priority: !!int
+    not-a-number
 source-captured-at: !!timestamp 2026-06-05 06:46:51Z
 review-binary:
   note-bytes: !!binary "UmV2aWV3IG1ldGFkYXRh"
@@ -875,6 +888,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['typed-sequence-review'][4] ?? '') !== 'not-a-number') {
         throw new RuntimeException('YAML metadata self-test did not preserve invalid explicit nested sequence integer source text');
+    }
+    if (($meta['typed-mapping-child-review']['source-revision'] ?? '') !== '007') {
+        throw new RuntimeException('YAML metadata self-test failed to preserve explicit mapping child string revision');
+    }
+    if (($meta['typed-mapping-child-review']['priority'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit mapping child integer tag coercion');
+    }
+    if (($meta['typed-mapping-child-review']['approved'] ?? null) !== true) {
+        throw new RuntimeException('YAML metadata self-test missing explicit mapping child bool tag coercion');
+    }
+    if (($meta['typed-mapping-child-review']['captured-at'] ?? '') !== '2026-06-08T12:34:56Z') {
+        throw new RuntimeException('YAML metadata self-test missing explicit mapping child timestamp tag normalization');
+    }
+    if (!array_key_exists('withdrawn', $meta['typed-mapping-child-review'] ?? []) || $meta['typed-mapping-child-review']['withdrawn'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit mapping child null tag coercion');
+    }
+    if (($meta['typed-mapping-child-review']['invalid-priority'] ?? '') !== 'not-a-number') {
+        throw new RuntimeException('YAML metadata self-test did not preserve invalid explicit mapping child integer source text');
     }
     if (($meta['source-captured-at'] ?? '') !== '2026-06-05T06:46:51Z') {
         throw new RuntimeException('YAML metadata self-test missing explicit timestamp tag normalization');

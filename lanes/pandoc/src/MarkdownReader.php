@@ -1991,14 +1991,24 @@ final class MarkdownReader
                 );
             }
         } elseif ($sourceValue === '') {
-            if ($this->isYamlPlainMultilineScalar($children)) {
-                $this->recordYamlPlainScalarProvenance(
-                    $this->yamlMetadataCurrentSourceLine,
-                    $childrenSourceLines ?? [],
-                    false
-                );
+            [$handledExplicitScalarChild, $explicitScalarChildValue] = $this->parseYamlExplicitScalarMappingChildValue(
+                $children,
+                $childrenSourceLines ?? [],
+                $tags
+            );
+            if ($handledExplicitScalarChild) {
+                $value = $explicitScalarChildValue;
+                $tagsApplied = true;
+            } else {
+                if ($this->isYamlPlainMultilineScalar($children)) {
+                    $this->recordYamlPlainScalarProvenance(
+                        $this->yamlMetadataCurrentSourceLine,
+                        $childrenSourceLines ?? [],
+                        false
+                    );
+                }
+                $value = $this->parseYamlIndentedValue($children, $childrenSourceLines, $collectionTag);
             }
-            $value = $this->parseYamlIndentedValue($children, $childrenSourceLines, $collectionTag);
         } else {
             $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children);
             $quotedStyle = $multiline !== null ? 'double-quoted' : null;
@@ -4840,6 +4850,56 @@ final class MarkdownReader
             true,
             $this->applyYamlExplicitScalarTagToSequenceItemValue($source, $tags, $itemPath, $sourceLine),
         ];
+    }
+
+    /**
+     * @param list<string> $children
+     * @param list<int|null> $childrenSourceLines
+     * @param list<string> $tags
+     * @return array{0:bool, 1:mixed}
+     */
+    private function parseYamlExplicitScalarMappingChildValue(
+        array $children,
+        array $childrenSourceLines,
+        array $tags
+    ): array {
+        if ($this->yamlExplicitScalarTag($tags) === null) {
+            return [false, null];
+        }
+
+        $normalized = $this->stripYamlCommonIndent($children);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+            array_shift($childrenSourceLines);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+            array_pop($childrenSourceLines);
+        }
+
+        if ($normalized === [] || preg_match('/^-[ \t]?(.*)$/', $normalized[0]) === 1 || $this->startsWithYamlMapping($normalized)) {
+            return [false, null];
+        }
+
+        $source = count($normalized) === 1
+            ? trim($this->stripYamlTrailingComment($normalized[0]))
+            : $this->parseYamlPlainMultilineScalar($normalized);
+        $childSourceLine = $childrenSourceLines[0] ?? null;
+        $quotedStyle = count($normalized) === 1 ? $this->yamlQuotedScalarStyle($source) : null;
+        if ($quotedStyle !== null) {
+            $this->withYamlMetadataSourceLine(
+                $childSourceLine,
+                fn (): mixed => $this->recordYamlQuotedScalarProvenance(
+                    $source,
+                    $quotedStyle,
+                    $childSourceLine,
+                    [],
+                    $this->yamlExplicitScalarTag($tags)
+                )
+            );
+        }
+
+        return [true, $this->applyYamlExplicitScalarTagToParsedValue($source, $tags)];
     }
 
     private function parseYamlExplicitIntegerScalar(string $value): int|string

@@ -1410,6 +1410,65 @@ return [
         $t->true($roundTrip->centralDirectoryOffset() > 0);
     },
 
+    'builds generated zip packages with explicit known creator host systems' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>Windows generated host metadata</w:p></w:document>',
+                'creatorHostSystem' => 10,
+                'externalAttributes' => 0x20,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "DOS media review bytes\n",
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 0,
+                'externalAttributes' => 0x20,
+            ],
+        ]);
+        $document = $package->entry('/word/document.xml');
+        $media = $package->entry('/word/media/review.txt');
+        $creatorHosts = $package->creatorHostSystemPreflight();
+        $rawCreatorHosts = ZipPackage::creatorHostSystemPolicyPreflight($package->bytes());
+        $strict = $package->strictImportPreflight(512, 20.0, 512);
+
+        $t->same(10, $document->madeByHostSystem());
+        $t->same('windows-ntfs', $creatorHosts['entries'][0]['madeByHostSystemName']);
+        $t->same(20, $document->madeByVersion());
+        $t->same(0x0a14, $document->versionMadeBy);
+        $t->same(0, $media->madeByHostSystem());
+        $t->same('ms-dos-fat', $creatorHosts['entries'][1]['madeByHostSystemName']);
+        $t->same(2, $creatorHosts['knownHostSystemEntryCount']);
+        $t->same(0, $creatorHosts['unknownHostSystemEntryCount']);
+        $t->same(2, count($creatorHosts['hostSystems']));
+        $t->same(10, $creatorHosts['hostSystems'][0]['id']);
+        $t->same(0, $creatorHosts['hostSystems'][1]['id']);
+        $t->same(0, $rawCreatorHosts['unknownHostSystemEntryCount']);
+        $t->same(true, $rawCreatorHosts['isSupportedByBoundedReader']);
+        $t->same([], $rawCreatorHosts['issues']);
+        $t->same(true, $strict['isValid']);
+        $t->same([], $strict['diagnostics']);
+        $t->same('windows-ntfs', $strict['creatorHostSystems']['entries'][0]['madeByHostSystemName']);
+        $t->same('ms-dos-fat', $strict['creatorHostSystems']['entries'][1]['madeByHostSystemName']);
+        $t->same('<w:document><w:p>Windows generated host metadata</w:p></w:document>', $package->read('word/document.xml'));
+        $t->same("DOS media review bytes\n", $package->read('word/media/review.txt'));
+
+        $t->throws(\RuntimeException::class, static fn (): string => ZipPackage::build([
+            [
+                'name' => 'word/media/unknown-host.bin',
+                'data' => 'unknown generated creator host systems stay blocked',
+                'creatorHostSystem' => 63,
+            ],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): string => ZipPackage::build([
+            [
+                'name' => 'word/media/string-host.bin',
+                'data' => 'creator host system must be a byte-sized integer',
+                'creatorHostSystem' => 'unix',
+            ],
+        ]));
+    },
+
     'exposes zip version needed metadata and rejects local version mismatches before package preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $package = ZipPackage::fromString($buildZipPackage([
             [

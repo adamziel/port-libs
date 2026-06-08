@@ -1605,7 +1605,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'height', 'scope', 'style', 'summary', 'title', 'valign', 'width'], true);
+            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'height', 'nowrap', 'scope', 'style', 'summary', 'title', 'valign', 'width'], true);
     }
 
     private function allowedTableHtmlAttrValue(string $name, mixed $value): ?string
@@ -1617,6 +1617,12 @@ final class WordPressBlockWriter
         $value = (string) $value;
         if ($name === 'width' || $name === 'height') {
             return $this->allowedTableDimensionValue($value);
+        }
+
+        if ($name === 'nowrap') {
+            $normalized = strtolower(trim($value));
+
+            return in_array($normalized, ['false', '0', 'no', 'off'], true) ? null : 'nowrap';
         }
 
         if ($name !== 'dir') {

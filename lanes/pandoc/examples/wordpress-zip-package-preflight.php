@@ -2481,6 +2481,36 @@ $packageCompressionPreflight = $package->compressionMethodPreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
 $packageDosAttributePreflight = $package->dosAttributePreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
+$generatedCreatorHostPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:p>Generated Windows host package</w:p></w:document>',
+        'creatorHostSystem' => 10,
+        'externalAttributes' => 0x20,
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "Generated DOS host media review\n",
+        'compressionMethod' => 0,
+        'creatorHostSystem' => 0,
+        'externalAttributes' => 0x20,
+    ],
+]);
+$generatedCreatorHostPreflight = $generatedCreatorHostPackage->creatorHostSystemPreflight();
+$generatedCreatorHostStrictPreflight = $generatedCreatorHostPackage->strictImportPreflight(4096, 100.0, 4096);
+$generatedCreatorHostRawPolicy = ZipPackage::creatorHostSystemPolicyPreflight($generatedCreatorHostPackage->bytes());
+$generatedUnknownCreatorHostRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/generated-unknown-host.bin',
+            'data' => 'Generated packages must not emit unknown creator host metadata',
+            'creatorHostSystem' => 63,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $generatedUnknownCreatorHostRejected = str_contains($exception->getMessage(), 'creator host system 63');
+}
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
 $packageUnixOwnerPreflight = $package->unixOwnerPreflight();
@@ -4365,6 +4395,22 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected known ZIP creator host systems to return the accepted summary');
     }
 
+    if (
+        ($generatedCreatorHostPreflight['entryCount'] ?? null) !== 2
+        || ($generatedCreatorHostPreflight['knownHostSystemEntryCount'] ?? null) !== 2
+        || ($generatedCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 0
+        || ($generatedCreatorHostPreflight['entries'][0]['madeByHostSystem'] ?? null) !== 10
+        || ($generatedCreatorHostPreflight['entries'][0]['madeByHostSystemName'] ?? null) !== 'windows-ntfs'
+        || ($generatedCreatorHostPreflight['entries'][1]['madeByHostSystem'] ?? null) !== 0
+        || ($generatedCreatorHostPreflight['entries'][1]['madeByHostSystemName'] ?? null) !== 'ms-dos-fat'
+        || ($generatedCreatorHostRawPolicy['unknownHostSystemEntryCount'] ?? null) !== 0
+        || ($generatedCreatorHostRawPolicy['isSupportedByBoundedReader'] ?? null) !== true
+        || ($generatedCreatorHostStrictPreflight['isValid'] ?? null) !== true
+        || !$generatedUnknownCreatorHostRejected
+    ) {
+        throw new RuntimeException('Expected generated ZIP creator host systems to be explicit known metadata before package handoff');
+    }
+
     if ($package->assertNoDuplicateExtraFieldIds() !== $packageExtraFieldPreflight) {
         throw new RuntimeException('Expected generated ZIP package extra fields to return the accepted summary');
     }
@@ -5695,6 +5741,9 @@ echo 'zipDosHiddenSystemVolumeStrictPolicy=' . ($hiddenDosAttributeStrictRejecte
 echo 'zipDosHiddenSystemVolumeEntry=' . ($hiddenDosAttributePreflight['hiddenSystemOrVolumeLabelEntries'][0]['name'] ?? 'none') . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
+echo 'zipGeneratedCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $generatedCreatorHostPreflight['hostSystems'])) . "\n";
+echo 'zipGeneratedCreatorStrictPolicy=' . ($generatedCreatorHostStrictPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipGeneratedUnknownCreatorHostPolicy=' . ($generatedUnknownCreatorHostRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipRawCreatorHostPolicy=' . ($unknownCreatorHostRawStrict['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawCreatorHostUnknownEntries=' . $unknownCreatorHostRawPolicy['unknownHostSystemEntryCount'] . "\n";
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";

@@ -1848,4 +1848,72 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'carries html table cell nowrap layout policy into geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="cell-nowrap-grid" data-source="html-reader">
+<caption>Cell nowrap review</caption>
+<thead>
+<tr><th nowrap="nowrap">Source label</th><th>Status</th><th>Wrap</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td nowrap="nowrap">Long unbroken review value</td><td nowrap="false">Review wraps</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $nowrapDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-nowrap'
+            ));
+            $nowrapDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $nowraps = is_array($packet['cellNoWraps'] ?? null) ? $packet['cellNoWraps'] : [];
+        $t->same(2, count($nowraps));
+        $t->same(true, $packet['summary']['hasCellNoWraps'] ?? null);
+        $t->same(2, $packet['summary']['cellNoWrapCount'] ?? null);
+        $t->same([0, 1], $packet['summary']['cellNoWrapColumns'] ?? null);
+        $t->same(['head', 'body'], $packet['summary']['cellNoWrapSections'] ?? null);
+        $t->same('Source label', $nowraps[0]['text'] ?? null);
+        $t->same(true, $nowraps[0]['headerCell'] ?? null);
+        $t->same(0, $nowraps[0]['column'] ?? null);
+        $t->same(['nowrap' => 'nowrap'], $nowraps[0]['htmlAttributes'] ?? null);
+        $t->same('Long unbroken review value', $nowraps[1]['text'] ?? null);
+        $t->same(1, $nowraps[1]['column'] ?? null);
+        $t->same(['nowrap' => 'nowrap'], $nowraps[1]['htmlAttributes'] ?? null);
+
+        $t->same([
+            'markdown-cell-nowrap-require-raw-html',
+            'asciidoc-cell-nowrap-review-required',
+            'latex-cell-nowrap-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $nowrapDiagnostics['markdown'],
+            $nowrapDiagnostics['asciidoc'],
+            $nowrapDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-cell-nowrap', $nowrapDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-cell-nowrap', $nowrapDiagnostics['markdown']['source'] ?? null);
+        $t->same(2, $nowrapDiagnostics['markdown']['cellCount'] ?? null);
+        $t->same([0, 1], $nowrapDiagnostics['markdown']['columns'] ?? null);
+        $t->same(['head', 'body'], $nowrapDiagnostics['markdown']['sections'] ?? null);
+
+        $t->contains('<th nowrap="nowrap">Source label</th><th>Status</th><th>Wrap</th>', $blocks);
+        $t->contains('<td>Posts</td><td nowrap="nowrap">Long unbroken review value</td><td>Review wraps</td>', $blocks);
+        $t->true(!str_contains($blocks, 'nowrap="false"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

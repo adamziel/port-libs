@@ -1657,6 +1657,7 @@ final class TableGeometry
         $columnGroups = self::columnGroups($table, $columnCount);
         $columnDecimalAlignments = self::columnDecimalAlignments($columnGroups);
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
+        $cellNoWraps = self::cellNoWraps($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
         $tableLayout = self::tableLayoutMetadata($table);
@@ -1693,6 +1694,7 @@ final class TableGeometry
             'columnGroups' => $columnGroups,
             'columnDecimalAlignments' => $columnDecimalAlignments,
             'cellDecimalAlignments' => $cellDecimalAlignments,
+            'cellNoWraps' => $cellNoWraps,
             'directionality' => $directionality,
             'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
@@ -1715,6 +1717,7 @@ final class TableGeometry
                 $columnGroups,
                 $columnDecimalAlignments,
                 $cellDecimalAlignments,
+                $cellNoWraps,
                 $rowGroups,
                 $headerAssociations,
                 $rowHeaderMap,
@@ -3427,6 +3430,45 @@ final class TableGeometry
         return '';
     }
 
+    /**
+     * @return array{present:bool,value:string,source:string}
+     */
+    private static function sourceHtmlAttributePresence(mixed $node, string $name): array
+    {
+        if (!$node instanceof AstNode) {
+            return ['present' => false, 'value' => '', 'source' => ''];
+        }
+
+        $name = strtolower(trim($name));
+        if ($name === '') {
+            return ['present' => false, 'value' => '', 'source' => ''];
+        }
+
+        foreach (['htmlAttributes', 'attributes'] as $attributeName) {
+            $attributes = $node->attr($attributeName, []);
+            if (!is_array($attributes)) {
+                continue;
+            }
+
+            foreach ($attributes as $attributeKey => $attributeValue) {
+                if (
+                    strtolower(trim((string) $attributeKey)) !== $name
+                    || !is_scalar($attributeValue)
+                ) {
+                    continue;
+                }
+
+                return [
+                    'present' => true,
+                    'value' => trim((string) $attributeValue),
+                    'source' => $attributeName,
+                ];
+            }
+        }
+
+        return ['present' => false, 'value' => '', 'source' => ''];
+    }
+
     private static function sourceDirection(mixed $node): string
     {
         return self::normalizeTableDirectionAttribute(self::sourceHtmlAttribute($node, 'dir'));
@@ -4604,6 +4646,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $columnGroups
      * @param list<array<string, mixed>> $columnDecimalAlignments
      * @param list<array<string, mixed>> $cellDecimalAlignments
+     * @param list<array<string, mixed>> $cellNoWraps
      * @param list<array<string, mixed>> $rowGroups
      * @param array<string, mixed> $headerAssociations
      * @param array<string, mixed> $rowHeaderMap
@@ -4625,6 +4668,7 @@ final class TableGeometry
         array $columnGroups,
         array $columnDecimalAlignments,
         array $cellDecimalAlignments,
+        array $cellNoWraps,
         array $rowGroups,
         array $headerAssociations,
         array $rowHeaderMap,
@@ -4937,6 +4981,10 @@ final class TableGeometry
             'cellDecimalAlignmentColumns' => self::cellDecimalAlignmentColumns($cellDecimalAlignments),
             'cellDecimalAlignmentChars' => self::cellDecimalAlignmentStringValues($cellDecimalAlignments, 'char'),
             'cellDecimalAlignmentOffsets' => self::cellDecimalAlignmentStringValues($cellDecimalAlignments, 'charoff'),
+            'cellNoWrapCount' => count($cellNoWraps),
+            'hasCellNoWraps' => $cellNoWraps !== [],
+            'cellNoWrapColumns' => self::cellNoWrapColumns($cellNoWraps),
+            'cellNoWrapSections' => self::cellNoWrapStringValues($cellNoWraps, 'section'),
             'rowGroupCount' => $rowGroupSummary['rowGroupCount'],
             'bodyGroupCount' => $rowGroupSummary['bodyGroupCount'],
             'hasMultipleBodyGroups' => $rowGroupSummary['hasMultipleBodyGroups'],
@@ -5310,6 +5358,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
@@ -5389,6 +5438,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
@@ -5480,6 +5530,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
@@ -6129,6 +6180,189 @@ final class TableGeometry
             'columns' => self::cellDecimalAlignmentColumns($records),
             'chars' => self::cellDecimalAlignmentStringValues($records, 'char'),
             'charOffsets' => self::cellDecimalAlignmentStringValues($records, 'charoff'),
+            'cells' => $records,
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cellNoWraps(array $coverage): array
+    {
+        $records = [];
+        foreach ($coverage as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $noWrap = self::cellNoWrapFromNode($node);
+            if ($noWrap === []) {
+                continue;
+            }
+
+            $columns = self::intList($record['columns'] ?? []);
+            if ($columns === []) {
+                continue;
+            }
+
+            $cell = [
+                'section' => (string) ($record['section'] ?? ''),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'row' => max(0, (int) ($record['row'] ?? 0)),
+                'globalRow' => max(0, (int) ($record['globalRow'] ?? 0)),
+                'column' => min($columns),
+                'endColumn' => max($columns) + 1,
+                'columns' => $columns,
+                'source' => 'html-table-cell-nowrap',
+                'attribute' => 'nowrap',
+                'attributeValue' => (string) ($noWrap['attributeValue'] ?? ''),
+                'normalizedValue' => 'nowrap',
+                'text' => $node instanceof AstNode ? self::plainText($node) : '',
+            ];
+
+            foreach (['sourceRow', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan', 'rawColspan', 'rawRowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = (int) $record[$key];
+                }
+            }
+
+            foreach (['sourceRows', 'globalRows'] as $key) {
+                $values = self::intList($record[$key] ?? []);
+                if ($values !== []) {
+                    $cell[$key] = $values;
+                }
+            }
+
+            if (($record['headerCell'] ?? false) === true) {
+                $cell['headerCell'] = true;
+            }
+
+            foreach (['htmlAttributes', 'attributes'] as $key) {
+                $attributes = is_array($noWrap[$key] ?? null) ? $noWrap[$key] : [];
+                if ($attributes !== []) {
+                    $cell[$key] = $attributes;
+                }
+            }
+
+            $records[] = $cell;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function cellNoWrapFromNode(mixed $node): array
+    {
+        $presence = self::sourceHtmlAttributePresence($node, 'nowrap');
+        if (($presence['present'] ?? false) !== true) {
+            return [];
+        }
+
+        $value = (string) ($presence['value'] ?? '');
+        if (!self::isTruthyNoWrapAttribute($value)) {
+            return [];
+        }
+
+        $source = (string) ($presence['source'] ?? '');
+        $record = [
+            'source' => 'html-table-cell-nowrap',
+            'attribute' => 'nowrap',
+            'attributeValue' => $value,
+            'normalizedValue' => 'nowrap',
+        ];
+
+        if ($source === 'attributes') {
+            $record['attributes'] = ['nowrap' => $value];
+        } else {
+            $record['htmlAttributes'] = ['nowrap' => $value];
+        }
+
+        return $record;
+    }
+
+    private static function isTruthyNoWrapAttribute(string $value): bool
+    {
+        $value = strtolower(trim($value));
+
+        return !in_array($value, ['false', '0', 'no', 'off'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function cellNoWrapColumns(array $records): array
+    {
+        $columns = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            foreach (self::intList($record['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function cellNoWrapStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cellNoWrapWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-cell-nowrap-require-raw-html', 'raw-html-cell-nowrap'],
+            'asciidoc' => ['asciidoc-cell-nowrap-review-required', 'cell-nowrap-review'],
+            'latex' => ['latex-cell-nowrap-review-required', 'table-cell-nowrap-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::cellNoWraps(self::cellCoverage($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'cell-nowrap',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-cell-nowrap',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'cellCount' => count($records),
+            'columns' => self::cellNoWrapColumns($records),
+            'sections' => self::cellNoWrapStringValues($records, 'section'),
             'cells' => $records,
         ]];
     }
