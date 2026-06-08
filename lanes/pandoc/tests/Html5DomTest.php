@@ -33,6 +33,37 @@ return [
         $t->contains('<p>AT&amp;T &lt;source&gt; ©</p>', $serialized);
         $t->contains('<p>AT&amp;amp;T</p>', $serialized);
     },
+    'decodes bounded html5 named character references before reader handoff' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<p title="A&NoBreak;B" data-legacy="&nbsp &copy">A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>'
+            . '<p data-literal="&NoBreak test">Literal &NoBreak test</p>'
+            . '<textarea>&NoBreak;&Tab;</textarea>'
+            . '<script type="application/json">{"ref":"&NoBreak;"}</script>'
+        );
+        $paragraphs = Html5Dom::childElements($body, 'p');
+        $paragraph = $paragraphs[0] ?? null;
+        $literalParagraph = $paragraphs[1] ?? null;
+        $textarea = Html5Dom::firstChildElement($body, 'textarea');
+        $script = Html5Dom::firstChildElement($body, 'script');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($paragraph instanceof DOMElement, 'Expected named-reference paragraph to parse');
+        $t->same("A\u{2060}B\nC\tD \u{1D559} \u{00A0} ©", $paragraph instanceof DOMElement ? $paragraph->textContent : null);
+        $t->same([
+            'title' => "A\u{2060}B",
+            'data-legacy' => "\u{00A0} ©",
+        ], $paragraph instanceof DOMElement ? Html5Dom::attributes($paragraph) : []);
+        $t->same('Literal &NoBreak test', $literalParagraph instanceof DOMElement ? $literalParagraph->textContent : null);
+        $t->same(['data-literal' => '&NoBreak test'], $literalParagraph instanceof DOMElement ? Html5Dom::attributes($literalParagraph) : []);
+        $t->same("\u{2060}\t", $textarea instanceof DOMElement ? $textarea->textContent : null);
+        $t->same('{"ref":"&NoBreak;"}', $script instanceof DOMElement ? $script->textContent : null);
+        $t->contains("A\u{2060}B\nC\tD \u{1D559} \u{00A0} ©", $serialized);
+        $t->contains('<p data-literal="&amp;NoBreak test">Literal &amp;NoBreak test</p>', $serialized);
+        $t->contains('<textarea>' . "\u{2060}\t" . '</textarea>', $serialized);
+        $t->contains('<script type="application/json">{"ref":"&NoBreak;"}</script>', $serialized);
+        $t->true(!str_contains($serialized, '&amp;NoBreak;</p>'), 'Expected NoBreak to decode in ordinary text');
+        $t->true(!str_contains($serialized, '&amp;hopf;'), 'Expected astral HTML5 named reference to decode before handoff');
+    },
     'maps HTML fragment attributes and descendant elements for reviewer links' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<article id="post-42" class="legacy source" data-source="html" aria-label="Packet"><h1>Packet</h1><p><a href="/edit" title="Edit &amp; verify">edit</a></p></article>'

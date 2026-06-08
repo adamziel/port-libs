@@ -13,6 +13,7 @@ $fragment = <<<'HTML'
 <article data-source="legacy-html">
   <h2>Source packet</h2>
   <p>Imported<br>line with &amp; entity</p>
+  <p data-review="character-references">References: A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>
   <svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>
   <math><mi definitionURL="#review-x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>
   <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
@@ -53,6 +54,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($html, '<img alt="Review image" src="media/review.png?rev=1&amp;post=42">')) {
         throw new RuntimeException('Expected deterministic img attribute escaping and void serialization');
+    }
+    if (!str_contains($html, '<p data-review="character-references">References: A' . "\u{2060}" . "B\nC\tD " . "\u{1D559}" . ' ' . "\u{00A0}" . ' ©</p>')) {
+        throw new RuntimeException('Expected bounded HTML5 named character references to decode before review serialization');
+    }
+    if (str_contains($html, '&amp;NoBreak;') || str_contains($html, '&amp;hopf;')) {
+        throw new RuntimeException('Expected extra HTML5 named character references to avoid literal ampersand fallback');
     }
     if (!str_contains($html, '<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>')) {
         throw new RuntimeException('Expected SVG foreign-content casing to survive review handoff');

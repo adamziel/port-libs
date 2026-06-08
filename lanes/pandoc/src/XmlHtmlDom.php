@@ -60,6 +60,22 @@ final class XmlHtmlDom
         'style' => true,
     ];
 
+    /** @var array<string, string> */
+    private const HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES = [
+        'NoBreak' => '&#x2060;',
+        'NewLine' => '&#x000A;',
+        'Tab' => '&#x0009;',
+        'copy' => '&#x00A9;',
+        'hopf' => '&#x1D559;',
+        'nbsp' => '&#x00A0;',
+    ];
+
+    /** @var array<string, true> */
+    private const HTML5_LEGACY_SEMICOLONLESS_CHARACTER_REFERENCES = [
+        'copy' => true,
+        'nbsp' => true,
+    ];
+
     /** @var array<string, array<string, true>> */
     private const HTML5_TABLE_ALLOWED_CHILDREN = [
         'table' => [
@@ -355,7 +371,9 @@ final class XmlHtmlDom
             $name = strtolower((string) $matches['name'][0]);
             $contentStart = $startOffset + strlen($startTag);
 
-            $protected .= self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset)) . $startTag;
+            $protected .= self::normalizeHtml5NamedCharacterReferences(
+                self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset))
+            ) . $startTag;
 
             if ($name === 'plaintext') {
                 $protected .= self::escapeHtmlRawTextContent(substr($html, $contentStart)) . '</plaintext>';
@@ -376,7 +394,7 @@ final class XmlHtmlDom
             if (in_array($name, ['script', 'style'], true)) {
                 $protected .= $content;
             } elseif (in_array($name, ['title', 'textarea'], true)) {
-                $protected .= self::escapeHtmlRcdataContent($content);
+                $protected .= self::escapeHtmlRcdataContent(self::normalizeHtml5NamedCharacterReferences($content));
             } else {
                 $protected .= self::escapeHtmlRawTextContent($content);
             }
@@ -384,7 +402,9 @@ final class XmlHtmlDom
             $offset = $endOffset + strlen($endTag);
         }
 
-        return $protected . self::protectHtmlCdataSections(substr($html, $offset));
+        return $protected . self::normalizeHtml5NamedCharacterReferences(
+            self::protectHtmlCdataSections(substr($html, $offset))
+        );
     }
 
     public static function normalizedText(\DOMNode $node): string
@@ -668,6 +688,24 @@ final class XmlHtmlDom
         return preg_replace_callback(
             '/<!\[CDATA\[(.*?)\]\]>/s',
             static fn (array $matches): string => self::escapeHtmlRawTextContent((string) $matches[1]),
+            $html
+        ) ?? $html;
+    }
+
+    private static function normalizeHtml5NamedCharacterReferences(string $html): string
+    {
+        return preg_replace_callback(
+            '/&([A-Za-z][A-Za-z0-9]+);|&([A-Za-z][A-Za-z0-9]+)(?![A-Za-z0-9=])/',
+            static function (array $matches): string {
+                $semicolonName = (string) ($matches[1] ?? '');
+                $legacyName = (string) ($matches[2] ?? '');
+                $name = $semicolonName !== '' ? $semicolonName : $legacyName;
+                if ($semicolonName === '' && !isset(self::HTML5_LEGACY_SEMICOLONLESS_CHARACTER_REFERENCES[$name])) {
+                    return (string) $matches[0];
+                }
+
+                return self::HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES[$name] ?? (string) $matches[0];
+            },
             $html
         ) ?? $html;
     }

@@ -26,6 +26,52 @@ return [
         $t->same('br', $nodes[0]['children'][0]['children'][1]['name']);
         $t->same(['libxml-repair'], $fragment->diagnosticCodes());
     },
+    'decodes bounded html5 named character references before sanitized handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article data-source="entities">'
+            . '<p title="A&NoBreak;B" data-legacy="&nbsp &copy">A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>'
+            . '<p data-literal="&NoBreak test">Literal &NoBreak test</p>'
+            . '<textarea>&NoBreak;&Tab;</textarea>'
+            . '<script type="application/json">{"ref":"&NoBreak;"}</script>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/html5-character-references.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-source="entities">'
+            . '<p title="A' . "\u{2060}" . 'B" data-legacy="' . "\u{00A0}" . ' ©">A' . "\u{2060}" . "B\nC\tD " . "\u{1D559}" . ' ' . "\u{00A0}" . ' ©</p>'
+            . '<p data-literal="&amp;NoBreak test">Literal &amp;NoBreak test</p>'
+            . "\u{2060}\t"
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('html', $summary['mode']);
+        $t->same(['article', 'p'], $summary['elementNames']);
+        $t->same(['script', 'textarea'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same("A\u{2060}B\nC\tD \u{1D559} \u{00A0} ©Literal &NoBreak test\u{2060}\t", $fragment->textContent());
+        $t->same("A\u{2060}B", $nodes[0]['children'][0]['attrs']['title']);
+        $t->same("\u{00A0} ©", $nodes[0]['children'][0]['attrs']['data-legacy']);
+        $t->same(['data-literal' => '&NoBreak test'], $nodes[0]['children'][1]['attrs']);
+        $t->same('Literal &NoBreak test', $nodes[0]['children'][1]['children'][0]['text']);
+        $t->same("\u{2060}\t", $nodes[0]['children'][2]['text']);
+        $t->same('/migration/html5-character-references.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '&amp;NoBreak;'), 'Expected NoBreak to decode before sanitizer serialization');
+        $t->true(!str_contains($html, '&amp;hopf;'), 'Expected astral named reference to decode before sanitizer serialization');
+        $t->true(!str_contains($html, '<script'), 'Expected active script wrapper to be dropped before WordPress handoff');
+    },
     'normalizes unsafe comment boundaries before sanitized raw html handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<!--review---><p>Imported comment boundary</p><!--source -- boundary--><!--triple---tail--->'
