@@ -578,6 +578,9 @@ final class BatchConverter
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
+                    'entry_order_source' => $inputListing['entry_order_source'],
+                    'sort_applied_before_chunking' => $inputListing['sort_applied_before_chunking'],
+                    'preserves_os_listdir_order' => $inputListing['preserves_os_listdir_order'],
                     'entry_count' => count($inputListing['entry_basenames']),
                     'entry_basenames' => $inputListing['entry_basenames'],
                     'file_count' => count($inputListing['file_basenames']),
@@ -742,6 +745,9 @@ final class BatchConverter
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
+                    'entry_order_source' => $inputListing['entry_order_source'],
+                    'sort_applied_before_chunking' => $inputListing['sort_applied_before_chunking'],
+                    'preserves_os_listdir_order' => $inputListing['preserves_os_listdir_order'],
                     'entry_count' => count($inputListing['entry_basenames']),
                     'entry_basenames' => $inputListing['entry_basenames'],
                     'file_count' => count($inputListing['file_basenames']),
@@ -894,6 +900,9 @@ final class BatchConverter
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
+                    'entry_order_source' => $inputListing['entry_order_source'],
+                    'sort_applied_before_chunking' => $inputListing['sort_applied_before_chunking'],
+                    'preserves_os_listdir_order' => $inputListing['preserves_os_listdir_order'],
                     'entry_count' => count($inputListing['entry_basenames']),
                     'entry_basenames' => $inputListing['entry_basenames'],
                     'file_count' => count($inputListing['file_basenames']),
@@ -1183,6 +1192,9 @@ final class BatchConverter
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
+                    'entry_order_source' => $inputListing['entry_order_source'],
+                    'sort_applied_before_chunking' => $inputListing['sort_applied_before_chunking'],
+                    'preserves_os_listdir_order' => $inputListing['preserves_os_listdir_order'],
                     'entry_count' => count($inputListing['entry_basenames']),
                     'entry_basenames' => $inputListing['entry_basenames'],
                     'file_count' => count($inputListing['file_basenames']),

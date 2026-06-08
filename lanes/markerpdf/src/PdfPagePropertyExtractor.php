@@ -1811,12 +1811,12 @@ final class PdfPagePropertyExtractor
             return false;
         }
 
+        if ($category === 'ColorSpace') {
+            return $this->colorSpaceResourceEntryIsResolvable($trimmed, $objects);
+        }
+
         $reference = $this->objectReferenceFromValue($trimmed);
         if ($reference === null) {
-            if ($category === 'ColorSpace') {
-                return true;
-            }
-
             return str_starts_with($trimmed, '<<')
                 && $this->readPdfDictionaryAt($trimmed, 0) !== null;
         }
@@ -1834,6 +1834,45 @@ final class PdfPagePropertyExtractor
 
         $resolved = $this->resolveRawValue($trimmed, $objects);
         return $resolved !== null && $this->dictionaryObjectBody($resolved) !== null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function colorSpaceResourceEntryIsResolvable(string $value, array $objects): bool
+    {
+        $resolved = $this->resolveRawValue($value, $objects);
+        if ($resolved === null) {
+            return false;
+        }
+
+        $trimmed = trim($resolved);
+        if ($trimmed === '' || $trimmed === 'null') {
+            return false;
+        }
+
+        if ($this->colorSpaceResourceEntryIsName($trimmed)) {
+            return true;
+        }
+
+        $array = $this->readPdfArrayAt($trimmed, 0);
+        return $array !== null && $this->skipWhitespace($trimmed, $array['end']) >= strlen($trimmed);
+    }
+
+    private function colorSpaceResourceEntryIsName(string $value): bool
+    {
+        if (($value[0] ?? '') !== '/') {
+            return false;
+        }
+
+        $end = 1;
+        for ($length = strlen($value); $end < $length; $end++) {
+            if ($this->isPdfDelimiter($value[$end]) || $value[$end] === '/') {
+                break;
+            }
+        }
+
+        return $end > 1 && $this->skipWhitespace($value, $end) >= strlen($value);
     }
 
     private function resourceCategoryAllowsStreamEntries(string $category): bool

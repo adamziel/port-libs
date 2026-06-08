@@ -4907,7 +4907,7 @@ final class PdfTextExtractor
         }
 
         $resolvedValue = trim($resolvedValue);
-        if (str_starts_with($resolvedValue, '<<')) {
+        if (!str_starts_with($resolvedValue, '/') && !str_starts_with($resolvedValue, '[')) {
             return null;
         }
 
