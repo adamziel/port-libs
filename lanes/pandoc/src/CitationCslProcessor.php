@@ -253,7 +253,7 @@ final class CitationCslProcessor
         $numbered = $this->annotateCitationNumbers($positioned, $citationNumbers);
         $nameCounts = $this->nameDisambiguationCountsForIds($this->uniqueKnownCitationIds($numbered));
         $annotated = $this->annotateCitationNameDisambiguation($numbered, $nameCounts);
-        $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($annotated));
+        $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($annotated), $nameCounts);
         $annotated = $this->annotateCitationYearSuffixes($annotated, $yearSuffixes);
         $givenNameDisambiguationModes = $this->givenNameDisambiguationModesForIds($this->uniqueKnownCitationIds($annotated));
         $annotated = $this->annotateCitationGivenNameDisambiguation($annotated, $givenNameDisambiguationModes);
@@ -2461,7 +2461,10 @@ final class CitationCslProcessor
             }
         }
 
-        $yearSuffixes = $this->yearSuffixesForIds($ids);
+        $yearSuffixes = $this->yearSuffixesForIds(
+            $ids,
+            $this->nameDisambiguationCountsForCitationList($citations)
+        );
         $annotated = [];
         foreach ($citations as $citation) {
             if (array_key_exists('cslYearSuffix', $citation->attrs)) {
@@ -2509,6 +2512,42 @@ final class CitationCslProcessor
             $citations,
             $this->nameDisambiguationCountsForIds($ids)
         );
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return array<string, int>
+     */
+    private function nameDisambiguationCountsForCitationList(array $citations): array
+    {
+        $ids = [];
+        $counts = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return [];
+            }
+
+            $id = (string) $citation->attr('id', '');
+            if ($id === '' || !isset($this->itemsById[$id])) {
+                continue;
+            }
+
+            $canonicalId = $this->canonicalCitationId($id);
+            if (!in_array($canonicalId, $ids, true)) {
+                $ids[] = $canonicalId;
+            }
+
+            $count = $citation->attr('cslDisambiguateNameCount');
+            if (is_int($count) && $count > 1) {
+                $counts[$canonicalId] = $count;
+            }
+        }
+
+        foreach ($this->nameDisambiguationCountsForIds($ids) as $id => $count) {
+            $counts[$id] = $counts[$id] ?? $count;
+        }
+
+        return $counts;
     }
 
     /**
@@ -3040,26 +3079,70 @@ final class CitationCslProcessor
                 $maximumCount = max($maximumCount, count($this->citationAuthorLabelNames($this->itemsById[$id])));
             }
 
+            $baseLabels = [];
+            foreach ($groupIds as $id) {
+                $baseLabels[$id] = $this->citationAuthorLabel($this->itemsById[$id]);
+            }
+
+            $bestCandidate = 0;
+            $bestLabels = [];
+            $bestDistinctCount = $this->renderedLabelDistinctCount($baseLabels);
             for ($candidate = $baseCount + 1; $candidate <= $maximumCount; $candidate++) {
                 $labels = [];
                 foreach ($groupIds as $id) {
                     $labels[$id] = $this->citationAuthorLabelWithNameDisambiguationCount($this->itemsById[$id], $candidate);
                 }
 
-                if (!$this->renderedLabelsAreUnique($labels)) {
-                    continue;
+                if ($this->renderedLabelsAreUnique($labels)) {
+                    $this->addNameDisambiguationCountsForChangedLabels($counts, $groupIds, $labels, $candidate);
+                    $bestCandidate = 0;
+                    break;
                 }
 
-                foreach ($groupIds as $id) {
-                    if ($labels[$id] !== $this->citationAuthorLabel($this->itemsById[$id])) {
-                        $counts[$id] = $candidate;
-                    }
+                $distinctCount = $this->renderedLabelDistinctCount($labels);
+                if ($distinctCount > $bestDistinctCount) {
+                    $bestCandidate = $candidate;
+                    $bestLabels = $labels;
+                    $bestDistinctCount = $distinctCount;
                 }
-                break;
+            }
+
+            if ($bestCandidate > 0) {
+                $this->addNameDisambiguationCountsForChangedLabels($counts, $groupIds, $bestLabels, $bestCandidate);
             }
         }
 
         return $counts;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @param list<string> $groupIds
+     * @param array<string, string> $labels
+     */
+    private function addNameDisambiguationCountsForChangedLabels(array &$counts, array $groupIds, array $labels, int $candidate): void
+    {
+        foreach ($groupIds as $id) {
+            if (($labels[$id] ?? '') !== $this->citationAuthorLabel($this->itemsById[$id])) {
+                $counts[$id] = $candidate;
+            }
+        }
+    }
+
+    /**
+     * @param array<string, string> $labels
+     */
+    private function renderedLabelDistinctCount(array $labels): int
+    {
+        $normalized = [];
+        foreach ($labels as $label) {
+            $key = $this->normalizedRenderedNameKey($label);
+            if (!in_array($key, $normalized, true)) {
+                $normalized[] = $key;
+            }
+        }
+
+        return count($normalized);
     }
 
     /**
@@ -3234,12 +3317,13 @@ final class CitationCslProcessor
      * @param list<string> $ids
      * @return array<string, string>
      */
-    private function yearSuffixesForIds(array $ids): array
+    private function yearSuffixesForIds(array $ids, ?array $nameCounts = null): array
     {
         if (!$this->style->citationOptions()['disambiguateAddYearSuffix']) {
             return [];
         }
 
+        $nameCounts = $nameCounts ?? $this->nameDisambiguationCountsForIds($ids);
         $suffixes = [];
         $groups = [];
         foreach ($ids as $id) {
@@ -3250,7 +3334,7 @@ final class CitationCslProcessor
 
             $item = $this->itemsById[$id];
             $suffixes[$id] = '';
-            $groups[$this->yearSuffixDisambiguationKey($item)][] = $id;
+            $groups[$this->yearSuffixDisambiguationKey($item, $nameCounts[$id] ?? 0)][] = $id;
         }
 
         foreach ($groups as $groupIds) {
@@ -3269,33 +3353,42 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function yearSuffixDisambiguationKey(array $item): string
+    private function yearSuffixDisambiguationKey(array $item, int $nameCount = 0): string
     {
         $withoutSuffix = $this->itemWithYearSuffix($item, '');
-        $renderedKey = $this->renderedCitationDisambiguationKey($withoutSuffix);
+        $renderedKey = $this->renderedCitationDisambiguationKey($withoutSuffix, $nameCount);
         if ($renderedKey !== '') {
             return $renderedKey;
         }
 
-        return $this->citationAuthorLabel($withoutSuffix) . "\n" . $this->citationYear($withoutSuffix);
+        $citation = $nameCount > 1
+            ? new AstNode('citation', ['cslDisambiguateNameCount' => $nameCount])
+            : null;
+
+        return $this->citationAuthorLabel($withoutSuffix, $citation) . "\n" . $this->citationYear($withoutSuffix);
     }
 
     /**
      * @param array<string, mixed> $item
      */
-    private function renderedCitationDisambiguationKey(array $item): string
+    private function renderedCitationDisambiguationKey(array $item, int $nameCount = 0): string
     {
         $elements = $this->style->citationRenderingElements();
         if ($elements === [] || !$this->hasNonNameRenderingElement($elements)) {
             return '';
         }
 
-        $citation = new AstNode('citation', [
+        $citationAttrs = [
             'id' => (string) ($item['id'] ?? ''),
             'mode' => 'normal',
             'cslYearSuffix' => '',
             'cslDisambiguate' => false,
-        ]);
+        ];
+        if ($nameCount > 1) {
+            $citationAttrs['cslDisambiguateNameCount'] = $nameCount;
+        }
+
+        $citation = new AstNode('citation', $citationAttrs);
         $rendered = $this->renderRenderingElements($elements, $item, 'citation', '', $citation);
 
         return $this->normalizedRenderedNameKey($rendered);
@@ -3994,7 +4087,7 @@ final class CitationCslProcessor
 
         return [
             'citation' => $citation,
-            'author' => $this->citationAuthorLabel($item),
+            'author' => $this->citationAuthorLabel($item, $citation),
             'year' => $this->citationYear($item),
             'yearBase' => $this->citationYear($withoutSuffix),
             'yearSuffix' => (string) ($item['yearSuffix'] ?? ''),
