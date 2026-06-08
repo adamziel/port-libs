@@ -22386,6 +22386,11 @@ final class PdfMetadataExtractor
             $decoded = @iconv('UTF-16LE', 'UTF-8//IGNORE', $utf16);
             return $decoded === false ? '' : $this->cleanText($decoded) ?? '';
         }
+        if (str_starts_with($bytes, "\xef\xbb\xbf")) {
+            $utf8 = substr($bytes, 3);
+
+            return mb_check_encoding($utf8, 'UTF-8') ? $this->cleanText($utf8) ?? '' : '';
+        }
 
         return $this->cleanText($this->decodePdfDocEncoding($bytes)) ?? '';
     }

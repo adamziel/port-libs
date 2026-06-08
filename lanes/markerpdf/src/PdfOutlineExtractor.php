@@ -2256,7 +2256,7 @@ final class PdfOutlineExtractor
     ): ?array {
         $resolved = $this->resolveValue($destination, $objects);
         $name = $this->stringOrNameValue($resolved);
-        if ($name !== null) {
+        if ($name !== null && $name !== '') {
             if (isset($seenNames[$name]) || !array_key_exists($name, $destinations)) {
                 return null;
             }
@@ -6154,7 +6154,11 @@ final class PdfOutlineExtractor
     private function destinationNameDetails(mixed $value, array $objects): ?array
     {
         $resolved = $this->resolveValue($value, $objects);
-        if (!is_array($resolved) || ($resolved['pdfType'] ?? null) !== 'string' || !is_string($resolved['value'] ?? null)) {
+        if (!is_array($resolved)
+            || ($resolved['pdfType'] ?? null) !== 'string'
+            || !is_string($resolved['value'] ?? null)
+            || $resolved['value'] === ''
+        ) {
             return null;
         }
 
@@ -7118,6 +7122,11 @@ final class PdfOutlineExtractor
 
             $decoded = @iconv('UTF-16LE', 'UTF-8//IGNORE', $utf16);
             return $decoded === false ? '' : $decoded;
+        }
+        if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+            $utf8 = substr($bytes, 3);
+
+            return mb_check_encoding($utf8, 'UTF-8') ? $utf8 : '';
         }
 
         return $this->decodePdfDocEncoding($bytes);

@@ -2858,6 +2858,11 @@ final class PdfNamedDestinationExtractor
             $decoded = @iconv('UTF-16LE', 'UTF-8//IGNORE', $utf16);
             return $decoded === false ? '' : $decoded;
         }
+        if (str_starts_with($bytes, "\xef\xbb\xbf")) {
+            $utf8 = substr($bytes, 3);
+
+            return mb_check_encoding($utf8, 'UTF-8') ? $utf8 : '';
+        }
 
         return $this->decodePdfDocEncoding($bytes);
     }
