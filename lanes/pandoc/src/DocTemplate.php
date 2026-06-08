@@ -373,7 +373,7 @@ final class DocTemplate
     private function canonicalDefaultTemplateFormat(string $format): ?string
     {
         return match ($format) {
-            'html' => 'html5',
+            'html', 'html4' => 'html5',
             'docx' => 'openxml',
             'odt' => 'opendocument',
             'epub' => 'epub3',

@@ -1187,6 +1187,41 @@ HTML,
         ], null, 'html+'));
     },
 
+    'resolves pandoc html4 default template alias to html5 resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $html4 = $renderer->renderResource('templates/default', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'HTML4 Alias Packet',
+            'body' => '<p>HTML4 alias body.</p>',
+        ], null, 'html4');
+
+        $t->contains('<!DOCTYPE html>', $html4);
+        $t->contains('<title>HTML4 Alias Packet</title>', $html4);
+        $t->contains('<p>HTML4 alias body.</p>', $html4);
+
+        $extensionQualified = $renderer->renderResource('templates/default', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'HTML4 Extension Packet',
+            'body' => '<p>HTML4 extension body.</p>',
+        ], null, 'html4+smart');
+        $t->contains('<title>HTML4 Extension Packet</title>', $extensionQualified);
+        $t->contains('<p>HTML4 extension body.</p>', $extensionQualified);
+
+        $t->same('custom html4 Exact HTML4 override', $renderer->renderResource('templates/default', [
+            'templates/default.html4' => 'custom html4 $body$',
+            'templates/default.html5' => 'custom html5 $body$',
+        ], [
+            'body' => 'Exact HTML4 override',
+        ], null, 'html4'));
+
+        $t->same('custom html5 HTML5 fallback override', $renderer->renderResource('templates/default', [
+            'templates/default.html5' => 'custom html5 $body$',
+        ], [
+            'body' => 'HTML5 fallback override',
+        ], null, 'html4'));
+    },
+
     'renders bounded pandoc default html5 template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

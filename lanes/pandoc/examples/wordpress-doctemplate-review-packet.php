@@ -255,6 +255,22 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $html4DefaultAlias = (new DocTemplate())->renderResource('templates/default', [], [
+        'pandoc-version' => '3.7.0',
+        'pagetitle' => 'HTML4 Alias Review',
+        'body' => '<p>HTML4 alias review body.</p>',
+    ], null, 'html4+smart');
+    foreach ([
+        '<!DOCTYPE html>',
+        '<title>HTML4 Alias Review</title>',
+        '<p>HTML4 alias review body.</p>',
+    ] as $needle) {
+        if (!str_contains($html4DefaultAlias, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate html4 default alias fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $nestedDefaultPartialFallback = (new DocTemplate())->renderResource('packets/review.html', [
         'packets/review.html' => <<<'HTML'
 <article class="nested-default-partial">
