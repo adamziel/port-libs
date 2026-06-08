@@ -2321,6 +2321,11 @@ final class OpcRelationshipGraph
                                 $issues[] = 'reference-relationship-part-missing-in-package';
                             }
                             $referenceTargetContentType = $this->contentTypes->contentTypeForPart($relationshipPartName);
+                            if ($referenceTargetContentType === null) {
+                                $issues[] = 'reference-relationship-content-type-missing';
+                            } elseif (!self::contentTypeMatches($referenceTargetContentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
+                                $issues[] = 'reference-relationship-content-type-invalid';
+                            }
                             $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
                             $rowsByRelationshipPart[self::partNameEquivalenceKey($relationshipPartName)][] = count($rows);
                         }

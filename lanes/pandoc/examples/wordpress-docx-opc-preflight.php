@@ -157,6 +157,29 @@ $missingRelationshipPartSignatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$relationshipPartContentTypeSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/comments.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdCommentImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/footnotes.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdFootnoteImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $fragmentReferenceSignatureXml = <<<'XML'
 <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
@@ -841,6 +864,72 @@ $roleCaseContentTypeMatch = [
     'signatureTransformValid' => $roleCaseSignatureTransform['valid'] ?? null,
     'signatureTransformRelationshipIds' => $roleCaseSignatureTransform['relationshipIds'] ?? null,
 ];
+
+$relationshipPartContentTypeGuardContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/_rels/.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/document.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/sig-relationship-part-content-type.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+$relationshipPartContentTypeGuardDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+</Relationships>
+XML;
+
+$relationshipPartContentTypeGuardCommentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+$relationshipPartContentTypeGuardFootnotesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnoteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footnote.png"/>
+</Relationships>
+XML;
+
+$relationshipPartContentTypeGuardGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $relationshipPartContentTypeGuardContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $relationshipPartContentTypeGuardDocumentRelationshipsXml],
+    ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/comments.xml.rels', 'data' => $relationshipPartContentTypeGuardCommentsRelationshipsXml],
+    ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $relationshipPartContentTypeGuardFootnotesRelationshipsXml],
+    ['name' => '_xmlsignatures/sig-relationship-part-content-type.xml', 'data' => $relationshipPartContentTypeSignatureXml],
+]));
+$signatureRelationshipPartContentTypeGuards = [];
+foreach ($relationshipPartContentTypeGuardGraph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-relationship-part-content-type.xml') as $transform) {
+    $signatureRelationshipPartContentTypeGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
 
 $internalTargetDiagnosticsContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -1708,6 +1797,7 @@ $summary = [
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
+    'signatureRelationshipPartContentTypeGuards' => $signatureRelationshipPartContentTypeGuards,
     'signatureFragmentReferenceGuards' => $signatureFragmentReferenceGuards,
     'signatureDotSegmentReferenceGuards' => $signatureDotSegmentReferenceGuards,
     'signatureReferenceUriKindGuards' => $signatureReferenceUriKindGuards,
@@ -2476,6 +2566,51 @@ if (($argv[1] ?? '') === '--self-test') {
         ]
         || !array_key_exists('relationshipXml', $summary['signatureMissingRelationshipPartGuards'][0] ?? [])
         || $summary['signatureMissingRelationshipPartGuards'][0]['relationshipXml'] !== null
+        || count($summary['signatureRelationshipPartContentTypeGuards'] ?? []) !== 2
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-relationship-part-content-type.xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/comments.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/comments.xml.rels'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['referenceRelationshipPartExists'] ?? null) !== true
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['referenceTargetContentType'] ?? null) !== 'application/xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['referenceContentTypeMatches'] ?? null) !== false
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['source'] ?? null) !== '/word/comments.xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['sourceIds'] ?? null) !== ['rIdCommentImage']
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['relationshipCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['selectorValid'] ?? null) !== false
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['valid'] ?? null) !== false
+        || ($summary['signatureRelationshipPartContentTypeGuards'][0]['issues'] ?? null) !== [
+            'reference-relationship-content-type-invalid',
+            'reference-content-type-mismatch',
+            'relationship-source-not-loaded',
+            'unmatched-source-id',
+        ]
+        || !array_key_exists('relationshipXml', $summary['signatureRelationshipPartContentTypeGuards'][0] ?? [])
+        || $summary['signatureRelationshipPartContentTypeGuards'][0]['relationshipXml'] !== null
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['referenceUri'] ?? null) !== '/word/_rels/footnotes.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['relationshipPartName'] ?? null) !== '/word/_rels/footnotes.xml.rels'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['referenceRelationshipPartExists'] ?? null) !== true
+        || !array_key_exists('referenceTargetContentType', $summary['signatureRelationshipPartContentTypeGuards'][1] ?? [])
+        || $summary['signatureRelationshipPartContentTypeGuards'][1]['referenceTargetContentType'] !== null
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['referenceContentTypeMatches'] ?? null) !== false
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['source'] ?? null) !== '/word/footnotes.xml'
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['sourceIds'] ?? null) !== ['rIdFootnoteImage']
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['relationshipCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['selectorValid'] ?? null) !== false
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['valid'] ?? null) !== false
+        || ($summary['signatureRelationshipPartContentTypeGuards'][1]['issues'] ?? null) !== [
+            'reference-relationship-content-type-missing',
+            'reference-content-type-mismatch',
+            'relationship-source-not-loaded',
+            'unmatched-source-id',
+        ]
+        || !array_key_exists('relationshipXml', $summary['signatureRelationshipPartContentTypeGuards'][1] ?? [])
+        || $summary['signatureRelationshipPartContentTypeGuards'][1]['relationshipXml'] !== null
         || count($summary['signatureFragmentReferenceGuards'] ?? []) !== 1
         || ($summary['signatureFragmentReferenceGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-fragment.xml'
         || ($summary['signatureFragmentReferenceGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml#fragment'
