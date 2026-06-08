@@ -272,6 +272,30 @@ $sttbSavedBy = static function (array $pairs) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$routeSlip = static function (array $recipients, array $options = []) use ($u16): string {
+    $ansi = static function (string $value) use ($u16): string {
+        return $u16(strlen($value)) . $value;
+    };
+    $bytes = $u16(!empty($options['routed']) ? 1 : 0)
+        . $u16(!empty($options['returnOriginal']) ? 1 : 0)
+        . $u16(!empty($options['trackStatus']) ? 1 : 0)
+        . $u16(!empty($options['dirty']) ? 1 : 0)
+        . $u16((int) ($options['protect'] ?? 0))
+        . $u16((int) ($options['stage'] ?? 0))
+        . $u16((int) ($options['deliveryOption'] ?? 0))
+        . $u16(count($recipients))
+        . $ansi((string) ($options['subject'] ?? ''))
+        . $ansi((string) ($options['message'] ?? ''))
+        . $ansi((string) ($options['status'] ?? ''))
+        . $ansi((string) ($options['title'] ?? ''));
+    foreach ($recipients as $recipient) {
+        $entryId = (string) ($recipient['entryId'] ?? '');
+        $name = (string) ($recipient['name'] ?? '');
+        $bytes .= $u16(strlen($entryId)) . $u16(strlen($name)) . $entryId . $name;
+    }
+
+    return $bytes;
+};
 $buildPlcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     $bytes = '';
     foreach ($records as $record) {
@@ -841,6 +865,27 @@ $saveHistoryTable = $sttbSavedBy([
     ['author' => 'Migration Desk', 'path' => 'C:\Legacy\packet-draft.doc'],
     ['author' => 'Review Lead', 'path' => 'D:\Archive\legacy-doc-42-final.doc'],
 ]);
+$routeSlipTable = $routeSlip([
+    [
+        'entryId' => "entry-id-001",
+        'name' => 'Route Reviewer',
+    ],
+    [
+        'entryId' => "entry-id-002",
+        'name' => 'Route Archivist',
+    ],
+], [
+    'routed' => true,
+    'returnOriginal' => true,
+    'trackStatus' => true,
+    'protect' => 2,
+    'stage' => 1,
+    'deliveryOption' => 1,
+    'subject' => 'Legacy DOC packet',
+    'message' => 'Please review before import.',
+    'status' => 'Awaiting legal signoff',
+    'title' => 'Route packet 42',
+]);
 $fcDop = strlen($clx);
 $fcPlcfFldMom = $fcDop + strlen($dop);
 $fcPlcfFldHdr = $fcPlcfFldMom + strlen($plcfldMom);
@@ -851,7 +896,8 @@ $fcPlcfHdd = $fcPlcfFldHdrTxbx + strlen($plcfldHdrTxbx);
 $fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
 $fcStwUser = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcSttbSavedBy = $fcStwUser + strlen($documentVariablesTable);
-$fcSttbfBkmk = $fcSttbSavedBy + strlen($saveHistoryTable);
+$fcRouteSlip = $fcSttbSavedBy + strlen($saveHistoryTable);
+$fcSttbfBkmk = $fcRouteSlip + strlen($routeSlipTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
 $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
@@ -867,7 +913,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $routeSlipTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -900,6 +946,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcStwUser), 0x027a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($documentVariablesTable)), 0x027e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbSavedBy), 0x02d2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcRouteSlip), 0x02ca, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
@@ -1368,6 +1416,7 @@ $summary = [
     'documentProperties' => $result['documentProperties'],
     'documentVariables' => $result['documentVariables'],
     'saveHistory' => $result['saveHistory'],
+    'routeSlip' => $result['routeSlip'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
@@ -1437,6 +1486,30 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($summary['wordpressBlocks'], 'packet-draft.doc') || str_contains($summary['wordpressBlocks'], 'Review Lead')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered SttbSavedBy metadata into blocks');
+    }
+    if (($summary['metadata']['routeSlipRecipientCount'] ?? null) !== 2 || count($summary['routeSlip']['recipients'] ?? []) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip recipient inventory');
+    }
+    if (($summary['metadata']['routeSlipPolicy'] ?? '') !== 'metadata-only-native-review' || ($summary['routeSlip']['extractionPolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip metadata-only policy');
+    }
+    if (($summary['routeSlip']['routed'] ?? null) !== true || ($summary['routeSlip']['returnOriginal'] ?? null) !== true || ($summary['routeSlip']['trackStatus'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip routing flags');
+    }
+    if (($summary['routeSlip']['protect'] ?? null) !== 2 || ($summary['routeSlip']['stage'] ?? null) !== 1 || ($summary['routeSlip']['deliveryOption'] ?? null) !== 1 || ($summary['routeSlip']['deliveryMode'] ?? '') !== 'parallel') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip option metadata');
+    }
+    if (($summary['routeSlip']['subject'] ?? '') !== 'Legacy DOC packet' || ($summary['routeSlip']['message'] ?? '') !== 'Please review before import.' || ($summary['routeSlip']['status'] ?? '') !== 'Awaiting legal signoff' || ($summary['routeSlip']['title'] ?? '') !== 'Route packet 42') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip route strings');
+    }
+    if (($summary['routeSlip']['recipients'][0]['name'] ?? '') !== 'Route Reviewer' || ($summary['routeSlip']['recipients'][0]['entryIdHex'] ?? '') !== '656e7472792d69642d303031') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip first recipient metadata');
+    }
+    if (($summary['routeSlip']['recipients'][1]['name'] ?? '') !== 'Route Archivist' || ($summary['routeSlip']['recipients'][1]['entryIdByteCount'] ?? null) !== 12) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing RouteSlip second recipient metadata');
+    }
+    if (str_contains($summary['wordpressBlocks'], 'Route Reviewer') || str_contains($summary['wordpressBlocks'], 'Please review before import.') || str_contains($summary['wordpressBlocks'], 'Route Archivist')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered RouteSlip metadata into blocks');
     }
     $documentProperties = $summary['documentProperties'] ?? null;
     $documentPolicyFlags = is_array($documentProperties) && is_array($documentProperties['policyFlags'] ?? null) ? $documentProperties['policyFlags'] : [];

@@ -643,6 +643,30 @@ $sttbSavedBy = static function (array $pairs) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$routeSlip = static function (array $recipients, array $options = []) use ($u16): string {
+    $ansi = static function (string $value) use ($u16): string {
+        return $u16(strlen($value)) . $value;
+    };
+    $bytes = $u16(!empty($options['routed']) ? 1 : 0)
+        . $u16(!empty($options['returnOriginal']) ? 1 : 0)
+        . $u16(!empty($options['trackStatus']) ? 1 : 0)
+        . $u16(!empty($options['dirty']) ? 1 : 0)
+        . $u16((int) ($options['protect'] ?? 0))
+        . $u16((int) ($options['stage'] ?? 0))
+        . $u16((int) ($options['deliveryOption'] ?? 0))
+        . $u16(count($recipients))
+        . $ansi((string) ($options['subject'] ?? ''))
+        . $ansi((string) ($options['message'] ?? ''))
+        . $ansi((string) ($options['status'] ?? ''))
+        . $ansi((string) ($options['title'] ?? ''));
+    foreach ($recipients as $recipient) {
+        $entryId = (string) ($recipient['entryId'] ?? '');
+        $name = (string) ($recipient['name'] ?? '');
+        $bytes .= $u16(strlen($entryId)) . $u16(strlen($name)) . $entryId . $name;
+    }
+
+    return $bytes;
+};
 $plcfldMom = static function (array $records, int $finalCp) use ($u32): string {
     $bytes = '';
     foreach ($records as $record) {
@@ -2475,6 +2499,108 @@ return [
         $missingTableWordDocument = $buildExtendedFibWordDocument("Missing save history table stream packet\r");
         $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x02d2, 4);
         $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingTableWordDocument,
+        ])));
+    },
+    'extracts legacy DOC RouteSlip routing metadata as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $routeSlip, $u16, $u32): void {
+        $routeSlipTable = $routeSlip([
+            [
+                'entryId' => "entry-id-001",
+                'name' => 'Mira Reviewer',
+            ],
+            [
+                'entryId' => "entry-id-002",
+                'name' => 'Archive Owner',
+            ],
+        ], [
+            'routed' => true,
+            'returnOriginal' => true,
+            'trackStatus' => true,
+            'dirty' => false,
+            'protect' => 2,
+            'stage' => 1,
+            'deliveryOption' => 1,
+            'subject' => 'Legacy DOC packet',
+            'message' => 'Please review before import.',
+            'status' => 'Awaiting legal signoff',
+            'title' => 'Route packet 42',
+        ]);
+        $wordDocument = $buildExtendedFibWordDocument("Route slip review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x02ca, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $routeSlipTable,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $routeSlip = $result['routeSlip'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $markdown = (new MarkdownWriter())->write($result['document']);
+
+        $t->same(2, $routeSlip['recipientCount']);
+        $t->same(2, $metadata['routeSlipRecipientCount']);
+        $t->same($routeSlip, $metadata['routeSlip']);
+        $t->same($routeSlip, $result['document']->attr('routeSlip'));
+        $t->same($routeSlip, $result['document']->attr('meta')['routeSlip']);
+        $t->same('RouteSlip', $routeSlip['sourceTable']);
+        $t->same('metadata-only-native-review', $routeSlip['extractionPolicy']);
+        $t->same('Windows-1252', $routeSlip['sourceEncoding']);
+        $t->same(true, $routeSlip['routed']);
+        $t->same(true, $routeSlip['returnOriginal']);
+        $t->same(true, $routeSlip['trackStatus']);
+        $t->same(false, $routeSlip['dirty']);
+        $t->same(2, $routeSlip['protect']);
+        $t->same(1, $routeSlip['stage']);
+        $t->same(1, $routeSlip['deliveryOption']);
+        $t->same('parallel', $routeSlip['deliveryMode']);
+        $t->same('Legacy DOC packet', $routeSlip['subject']);
+        $t->same('Please review before import.', $routeSlip['message']);
+        $t->same('Awaiting legal signoff', $routeSlip['status']);
+        $t->same('Route packet 42', $routeSlip['title']);
+        $t->same(2, count($routeSlip['recipients']));
+        $t->same(0, $routeSlip['recipients'][0]['index']);
+        $t->same('Mira Reviewer', $routeSlip['recipients'][0]['name']);
+        $t->same(12, $routeSlip['recipients'][0]['entryIdByteCount']);
+        $t->same('656e7472792d69642d303031', $routeSlip['recipients'][0]['entryIdHex']);
+        $t->same('RouteSlipInfo', $routeSlip['recipients'][0]['sourceTable']);
+        $t->same('Windows-1252', $routeSlip['recipients'][0]['sourceEncoding']);
+        $t->same(1, $routeSlip['recipients'][1]['index']);
+        $t->same('Archive Owner', $routeSlip['recipients'][1]['name']);
+        $t->same(12, $routeSlip['recipients'][1]['entryIdByteCount']);
+        $t->same('656e7472792d69642d303032', $routeSlip['recipients'][1]['entryIdHex']);
+        $t->contains('<p>Route slip review packet</p>', $blocks);
+        $t->contains('Route slip review packet', $markdown);
+        $t->true(!str_contains($blocks, 'Mira Reviewer'));
+        $t->true(!str_contains($blocks, 'Please review before import.'));
+        $t->true(!str_contains($markdown, 'Archive Owner'));
+
+        $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
+            $wordDocument = $buildExtendedFibWordDocument("Malformed route slip packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x02ca, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($table)), 0x02ce, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $table,
+            ]);
+        };
+        foreach ([
+            'too many recipients' => str_repeat("\0", 14) . $u16(1025) . str_repeat("\0", 8),
+            'invalid delivery option' => substr_replace($routeSlipTable, $u16(2), 12, 2),
+            'oversized subject' => str_repeat("\0", 16) . $u16(256) . str_repeat('A', 256) . str_repeat("\0", 6),
+            'empty recipient name' => str_repeat("\0", 14) . $u16(1) . str_repeat("\0", 8) . $u16(0) . $u16(0),
+            'truncated recipient entry id' => str_repeat("\0", 14) . $u16(1) . str_repeat("\0", 8) . $u16(4) . $u16(3) . 'xx',
+            'trailing bytes' => $routeSlipTable . "\0",
+        ] as $table) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($table)));
+        }
+
+        $missingTableWordDocument = $buildExtendedFibWordDocument("Missing route slip table stream packet\r");
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(0), 0x02ca, 4);
+        $missingTableWordDocument = substr_replace($missingTableWordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
             'WordDocument' => $missingTableWordDocument,
         ])));

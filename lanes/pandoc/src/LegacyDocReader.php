@@ -47,6 +47,8 @@ final class LegacyDocReader
     private const FIB_LCB_STTBF_ASSOC = 0x019e;
     private const FIB_FC_STW_USER = 0x027a;
     private const FIB_LCB_STW_USER = 0x027e;
+    private const FIB_FC_ROUTE_SLIP = 0x02ca;
+    private const FIB_LCB_ROUTE_SLIP = 0x02ce;
     private const FIB_FC_STTB_SAVED_BY = 0x02d2;
     private const FIB_LCB_STTB_SAVED_BY = 0x02d6;
     private const FIB_FC_GRPXST_ATN_OWNERS = 0x01ba;
@@ -137,7 +139,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -145,7 +147,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -226,6 +228,12 @@ final class LegacyDocReader
             $metadata['latestSavedBy'] = $latestSaveHistory['author'];
             $metadata['latestSavedPath'] = $latestSaveHistory['path'];
             $metadata['latestSavedName'] = $latestSaveHistory['basename'];
+        }
+        $routeSlip = $this->routeSlipReport($wordDocument, $tableStream);
+        if ($routeSlip !== []) {
+            $metadata['routeSlipRecipientCount'] = (int) $routeSlip['recipientCount'];
+            $metadata['routeSlip'] = $routeSlip;
+            $metadata['routeSlipPolicy'] = $routeSlip['extractionPolicy'];
         }
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
@@ -407,6 +415,7 @@ final class LegacyDocReader
             'documentProperties' => $documentProperties,
             'documentVariables' => $documentVariables,
             'saveHistory' => $saveHistory,
+            'routeSlip' => $routeSlip,
         ];
 
         return [
@@ -445,6 +454,7 @@ final class LegacyDocReader
             'documentProperties' => $documentProperties,
             'documentVariables' => $documentVariables,
             'saveHistory' => $saveHistory,
+            'routeSlip' => $routeSlip,
         ];
     }
 
@@ -3126,6 +3136,155 @@ final class LegacyDocReader
         }
 
         return $history;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function routeSlipReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_ROUTE_SLIP + 4) {
+            return [];
+        }
+        $fcMin = self::u32($wordDocument, 24);
+        if ($fcMin > 0 && self::FIB_LCB_ROUTE_SLIP + 4 > $fcMin) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_ROUTE_SLIP);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC route-slip metadata requires the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_ROUTE_SLIP);
+
+        return $this->parseRouteSlip(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'RouteSlip routing metadata')
+        );
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function parseRouteSlip(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 24) {
+            throw new \RuntimeException('Legacy DOC RouteSlip metadata is truncated');
+        }
+
+        $cursor = 0;
+        $routed = self::u16($bytes, $cursor) !== 0;
+        $cursor += 2;
+        $returnOriginal = self::u16($bytes, $cursor) !== 0;
+        $cursor += 2;
+        $trackStatus = self::u16($bytes, $cursor) !== 0;
+        $cursor += 2;
+        $dirty = self::u16($bytes, $cursor) !== 0;
+        $cursor += 2;
+        $protect = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $stage = self::signed16(self::u16($bytes, $cursor));
+        $cursor += 2;
+        $deliveryOption = self::signed16(self::u16($bytes, $cursor));
+        $cursor += 2;
+        $recipientCount = self::signed16(self::u16($bytes, $cursor));
+        $cursor += 2;
+        if ($recipientCount < 0 || $recipientCount > 1024) {
+            throw new \RuntimeException('Legacy DOC RouteSlip metadata contains too many recipients');
+        }
+        if ($stage < 0 || ($recipientCount > 0 && $stage >= $recipientCount)) {
+            throw new \RuntimeException('Legacy DOC RouteSlip metadata contains an invalid routing stage');
+        }
+        if (!in_array($deliveryOption, [0, 1], true)) {
+            throw new \RuntimeException('Legacy DOC RouteSlip metadata contains an invalid delivery option');
+        }
+
+        $subject = $this->readRouteSlipAnsiString($bytes, $cursor, $length, 'subject');
+        $message = $this->readRouteSlipAnsiString($bytes, $cursor, $length, 'message');
+        $status = $this->readRouteSlipAnsiString($bytes, $cursor, $length, 'status');
+        $title = $this->readRouteSlipAnsiString($bytes, $cursor, $length, 'title');
+
+        $recipients = [];
+        for ($index = 0; $index < $recipientCount; $index++) {
+            if ($cursor + 4 > $length) {
+                throw new \RuntimeException('Legacy DOC RouteSlip recipient record is truncated');
+            }
+
+            $entryIdByteCount = self::signed16(self::u16($bytes, $cursor));
+            $cursor += 2;
+            $nameByteCount = self::signed16(self::u16($bytes, $cursor));
+            $cursor += 2;
+            if ($entryIdByteCount < 0 || $entryIdByteCount > 4096) {
+                throw new \RuntimeException('Legacy DOC RouteSlip recipient entry-id length is invalid');
+            }
+            if ($nameByteCount <= 0 || $nameByteCount > 255) {
+                throw new \RuntimeException('Legacy DOC RouteSlip recipient name length is invalid');
+            }
+            if ($cursor + $entryIdByteCount + $nameByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC RouteSlip recipient record points outside metadata');
+            }
+
+            $entryIdBytes = substr($bytes, $cursor, $entryIdByteCount);
+            $cursor += $entryIdByteCount;
+            $nameBytes = substr($bytes, $cursor, $nameByteCount);
+            $cursor += $nameByteCount;
+            $recipients[] = [
+                'index' => $index,
+                'sourceTable' => 'RouteSlipInfo',
+                'sourceEncoding' => 'Windows-1252',
+                'name' => $this->decodeWindows1252($nameBytes),
+                'entryIdByteCount' => $entryIdByteCount,
+                'entryIdHex' => bin2hex($entryIdBytes),
+            ];
+        }
+
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC RouteSlip metadata contains trailing bytes');
+        }
+
+        return [
+            'sourceTable' => 'RouteSlip',
+            'sourceEncoding' => 'Windows-1252',
+            'extractionPolicy' => 'metadata-only-native-review',
+            'recipientCount' => $recipientCount,
+            'recipients' => $recipients,
+            'routed' => $routed,
+            'returnOriginal' => $returnOriginal,
+            'trackStatus' => $trackStatus,
+            'dirty' => $dirty,
+            'protect' => $protect,
+            'stage' => $stage,
+            'deliveryOption' => $deliveryOption,
+            'deliveryMode' => $deliveryOption === 0 ? 'serial' : 'parallel',
+            'subject' => $subject,
+            'message' => $message,
+            'status' => $status,
+            'title' => $title,
+        ];
+    }
+
+    private function readRouteSlipAnsiString(string $bytes, int &$cursor, int $length, string $field): string
+    {
+        if ($cursor + 2 > $length) {
+            throw new \RuntimeException('Legacy DOC RouteSlip ' . $field . ' length is truncated');
+        }
+        $byteLength = self::u16($bytes, $cursor);
+        $cursor += 2;
+        if ($byteLength > 255) {
+            throw new \RuntimeException('Legacy DOC RouteSlip ' . $field . ' exceeds the bounded native reader limit');
+        }
+        if ($cursor + $byteLength > $length) {
+            throw new \RuntimeException('Legacy DOC RouteSlip ' . $field . ' points outside metadata');
+        }
+
+        $valueBytes = substr($bytes, $cursor, $byteLength);
+        $cursor += $byteLength;
+
+        return $byteLength === 0 ? '' : $this->decodeWindows1252($valueBytes);
     }
 
     private function legacyPathBasename(string $path): string
