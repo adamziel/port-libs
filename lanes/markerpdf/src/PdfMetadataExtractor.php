@@ -7446,6 +7446,7 @@ final class PdfMetadataExtractor
 
         $body = $this->normalizedDictionaryBody($dictionary);
         $entryIndex = 0;
+        $selectedMalformedReview = [];
         for ($offset = 0, $length = strlen($body); $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
             if ($offset >= $length) {
@@ -7479,6 +7480,7 @@ final class PdfMetadataExtractor
 
             $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
             if ($trailingOperands === []) {
+                $selectedMalformedReview = [];
                 $entryIndex++;
                 $offset = $afterValue;
                 continue;
@@ -7534,10 +7536,12 @@ final class PdfMetadataExtractor
                 $review['trailing_operand_shapes'] = $this->uniqueStrings($trailingOperandShapes);
             }
 
-            return $review;
+            $selectedMalformedReview = $review;
+            $entryIndex++;
+            $offset = $afterValue;
         }
 
-        return [];
+        return $selectedMalformedReview;
     }
 
     /**

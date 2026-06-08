@@ -15181,13 +15181,13 @@ final class PdfTextExtractor
             return false;
         }
 
-        $type = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Type');
-        if ($type !== null) {
+        $typeOffset = $this->topLevelNameValueOffset($dict, 'Type');
+        if ($typeOffset !== null) {
             if ($this->topLevelPdfNameHasTrailingTopLevelOperand($dict, 'Type')) {
                 return false;
             }
 
-            if ($this->pdfNameValueAt($type, 0, $objects) !== 'XObject') {
+            if ($this->pdfNameValueAtStrictIndirectOperand($dict, $typeOffset, $objects) !== 'XObject') {
                 return false;
             }
         }
@@ -15196,13 +15196,13 @@ final class PdfTextExtractor
             return false;
         }
 
-        $subtype = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Subtype');
-        if ($subtype !== null) {
+        $subtypeOffset = $this->topLevelNameValueOffset($dict, 'Subtype');
+        if ($subtypeOffset !== null) {
             if ($this->topLevelPdfNameHasTrailingTopLevelOperand($dict, 'Subtype')) {
                 return false;
             }
 
-            $subtypeName = $this->pdfNameValueAt($subtype, 0, $objects);
+            $subtypeName = $this->pdfNameValueAtStrictIndirectOperand($dict, $subtypeOffset, $objects);
             if ($subtypeName === 'Image') {
                 return true;
             }
