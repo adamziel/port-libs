@@ -26723,9 +26723,10 @@ final class PdfTextExtractor
             return $bytes === null ? null : $this->decodePdfTextStringBytes($bytes);
         }
 
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pdfIndirectReferenceTokenAt($body, $offset);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $objectBody = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
             return $objectBody === null
                 ? null
