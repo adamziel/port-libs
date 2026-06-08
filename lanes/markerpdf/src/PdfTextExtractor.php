@@ -19006,22 +19006,23 @@ final class PdfTextExtractor
             'RunLengthDecode', 'RL' => chr(128),
             default => null,
         };
-        $applyMinimumTerminatorOffset = $this->dctPrefixFilterCanUseRawJpegBoundaryFallback($firstFilter);
-
         $fallbackTerminator = null;
+        $sawIncompleteDctPreviewCandidate = false;
         if ($payloadMarker !== null) {
             foreach ($this->firstFilterEndstreamTerminatorOffsets($value, $streamStart, $payloadMarker) as $terminator) {
-                if ($applyMinimumTerminatorOffset && $minimumTerminatorOffset !== null && $terminator < $minimumTerminatorOffset) {
-                    continue;
-                }
-
+                $beforeMinimum = $minimumTerminatorOffset !== null && $terminator < $minimumTerminatorOffset;
                 $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
                 $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex, true);
                 if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
+                    if ($beforeMinimum) {
+                        continue;
+                    }
+
                     return $terminator;
                 }
-
-                $fallbackTerminator = $terminator;
+                if ($jpegBytes !== null) {
+                    $sawIncompleteDctPreviewCandidate = true;
+                }
             }
         }
 
@@ -19032,16 +19033,22 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($applyMinimumTerminatorOffset && $minimumTerminatorOffset !== null && $candidate < $minimumTerminatorOffset) {
-                continue;
-            }
-
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
             $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex, true);
             if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
+                if ($minimumTerminatorOffset !== null && $candidate < $minimumTerminatorOffset) {
+                    continue;
+                }
+
                 return $candidate;
             }
-            if ($this->dctPrefixFirstFilterHasBoundedEndBeforeTerminator($dict, $payload, $objects, $filters, $firstFilterIndex)) {
+            if ($jpegBytes !== null) {
+                $sawIncompleteDctPreviewCandidate = true;
+            }
+            if (
+                ($minimumTerminatorOffset === null || $candidate >= $minimumTerminatorOffset)
+                && $this->dctPrefixFirstFilterHasBoundedEndBeforeTerminator($dict, $payload, $objects, $filters, $firstFilterIndex)
+            ) {
                 $fallbackTerminator = $candidate;
             }
         }
@@ -19050,8 +19057,43 @@ final class PdfTextExtractor
             return $fallbackTerminator;
         }
 
+        if ($sawIncompleteDctPreviewCandidate) {
+            $closingTerminator = $this->dctPrefixIncompletePreviewEndstreamTerminatorOffset(
+                $value,
+                $streamStart,
+                $minimumTerminatorOffset
+            );
+            if ($closingTerminator !== null) {
+                return $closingTerminator;
+            }
+        }
+
         if ($this->dctPrefixFilterCanUseRawJpegBoundaryFallback($firstFilter)) {
             return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart, $minimumTerminatorOffset);
+        }
+
+        return null;
+    }
+
+    private function dctPrefixIncompletePreviewEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        ?int $minimumTerminatorOffset = null
+    ): ?int {
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            if ($minimumTerminatorOffset !== null && $candidate < $minimumTerminatorOffset) {
+                continue;
+            }
+
+            if ($this->streamEndstreamClosesCurrentObject($value, $candidate)) {
+                return $candidate;
+            }
         }
 
         return null;
@@ -19598,6 +19640,11 @@ final class PdfTextExtractor
     }
 
     private function ccittFaxUnboundedEndstreamClosesCurrentObject(string $value, int $candidate): bool
+    {
+        return $this->streamEndstreamClosesCurrentObject($value, $candidate);
+    }
+
+    private function streamEndstreamClosesCurrentObject(string $value, int $candidate): bool
     {
         $afterStream = $this->skipPdfWhitespace($value, $candidate + strlen('endstream'));
         if ($afterStream >= strlen($value)) {
@@ -30280,7 +30327,7 @@ final class PdfTextExtractor
                             ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                             ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
                         );
-                    if ($dict !== null) {
+                    if ($dict !== null && $dctJpegTerminator === null) {
                         $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
                             $pdfBytes,
                             $streamStart,

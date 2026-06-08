@@ -9522,6 +9522,7 @@ final class PdfImageRenderer
         sort($candidateTerminators, SORT_NUMERIC);
         $lastCompleteTerminator = null;
         $fallbackTerminator = null;
+        $sawIncompleteDctPreviewCandidate = false;
         foreach ($candidateTerminators as $terminator) {
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
             $jpegBytes = $this->decodeImageStreamBeforeFilter(
@@ -9545,12 +9546,33 @@ final class PdfImageRenderer
                 $lastCompleteTerminator = $terminator;
                 continue;
             }
+            if ($jpegBytes !== null) {
+                $sawIncompleteDctPreviewCandidate = true;
+            }
             if ($this->dctPrefixFirstFilterHasBoundedEndBeforeTerminator($dictionary, $payload, $objects, $filters, $firstFilterIndex)) {
                 $fallbackTerminator = $terminator;
             }
         }
 
-        return $lastCompleteTerminator ?? $fallbackTerminator;
+        return $lastCompleteTerminator
+            ?? $fallbackTerminator
+            ?? ($sawIncompleteDctPreviewCandidate
+                ? $this->dctPrefixIncompletePreviewStreamTerminatorOffset($value, $streamStart)
+                : null);
+    }
+
+    private function dctPrefixIncompletePreviewStreamTerminatorOffset(string $value, int $streamStart): ?int
+    {
+        $closingTerminator = null;
+        $offset = $streamStart;
+        while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if ($this->streamEndTerminatorAt($value, $candidate, $streamStart)) {
+                $closingTerminator = $candidate;
+            }
+        }
+
+        return $closingTerminator;
     }
 
     /**
