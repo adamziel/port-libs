@@ -1747,6 +1747,120 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, originCount:int, signatureCount:int, allowedSignatureSources:list<string>, roles:list<array{source:string, id:string, role:string, type:string, target:string, targetPart:?string, contentType:?string, expectedSource:?string, allowedSignatureSources:list<string>, sourceAllowed:bool, expectedContentType:string, expectedExternal:bool, external:bool, exists:?bool, relationshipPartTarget:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>}
+     */
+    public function preflightDigitalSignatureRelationshipRoles(): array
+    {
+        $allowedSignatureSources = [];
+        foreach ($this->preflightTargetsForSource('/', self::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE) as $origin) {
+            $targetPart = self::targetPartFromPreflightTarget($origin);
+            if ($origin['external'] || $targetPart === null) {
+                continue;
+            }
+
+            self::appendUniqueString($allowedSignatureSources, $targetPart);
+        }
+        sort($allowedSignatureSources, SORT_STRING);
+
+        $roles = [];
+        $originCount = 0;
+        $signatureCount = 0;
+        foreach ($this->sourcePartNames() as $sourcePartName) {
+            foreach ($this->preflightTargetsForSource($sourcePartName) as $target) {
+                if (
+                    $target['type'] !== self::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE
+                    && $target['type'] !== self::DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE
+                ) {
+                    continue;
+                }
+
+                $issues = $target['issues'];
+                $targetPart = self::targetPartFromPreflightTarget($target);
+                if ($target['type'] === self::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE) {
+                    $originCount++;
+                    $role = 'digital-signature-origin';
+                    $expectedSource = '/';
+                    $sourceAllowed = $sourcePartName === '/';
+                    $expectedContentType = self::DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE;
+                    if (!$sourceAllowed) {
+                        $issues[] = 'digital-signature-origin-source-not-package-root';
+                    }
+
+                    if ($target['external']) {
+                        $issues[] = 'external-digital-signature-origin';
+                    }
+
+                    if (
+                        !$target['external']
+                        && $target['contentType'] !== null
+                        && !self::contentTypeMatches($target['contentType'], $expectedContentType)
+                    ) {
+                        $issues[] = 'invalid-digital-signature-origin-content-type';
+                    }
+                } else {
+                    $signatureCount++;
+                    $role = 'digital-signature-signature';
+                    $expectedSource = null;
+                    $sourceAllowed = in_array($sourcePartName, $allowedSignatureSources, true);
+                    $expectedContentType = self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE;
+                    if (!$sourceAllowed) {
+                        $issues[] = 'digital-signature-signature-source-not-origin';
+                    }
+
+                    if ($target['external']) {
+                        $issues[] = 'external-digital-signature-target';
+                    }
+
+                    if (
+                        !$target['external']
+                        && $target['contentType'] !== null
+                        && !self::contentTypeMatches($target['contentType'], $expectedContentType)
+                    ) {
+                        $issues[] = 'invalid-digital-signature-content-type';
+                    }
+                }
+
+                $issues = array_values(array_unique($issues));
+                $roles[] = [
+                    'source' => $sourcePartName,
+                    'id' => $target['id'],
+                    'role' => $role,
+                    'type' => $target['type'],
+                    'target' => $target['target'],
+                    'targetPart' => $targetPart,
+                    'contentType' => $target['contentType'],
+                    'expectedSource' => $expectedSource,
+                    'allowedSignatureSources' => $allowedSignatureSources,
+                    'sourceAllowed' => $sourceAllowed,
+                    'expectedContentType' => $expectedContentType,
+                    'expectedExternal' => false,
+                    'external' => $target['external'],
+                    'exists' => $target['exists'],
+                    'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'relationshipTypeKind' => $target['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $target['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                    'valid' => $issues === [],
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        return [
+            'valid' => array_reduce(
+                $roles,
+                static fn (bool $valid, array $role): bool => $valid && $role['valid'],
+                true,
+            ),
+            'originCount' => $originCount,
+            'signatureCount' => $signatureCount,
+            'allowedSignatureSources' => $allowedSignatureSources,
+            'roles' => $roles,
+        ];
+    }
+
+    /**
      * @return array{signaturePart:string, contentType:?string, expectedContentType:string, objectCount:int, certificateCount:int, valid:bool, issues:list<string>, objects:list<array{id:?string, mimeType:?string, encoding:?string, signatureTimeFormat:?string, signatureTimeValue:?string, signatureTimeValid:?bool, packageSignatureElements:list<string>, valid:bool, issues:list<string>}>, certificates:list<array{index:int, base64Length:int, decodedBytes:?int, sha256:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightDigitalSignatureMetadata(string $signaturePartName): array

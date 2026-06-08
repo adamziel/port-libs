@@ -1401,6 +1401,7 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
 }
 
 $digitalSignatures = $graph->preflightDigitalSignatures();
+$digitalSignatureRelationshipRoles = $graph->preflightDigitalSignatureRelationshipRoles();
 $digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
 $embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
 $embeddedPackageGraphs = $graph->preflightEmbeddedPackageGraphs($documentPart);
@@ -1611,6 +1612,7 @@ $summary = [
     'thumbnailPreflight' => $thumbnailPreflight,
     'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
+    'digitalSignatureRelationshipRoles' => $digitalSignatureRelationshipRoles,
     'digitalSignatureMetadata' => $digitalSignatureMetadata,
     'embeddedPackages' => $embeddedPackages,
     'embeddedPackageGraphs' => $embeddedPackageGraphs,
@@ -1739,6 +1741,10 @@ $summary = [
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
         )),
         'digitalSignatureParts' => $digitalSignatureParts,
+        'digitalSignatureRoleIssues' => array_values(array_filter(
+            $digitalSignatureRelationshipRoles['roles'],
+            static fn (array $role): bool => $role['issues'] !== []
+        )),
         'digitalSignatureCertificateCount' => $digitalSignatureMetadata['certificateCount'],
         'digitalSignatureTime' => $digitalSignatureMetadata['objects'][0]['signatureTimeValue'] ?? null,
         'embeddedPackageParts' => $embeddedPackageParts,
@@ -1901,6 +1907,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureRelationshipRoles']['valid'] ?? null) !== true
+        || ($summary['digitalSignatureRelationshipRoles']['originCount'] ?? null) !== 1
+        || ($summary['digitalSignatureRelationshipRoles']['signatureCount'] ?? null) !== 1
+        || ($summary['digitalSignatureRelationshipRoles']['allowedSignatureSources'] ?? null) !== ['/_xmlsignatures/origin.sigs']
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][0]['source'] ?? null) !== '/'
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][0]['role'] ?? null) !== 'digital-signature-origin'
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][0]['sourceAllowed'] ?? null) !== true
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][0]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][1]['source'] ?? null) !== '/_xmlsignatures/origin.sigs'
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][1]['role'] ?? null) !== 'digital-signature-signature'
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][1]['targetPart'] ?? null) !== '/_xmlsignatures/sig1.xml'
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][1]['sourceAllowed'] ?? null) !== true
+        || ($summary['digitalSignatureRelationshipRoles']['roles'][1]['valid'] ?? null) !== true
         || ($summary['digitalSignatureMetadata']['signaturePart'] ?? null) !== '/_xmlsignatures/sig1.xml'
         || ($summary['digitalSignatureMetadata']['objectCount'] ?? null) !== 1
         || ($summary['digitalSignatureMetadata']['certificateCount'] ?? null) !== 1
@@ -1913,6 +1932,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureMetadata']['certificates'][0]['decodedBytes'] ?? null) !== 17
         || ($summary['digitalSignatureMetadata']['certificates'][0]['sha256'] ?? null) !== '339af39211d5f1a9de3c16e229830accd22d7063980248a5ea57edf61cac6c6d'
         || ($summary['digitalSignatureMetadata']['certificates'][0]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureRoleIssues'] ?? null) !== []
         || ($summary['wordpressImport']['digitalSignatureCertificateCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureTime'] ?? null) !== '2026-06-06T22:33:48Z'
         || ($summary['integrity']['emptySignatureOriginGuard']['id'] ?? null) !== 'rIdSignatureOrigin'
