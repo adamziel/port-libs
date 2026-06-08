@@ -35733,6 +35733,14 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '{') {
+                $procedureEnd = $this->cMapProcedureEndOffset($cmap, $index);
+                if ($procedureEnd !== null) {
+                    $index = $procedureEnd + 1;
+                    continue;
+                }
+            }
+
             if ($this->pdfKeywordAt($cmap, $index, 'endcmap')) {
                 $lastEndOffset = $index;
                 $index += strlen('endcmap');
@@ -35746,6 +35754,68 @@ final class PdfTextExtractor
         }
 
         return $lastEndOffset;
+    }
+
+    private function cMapProcedureEndOffset(string $cmap, int $offset): ?int
+    {
+        if (($cmap[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($cmap);
+        for ($index = $offset; $index < $length;) {
+            $char = $cmap[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($cmap, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($cmap, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($cmap[$index + 1] ?? '') === '<') {
+                    $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
+                    if ($dictionaryEnd !== null) {
+                        $index = $dictionaryEnd + 1;
+                        continue;
+                    }
+                }
+
+                $this->readHexToken($cmap, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayBody = $this->readPdfArrayAt($cmap, $index);
+                $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $index++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth--;
+                if ($depth <= 0) {
+                    return $index;
+                }
+
+                $index++;
+                continue;
+            }
+
+            $index++;
+        }
+
+        return null;
     }
 
     /**
@@ -36705,6 +36775,14 @@ final class PdfTextExtractor
                 $arrayBody = $this->readPdfArrayAt($cmap, $offset);
                 $offset = $arrayBody === null ? $offset + 1 : $offset + strlen($arrayBody) + 2;
                 continue;
+            }
+
+            if ($char === '{') {
+                $procedureEnd = $this->cMapProcedureEndOffset($cmap, $offset);
+                if ($procedureEnd !== null) {
+                    $offset = $procedureEnd + 1;
+                    continue;
+                }
             }
 
             if ($this->pdfKeywordAt($cmap, $offset, $operator)) {
