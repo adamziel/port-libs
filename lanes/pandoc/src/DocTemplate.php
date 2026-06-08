@@ -409,6 +409,10 @@ final class DocTemplate
             'default.latex' => $this->defaultLatexTemplate(),
             'default.beamer' => $this->defaultBeamerTemplate(),
             'default.revealjs' => $this->defaultRevealJsTemplate(),
+            'default.s5' => $this->defaultS5Template(),
+            'default.slidy' => $this->defaultSlidyTemplate(),
+            'default.slideous' => $this->defaultSlideousTemplate(),
+            'default.dzslides' => $this->defaultDzslidesTemplate(),
             'default.context' => $this->defaultContextTemplate(),
             'default.man' => $this->defaultManTemplate(),
             'default.ms' => $this->defaultMsTemplate(),
@@ -446,6 +450,10 @@ final class DocTemplate
             'default.latex',
             'default.beamer',
             'default.revealjs',
+            'default.s5',
+            'default.slidy',
+            'default.slideous',
+            'default.dzslides',
             'default.context',
             'default.man',
             'default.ms',
@@ -1244,6 +1252,348 @@ $endif$});
 </body>
 </html>
 REVEALJS;
+    }
+
+    private function defaultS5Template(): string
+    {
+        return <<<'S5'
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+$for(author-meta)$
+  <meta name="version" content="S5 1.1" />
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="date" content="$date-meta$" />
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+  <style type="text/css">
+    $styles.html()$
+  </style>
+  <meta name="defaultView" content="slideshow" />
+  <meta name="controlVis" content="hidden" />
+$for(css)$
+  <link rel="stylesheet" href="$css$" type="text/css" />
+$endfor$
+  <link rel="stylesheet" href="$s5-url$/slides.css" type="text/css" media="projection" id="slideProj" />
+  <link rel="stylesheet" href="$s5-url$/outline.css" type="text/css" media="screen" id="outlineStyle" />
+  <link rel="stylesheet" href="$s5-url$/print.css" type="text/css" media="print" id="slidePrint" />
+  <link rel="stylesheet" href="$s5-url$/opera.css" type="text/css" media="projection" id="operaFix" />
+  <script src="$s5-url$/slides.js" type="text/javascript"></script>
+$if(math)$
+  $math$
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+</head>
+<body>
+$for(include-before)$
+$include-before$
+$endfor$
+<div class="layout">
+<div id="controls"></div>
+<div id="currentSlide"></div>
+<div id="header"></div>
+<div id="footer">
+  <h1>$date$</h1>
+  <h2>$title$</h2>
+</div>
+</div>
+<div class="presentation">
+$if(title)$
+<div class="title-slide slide">
+  <h1 class="title">$title$</h1>
+$if(subtitle)$
+  <h2 class="subtitle">$subtitle$</h2>
+$endif$
+$if(author)$
+  <h3 class="author">$for(author)$$author$$sep$<br/>$endfor$</h3>
+$endif$
+$if(institute)$
+  <h3 class="institute">$for(institute)$$institute$$sep$<br/>$endfor$</h3>
+$endif$
+$if(date)$
+  <h4 class="date">$date$</h4>
+$endif$
+</div>
+$endif$
+$if(toc)$
+<div class="slide" id="$idprefix$TOC">
+$table-of-contents$
+</div>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+</div>
+</body>
+</html>
+S5;
+    }
+
+    private function defaultSlidyTemplate(): string
+    {
+        return <<<'SLIDY'
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+$for(author-meta)$
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="date" content="$date-meta$" />
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+  <style type="text/css">
+    $styles.html()$
+  </style>
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+    href="$slidy-url$/styles/slidy.css" />
+$for(css)$
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+   href="$css$" />
+$endfor$
+$if(math)$
+  $math$
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+  <script src="$slidy-url$/scripts/slidy.js"
+    charset="utf-8" type="text/javascript"></script>
+$if(duration)$
+  <meta name="duration" content="$duration$" />
+$endif$
+</head>
+<body>
+$for(include-before)$
+$include-before$
+$endfor$
+$if(title)$
+<div class="slide titlepage">
+  <h1 class="title">$title$</h1>
+$if(subtitle)$
+  <p class="subtitle">$subtitle$</p>
+$endif$
+$if(author)$
+  <p class="author">
+$for(author)$$author$$sep$<br/>$endfor$
+  </p>
+$endif$
+$if(institute)$
+  <p class="institute">
+$for(institute)$$institute$$sep$<br/>$endfor$
+  </p>
+$endif$
+$if(date)$
+  <p class="date">$date$</p>
+$endif$
+</div>
+$endif$
+$if(toc)$
+<div class="slide" id="$idprefix$TOC">
+$table-of-contents$
+</div>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+</body>
+</html>
+SLIDY;
+    }
+
+    private function defaultSlideousTemplate(): string
+    {
+        return <<<'SLIDEOUS'
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+$for(author-meta)$
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="date" content="$date-meta$" />
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+  <style type="text/css">
+    $styles.html()$
+  </style>
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+    href="$slideous-url$/slideous.css" />
+$for(css)$
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+   href="$css$" />
+$endfor$
+$if(math)$
+  $math$
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+  <script src="$slideous-url$/slideous.js"
+    charset="utf-8" type="text/javascript"></script>
+$if(duration)$
+  <meta name="duration" content="$duration$" />
+$endif$
+</head>
+<body>
+$for(include-before)$
+$include-before$
+$endfor$
+<div id="statusbar">
+<span style="float:right;">
+<span style="margin-right:4em;font-weight:bold;"><span id="slideidx"></span> of {$$slidecount}</span>
+<button id="homebutton" title="first slide">1</button>
+<button id="prevslidebutton" title="previous slide">&laquo;</button>
+<button id="previtembutton" title="previous item">&lsaquo;</button>
+<button id="nextitembutton" title="next item">&rsaquo;</button>
+<button id="nextslidebutton" title="next slide">&raquo;</button>
+<button id="endbutton" title="last slide">{$$slidecount}</button>
+<button id="incfontbutton" title="content">A+</button>
+<button id="decfontbutton" title="first slide">A-</button>
+<select id="tocbox" size="1"><option></option></select>
+</span>
+<span id="eos">&frac12;</span>
+<span title="{$$location}, {$$date}">{$$title}, {$$author}</span>
+</div>
+$if(title)$
+<div class="slide titlepage">
+  <h1 class="title">$title$</h1>
+$if(subtitle)$
+  <h1 class="subtitle">$subtitle$</h1>
+$endif$
+$if(author)$
+  <p class="author">
+$for(author)$$author$$sep$<br/>$endfor$
+  </p>
+$endif$
+$if(institute)$
+  <p class="institute">
+$for(institute)$$institute$$sep$<br/>$endfor$
+  </p>
+$endif$
+$if(date)$
+  <p class="date">$date$</p>
+$endif$
+</div>
+$endif$
+$if(toc)$
+<div class="slide" id="$idprefix$TOC">
+$table-of-contents$
+</div>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+</body>
+</html>
+SLIDEOUS;
+    }
+
+    private function defaultDzslidesTemplate(): string
+    {
+        return <<<'DZSLIDES'
+<!DOCTYPE html>
+<head$if(lang)$ lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+  <meta charset="utf-8">
+  <meta name="generator" content="pandoc">
+$for(author-meta)$
+  <meta name="author" content="$author-meta$">
+$endfor$
+$if(date-meta)$
+  <meta name="dcterms.date" content="$date-meta$">
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$">
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+  <style>
+    $styles.html()$
+  </style>
+$if(css)$
+$for(css)$
+  <link rel="stylesheet" href="$css$">
+$endfor$
+$else$
+<style>
+  html, .view body { background-color: black; counter-reset: slideidx; }
+  body, .view section { background-color: white; border-radius: 12px }
+  section, .view head > title {
+      font-family: 'Oswald', arial, serif;
+      font-size: 30px;
+  }
+  section { left: -150%; }
+  section[aria-selected] { left: 0; }
+  section[aria-selected] ~ section { left: +150%; }
+  #progress-bar {
+    height: 2px;
+    background: #AAA;
+  }
+</style>
+$endif$
+$if(math)$
+  $math$
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+</head>
+<body>
+$if(title)$
+<section class="title">
+  <h1 class="title">$title$</h1>
+$if(subtitle)$
+  <h1 class="subtitle">$subtitle$</h1>
+$endif$
+  <footer>
+    $if(author)$<span class="author">$for(author)$$author$$sep$, $endfor$</span> · $endif$$if(institute)$<span class="institute">$for(institute)$$institute$$sep$, $endfor$</span> · $endif$$if(date)$<span class="date">$date$</span>$endif$
+  </footer>
+</section>
+$endif$
+$if(toc)$
+<section id="$idprefix$TOC">
+$table-of-contents$
+</section>
+$endif$
+$for(include-before)$
+$include-before$
+$endfor$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+$dzslides-core$
+</body>
+</html>
+DZSLIDES;
     }
 
     private function defaultOpenXmlTemplate(): string

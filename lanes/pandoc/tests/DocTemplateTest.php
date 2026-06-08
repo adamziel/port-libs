@@ -2135,6 +2135,112 @@ HTML,
         ], null, 'revealjs'));
     },
 
+    'renders bounded pandoc default legacy html slide template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $context = [
+            'lang' => 'en',
+            'dir' => 'ltr',
+            'pagetitle' => 'Legacy Slide Packet',
+            'title-prefix' => 'WordPress Import',
+            'title' => 'Legacy Slides',
+            'subtitle' => 'Native doctemplate packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'author-meta' => ['Migration bot', 'Content editor'],
+            'institute' => ['Review desk'],
+            'date' => '2026-06-08',
+            'date-meta' => '2026-06-08',
+            'keywords' => ['migration', 'slides', 'wordpress'],
+            'css' => ['review-slides.css'],
+            'header-includes' => ['<meta name="robots" content="noindex">'],
+            'include-before' => ['<section><h2>Reviewer Queue</h2></section>'],
+            'toc' => true,
+            'idprefix' => 'legacy-',
+            'table-of-contents' => '<ul><li>Imported slides</li></ul>',
+            'body' => '<section><h2>Imported slides</h2><p>Review body.</p></section>',
+            'include-after' => ['<section><h2>Handoff</h2></section>'],
+            's5-url' => 'vendor/s5/default',
+            'slidy-url' => 'vendor/slidy',
+            'slideous-url' => 'vendor/slideous',
+            'duration' => '12',
+            'dzslides-core' => '<script>window.__dzslidesReview = true;</script>',
+            'document-css' => true,
+        ];
+
+        $s5 = $renderer->renderResource('templates/default', [], $context, null, 's5');
+        foreach ([
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"',
+            '<meta name="version" content="S5 1.1" />',
+            '<title>WordPress Import – Legacy Slide Packet</title>',
+            '<link rel="stylesheet" href="vendor/s5/default/slides.css" type="text/css" media="projection" id="slideProj" />',
+            '<script src="vendor/s5/default/slides.js" type="text/javascript"></script>',
+            '<div class="title-slide slide">',
+            '<h1 class="title">Legacy Slides</h1>',
+            '<h2 class="subtitle">Native doctemplate packet</h2>',
+            '<h3 class="author">Migration bot<br/>Content editor</h3>',
+            '<h3 class="institute">Review desk</h3>',
+            '<div class="slide" id="legacy-TOC">',
+            '<section><h2>Imported slides</h2><p>Review body.</p></section>',
+        ] as $needle) {
+            $t->contains($needle, $s5);
+        }
+
+        $wrappedS5 = $renderer->renderResource('templates/wrapper', [
+            'templates/wrapper.s5' => '<div class="wrapped-slide">${ default() }</div>',
+        ], $context, null, 's5');
+        $t->contains('<div class="wrapped-slide"><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"', $wrappedS5);
+        $t->contains('<h1 class="title">Legacy Slides</h1>', $wrappedS5);
+
+        $slidy = $renderer->renderResource('templates/default', [], $context, null, 'slidy');
+        foreach ([
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"',
+            '<link rel="stylesheet" type="text/css" media="screen, projection, print"',
+            'href="vendor/slidy/styles/slidy.css"',
+            '<script src="vendor/slidy/scripts/slidy.js"',
+            '<meta name="duration" content="12" />',
+            '<div class="slide titlepage">',
+            '<p class="subtitle">Native doctemplate packet</p>',
+            '<p class="author">',
+            'Migration bot<br/>Content editor',
+        ] as $needle) {
+            $t->contains($needle, $slidy);
+        }
+
+        $slideous = $renderer->renderResource('templates/default', [], $context, null, 'slideous');
+        foreach ([
+            'href="vendor/slideous/slideous.css"',
+            '<script src="vendor/slideous/slideous.js"',
+            '<div id="statusbar">',
+            '<button id="prevslidebutton" title="previous slide">&laquo;</button>',
+            '<span id="eos">&frac12;</span>',
+            '<h1 class="subtitle">Native doctemplate packet</h1>',
+            '<section><h2>Handoff</h2></section>',
+        ] as $needle) {
+            $t->contains($needle, $slideous);
+        }
+
+        $dzslides = $renderer->renderResource('templates/default', [], $context, null, 'dzslides');
+        foreach ([
+            '<!DOCTYPE html>',
+            '<head lang="en" dir="ltr">',
+            '<meta name="dcterms.date" content="2026-06-08">',
+            '<link rel="stylesheet" href="review-slides.css">',
+            '<section class="title">',
+            '<h1 class="title">Legacy Slides</h1>',
+            '<span class="author">Migration bot, Content editor</span> · <span class="institute">Review desk</span> · <span class="date">2026-06-08</span>',
+            '<section id="legacy-TOC">',
+            '<script>window.__dzslidesReview = true;</script>',
+        ] as $needle) {
+            $t->contains($needle, $dzslides);
+        }
+
+        $t->same('custom s5', $renderer->renderResource('templates/default', [
+            'templates/default.s5' => 'custom $body$',
+        ], [
+            'body' => 's5',
+        ], null, 's5'));
+    },
+
     'renders bounded pandoc default office and epub template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

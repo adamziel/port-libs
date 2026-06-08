@@ -687,6 +687,81 @@ HTML,
         }
     }
 
+    $legacySlideContext = [
+        'lang' => 'en',
+        'dir' => 'ltr',
+        'pagetitle' => 'Legacy Slide Review',
+        'title-prefix' => 'WordPress Import',
+        'title' => 'Legacy Slide Defaults',
+        'subtitle' => 'Native doctemplate packet',
+        'author' => ['Migration bot'],
+        'author-meta' => ['Migration bot'],
+        'institute' => ['Review desk'],
+        'date' => '2026-06-08',
+        'date-meta' => '2026-06-08',
+        'keywords' => ['migration', 'slides'],
+        'css' => ['review-slides.css'],
+        'toc' => true,
+        'idprefix' => 'legacy-',
+        'table-of-contents' => '<ul><li>Imported slides</li></ul>',
+        'body' => '<section><h2>Imported slide body</h2></section>',
+        's5-url' => 'vendor/s5/default',
+        'slidy-url' => 'vendor/slidy',
+        'slideous-url' => 'vendor/slideous',
+        'duration' => '8',
+        'dzslides-core' => '<script>window.__legacySlideReview = true;</script>',
+    ];
+    $legacySlideFallbacks = [
+        's5' => [
+            (new DocTemplate())->renderResource('templates/default', [], $legacySlideContext, null, 's5'),
+            [
+                '<meta name="version" content="S5 1.1" />',
+                '<link rel="stylesheet" href="vendor/s5/default/slides.css" type="text/css" media="projection" id="slideProj" />',
+                '<script src="vendor/s5/default/slides.js" type="text/javascript"></script>',
+                '<div class="title-slide slide">',
+                '<section><h2>Imported slide body</h2></section>',
+            ],
+        ],
+        'slidy' => [
+            (new DocTemplate())->renderResource('templates/default', [], $legacySlideContext, null, 'slidy'),
+            [
+                'href="vendor/slidy/styles/slidy.css"',
+                '<script src="vendor/slidy/scripts/slidy.js"',
+                '<meta name="duration" content="8" />',
+                '<div class="slide titlepage">',
+                '<section><h2>Imported slide body</h2></section>',
+            ],
+        ],
+        'slideous' => [
+            (new DocTemplate())->renderResource('templates/default', [], $legacySlideContext, null, 'slideous'),
+            [
+                'href="vendor/slideous/slideous.css"',
+                '<script src="vendor/slideous/slideous.js"',
+                '<div id="statusbar">',
+                '<button id="nextslidebutton" title="next slide">&raquo;</button>',
+                '<section><h2>Imported slide body</h2></section>',
+            ],
+        ],
+        'dzslides' => [
+            (new DocTemplate())->renderResource('templates/default', [], $legacySlideContext, null, 'dzslides'),
+            [
+                '<head lang="en" dir="ltr">',
+                '<section class="title">',
+                '<span class="author">Migration bot</span> · <span class="institute">Review desk</span> · <span class="date">2026-06-08</span>',
+                '<section id="legacy-TOC">',
+                '<script>window.__legacySlideReview = true;</script>',
+            ],
+        ],
+    ];
+    foreach ($legacySlideFallbacks as $format => [$rendered, $needles]) {
+        foreach ($needles as $needle) {
+            if (!str_contains($rendered, $needle)) {
+                fwrite(STDERR, "Missing expected doctemplate {$format} legacy slide fallback: {$needle}\n");
+                exit(1);
+            }
+        }
+    }
+
     $typstFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'title' => 'Typst Default Review',
         'subtitle' => 'Native metadata handoff',
