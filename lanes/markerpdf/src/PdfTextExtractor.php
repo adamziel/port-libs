@@ -7466,7 +7466,7 @@ final class PdfTextExtractor
     {
         $stream = $this->streamDictionaryAndPayload($charProcObjectBody, $objects);
         if ($stream === null) {
-            return trim($charProcObjectBody);
+            return null;
         }
 
         if ($this->isImageStreamDictionary($stream['dict'], $objects)) {

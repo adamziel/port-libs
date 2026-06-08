@@ -306,7 +306,14 @@ final class LayoutOrderer
         $payload = $this->orderResultPayloadSource($orderResult, $page, $selectedIndex, $sourceIndex);
 
         $hasImageBbox = array_key_exists('image_bbox', $payload);
-        $imageBbox = $this->bboxValue($payload['image_bbox'] ?? null);
+        $imageBbox = $this->bboxValueFromRecordField($payload, 'image_bbox', [
+            'image_bbox_order',
+            'image_bbox_coordinate_order',
+            'image_bbox_coordinate_format',
+            'image_bbox_format',
+            'image_coordinate_order',
+            'image_coordinate_format',
+        ], false);
         $hasUsableImageBbox = $imageBbox !== null && $this->rectWidth($imageBbox) > 0.0 && $this->rectHeight($imageBbox) > 0.0;
         if ($hasUsableImageBbox) {
             $sanitized['image_bbox'] = $imageBbox;
@@ -318,7 +325,8 @@ final class LayoutOrderer
                 $page,
                 $selectedIndex,
                 $sourceIndex,
-                $hasImageBbox && !$hasUsableImageBbox
+                $hasImageBbox && !$hasUsableImageBbox,
+                $payload
             );
         }
 
@@ -607,7 +615,8 @@ final class LayoutOrderer
         ?array $page = null,
         int $selectedIndex = 0,
         ?int $sourceIndex = null,
-        bool $rejectNormalizedBboxesWithoutImageExtent = false
+        bool $rejectNormalizedBboxesWithoutImageExtent = false,
+        ?array $sharedBboxOrderSource = null
     ): array
     {
         if (!is_array($boxes) || !array_is_list($boxes)) {
@@ -623,7 +632,7 @@ final class LayoutOrderer
                 continue;
             }
 
-            $bbox = $this->bboxValue($box);
+            $bbox = $this->bboxValueWithSharedCoordinateOrder($box, $sharedBboxOrderSource);
             if ($bbox === null) {
                 continue;
             }
@@ -650,6 +659,44 @@ final class LayoutOrderer
         }
 
         return $sanitized;
+    }
+
+    /**
+     * @param array<string, mixed> $box
+     * @param array<string, mixed>|null $sharedBboxOrderSource
+     * @return list<float>|null
+     */
+    private function bboxValueWithSharedCoordinateOrder(array $box, ?array $sharedBboxOrderSource): ?array
+    {
+        if ($this->bboxCoordinateOrder($box) !== null) {
+            return $this->bboxValue($box);
+        }
+
+        $sharedOrder = $sharedBboxOrderSource === null
+            ? null
+            : $this->bboxCoordinateOrder($sharedBboxOrderSource, [
+                'bboxes_bbox_order',
+                'bboxes_coordinate_order',
+                'bboxes_coordinate_format',
+                'bboxes_bbox_coordinate_order',
+                'bboxes_bbox_coordinate_format',
+                'bboxes_bbox_format',
+                'order_bboxes_bbox_order',
+                'order_bboxes_coordinate_order',
+                'order_bboxes_coordinate_format',
+                'order_bboxes_bbox_coordinate_order',
+                'order_bboxes_bbox_coordinate_format',
+                'order_bboxes_bbox_format',
+            ]);
+
+        if ($sharedOrder !== null && isset($box['bbox']) && is_array($box['bbox'])) {
+            $bbox = $this->bboxFromCoordinateList($box['bbox'], $sharedOrder);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
+        return $this->bboxValue($box);
     }
 
     /**
@@ -1220,7 +1267,7 @@ final class LayoutOrderer
         }
 
         if (array_key_exists('bbox', $value)) {
-            return $this->bboxValue($value['bbox'])
+            return $this->bboxValueFromRecordField($value, 'bbox')
                 ?? $this->bboxFromNamedFields($value)
                 ?? $this->polygonAliasBbox($value);
         }
@@ -1232,10 +1279,40 @@ final class LayoutOrderer
     }
 
     /**
+     * @param array<string, mixed> $record
+     * @param list<string> $orderKeys
+     * @return list<float>|null
+     */
+    private function bboxValueFromRecordField(
+        array $record,
+        string $field,
+        array $orderKeys = [],
+        bool $includeGenericOrderKeys = true
+    ): ?array
+    {
+        if (!array_key_exists($field, $record)) {
+            return null;
+        }
+
+        $value = $record[$field];
+        if (is_array($value)) {
+            $order = $this->bboxCoordinateOrder($record, $orderKeys, $includeGenericOrderKeys);
+            if ($order !== null) {
+                $bbox = $this->bboxFromCoordinateList($value, $order);
+                if ($bbox !== null) {
+                    return $bbox;
+                }
+            }
+        }
+
+        return $this->bboxValue($value);
+    }
+
+    /**
      * @param mixed $value
      * @return list<float>|null
      */
-    private function bboxFromCoordinateList(mixed $value): ?array
+    private function bboxFromCoordinateList(mixed $value, ?string $coordinateOrder = null): ?array
     {
         if (!is_array($value) || !array_is_list($value) || count($value) !== 4) {
             return null;
@@ -1245,8 +1322,98 @@ final class LayoutOrderer
         if ($coordinates === null) {
             return null;
         }
+        if ($coordinateOrder !== null) {
+            $coordinates = $this->applyBboxCoordinateOrder($coordinates, $coordinateOrder);
+        }
 
         return $this->normalizeRect($coordinates);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<string> $preferredKeys
+     */
+    private function bboxCoordinateOrder(
+        array $record,
+        array $preferredKeys = [],
+        bool $includeGenericKeys = true
+    ): ?string
+    {
+        $keys = $preferredKeys;
+        if ($includeGenericKeys) {
+            $keys = [
+                ...$keys,
+                'bbox_order',
+                'bbox_coordinate_order',
+                'bbox_coordinate_format',
+                'bbox_format',
+                'coordinate_order',
+                'coordinate_format',
+            ];
+        }
+        $keys = array_values(array_unique($keys));
+
+        foreach ($keys as $key) {
+            if (!isset($record[$key]) || !is_scalar($record[$key])) {
+                continue;
+            }
+
+            $order = $this->canonicalBboxCoordinateOrder((string) $record[$key]);
+            if ($order !== null) {
+                return $order;
+            }
+        }
+
+        return null;
+    }
+
+    private function canonicalBboxCoordinateOrder(string $order): ?string
+    {
+        $normalized = strtolower(trim($order));
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? $normalized;
+        $normalized = trim($normalized, '_');
+
+        return match ($normalized) {
+            'xyxy',
+            'x1_y1_x2_y2',
+            'x0_y0_x1_y1',
+            'xmin_ymin_xmax_ymax',
+            'x_min_y_min_x_max_y_max',
+            'left_top_right_bottom' => 'xyxy',
+            'xxyy',
+            'x1_x2_y1_y2',
+            'x0_x1_y0_y1',
+            'xmin_xmax_ymin_ymax',
+            'x_min_x_max_y_min_y_max',
+            'left_right_top_bottom' => 'xxyy',
+            'yxyx',
+            'y1_x1_y2_x2',
+            'y0_x0_y1_x1',
+            'ymin_xmin_ymax_xmax',
+            'y_min_x_min_y_max_x_max',
+            'top_left_bottom_right' => 'yxyx',
+            'yyxx',
+            'y1_y2_x1_x2',
+            'y0_y1_x0_x1',
+            'ymin_ymax_xmin_xmax',
+            'y_min_y_max_x_min_x_max',
+            'top_bottom_left_right' => 'yyxx',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<float> $raw
+     * @return list<float>
+     */
+    private function applyBboxCoordinateOrder(array $raw, string $order): array
+    {
+        return match ($order) {
+            'xxyy' => [$raw[0], $raw[2], $raw[1], $raw[3]],
+            'yxyx' => [$raw[1], $raw[0], $raw[3], $raw[2]],
+            'yyxx' => [$raw[2], $raw[0], $raw[3], $raw[1]],
+            default => $raw,
+        };
     }
 
     /**
