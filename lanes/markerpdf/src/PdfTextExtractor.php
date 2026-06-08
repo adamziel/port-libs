@@ -5500,12 +5500,16 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($token === 'cm' && $this->contentMatrixOperand($operands) === null) {
-                $malformedCtmOperand = $this->malformedImageXObjectCtmOperandDetail($operands, $currentStates);
-                foreach ($currentStates as $index => $state) {
-                    $stack = $this->imageInvocationMalformedCtmOperandStack($state['malformed_ctm_operands'] ?? []);
-                    $stack[] = $malformedCtmOperand;
-                    $currentStates[$index]['malformed_ctm_operands'] = $stack;
+            $validCtmOperand = false;
+            if ($token === 'cm') {
+                $validCtmOperand = $this->contentMatrixOperand($operands) !== null;
+                if (!$validCtmOperand) {
+                    $malformedCtmOperand = $this->malformedImageXObjectCtmOperandDetail($operands, $currentStates);
+                    foreach ($currentStates as $index => $state) {
+                        $stack = $this->imageInvocationMalformedCtmOperandStack($state['malformed_ctm_operands'] ?? []);
+                        $stack[] = $malformedCtmOperand;
+                        $currentStates[$index]['malformed_ctm_operands'] = $stack;
+                    }
                 }
             }
 
@@ -5534,6 +5538,11 @@ final class PdfTextExtractor
                 }
             }
             if ($clipPathOperatorHandled) {
+                if ($validCtmOperand) {
+                    foreach ($currentStates as $index => $state) {
+                        $currentStates[$index]['malformed_ctm_operands'] = [];
+                    }
+                }
                 $operands = [];
                 continue;
             }

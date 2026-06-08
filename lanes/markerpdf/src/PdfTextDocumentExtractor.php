@@ -359,6 +359,7 @@ final class PdfTextDocumentExtractor
             }
         }
 
+        $malformedPageListKey = false;
         foreach (['pages', 'page_map', 'pageMap'] as $pageListKey) {
             if (!array_key_exists($pageListKey, $value)) {
                 continue;
@@ -366,6 +367,7 @@ final class PdfTextDocumentExtractor
 
             $pages = $this->normalizeSuppliedDictionaryEnvelopeValue($value[$pageListKey]);
             if (!is_array($pages)) {
+                $malformedPageListKey = true;
                 continue;
             }
 
@@ -378,9 +380,11 @@ final class PdfTextDocumentExtractor
                 return $pageList;
             }
 
-            if ($pageListKey === 'pages') {
-                return null;
-            }
+            $malformedPageListKey = true;
+        }
+
+        if ($malformedPageListKey) {
+            return null;
         }
 
         $pageList = $this->orderedSuppliedDictionaryPageList($value);
