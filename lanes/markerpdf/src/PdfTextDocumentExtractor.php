@@ -400,11 +400,14 @@ final class PdfTextDocumentExtractor
         }
 
         $trimmed = trim($key);
-        if (preg_match('/^[+-]?\d+$/', $trimmed) !== 1) {
+        if (preg_match('/^([+-]?)(\d+)(?:\.0+)?$/', $trimmed, $match) !== 1) {
             return null;
         }
 
-        return (int) $trimmed;
+        $number = ltrim($match[2], '0');
+        $integer = (int) ($number === '' ? '0' : $number);
+
+        return $match[1] === '-' ? -$integer : $integer;
     }
 
     /**
