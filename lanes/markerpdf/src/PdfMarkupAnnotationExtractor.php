@@ -508,8 +508,19 @@ final class PdfMarkupAnnotationExtractor
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      * @param array<int, string> $objects
      */
-    private function annotationBodiesFromValue(string $value, array $objects, int $pageObjectNumber, ?int $pageGeneration): array
+    private function annotationBodiesFromValue(
+        string $value,
+        array $objects,
+        int $pageObjectNumber,
+        ?int $pageGeneration,
+        int $depth = 0,
+        array $seen = []
+    ): array
     {
+        if ($depth > 12) {
+            return [];
+        }
+
         $value = trim($value);
         if ($value === '') {
             return [];
@@ -517,20 +528,45 @@ final class PdfMarkupAnnotationExtractor
 
         $reference = $this->objectReferenceFromValue($value);
         if ($reference !== null) {
+            $referenceKey = $reference['object'] . ':' . $reference['generation'];
+            if (isset($seen[$referenceKey])) {
+                return [];
+            }
+            $seen[$referenceKey] = true;
+
             $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
             if ($objectBody === null) {
                 return [];
             }
 
-            if (str_starts_with($objectBody, '[')) {
-                if ($this->arrayValueHasTrailingOperand($objectBody)) {
+            $trimmedObjectBody = trim($objectBody);
+            if (str_starts_with($trimmedObjectBody, '[')) {
+                if ($this->arrayValueHasTrailingOperand($trimmedObjectBody)) {
                     return [];
                 }
 
-                return $this->annotationBodiesFromArray($this->arrayBodyFromValue($objectBody), $objects, $pageObjectNumber, $pageGeneration);
+                return $this->annotationBodiesFromArray(
+                    $this->arrayBodyFromValue($trimmedObjectBody),
+                    $objects,
+                    $pageObjectNumber,
+                    $pageGeneration,
+                    $depth + 1,
+                    $seen
+                );
             }
 
-            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($this->objectReferenceFromValue($trimmedObjectBody) !== null) {
+                return $this->annotationBodiesFromValue(
+                    $trimmedObjectBody,
+                    $objects,
+                    $pageObjectNumber,
+                    $pageGeneration,
+                    $depth + 1,
+                    $seen
+                );
+            }
+
+            $dictionary = $this->dictionaryObjectBody($trimmedObjectBody);
             return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)
                 ? []
                 : [['body' => $dictionary, 'object' => $reference['object'], 'generation' => $reference['generation']]];
@@ -578,8 +614,19 @@ final class PdfMarkupAnnotationExtractor
      * @return list<array{body: string, object: int|null, generation?: int|null}>
      * @param array<int, string> $objects
      */
-    private function annotationBodiesFromArray(?string $arrayBody, array $objects, int $pageObjectNumber, ?int $pageGeneration): array
+    private function annotationBodiesFromArray(
+        ?string $arrayBody,
+        array $objects,
+        int $pageObjectNumber,
+        ?int $pageGeneration,
+        int $depth = 0,
+        array $seen = []
+    ): array
     {
+        if ($depth > 12) {
+            return [];
+        }
+
         if ($arrayBody === null) {
             return [];
         }
@@ -613,14 +660,15 @@ final class PdfMarkupAnnotationExtractor
 
             $reference = $this->objectReferenceFromValue($value);
             if ($reference !== null) {
-                $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
-                $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
-                if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration, $objects)) {
-                    $annotations[] = [
-                        'body' => $dictionary,
-                        'object' => $reference['object'],
-                        'generation' => $reference['generation'],
-                    ];
+                foreach ($this->annotationBodiesFromValue(
+                    $value,
+                    $objects,
+                    $pageObjectNumber,
+                    $pageGeneration,
+                    $depth + 1,
+                    $seen
+                ) as $annotation) {
+                    $annotations[] = $annotation;
                 }
                 $offset = $endOffset;
                 continue;

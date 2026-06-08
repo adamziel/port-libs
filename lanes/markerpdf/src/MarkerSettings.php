@@ -106,6 +106,93 @@ final class MarkerSettings
     }
 
     /**
+     * Reviews upstream settings.py computed runtime settings without importing torch.
+     *
+     * @param array<string, string|int|float|bool|null> $environment
+     * @return array<string, mixed>
+     */
+    public function runtimeDevicePreflightPlan(array $environment = []): array
+    {
+        $settings = $environment === [] ? $this : self::fromEnvironment($environment);
+        $torchDevice = $settings->values['TORCH_DEVICE'];
+        $torchDeviceModel = $settings->torchDeviceModel();
+        $providedEnvironmentKeys = array_map('strval', array_keys($environment));
+        $knownEnvironmentKeys = array_values(array_filter(
+            $providedEnvironmentKeys,
+            static fn (string $key): bool => array_key_exists($key, self::DEFAULTS)
+        ));
+        $ignoredEnvironmentKeys = array_values(array_filter(
+            $providedEnvironmentKeys,
+            static fn (string $key): bool => !array_key_exists($key, self::DEFAULTS)
+        ));
+
+        return [
+            'schema' => 'markerpdf.settings_runtime_device_preflight.v1',
+            'source' => 'sddai/markerPDF marker/settings.py Settings computed TORCH_DEVICE_MODEL/CUDA/MODEL_DTYPE/TEXIFY_DTYPE',
+            'settings' => [
+                'TORCH_DEVICE' => $torchDevice,
+                'TORCH_DEVICE_MODEL' => $torchDeviceModel,
+                'CUDA' => $settings->cuda(),
+                'MODEL_DTYPE' => $settings->modelDtype(),
+                'TEXIFY_DTYPE' => $settings->texifyDtype(),
+                'PDFTEXT_CPU_WORKERS' => $settings->values['PDFTEXT_CPU_WORKERS'],
+                'OCR_ENGINE' => $settings->values['OCR_ENGINE'],
+                'OCR_ALL_PAGES' => $settings->values['OCR_ALL_PAGES'],
+                'IMAGE_DPI' => $settings->values['IMAGE_DPI'],
+                'EXTRACT_IMAGES' => $settings->values['EXTRACT_IMAGES'],
+                'PAGINATE_OUTPUT' => $settings->values['PAGINATE_OUTPUT'],
+                'FLATTEN_PDF' => $settings->values['FLATTEN_PDF'],
+            ],
+            'environment_review' => [
+                'provided_environment_keys' => $providedEnvironmentKeys,
+                'known_environment_keys' => $knownEnvironmentKeys,
+                'ignored_environment_keys' => $ignoredEnvironmentKeys,
+                'extra_policy' => 'ignore',
+                'upstream_env_file_lookup' => 'find_dotenv("local.env")',
+                'upstream_env_file_name' => 'local.env',
+                'native_reads_env_file' => false,
+                'native_reads_process_environment' => false,
+                'explicit_environment_argument_only' => true,
+                'extra_unknown_settings_ignored' => true,
+            ],
+            'computed_fields' => [
+                'explicit_torch_device_preserved' => $torchDevice !== null,
+                'torch_device_model_source' => $torchDevice !== null
+                    ? 'explicit_TORCH_DEVICE'
+                    : 'native_cpu_fallback_without_torch_probe',
+                'native_torch_backend_probe_executed' => false,
+                'torch_cuda_is_available_probe_reached' => false,
+                'torch_mps_is_available_probe_reached' => false,
+                'cuda_membership_expression' => '"cuda" in self.TORCH_DEVICE_MODEL',
+                'cuda_membership_is_case_sensitive' => true,
+                'model_dtype_expression' => 'torch.bfloat16 if TORCH_DEVICE_MODEL == "cuda" else torch.float32',
+                'texify_dtype_expression' => 'torch.float32 if TORCH_DEVICE_MODEL == "cpu" else torch.float16',
+                'model_dtype_cuda_requires_exact_cuda' => true,
+                'texify_dtype_cpu_requires_exact_cpu' => true,
+            ],
+            'runtime_consumers' => [
+                'convert_py_environment' => [
+                    'PYTORCH_ENABLE_MPS_FALLBACK' => '1',
+                    'IN_STREAMLIT' => 'true',
+                    'PDFTEXT_CPU_WORKERS' => '1',
+                ],
+                'convert_py_mps_branch_expression' => 'settings.TORCH_DEVICE == "mps" or settings.TORCH_DEVICE_MODEL == "mps"',
+                'convert_py_mps_branch' => $torchDevice === 'mps' || $torchDeviceModel === 'mps',
+                'convert_py_parent_share_memory_branch' => !($torchDevice === 'mps' || $torchDeviceModel === 'mps'),
+            ],
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_torch_backend_probe' => false,
+            'executes_cuda_probe' => false,
+            'executes_mps_probe' => false,
+            'executes_multiprocessing' => false,
+            'executes_streamlit' => false,
+            'executes_fastapi' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function all(): array

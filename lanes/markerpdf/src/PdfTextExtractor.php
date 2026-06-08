@@ -23883,6 +23883,27 @@ final class PdfTextExtractor
             }
 
             $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            $value = substr($dictionary, $valueOffset, max(0, $nextOffset - $valueOffset));
+            if (
+                $rejectMalformedReferenceTail
+                && !isset($excludedNames[$glyphName])
+                && $this->charProcGlyphValueIsArrayWrappedReference($value)
+            ) {
+                $malformedReferenceTailByGlyph[$glyphName] = true;
+                unset($references[$glyphName]);
+                $offset = $nextOffset;
+                continue;
+            }
+
+            if (!$rejectMalformedReferenceTail && !isset($excludedNames[$glyphName])) {
+                foreach ($this->charProcObjectReferencesFromWrappedGlyphValue($value, []) as $valueReference) {
+                    $references[$glyphName . "\0" . count($references)] = [
+                        'objectNumber' => $valueReference['objectNumber'],
+                        'generation' => $valueReference['generation'],
+                    ];
+                }
+            }
+
             $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
         }
 
@@ -23895,6 +23916,51 @@ final class PdfTextExtractor
         }
 
         return $references;
+    }
+
+    private function charProcGlyphValueIsArrayWrappedReference(string $value): bool
+    {
+        $value = ltrim($value);
+
+        return str_starts_with($value, '[');
+    }
+
+    /**
+     * @return list<array{objectNumber: int, generation: int}>
+     * @param array<int, string> $objects
+     */
+    private function charProcObjectReferencesFromWrappedGlyphValue(string $value, array $objects): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
+        if ($reference !== null) {
+            return [$reference];
+        }
+
+        $array = $this->pdfArrayFromValue($value, $objects);
+        if ($array !== null) {
+            $references = [];
+            foreach ($this->pdfArrayItems($array) as $item) {
+                foreach ($this->charProcObjectReferencesFromWrappedGlyphValue($item, $objects) as $itemReference) {
+                    $references[] = $itemReference;
+                }
+            }
+
+            return $this->uniquePdfReferenceList($references);
+        }
+
+        if (!str_starts_with($value, '<<')) {
+            return [];
+        }
+
+        $dictionary = $this->readPdfDictionaryAt($value, 0);
+        return $dictionary === null
+            ? []
+            : array_values($this->charProcObjectReferencesFromDictionary($dictionary, [], false));
     }
 
     private function charProcReferenceHasMalformedTail(string $dictionary, int $offset): bool
