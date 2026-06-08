@@ -3802,6 +3802,9 @@ final class PdfOutlineExtractor
         if ($this->nameTreeNodeHasStreamCarrierType($node, $objects)) {
             return;
         }
+        if ($this->nameTreeNodeHasMalformedKidsOperand($node, $objects)) {
+            return;
+        }
 
         $inheritedLimits = $activeLimits;
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
@@ -3895,6 +3898,9 @@ final class PdfOutlineExtractor
             return;
         }
         if ($this->nameTreeNodeHasStreamCarrierType($node, $objects)) {
+            return;
+        }
+        if ($this->nameTreeNodeHasMalformedKidsOperand($node, $objects)) {
             return;
         }
 
@@ -4067,6 +4073,15 @@ final class PdfOutlineExtractor
         $type = $this->nameValue($this->resolveValue($node['Type'] ?? null, $objects));
 
         return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function nameTreeNodeHasMalformedKidsOperand(array $node, array $objects): bool
+    {
+        return array_key_exists('Kids', $node)
+            && $this->resolveArray($node['Kids'], $objects) === null;
     }
 
     /**

@@ -7377,6 +7377,10 @@ final class PdfMetadataExtractor
             return;
         }
 
+        if ($this->nameTreeNodeHasMalformedKidsOperand($node, $objects)) {
+            return;
+        }
+
         if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($node, $objects)) {
             return;
         }
@@ -7463,6 +7467,22 @@ final class PdfMetadataExtractor
         $objectBody = $this->objectBodyForReference($objects, $objectNumber, (int) ($node['generation'] ?? 0));
 
         return $objectBody !== null && $this->streamObjectHasStreamKeyword($objectBody);
+    }
+
+    /**
+     * @param array{body: string, object: int|null, generation?: int} $node
+     * @param array<int, string> $objects
+     */
+    private function nameTreeNodeHasMalformedKidsOperand(array $node, array $objects): bool
+    {
+        $kidsValue = $this->dictionaryTopLevelRawValue($node['body'], 'Kids');
+        if ($kidsValue === null) {
+            return false;
+        }
+
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($kidsValue, $objects) ?? $kidsValue);
+
+        return $this->arrayBody($resolved) === null;
     }
 
     /**

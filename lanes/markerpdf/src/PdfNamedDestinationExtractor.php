@@ -1196,6 +1196,9 @@ final class PdfNamedDestinationExtractor
         if ($this->nameTreeNodeDictionaryHasStreamCarrierType($dictionary, $objects, $cache)) {
             return [];
         }
+        if ($this->nameTreeNodeHasMalformedKidsOperand($dictionary, $objects, $cache)) {
+            return [];
+        }
 
         if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($dictionary, $objects, $cache)) {
             return [];
@@ -1411,6 +1414,22 @@ final class PdfNamedDestinationExtractor
         $type = $this->nameValue($this->resolve($node['Type'] ?? null, $objects, $cache));
 
         return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function nameTreeNodeHasMalformedKidsOperand(array $node, array $objects, array &$cache): bool
+    {
+        if (!array_key_exists('Kids', $node)) {
+            return false;
+        }
+
+        $kids = $this->resolve($node['Kids'], $objects, $cache);
+
+        return !is_array($kids) || !array_is_list($kids);
     }
 
     /**

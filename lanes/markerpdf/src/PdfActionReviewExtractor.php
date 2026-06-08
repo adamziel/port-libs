@@ -3414,6 +3414,9 @@ final class PdfActionReviewExtractor
         if ($this->nameTreeNodeHasStreamCarrierType($node)) {
             return;
         }
+        if ($this->nameTreeNodeHasMalformedKidsOperand($node)) {
+            return;
+        }
 
         if ($inheritedLimits === null && $this->nameTreeNodeHasMalformedRootLimits($node)) {
             return;
@@ -3623,6 +3626,12 @@ final class PdfActionReviewExtractor
         $type = $this->nameValue($this->resolveValue($node['Type'] ?? null));
 
         return in_array($type, ['ObjStm', 'XRef', 'Metadata', 'EmbeddedFile', 'XObject'], true);
+    }
+
+    private function nameTreeNodeHasMalformedKidsOperand(array $node): bool
+    {
+        return array_key_exists('Kids', $node)
+            && $this->resolveArray($node['Kids']) === null;
     }
 
     private function nameTreeNodeReferenceHasTopLevelStream(mixed $value): bool
