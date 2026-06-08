@@ -2485,7 +2485,9 @@ final class MarkerAppPreview
                 continue;
             }
 
-            return $this->decodePdfName(substr($typeValue, 1)) === 'PageLabel';
+            if ($this->decodePdfName(substr($typeValue, 1)) === 'PageLabel') {
+                return true;
+            }
         }
 
         return !$sawType;

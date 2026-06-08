@@ -3501,6 +3501,7 @@ final class PdfEmbeddedFileExtractor
             $filenameSource = $file['filename_source'] ?? null;
             $streamKey = is_int($embeddedFileObject) ? 'stream:' . $embeddedFileObject : null;
             if ($filenameSource === 'generated' && $streamKey !== null && isset($seenNamedStreams[$streamKey])) {
+                $this->mergeEmbeddedFileMirrorMetadata($deduped[$seenNamedStreams[$streamKey]], $file);
                 continue;
             }
 
@@ -3513,7 +3514,7 @@ final class PdfEmbeddedFileExtractor
             }
             $seen[$key] = count($deduped);
             if ($streamKey !== null && is_string($filenameSource) && $filenameSource !== 'generated') {
-                $seenNamedStreams[$streamKey] = true;
+                $seenNamedStreams[$streamKey] = count($deduped);
             }
             $deduped[] = $file;
         }
@@ -3596,7 +3597,24 @@ final class PdfEmbeddedFileExtractor
             && isset($candidate['provenance_review'])
             && is_array($candidate['provenance_review'])
         ) {
-            $target['associated_file_provenance_review'] = $candidate['provenance_review'];
+            $provenance = $candidate['provenance_review'];
+            if (
+                ($candidate['filename_source'] ?? null) === 'generated'
+                && isset($target['filename'])
+                && is_string($target['filename'])
+                && isset($provenance['payload'])
+                && is_array($provenance['payload'])
+            ) {
+                $provenance['payload']['filename'] = $target['filename'];
+            }
+
+            $target['associated_file_provenance_review'] = $provenance;
+        }
+
+        foreach (['relationship', 'relationship_role', 'relationship_status'] as $key) {
+            if (!array_key_exists($key, $target) && array_key_exists($key, $candidate)) {
+                $target[$key] = $candidate[$key];
+            }
         }
     }
 

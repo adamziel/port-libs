@@ -16762,7 +16762,9 @@ final class PdfTextExtractor
                 continue;
             }
 
-            return $type === 'PageLabel';
+            if ($type === 'PageLabel') {
+                return true;
+            }
         }
 
         return !$sawType;
