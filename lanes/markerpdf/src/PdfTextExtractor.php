@@ -20260,7 +20260,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{type: string, preview: string, name?: string}|null
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}|null
      */
     private function directArrayFilterExtraOperand(string $dict, int $offset): ?array
     {
@@ -20278,7 +20278,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{type: string, preview: string, name?: string}|null
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}|null
      */
     private function directReferenceFilterExtraOperand(string $dict, int $offset): ?array
     {
@@ -20287,7 +20287,8 @@ final class PdfTextExtractor
             return null;
         }
 
-        $next = $this->skipPdfWhitespace($dict, $reference['endOffset']);
+        $skippedComment = false;
+        $next = $this->skipPdfWhitespaceTrackingComments($dict, $reference['endOffset'], $skippedComment);
         if ($next >= strlen($dict) || substr($dict, $next, 2) === '>>' || ($dict[$next] ?? '') === ']') {
             return null;
         }
@@ -20298,10 +20299,10 @@ final class PdfTextExtractor
                 return null;
             }
 
-            return [
+            return $this->extraFilterOperandWithCommentBoundary([
                 'type' => $this->pdfOperandTokenType($token),
                 'preview' => $this->xrefStreamOperandValuePreview($token),
-            ];
+            ], $skippedComment);
         }
 
         $nextEnd = $this->pdfNameTokenEndOffset($dict, $next);
@@ -20311,26 +20312,26 @@ final class PdfTextExtractor
 
         $name = $this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1));
         if ($this->streamFilterNameLooksLikeDecoder($name)) {
-            return [
+            return $this->extraFilterOperandWithCommentBoundary([
                 'type' => 'name',
                 'preview' => substr($dict, $next, $nextEnd - $next),
                 'name' => $name,
-            ];
+            ], $skippedComment);
         }
 
         if ($this->directScalarFilterUnknownNamePrecedesLength($dict, $nextEnd)) {
-            return [
+            return $this->extraFilterOperandWithCommentBoundary([
                 'type' => 'name',
                 'preview' => substr($dict, $next, $nextEnd - $next),
                 'name' => $name,
-            ];
+            ], $skippedComment);
         }
 
         return $this->postDirectFilterExtraDecoderOperand($dict, $next);
     }
 
     /**
-     * @return array{type: string, preview: string, name?: string}|null
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}|null
      */
     private function directNullFilterExtraOperand(string $dict, int $offset): ?array
     {
@@ -20353,7 +20354,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{type: string, preview: string, name?: string}|null
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}|null
      */
     private function directScalarFilterExtraOperand(string $dict, int $offset): ?array
     {
@@ -20363,7 +20364,8 @@ final class PdfTextExtractor
         }
 
         $end = $this->pdfNameTokenEndOffset($dict, $offset);
-        $next = $this->skipPdfWhitespace($dict, $end);
+        $skippedComment = false;
+        $next = $this->skipPdfWhitespaceTrackingComments($dict, $end, $skippedComment);
         if ($next >= strlen($dict)) {
             return null;
         }
@@ -20374,10 +20376,10 @@ final class PdfTextExtractor
                 return null;
             }
 
-            return [
+            return $this->extraFilterOperandWithCommentBoundary([
                 'type' => $this->pdfOperandTokenType($token),
                 'preview' => $this->xrefStreamOperandValuePreview($token),
-            ];
+            ], $skippedComment);
         }
 
         $nextEnd = $this->pdfNameTokenEndOffset($dict, $next);
@@ -20387,26 +20389,26 @@ final class PdfTextExtractor
 
         $name = $this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1));
         if ($this->streamFilterNameLooksLikeDecoder($name)) {
-            return [
+            return $this->extraFilterOperandWithCommentBoundary([
                 'type' => 'name',
                 'preview' => substr($dict, $next, $nextEnd - $next),
                 'name' => $name,
-            ];
+            ], $skippedComment);
         }
 
         if ($this->directScalarFilterUnknownNamePrecedesLength($dict, $nextEnd)) {
-            return [
+            return $this->extraFilterOperandWithCommentBoundary([
                 'type' => 'name',
                 'preview' => substr($dict, $next, $nextEnd - $next),
                 'name' => $name,
-            ];
+            ], $skippedComment);
         }
 
         return $this->postDirectFilterExtraDecoderOperand($dict, $next);
     }
 
     /**
-     * @return array{type: string, preview: string, name?: string}|null
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}|null
      */
     private function postDirectFilterExtraDecoderOperand(
         string $dict,
@@ -20414,7 +20416,10 @@ final class PdfTextExtractor
         bool $stopAtLength = false
     ): ?array
     {
-        $index = $this->skipPdfWhitespace($dict, $offset);
+        $extraOperandAfterComment = false;
+        $skippedComment = false;
+        $index = $this->skipPdfWhitespaceTrackingComments($dict, $offset, $skippedComment);
+        $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
         $length = strlen($dict);
 
         while ($index < $length) {
@@ -20428,10 +20433,10 @@ final class PdfTextExtractor
                     return null;
                 }
 
-                return [
+                return $this->extraFilterOperandWithCommentBoundary([
                     'type' => $this->pdfOperandTokenType($token),
                     'preview' => $this->xrefStreamOperandValuePreview($token),
-                ];
+                ], $extraOperandAfterComment);
             }
 
             $nameEnd = $this->pdfNameTokenEndOffset($dict, $index);
@@ -20441,28 +20446,29 @@ final class PdfTextExtractor
 
             $name = $this->decodePdfName(substr($dict, $index + 1, $nameEnd - $index - 1));
             if ($this->streamFilterNameLooksLikeDecoder($name)) {
-                return [
+                return $this->extraFilterOperandWithCommentBoundary([
                     'type' => 'name',
                     'preview' => substr($dict, $index, $nameEnd - $index),
                     'name' => $name,
-                ];
+                ], $extraOperandAfterComment);
             }
 
             if ($this->directScalarFilterUnknownNamePrecedesLength($dict, $nameEnd)) {
-                return [
+                return $this->extraFilterOperandWithCommentBoundary([
                     'type' => 'name',
                     'preview' => substr($dict, $index, $nameEnd - $index),
                     'name' => $name,
-                ];
+                ], $extraOperandAfterComment);
             }
 
-            $valueOffset = $this->skipPdfWhitespace($dict, $nameEnd);
+            $skippedComment = false;
+            $valueOffset = $this->skipPdfWhitespaceTrackingComments($dict, $nameEnd, $skippedComment);
             if ($valueOffset >= $length || substr($dict, $valueOffset, 2) === '>>' || ($dict[$valueOffset] ?? '') === ']') {
-                return [
+                return $this->extraFilterOperandWithCommentBoundary([
                     'type' => 'name',
                     'preview' => substr($dict, $index, $nameEnd - $index),
                     'name' => $name,
-                ];
+                ], $extraOperandAfterComment);
             }
 
             $nextOffset = $this->skipPdfValueAt($dict, $valueOffset);
@@ -20473,20 +20479,39 @@ final class PdfTextExtractor
             if ($name === 'DecodeParms') {
                 $extraOperandEnd = $this->decodeParmsExtraOperandEndAfterValue($dict, $nextOffset);
                 if ($extraOperandEnd !== null) {
-                    $index = $this->skipPdfWhitespace($dict, $extraOperandEnd);
+                    $skippedComment = false;
+                    $index = $this->skipPdfWhitespaceTrackingComments($dict, $extraOperandEnd, $skippedComment);
+                    $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
                     continue;
                 }
             }
 
             if ($stopAtLength && $name === 'Length') {
-                $index = $this->skipPdfWhitespace($dict, $nextOffset);
+                $skippedComment = false;
+                $index = $this->skipPdfWhitespaceTrackingComments($dict, $nextOffset, $skippedComment);
+                $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
                 continue;
             }
 
-            $index = $this->skipPdfWhitespace($dict, $nextOffset);
+            $skippedComment = false;
+            $index = $this->skipPdfWhitespaceTrackingComments($dict, $nextOffset, $skippedComment);
+            $extraOperandAfterComment = $extraOperandAfterComment || $skippedComment;
         }
 
         return null;
+    }
+
+    /**
+     * @param array{type: string, preview: string, name?: string, after_comment?: bool} $operand
+     * @return array{type: string, preview: string, name?: string, after_comment?: bool}
+     */
+    private function extraFilterOperandWithCommentBoundary(array $operand, bool $afterComment): array
+    {
+        if ($afterComment) {
+            $operand['after_comment'] = true;
+        }
+
+        return $operand;
     }
 
     private function directScalarFilterUnknownNamePrecedesLength(string $dict, int $offset): bool
@@ -27534,6 +27559,28 @@ final class PdfTextExtractor
             }
 
             if ($value[$offset] === '%') {
+                $this->skipPdfComment($value, $offset);
+                continue;
+            }
+
+            break;
+        }
+
+        return $offset;
+    }
+
+    private function skipPdfWhitespaceTrackingComments(string $value, int $offset, bool &$skippedComment): int
+    {
+        $skippedComment = false;
+        $length = strlen($value);
+        while ($offset < $length) {
+            if ($this->isPdfWhitespace($value[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($value[$offset] === '%') {
+                $skippedComment = true;
                 $this->skipPdfComment($value, $offset);
                 continue;
             }
@@ -34679,7 +34726,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, mixed> $review
-     * @param array{type: string, preview: string, name?: string} $extraFilterOperand
+     * @param array{type: string, preview: string, name?: string, after_comment?: bool} $extraFilterOperand
      * @return array<string, mixed>
      */
     private function streamFilterOperandReviewWithExtraOperand(array $review, array $extraFilterOperand): array
@@ -34691,6 +34738,9 @@ final class PdfTextExtractor
         if (($extraFilterOperand['type'] ?? null) === 'name' && isset($extraFilterOperand['name'])) {
             $review['extra_filter_name_operand'] = true;
             $review['extra_filter_name'] = $extraFilterOperand['name'];
+        }
+        if (($extraFilterOperand['after_comment'] ?? false) === true) {
+            $review['extra_filter_operand_after_comment'] = true;
         }
 
         return $review;
