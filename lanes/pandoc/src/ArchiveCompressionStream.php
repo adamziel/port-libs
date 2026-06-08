@@ -534,7 +534,17 @@ final class ArchiveCompressionStream
      *         dataOffset:int,
      *         dataEndOffset:int,
      *         paddedDataSize:int,
-     *         recordSize:int
+     *         recordSize:int,
+     *         decodedSourceSegmentCount:int,
+     *         decodedSourceSegments:list<array{
+     *             sourceType:string,
+     *             sourceIndex:int,
+     *             sourceLabel:?string,
+     *             sourceDecodedOffset:int,
+     *             sourceDecodedEndOffset:int,
+     *             entryRecordOffset:int,
+     *             entryRecordEndOffset:int
+     *         }>
      *     }>,
      *     stream:array<string, mixed>
      * }
@@ -593,7 +603,17 @@ final class ArchiveCompressionStream
      *         dataOffset:int,
      *         dataEndOffset:int,
      *         paddedDataSize:int,
-     *         recordSize:int
+     *         recordSize:int,
+     *         decodedSourceSegmentCount:int,
+     *         decodedSourceSegments:list<array{
+     *             sourceType:string,
+     *             sourceIndex:int,
+     *             sourceLabel:?string,
+     *             sourceDecodedOffset:int,
+     *             sourceDecodedEndOffset:int,
+     *             entryRecordOffset:int,
+     *             entryRecordEndOffset:int
+     *         }>
      *     }>,
      *     stream:array<string, mixed>
      * }
@@ -1444,7 +1464,17 @@ final class ArchiveCompressionStream
      *         dataOffset:int,
      *         dataEndOffset:int,
      *         paddedDataSize:int,
-     *         recordSize:int
+     *         recordSize:int,
+     *         decodedSourceSegmentCount:int,
+     *         decodedSourceSegments:list<array{
+     *             sourceType:string,
+     *             sourceIndex:int,
+     *             sourceLabel:?string,
+     *             sourceDecodedOffset:int,
+     *             sourceDecodedEndOffset:int,
+     *             entryRecordOffset:int,
+     *             entryRecordEndOffset:int
+     *         }>
      *     }>,
      *     stream:array<string, mixed>
      * }
@@ -1457,9 +1487,10 @@ final class ArchiveCompressionStream
         ?int $maxUncompressedBytes,
         ?array $streamInspection = null
     ): array {
+        $stream = $streamInspection ?? self::streamInspection($bytes, $format, $maxUncompressedBytes);
         $entryNames = $archive->names();
         $endMarkerOffset = self::tarEndMarkerOffset($tarBytes);
-        $entryLayouts = self::tarEntryLayouts($archive);
+        $entryLayouts = self::tarEntryLayouts($archive, $stream);
 
         return [
             'format' => $format,
@@ -1480,7 +1511,7 @@ final class ArchiveCompressionStream
             'endMarkerOffset' => $endMarkerOffset,
             'trailingZeroBytes' => strlen($tarBytes) - $endMarkerOffset,
             'entryLayouts' => $entryLayouts,
-            'stream' => $streamInspection ?? self::streamInspection($bytes, $format, $maxUncompressedBytes),
+            'stream' => $stream,
         ];
     }
 
@@ -1557,21 +1588,42 @@ final class ArchiveCompressionStream
      *     dataOffset:int,
      *     dataEndOffset:int,
      *     paddedDataSize:int,
-     *     recordSize:int
+     *     recordSize:int,
+     *     decodedSourceSegmentCount:int,
+     *     decodedSourceSegments:list<array{
+     *         sourceType:string,
+     *         sourceIndex:int,
+     *         sourceLabel:?string,
+     *         sourceDecodedOffset:int,
+     *         sourceDecodedEndOffset:int,
+     *         entryRecordOffset:int,
+     *         entryRecordEndOffset:int
+     *     }>
      * }>
      */
-    private static function tarEntryLayouts(TarArchive $archive): array
+    private static function tarEntryLayouts(TarArchive $archive, array $streamInspection): array
     {
         $layouts = [];
+        $decodedSourceSegments = self::decodedStreamSourceSegments(
+            $streamInspection,
+            strlen($archive->bytes())
+        );
+
         foreach ($archive->entries() as $entry) {
             $headerOffset = $entry->dataOffset - 512;
             $paddedDataSize = self::paddedTarPayloadSize($entry->size);
+            $recordSize = 512 + $paddedDataSize;
             $paxHeaderKeys = array_keys($entry->paxHeaders);
             sort($paxHeaderKeys);
             $paxGlobalHeaderKeys = array_keys($entry->globalPaxHeaders);
             sort($paxGlobalHeaderKeys);
             $paxLocalHeaderKeys = array_keys($entry->localPaxHeaders);
             sort($paxLocalHeaderKeys);
+            $entrySourceSegments = self::entryDecodedSourceSegments(
+                $headerOffset,
+                $headerOffset + $recordSize,
+                $decodedSourceSegments
+            );
 
             $layouts[] = [
                 'name' => $entry->name,
@@ -1599,11 +1651,132 @@ final class ArchiveCompressionStream
                 'dataOffset' => $entry->dataOffset,
                 'dataEndOffset' => $entry->dataOffset + $entry->size,
                 'paddedDataSize' => $paddedDataSize,
-                'recordSize' => 512 + $paddedDataSize,
+                'recordSize' => $recordSize,
+                'decodedSourceSegmentCount' => count($entrySourceSegments),
+                'decodedSourceSegments' => $entrySourceSegments,
             ];
         }
 
         return $layouts;
+    }
+
+    /**
+     * @return list<array{
+     *     sourceType:string,
+     *     sourceIndex:int,
+     *     sourceLabel:?string,
+     *     decodedDataOffset:int,
+     *     decodedDataEndOffset:int
+     * }>
+     */
+    private static function decodedStreamSourceSegments(array $streamInspection, int $decodedSize): array
+    {
+        $type = (string) ($streamInspection['type'] ?? '');
+        if ($type === 'gzip') {
+            $segments = [];
+            foreach (($streamInspection['members'] ?? []) as $index => $member) {
+                if (!is_array($member)) {
+                    continue;
+                }
+
+                $label = null;
+                if (is_string($member['filenameText'] ?? null)) {
+                    $label = $member['filenameText'];
+                } elseif (is_string($member['filename'] ?? null)) {
+                    $label = $member['filename'];
+                }
+
+                $segments[] = [
+                    'sourceType' => 'gzip-member',
+                    'sourceIndex' => (int) $index,
+                    'sourceLabel' => $label,
+                    'decodedDataOffset' => (int) ($member['decodedDataOffset'] ?? 0),
+                    'decodedDataEndOffset' => (int) ($member['decodedDataEndOffset'] ?? 0),
+                ];
+            }
+
+            return $segments;
+        }
+
+        if ($type === 'lz4') {
+            $segments = [];
+            $dataFrameIndex = 0;
+            foreach (($streamInspection['frames'] ?? []) as $frame) {
+                if (!is_array($frame) || ($frame['type'] ?? null) !== 'frame') {
+                    continue;
+                }
+
+                $segments[] = [
+                    'sourceType' => 'lz4-frame',
+                    'sourceIndex' => $dataFrameIndex,
+                    'sourceLabel' => null,
+                    'decodedDataOffset' => (int) ($frame['decodedDataOffset'] ?? 0),
+                    'decodedDataEndOffset' => (int) ($frame['decodedDataEndOffset'] ?? 0),
+                ];
+                $dataFrameIndex++;
+            }
+
+            return $segments;
+        }
+
+        $sourceType = match ($type) {
+            'plain-tar' => 'plain-tar',
+            'zlib-deflate' => 'zlib-deflate',
+            'raw-deflate' => 'raw-deflate',
+            default => $type === '' ? 'unknown' : $type,
+        };
+
+        return [[
+            'sourceType' => $sourceType,
+            'sourceIndex' => 0,
+            'sourceLabel' => null,
+            'decodedDataOffset' => 0,
+            'decodedDataEndOffset' => $decodedSize,
+        ]];
+    }
+
+    /**
+     * @param list<array{
+     *     sourceType:string,
+     *     sourceIndex:int,
+     *     sourceLabel:?string,
+     *     decodedDataOffset:int,
+     *     decodedDataEndOffset:int
+     * }> $sourceSegments
+     * @return list<array{
+     *     sourceType:string,
+     *     sourceIndex:int,
+     *     sourceLabel:?string,
+     *     sourceDecodedOffset:int,
+     *     sourceDecodedEndOffset:int,
+     *     entryRecordOffset:int,
+     *     entryRecordEndOffset:int
+     * }>
+     */
+    private static function entryDecodedSourceSegments(int $recordStart, int $recordEnd, array $sourceSegments): array
+    {
+        $segments = [];
+        foreach ($sourceSegments as $source) {
+            $sourceStart = $source['decodedDataOffset'];
+            $sourceEnd = $source['decodedDataEndOffset'];
+            $overlapStart = max($recordStart, $sourceStart);
+            $overlapEnd = min($recordEnd, $sourceEnd);
+            if ($overlapStart >= $overlapEnd) {
+                continue;
+            }
+
+            $segments[] = [
+                'sourceType' => $source['sourceType'],
+                'sourceIndex' => $source['sourceIndex'],
+                'sourceLabel' => $source['sourceLabel'],
+                'sourceDecodedOffset' => $overlapStart,
+                'sourceDecodedEndOffset' => $overlapEnd,
+                'entryRecordOffset' => $overlapStart - $recordStart,
+                'entryRecordEndOffset' => $overlapEnd - $recordStart,
+            ];
+        }
+
+        return $segments;
     }
 
     private static function paddedTarPayloadSize(int $size): int

@@ -755,6 +755,8 @@ if (in_array('--self-test', $argv, true)) {
         'gzipMemberOffset' => 0,
         'content' => $contentBytes,
         'contentCreatedAt' => 1780479062,
+        'contentSourceType' => 'gzip-member',
+        'contentSourceLabel' => 'wordpress-archive-stream.tar',
         'legacyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'legacyEntryType' => TarArchiveEntry::TYPE_FILE,
         'legacyContent' => $legacyContentBytes,
@@ -844,6 +846,9 @@ if (in_array('--self-test', $argv, true)) {
         'lz4SplitPackageFirstDictionaryId' => $lz4SplitFirstDictionaryId,
         'lz4SplitPackageSecondDictionaryId' => $lz4SplitSecondDictionaryId,
         'lz4SplitPackageSplitOffset' => $lz4SplitOffset,
+        'lz4SplitPackageEntrySourceTypes' => ['lz4-frame', 'lz4-frame'],
+        'lz4SplitPackageEntrySourceOffsets' => [1024, $lz4SplitOffset],
+        'lz4SplitPackageEntrySourceEndOffsets' => [$lz4SplitOffset, 2048],
         'lz4SplitPackageContent' => $lz4SplitPackageContentBytes,
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
@@ -887,6 +892,9 @@ if (in_array('--self-test', $argv, true)) {
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
         || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['LIBARCHIVE.creationtime', 'atime', 'ctime']
         || ($inspection['entryLayouts'][2]['createdAt'] ?? null) !== $expected['contentCreatedAt']
+        || ($inspection['entryLayouts'][2]['decodedSourceSegmentCount'] ?? null) !== 1
+        || ($inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] ?? null) !== $expected['contentSourceType']
+        || ($inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] ?? null) !== $expected['contentSourceLabel']
         || ($inspection['archive']->entry('/packet/content.md')->paxHeaders['LIBARCHIVE.creationtime'] ?? null) !== (string) $expected['contentCreatedAt']
         || $legacyContiguousInspection['format'] !== $expected['legacyFormat']
         || ($legacyContiguousInspection['entryLayouts'][0]['type'] ?? null) !== $expected['legacyEntryType']
@@ -1045,6 +1053,9 @@ if (in_array('--self-test', $argv, true)) {
         || ($lz4SplitPackageInspection['stream']['frames'][2]['decodedDataOffset'] ?? null) !== $expected['lz4SplitPackageSplitOffset']
         || ($lz4SplitPackageInspection['stream']['frames'][2]['decodedDataEndOffset'] ?? null) !== strlen($lz4SplitPackageArchiveBytes)
         || ($lz4SplitPackageInspection['stream']['frames'][2]['nextFrameOffset'] ?? null) !== strlen($lz4SplitPackageStream)
+        || array_column($lz4SplitPackageInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'sourceType') !== $expected['lz4SplitPackageEntrySourceTypes']
+        || array_column($lz4SplitPackageInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'sourceDecodedOffset') !== $expected['lz4SplitPackageEntrySourceOffsets']
+        || array_column($lz4SplitPackageInspection['entryLayouts'][1]['decodedSourceSegments'] ?? [], 'sourceDecodedEndOffset') !== $expected['lz4SplitPackageEntrySourceEndOffsets']
         || $lz4SplitPackageInspection['archive']->read('/packet/content.md') !== $expected['lz4SplitPackageContent']
         || ($lz4SplitPackageInspection['entryLayouts'][1]['modifiedAt'] ?? null) !== 1780479094
         || !$lz4SplitPackageMissingDictionaryBlocked
@@ -1104,6 +1115,7 @@ echo 'gzip.memberOffset=' . $inspection['stream']['members'][0]['memberOffset'] 
 echo 'gzip.compressedDataOffset=' . $inspection['stream']['members'][0]['compressedDataOffset'] . "\n";
 echo 'gzip.trailerOffset=' . $inspection['stream']['members'][0]['trailerOffset'] . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
+echo 'tar.contentSource=' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceType'] . ':' . $inspection['entryLayouts'][2]['decodedSourceSegments'][0]['sourceLabel'] . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";
 echo 'content.createdAt=' . $inspection['entryLayouts'][2]['createdAt'] . "\n";
 echo 'legacyContiguous.format=' . $legacyContiguousInspection['format'] . "\n";
@@ -1187,6 +1199,10 @@ echo 'lz4SplitPackage.format=' . $lz4SplitPackageInspection['format'] . "\n";
 echo 'lz4SplitPackage.frameCount=' . $lz4SplitPackageInspection['stream']['frameCount'] . "\n";
 echo 'lz4SplitPackage.firstRange=' . $lz4SplitPackageInspection['stream']['frames'][1]['decodedDataOffset'] . ':' . $lz4SplitPackageInspection['stream']['frames'][1]['decodedDataEndOffset'] . "\n";
 echo 'lz4SplitPackage.secondRange=' . $lz4SplitPackageInspection['stream']['frames'][2]['decodedDataOffset'] . ':' . $lz4SplitPackageInspection['stream']['frames'][2]['decodedDataEndOffset'] . "\n";
+echo 'lz4SplitPackage.entrySources=' . implode(',', array_map(
+    static fn (array $segment): string => $segment['sourceType'] . ':' . $segment['sourceDecodedOffset'] . '-' . $segment['sourceDecodedEndOffset'],
+    $lz4SplitPackageInspection['entryLayouts'][1]['decodedSourceSegments']
+)) . "\n";
 echo 'lz4SplitPackage.content.md=' . $lz4SplitPackageInspection['archive']->read('/packet/content.md') . "\n";
 echo 'lz4SplitPackage.missingBlocked=' . ($lz4SplitPackageMissingDictionaryBlocked ? 'yes' : 'no') . "\n";
 echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";

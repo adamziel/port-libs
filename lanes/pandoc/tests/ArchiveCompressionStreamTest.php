@@ -2496,6 +2496,105 @@ return [
         $t->same($contentBytes, $inspection['archive']->read('/packet/content.md'));
     },
 
+    'maps tar entry layouts to decoded compression stream source segments' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"entry-source-segments","target":"wordpress"}';
+        $contentBytes = "# Entry source segments\n\nReady for split stream review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 1280;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'entry-source-part-1.tar',
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'entry-source-part-2.tar',
+        ]);
+        $lz4 = Lz4Frame::skippableFrame('entry-source-segments', 6)
+            . Lz4Frame::build(substr($tarBytes, 0, $splitOffset), [
+                'contentSize' => true,
+            ])
+            . Lz4Frame::build(substr($tarBytes, $splitOffset), [
+                'contentSize' => true,
+            ]);
+
+        $plainInspection = ArchiveCompressionStream::inspectTarStream(
+            $tarBytes,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $gzipInspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectTarStream(
+            $lz4,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+
+        $gzipManifestLayout = $gzipInspection['entryLayouts'][0];
+        $gzipContentLayout = $gzipInspection['entryLayouts'][1];
+        $lz4ContentSegments = $lz4Inspection['entryLayouts'][1]['decodedSourceSegments'];
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $gzipInspection['format']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $lz4Inspection['format']);
+        $t->same(1, $plainInspection['entryLayouts'][0]['decodedSourceSegmentCount']);
+        $t->same('plain-tar', $plainInspection['entryLayouts'][0]['decodedSourceSegments'][0]['sourceType']);
+        $t->same(1, $gzipManifestLayout['decodedSourceSegmentCount']);
+        $t->same([
+            [
+                'sourceType' => 'gzip-member',
+                'sourceIndex' => 0,
+                'sourceLabel' => 'entry-source-part-1.tar',
+                'sourceDecodedOffset' => 0,
+                'sourceDecodedEndOffset' => 1024,
+                'entryRecordOffset' => 0,
+                'entryRecordEndOffset' => 1024,
+            ],
+        ], $gzipManifestLayout['decodedSourceSegments']);
+        $t->same(1024, $gzipContentLayout['headerOffset']);
+        $t->same(1024, $gzipContentLayout['recordSize']);
+        $t->same(2, $gzipContentLayout['decodedSourceSegmentCount']);
+        $t->same([
+            [
+                'sourceType' => 'gzip-member',
+                'sourceIndex' => 0,
+                'sourceLabel' => 'entry-source-part-1.tar',
+                'sourceDecodedOffset' => 1024,
+                'sourceDecodedEndOffset' => 1280,
+                'entryRecordOffset' => 0,
+                'entryRecordEndOffset' => 256,
+            ],
+            [
+                'sourceType' => 'gzip-member',
+                'sourceIndex' => 1,
+                'sourceLabel' => 'entry-source-part-2.tar',
+                'sourceDecodedOffset' => 1280,
+                'sourceDecodedEndOffset' => 2048,
+                'entryRecordOffset' => 256,
+                'entryRecordEndOffset' => 1024,
+            ],
+        ], $gzipContentLayout['decodedSourceSegments']);
+        $t->same(['lz4-frame', 'lz4-frame'], array_column($lz4ContentSegments, 'sourceType'));
+        $t->same([0, 1], array_column($lz4ContentSegments, 'sourceIndex'));
+        $t->same([1024, 1280], array_column($lz4ContentSegments, 'sourceDecodedOffset'));
+        $t->same([1280, 2048], array_column($lz4ContentSegments, 'sourceDecodedEndOffset'));
+        $t->same([0, 256], array_column($lz4ContentSegments, 'entryRecordOffset'));
+        $t->same([256, 1024], array_column($lz4ContentSegments, 'entryRecordEndOffset'));
+        $t->same($contentBytes, $gzipInspection['archive']->read('/packet/content.md'));
+        $t->same($contentBytes, $lz4Inspection['archive']->read('/packet/content.md'));
+    },
+
     'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"tar-layout","target":"wordpress"}';
         $documentBytes = '<w:document><w:body><w:p>Layout-aware tar source</w:p></w:body></w:document>';
@@ -2580,7 +2679,19 @@ return [
         $t->same($timestampLayout['dataOffset'] - 512, $timestampLayout['headerOffset']);
         $t->same($timestampLayout['dataOffset'] + strlen($documentBytes), $timestampLayout['dataEndOffset']);
         $t->same($timestampLayout['headerOffset'] + $timestampLayout['recordSize'], $plainInspection['endMarkerOffset']);
-        $t->same($plainInspection['entryLayouts'], $gzipInspection['entryLayouts']);
+        $plainComparableLayouts = array_map(static function (array $layout): array {
+            unset($layout['decodedSourceSegmentCount'], $layout['decodedSourceSegments']);
+
+            return $layout;
+        }, $plainInspection['entryLayouts']);
+        $gzipComparableLayouts = array_map(static function (array $layout): array {
+            unset($layout['decodedSourceSegmentCount'], $layout['decodedSourceSegments']);
+
+            return $layout;
+        }, $gzipInspection['entryLayouts']);
+        $t->same($plainComparableLayouts, $gzipComparableLayouts);
+        $t->same('gzip-member', $gzipInspection['entryLayouts'][0]['decodedSourceSegments'][0]['sourceType']);
+        $t->same('wordpress-layout-review.tar', $gzipInspection['entryLayouts'][0]['decodedSourceSegments'][0]['sourceLabel']);
         $t->same('gzip', $gzipInspection['stream']['type']);
         $t->same('wordpress-layout-review.tar', $gzipInspection['stream']['members'][0]['filename']);
         $t->same('layout preflight', $gzipInspection['stream']['members'][0]['comment']);
