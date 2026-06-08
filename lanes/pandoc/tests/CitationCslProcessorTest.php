@@ -8529,6 +8529,114 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl add names disambiguation for ambiguous author date cites' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-doe-2026',
+                'type' => 'report',
+                'title' => 'Smith Doe Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/smith-doe',
+            ],
+            [
+                'id' => 'smith-ng-2026',
+                'type' => 'report',
+                'title' => 'Smith Ng Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Rao', 'given' => 'Raj'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/smith-ng',
+            ],
+            [
+                'id' => 'garcia-2026',
+                'type' => 'report',
+                'title' => 'Garcia Import Packet',
+                'author' => [
+                    ['family' => 'Garcia', 'given' => 'Gia'],
+                    ['family' => 'Cruz', 'given' => 'Ana'],
+                    ['family' => 'Iyer', 'given' => 'Ira'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/garcia',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Add Names Disambiguation Review</title>
+    <id>https://example.test/styles/bounded-add-names-disambiguation-review</id>
+  </info>
+  <citation disambiguate-add-names="true">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" et-al-min="3" et-al-use-first="1">
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <date variable="issued"><date-part name="year"/></date>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(true, $summary['citationOptions']['disambiguateAddNames'] ?? null);
+        $t->same('(Smith, Doe, et al. 2026; Smith, Ng, et al. 2026; Garcia et al. 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-doe-2026', 'text' => '[@smith-doe-2026]']),
+            new AstNode('citation', ['id' => 'smith-ng-2026', 'text' => '[@smith-ng-2026]']),
+            new AstNode('citation', ['id' => 'garcia-2026', 'text' => '[@garcia-2026]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Review cites [@smith-doe-2026; @smith-ng-2026; @garcia-2026] before publishing imported source notes.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citationNodes = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citationNodes): void {
+            if ($node->type === 'citation') {
+                $citationNodes[(string) $node->attr('id', '')] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+        $t->same(2, $citationNodes['smith-doe-2026']->attr('cslDisambiguateNameCount'));
+        $t->same(2, $citationNodes['smith-ng-2026']->attr('cslDisambiguateNameCount'));
+        $t->same(null, $citationNodes['garcia-2026']->attr('cslDisambiguateNameCount'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (Smith, Doe, et al. 2026; Smith, Ng, et al. 2026; Garcia et al. 2026) before publishing imported source notes.</p>', $blocks);
+        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026. Smith Doe Import Packet. https://example.test/smith-doe.</dd>', $blocks);
+        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Ng, N.; Rao, R. 2026. Smith Ng Import Packet. https://example.test/smith-ng.</dd>', $blocks);
+        $t->contains('<dt>Garcia et al. 2026</dt><dd>Garcia, G.; Cruz, A.; Iyer, I. 2026. Garcia Import Packet. https://example.test/garcia.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation disambiguate-add-names="sometimes">
+    <layout><names variable="author"/></layout>
+  </citation>
+</style>
+XML));
+    },
     'applies bounded csl locator conditionals for page chapter and section locators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
