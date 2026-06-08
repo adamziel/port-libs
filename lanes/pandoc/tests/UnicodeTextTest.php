@@ -564,6 +564,32 @@ return [
         $t->contains('<h1 id="dos-862">DOS 862</h1>', $blocks);
         $t->contains('<p>Hebrew עברית: שלום מקור; box ╔═╗; Latin áí.</p>', $blocks);
     },
+    'decodes ibm864 dos arabic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 864\n\nArabic \xC7\xE4\xDF\xD1\xC8\xEA\xC9; digits \xB1\xB2\xB3; lam-alef \x9D\x9E; marks \xF0\xF1; box \x8D\x85\x8C; soft\xA1hyphen.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp864');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm864');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x99\x9A\x9D\x9E\xA1\xA2\xA5\xAC\xB0\xB1\xB2\xB3\xB4\xB5\xB6\xB7\xB8\xB9\xBA\xBB\xBF\xC1\xE0\xF0\xF1\xF2\xFE", 'ibm864');
+        $undefined = UnicodeText::decodeBytes("A\x9BB\x9CC\x9FD\xA6E\xA7F\xFFG", 'dos864');
+        $body = "Arabic \u{FE8D}\u{FEDF}\u{FEC9}\u{FEAD}\u{FE91}\u{FEF3}\u{FE93}; digits \u{0661}\u{0662}\u{0663}; lam-alef \u{FEFB}\u{FEFC}; marks \u{FE7D}\u{0651}; box ┌─┐; soft\u{00AD}hyphen.";
+
+        $t->same('ibm864', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 864\n\n{$body}", $decoded['text']);
+        $t->same("\u{FEF7}\u{FEF8}\u{FEFB}\u{FEFC}\u{00AD}\u{FE82}\u{FE84}\u{060C}\u{0660}\u{0661}\u{0662}\u{0663}\u{0664}\u{0665}\u{0666}\u{0667}\u{0668}\u{0669}\u{FED1}\u{061B}\u{061F}\u{FE80}\u{0640}\u{FE7D}\u{0651}\u{FEE5}\u{25A0}", $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same(25, UnicodeText::displayWidth($specials['text']));
+        $t->same(26, UnicodeText::displayWidth($specials['text'], 'wide'));
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E\u{FFFD}F\u{FFFD}G", $undefined['text']);
+        $t->same(6, $undefined['repairs']);
+        $t->same(['encoding' => 'ibm864', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 864', $document->children[0]->attr('text'));
+        $t->same($body, $document->children[1]->attr('text'));
+        $t->same(70, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(73, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-864">DOS 864</h1>', $blocks);
+        $t->contains("<p>{$body}</p>", $blocks);
+    },
     'decodes ibm852 dos central european source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 852\n\nCzech \xAC\x9F \xB7\xD8 \xE6\xE7 \xA6\xA7 \xFC\xFD; Polish \x9D\x88 \xA4\xA5 \xBD\xBE; Hungarian \x8A\x8B \xEB\xFB; box \xC9\xCD\xBB; \xF1.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp852');

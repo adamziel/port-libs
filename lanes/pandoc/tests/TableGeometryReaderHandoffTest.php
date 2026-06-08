@@ -1763,6 +1763,110 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table css table layout metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="layout-mode-grid" data-source="html-reader" style="table-layout: fixed; background-image:url(javascript:alert(1))">
+<caption>Table layout mode review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="layout-mode-auto" style="table-layout: auto">
+<tbody>
+<tr><td>Auto layout</td><td>Preserved</td></tr>
+</tbody>
+</table>
+<table id="layout-mode-invalid" style="table-layout: inherit">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $table = $tables[0] ?? null;
+        $autoTable = $tables[1] ?? null;
+        $invalidTable = $tables[2] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->true($autoTable instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$table instanceof AstNode || !$autoTable instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $packet = $table->attr('tableGeometry');
+        $autoPacket = $autoTable->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $layoutDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-layout-mode'
+            ));
+            $layoutDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'table-layout' => 'fixed',
+        ], $packet['tableLayout']['attributes'] ?? null);
+        $t->same('fixed', $packet['tableLayout']['layoutMode'] ?? null);
+        $t->same('style', $packet['tableLayout']['layoutModeSource'] ?? null);
+        $t->same('table-layout: fixed; background-image:url(javascript:alert(1))', $packet['tableLayout']['sourceAttributes']['htmlAttributes']['style'] ?? null);
+        $t->same(true, $packet['summary']['hasTableLayout'] ?? null);
+        $t->same('fixed', $packet['summary']['tableLayoutMode'] ?? null);
+        $t->same('style', $packet['summary']['tableLayoutModeSource'] ?? null);
+        $t->same(1, $packet['summary']['tableLayoutAttributeCount'] ?? null);
+
+        $t->same(true, is_array($autoPacket));
+        $autoPacket = is_array($autoPacket) ? $autoPacket : [];
+        $t->same('auto', $autoPacket['tableLayout']['layoutMode'] ?? null);
+        $t->same('style', $autoPacket['tableLayout']['layoutModeSource'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableLayout', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableLayout'] ?? null);
+
+        $t->same([
+            'markdown-table-layout-mode-requires-raw-html',
+            'asciidoc-table-layout-mode-review-required',
+            'latex-table-layout-mode-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $layoutDiagnostics['markdown'],
+            $layoutDiagnostics['asciidoc'],
+            $layoutDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-layout-mode', $layoutDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-layout-style', $layoutDiagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'table-layout' => 'fixed',
+        ], $layoutDiagnostics['markdown']['attributes'] ?? null);
+        $t->same('fixed', $layoutDiagnostics['markdown']['layoutMode'] ?? null);
+        $t->same('style', $layoutDiagnostics['markdown']['layoutModeSource'] ?? null);
+
+        $t->contains('<table id="layout-mode-grid" data-source="html-reader" style="table-layout:fixed">', $blocks);
+        $t->contains('<table id="layout-mode-auto" style="table-layout:auto">', $blocks);
+        $t->true(!str_contains($blocks, 'table-layout:inherit'));
+        $t->true(!str_contains($blocks, 'background-image'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($autoPacket, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes legacy html table placement alignment for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">

@@ -235,6 +235,21 @@ $layoutHeightTables = array_values(array_filter(
     $layoutHeightDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$layoutModeDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="layout-mode-grid" data-source="html-reader" style="table-layout: fixed; background-image:url(javascript:alert(1))">
+<caption>Table layout mode review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$layoutModeTables = array_values(array_filter(
+    $layoutModeDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $placementAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">
 <caption>Placement alignment review</caption>
@@ -1237,6 +1252,7 @@ $document = new AstNode('document', [], [
     ...$backgroundColorTables,
     ...$layoutWidthTables,
     ...$layoutHeightTables,
+    ...$layoutModeTables,
     ...$placementAlignmentTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
@@ -2647,6 +2663,52 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($layoutHeightPacket, JSON_THROW_ON_ERROR);
     json_encode($layoutHeightDowngrades, JSON_THROW_ON_ERROR);
+
+    $layoutModeTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'layout-mode-grid') {
+            $layoutModeTable = $node;
+            break;
+        }
+    }
+    $layoutModePacket = $layoutModeTable instanceof AstNode ? $layoutModeTable->attr('tableGeometry') : null;
+    $layoutModeDowngrades = $layoutModeTable instanceof AstNode ? TableGeometry::reviewPacket($layoutModeTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $layoutModeDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $layoutModeDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-layout-mode'
+        ));
+        $layoutModeDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$layoutModeTable instanceof AstNode
+        || !is_array($layoutModePacket)
+        || ($layoutModePacket['tableLayout']['attributes'] ?? null) !== [
+            'table-layout' => 'fixed',
+        ]
+        || ($layoutModePacket['tableLayout']['layoutMode'] ?? null) !== 'fixed'
+        || ($layoutModePacket['tableLayout']['layoutModeSource'] ?? null) !== 'style'
+        || ($layoutModePacket['summary']['hasTableLayout'] ?? null) !== true
+        || ($layoutModePacket['summary']['tableLayoutMode'] ?? null) !== 'fixed'
+        || ($layoutModePacket['summary']['tableLayoutModeSource'] ?? null) !== 'style'
+        || ($layoutModeDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-layout-mode-requires-raw-html'
+        || ($layoutModeDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-layout-mode-review-required'
+        || ($layoutModeDiagnostics['latex']['code'] ?? null) !== 'latex-table-layout-mode-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table CSS table-layout metadata');
+    }
+    if (!str_contains($blocks, '<table id="layout-mode-grid" data-source="html-reader" style="table-layout:fixed">')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress table-layout style output');
+    }
+    if (str_contains($blocks, 'background-image')) {
+        throw new RuntimeException('Table geometry self-test leaked unsafe table-layout source style');
+    }
+    json_encode($layoutModePacket, JSON_THROW_ON_ERROR);
+    json_encode($layoutModeDowngrades, JSON_THROW_ON_ERROR);
 
     $placementAlignmentTable = null;
     $invalidPlacementAlignmentTable = null;

@@ -1635,6 +1635,142 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const IBM864_REPLACEMENTS = [
+        0x80 => 0x00b0,
+        0x81 => 0x00b7,
+        0x82 => 0x2219,
+        0x83 => 0x221a,
+        0x84 => 0x2592,
+        0x85 => 0x2500,
+        0x86 => 0x2502,
+        0x87 => 0x253c,
+        0x88 => 0x2524,
+        0x89 => 0x252c,
+        0x8a => 0x251c,
+        0x8b => 0x2534,
+        0x8c => 0x2510,
+        0x8d => 0x250c,
+        0x8e => 0x2514,
+        0x8f => 0x2518,
+        0x90 => 0x03b2,
+        0x91 => 0x221e,
+        0x92 => 0x03c6,
+        0x93 => 0x00b1,
+        0x94 => 0x00bd,
+        0x95 => 0x00bc,
+        0x96 => 0x2248,
+        0x97 => 0x00ab,
+        0x98 => 0x00bb,
+        0x99 => 0xfef7,
+        0x9a => 0xfef8,
+        0x9d => 0xfefb,
+        0x9e => 0xfefc,
+        0xa0 => 0x00a0,
+        0xa1 => 0x00ad,
+        0xa2 => 0xfe82,
+        0xa3 => 0x00a3,
+        0xa4 => 0x00a4,
+        0xa5 => 0xfe84,
+        0xa8 => 0xfe8e,
+        0xa9 => 0xfe8f,
+        0xaa => 0xfe95,
+        0xab => 0xfe99,
+        0xac => 0x060c,
+        0xad => 0xfe9d,
+        0xae => 0xfea1,
+        0xaf => 0xfea5,
+        0xb0 => 0x0660,
+        0xb1 => 0x0661,
+        0xb2 => 0x0662,
+        0xb3 => 0x0663,
+        0xb4 => 0x0664,
+        0xb5 => 0x0665,
+        0xb6 => 0x0666,
+        0xb7 => 0x0667,
+        0xb8 => 0x0668,
+        0xb9 => 0x0669,
+        0xba => 0xfed1,
+        0xbb => 0x061b,
+        0xbc => 0xfeb1,
+        0xbd => 0xfeb5,
+        0xbe => 0xfeb9,
+        0xbf => 0x061f,
+        0xc0 => 0x00a2,
+        0xc1 => 0xfe80,
+        0xc2 => 0xfe81,
+        0xc3 => 0xfe83,
+        0xc4 => 0xfe85,
+        0xc5 => 0xfeca,
+        0xc6 => 0xfe8b,
+        0xc7 => 0xfe8d,
+        0xc8 => 0xfe91,
+        0xc9 => 0xfe93,
+        0xca => 0xfe97,
+        0xcb => 0xfe9b,
+        0xcc => 0xfe9f,
+        0xcd => 0xfea3,
+        0xce => 0xfea7,
+        0xcf => 0xfea9,
+        0xd0 => 0xfeab,
+        0xd1 => 0xfead,
+        0xd2 => 0xfeaf,
+        0xd3 => 0xfeb3,
+        0xd4 => 0xfeb7,
+        0xd5 => 0xfebb,
+        0xd6 => 0xfebf,
+        0xd7 => 0xfec1,
+        0xd8 => 0xfec5,
+        0xd9 => 0xfecb,
+        0xda => 0xfecf,
+        0xdb => 0x00a6,
+        0xdc => 0x00ac,
+        0xdd => 0x00f7,
+        0xde => 0x00d7,
+        0xdf => 0xfec9,
+        0xe0 => 0x0640,
+        0xe1 => 0xfed3,
+        0xe2 => 0xfed7,
+        0xe3 => 0xfedb,
+        0xe4 => 0xfedf,
+        0xe5 => 0xfee3,
+        0xe6 => 0xfee7,
+        0xe7 => 0xfeeb,
+        0xe8 => 0xfeed,
+        0xe9 => 0xfeef,
+        0xea => 0xfef3,
+        0xeb => 0xfebd,
+        0xec => 0xfecc,
+        0xed => 0xfece,
+        0xee => 0xfecd,
+        0xef => 0xfee1,
+        0xf0 => 0xfe7d,
+        0xf1 => 0x0651,
+        0xf2 => 0xfee5,
+        0xf3 => 0xfee9,
+        0xf4 => 0xfeec,
+        0xf5 => 0xfef0,
+        0xf6 => 0xfef2,
+        0xf7 => 0xfed0,
+        0xf8 => 0xfed5,
+        0xf9 => 0xfef5,
+        0xfa => 0xfef6,
+        0xfb => 0xfedd,
+        0xfc => 0xfed9,
+        0xfd => 0xfef1,
+        0xfe => 0x25a0,
+    ];
+
+    /** @var array<int, true> */
+    private const IBM864_UNDEFINED = [
+        0x9b => true,
+        0x9c => true,
+        0x9f => true,
+        0xa6 => true,
+        0xa7 => true,
+        0xff => true,
+    ];
+
+    /** @var array<int, int> */
     private const IBM865_REPLACEMENTS = [
         0xaf => 0x00a4,
     ];
@@ -3341,6 +3477,7 @@ final class UnicodeText
             || $normalized === 'ibm861'
             || $normalized === 'ibm862'
             || $normalized === 'ibm863'
+            || $normalized === 'ibm864'
             || $normalized === 'ibm865'
             || $normalized === 'ibm866'
             || $normalized === 'ibm869'
@@ -3982,6 +4119,7 @@ final class UnicodeText
             '861', 'cp861', 'ibm861', 'dos861', 'xcp861', 'oem861', 'cpis', 'csibm861' => 'ibm861',
             '862', 'cp862', 'ibm862', 'dos862', 'xcp862', 'oem862', 'cspc862latinhebrew', 'csibm862' => 'ibm862',
             '863', 'cp863', 'ibm863', 'dos863', 'xcp863', 'oem863', 'csibm863' => 'ibm863',
+            '864', 'cp864', 'ibm864', 'dos864', 'xcp864', 'oem864', 'csibm864' => 'ibm864',
             '865', 'cp865', 'ibm865', 'dos865', 'xcp865', 'oem865', 'csibm865' => 'ibm865',
             '866', 'cp866', 'csibm866', 'dos866', 'ibm866', 'xcp866' => 'ibm866',
             '869', 'cp869', 'csibm869', 'dos869', 'ibm869', 'oem869', 'xcp869', 'cpgr' => 'ibm869',
@@ -4682,6 +4820,16 @@ final class UnicodeText
             }
             if ($encoding === 'ibm863' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::IBM863_REPLACEMENTS[$byte] ?? self::IBM437_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'ibm864' && $byte >= 0x80) {
+                if (isset(self::IBM864_UNDEFINED[$byte])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::IBM864_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'ibm865' && $byte >= 0x80) {

@@ -4928,6 +4928,8 @@ final class TableGeometry
             'tableWidthType' => (string) ($tableLayout['widthType'] ?? ''),
             'tableHeight' => (string) ($tableLayout['height'] ?? ''),
             'tableHeightType' => (string) ($tableLayout['heightType'] ?? ''),
+            'tableLayoutMode' => (string) ($tableLayout['layoutMode'] ?? ''),
+            'tableLayoutModeSource' => (string) ($tableLayout['layoutModeSource'] ?? ''),
             'tableLayoutAttributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
             'hasTableAlignment' => $tableAlignment !== [],
             'tableAlignment' => (string) ($tableAlignment['alignment'] ?? ''),
@@ -6450,6 +6452,29 @@ final class TableGeometry
                 ? (float) $tableLayout[$dimension . 'Value']
                 : null;
             $diagnostics[] = $diagnostic;
+        }
+
+        $layoutModeRequirements = [
+            'markdown' => ['markdown-table-layout-mode-requires-raw-html', 'raw-html-table-layout-mode'],
+            'asciidoc' => ['asciidoc-table-layout-mode-review-required', 'table-layout-mode-review'],
+            'latex' => ['latex-table-layout-mode-review-required', 'table-layout-mode-review-comments'],
+        ];
+        if (isset($layoutModeRequirements[$writer]) && array_key_exists('layoutMode', $tableLayout)) {
+            [$code, $requiredFeature] = $layoutModeRequirements[$writer];
+            $diagnostics[] = [
+                'code' => $code,
+                'writer' => $writer,
+                'reason' => 'table-layout-mode',
+                'requiredFeature' => $requiredFeature,
+                'source' => 'html-table-layout-style',
+                'caption' => (string) $table->attr('caption', ''),
+                'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+                'attributeCount' => count(is_array($tableLayout['attributes'] ?? null) ? $tableLayout['attributes'] : []),
+                'attributes' => $tableLayout['attributes'] ?? [],
+                'sourceAttributes' => $tableLayout['sourceAttributes'] ?? [],
+                'layoutMode' => (string) ($tableLayout['layoutMode'] ?? ''),
+                'layoutModeSource' => (string) ($tableLayout['layoutModeSource'] ?? ''),
+            ];
         }
 
         return $diagnostics;
@@ -8021,7 +8046,7 @@ final class TableGeometry
     }
 
     /**
-     * @return array{source:string,attributes:array<string, string>,width?:string,widthType?:string,widthValue?:float,height?:string,heightType?:string,heightValue?:float,sourceAttributes?:array<string, mixed>}
+     * @return array{source:string,attributes:array<string, string>,width?:string,widthType?:string,widthValue?:float,height?:string,heightType?:string,heightValue?:float,layoutMode?:string,layoutModeSource?:string,sourceAttributes?:array<string, mixed>}
      */
     private static function tableLayoutMetadata(AstNode $table): array
     {
@@ -8050,6 +8075,14 @@ final class TableGeometry
             }
         }
 
+        $layoutMode = '';
+        if (array_key_exists('style', $attributes)) {
+            $layoutMode = self::normalizeTableLayoutStyleAttribute((string) $attributes['style']);
+            if ($layoutMode !== '') {
+                $recordAttributes['table-layout'] = $layoutMode;
+            }
+        }
+
         if ($recordAttributes === []) {
             return [];
         }
@@ -8068,6 +8101,10 @@ final class TableGeometry
             $record['height'] = (string) $height['height'];
             $record['heightType'] = (string) $height['heightType'];
             $record['heightValue'] = (float) $height['heightValue'];
+        }
+        if ($layoutMode !== '') {
+            $record['layoutMode'] = $layoutMode;
+            $record['layoutModeSource'] = 'style';
         }
 
         $sourceAttributes = self::sourceAttributeSummary($table);
@@ -8383,6 +8420,23 @@ final class TableGeometry
             'white',
             'yellow',
         ], true) ? $name : '';
+    }
+
+    private static function normalizeTableLayoutStyleAttribute(string $style): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'table-layout') {
+                continue;
+            }
+
+            $layout = strtolower(trim($value));
+            if (in_array($layout, ['auto', 'fixed'], true)) {
+                return $layout;
+            }
+        }
+
+        return '';
     }
 
     /**
