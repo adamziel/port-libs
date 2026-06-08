@@ -102,6 +102,9 @@ return [
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljs'));
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('edn'));
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('language-clj'));
+        $t->same('scala', SyntaxHighlighter::normalizeLanguage('scala'));
+        $t->same('scala', SyntaxHighlighter::normalizeLanguage('sbt'));
+        $t->same('scala', SyntaxHighlighter::normalizeLanguage('language-scala-sbt'));
         $t->same('cmake', SyntaxHighlighter::normalizeLanguage('cmake'));
         $t->same('cmake', SyntaxHighlighter::normalizeLanguage('CMakeLists.txt'));
         $t->same('cmake', SyntaxHighlighter::normalizeLanguage('language-cmake'));
@@ -1727,6 +1730,56 @@ return [
         $t->contains('<span class="ot">:post/title</span> <span class="st">&quot;Imported&quot;</span>', $directEdn['html']);
         $t->contains('<span class="ot">:published?</span> <span class="cn">true</span>', $directEdn['html']);
         $t->contains('<span class="ot">:blocks</span> <span class="op">#{</span><span class="st">&quot;core/paragraph&quot;</span>', $directEdn['html']);
+    },
+    'highlights scala review snippets with sbt aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[58] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Scala code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directSbt = $highlighter->highlight(
+            'ThisBuild / scalaVersion := "3.5.0"; lazy val importer = project',
+            'sbt'
+        );
+
+        $t->same('scala', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('scala', SyntaxHighlighter::normalizeLanguage('scala'));
+        $t->same('scala', SyntaxHighlighter::normalizeLanguage('sbt'));
+        $t->same('scala', SyntaxHighlighter::normalizeLanguage('scala-sbt'));
+        $t->same('scala', $highlighted['language']);
+        $t->same('scala', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(800, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource scala numberLines"><code class="sourceCode scala" style="counter-reset: source-line 799;">', $highlighted['html']);
+        $t->contains('<span id="scala-review-800"><a href="#scala-review-800"></a><span class="co">// Scala WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">package</span> <span class="va">importer</span><span class="op">.</span><span class="va">review</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">scala</span><span class="op">.</span><span class="va">util</span><span class="op">.</span><span class="dt">Try</span>', $highlighted['html']);
+        $t->contains('<span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">:</span> <span class="dt">Option</span><span class="op">[</span><span class="dt">String</span><span class="op">],</span>', $highlighted['html']);
+        $t->contains('<span class="va">media</span><span class="op">:</span> <span class="dt">List</span><span class="op">[</span><span class="dt">String</span><span class="op">]</span> <span class="op">=</span> <span class="cn">Nil</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="op">)</span> <span class="kw">derives</span> <span class="dt">CanEqual</span>', $highlighted['html']);
+        $t->contains('<span class="kw">object</span> <span class="dt">ReviewPacket</span><span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="kw">private</span> <span class="kw">val</span> <span class="va">defaultTitle</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="fu">normalize</span><span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">):</span> <span class="dt">String</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="kw">val</span> <span class="va">title</span> <span class="op">=</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">.</span><span class="fu">map</span><span class="op">(</span><span class="va">_</span><span class="op">.</span><span class="va">trim</span><span class="op">).</span><span class="fu">filter</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">title</span><span class="op">.</span><span class="va">isEmpty</span> <span class="kw">then</span> <span class="st">s&quot;Import ${packet.sourceId}&quot;</span> <span class="kw">else</span> <span class="va">title</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Map</span><span class="op">(</span><span class="st">&quot;core/paragraph&quot;</span> <span class="op">-&gt;</span> <span class="cn">true</span><span class="op">,</span> <span class="st">&quot;core/html&quot;</span> <span class="op">-&gt;</span> <span class="cn">false</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="kw">object</span> <span class="dt">ReviewPacket</span>', $wordpressBlock);
+        $t->same('scala', $directSbt['language']);
+        $t->same('sbt', $directSbt['requestedLanguage']);
+        $t->contains('<span class="dt">ThisBuild</span> <span class="op">/</span> <span class="va">scalaVersion</span> <span class="op">:=</span> <span class="st">&quot;3.5.0&quot;</span>', $directSbt['html']);
+        $t->contains('<span class="kw">lazy</span> <span class="kw">val</span> <span class="va">importer</span> <span class="op">=</span> <span class="va">project</span>', $directSbt['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

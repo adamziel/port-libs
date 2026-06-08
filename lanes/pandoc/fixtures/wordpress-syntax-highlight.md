@@ -1009,3 +1009,26 @@ struct ImportReviewCard: View {
 #_(println "discarded debug")
 (map normalize-title [review-packet])
 ```
+
+``` {.scala #scala-review .numberLines startFrom=800}
+// Scala WordPress import review
+package importer.review
+
+import scala.util.Try
+
+final case class ReviewPacket(
+    title: Option[String],
+    sourceId: Long,
+    media: List[String] = Nil,
+) derives CanEqual
+
+object ReviewPacket:
+  private val defaultTitle = "Untitled"
+
+  def normalize(packet: ReviewPacket): String =
+    val title = packet.title.map(_.trim).filter(_.nonEmpty).getOrElse(defaultTitle)
+    if title.isEmpty then s"Import ${packet.sourceId}" else title
+
+  val blocks: Map[String, Boolean] =
+    Map("core/paragraph" -> true, "core/html" -> false)
+```

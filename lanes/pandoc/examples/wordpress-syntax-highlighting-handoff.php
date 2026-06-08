@@ -370,6 +370,12 @@ if (!$kotlinCodeBlock instanceof PortLibs\Pandoc\AstNode || $kotlinCodeBlock->ty
 }
 $kotlin = $highlighter->highlightCodeBlock($kotlinCodeBlock, 'breezedark');
 $kotlinWordpressBlock = $highlighter->wordpressHtmlBlock($kotlinCodeBlock, 'breezedark');
+$scalaCodeBlock = $document->children[58] ?? null;
+if (!$scalaCodeBlock instanceof PortLibs\Pandoc\AstNode || $scalaCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Scala code block');
+}
+$scala = $highlighter->highlightCodeBlock($scalaCodeBlock, 'zenburn');
+$scalaWordpressBlock = $highlighter->wordpressHtmlBlock($scalaCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1583,6 +1589,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($kotlinWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Kotlin WordPress style metadata');
     }
+    if (($scala['language'] ?? '') !== 'scala') {
+        throw new RuntimeException('Expected Scala language handoff');
+    }
+    if (($scala['lineNumbering']['start'] ?? null) !== 800) {
+        throw new RuntimeException('Expected Scala source startFrom line-number handoff');
+    }
+    if (!str_contains($scala['html'], '<span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected Scala case class token handoff');
+    }
+    if (!str_contains($scala['html'], '<span class="kw">if</span> <span class="va">title</span><span class="op">.</span><span class="va">isEmpty</span> <span class="kw">then</span> <span class="st">s&quot;Import ${packet.sourceId}&quot;</span>')) {
+        throw new RuntimeException('Expected Scala then/else string interpolation token handoff');
+    }
+    if (!str_contains($scalaWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Scala WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1661,6 +1682,7 @@ echo "elmHighlightedHtml:\n" . $elm['html'] . "\n";
 echo "jsoncHighlightedHtml:\n" . $jsonc['html'] . "\n";
 echo "typstHighlightedHtml:\n" . $typst['html'] . "\n";
 echo "kotlinHighlightedHtml:\n" . $kotlin['html'] . "\n";
+echo "scalaHighlightedHtml:\n" . $scala['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1709,4 +1731,5 @@ echo "liquidWordpressBlock:\n" . $liquidWordpressBlock . "\n";
 echo "elmWordpressBlock:\n" . $elmWordpressBlock . "\n";
 echo "jsoncWordpressBlock:\n" . $jsoncWordpressBlock . "\n";
 echo "kotlinWordpressBlock:\n" . $kotlinWordpressBlock . "\n";
+echo "scalaWordpressBlock:\n" . $scalaWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

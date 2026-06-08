@@ -214,6 +214,9 @@ final class SyntaxHighlighter
         'ruby' => 'ruby',
         'rst' => 'rst',
         'sass' => 'sass',
+        'sbt' => 'scala',
+        'scala' => 'scala',
+        'scala-sbt' => 'scala',
         'scss' => 'scss',
         'rs' => 'rust',
         'rust' => 'rust',
@@ -707,6 +710,7 @@ final class SyntaxHighlighter
             'rst' => $this->tokenizeRest($code),
             'rust' => $this->tokenizeRust($code),
             'sass', 'scss' => $this->tokenizeScss($code),
+            'scala' => $this->tokenizeScala($code),
             'sql' => $this->tokenizeSql($code),
             'swift' => $this->tokenizeSwift($code),
             'tex' => $this->tokenizeTex($code),
@@ -1143,6 +1147,30 @@ final class SyntaxHighlighter
             ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.?|->|=>|\\?\\?|\\?\\.|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeScala(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^[a-z]?"""[\\s\\S]*?"""/'],
+            ['string', '/^[a-z]?"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:abstract|case|catch|class|def|derives|do|else|enum|export|extends|extension|final|finally|for|given|if|import|inline|lazy|match|new|null|object|opaque|override|package|private|protected|return|sealed|super|then|this|throw|trait|try|type|val|var|while|with|yield)\\b/'],
+            ['constant', '/^\\b(?:false|Nil|None|Some|true)\\b/'],
+            ['datatype', '/^\\b(?:Any|BigDecimal|BigInt|Boolean|CanEqual|Conversion|Double|Either|Float|Future|Int|Iterable|List|Long|Map|Nothing|Option|Seq|Set|String|Try|Unit)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)[dDfFlL]?\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.:]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['variable', '/^_+/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|=>|<-|\\?=>|:=|\\+=|-=|\\*=|\\/=|==|!=|<=|>=|&&|\\|\\||->|\\.\\.\\.?|[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
         ]);
     }
 
