@@ -23655,6 +23655,10 @@ final class PdfTextExtractor
         for ($index = $startIndex; $index < $count; $index++) {
             $token = $tokens[$index];
             if ($insideTextObject) {
+                if ($token === 'd0' || $token === 'd1') {
+                    return true;
+                }
+
                 if ($token === 'ET') {
                     $insideTextObject = false;
                 }
