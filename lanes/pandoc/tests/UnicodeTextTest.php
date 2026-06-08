@@ -1245,6 +1245,31 @@ return [
         $t->same($tamilKai . '   ', UnicodeText::padDisplay($tamilKai, 4));
         $t->same(["Indic {$clusterRun}", '  tail'], UnicodeText::wrapByDisplayWidth("Indic {$clusterRun} tail", 10, '  '));
     },
+    'measures south and southeast asian vowel signs as display clusters' => static function (TestRunner $t): void {
+        $teluguKi = "\u{0C15}\u{0C3F}";
+        $kannadaKe = "\u{0C95}\u{0CC6}";
+        $malayalamKe = "\u{0D15}\u{0D46}";
+        $sinhalaKaa = "\u{0D9A}\u{0DCF}";
+        $laoKi = "\u{0EA5}\u{0EB4}";
+        $clusterRun = $teluguKi . $kannadaKe . $malayalamKe . $sinhalaKaa . $laoKi;
+        $text = $clusterRun . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Marks {$clusterRun} tail", 10, '  ');
+
+        $t->same(1, UnicodeText::displayWidth($teluguKi));
+        $t->same(1, UnicodeText::displayWidth($kannadaKe));
+        $t->same(1, UnicodeText::displayWidth($malayalamKe));
+        $t->same(1, UnicodeText::displayWidth($sinhalaKaa));
+        $t->same(1, UnicodeText::displayWidth($laoKi));
+        $t->same(6, UnicodeText::displayWidth($text));
+        $t->same([$teluguKi, $kannadaKe, $malayalamKe, $sinhalaKaa, $laoKi, 'X'], UnicodeText::graphemes($text));
+        $t->same([$teluguKi . $kannadaKe . $malayalamKe, $sinhalaKaa . $laoKi . 'X'], UnicodeText::splitAtDisplayWidth($text, 3));
+        $t->same([$teluguKi, $kannadaKe, $malayalamKe, $sinhalaKaa, $laoKi, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [1, 2, 3, 4, 5]));
+        $t->same($sinhalaKaa . '   ', UnicodeText::padDisplay($sinhalaKaa, 4));
+        $t->same(['Marks', '  ' . $clusterRun, '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'South Asian mark wrapped line exceeds requested width');
+        }
+    },
     'keeps indic virama conjuncts intact for display slicing' => static function (TestRunner $t): void {
         $devanagariKsha = "\u{0915}\u{094D}\u{0937}";
         $devanagariZwjKsha = "\u{0915}\u{094D}\u{200D}\u{0937}";

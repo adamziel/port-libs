@@ -129,6 +129,8 @@ final class ArchiveCompressionStream
      *     candidateCount:int,
      *     packageCount:int,
      *     diagnosticCount:int,
+     *     depthLimitReachedCount:int,
+     *     depthLimitedCandidateCount:int,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -160,6 +162,8 @@ final class ArchiveCompressionStream
 
         $packageCount = 0;
         $diagnosticCount = 0;
+        $depthLimitReachedCount = 0;
+        $depthLimitedCandidateCount = 0;
         foreach ($entries as $entry) {
             if (($entry['status'] ?? null) === 'package') {
                 $packageCount++;
@@ -168,6 +172,12 @@ final class ArchiveCompressionStream
             if (($entry['diagnostics'] ?? []) !== []) {
                 $diagnosticCount++;
             }
+
+            if (($entry['depthLimitReached'] ?? false) === true) {
+                $depthLimitReachedCount++;
+            }
+
+            $depthLimitedCandidateCount += (int) ($entry['depthLimitedCandidateCount'] ?? 0);
         }
 
         return [
@@ -179,6 +189,8 @@ final class ArchiveCompressionStream
             'candidateCount' => count($entries),
             'packageCount' => $packageCount,
             'diagnosticCount' => $diagnosticCount,
+            'depthLimitReachedCount' => $depthLimitReachedCount,
+            'depthLimitedCandidateCount' => $depthLimitedCandidateCount,
             'entries' => $entries,
         ];
     }
@@ -2707,7 +2719,7 @@ final class ArchiveCompressionStream
                 continue;
             }
 
-            $entries[] = $base + self::nestedPackageSummary($nested);
+            $entries[] = $base + self::nestedPackageSummary($nested, $depth, $maxDepth);
             if ($depth < $maxDepth) {
                 self::collectNestedPackageEntries(
                     $nested,
@@ -2781,11 +2793,64 @@ final class ArchiveCompressionStream
 
     /**
      * @param array<string, mixed> $candidate
+     * @return list<array{entryName:string, candidateReasons:list<string>, size:int}>
+     */
+    private static function nestedPackageDepthLimitCandidates(array $candidate): array
+    {
+        $candidates = [];
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR && ($candidate['archive'] ?? null) instanceof TarArchive) {
+            foreach ($candidate['archive']->entries() as $entry) {
+                if (!$entry->isRegularFile()) {
+                    continue;
+                }
+
+                $reasons = self::nestedPackageNameCandidateReasons($entry->name);
+                if ($reasons === []) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'entryName' => $entry->name,
+                    'candidateReasons' => $reasons,
+                    'size' => $entry->size,
+                ];
+            }
+
+            return $candidates;
+        }
+
+        if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_ZIP && ($candidate['package'] ?? null) instanceof ZipPackage) {
+            foreach ($candidate['package']->entries() as $entry) {
+                if ($entry->isDirectory()) {
+                    continue;
+                }
+
+                $reasons = self::nestedPackageNameCandidateReasons($entry->name);
+                if ($reasons === []) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'entryName' => $entry->name,
+                    'candidateReasons' => $reasons,
+                    'size' => $entry->uncompressedSize,
+                ];
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
      * @return array<string, mixed>
      */
-    private static function nestedPackageSummary(array $candidate): array
+    private static function nestedPackageSummary(array $candidate, int $depth, int $maxDepth): array
     {
         $entryNames = self::candidateEntryNames($candidate);
+        $depthLimitedCandidates = $depth >= $maxDepth
+            ? self::nestedPackageDepthLimitCandidates($candidate)
+            : [];
         $summary = [
             'status' => 'package',
             'kind' => $candidate['kind'],
@@ -2794,7 +2859,11 @@ final class ArchiveCompressionStream
             'entryNames' => $entryNames,
             'uncompressedSize' => self::candidateUncompressedSize($candidate),
             'packageByteSize' => self::candidatePackageByteSize($candidate),
-            'diagnostics' => [],
+            'diagnostics' => $depthLimitedCandidates === [] ? [] : ['nested-package-depth-limit-reached'],
+            'depthLimitReached' => $depthLimitedCandidates !== [],
+            'depthLimitedCandidateCount' => count($depthLimitedCandidates),
+            'depthLimitedCandidateNames' => array_column($depthLimitedCandidates, 'entryName'),
+            'depthLimitedCandidates' => $depthLimitedCandidates,
         ];
 
         if (($candidate['kind'] ?? null) === self::PACKAGE_KIND_TAR) {

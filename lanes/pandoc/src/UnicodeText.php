@@ -4820,7 +4820,35 @@ final class UnicodeText
             || ($codepoint >= 0x0bc1 && $codepoint <= 0x0bc2)
             || ($codepoint >= 0x0bc6 && $codepoint <= 0x0bc8)
             || ($codepoint >= 0x0bca && $codepoint <= 0x0bcc)
-            || $codepoint === 0x0bd7;
+            || $codepoint === 0x0bd7
+            || ($codepoint >= 0x0c01 && $codepoint <= 0x0c03)
+            || ($codepoint >= 0x0c3e && $codepoint <= 0x0c44)
+            || ($codepoint >= 0x0c46 && $codepoint <= 0x0c48)
+            || ($codepoint >= 0x0c4a && $codepoint <= 0x0c4d)
+            || ($codepoint >= 0x0c55 && $codepoint <= 0x0c56)
+            || ($codepoint >= 0x0c62 && $codepoint <= 0x0c63)
+            || ($codepoint >= 0x0c82 && $codepoint <= 0x0c83)
+            || $codepoint === 0x0cbc
+            || $codepoint === 0x0cbe
+            || ($codepoint >= 0x0cc0 && $codepoint <= 0x0cc4)
+            || ($codepoint >= 0x0cc6 && $codepoint <= 0x0cc8)
+            || ($codepoint >= 0x0cca && $codepoint <= 0x0ccd)
+            || ($codepoint >= 0x0cd5 && $codepoint <= 0x0cd6)
+            || ($codepoint >= 0x0ce2 && $codepoint <= 0x0ce3)
+            || ($codepoint >= 0x0d02 && $codepoint <= 0x0d03)
+            || ($codepoint >= 0x0d3e && $codepoint <= 0x0d44)
+            || ($codepoint >= 0x0d46 && $codepoint <= 0x0d48)
+            || ($codepoint >= 0x0d4a && $codepoint <= 0x0d4d)
+            || $codepoint === 0x0d57
+            || ($codepoint >= 0x0d62 && $codepoint <= 0x0d63)
+            || ($codepoint >= 0x0d82 && $codepoint <= 0x0d83)
+            || $codepoint === 0x0dca
+            || ($codepoint >= 0x0dcf && $codepoint <= 0x0dd4)
+            || $codepoint === 0x0dd6
+            || ($codepoint >= 0x0dd8 && $codepoint <= 0x0ddf)
+            || $codepoint === 0x0eb1
+            || ($codepoint >= 0x0eb4 && $codepoint <= 0x0ebc)
+            || ($codepoint >= 0x0ec8 && $codepoint <= 0x0ecd);
     }
 
     private static function isAmbiguousWidthCodepoint(int $codepoint): bool

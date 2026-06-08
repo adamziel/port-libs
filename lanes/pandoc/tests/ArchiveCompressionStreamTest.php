@@ -4265,6 +4265,8 @@ return [
         $t->same(5, $inspection['candidateCount']);
         $t->same(4, $inspection['packageCount']);
         $t->same(1, $inspection['diagnosticCount']);
+        $t->same(0, $inspection['depthLimitReachedCount']);
+        $t->same(0, $inspection['depthLimitedCandidateCount']);
         $t->same([
             'packet/nested/review.tar.gz',
             'packet/nested/review.tar.gz!packet/deeper/export.zip',
@@ -4282,6 +4284,9 @@ return [
         $t->same(1, $byPath['packet/nested/review.tar.gz']['depth']);
         $t->same(strlen($gzipInnerTar), $byPath['packet/nested/review.tar.gz']['size']);
         $t->same([], $byPath['packet/nested/review.tar.gz']['diagnostics']);
+        $t->same(false, $byPath['packet/nested/review.tar.gz']['depthLimitReached']);
+        $t->same(0, $byPath['packet/nested/review.tar.gz']['depthLimitedCandidateCount']);
+        $t->same([], $byPath['packet/nested/review.tar.gz']['depthLimitedCandidateNames']);
 
         $t->same('package', $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['status']);
         $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $byPath['packet/nested/review.tar.gz!packet/deeper/export.zip']['kind']);
@@ -4311,13 +4316,29 @@ return [
 
         $t->same(4, $depthOne['candidateCount']);
         $t->same(3, $depthOne['packageCount']);
-        $t->same(1, $depthOne['diagnosticCount']);
+        $t->same(2, $depthOne['diagnosticCount']);
+        $t->same(1, $depthOne['depthLimitReachedCount']);
+        $t->same(1, $depthOne['depthLimitedCandidateCount']);
         $t->same([
             'packet/nested/review.tar.gz',
             'packet/nested/document.docx',
             'packet/nested/signature.bin',
             'packet/nested/broken.zip',
         ], array_map(static fn (array $entry): string => $entry['path'], $depthOne['entries']));
+        $t->same(true, $depthOne['entries'][0]['depthLimitReached']);
+        $t->same(['nested-package-depth-limit-reached'], $depthOne['entries'][0]['diagnostics']);
+        $t->same(1, $depthOne['entries'][0]['depthLimitedCandidateCount']);
+        $t->same(['packet/deeper/export.zip'], $depthOne['entries'][0]['depthLimitedCandidateNames']);
+        $t->same([
+            [
+                'entryName' => 'packet/deeper/export.zip',
+                'candidateReasons' => ['extension:zip'],
+                'size' => strlen($innerZip->bytes()),
+            ],
+        ], $depthOne['entries'][0]['depthLimitedCandidates']);
+        $t->same(false, $depthOne['entries'][1]['depthLimitReached']);
+        $t->same(0, $depthOne['entries'][1]['depthLimitedCandidateCount']);
+        $t->same([], $depthOne['entries'][1]['depthLimitedCandidateNames']);
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectNestedPackageStreamsAuto($upload, null, null, -1));
     },
 

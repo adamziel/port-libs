@@ -1999,6 +1999,161 @@ HTML,
         ], null, 'vimdoc'));
     },
 
+    'renders bounded pandoc default opml lightweight markup and wiki template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $opml = $renderer->renderResource('templates/default', [], [
+            'title' => 'OPML Review Packet',
+            'date' => '2026-06-08',
+            'author' => ['Migration bot', 'Content editor'],
+            'body' => '<outline text="Imported body"/>',
+        ], null, 'opml+smart');
+        foreach ([
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<opml version="2.0">',
+            '<title>OPML Review Packet</title>',
+            '<dateModified>2026-06-08</dateModified>',
+            '<ownerName>Migration bot; Content editor</ownerName>',
+            '<outline text="Imported body"/>',
+            '</opml>',
+        ] as $needle) {
+            $t->contains($needle, $opml);
+        }
+
+        $djot = $renderer->renderResource('templates/default', [], [
+            'title' => 'Djot Review Packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'header-includes' => [':::{.review-meta}'],
+            'include-before' => [':::note' . "\n" . 'Before Djot import' . "\n" . ':::'],
+            'body' => '## Imported Djot body',
+            'include-after' => [':::handoff' . "\n" . 'After Djot import' . "\n" . ':::'],
+        ], null, 'djot+smart');
+        foreach ([
+            '# Djot Review Packet',
+            "Migration bot\nContent editor",
+            '2026-06-08',
+            ':::{.review-meta}',
+            ":::note\nBefore Djot import\n:::",
+            '## Imported Djot body',
+            ":::handoff\nAfter Djot import\n:::",
+        ] as $needle) {
+            $t->contains($needle, $djot);
+        }
+
+        $textile = $renderer->renderResource('templates/default', [], [
+            'include-before' => ['h1. Before Textile import'],
+            'body' => 'h2. Imported Textile body',
+            'include-after' => ['h1. Textile handoff'],
+        ], null, 'textile+smart');
+        foreach ([
+            'h1. Before Textile import',
+            'h2. Imported Textile body',
+            'h1. Textile handoff',
+        ] as $needle) {
+            $t->contains($needle, $textile);
+        }
+
+        $markua = $renderer->renderResource('templates/default', [], [
+            'titleblock' => '# Markua Review Packet',
+            'header-includes' => ['{frontmatter: review}'],
+            'include-before' => ['# Before Markua import'],
+            'toc' => true,
+            'table-of-contents' => '{toc}',
+            'body' => '# Imported Markua body',
+            'include-after' => ['# Markua handoff'],
+        ], null, 'markua+smart');
+        foreach ([
+            '# Markua Review Packet',
+            '{frontmatter: review}',
+            '# Before Markua import',
+            '{toc}',
+            '# Imported Markua body',
+            '# Markua handoff',
+        ] as $needle) {
+            $t->contains($needle, $markua);
+        }
+
+        $tei = $renderer->renderResource('templates/default', [], [
+            'lang' => 'en',
+            'title' => 'TEI Review Packet',
+            'author' => ['Migration bot', 'Content editor'],
+            'publicationStmt' => 'Internal migration review',
+            'license' => 'Internal use only',
+            'publisher' => 'Port Libs',
+            'pubPlace' => 'Review desk',
+            'address' => 'https://example.test/wp-admin/import',
+            'date' => '2026-06-08',
+            'sourceDesc' => '<p>Converted from a source document.</p>',
+            'include-before' => ['<front><p>Before TEI import</p></front>'],
+            'body' => '<div><p>Imported TEI body.</p></div>',
+            'include-after' => ['<back><p>TEI handoff.</p></back>'],
+        ], null, 'tei+smart');
+        foreach ([
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<TEI xmlns="http://www.tei-c.org/ns/1.0" xml:lang="en">',
+            '<title>TEI Review Packet</title>',
+            '<author>Migration bot</author>',
+            '<author>Content editor</author>',
+            '<p>Internal migration review</p>',
+            '<availability><licence>Internal use only</licence></availability>',
+            '<publisher>Port Libs</publisher>',
+            '<pubPlace>Review desk</pubPlace>',
+            '<address>https://example.test/wp-admin/import</address>',
+            '<date>2026-06-08</date>',
+            '<p>Converted from a source document.</p>',
+            '<front><p>Before TEI import</p></front>',
+            '<body>',
+            '<div><p>Imported TEI body.</p></div>',
+            '<back><p>TEI handoff.</p></back>',
+            '</TEI>',
+        ] as $needle) {
+            $t->contains($needle, $tei);
+        }
+        $t->same(false, str_contains($tei, 'Produced by pandoc.'));
+
+        $teiDefaultSourceDesc = $renderer->renderResource('templates/default.tei', [], [
+            'title' => 'Default sourceDesc',
+            'body' => '<p>Body</p>',
+        ]);
+        $t->contains('<p>Produced by pandoc.</p>', $teiDefaultSourceDesc);
+
+        foreach ([
+            'xwiki' => ['{{toc /}}', '= XWiki Body ='],
+            'zimwiki' => ['__TOC__', '====== ZimWiki Body ======'],
+        ] as $format => [$tocMarker, $body]) {
+            $output = $renderer->renderResource('templates/default', [], [
+                'include-before' => ['Before ' . $format . ' import'],
+                'toc' => true,
+                'body' => $body,
+                'include-after' => ['After ' . $format . ' import'],
+            ], null, $format . '+smart');
+
+            if ($format === 'zimwiki') {
+                $t->contains('Content-Type: text/x-zim-wiki', $output);
+                $t->contains('Wiki-Format: zim 0.4', $output);
+            }
+
+            foreach ([
+                'Before ' . $format . ' import',
+                $tocMarker,
+                $body,
+                'After ' . $format . ' import',
+            ] as $needle) {
+                $t->contains($needle, $output);
+            }
+        }
+
+        $t->same('Direct Haddock body', $renderer->renderResource('templates/default.haddock', [], [
+            'body' => 'Direct Haddock body',
+        ]));
+        $t->same('custom xwiki', $renderer->renderResource('templates/default', [
+            'templates/default.xwiki' => 'custom $body$',
+        ], [
+            'body' => 'xwiki',
+        ], null, 'xwiki+smart'));
+    },
+
     'renders bounded pandoc default latex template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

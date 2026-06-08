@@ -670,6 +670,109 @@ HTML,
         }
     }
 
+    $opmlFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'title' => 'OPML Default Review',
+        'date' => '2026-06-08',
+        'author' => ['Migration bot', 'Content editor'],
+        'body' => '<outline text="Imported WordPress body"/>',
+    ], null, 'opml+smart');
+    foreach ([
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<opml version="2.0">',
+        '<title>OPML Default Review</title>',
+        '<dateModified>2026-06-08</dateModified>',
+        '<ownerName>Migration bot; Content editor</ownerName>',
+        '<outline text="Imported WordPress body"/>',
+    ] as $needle) {
+        if (!str_contains($opmlFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate OPML default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $teiFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'lang' => 'en',
+        'title' => 'TEI Default Review',
+        'author' => ['Migration bot'],
+        'publisher' => 'Port Libs',
+        'date' => '2026-06-08',
+        'body' => '<div><p>Imported TEI review body.</p></div>',
+    ], null, 'tei');
+    foreach ([
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0" xml:lang="en">',
+        '<title>TEI Default Review</title>',
+        '<author>Migration bot</author>',
+        '<publisher>Port Libs</publisher>',
+        '<date>2026-06-08</date>',
+        '<p>Produced by pandoc.</p>',
+        '<div><p>Imported TEI review body.</p></div>',
+    ] as $needle) {
+        if (!str_contains($teiFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate TEI default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $lightweightDefaults = [
+        'djot' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'title' => 'Djot Default Review',
+                'author' => ['Migration bot'],
+                'date' => '2026-06-08',
+                'header-includes' => [':::{.review-meta}'],
+                'include-before' => [':::note' . "\n" . 'Review before import.' . "\n" . ':::'],
+                'body' => '## Imported Djot body',
+                'include-after' => [':::handoff' . "\n" . 'Done' . "\n" . ':::'],
+            ], null, 'djot+smart'),
+            ['# Djot Default Review', 'Migration bot', ':::{.review-meta}', '## Imported Djot body', ":::handoff\nDone\n:::"],
+        ],
+        'markua' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'titleblock' => '# Markua Default Review',
+                'toc' => true,
+                'table-of-contents' => '{toc}',
+                'body' => '# Imported Markua body',
+            ], null, 'markua'),
+            ['# Markua Default Review', '{toc}', '# Imported Markua body'],
+        ],
+        'textile' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'include-before' => ['h1. Textile Review'],
+                'body' => 'h2. Imported Textile body',
+                'include-after' => ['h1. Textile Handoff'],
+            ], null, 'textile'),
+            ['h1. Textile Review', 'h2. Imported Textile body', 'h1. Textile Handoff'],
+        ],
+        'haddock' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'body' => 'Haddock imported body',
+            ], null, 'haddock'),
+            ['Haddock imported body'],
+        ],
+        'xwiki' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'toc' => true,
+                'body' => '= XWiki imported body =',
+            ], null, 'xwiki'),
+            ['{{toc /}}', '= XWiki imported body ='],
+        ],
+        'zimwiki' => [
+            (new DocTemplate())->renderResource('templates/default', [], [
+                'toc' => true,
+                'body' => '====== ZimWiki imported body ======',
+            ], null, 'zimwiki'),
+            ['Content-Type: text/x-zim-wiki', 'Wiki-Format: zim 0.4', '__TOC__', '====== ZimWiki imported body ======'],
+        ],
+    ];
+    foreach ($lightweightDefaults as $format => [$rendered, $needles]) {
+        foreach ($needles as $needle) {
+            if (!str_contains($rendered, $needle)) {
+                fwrite(STDERR, "Missing expected doctemplate {$format} default fallback: {$needle}\n");
+                exit(1);
+            }
+        }
+    }
+
     $manFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'has-tables' => true,
         'pandoc-version' => '3.7.0',

@@ -1951,6 +1951,8 @@ $summary = [
                 'referenceContentTypeMatches' => $reference['referenceContentTypeMatches'],
                 'relationshipTransformCount' => $reference['relationshipTransformCount'],
                 'canonicalizationTransformCount' => $reference['canonicalizationTransformCount'],
+                'canonicalizationTransformAlgorithms' => $reference['canonicalizationTransformAlgorithms'],
+                'relationshipTransformFollowedByCanonicalization' => $reference['relationshipTransformFollowedByCanonicalization'],
                 'digestAlgorithm' => $reference['digestAlgorithm'],
                 'digestValueDecodedBytes' => $reference['digestValueDecodedBytes'],
                 'valid' => $reference['valid'],
@@ -2167,6 +2169,8 @@ if (($argv[1] ?? '') === '--self-test') {
         ]
         || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
         || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformAlgorithms'] ?? null) !== ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315']
+        || ($summary['digitalSignatureSignedInfoReferences'][0]['relationshipTransformFollowedByCanonicalization'] ?? null) !== true
         || ($summary['digitalSignatureSignedInfoReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
         || ($summary['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
         || ($summary['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true
@@ -2186,6 +2190,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipPart'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['canonicalizationTransformAlgorithms'] ?? null) !== ['http://www.w3.org/TR/2001/REC-xml-c14n-20010315']
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['relationshipTransformFollowedByCanonicalization'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true

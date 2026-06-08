@@ -2110,6 +2110,72 @@ $buildLocalEntrySlackBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnclaimedLocalHeaderBackedPackage = static function () use ($crc32): string {
+    $documentName = 'word/document.xml';
+    $documentData = '<w:document><w:body><w:p>Unclaimed local header bytes should stay blocked</w:p></w:body></w:document>';
+    $documentCrc = $crc32($documentData);
+    $orphanName = 'word/media/orphan.bin';
+    $orphanData = "orphan local media bytes should stay blocked\n";
+    $orphanCrc = $crc32($orphanData);
+
+    $orphanLocal = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $orphanCrc,
+        strlen($orphanData),
+        strlen($orphanData),
+        strlen($orphanName),
+        0
+    );
+    $orphanLocal .= $orphanName . $orphanData;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $documentCrc,
+        strlen($documentData),
+        strlen($documentData),
+        strlen($documentName),
+        0
+    );
+    $body .= $documentName . $documentData . $orphanLocal;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $documentCrc,
+        strlen($documentData),
+        strlen($documentData),
+        strlen($documentName),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $documentName;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $corruptZipEntryPayload = static function (string $zip, string $entryName): string {
     $cursor = 0;
     $length = strlen($zip);
@@ -2715,6 +2781,7 @@ $rawStrictArchiveExtraDataRecordPreflight = ZipPackage::rawStrictImportPreflight
 $rawStrictZip64EocdPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdBytes, 4096, 100.0, 4096);
 $rawStrictZip64LocatorPreflight = ZipPackage::rawStrictImportPreflight($zip64LocatorBytes, 4096, 100.0, 4096);
 $rawStrictLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildLocalHeaderNameMismatchBackedPackage(), 4096, 100.0, 4096);
+$rawStrictLocalHeaderSpanPreflight = ZipPackage::rawStrictImportPreflight($buildUnclaimedLocalHeaderBackedPackage(), 4096, 100.0, 4096);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
@@ -3800,6 +3867,8 @@ if (in_array('--self-test', $argv, true)) {
         || ($rawStrictImportPreflight['entryCount'] ?? null) !== 3
         || ($rawStrictImportPreflight['strictImport'] ?? null) !== $strictImportPreflight
         || ($rawStrictImportPreflight['centralDirectoryInventory']['entryCount'] ?? null) !== 3
+        || ($rawStrictImportPreflight['localHeaderSpans']['issueEntryCount'] ?? null) !== 0
+        || ($rawStrictImportPreflight['localHeaderSpans']['isSupportedByBoundedReader'] ?? null) !== true
         || ($rawStrictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
         || ($rawStrictImportPreflight['encryption']['hasEncryptedEntries'] ?? null) !== false
     ) {
@@ -4931,6 +5000,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected raw strict ZIP preflight to report local header name mismatches');
     }
 
+    if (
+        ($rawStrictLocalHeaderSpanPreflight['isValid'] ?? null) !== false
+        || ($rawStrictLocalHeaderSpanPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntryCount'] ?? null) !== 1
+        || ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesStartWithLocalHeader'] ?? null) !== true
+        || !in_array('local-header-span-issues', $rawStrictLocalHeaderSpanPreflight['diagnostics'] ?? [], true)
+        || !in_array('local-entry-unclaimed-bytes', $rawStrictLocalHeaderSpanPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictLocalHeaderSpanPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP preflight to report unclaimed local header spans');
+    }
+
     if (!$localEntrySlackRejected) {
         throw new RuntimeException('Expected hidden ZIP local entry bytes to be rejected before media import');
     }
@@ -5120,6 +5201,9 @@ echo 'zipRawStrictImportPreflightErrors=' . count($rawStrictImportPreflight['pre
 echo 'zipRawStrictLocalHeaderNamePolicy=' . ($rawStrictLocalHeaderNamePreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderNameIssues=' . implode(',', $rawStrictLocalHeaderNamePreflight['localHeaderNames']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderNameMismatchCount=' . ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntryCount'] ?? 0) . "\n";
+echo 'zipRawStrictLocalHeaderSpanPolicy=' . ($rawStrictLocalHeaderSpanPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictLocalHeaderSpanIssues=' . implode(',', $rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
+echo 'zipRawStrictLocalHeaderSpanUnclaimedBytes=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytes'] ?? 0) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";

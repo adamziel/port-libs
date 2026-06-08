@@ -409,6 +409,14 @@ final class DocTemplate
             'default.jira' => $this->defaultJiraTemplate(),
             'default.dokuwiki', 'default.mediawiki' => $this->defaultWikiTocTemplate(),
             'default.vimdoc' => $this->defaultVimdocTemplate(),
+            'default.opml' => $this->defaultOpmlTemplate(),
+            'default.djot' => $this->defaultDjotTemplate(),
+            'default.textile' => $this->defaultTextileTemplate(),
+            'default.markua' => $this->defaultMarkuaTemplate(),
+            'default.haddock' => $this->defaultHaddockTemplate(),
+            'default.tei' => $this->defaultTeiTemplate(),
+            'default.xwiki' => $this->defaultXWikiTemplate(),
+            'default.zimwiki' => $this->defaultZimWikiTemplate(),
             'default.asciidoc' => $this->defaultAsciiDocTemplate(),
             'default.muse' => $this->defaultMuseTemplate(),
             'default.org' => $this->defaultOrgTemplate(),
@@ -459,6 +467,14 @@ final class DocTemplate
             'default.dokuwiki',
             'default.mediawiki',
             'default.vimdoc',
+            'default.opml',
+            'default.djot',
+            'default.textile',
+            'default.markua',
+            'default.haddock',
+            'default.tei',
+            'default.xwiki',
+            'default.zimwiki',
             'default.asciidoc',
             'default.muse',
             'default.org',
@@ -537,6 +553,203 @@ WIKI;
         return <<<'VIMDOC'
 $if(filename)$*${filename}* $endif$$if(abstract)$${abstract}$endif$$if(filename)$ $endif$$if(combined-title)$${combined-title} $endif$$toc-reminder$ $if(toc)$ $toc$ $endif$ $body$ $modeline$
 VIMDOC;
+    }
+
+    private function defaultOpmlTemplate(): string
+    {
+        return <<<'OPML'
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>$title$</title>
+    <dateModified>$date$</dateModified>
+    <ownerName>$for(author)$$author$$sep$; $endfor$</ownerName>
+  </head>
+  <body>
+$body$
+  </body>
+</opml>
+OPML;
+    }
+
+    private function defaultDjotTemplate(): string
+    {
+        return <<<'DJOT'
+$if(title)$
+# $title$
+
+$endif$
+$if(author)$
+$for(author)$
+$author$
+$endfor$
+
+$endif$
+$if(date)$
+$date$
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$body$
+$for(include-after)$
+$include-after$
+
+$endfor$
+DJOT;
+    }
+
+    private function defaultTextileTemplate(): string
+    {
+        return <<<'TEXTILE'
+$for(include-before)$
+$include-before$
+
+$endfor$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+TEXTILE;
+    }
+
+    private function defaultMarkuaTemplate(): string
+    {
+        return <<<'MARKUA'
+$if(titleblock)$
+$titleblock$
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+$table-of-contents$
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+MARKUA;
+    }
+
+    private function defaultHaddockTemplate(): string
+    {
+        return <<<'HADDOCK'
+$body$
+HADDOCK;
+    }
+
+    private function defaultTeiTemplate(): string
+    {
+        return <<<'TEI'
+<?xml version="1.0" encoding="utf-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"$if(lang)$ xml:lang="$lang$"$endif$>
+<teiHeader>
+  <fileDesc>
+    <titleStmt>
+      <title>$title$</title>
+$for(author)$
+      <author>$author$</author>
+$endfor$
+    </titleStmt>
+    <publicationStmt>
+$if(publicationStmt)$
+      <p>$if(publicationStmt)$$publicationStmt$$endif$</p>
+$endif$
+$if(license)$
+      <availability><licence>$license$</licence></availability>
+$endif$
+$if(publisher)$
+      <publisher>$publisher$</publisher>
+$endif$
+$if(pubPlace)$
+      <pubPlace>$pubPlace$</pubPlace>
+$endif$
+$if(address)$
+      <address>$address$</address>
+$endif$
+$if(date)$
+      <date>$date$</date>
+$endif$
+    </publicationStmt>
+    <sourceDesc>
+$if(sourceDesc)$
+      $sourceDesc$
+$else$
+      <p>Produced by pandoc.</p>
+$endif$
+    </sourceDesc>
+  </fileDesc>
+</teiHeader>
+<text>
+$for(include-before)$
+$include-before$
+$endfor$
+<body>
+$body$
+</body>
+$for(include-after)$
+$include-after$
+$endfor$
+</text>
+</TEI>
+TEI;
+    }
+
+    private function defaultXWikiTemplate(): string
+    {
+        return <<<'XWIKI'
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+{{toc /}}
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+XWIKI;
+    }
+
+    private function defaultZimWikiTemplate(): string
+    {
+        return <<<'ZIMWIKI'
+Content-Type: text/x-zim-wiki
+Wiki-Format: zim 0.4
+
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+__TOC__
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+ZIMWIKI;
     }
 
     private function defaultRstTemplate(): string

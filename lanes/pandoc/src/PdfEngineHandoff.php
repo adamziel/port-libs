@@ -13,6 +13,7 @@ final class PdfEngineHandoff
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
     private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
     private const MAX_SIGNATURE_CONTENTS_BYTES = 262144;
+    private const MAX_DOCUMENT_SECURITY_STORE_STREAM_BYTES = 262144;
     private const MAX_PIECE_INFO_PRIVATE_STREAM_BYTES = 262144;
     private const MAX_LEGAL_ATTESTATION_STREAM_BYTES = 262144;
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
@@ -334,6 +335,7 @@ final class PdfEngineHandoff
      *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
+     *     pdfDocumentSecurityStore: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
@@ -778,6 +780,7 @@ final class PdfEngineHandoff
         $pdfCatalogPermissions = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
+        $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
         $pdfRichMediaAnnotations = [];
@@ -880,6 +883,7 @@ final class PdfEngineHandoff
                 $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
+                $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfRichMediaAnnotations = $pdfInspection['richMediaAnnotations'];
@@ -2067,6 +2071,43 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-subfilter:' . $subFilter . ':' . $subFilterCount;
                     }
                 }
+                if ($pdfDocumentSecurityStore !== []) {
+                    $diagnostics[] = 'pdf-byte-dss';
+                    $dssCerts = is_array($pdfDocumentSecurityStore['certs'] ?? null) ? $pdfDocumentSecurityStore['certs'] : [];
+                    $dssOcsp = is_array($pdfDocumentSecurityStore['ocsp'] ?? null) ? $pdfDocumentSecurityStore['ocsp'] : [];
+                    $dssCrls = is_array($pdfDocumentSecurityStore['crls'] ?? null) ? $pdfDocumentSecurityStore['crls'] : [];
+                    $dssVri = is_array($pdfDocumentSecurityStore['vri'] ?? null) ? $pdfDocumentSecurityStore['vri'] : [];
+                    if ($dssCerts !== []) {
+                        $diagnostics[] = 'pdf-byte-dss-certs:' . count($dssCerts);
+                    }
+                    if ($dssOcsp !== []) {
+                        $diagnostics[] = 'pdf-byte-dss-ocsp:' . count($dssOcsp);
+                    }
+                    if ($dssCrls !== []) {
+                        $diagnostics[] = 'pdf-byte-dss-crls:' . count($dssCrls);
+                    }
+                    if ($dssVri !== []) {
+                        $diagnostics[] = 'pdf-byte-dss-vri:' . count($dssVri);
+                    }
+                    $dssStreamCount = 0;
+                    $dssStreamSkips = [];
+                    foreach ([$dssCerts, $dssOcsp, $dssCrls] as $streamEntries) {
+                        foreach ($streamEntries as $streamEntry) {
+                            if (($streamEntry['bytes'] ?? null) !== null) {
+                                $dssStreamCount++;
+                            }
+                            if (is_string($streamEntry['skipped'] ?? null) && $streamEntry['skipped'] !== '') {
+                                $dssStreamSkips[$streamEntry['skipped']] = true;
+                            }
+                        }
+                    }
+                    if ($dssStreamCount > 0) {
+                        $diagnostics[] = 'pdf-byte-dss-streams:' . $dssStreamCount;
+                    }
+                    foreach (array_keys($dssStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-dss-stream-skipped:' . $skipReason;
+                    }
+                }
                 if ($pdfActiveActions !== []) {
                     $diagnostics[] = 'pdf-byte-active-actions:' . count($pdfActiveActions);
                 }
@@ -2547,6 +2588,7 @@ final class PdfEngineHandoff
             'pdfCatalogPermissions' => $pdfCatalogPermissions,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
+            'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfRichMediaAnnotations' => $pdfRichMediaAnnotations,
@@ -2670,6 +2712,7 @@ final class PdfEngineHandoff
      *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
+     *     finalPdfDocumentSecurityStore: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
@@ -2907,6 +2950,7 @@ final class PdfEngineHandoff
             'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
+            'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfRichMediaAnnotations' => is_array($finalRun) && is_array($finalRun['pdfRichMediaAnnotations'] ?? null) ? $finalRun['pdfRichMediaAnnotations'] : [],
@@ -4019,6 +4063,7 @@ final class PdfEngineHandoff
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
+     *     documentSecurityStore:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
      *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
@@ -4161,6 +4206,7 @@ final class PdfEngineHandoff
             'catalogPermissions' => $this->extractPdfCatalogPermissions($pdfBytes, $catalog),
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
+            'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'richMediaAnnotations' => $richMediaAnnotations,
@@ -10394,6 +10440,167 @@ final class PdfEngineHandoff
         ksort($subFilters);
 
         return $subFilters;
+    }
+
+    /**
+     * @return array{object:string|null, certs:list<array{object:string, bytes:int|null, sha256:string|null, skipped:string|null}>, ocsp:list<array{object:string, bytes:int|null, sha256:string|null, skipped:string|null}>, crls:list<array{object:string, bytes:int|null, sha256:string|null, skipped:string|null}>, vri:list<array{name:string, object:string|null, type:string|null, timestamp:string|null, certs:list<string>, ocsp:list<string>, crls:list<string>, keys:list<string>}>, keys:list<string>}|array{}
+     */
+    private function extractPdfDocumentSecurityStore(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/DSS')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $dss = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($catalog, 'DSS'), $objects);
+        if ($dss['dictionary'] === null) {
+            return [];
+        }
+
+        $dictionary = $dss['dictionary'];
+
+        return [
+            'object' => $dss['object'],
+            'certs' => $this->summarizePdfDocumentSecurityStoreStreams(
+                $this->collectPdfReferencesFromValue($this->extractPdfValueForName($dictionary, 'Certs'), $objects),
+                $objects
+            ),
+            'ocsp' => $this->summarizePdfDocumentSecurityStoreStreams(
+                $this->collectPdfReferencesFromValue($this->extractPdfValueForName($dictionary, 'OCSPs'), $objects),
+                $objects
+            ),
+            'crls' => $this->summarizePdfDocumentSecurityStoreStreams(
+                $this->collectPdfReferencesFromValue($this->extractPdfValueForName($dictionary, 'CRLs'), $objects),
+                $objects
+            ),
+            'vri' => $this->extractPdfDocumentSecurityStoreVri($dictionary, $objects),
+            'keys' => $this->pdfDictionaryKeys($dictionary),
+        ];
+    }
+
+    /**
+     * @param list<string> $references
+     * @param array<string, string> $objects
+     * @return list<array{object:string, bytes:int|null, sha256:string|null, skipped:string|null}>
+     */
+    private function summarizePdfDocumentSecurityStoreStreams(array $references, array $objects): array
+    {
+        $references = $this->uniqueStrings($references);
+        sort($references, SORT_STRING);
+
+        $streams = [];
+        foreach ($references as $reference) {
+            $body = $objects[$this->pdfReferenceKey($reference)] ?? null;
+            $stream = $body === null
+                ? ['bytes' => null, 'sha256' => null, 'skipped' => 'missing']
+                : $this->summarizePdfStructuralStream($body, self::MAX_DOCUMENT_SECURITY_STORE_STREAM_BYTES);
+            $streams[] = [
+                'object' => $reference,
+                'bytes' => $stream['bytes'],
+                'sha256' => $stream['sha256'],
+                'skipped' => $stream['skipped'],
+            ];
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{name:string, object:string|null, type:string|null, timestamp:string|null, certs:list<string>, ocsp:list<string>, crls:list<string>, keys:list<string>}>
+     */
+    private function extractPdfDocumentSecurityStoreVri(string $dssDictionary, array $objects): array
+    {
+        $vri = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($dssDictionary, 'VRI'), $objects);
+        if ($vri['dictionary'] === null) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($vri['dictionary']) as $entry) {
+            if ($entry['key'] === '' || $entry['key'] === 'Type') {
+                continue;
+            }
+
+            $resolved = $this->resolvePdfDictionaryValue($entry['value'], $objects);
+            if ($resolved['dictionary'] === null) {
+                continue;
+            }
+
+            $dictionary = $resolved['dictionary'];
+            $entries[] = [
+                'name' => $entry['key'],
+                'object' => $resolved['object'],
+                'type' => $this->extractPdfNameToken($dictionary, 'Type'),
+                'timestamp' => $this->extractPdfStringOrNameValue($dictionary, 'TU')
+                    ?? $this->extractPdfStringOrNameValue($dictionary, 'TS'),
+                'certs' => $this->pdfReferenceLabels(
+                    $this->collectPdfReferencesFromValue(
+                        $this->extractPdfValueForName($dictionary, 'Cert')
+                            ?? $this->extractPdfValueForName($dictionary, 'Certs'),
+                        $objects
+                    )
+                ),
+                'ocsp' => $this->pdfReferenceLabels(
+                    $this->collectPdfReferencesFromValue(
+                        $this->extractPdfValueForName($dictionary, 'OCSP')
+                            ?? $this->extractPdfValueForName($dictionary, 'OCSPs'),
+                        $objects
+                    )
+                ),
+                'crls' => $this->pdfReferenceLabels(
+                    $this->collectPdfReferencesFromValue(
+                        $this->extractPdfValueForName($dictionary, 'CRL')
+                            ?? $this->extractPdfValueForName($dictionary, 'CRLs'),
+                        $objects
+                    )
+                ),
+                'keys' => $this->pdfDictionaryKeys($dictionary),
+            ];
+        }
+
+        usort(
+            $entries,
+            static fn (array $a, array $b): int => [
+                $a['name'],
+                $a['object'] ?? '',
+            ] <=> [
+                $b['name'],
+                $b['object'] ?? '',
+            ]
+        );
+
+        return $entries;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfDictionaryKeys(string $dictionary): array
+    {
+        $keys = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            if ($entry['key'] !== '') {
+                $keys[] = $entry['key'];
+            }
+        }
+
+        $keys = array_values(array_unique($keys));
+        sort($keys, SORT_STRING);
+
+        return $keys;
+    }
+
+    /**
+     * @param list<string> $references
+     * @return list<string>
+     */
+    private function pdfReferenceLabels(array $references): array
+    {
+        $references = $this->uniqueStrings($references);
+        sort($references, SORT_STRING);
+
+        return $references;
     }
 
     /**

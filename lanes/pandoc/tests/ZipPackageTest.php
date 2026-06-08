@@ -692,6 +692,61 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'preflights raw zip local header span gaps before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $orphanName = 'word/media/orphan.bin';
+        $orphanData = "unlisted local media bytes should stay blocked\n";
+        $orphanBytes = pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc32($orphanData),
+            strlen($orphanData),
+            strlen($orphanData),
+            strlen($orphanName),
+            0
+        );
+        $orphanBytes .= $orphanName . $orphanData;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw local span review</w:p></w:document>',
+                'method' => 0,
+                'localSlack' => $orphanBytes,
+            ],
+        ]);
+
+        $spanPreflight = ZipPackage::localHeaderSpanPreflight($zip);
+        $entry = $spanPreflight['entries'][0];
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 512, 20.0, 512);
+
+        $t->same(1, $spanPreflight['entryCount']);
+        $t->same(1, $spanPreflight['totalEntryCount']);
+        $t->same(1, $spanPreflight['issueEntryCount']);
+        $t->same(false, $spanPreflight['isSupportedByBoundedReader']);
+        $t->same(['local-entry-unclaimed-bytes'], $spanPreflight['issues']);
+        $t->same('word/document.xml', $entry['name']);
+        $t->same(strlen($orphanBytes), $entry['unclaimedBytes']);
+        $t->same(true, $entry['unclaimedBytesStartWithLocalHeader']);
+        $t->same(false, $entry['isContiguousWithNext']);
+        $t->same(true, $entry['hasSpanIssue']);
+        $t->same(['local-entry-unclaimed-bytes'], $entry['issues']);
+
+        $t->same(false, $rawPreflight['isValid']);
+        $t->same(false, $rawPreflight['canInstantiate']);
+        $t->same(1, $rawPreflight['entryCount']);
+        $t->same(1, $rawPreflight['localHeaderSpans']['issueEntryCount']);
+        $t->same(['local-entry-unclaimed-bytes'], $rawPreflight['localHeaderSpans']['issues']);
+        $t->same($spanPreflight, $rawPreflight['localHeaderSpans']);
+        $t->same(null, $rawPreflight['strictImport']);
+        $t->contains('local-header-span-issues', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('local-entry-unclaimed-bytes', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
+    },
+
     'preflights zip central directory order against local header order before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/vnd.oasis.opendocument.text';
         $contentXml = '<office:document-content><text:p>body</text:p></office:document-content>';
@@ -5009,6 +5064,9 @@ return [
         $t->same(true, $safeRaw['localHeaderNames']['isSupportedByBoundedReader']);
         $t->same(0, $safeRaw['localHeaderMetadata']['mismatchedEntryCount']);
         $t->same(true, $safeRaw['localHeaderMetadata']['isSupportedByBoundedReader']);
+        $t->same(3, $safeRaw['localHeaderSpans']['entryCount']);
+        $t->same(0, $safeRaw['localHeaderSpans']['issueEntryCount']);
+        $t->same(true, $safeRaw['localHeaderSpans']['isSupportedByBoundedReader']);
         $t->same(true, $safeRaw['compressionMethods']['isSupportedByBoundedReader']);
         $t->same(false, $safeRaw['encryption']['hasEncryptedEntries']);
         $t->same(0, $safeRaw['archiveExtraDataRecords']['archiveExtraDataRecordCount']);
@@ -5145,6 +5203,7 @@ return [
         $t->same(null, $zip64Raw['centralDirectoryInventory']);
         $t->same(null, $zip64Raw['localHeaderNames']);
         $t->same(null, $zip64Raw['localHeaderMetadata']);
+        $t->same(null, $zip64Raw['localHeaderSpans']);
         $t->contains('unsupported-archive-layout', implode(',', $zip64Raw['diagnostics']));
         $t->contains('zip64-end-of-central-directory', implode(',', $zip64Raw['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $zip64Raw['diagnostics']));

@@ -2153,6 +2153,15 @@ XML;
       <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
       <ds:DigestValue>U291cmNl</ds:DigestValue>
     </ds:Reference>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="urn:example:digest"/>
+      <ds:DigestValue>AA==</ds:DigestValue>
+    </ds:Reference>
     <ds:Reference URI="/word/_rels/document.xml.rels">
       <ds:DigestMethod Algorithm="urn:example:digest"/>
       <ds:DigestValue>AA==</ds:DigestValue>
@@ -2187,7 +2196,7 @@ XML;
 
         $references = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-signed-info.xml');
 
-        $t->same(6, count($references));
+        $t->same(7, count($references));
 
         $documentReference = $references[0];
         $t->same('/_xmlsignatures/sig-signed-info.xml', $documentReference['signaturePart']);
@@ -2215,25 +2224,39 @@ XML;
         ], $relationshipReference['transformAlgorithms']);
         $t->same(1, $relationshipReference['relationshipTransformCount']);
         $t->same(1, $relationshipReference['canonicalizationTransformCount']);
+        $t->same(['http://www.w3.org/TR/2001/REC-xml-c14n-20010315'], $relationshipReference['canonicalizationTransformAlgorithms']);
+        $t->same(true, $relationshipReference['relationshipTransformFollowedByCanonicalization']);
         $t->same(6, $relationshipReference['digestValueDecodedBytes']);
         $t->same(true, $relationshipReference['valid']);
         $t->same([], $relationshipReference['issues']);
 
-        $relationshipWithoutTransform = $references[2];
+        $relationshipWithoutCanonicalization = $references[2];
+        $t->same('/word/_rels/document.xml.rels', $relationshipWithoutCanonicalization['targetPart']);
+        $t->same(true, $relationshipWithoutCanonicalization['relationshipPart']);
+        $t->same(1, $relationshipWithoutCanonicalization['relationshipTransformCount']);
+        $t->same(0, $relationshipWithoutCanonicalization['canonicalizationTransformCount']);
+        $t->same([], $relationshipWithoutCanonicalization['canonicalizationTransformAlgorithms']);
+        $t->same(false, $relationshipWithoutCanonicalization['relationshipTransformFollowedByCanonicalization']);
+        $t->same(false, $relationshipWithoutCanonicalization['valid']);
+        $t->same(['signed-info-relationship-transform-not-followed-by-canonicalization'], $relationshipWithoutCanonicalization['issues']);
+
+        $relationshipWithoutTransform = $references[3];
         $t->same('/word/_rels/document.xml.rels', $relationshipWithoutTransform['targetPart']);
         $t->same(true, $relationshipWithoutTransform['relationshipPart']);
         $t->same(0, $relationshipWithoutTransform['relationshipTransformCount']);
+        $t->same(null, $relationshipWithoutTransform['relationshipTransformFollowedByCanonicalization']);
         $t->same(false, $relationshipWithoutTransform['valid']);
         $t->same(['relationship-part-reference-missing-relationship-transform'], $relationshipWithoutTransform['issues']);
 
-        $ordinaryPartWithRelationshipTransform = $references[3];
+        $ordinaryPartWithRelationshipTransform = $references[4];
         $t->same('/word/document.xml', $ordinaryPartWithRelationshipTransform['targetPart']);
         $t->same(false, $ordinaryPartWithRelationshipTransform['relationshipPart']);
         $t->same(1, $ordinaryPartWithRelationshipTransform['relationshipTransformCount']);
+        $t->same(false, $ordinaryPartWithRelationshipTransform['relationshipTransformFollowedByCanonicalization']);
         $t->same(false, $ordinaryPartWithRelationshipTransform['valid']);
         $t->same(['relationship-transform-reference-not-relationship-part'], $ordinaryPartWithRelationshipTransform['issues']);
 
-        $externalReference = $references[4];
+        $externalReference = $references[5];
         $t->same(null, $externalReference['targetPart']);
         $t->same(null, $externalReference['exists']);
         $t->same(null, $externalReference['contentType']);
@@ -2243,7 +2266,7 @@ XML;
             'missing-signed-info-reference-digest-value',
         ], $externalReference['issues']);
 
-        $missingReference = $references[5];
+        $missingReference = $references[6];
         $t->same('/word/media/missing.png', $missingReference['targetPart']);
         $t->same(false, $missingReference['exists']);
         $t->same('image/png', $missingReference['contentType']);

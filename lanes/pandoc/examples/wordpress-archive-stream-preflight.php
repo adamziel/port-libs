@@ -907,6 +907,12 @@ $nestedInspection = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
     strlen($nestedArchiveBytes),
     2
 );
+$nestedDepthLimitInspection = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+    $nestedGzip,
+    strlen($nestedArchiveBytes),
+    strlen($nestedArchiveBytes),
+    1
+);
 $archiveBombBytes = TarArchive::fromEntries([
     [
         'name' => 'packet/content.md',
@@ -1134,9 +1140,18 @@ if (in_array('--self-test', $argv, true)) {
         'nestedCandidateCount' => 4,
         'nestedPackageCount' => 3,
         'nestedDiagnosticCount' => 1,
+        'nestedDepthLimitReachedCount' => 0,
+        'nestedDepthLimitedCandidateCount' => 0,
         'nestedFirstPath' => 'packet/nested/review.tar.gz',
         'nestedDeeperPath' => 'packet/nested/review.tar.gz!packet/deeper/document.docx',
         'nestedBrokenPath' => 'packet/nested/broken.zip',
+        'nestedDepthOneCandidateCount' => 3,
+        'nestedDepthOnePackageCount' => 2,
+        'nestedDepthOneDiagnosticCount' => 2,
+        'nestedDepthOneDepthLimitReachedCount' => 1,
+        'nestedDepthOneDepthLimitedCandidateCount' => 1,
+        'nestedDepthOneDepthLimitedCandidateNames' => ['packet/deeper/document.docx'],
+        'nestedDepthOneDepthLimitedCandidateSize' => strlen($nestedZipPackage->bytes()),
         'archiveBombKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'archiveBombFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'archiveBombPolicy' => 'review-before-conversion',
@@ -1431,6 +1446,8 @@ if (in_array('--self-test', $argv, true)) {
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
         || $nestedInspection['packageCount'] !== $expected['nestedPackageCount']
         || $nestedInspection['diagnosticCount'] !== $expected['nestedDiagnosticCount']
+        || $nestedInspection['depthLimitReachedCount'] !== $expected['nestedDepthLimitReachedCount']
+        || $nestedInspection['depthLimitedCandidateCount'] !== $expected['nestedDepthLimitedCandidateCount']
         || ($nestedInspection['entries'][0]['path'] ?? null) !== $expected['nestedFirstPath']
         || ($nestedInspection['entries'][0]['kind'] ?? null) !== ArchiveCompressionStream::PACKAGE_KIND_TAR
         || ($nestedInspection['entries'][0]['format'] ?? null) !== ArchiveCompressionStream::FORMAT_GZIP_TAR
@@ -1441,6 +1458,16 @@ if (in_array('--self-test', $argv, true)) {
         || ($nestedInspection['entries'][2]['candidateReasons'] ?? []) !== ['extension:zip-package', 'signature:zip']
         || ($nestedInspection['entries'][3]['path'] ?? null) !== $expected['nestedBrokenPath']
         || ($nestedInspection['entries'][3]['status'] ?? null) !== 'unreadable'
+        || $nestedDepthLimitInspection['candidateCount'] !== $expected['nestedDepthOneCandidateCount']
+        || $nestedDepthLimitInspection['packageCount'] !== $expected['nestedDepthOnePackageCount']
+        || $nestedDepthLimitInspection['diagnosticCount'] !== $expected['nestedDepthOneDiagnosticCount']
+        || $nestedDepthLimitInspection['depthLimitReachedCount'] !== $expected['nestedDepthOneDepthLimitReachedCount']
+        || $nestedDepthLimitInspection['depthLimitedCandidateCount'] !== $expected['nestedDepthOneDepthLimitedCandidateCount']
+        || ($nestedDepthLimitInspection['entries'][0]['depthLimitReached'] ?? null) !== true
+        || ($nestedDepthLimitInspection['entries'][0]['diagnostics'] ?? []) !== ['nested-package-depth-limit-reached']
+        || ($nestedDepthLimitInspection['entries'][0]['depthLimitedCandidateNames'] ?? []) !== $expected['nestedDepthOneDepthLimitedCandidateNames']
+        || ($nestedDepthLimitInspection['entries'][0]['depthLimitedCandidates'][0]['candidateReasons'] ?? []) !== ['extension:zip-package']
+        || ($nestedDepthLimitInspection['entries'][0]['depthLimitedCandidates'][0]['size'] ?? null) !== $expected['nestedDepthOneDepthLimitedCandidateSize']
         || $archiveBombInspection['kind'] !== $expected['archiveBombKind']
         || $archiveBombInspection['format'] !== $expected['archiveBombFormat']
         || $archiveBombInspection['handoffPolicy'] !== $expected['archiveBombPolicy']
@@ -1634,7 +1661,13 @@ echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";
 echo 'nested.packageCount=' . $nestedInspection['packageCount'] . "\n";
 echo 'nested.diagnosticCount=' . $nestedInspection['diagnosticCount'] . "\n";
+echo 'nested.depthLimitReachedCount=' . $nestedInspection['depthLimitReachedCount'] . "\n";
+echo 'nested.depthLimitedCandidateCount=' . $nestedInspection['depthLimitedCandidateCount'] . "\n";
 echo 'nested.paths=' . implode(',', array_map(static fn (array $entry): string => $entry['path'], $nestedInspection['entries'])) . "\n";
+echo 'nestedDepthOne.candidateCount=' . $nestedDepthLimitInspection['candidateCount'] . "\n";
+echo 'nestedDepthOne.diagnosticCount=' . $nestedDepthLimitInspection['diagnosticCount'] . "\n";
+echo 'nestedDepthOne.depthLimitReachedCount=' . $nestedDepthLimitInspection['depthLimitReachedCount'] . "\n";
+echo 'nestedDepthOne.depthLimitedCandidateNames=' . implode(',', $nestedDepthLimitInspection['entries'][0]['depthLimitedCandidateNames'] ?? []) . "\n";
 echo 'archiveBomb.kind=' . $archiveBombInspection['kind'] . "\n";
 echo 'archiveBomb.format=' . $archiveBombInspection['format'] . "\n";
 echo 'archiveBomb.handoffPolicy=' . $archiveBombInspection['handoffPolicy'] . "\n";

@@ -1959,7 +1959,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}>
      */
     public function preflightDigitalSignatureSignedInfoReferences(string $signaturePartName): array
     {
@@ -2769,7 +2769,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
+     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, valid:bool, issues:list<string>, parseError:?string}
      */
     private static function digitalSignatureSignedInfoReferenceMetadata(
         \DOMElement $reference,
@@ -2830,8 +2830,9 @@ final class OpcRelationshipGraph
             }
         }
 
+        $transforms = self::xmlSignatureReferenceTransforms($reference);
         $transformAlgorithms = [];
-        foreach (self::xmlSignatureReferenceTransforms($reference) as $transform) {
+        foreach ($transforms as $transform) {
             $transformAlgorithms[] = $transform->hasAttribute('Algorithm')
                 ? trim($transform->getAttribute('Algorithm'))
                 : '';
@@ -2839,12 +2840,20 @@ final class OpcRelationshipGraph
 
         $relationshipTransformCount = 0;
         $canonicalizationTransformCount = 0;
-        foreach ($transformAlgorithms as $algorithm) {
+        $canonicalizationTransformAlgorithms = [];
+        $relationshipTransformFollowedByCanonicalization = null;
+        foreach ($transformAlgorithms as $transformIndex => $algorithm) {
             if ($algorithm === self::RELATIONSHIP_TRANSFORM_ALGORITHM) {
                 $relationshipTransformCount++;
+                $followingAlgorithm = self::followingTransformAlgorithm($transforms, $transformIndex);
+                $followedByCanonicalization = self::isCanonicalizationTransformAlgorithm($followingAlgorithm);
+                $relationshipTransformFollowedByCanonicalization = $relationshipTransformFollowedByCanonicalization === null
+                    ? $followedByCanonicalization
+                    : $relationshipTransformFollowedByCanonicalization && $followedByCanonicalization;
             }
             if (self::isCanonicalizationTransformAlgorithm($algorithm)) {
                 $canonicalizationTransformCount++;
+                $canonicalizationTransformAlgorithms[] = $algorithm;
             }
         }
 
@@ -2852,6 +2861,13 @@ final class OpcRelationshipGraph
             $issues[] = 'relationship-part-reference-missing-relationship-transform';
         } elseif (!$relationshipPart && $relationshipTransformCount > 0) {
             $issues[] = 'relationship-transform-reference-not-relationship-part';
+        }
+        if (
+            $relationshipPart
+            && $relationshipTransformCount > 0
+            && $relationshipTransformFollowedByCanonicalization === false
+        ) {
+            $issues[] = 'signed-info-relationship-transform-not-followed-by-canonicalization';
         }
 
         $digestMethod = self::firstChildElementByNamespace($reference, self::XML_SIGNATURE_NAMESPACE_URI, 'DigestMethod');
@@ -2900,6 +2916,8 @@ final class OpcRelationshipGraph
             'transformAlgorithms' => $transformAlgorithms,
             'relationshipTransformCount' => $relationshipTransformCount,
             'canonicalizationTransformCount' => $canonicalizationTransformCount,
+            'canonicalizationTransformAlgorithms' => $canonicalizationTransformAlgorithms,
+            'relationshipTransformFollowedByCanonicalization' => $relationshipTransformFollowedByCanonicalization,
             'digestAlgorithm' => $digestAlgorithm,
             'digestValue' => $digestValue,
             'digestValueBase64Length' => $digestValueBase64Length,

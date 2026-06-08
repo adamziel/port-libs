@@ -7568,6 +7568,118 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfLegalAttestationMetadata']);
     },
 
+    'fake runner extracts pdf document security store metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/signed-review.pdf']);
+        $certBytes = "reviewer certificate bytes\n";
+        $ocspBytes = "reviewer ocsp response bytes\n";
+        $crlBytes = "reviewer issuer crl bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /DSS 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /DSS /Certs [9 0 R] /OCSPs [10 0 R] /CRLs [11 0 R] /VRI << /AABBCCDDEEFF << /Type /VRI /Cert [9 0 R] /OCSP [10 0 R] /CRL [11 0 R] /TU (D:20260608173000Z) >> >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Length ' . strlen($certBytes) . ' >>',
+            'stream',
+            $certBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Length ' . strlen($ocspBytes) . ' >>',
+            'stream',
+            $ocspBytes,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Length ' . strlen($crlBytes) . ' >>',
+            'stream',
+            $crlBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '2048',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signed-review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signed-review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'object' => '8 0 R',
+            'certs' => [
+                [
+                    'object' => '9 0 R',
+                    'bytes' => strlen($certBytes),
+                    'sha256' => hash('sha256', $certBytes),
+                    'skipped' => null,
+                ],
+            ],
+            'ocsp' => [
+                [
+                    'object' => '10 0 R',
+                    'bytes' => strlen($ocspBytes),
+                    'sha256' => hash('sha256', $ocspBytes),
+                    'skipped' => null,
+                ],
+            ],
+            'crls' => [
+                [
+                    'object' => '11 0 R',
+                    'bytes' => strlen($crlBytes),
+                    'sha256' => hash('sha256', $crlBytes),
+                    'skipped' => null,
+                ],
+            ],
+            'vri' => [
+                [
+                    'name' => 'AABBCCDDEEFF',
+                    'object' => 'inline',
+                    'type' => 'VRI',
+                    'timestamp' => 'D:20260608173000Z',
+                    'certs' => ['9 0 R'],
+                    'ocsp' => ['10 0 R'],
+                    'crls' => ['11 0 R'],
+                    'keys' => ['CRL', 'Cert', 'OCSP', 'TU', 'Type'],
+                ],
+            ],
+            'keys' => ['CRLs', 'Certs', 'OCSPs', 'Type', 'VRI'],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfDocumentSecurityStore']);
+        $t->contains('pdf-byte-dss', $diagnostics);
+        $t->contains('pdf-byte-dss-certs:1', $diagnostics);
+        $t->contains('pdf-byte-dss-ocsp:1', $diagnostics);
+        $t->contains('pdf-byte-dss-crls:1', $diagnostics);
+        $t->contains('pdf-byte-dss-vri:1', $diagnostics);
+        $t->contains('pdf-byte-dss-streams:3', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfDocumentSecurityStore']);
+    },
+
     'rejects unsafe pdf handoff engine path and option inputs' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
 

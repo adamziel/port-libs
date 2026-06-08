@@ -142,6 +142,15 @@ $indicDevanagari = "\u{0915}\u{093F}";
 $indicTamil = "\u{0B95}\u{0BC8}";
 $indicBengali = "\u{09AC}\u{09BE}\u{0982}\u{09B2}\u{09BE}";
 $indicSlices = UnicodeText::splitByDisplayBreakpoints($indicDevanagari . $indicTamil . $indicBengali, [1, 2]);
+$southAsianTelugu = "\u{0C15}\u{0C3F}";
+$southAsianKannada = "\u{0C95}\u{0CC6}";
+$southAsianMalayalam = "\u{0D15}\u{0D46}";
+$southAsianSinhala = "\u{0D9A}\u{0DCF}";
+$southeastAsianLao = "\u{0EA5}\u{0EB4}";
+$southAsianMarkSlices = UnicodeText::splitByDisplayBreakpoints(
+    $southAsianTelugu . $southAsianKannada . $southAsianMalayalam . $southAsianSinhala . $southeastAsianLao . 'X',
+    [1, 2, 3, 4, 5]
+);
 $indicViramaDevanagari = "\u{0915}\u{094D}\u{0937}";
 $indicViramaZwjDevanagari = "\u{0915}\u{094D}\u{200D}\u{0937}";
 $indicViramaBengali = "\u{0995}\u{09CD}\u{09A4}";
@@ -273,6 +282,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Indic marks'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $indicSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $indicSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'South Asian marks'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $southAsianMarkSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $southAsianMarkSlices))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Indic virama'])]),
@@ -663,6 +677,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Indic marks</td><td>' . $indicDevanagari . ' / ' . $indicTamil . ' / ' . $indicBengali . '</td><td>1,1,2</td>')) {
         throw new RuntimeException('charset handoff self-test missing Indic spacing-mark display-width audit');
+    }
+    if (!str_contains($blocks, '<td>South Asian marks</td><td>' . implode(' / ', $southAsianMarkSlices) . '</td><td>1,1,1,1,1,1</td>')) {
+        throw new RuntimeException('charset handoff self-test missing South Asian spacing-mark display-width audit');
     }
     if (!str_contains($blocks, '<td>Indic virama</td><td>' . $indicViramaDevanagari . ' / ' . $indicViramaZwjDevanagari . ' / ' . $indicViramaBengali . '</td><td>1,1,1</td>')) {
         throw new RuntimeException('charset handoff self-test missing Indic virama display-width audit');
