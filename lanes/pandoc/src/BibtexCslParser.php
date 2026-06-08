@@ -715,6 +715,11 @@ final class BibtexCslParser
             $item['biblatex-custom-names'] = $biblatexCustomNames;
         }
 
+        $biblatexOptions = self::biblatexOptionList($fields['options'] ?? '');
+        if ($biblatexOptions !== []) {
+            $item['biblatex-options'] = $biblatexOptions;
+        }
+
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;

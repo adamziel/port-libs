@@ -726,6 +726,7 @@ final class CitationCslProcessor
             'original-date' => $originalDate,
             'event-date' => $eventDate,
         ]);
+        $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
         $biblatexCustomLists = self::biblatexCustomLists($item, $id);
         $biblatexCustomNames = self::biblatexCustomNames($item, $id);
@@ -839,6 +840,8 @@ final class CitationCslProcessor
             'dateMarkerSummary' => $dateMarkerSummary,
             'dateTimeSummary' => $dateTimeSummary,
             'dateSeasonSummary' => $dateSeasonSummary,
+            'biblatexOptions' => $biblatexOptions,
+            'biblatexOptionSummary' => implode('; ', $biblatexOptions),
             'biblatexCustomFields' => $biblatexCustomFields,
             'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
             'biblatexCustomLists' => $biblatexCustomLists,
@@ -4785,6 +4788,11 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($dateSeasonSummary);
         }
 
+        $biblatexOptionSummary = trim((string) ($item['biblatexOptionSummary'] ?? ''));
+        if ($biblatexOptionSummary !== '') {
+            $parts[] = 'BibLaTeX options: ' . $this->withTerminalPunctuation($biblatexOptionSummary);
+        }
+
         $customFieldSummary = trim((string) ($item['biblatexCustomFieldSummary'] ?? ''));
         if ($customFieldSummary !== '') {
             $parts[] = 'BibLaTeX custom fields: ' . $this->withTerminalPunctuation($customFieldSummary);
@@ -6324,6 +6332,8 @@ final class CitationCslProcessor
             'event-end-time' => $this->dateEndTimeForVariable($item, 'event-date'),
             'original-time' => $this->dateTimeForVariable($item, 'original-date'),
             'original-end-time' => $this->dateEndTimeForVariable($item, 'original-date'),
+            'biblatex-options', 'biblatexoptions' => implode(', ', is_array($item['biblatexOptions'] ?? null) ? $item['biblatexOptions'] : []),
+            'biblatex-option-summary', 'biblatex-options-summary', 'biblatexoptionssummary' => (string) ($item['biblatexOptionSummary'] ?? ''),
             'biblatex-custom-fields', 'biblatex-custom-field-summary', 'biblatex-custom-summary' => (string) ($item['biblatexCustomFieldSummary'] ?? ''),
             'usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc' => $this->biblatexCustomFieldValue($item, $normalized),
             'biblatex-custom-lists', 'biblatex-custom-list-summary', 'biblatex-custom-lists-summary' => (string) ($item['biblatexCustomListSummary'] ?? ''),

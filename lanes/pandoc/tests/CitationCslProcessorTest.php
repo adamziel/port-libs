@@ -786,6 +786,101 @@ XML);
         $t->contains('<p>Related options source Curator (2024) keeps related-entry switches visible.</p>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Related Options Manual. 2024. Related source (companion): Migration Review Set (2026-06-05). Related options: skipbib=false; dataonly=false; useeditor=true.</dd>', $blocks);
     },
+    'maps bounded biblatex entry options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{entry-options-manual,
+  author    = {Smith, Ada},
+  title     = {Options Review Manual},
+  date      = {2026},
+  publisher = {Review Press},
+  options   = {skipbib=false, useprefix=true, maxnames=3}
+}
+
+@online{entry-options-snapshot,
+  author  = {Desk, Review},
+  title   = {Options Snapshot},
+  date    = {2025},
+  options = {skipbib, dashed=false}
+}
+
+@misc{entry-options-data,
+  title   = {Data Only Options},
+  date    = {2024},
+  options = {dataonly, skipbib=true}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('entry-options-manual', $items[0]['id']);
+        $t->same(['skipbib=false', 'useprefix=true', 'maxnames=3'], $items[0]['biblatex-options'] ?? null);
+        $t->same('skipbib=false, useprefix=true, maxnames=3', $items[0]['rawBibtex']['fields']['options'] ?? null);
+        $t->same(['skipbib', 'dashed=false'], $items[1]['biblatex-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('entry-options-manual');
+        $t->same(['skipbib=false', 'useprefix=true', 'maxnames=3'], $manual['biblatexOptions'] ?? null);
+        $t->same('skipbib=false; useprefix=true; maxnames=3', $manual['biblatexOptionSummary'] ?? null);
+        $t->same(
+            'Smith, Ada. Options Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true; maxnames=3.',
+            $processor->renderBibliographyEntry('entry-options-manual')
+        );
+        $t->same(
+            'Desk, Review. Options Snapshot. 2025. BibLaTeX options: skipbib; dashed=false.',
+            $processor->renderBibliographyEntry('entry-options-snapshot')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="biblatex-options"/>
+        <text variable="biblatex-option-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-options"/>
+      <text variable="biblatex-option-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same(
+            'Options Review Manual | skipbib=false, useprefix=true, maxnames=3 | skipbib=false; useprefix=true; maxnames=3',
+            $styled->renderCitationCluster([$citation('entry-options-manual', '[@entry-options-manual]')])
+        );
+        $t->same(
+            'Options Review Manual :: skipbib=false, useprefix=true, maxnames=3 :: skipbib=false; useprefix=true; maxnames=3',
+            $styled->renderBibliographyEntry('entry-options-manual')
+        );
+
+        $directProcessor = CitationCslProcessor::fromItems([[
+            'id' => 'manual-entry-options',
+            'title' => 'Manual Entry Options',
+            'biblatex-options' => 'skipbib=true, useprefix=false',
+        ]]);
+        $direct = $directProcessor->item('manual-entry-options');
+        $t->same(['skipbib=true', 'useprefix=false'], $direct['biblatexOptions'] ?? null);
+        $t->same('skipbib=true; useprefix=false', $direct['biblatexOptionSummary'] ?? null);
+        $t->same('Manual Entry Options. BibLaTeX options: skipbib=true; useprefix=false.', $directProcessor->renderBibliographyEntry('manual-entry-options'));
+
+        $document = (new MarkdownReader())->read('Entry options @entry-options-manual and [@entry-options-snapshot] keep bounded BibLaTeX switches visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Entry options Smith (2026) and (Desk 2025) keep bounded BibLaTeX switches visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Options Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true; maxnames=3.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-biblatex-options',
+            'title' => 'Bad BibLaTeX Options',
+            'biblatex-options' => ['skipbib=true', ['nested']],
+        ]]));
+    },
     'preserves bounded biblatex xref metadata without crossref inheritance' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{xref-dossier,
