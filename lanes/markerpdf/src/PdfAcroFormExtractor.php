@@ -9892,7 +9892,7 @@ final class PdfAcroFormExtractor
 
         $parentValue = $this->lastTopLevelValueAfterName($body, 'Parent');
         if ($parentValue === null) {
-            return true;
+            return !$this->parentlessFieldChildHasMultipleOwners($objectNumber, $objects);
         }
 
         $parentObject = $this->validObjectReferenceFromValue($parentValue, $objects);
@@ -9925,7 +9925,7 @@ final class PdfAcroFormExtractor
 
         $parentValue = $this->lastTopLevelValueAfterName($childBody, 'Parent');
         if ($parentValue === null) {
-            return true;
+            return $this->parentlessFieldChildOwnedByParent($parentObject, $childObject, $objects);
         }
 
         $resolvedParent = $this->validObjectReferenceFromValue($parentValue, $objects);
@@ -9936,6 +9936,54 @@ final class PdfAcroFormExtractor
         return $this->isWidget($childBody, $objects)
             && isset($this->syntheticDirectFieldParents[$parentObject])
             && $resolvedParent === $this->syntheticDirectFieldParents[$parentObject];
+    }
+
+    /**
+     * Parentless AcroForm field-tree children are common in compact fixtures, but
+     * a reused child dictionary has no reliable parent for inherited values.
+     *
+     * @param array<int, string> $objects
+     */
+    private function parentlessFieldChildOwnedByParent(int $parentObject, int $childObject, array $objects): bool
+    {
+        $owners = $this->parentlessFieldChildOwners($childObject, $objects);
+
+        return $owners === [] || $owners === [$parentObject];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function parentlessFieldChildHasMultipleOwners(int $childObject, array $objects): bool
+    {
+        return count($this->parentlessFieldChildOwners($childObject, $objects)) > 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function parentlessFieldChildOwners(int $childObject, array $objects): array
+    {
+        $owners = [];
+        foreach ($objects as $candidateObject => $_) {
+            if ($candidateObject === $childObject) {
+                continue;
+            }
+
+            $candidateBody = $this->completeAcroFormDictionaryObjectBody($candidateObject, $objects);
+            if ($candidateBody === null || !$this->isFieldDictionaryCandidate($candidateBody, $objects)) {
+                continue;
+            }
+
+            if (in_array($childObject, $this->kidReferences($candidateBody, $objects), true)) {
+                $owners[] = $candidateObject;
+            }
+        }
+
+        sort($owners, SORT_NUMERIC);
+
+        return $owners;
     }
 
     /**
