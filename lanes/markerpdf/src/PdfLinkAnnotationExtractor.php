@@ -502,7 +502,7 @@ final class PdfLinkAnnotationExtractor
             return [];
         }
 
-        $reference = $this->objectReferenceFromValue($value);
+        $reference = $this->exactObjectReferenceFromValue($value);
         if ($reference !== null) {
             $objectNumber = $reference['object'];
             $referenceKey = $this->annotationReferenceKey($objectNumber, $reference['generation']);
@@ -536,7 +536,7 @@ final class PdfLinkAnnotationExtractor
                 );
             }
 
-            if ($this->objectReferenceFromValue($trimmedObjectBody) !== null) {
+            if ($this->exactObjectReferenceFromValue($trimmedObjectBody) !== null) {
                 return $this->annotationBodiesFromValue(
                     $trimmedObjectBody,
                     $objects,
@@ -628,7 +628,7 @@ final class PdfLinkAnnotationExtractor
                 continue;
             }
 
-            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
+            if ($this->exactObjectReferenceFromValue($value) !== null) {
                 foreach ($this->annotationBodiesFromValue(
                     $value,
                     $objects,
@@ -4034,6 +4034,21 @@ final class PdfLinkAnnotationExtractor
     private function objectReferenceFromValue(string $value): ?array
     {
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'object' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function exactObjectReferenceFromValue(string $value): ?array
+    {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($value), $match) !== 1) {
             return null;
         }
 

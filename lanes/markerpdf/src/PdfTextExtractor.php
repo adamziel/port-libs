@@ -45330,7 +45330,7 @@ final class PdfTextExtractor
             $dataBoundary = $this->inlineImageDataBoundaryOffset(
                 $stream,
                 $index,
-                [],
+                [$dictionary],
                 $consumeDataPrefixWhitespace
             );
             if ($dataBoundary !== null && $sawMalformedOperand) {

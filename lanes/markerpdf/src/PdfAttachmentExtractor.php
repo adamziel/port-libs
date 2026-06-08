@@ -3945,7 +3945,39 @@ final class PdfAttachmentExtractor
         }
 
         $seen[$key] = true;
-        return $this->resolveStreamOperandValue($object['value'], $objects, $seen);
+        $resolved = $this->singleStreamOperandObjectValue($object);
+        if ($resolved === null) {
+            return null;
+        }
+
+        return $this->resolveStreamOperandValue($resolved['value'], $objects, $seen);
+    }
+
+    /**
+     * @param array{generation: int, body: string, value: mixed, stream: string|null} $object
+     * @return array{value: mixed}|null
+     */
+    private function singleStreamOperandObjectValue(array $object): ?array
+    {
+        $body = $object['body'];
+        $index = 0;
+        $this->skipWhitespaceAndComments($body, $index);
+        if ($index >= strlen($body)) {
+            return null;
+        }
+
+        $start = $index;
+        $value = $this->parseValue($body, $index);
+        if ($index <= $start) {
+            return null;
+        }
+
+        $this->skipWhitespaceAndComments($body, $index);
+        if ($index !== strlen($body)) {
+            return null;
+        }
+
+        return ['value' => $value];
     }
 
     /**
