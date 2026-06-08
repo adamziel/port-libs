@@ -11,6 +11,7 @@ final class PdfTextExtractor
     private const MAX_FONT_ADVANCE_METRIC = 100000.0;
     private const MAX_CMAP_RANGE_ENTRIES = 4096;
     private const MAX_GRAPHICS_COLOR_OPERANDS = 32;
+    private const MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES = 4096;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
         'CS' => 'ColorSpace',
@@ -16426,10 +16427,17 @@ final class PdfTextExtractor
         if ($number <= 0) {
             return (string) $number;
         }
+        $originalNumber = $number;
+        if ($number > self::MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES * 1000 + 999) {
+            return (string) $originalNumber;
+        }
 
         $roman = '';
         foreach ([1000 => 'M', 900 => 'CM', 500 => 'D', 400 => 'CD', 100 => 'C', 90 => 'XC', 50 => 'L', 40 => 'XL', 10 => 'X', 9 => 'IX', 5 => 'V', 4 => 'IV', 1 => 'I'] as $value => $glyph) {
             while ($number >= $value) {
+                if (strlen($roman) + strlen($glyph) > self::MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES) {
+                    return (string) $originalNumber;
+                }
                 $roman .= $glyph;
                 $number -= $value;
             }
@@ -16443,9 +16451,13 @@ final class PdfTextExtractor
         if ($number <= 0) {
             return (string) $number;
         }
+        $repeatCount = intdiv($number - 1, 26) + 1;
+        if ($repeatCount > self::MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES) {
+            return (string) $number;
+        }
 
         $letter = chr(ord($lowercase ? 'a' : 'A') + (($number - 1) % 26));
-        return str_repeat($letter, intdiv($number - 1, 26) + 1);
+        return str_repeat($letter, $repeatCount);
     }
 
     /**

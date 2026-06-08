@@ -9,6 +9,7 @@ use InvalidArgumentException;
 final class MarkerAppPreview
 {
     private const DEFAULT_PAGE_BBOX = [0.0, 0.0, 612.0, 792.0];
+    private const MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES = 4096;
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -2693,6 +2694,10 @@ final class MarkerAppPreview
         if ($number < 1) {
             return '';
         }
+        $originalNumber = $number;
+        if ($number > self::MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES * 1000 + 999) {
+            return (string) $originalNumber;
+        }
 
         $values = [
             1000 => 'M',
@@ -2713,6 +2718,9 @@ final class MarkerAppPreview
         $label = '';
         foreach ($values as $value => $glyph) {
             while ($number >= $value) {
+                if (strlen($label) + strlen($glyph) > self::MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES) {
+                    return (string) $originalNumber;
+                }
                 $label .= $glyph;
                 $number -= $value;
             }
@@ -2727,7 +2735,12 @@ final class MarkerAppPreview
             return '';
         }
 
-        $label = str_repeat(chr(ord('A') + (($number - 1) % 26)), intdiv($number - 1, 26) + 1);
+        $repeatCount = intdiv($number - 1, 26) + 1;
+        if ($repeatCount > self::MAX_PAGE_LABEL_GENERATED_SUFFIX_BYTES) {
+            return (string) $number;
+        }
+
+        $label = str_repeat(chr(ord('A') + (($number - 1) % 26)), $repeatCount);
 
         return $lowercase ? strtolower($label) : $label;
     }
