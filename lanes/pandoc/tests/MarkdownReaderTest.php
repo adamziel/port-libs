@@ -1271,6 +1271,7 @@ return [
         ]));
         $meta = $document->attr('meta');
         $titleInlines = $meta['titleInlines'] ?? [];
+        $streamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('Stream final **Packet**', $meta['title']);
@@ -1285,6 +1286,16 @@ return [
         $t->contains('<h1 id="stream-body">Stream body</h1>', $blocks);
         $t->same(false, str_contains($blocks, 'Stream final **Packet**'));
         $t->same(false, str_contains($blocks, 'title: Stream final'));
+        $t->same(false, array_key_exists('__yamlMetadataStreamProvenance', $meta));
+        $t->same(2, count($streamProvenance));
+        $t->same(['yaml-document', 'yaml-document'], array_column($streamProvenance, 'type'));
+        $t->same(['1', '2'], array_column($streamProvenance, 'documentIndex'));
+        $t->same(['explicit', 'explicit'], array_column($streamProvenance, 'source'));
+        $t->same(['---', '---'], array_column($streamProvenance, 'openingMarker'));
+        $t->same(['...', '...'], array_column($streamProvenance, 'endMarker'));
+        $t->same(['1', '5'], array_column($streamProvenance, 'startLine'));
+        $t->same(['4', '11'], array_column($streamProvenance, 'endLine'));
+        $t->same(['["title","review"]', '["title","review","references"]'], array_column($streamProvenance, 'fields'));
     },
     'maps pandoc yaml metadata from json object documents' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

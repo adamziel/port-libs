@@ -361,10 +361,18 @@ final class MarkdownReader
         $hasMetadata = false;
         $count = count($lines);
         $previousYamlMetadataEndedWithDocumentEnd = false;
+        $yamlMetadataDocumentIndex = 0;
 
         for ($index = 0; $index < $count; $index++) {
             $implicitBlock = $index === 0 ? $this->tryReadImplicitYamlMetadataBlock($lines) : null;
             if ($implicitBlock !== null) {
+                $yamlMetadataDocumentIndex++;
+                $implicitBlock['metadata']['__yamlMetadataStreamProvenance'][] = $this->yamlMetadataStreamProvenanceEntry(
+                    $implicitBlock,
+                    $yamlMetadataDocumentIndex,
+                    'implicit',
+                    0
+                );
                 $metadata = $this->mergeYamlMetadataBlock($metadata, $implicitBlock['metadata']);
                 $hasMetadata = true;
                 $previousYamlMetadataEndedWithDocumentEnd = ($implicitBlock['endMarker'] ?? null) === '...';
@@ -384,6 +392,13 @@ final class MarkdownReader
 
             $block = $this->tryReadYamlMetadataBlock($lines, $index, $previousYamlMetadataEndedWithDocumentEnd);
             if ($block !== null) {
+                $yamlMetadataDocumentIndex++;
+                $block['metadata']['__yamlMetadataStreamProvenance'][] = $this->yamlMetadataStreamProvenanceEntry(
+                    $block,
+                    $yamlMetadataDocumentIndex,
+                    'explicit',
+                    $index
+                );
                 $metadata = $this->mergeYamlMetadataBlock($metadata, $block['metadata']);
                 $hasMetadata = true;
                 $previousYamlMetadataEndedWithDocumentEnd = ($block['endMarker'] ?? null) === '...';
@@ -396,6 +411,45 @@ final class MarkdownReader
         }
 
         return [$bodyLines, $hasMetadata ? $metadata : null];
+    }
+
+    /**
+     * @param array{end:int, endMarker:string, metadata:array<string, mixed>} $block
+     * @return array<string, string>
+     */
+    private function yamlMetadataStreamProvenanceEntry(
+        array $block,
+        int $documentIndex,
+        string $source,
+        int $startIndex
+    ): array {
+        $fields = [];
+        foreach (array_keys($block['metadata']) as $field) {
+            $fieldName = (string) $field;
+            if (str_starts_with($fieldName, '__yamlMetadata')) {
+                continue;
+            }
+
+            $fields[] = $fieldName;
+        }
+
+        $fieldsJson = json_encode(array_values($fields), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($fieldsJson)) {
+            $fieldsJson = '[]';
+        }
+
+        return [
+            'type' => 'yaml-document',
+            'documentIndex' => (string) $documentIndex,
+            'source' => $source,
+            'openingMarker' => $source === 'implicit' ? 'omitted' : '---',
+            'endMarker' => $block['endMarker'],
+            'startLine' => (string) ($startIndex + 1),
+            'contentStartLine' => (string) ($source === 'implicit' ? $startIndex + 1 : $startIndex + 2),
+            'endLine' => (string) ($block['end'] + 1),
+            'fieldCount' => (string) count($fields),
+            'fields' => $fieldsJson,
+        ];
     }
 
     /**
@@ -640,6 +694,8 @@ final class MarkdownReader
         $nextAnchors = $this->yamlMetadataAnchorProvenanceList($next['__yamlMetadataAnchorProvenance'] ?? []);
         $currentScalars = $this->yamlMetadataScalarProvenanceList($current['__yamlMetadataScalarProvenance'] ?? []);
         $nextScalars = $this->yamlMetadataScalarProvenanceList($next['__yamlMetadataScalarProvenance'] ?? []);
+        $currentStreams = $this->yamlMetadataStreamProvenanceList($current['__yamlMetadataStreamProvenance'] ?? []);
+        $nextStreams = $this->yamlMetadataStreamProvenanceList($next['__yamlMetadataStreamProvenance'] ?? []);
         $currentFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($current['__yamlMetadataFieldQuoteMap'] ?? []);
         $nextFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($next['__yamlMetadataFieldQuoteMap'] ?? []);
         unset(
@@ -655,6 +711,8 @@ final class MarkdownReader
             $next['__yamlMetadataAnchorProvenance'],
             $current['__yamlMetadataScalarProvenance'],
             $next['__yamlMetadataScalarProvenance'],
+            $current['__yamlMetadataStreamProvenance'],
+            $next['__yamlMetadataStreamProvenance'],
             $current['__yamlMetadataFieldQuoteMap'],
             $next['__yamlMetadataFieldQuoteMap']
         );
@@ -683,6 +741,10 @@ final class MarkdownReader
         $scalarProvenance = array_merge($currentScalars, $nextScalars);
         if ($scalarProvenance !== []) {
             $merged['__yamlMetadataScalarProvenance'] = $scalarProvenance;
+        }
+        $streamProvenance = array_merge($currentStreams, $nextStreams);
+        if ($streamProvenance !== []) {
+            $merged['__yamlMetadataStreamProvenance'] = $streamProvenance;
         }
         $fieldQuoteMap = array_replace($currentFieldQuoteMap, $nextFieldQuoteMap);
         if ($fieldQuoteMap !== []) {
@@ -823,6 +885,28 @@ final class MarkdownReader
      * @return list<array<string, string>>
      */
     private function yamlMetadataScalarProvenanceList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $provenance = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $provenance[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataStreamProvenanceList(mixed $value): array
     {
         if (!is_array($value) || !array_is_list($value)) {
             return [];
@@ -4156,6 +4240,7 @@ final class MarkdownReader
         $commentProvenance = [];
         $anchorProvenance = [];
         $scalarProvenance = [];
+        $streamProvenance = [];
         $fieldQuoteMap = $this->yamlMetadataFieldQuoteMap($metadata['__yamlMetadataFieldQuoteMap'] ?? []);
         foreach ($metadata as $key => $value) {
             $fieldName = (string) $key;
@@ -4181,6 +4266,10 @@ final class MarkdownReader
             }
             if ($fieldName === '__yamlMetadataScalarProvenance') {
                 $scalarProvenance = array_merge($scalarProvenance, $this->yamlMetadataScalarProvenanceList($value));
+                continue;
+            }
+            if ($fieldName === '__yamlMetadataStreamProvenance') {
+                $streamProvenance = array_merge($streamProvenance, $this->yamlMetadataStreamProvenanceList($value));
                 continue;
             }
             if ($fieldName === '__yamlMetadataFieldQuoteMap') {
@@ -4271,6 +4360,9 @@ final class MarkdownReader
         }
         if ($scalarProvenance !== []) {
             $attrs['yamlMetadataScalarProvenance'] = $scalarProvenance;
+        }
+        if ($streamProvenance !== []) {
+            $attrs['yamlMetadataStreamProvenance'] = $streamProvenance;
         }
 
         return $attrs;

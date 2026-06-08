@@ -451,6 +451,7 @@ $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
 $yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
 $yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
+$yamlStreamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
 $invalidTagDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-tag-directive'
@@ -843,6 +844,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('__yamlMetadataAnchorProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked anchor provenance into plain metadata');
+    }
+    if (array_key_exists('__yamlMetadataStreamProvenance', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked stream provenance into plain metadata');
+    }
+    if (count($yamlStreamProvenance) !== 3) {
+        throw new RuntimeException('YAML metadata self-test missing stream provenance records');
+    }
+    if (array_column($yamlStreamProvenance, 'source') !== ['explicit', 'explicit', 'explicit']) {
+        throw new RuntimeException('YAML metadata self-test missing explicit stream source provenance');
+    }
+    if (!str_contains($yamlStreamProvenance[0]['fields'] ?? '', '"title"')) {
+        throw new RuntimeException('YAML metadata self-test missing first stream title field provenance');
+    }
+    if (($yamlStreamProvenance[1]['fields'] ?? '') !== '["review","summary"]') {
+        throw new RuntimeException('YAML metadata self-test missing second stream override field provenance');
+    }
+    if (!str_contains($yamlStreamProvenance[2]['fields'] ?? '', '"flow-document-review"')) {
+        throw new RuntimeException('YAML metadata self-test missing flow stream field provenance');
     }
     $yamlAnchorPairs = [];
     foreach ($yamlAnchorProvenance as $entry) {
@@ -1526,6 +1545,8 @@ echo 'YAML comment provenance: ' . count($yamlCommentProvenance) . "\n";
 echo 'YAML comment provenance paths: ' . implode(', ', array_filter(array_column($yamlCommentProvenance, 'path'))) . "\n";
 echo 'YAML anchor provenance: ' . count($yamlAnchorProvenance) . "\n";
 echo 'YAML anchor provenance paths: ' . implode(', ', array_filter(array_column($yamlAnchorProvenance, 'path'))) . "\n";
+echo 'YAML stream provenance: ' . count($yamlStreamProvenance) . "\n";
+echo 'YAML stream provenance fields: ' . implode(' | ', array_column($yamlStreamProvenance, 'fields')) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
