@@ -14348,10 +14348,17 @@ final class PdfMetadataExtractor
             return false;
         }
 
-        $hasBegin = isset($attributes['begin']);
+        $hasBegin = false;
+        foreach ($attributes['begin'] ?? [] as $attribute) {
+            if ($attribute['quoted']) {
+                $hasBegin = true;
+                break;
+            }
+        }
+
         $hasTerminalEnd = false;
-        foreach ($attributes['end'] ?? [] as $value) {
-            if (in_array(strtolower(trim($value)), ['r', 'w'], true)) {
+        foreach ($attributes['end'] ?? [] as $attribute) {
+            if ($attribute['quoted'] && in_array(strtolower(trim($attribute['value'])), ['r', 'w'], true)) {
                 $hasTerminalEnd = true;
                 break;
             }
@@ -14367,9 +14374,10 @@ final class PdfMetadataExtractor
     /**
      * XMP packet delimiters are XML processing-instruction pseudo-attributes.
      * Quoted text inside unrelated attributes must not become a begin/end
-     * marker.
+     * marker, and unquoted pseudo-attributes must not define packet
+     * boundaries.
      *
-     * @return array<string, list<string>>|null
+     * @return array<string, list<array{value: string, quoted: bool}>>|null
      */
     private function xmpPacketInstructionAttributes(string $instruction): ?array
     {
@@ -14416,7 +14424,10 @@ final class PdfMetadataExtractor
                     break;
                 }
 
-                $attributes[$name][] = substr($body, $valueStart, $valueEnd - $valueStart);
+                $attributes[$name][] = [
+                    'value' => substr($body, $valueStart, $valueEnd - $valueStart),
+                    'quoted' => true,
+                ];
                 $offset = $valueEnd + 1;
                 continue;
             }
@@ -14425,7 +14436,10 @@ final class PdfMetadataExtractor
             while ($offset < $length && !ctype_space($body[$offset])) {
                 $offset++;
             }
-            $attributes[$name][] = substr($body, $valueStart, $offset - $valueStart);
+            $attributes[$name][] = [
+                'value' => substr($body, $valueStart, $offset - $valueStart),
+                'quoted' => false,
+            ];
         }
 
         return $attributes;
