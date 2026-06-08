@@ -8471,9 +8471,17 @@ return [
         $t->same(false, $portrait['headers'][0]['external']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $portrait['headers'][0]['relationshipType']);
         $t->same(true, $portrait['headers'][0]['exists']);
+        $t->same('/word/_rels/header1.xml.rels', $portrait['headers'][0]['relationshipsPart']);
+        $t->same(1, $portrait['headers'][0]['relationshipCount']);
+        $t->same('rIdHeaderSource', $portrait['headers'][0]['relationships'][0]['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $portrait['headers'][0]['relationships'][0]['type']);
+        $t->same('https://example.test/header-source', $portrait['headers'][0]['relationships'][0]['target']);
+        $t->same(true, $portrait['headers'][0]['relationships'][0]['external']);
+        $t->same(null, $portrait['headers'][0]['relationships'][0]['contentType']);
         $t->same('rIdFooterDefault', $portrait['footers'][0]['id']);
         $t->same('/word/footer1.xml', $portrait['footers'][0]['target']);
         $t->same(true, $portrait['footers'][0]['exists']);
+        $t->true(!isset($portrait['footers'][0]['relationshipsPart']), 'Footer without local relationships should not invent a relationships part');
 
         $landscape = $sections[1];
         $t->same('body', $landscape['source']);
@@ -8502,6 +8510,10 @@ return [
 
         $defaultHeader = $portrait['headers'][0];
         $t->same(true, $defaultHeader['exists']);
+        $t->same('/word/_rels/header1.xml.rels', $defaultHeader['relationshipsPart']);
+        $t->same(1, $defaultHeader['relationshipCount']);
+        $t->same('rIdHeaderSource', $defaultHeader['relationships'][0]['id']);
+        $t->same('https://example.test/header-source', $defaultHeader['relationships'][0]['target']);
         $t->same('Default header source link', $defaultHeader['text']);
         $t->same(1, count($defaultHeader['blocks']));
         $t->same('paragraph', $defaultHeader['blocks'][0]->type);

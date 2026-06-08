@@ -196,6 +196,22 @@ final class WordPressBlockWriter
             $attrs .= ' type="' . $this->esc($type) . '"';
         }
 
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes)) {
+            foreach ($htmlAttributes as $name => $value) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $name = (string) $name;
+                if (!str_starts_with($name, 'data-odf-list-')) {
+                    continue;
+                }
+
+                $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+            }
+        }
+
         return $attrs;
     }
 

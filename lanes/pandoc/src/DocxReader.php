@@ -1589,6 +1589,13 @@ final class DocxReader
                 $targetPart = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
                 $attrs['exists'] = $package->has($targetPart);
                 if ($attrs['exists'] === true) {
+                    if (OpcRelationships::packageHasRelationshipsForSource($package, $targetPart)) {
+                        $localRelationships = OpcRelationships::fromPackage($package, $targetPart);
+                        $attrs['relationshipsPart'] = $localRelationships->relationshipPartName();
+                        $attrs['relationshipCount'] = count($localRelationships->all());
+                        $attrs['relationships'] = $this->relationshipTargetSummaries($package, $localRelationships);
+                    }
+
                     $blocks = $this->headerFooterBlocks(
                         $package,
                         $targetPart,
@@ -1606,6 +1613,28 @@ final class DocxReader
         }
 
         return $references;
+    }
+
+    /**
+     * @return list<array{id:string, type:string, target:string, contentType:?string, external:bool}>
+     */
+    private function relationshipTargetSummaries(ZipPackage $package, OpcRelationships $relationships): array
+    {
+        $summary = [];
+        foreach ($relationships->all() as $relationship) {
+            $target = $relationships->resolveTarget($relationship);
+            $summary[] = [
+                'id' => $relationship->id,
+                'type' => $relationship->type,
+                'target' => $target,
+                'contentType' => $relationship->isExternal()
+                    ? null
+                    : $this->contentTypeForPackagePart($package, OpcPackagePath::stripQueryAndFragment($target)),
+                'external' => $relationship->isExternal(),
+            ];
+        }
+
+        return $summary;
     }
 
     /**

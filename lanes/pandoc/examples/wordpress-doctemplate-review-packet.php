@@ -320,6 +320,19 @@ HTML,
         exit(1);
     }
 
+    $unicodeDiagnostic = null;
+    try {
+        (new DocTemplate())->render('Résumé $title/no-such-pipe$', [
+            'title' => 'Review',
+        ]);
+    } catch (UnexpectedValueException $exception) {
+        $unicodeDiagnostic = $exception->getMessage();
+    }
+    if ($unicodeDiagnostic !== 'Unsupported doctemplate pipe no-such-pipe at <template>:1:8') {
+        fwrite(STDERR, "Unexpected doctemplate Unicode-column diagnostic: " . (string) $unicodeDiagnostic . "\n");
+        exit(1);
+    }
+
     $epub2Default = (new DocTemplate())->renderResource('templates/default', [], [
         'pagetitle' => 'Legacy EPUB Review Packet',
         'titlepage' => true,

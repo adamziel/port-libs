@@ -1225,6 +1225,25 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['sectionProperties'][0]['headers'][0]['text'] ?? '') !== 'Source packet header review link') {
         throw new RuntimeException('DOCX body handoff self-test missing parsed section header text');
     }
+    if (($summary['sectionProperties'][0]['headers'][0]['relationshipsPart'] ?? '') !== '/word/_rels/header1.xml.rels') {
+        throw new RuntimeException('DOCX body handoff self-test missing section header relationships part');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['relationshipCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing section header relationship count');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['relationships'][0]['id'] ?? '') !== 'rIdHeaderSource') {
+        throw new RuntimeException('DOCX body handoff self-test missing section header relationship id');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['relationships'][0]['target'] ?? '') !== 'https://example.test/header-review?post=42') {
+        throw new RuntimeException('DOCX body handoff self-test missing section header relationship target');
+    }
+    if (($summary['sectionProperties'][0]['headers'][0]['relationships'][0]['external'] ?? false) !== true) {
+        throw new RuntimeException('DOCX body handoff self-test missing section header external relationship metadata');
+    }
+    $headerRelationship = $summary['sectionProperties'][0]['headers'][0]['relationships'][0] ?? [];
+    if (!array_key_exists('contentType', $headerRelationship) || $headerRelationship['contentType'] !== null) {
+        throw new RuntimeException('DOCX body handoff self-test should not assign content type to external section header relationship');
+    }
     if (($summary['sectionProperties'][0]['headers'][0]['blocks'][0]->children[1]->attr('url') ?? '') !== 'https://example.test/header-review?post=42') {
         throw new RuntimeException('DOCX body handoff self-test missing section header hyperlink target');
     }

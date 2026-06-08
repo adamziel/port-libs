@@ -1978,6 +1978,76 @@ XML;
         $t->contains('<ol start="4" type="a">', $blocksHtml);
         $t->contains('<ol start="4">', $blocksHtml);
     },
+    'continues ODT ordered lists from named source list ids' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithNamedContinuationLists = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="NamedReviewSteps">
+      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithNamedContinuationLists = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:id="review-list-a" text:style-name="NamedReviewSteps">
+        <text:list-item><text:p>First source step</text:p></text:list-item>
+        <text:list-item><text:p>Second source step</text:p></text:list-item>
+      </text:list>
+      <text:list text:id="unrelated-list" text:style-name="NamedReviewSteps">
+        <text:list-item><text:p>Unrelated inserted checklist</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="NamedReviewSteps" text:continue-list="review-list-a">
+        <text:list-item><text:p>Third source step</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithNamedContinuationLists, null, $stylesWithNamedContinuationLists));
+        $blocks = $result['document']->children;
+        $sourceList = $blocks[0];
+        $unrelatedList = $blocks[1];
+        $continuedList = $blocks[2];
+
+        $t->same('ordered_list', $sourceList->type);
+        $t->same('review-list-a', $sourceList->attr('listId'));
+        $t->same('text:id', $sourceList->attr('listIdAttribute'));
+        $t->same('review-list-a', $sourceList->attr('htmlAttributes')['data-odf-list-id']);
+        $t->same(1, $sourceList->attr('start'));
+        $t->same('First source step', $sourceList->children[0]->children[0]->attr('text'));
+        $t->same('Second source step', $sourceList->children[1]->children[0]->attr('text'));
+
+        $t->same('ordered_list', $unrelatedList->type);
+        $t->same('unrelated-list', $unrelatedList->attr('listId'));
+        $t->same(1, $unrelatedList->attr('start'));
+        $t->same('Unrelated inserted checklist', $unrelatedList->children[0]->children[0]->attr('text'));
+
+        $t->same('ordered_list', $continuedList->type);
+        $t->same(true, $continuedList->attr('continued'));
+        $t->same('review-list-a', $continuedList->attr('continueList'));
+        $t->same(3, $continuedList->attr('start'));
+        $t->same('continue-list', $continuedList->attr('startSource'));
+        $t->same('review-list-a', $continuedList->attr('htmlAttributes')['data-odf-list-continue-list']);
+        $t->same('true', $continuedList->attr('htmlAttributes')['data-odf-list-continued']);
+        $t->same('Third source step', $continuedList->children[0]->children[0]->attr('text'));
+        $t->same(1, $result['importReport']['content']['continuedListCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('3.  Third source step', $markdown);
+        $t->contains('<ol data-odf-list-id="review-list-a" data-odf-list-id-attribute="text:id"><li>First source step</li><li>Second source step</li></ol>', $blocksHtml);
+        $t->contains('<ol data-odf-list-id="unrelated-list" data-odf-list-id-attribute="text:id"><li>Unrelated inserted checklist</li></ol>', $blocksHtml);
+        $t->contains('<ol start="3" data-odf-list-continue-list="review-list-a" data-odf-list-continued="true"><li>Third source step</li></ol>', $blocksHtml);
+    },
     'honors explicit ODT list start values before continued numbering' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithExplicitStartLists = <<<'XML'
 <office:document-styles

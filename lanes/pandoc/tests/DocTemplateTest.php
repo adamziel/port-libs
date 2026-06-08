@@ -4511,6 +4511,29 @@ TPL;
         );
     },
 
+    'reports pandoc doctemplate parser columns by unicode characters' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('Résumé $title/no-such-pipe$', [
+                'title' => 'Review',
+            ]),
+            'Unsupported doctemplate pipe no-such-pipe at <template>:1:8',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/review.html', [
+                'review-packets/review.html' => "Résumé packet\n" . '${ components/footer() }',
+                'review-packets/components/footer.html' => 'État $if(show)$broken',
+            ], [
+                'show' => true,
+            ]),
+            'Unclosed doctemplate if block at review-packets/components/footer.html:1:6',
+        );
+    },
+
     'validates inactive pandoc doctemplate branches and empty loops before rendering' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
         $renderer = new DocTemplate();
 

@@ -4564,29 +4564,39 @@ CSS;
     {
         $offset = max(0, min($offset, strlen($source)));
         $line = 1;
-        $column = 1;
+        $lineStart = 0;
 
         for ($index = 0; $index < $offset; $index++) {
             $char = $source[$index];
             if ($char === "\r") {
                 $line++;
-                $column = 1;
                 if (($source[$index + 1] ?? '') === "\n" && $index + 1 < $offset) {
                     $index++;
                 }
+                $lineStart = $index + 1;
                 continue;
             }
 
             if ($char === "\n") {
                 $line++;
-                $column = 1;
-                continue;
+                $lineStart = $index + 1;
             }
-
-            $column++;
         }
 
-        return ['line' => $line, 'column' => $column];
+        return [
+            'line' => $line,
+            'column' => 1 + $this->sourceCharacterCount(substr($source, $lineStart, $offset - $lineStart)),
+        ];
+    }
+
+    private function sourceCharacterCount(string $source): int
+    {
+        $count = preg_match_all('/./us', $source, $matches);
+        if ($count !== false) {
+            return $count;
+        }
+
+        return strlen($source);
     }
 
     private function throwTemplateError(string $message, string $source, int $offset, string $sourceName): never

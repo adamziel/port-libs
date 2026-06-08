@@ -16958,6 +16958,120 @@ XML);
         $t->contains('<dt>Production Credit Packet 2026</dt><dd>Production Credit Packet :: Producer, P., prod. :: performers: Performer, P.; Archive Ensemble :: narrated by Narrator, N. :: Executive, E., exec. prod. :: written by Writer, S.</dd>', $blocks);
         $t->contains('<dt>Conversation Credit Packet 2025</dt><dd>Conversation Credit Packet :: hosted by Host, H. :: Guest, G.; Roe, P., guests</dd>', $blocks);
     },
+    'applies bounded csl editorial creator role labels' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'editorial-credit-packet',
+                'type' => 'book',
+                'title' => 'Editorial Credit Packet',
+                'issued' => ['date-parts' => [[2026]]],
+                'compiler' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                    ['literal' => 'Migration Desk'],
+                ],
+                'curator' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'director' => [
+                    ['family' => 'Director', 'given' => 'Dia'],
+                ],
+                'illustrator' => [
+                    ['family' => 'Illustrator', 'given' => 'Iris'],
+                ],
+            ],
+            [
+                'id' => 'review-credit-packet',
+                'type' => 'interview',
+                'title' => 'Review Credit Packet',
+                'issued' => ['date-parts' => [[2025]]],
+                'chair' => [
+                    ['literal' => 'Review Chair'],
+                ],
+                'collection-editor' => [
+                    ['family' => 'Collection', 'given' => 'Casey'],
+                ],
+                'editorial-director' => [
+                    ['family' => 'Editorial', 'given' => 'Eden'],
+                ],
+                'contributor' => [
+                    ['literal' => 'Open Review Desk'],
+                ],
+                'interviewer' => [
+                    ['family' => 'Interviewer', 'given' => 'Inez'],
+                ],
+                'reviewed-author' => [
+                    ['family' => 'Reviewed', 'given' => 'Riley'],
+                ],
+                'recipient' => [
+                    ['family' => 'Reader', 'given' => 'Rhea'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Editorial Creator Label Review</title>
+    <id>https://example.test/styles/bounded-editorial-creator-label-review</id>
+    <updated>2026-06-08T22:46:56+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="compiler"><label form="verb" suffix=" "/><name/></names>
+        <names variable="curator"><label form="verb-short" suffix=" "/><name/></names>
+        <names variable="director"><label form="short" suffix=" "/><name/></names>
+        <names variable="interviewer"><label form="verb" suffix=" "/><name/></names>
+        <names variable="reviewed-author"><label form="verb" suffix=" "/><name/></names>
+        <names variable="recipient"><label form="verb" suffix=" "/><name/></names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="compiler"><name initialize-with=". " name-as-sort-order="all"/><label form="short" plural="always" prefix=", "/></names>
+      <names variable="curator"><label form="long" plural="never" suffix=": "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="director"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="illustrator"><label form="verb-short" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="chair"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="collection-editor"><name initialize-with=". " name-as-sort-order="all"/><label form="short" plural="never" prefix=", "/></names>
+      <names variable="editorial-director"><name initialize-with=". " name-as-sort-order="all"/><label form="short" plural="never" prefix=", "/></names>
+      <names variable="contributor"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="interviewer"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="reviewed-author"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <names variable="recipient"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Editorial Creator Label Review', $summary['title'] ?? null);
+        $t->same('compiler', $citationChildren[0]['variable'] ?? null);
+        $t->same('verb', $citationChildren[0]['nameRendering']['label']['form'] ?? null);
+        $t->same('curator', $citationChildren[1]['variable'] ?? null);
+        $t->same('verb-short', $citationChildren[1]['nameRendering']['label']['form'] ?? null);
+        $t->same('short', $bibliographyChildren[1]['nameRendering']['label']['form'] ?? null);
+        $t->same('always', $bibliographyChildren[1]['nameRendering']['label']['plural'] ?? null);
+        $t->same('reviewed-author', $bibliographyChildren[10]['variable'] ?? null);
+        $t->same('verb', $bibliographyChildren[10]['nameRendering']['label']['form'] ?? null);
+
+        $t->same('(compiled by Roe and Migration Desk | cur. by Curator | dir. Director | 2026; interview by Interviewer | by Reviewed | to Reader | 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'editorial-credit-packet', 'text' => '[@editorial-credit-packet]']),
+            new AstNode('citation', ['id' => 'review-credit-packet', 'text' => '[@review-credit-packet]']),
+        ]));
+        $t->same('Editorial Credit Packet :: Roe, P.; Migration Desk, comps. :: curator: Curator, E. :: directed by Director, D. :: ill. by Illustrator, I.', $processor->renderBibliographyEntry('editorial-credit-packet'));
+        $t->same('Review Credit Packet :: chaired by Review Chair :: Collection, C., ed. :: Editorial, E., ed. :: with Open Review Desk :: interview by Interviewer, I. :: by Reviewed, R. :: to Reader, R.', $processor->renderBibliographyEntry('review-credit-packet'));
+
+        $document = (new MarkdownReader())->read('Editorial credits [@editorial-credit-packet; @review-credit-packet] keep CSL role labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Editorial credits (compiled by Roe and Migration Desk | cur. by Curator | dir. Director | 2026; interview by Interviewer | by Reviewed | to Reader | 2025) keep CSL role labels visible.</p>', $blocks);
+        $t->contains('<dt>Editorial Credit Packet 2026</dt><dd>Editorial Credit Packet :: Roe, P.; Migration Desk, comps. :: curator: Curator, E. :: directed by Director, D. :: ill. by Illustrator, I.</dd>', $blocks);
+        $t->contains('<dt>Review Credit Packet 2025</dt><dd>Review Credit Packet :: chaired by Review Chair :: Collection, C., ed. :: Editorial, E., ed. :: with Open Review Desk :: interview by Interviewer, I. :: by Reviewed, R. :: to Reader, R.</dd>', $blocks);
+    },
     'applies bounded csl version number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

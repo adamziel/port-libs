@@ -40,6 +40,9 @@ final class OdfReader
     /** @var array<int, int> */
     private array $listContinuationStartCounters = [];
 
+    /** @var array<string, array<int, int>> */
+    private array $listContinuationStartCountersById = [];
+
     /** @var list<string> */
     private array $currentListStyleNames = [];
 
@@ -425,6 +428,7 @@ final class OdfReader
         $this->formControlsById = $this->formControlsFromText($text);
         $this->contentDeclarations = $this->contentDeclarationsFromText($text, $root);
         $this->listContinuationStartCounters = [];
+        $this->listContinuationStartCountersById = [];
         $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
         $this->headingAnchorUses = [];
@@ -1275,10 +1279,19 @@ final class OdfReader
         $definition = $this->listDefinition($styleName, $level, $catalog);
         $ordered = $definition['type'] === 'number';
         $continueNumbering = strtolower(self::attr($list, self::TEXT_NS, 'continue-numbering')) === 'true';
+        $continueListId = self::attr($list, self::TEXT_NS, 'continue-list');
+        $listId = self::attr($list, self::TEXT_NS, 'id');
+        $listIdAttribute = $listId === '' ? '' : 'text:id';
+        if ($listId === '') {
+            $listId = self::attr($list, self::XML_NS, 'id');
+            $listIdAttribute = $listId === '' ? '' : 'xml:id';
+        }
+        $continueFromNamedList = $continueListId !== '';
         $defaultStart = max(1, (int) ($definition['start'] ?? 1));
         $explicitStart = self::nullableInt(self::attr($list, self::TEXT_NS, 'start-value'));
-        $start = $continueNumbering
-            ? max(1, $this->listContinuationStartCounters[$level] ?? $defaultStart)
+        $continuedStart = $this->continuedListStart($level, $continueListId, $defaultStart);
+        $start = ($continueNumbering || $continueFromNamedList)
+            ? $continuedStart
             : ($explicitStart === null ? $defaultStart : max(1, $explicitStart));
         $attrs = [
             'sourceFormat' => 'odt',
@@ -1289,15 +1302,34 @@ final class OdfReader
         } elseif ($inheritedStyleName !== '') {
             $attrs['inheritedStyleName'] = $inheritedStyleName;
         }
-        if ($continueNumbering) {
+        if ($continueNumbering || $continueFromNamedList) {
             $attrs['continued'] = true;
+        }
+        $htmlAttributes = [];
+        if ($listId !== '') {
+            $attrs['listId'] = $listId;
+            $attrs['listIdAttribute'] = $listIdAttribute;
+            $htmlAttributes['data-odf-list-id'] = $listId;
+            $htmlAttributes['data-odf-list-id-attribute'] = $listIdAttribute;
+        }
+        if ($continueListId !== '') {
+            $attrs['continueList'] = $continueListId;
+            $htmlAttributes['data-odf-list-continue-list'] = $continueListId;
+        }
+        if ($continueFromNamedList) {
+            $htmlAttributes['data-odf-list-continued'] = 'true';
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
         }
         if ($ordered) {
             $attrs['style'] = $this->orderedListStyle((string) ($definition['format'] ?? '1'));
             $attrs['start'] = $start;
             $attrs['styleStart'] = $defaultStart;
-            $attrs['startSource'] = $explicitStart === null || $continueNumbering ? 'style-start-value' : 'list-start-value';
-            if ($explicitStart !== null && !$continueNumbering) {
+            $attrs['startSource'] = $continueFromNamedList
+                ? 'continue-list'
+                : ($explicitStart === null || $continueNumbering ? 'style-start-value' : 'list-start-value');
+            if ($explicitStart !== null && !$continueNumbering && !$continueFromNamedList) {
                 $attrs['explicitStartValue'] = max(1, $explicitStart);
             }
             $numPrefix = (string) ($definition['numPrefix'] ?? '');
@@ -1349,9 +1381,25 @@ final class OdfReader
             }
         }
 
-        $this->listContinuationStartCounters[$level] = $start + $numberedItemCount;
+        $nextStart = $start + $numberedItemCount;
+        $this->listContinuationStartCounters[$level] = $nextStart;
+        if ($listId !== '') {
+            $this->listContinuationStartCountersById[$listId][$level] = $nextStart;
+        }
 
         return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    private function continuedListStart(int $level, string $continueListId, int $defaultStart): int
+    {
+        if ($continueListId !== '') {
+            $byLevel = $this->listContinuationStartCountersById[$continueListId] ?? null;
+            if (is_array($byLevel)) {
+                return max(1, (int) ($byLevel[$level] ?? $defaultStart));
+            }
+        }
+
+        return max(1, $this->listContinuationStartCounters[$level] ?? $defaultStart);
     }
 
     private function currentListStyleName(): string

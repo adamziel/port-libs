@@ -245,7 +245,7 @@ $contentXml = <<<'XML'
       <text:p>Input fields <text:text-input text:description="Confirm imported title">Imported packet title</text:text-input>, <text:variable-input text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-input>, <text:user-field-input text:name="Reviewer">Migration Desk</text:user-field-input>, and disposition <text:drop-down text:name="ReviewDisposition"><text:label text:value="Draft"/><text:label text:value="Ready to publish" text:current-selected="true"/><text:label text:value="Needs legal review"/></text:drop-down> remain reviewer-visible.</text:p>
       <text:p text:style-name="ReviewQuote">Quoted source decision survives as review context.</text:p>
       <text:p text:style-name="SourceCode">define('WP_IMPORTING', true);<text:line-break/>echo sanitize_text_field($title);<text:tab/>// source audit</text:p>
-      <text:list text:style-name="ReviewSteps">
+      <text:list text:id="review-checklist" text:style-name="ReviewSteps">
         <text:list-header><text:p>Review packet checklist</text:p></text:list-header>
         <text:list-item>
           <text:p>Match ODT media to WordPress attachments</text:p>
@@ -260,7 +260,7 @@ $contentXml = <<<'XML'
         </text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
       </text:list>
-      <text:list text:style-name="ReviewSteps" text:continue-numbering="true">
+      <text:list text:style-name="ReviewSteps" text:continue-numbering="true" text:continue-list="review-checklist">
         <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
       </text:list>
       <draw:frame draw:name="Source hero" draw:style-name="HeroFrame" draw:layer="review-media" text:anchor-type="paragraph" text:anchor-page-number="2" svg:x="1.2cm" svg:y="2.4cm" svg:width="6cm" svg:height="3.5cm" draw:z-index="5">
@@ -837,8 +837,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<div class="odf-list-header" data-odf-list-header="true" data-odf-list-level="1"><p>Review packet checklist</p></div>')) {
         throw new RuntimeException('Expected ODT list header to render as unnumbered WordPress review content');
     }
-    if (!str_contains($blocks, '<ol start="3"><li>Publish continued review checklist</li></ol>')) {
+    if (!str_contains($blocks, '<li>Publish continued review checklist</li>')) {
         throw new RuntimeException('Expected ODT continued list numbering to survive WordPress blocks');
+    }
+    if (!str_contains($blocks, '<ol data-odf-list-id="review-checklist" data-odf-list-id-attribute="text:id"><li>Match ODT media to WordPress attachments')) {
+        throw new RuntimeException('Expected ODT list source ids to survive WordPress blocks');
+    }
+    if (!str_contains($blocks, '<ol start="3" data-odf-list-continue-list="review-checklist" data-odf-list-continued="true"><li>Publish continued review checklist</li></ol>')) {
+        throw new RuntimeException('Expected ODT named continued list metadata to survive WordPress blocks');
     }
     if (!str_contains($blocks, '<ol start="4" type="a"><li>Check inherited nested checklist style')) {
         throw new RuntimeException('Expected ODT nested lists without explicit style names to inherit parent list style');
