@@ -7944,6 +7944,12 @@ final class PdfTextExtractor
             : $this->decodeStream($stream['dict'], $stream['stream'], $objects, false, true, true);
         $colorSpaceReview = $this->imageColorSpaceReview($stream['dict'], $objects, $resourceOwnerBody);
         $colorSpace = $colorSpaceReview['family'];
+        $colorSpaceComponentCount = $this->imageColorSpaceComponentCountReview(
+            $stream['dict'],
+            $objects,
+            $resourceOwnerBody,
+            $colorSpace
+        );
         $bitsPerComponent = $this->topLevelPdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
@@ -8159,7 +8165,7 @@ final class PdfTextExtractor
         $imageDecode = $this->imageXObjectDecodeReview(
             $stream['dict'],
             $objects,
-            $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace),
+            $imageMask ? 1 : $colorSpaceComponentCount,
             $imageMask
         );
         $ccittDecodeBoundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight);
@@ -8309,6 +8315,7 @@ final class PdfTextExtractor
                 'image_dimension_boundary' => $imageDimensionBoundary,
             ]),
             'color_space' => $colorSpace,
+            'color_space_component_count' => $colorSpaceComponentCount,
             'color_space_resource_name' => $colorSpaceReview['resource_name'],
             'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
             'color_space_resource_source' => $colorSpaceReview['resource_source'],
@@ -9635,11 +9642,183 @@ final class PdfTextExtractor
     private function imageXObjectColorSpaceComponentCount(?string $colorSpace): ?int
     {
         return match ($colorSpace) {
-            'DeviceGray', 'G', 'Indexed', 'I' => 1,
-            'DeviceRGB', 'RGB' => 3,
+            'DeviceGray', 'G', 'Indexed', 'I', 'Separation', 'CalGray' => 1,
+            'DeviceRGB', 'RGB', 'CalRGB', 'Lab' => 3,
             'DeviceCMYK', 'CMYK' => 4,
             default => null,
         };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageColorSpaceComponentCountReview(
+        string $dictionary,
+        array $objects,
+        ?string $resourceOwnerBody,
+        ?string $fallbackColorSpace
+    ): ?int {
+        foreach (['ColorSpace', 'CS'] as $name) {
+            $offset = $this->topLevelNameValueOffset($dictionary, $name);
+            if ($offset === null) {
+                continue;
+            }
+
+            $componentCount = $this->imageColorSpaceComponentCountAt(
+                $dictionary,
+                $offset,
+                $objects,
+                $resourceOwnerBody
+            );
+            if ($componentCount !== null) {
+                return $componentCount;
+            }
+        }
+
+        return $this->imageXObjectColorSpaceComponentCount($fallbackColorSpace);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @param array<string, true> $seenResourceNames
+     */
+    private function imageColorSpaceComponentCountAt(
+        string $value,
+        int $offset,
+        array $objects,
+        ?string $resourceOwnerBody = null,
+        array $seenObjects = [],
+        array $seenResourceNames = []
+    ): ?int {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        if (preg_match('/\G\/([^\s\[\]()<>{}\/%]+)/s', $value, $match, 0, $offset) === 1) {
+            $name = $this->decodePdfName($match[1]);
+            $family = $this->recognizedImageColorSpace($name);
+            if ($family !== null) {
+                return $this->imageXObjectColorSpaceComponentCount($family);
+            }
+
+            if ($resourceOwnerBody === null || isset($seenResourceNames[$name])) {
+                return null;
+            }
+
+            $resourceValue = $this->colorSpaceResourceValue($resourceOwnerBody, $objects, $name);
+            if ($resourceValue === null) {
+                return null;
+            }
+
+            $seenResourceNames[$name] = true;
+            return $this->imageColorSpaceComponentCountAt(
+                $resourceValue,
+                0,
+                $objects,
+                $resourceOwnerBody,
+                $seenObjects,
+                $seenResourceNames
+            );
+        }
+
+        if ($value[$offset] === '[') {
+            $arrayBody = $this->readPdfArrayAt($value, $offset);
+            if ($arrayBody === null) {
+                return null;
+            }
+
+            return $this->imageColorSpaceArrayComponentCount(
+                $arrayBody,
+                $objects,
+                $resourceOwnerBody,
+                $seenObjects,
+                $seenResourceNames
+            );
+        }
+
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            if (isset($seenObjects[$objectNumber])) {
+                return null;
+            }
+
+            $objectBody = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
+                return null;
+            }
+
+            $seenObjects[$objectNumber] = true;
+            return $this->imageColorSpaceComponentCountAt(
+                trim($objectBody),
+                0,
+                $objects,
+                $resourceOwnerBody,
+                $seenObjects,
+                $seenResourceNames
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @param array<string, true> $seenResourceNames
+     */
+    private function imageColorSpaceArrayComponentCount(
+        string $arrayBody,
+        array $objects,
+        ?string $resourceOwnerBody,
+        array $seenObjects,
+        array $seenResourceNames
+    ): ?int {
+        $items = $this->pdfArrayItems($arrayBody);
+        if ($items === []) {
+            return null;
+        }
+
+        $family = $this->colorSpaceFamilyReviewAt(
+            $arrayBody,
+            0,
+            $objects,
+            $resourceOwnerBody,
+            $seenObjects,
+            $seenResourceNames
+        )['family'];
+        if ($family === 'DeviceN') {
+            return $this->imageDeviceNColorantCount($items[1] ?? null, $objects);
+        }
+
+        return $this->imageXObjectColorSpaceComponentCount($family);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageDeviceNColorantCount(?string $colorantOperand, array $objects): ?int
+    {
+        if ($colorantOperand === null) {
+            return null;
+        }
+
+        $arrayBody = $this->pdfSingleArrayFromValue(trim($colorantOperand), $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $count = 0;
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            if ($this->pdfNameValueAt(trim($item), 0, $objects) === null) {
+                return null;
+            }
+            $count++;
+        }
+
+        return $count > 0 ? $count : null;
     }
 
     /**
@@ -15539,7 +15718,9 @@ final class PdfTextExtractor
             'DeviceGray', 'DeviceRGB', 'DeviceCMYK',
             'G', 'RGB', 'CMYK',
             'Indexed', 'I',
-            'ICCBased' => $name,
+            'ICCBased',
+            'Separation', 'DeviceN',
+            'CalGray', 'CalRGB', 'Lab' => $name,
             default => null,
         };
     }
