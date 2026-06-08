@@ -235,7 +235,7 @@ final class PdfTextDocumentExtractor
      */
     private function unwrapSuppliedDictionaryPageEntry(mixed $entry): mixed
     {
-        $entry = $this->normalizeSuppliedDictionaryValue($entry);
+        $entry = $this->normalizeSuppliedDictionaryPageEntryValue($entry);
         if (!is_array($entry)) {
             return $entry;
         }
@@ -283,6 +283,23 @@ final class PdfTextDocumentExtractor
         }
 
         return $entry;
+    }
+
+    /**
+     * JSONL-style adapter caches can store each pdftext dictionary page as a
+     * raw JSON object string. Decode only at the page-entry boundary so visible
+     * span text and arbitrary string payloads remain ordinary strings.
+     */
+    private function normalizeSuppliedDictionaryPageEntryValue(mixed $entry): mixed
+    {
+        if (is_string($entry)) {
+            $decoded = $this->decodeSuppliedDictionaryJsonEnvelope($entry);
+            if ($decoded !== null) {
+                return $this->normalizeSuppliedDictionaryValue($decoded);
+            }
+        }
+
+        return $this->normalizeSuppliedDictionaryValue($entry);
     }
 
     /**
