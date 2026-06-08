@@ -2546,6 +2546,86 @@ return [
         json_encode($sourceMap, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'builds row-oriented visual matrices with header association handoff metadata' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
+        $table = $buildAccessibleHeaderDocument()->children[0];
+        $matrix = TableGeometry::rowMatrix($table, 'Migration Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Migration Grid']);
+
+        $t->same(4, $matrix['summary']['rowCount'] ?? null);
+        $t->same(2, $matrix['summary']['headerRowCount'] ?? null);
+        $t->same(2, $matrix['summary']['dataRowCount'] ?? null);
+        $t->same(6, $matrix['summary']['headerCellCount'] ?? null);
+        $t->same(4, $matrix['summary']['dataCellCount'] ?? null);
+        $t->same(4, $matrix['summary']['associatedDataCellCount'] ?? null);
+        $t->same(0, $matrix['summary']['unassociatedDataCellCount'] ?? null);
+        $t->same(2, $matrix['summary']['coveredRowCount'] ?? null);
+        $t->same(0, $matrix['summary']['missingRowCount'] ?? null);
+        $t->same(3, $matrix['summary']['maxCellCountPerRow'] ?? null);
+        $t->same(3, $matrix['summary']['maxHeaderCellsPerRow'] ?? null);
+        $t->same(2, $matrix['summary']['maxDataCellsPerRow'] ?? null);
+        $t->same(['head' => 1, 'body-head' => 1, 'body' => 2], $matrix['summary']['rowRoleCounts'] ?? null);
+
+        $t->same('head', $matrix['rows'][0]['section'] ?? null);
+        $t->same('head', $matrix['rows'][0]['rowRole'] ?? null);
+        $t->same(true, $matrix['rows'][0]['header'] ?? null);
+        $t->same(2, $matrix['rows'][0]['headerCellCount'] ?? null);
+        $t->same(0, $matrix['rows'][0]['dataCellCount'] ?? null);
+        $t->same('Document', $matrix['rows'][0]['headerCells'][0]['text'] ?? null);
+        $t->same('migration-grid-head-r1c1', $matrix['rows'][0]['headerCells'][0]['id'] ?? null);
+        $t->same('colgroup', $matrix['rows'][0]['headerCells'][0]['scope'] ?? null);
+        $t->same([0, 1], $matrix['rows'][0]['headerCells'][0]['columns'] ?? null);
+
+        $t->same('body-head', $matrix['rows'][1]['rowRole'] ?? null);
+        $t->same(3, $matrix['rows'][1]['headerCellCount'] ?? null);
+        $t->same(['Batch', 'Queue', 'Decision'], array_map(static fn (array $cell): string => $cell['text'], $matrix['rows'][1]['headerCells'] ?? []));
+
+        $postsRow = $matrix['rows'][2] ?? [];
+        $t->same('body', $postsRow['section'] ?? null);
+        $t->same(1, $postsRow['row'] ?? null);
+        $t->same(2, $postsRow['globalRow'] ?? null);
+        $t->same(false, $postsRow['header'] ?? null);
+        $t->same(1, $postsRow['headerCellCount'] ?? null);
+        $t->same(2, $postsRow['dataCellCount'] ?? null);
+        $t->same('Posts', $postsRow['headerCells'][0]['text'] ?? null);
+        $t->same('migration-grid-body-r2c1', $postsRow['headerCells'][0]['id'] ?? null);
+        $t->same('rowgroup', $postsRow['headerCells'][0]['scope'] ?? null);
+        $t->same(2, $postsRow['headerCells'][0]['rowspan'] ?? null);
+        $t->same('42', $postsRow['dataCells'][0]['text'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $postsRow['dataCells'][0]['headers'] ?? null);
+        $t->same(3, $postsRow['dataCells'][0]['headerCount'] ?? null);
+        $t->same('Review', $postsRow['dataCells'][1]['text'] ?? null);
+        $t->same(['migration-grid-head-r1c3', 'migration-grid-body-r1c3', 'migration-grid-body-r2c1'], $postsRow['dataCells'][1]['headers'] ?? null);
+
+        $coveredRow = $matrix['rows'][3] ?? [];
+        $t->same(1, $coveredRow['coveredSlotCount'] ?? null);
+        $t->same(0, $coveredRow['missingSlotCount'] ?? null);
+        $t->same('rowspan', $coveredRow['coveredSlots'][0]['covering'] ?? null);
+        $t->same('body:1:0:0', $coveredRow['coveredSlots'][0]['anchorKey'] ?? null);
+        $t->same('7', $coveredRow['dataCells'][0]['text'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $coveredRow['dataCells'][0]['headers'] ?? null);
+        $t->same('Import', $coveredRow['dataCells'][1]['text'] ?? null);
+        $t->same(['migration-grid-head-r1c3', 'migration-grid-body-r1c3', 'migration-grid-body-r2c1'], $coveredRow['dataCells'][1]['headers'] ?? null);
+
+        $t->same($matrix, $packet['rowMatrix'] ?? null);
+        $t->same(4, $packet['summary']['rowMatrixRowCount'] ?? null);
+        $t->same(4, $packet['summary']['rowMatrixAssociatedDataCellCount'] ?? null);
+        $t->same(true, $packet['summary']['hasRowMatrixHeaderAssociations'] ?? null);
+
+        $sourceMatrix = TableGeometry::rowMatrix($buildSourceScopedHeaderDocument()->children[0], 'Source Scope Grid');
+        $t->same(2, $sourceMatrix['summary']['dataRowCount'] ?? null);
+        $t->same(4, $sourceMatrix['summary']['associatedDataCellCount'] ?? null);
+        $t->same(0, $sourceMatrix['summary']['unassociatedDataCellCount'] ?? null);
+        $t->same(['legacy-count', 'source-posts'], $sourceMatrix['rows'][1]['dataCells'][0]['headers'] ?? null);
+        $t->same(['source-count'], $sourceMatrix['rows'][2]['dataCells'][0]['headers'] ?? null);
+        $t->same(['source-state'], $sourceMatrix['rows'][2]['dataCells'][1]['headers'] ?? null);
+
+        $compactPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $t->same([], $compactPacket['rowMatrix']['rows'][2]['dataCells'][0]['headers'] ?? null);
+        $t->same(0, $compactPacket['summary']['rowMatrixAssociatedDataCellCount'] ?? null);
+        json_encode($matrix, JSON_THROW_ON_ERROR);
+        json_encode($sourceMatrix, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports row header writer requirements for plain table handoff' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Row header review',

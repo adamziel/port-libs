@@ -1221,6 +1221,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($reviewPacket['summary']['headerAssociationCount'] ?? null) !== 12 || ($reviewPacket['summary']['associatedDataCellCount'] ?? null) !== 4) {
         throw new RuntimeException('Table geometry self-test missing review-packet header association summary');
     }
+    if (
+        ($reviewPacket['rowMatrix']['summary']['rowCount'] ?? null) !== 4
+        || ($reviewPacket['rowMatrix']['summary']['dataCellCount'] ?? null) !== 4
+        || ($reviewPacket['rowMatrix']['summary']['associatedDataCellCount'] ?? null) !== 4
+        || ($reviewPacket['rowMatrix']['rows'][2]['dataCells'][0]['headers'] ?? null) !== ['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1']
+        || ($reviewPacket['rowMatrix']['rows'][3]['coveredSlots'][0]['anchorKey'] ?? null) !== 'body:1:0:0'
+        || ($reviewPacket['summary']['rowMatrixAssociatedDataCellCount'] ?? null) !== 4
+    ) {
+        throw new RuntimeException('Table geometry self-test missing row-oriented matrix header handoff');
+    }
     json_encode($reviewPacket, JSON_THROW_ON_ERROR);
 
     $sourceAccessibility = TableGeometry::accessibilityAttributes($document->children[6], 'Source Grid');

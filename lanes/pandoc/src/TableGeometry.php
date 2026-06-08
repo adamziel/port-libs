@@ -629,6 +629,17 @@ final class TableGeometry
     }
 
     /**
+     * @return array{rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    public static function rowMatrix(AstNode $table, string $idPrefix = 'pandoc-table'): array
+    {
+        return self::rowMatrixFromAssociations(
+            self::sectionGrids($table),
+            self::headerAssociations($table, $idPrefix)
+        );
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function diagnostics(AstNode $table): array
@@ -1549,6 +1560,7 @@ final class TableGeometry
      *     accessibility:array<string, array{id?:string,scope?:string,headers?:list<string>}>,
      *     headerAssociations:array<string, mixed>,
      *     sourceSummary?:array{text:string,source:string,attribute:string},
+     *     rowMatrix:array{rows:list<array<string, mixed>>,summary:array<string, mixed>},
      *     summary:array<string, mixed>
      * }
      */
@@ -1579,6 +1591,7 @@ final class TableGeometry
         $rowHeaderMap = $includeAccessibility
             ? self::rowHeaderMapFromAssociations($sections, $headerAssociations)
             : self::emptyRowHeaderMap();
+        $rowMatrix = self::rowMatrixFromAssociations($sections, $headerAssociations);
 
         $packet = [
             'caption' => (string) $table->attr('caption', ''),
@@ -1596,6 +1609,7 @@ final class TableGeometry
             'accessibility' => $accessibility,
             'headerAssociations' => $headerAssociations,
             'rowHeaderMap' => $rowHeaderMap,
+            'rowMatrix' => $rowMatrix,
             'summary' => self::reviewPacketSummary(
                 $sections,
                 $coverage,
@@ -1606,6 +1620,7 @@ final class TableGeometry
                 $rowGroups,
                 $headerAssociations,
                 $rowHeaderMap,
+                $rowMatrix,
                 (string) ($sourceSummary['text'] ?? '')
             ),
         ];
@@ -1788,6 +1803,456 @@ final class TableGeometry
                 'rowspannedRowHeaderReferenceCount' => 0,
             ],
         ];
+    }
+
+    /**
+     * @return array{rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    private static function emptyRowMatrix(): array
+    {
+        return [
+            'rows' => [],
+            'summary' => [
+                'rowCount' => 0,
+                'headerRowCount' => 0,
+                'dataRowCount' => 0,
+                'rowWithHeaderCellCount' => 0,
+                'rowWithDataCellCount' => 0,
+                'completeRowCount' => 0,
+                'incompleteRowCount' => 0,
+                'coveredRowCount' => 0,
+                'missingRowCount' => 0,
+                'cellCount' => 0,
+                'headerCellCount' => 0,
+                'dataCellCount' => 0,
+                'coveredSlotCount' => 0,
+                'missingSlotCount' => 0,
+                'associatedDataCellCount' => 0,
+                'unassociatedDataCellCount' => 0,
+                'maxCellCountPerRow' => 0,
+                'maxHeaderCellsPerRow' => 0,
+                'maxDataCellsPerRow' => 0,
+                'maxVisualWidth' => 0,
+                'rowRoleCounts' => [],
+                'sections' => [],
+                'hasHeaderAssociations' => false,
+                'hasUnassociatedDataCells' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{
+     *     section:string,
+     *     columnCount:int,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>,
+     *     rows:list<list<array<string, mixed>>>
+     * }> $sections
+     * @param array<string, mixed> $headerAssociations
+     * @return array{rows:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    private static function rowMatrixFromAssociations(array $sections, array $headerAssociations): array
+    {
+        if ($sections === []) {
+            return self::emptyRowMatrix();
+        }
+
+        $headerCellsByKey = self::associationRecordsByKey($headerAssociations['headerCells'] ?? []);
+        $dataCellsByKey = self::associationRecordsByKey($headerAssociations['dataCells'] ?? []);
+        $rows = [];
+        $summary = self::emptyRowMatrix()['summary'];
+
+        foreach ($sections as $sectionGrid) {
+            $section = (string) ($sectionGrid['section'] ?? '');
+            if ($section !== '' && !in_array($section, $summary['sections'], true)) {
+                $summary['sections'][] = $section;
+            }
+
+            $globalRowStart = max(0, (int) ($sectionGrid['globalRowStart'] ?? 0));
+            foreach ($sectionGrid['rows'] ?? [] as $rowIndex => $slots) {
+                if (!is_array($slots)) {
+                    continue;
+                }
+
+                $rowEntry = is_array($sectionGrid['rowEntries'][$rowIndex] ?? null)
+                    ? $sectionGrid['rowEntries'][$rowIndex]
+                    : [];
+                $row = self::rowMatrixRowRecord(
+                    $section,
+                    (int) $rowIndex,
+                    $globalRowStart + (int) $rowIndex,
+                    $rowEntry,
+                    $slots,
+                    $headerCellsByKey,
+                    $dataCellsByKey
+                );
+                $rows[] = $row;
+                self::appendRowMatrixSummaryRow($summary, $row);
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'summary' => $summary,
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private static function associationRecordsByKey(mixed $records): array
+    {
+        if (!is_array($records)) {
+            return [];
+        }
+
+        $recordsByKey = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $key = trim((string) ($record['key'] ?? ''));
+            if ($key !== '') {
+                $recordsByKey[$key] = $record;
+            }
+        }
+
+        return $recordsByKey;
+    }
+
+    /**
+     * @param array<string, mixed> $rowEntry
+     * @param list<array<string, mixed>> $slots
+     * @param array<string, array<string, mixed>> $headerCellsByKey
+     * @param array<string, array<string, mixed>> $dataCellsByKey
+     * @return array<string, mixed>
+     */
+    private static function rowMatrixRowRecord(
+        string $section,
+        int $rowIndex,
+        int $fallbackGlobalRow,
+        array $rowEntry,
+        array $slots,
+        array $headerCellsByKey,
+        array $dataCellsByKey
+    ): array {
+        $globalRow = self::rowGlobalRow($slots, $fallbackGlobalRow);
+        $rowRole = (string) ($rowEntry['rowRole'] ?? '');
+        $headerRow = (bool) ($rowEntry['header'] ?? false);
+        $rowHeadColumns = max(0, (int) ($rowEntry['rowHeadColumns'] ?? 0));
+
+        $cells = [];
+        $headerCells = [];
+        $dataCells = [];
+        $coveredSlots = [];
+        $missingColumns = [];
+        $coveredSlotCount = 0;
+        $missingSlotCount = 0;
+        $maxOccupiedColumn = -1;
+
+        foreach ($slots as $column => $slot) {
+            if (!is_array($slot)) {
+                continue;
+            }
+
+            $kind = (string) ($slot['kind'] ?? '');
+            if ($kind === 'missing') {
+                $missingSlotCount++;
+                $missingColumns[] = (int) ($slot['column'] ?? $column);
+                continue;
+            }
+
+            $maxOccupiedColumn = max($maxOccupiedColumn, (int) ($slot['column'] ?? $column));
+            if ($kind === 'covered') {
+                $coveredSlotCount++;
+                $coveredSlots[] = self::rowMatrixCoveredSlotRecord($section, $slot);
+                continue;
+            }
+
+            if ($kind !== 'cell') {
+                continue;
+            }
+
+            $key = self::accessibilityKey(
+                $section,
+                (int) $rowIndex,
+                (int) ($slot['sourceCell'] ?? 0),
+                (int) ($slot['sourceColumn'] ?? 0)
+            );
+            $headerCell = ($slot['headerCell'] ?? false) === true;
+            $association = $headerCell ? ($headerCellsByKey[$key] ?? []) : ($dataCellsByKey[$key] ?? []);
+            $cell = self::rowMatrixCellRecord($section, (int) $rowIndex, $globalRow, $slot, $key, $association);
+            $cells[] = $cell;
+            if ($headerCell) {
+                $headerCells[] = $cell;
+            } else {
+                $dataCells[] = $cell;
+            }
+        }
+
+        return [
+            'section' => $section,
+            'row' => $rowIndex,
+            'globalRow' => $globalRow,
+            'rowRole' => $rowRole,
+            'header' => $headerRow,
+            'rowHeadColumns' => $rowHeadColumns,
+            'slotCount' => count($slots),
+            'cellCount' => count($cells),
+            'headerCellCount' => count($headerCells),
+            'dataCellCount' => count($dataCells),
+            'coveredSlotCount' => $coveredSlotCount,
+            'missingSlotCount' => $missingSlotCount,
+            'visualWidth' => max(count($slots), $maxOccupiedColumn + 1),
+            'complete' => $slots !== [] && $missingSlotCount === 0,
+            'cells' => $cells,
+            'headerCells' => $headerCells,
+            'dataCells' => $dataCells,
+            'coveredSlots' => $coveredSlots,
+            'missingColumns' => $missingColumns,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @param array<string, mixed> $association
+     * @return array<string, mixed>
+     */
+    private static function rowMatrixCellRecord(
+        string $section,
+        int $rowIndex,
+        int $globalRow,
+        array $slot,
+        string $key,
+        array $association
+    ): array {
+        $node = $slot['node'] ?? null;
+        $headerCell = ($slot['headerCell'] ?? false) === true;
+        $record = [
+            'key' => $key,
+            'role' => $headerCell ? 'header' : 'data',
+            'section' => $section,
+            'row' => $rowIndex,
+            'globalRow' => $globalRow,
+            'rowRole' => (string) ($slot['rowRole'] ?? ''),
+            'headerRow' => (bool) ($slot['headerRow'] ?? false),
+            'rowHeadColumns' => max(0, (int) ($slot['rowHeadColumns'] ?? 0)),
+            'column' => (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0),
+            'columns' => self::associationColumns($slot),
+            'sourceCell' => (int) ($slot['sourceCell'] ?? 0),
+            'sourceColumn' => (int) ($slot['sourceColumn'] ?? 0),
+            'colspan' => max(1, (int) ($slot['colspan'] ?? 1)),
+            'rowspan' => max(1, (int) ($slot['rowspan'] ?? 1)),
+            'headerCell' => $headerCell,
+            'text' => $node instanceof AstNode ? self::plainText($node) : '',
+        ];
+
+        foreach ([
+            'sourceRow',
+            'sourceRowEnd',
+            'sourceRowspan',
+            'globalRowEnd',
+            'anchorSourceRow',
+            'anchorSourceRowEnd',
+            'anchorGlobalRow',
+            'anchorGlobalRowEnd',
+        ] as $attribute) {
+            if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
+                $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach ([
+            'sourceRows',
+            'sourceRowRange',
+            'globalRows',
+            'globalRowRange',
+            'anchorSourceRows',
+            'anchorSourceRowRange',
+            'anchorGlobalRows',
+            'anchorGlobalRowRange',
+        ] as $attribute) {
+            $values = self::intList($slot[$attribute] ?? []);
+            if ($values !== []) {
+                $record[$attribute] = $values;
+            }
+        }
+
+        if (($slot['rowspanToEnd'] ?? false) === true) {
+            $record['rowspanToEnd'] = true;
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($node);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        if ($headerCell) {
+            foreach (['id', 'scope', 'abbr'] as $attribute) {
+                $value = trim((string) ($association[$attribute] ?? ''));
+                if ($value !== '') {
+                    $record[$attribute] = $value;
+                }
+            }
+
+            $headers = self::stringList($association['headers'] ?? []);
+            if ($headers !== []) {
+                $record['headers'] = $headers;
+            }
+            self::appendSourceHeaderAssociationFields($record, $association);
+
+            return $record;
+        }
+
+        $headers = self::stringList($association['headers'] ?? []);
+        $record['headers'] = $headers;
+        $record['headerCount'] = count($headers);
+        $record['associated'] = $headers !== [];
+        self::appendSourceHeaderAssociationFields($record, $association);
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param array<string, mixed> $association
+     */
+    private static function appendSourceHeaderAssociationFields(array &$record, array $association): void
+    {
+        $sourceHeaders = self::stringList($association['sourceHeaders'] ?? []);
+        if ($sourceHeaders !== []) {
+            $record['sourceHeaders'] = $sourceHeaders;
+        }
+
+        $references = $association['sourceHeaderReferences'] ?? [];
+        if (is_array($references) && $references !== []) {
+            $record['sourceHeaderReferences'] = $references;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return array<string, mixed>
+     */
+    private static function rowMatrixCoveredSlotRecord(string $section, array $slot): array
+    {
+        $anchorRow = max(0, (int) ($slot['anchorRow'] ?? $slot['row'] ?? 0));
+        $sourceCell = max(0, (int) ($slot['sourceCell'] ?? 0));
+        $sourceColumn = max(0, (int) ($slot['sourceColumn'] ?? 0));
+        $record = [
+            'kind' => 'covered',
+            'section' => $section,
+            'row' => max(0, (int) ($slot['row'] ?? 0)),
+            'globalRow' => max(0, (int) ($slot['globalRow'] ?? 0)),
+            'column' => max(0, (int) ($slot['column'] ?? 0)),
+            'covering' => (string) ($slot['covering'] ?? ''),
+            'anchorRow' => $anchorRow,
+            'anchorColumn' => max(0, (int) ($slot['anchorColumn'] ?? 0)),
+            'anchorKey' => self::accessibilityKey($section, $anchorRow, $sourceCell, $sourceColumn),
+            'sourceCell' => $sourceCell,
+            'sourceColumn' => $sourceColumn,
+        ];
+
+        foreach ([
+            'sourceRow',
+            'sourceRowEnd',
+            'sourceRowspan',
+            'anchorSourceRow',
+            'anchorSourceRowEnd',
+            'anchorGlobalRow',
+            'anchorGlobalRowEnd',
+        ] as $attribute) {
+            if (isset($slot[$attribute]) && is_numeric($slot[$attribute])) {
+                $record[$attribute] = (int) $slot[$attribute];
+            }
+        }
+
+        foreach ([
+            'sourceRows',
+            'sourceRowRange',
+            'anchorSourceRows',
+            'anchorSourceRowRange',
+            'anchorGlobalRows',
+            'anchorGlobalRowRange',
+        ] as $attribute) {
+            $values = self::intList($slot[$attribute] ?? []);
+            if ($values !== []) {
+                $record[$attribute] = $values;
+            }
+        }
+
+        if (($slot['rowspanToEnd'] ?? false) === true) {
+            $record['rowspanToEnd'] = true;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $row
+     */
+    private static function appendRowMatrixSummaryRow(array &$summary, array $row): void
+    {
+        $summary['rowCount']++;
+        if (($row['header'] ?? false) === true) {
+            $summary['headerRowCount']++;
+        }
+
+        $rowRole = trim((string) ($row['rowRole'] ?? ''));
+        if ($rowRole !== '') {
+            $summary['rowRoleCounts'][$rowRole] = ($summary['rowRoleCounts'][$rowRole] ?? 0) + 1;
+        }
+
+        $cellCount = max(0, (int) ($row['cellCount'] ?? 0));
+        $headerCellCount = max(0, (int) ($row['headerCellCount'] ?? 0));
+        $dataCellCount = max(0, (int) ($row['dataCellCount'] ?? 0));
+        $coveredSlotCount = max(0, (int) ($row['coveredSlotCount'] ?? 0));
+        $missingSlotCount = max(0, (int) ($row['missingSlotCount'] ?? 0));
+
+        if ($dataCellCount > 0) {
+            $summary['dataRowCount']++;
+            $summary['rowWithDataCellCount']++;
+        }
+        if ($headerCellCount > 0) {
+            $summary['rowWithHeaderCellCount']++;
+        }
+        if (($row['complete'] ?? false) === true) {
+            $summary['completeRowCount']++;
+        } else {
+            $summary['incompleteRowCount']++;
+        }
+        if ($coveredSlotCount > 0) {
+            $summary['coveredRowCount']++;
+        }
+        if ($missingSlotCount > 0) {
+            $summary['missingRowCount']++;
+        }
+
+        $summary['cellCount'] += $cellCount;
+        $summary['headerCellCount'] += $headerCellCount;
+        $summary['dataCellCount'] += $dataCellCount;
+        $summary['coveredSlotCount'] += $coveredSlotCount;
+        $summary['missingSlotCount'] += $missingSlotCount;
+        $summary['maxCellCountPerRow'] = max($summary['maxCellCountPerRow'], $cellCount);
+        $summary['maxHeaderCellsPerRow'] = max($summary['maxHeaderCellsPerRow'], $headerCellCount);
+        $summary['maxDataCellsPerRow'] = max($summary['maxDataCellsPerRow'], $dataCellCount);
+        $summary['maxVisualWidth'] = max($summary['maxVisualWidth'], max(0, (int) ($row['visualWidth'] ?? 0)));
+
+        foreach (is_array($row['dataCells'] ?? null) ? $row['dataCells'] : [] as $cell) {
+            if (!is_array($cell)) {
+                continue;
+            }
+            if (($cell['associated'] ?? false) === true) {
+                $summary['associatedDataCellCount']++;
+            } else {
+                $summary['unassociatedDataCellCount']++;
+            }
+        }
+
+        $summary['hasHeaderAssociations'] = $summary['associatedDataCellCount'] > 0;
+        $summary['hasUnassociatedDataCells'] = $summary['unassociatedDataCellCount'] > 0;
     }
 
     /**
@@ -3235,6 +3700,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $rowGroups
      * @param array<string, mixed> $headerAssociations
      * @param array<string, mixed> $rowHeaderMap
+     * @param array<string, mixed> $rowMatrix
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -3247,6 +3713,7 @@ final class TableGeometry
         array $rowGroups,
         array $headerAssociations,
         array $rowHeaderMap,
+        array $rowMatrix,
         string $sourceSummary
     ): array
     {
@@ -3396,6 +3863,9 @@ final class TableGeometry
         if (!is_array($rowHeaderScopes)) {
             $rowHeaderScopes = [];
         }
+        $rowMatrixSummary = is_array($rowMatrix['summary'] ?? null)
+            ? $rowMatrix['summary']
+            : [];
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
         $columnRollup = self::columnSummaryRollup($columnSummaries);
@@ -3544,6 +4014,18 @@ final class TableGeometry
                 static fn (mixed $scope): string => (string) $scope,
                 $rowHeaderScopes
             )),
+            'rowMatrixRowCount' => (int) ($rowMatrixSummary['rowCount'] ?? 0),
+            'rowMatrixHeaderRowCount' => (int) ($rowMatrixSummary['headerRowCount'] ?? 0),
+            'rowMatrixDataRowCount' => (int) ($rowMatrixSummary['dataRowCount'] ?? 0),
+            'rowMatrixHeaderCellCount' => (int) ($rowMatrixSummary['headerCellCount'] ?? 0),
+            'rowMatrixDataCellCount' => (int) ($rowMatrixSummary['dataCellCount'] ?? 0),
+            'rowMatrixAssociatedDataCellCount' => (int) ($rowMatrixSummary['associatedDataCellCount'] ?? 0),
+            'rowMatrixUnassociatedDataCellCount' => (int) ($rowMatrixSummary['unassociatedDataCellCount'] ?? 0),
+            'hasRowMatrixHeaderAssociations' => (bool) ($rowMatrixSummary['hasHeaderAssociations'] ?? false),
+            'hasRowMatrixUnassociatedDataCells' => (bool) ($rowMatrixSummary['hasUnassociatedDataCells'] ?? false),
+            'rowMatrixMaxCellCountPerRow' => (int) ($rowMatrixSummary['maxCellCountPerRow'] ?? 0),
+            'rowMatrixMaxHeaderCellsPerRow' => (int) ($rowMatrixSummary['maxHeaderCellsPerRow'] ?? 0),
+            'rowMatrixMaxDataCellsPerRow' => (int) ($rowMatrixSummary['maxDataCellsPerRow'] ?? 0),
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
             'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),
