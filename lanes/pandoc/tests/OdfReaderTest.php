@@ -2540,6 +2540,54 @@ XML;
         $t->contains('<span class="odf-field odf-field-variable-input" data-odf-field-type="variable-input" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-input" data-odf-field-type="user-field-input" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
     },
+    'maps ODT dropdown fields into selected review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDropdownFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Disposition <text:drop-down text:name="ReviewDisposition"><text:label text:value="Draft"/><text:label text:value="Ready to publish" text:current-selected="true"/><text:label text:value="Needs legal review"/></text:drop-down> with fallback <text:drop-down text:name="FallbackDisposition"><text:label text:value="Escalate"/><text:label text:value="Archive"/></text:drop-down> remains auditable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDropdownFields));
+        $paragraph = $result['document']->children[0];
+        $selected = $paragraph->children[1];
+        $fallback = $paragraph->children[3];
+
+        $t->same('Disposition Ready to publish with fallback Escalate remains auditable.', $paragraph->attr('text'));
+        $t->same('span', $selected->type);
+        $t->same(['odf-field', 'odf-field-drop-down'], $selected->attr('classes'));
+        $t->same('drop-down', $selected->attr('fieldType'));
+        $t->same('ReviewDisposition', $selected->attr('fieldName'));
+        $t->same(3, $selected->attr('fieldMetadata')['labelCount']);
+        $t->same('Ready to publish', $selected->attr('fieldMetadata')['selectedValue']);
+        $t->same('Draft', $selected->attr('fieldMetadata')['labels'][0]['value']);
+        $t->same(false, $selected->attr('fieldMetadata')['labels'][0]['selected']);
+        $t->same('Ready to publish', $selected->attr('fieldMetadata')['labels'][1]['value']);
+        $t->same(true, $selected->attr('fieldMetadata')['labels'][1]['selected']);
+        $t->same('3', $selected->attr('attributes')['data-odf-field-label-count']);
+        $t->same('Ready to publish', $selected->attr('attributes')['data-odf-field-selected-value']);
+        $t->same('Ready to publish', $selected->children[0]->attr('text'));
+
+        $t->same('drop-down', $fallback->attr('fieldType'));
+        $t->same('FallbackDisposition', $fallback->attr('fieldName'));
+        $t->same(2, $fallback->attr('fieldMetadata')['labelCount']);
+        $t->same('Escalate', $fallback->attr('fieldMetadata')['selectedValue']);
+        $t->same(false, $fallback->attr('fieldMetadata')['labels'][0]['selected']);
+        $t->same('Escalate', $fallback->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Ready to publish]{.odf-field .odf-field-drop-down data-odf-field-type="drop-down" data-odf-field-name="ReviewDisposition" data-odf-field-label-count="3" data-odf-field-selected-value="Ready to publish"}', $markdown);
+        $t->contains('[Escalate]{.odf-field .odf-field-drop-down data-odf-field-type="drop-down" data-odf-field-name="FallbackDisposition" data-odf-field-label-count="2" data-odf-field-selected-value="Escalate"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-drop-down" data-odf-field-type="drop-down" data-odf-field-name="ReviewDisposition" data-odf-field-label-count="3" data-odf-field-selected-value="Ready to publish">Ready to publish</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-drop-down" data-odf-field-type="drop-down" data-odf-field-name="FallbackDisposition" data-odf-field-label-count="2" data-odf-field-selected-value="Escalate">Escalate</span>', $blocksHtml);
+    },
     'maps ODT database fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithDatabaseFields = <<<'XML'
 <office:document-content

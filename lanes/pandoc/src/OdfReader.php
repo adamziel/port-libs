@@ -3194,6 +3194,7 @@ final class OdfReader
             'user-field-input',
             'expression',
             'text-input',
+            'drop-down',
             'conditional-text',
             'hidden-text',
             'database-display',
@@ -3324,7 +3325,7 @@ final class OdfReader
             'data-odf-field-type' => $fieldType,
         ];
         foreach ($metadata as $name => $value) {
-            if ($value === null || $value === '') {
+            if ($value === null || $value === '' || is_array($value)) {
                 continue;
             }
             $attributes['data-odf-field-' . self::kebabCase((string) $name)] = is_bool($value)
@@ -3397,11 +3398,55 @@ final class OdfReader
             'styleName' => self::nullable(self::attr($field, self::STYLE_NS, 'data-style-name')),
         ]);
 
+        if ($this->isElement($field, self::TEXT_NS, 'drop-down')) {
+            $metadata = array_merge($metadata, $this->dropDownFieldMetadata($field));
+        }
+
         if ($fixed !== '') {
             $metadata['fixed'] = in_array(strtolower($fixed), ['true', '1'], true);
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array{labels?:list<array{value:string, selected:bool}>, labelCount?:int, selectedValue?:string}
+     */
+    private function dropDownFieldMetadata(\DOMElement $field): array
+    {
+        $labels = [];
+        $selectedValue = '';
+        foreach (self::childElements($field, 'label', self::TEXT_NS) as $label) {
+            $value = self::attr($label, self::TEXT_NS, 'value');
+            if ($value === '') {
+                $value = self::normalizedText($label);
+            }
+            if ($value === '') {
+                continue;
+            }
+
+            $selected = self::nullableBool(self::attr($label, self::TEXT_NS, 'current-selected'))
+                ?? self::nullableBool(self::attr($label, self::TEXT_NS, 'selected'))
+                ?? false;
+            if ($selected && $selectedValue === '') {
+                $selectedValue = $value;
+            }
+
+            $labels[] = [
+                'value' => $value,
+                'selected' => $selected,
+            ];
+        }
+
+        if ($selectedValue === '' && isset($labels[0])) {
+            $selectedValue = $labels[0]['value'];
+        }
+
+        return self::withoutEmpty([
+            'labels' => $labels,
+            'labelCount' => $labels === [] ? null : count($labels),
+            'selectedValue' => self::nullable($selectedValue),
+        ]);
     }
 
     /**
@@ -3453,7 +3498,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName'] as $name) {
+        foreach (['selectedValue', 'stringValue', 'stringValueIfTrue', 'stringValueIfFalse', 'value', 'currentValue', 'dateValue', 'timeValue', 'booleanValue', 'rowNumber', 'databaseName'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_scalar($value) && (string) $value !== '') {
                 return (string) $value;
