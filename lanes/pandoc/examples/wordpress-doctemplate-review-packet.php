@@ -757,6 +757,39 @@ HTML,
         }
     }
 
+    $docbook4Fallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'title' => 'DocBook 4 Default Review',
+        'author' => ['Migration bot', 'Content editor'],
+        'date' => '2026-06-08',
+        'include-before' => ['<section><title>Before DocBook 4 body</title></section>'],
+        'body' => '<para>DocBook 4 body.</para>',
+        'include-after' => ['<section><title>After DocBook 4 body</title></section>'],
+    ], null, 'docbook4');
+    foreach ([
+        '<?xml version="1.0" encoding="utf-8" ?>',
+        '<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"',
+        '"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">',
+        '<articleinfo>',
+        '<title>DocBook 4 Default Review</title>',
+        '<authorgroup>',
+        'Migration bot',
+        'Content editor',
+        '<date>2026-06-08</date>',
+        '<section><title>Before DocBook 4 body</title></section>',
+        '<para>DocBook 4 body.</para>',
+        '<section><title>After DocBook 4 body</title></section>',
+        '</article>',
+    ] as $needle) {
+        if (!str_contains($docbook4Fallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate docbook4 default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+    if (str_contains($docbook4Fallback, 'xmlns="http://docbook.org/ns/docbook"')) {
+        fwrite(STDERR, "DocBook 4 fallback unexpectedly used DocBook 5 namespace\n");
+        exit(1);
+    }
+
     $beamerFallback = (new DocTemplate())->renderResource('templates/default', [], [
         'documentclass' => 'beamer',
         'fontsize' => '10pt',

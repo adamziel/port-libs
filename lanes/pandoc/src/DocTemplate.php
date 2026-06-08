@@ -423,6 +423,7 @@ final class DocTemplate
             'default.opendocument' => $this->defaultOpenDocumentTemplate(),
             'default.epub3' => $this->defaultEpub3Template(),
             'default.icml' => $this->defaultIcmlTemplate(),
+            'default.docbook4' => $this->defaultDocbook4Template(),
             'default.docbook5' => $this->defaultDocbook5Template(),
             'default.jats_archiving' => $this->defaultJatsArchivingTemplate(),
             'default.jats_publishing' => $this->defaultJatsPublishingTemplate(),
@@ -467,6 +468,7 @@ final class DocTemplate
             'default.opendocument',
             'default.epub3',
             'default.icml',
+            'default.docbook4',
             'default.docbook5',
             'default.jats_archiving',
             'default.jats_publishing',
@@ -1859,6 +1861,44 @@ $else$
 </chapter>
 $endif$
 DOCBOOK5;
+    }
+
+    private function defaultDocbook4Template(): string
+    {
+        return <<<'DOCBOOK4'
+<?xml version="1.0" encoding="utf-8" ?>
+$if(mathml)$
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook EBNF Module V1.1CR1//EN"
+                  "http://www.oasis-open.org/docbook/xml/mathml/1.1CR1/dbmathml.dtd">
+$else$
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+                  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+$endif$
+<article>
+  <articleinfo>
+    <title>$title$</title>
+$if(author)$
+    <authorgroup>
+$for(author)$
+      <author>
+        $author$
+      </author>
+$endfor$
+    </authorgroup>
+$endif$
+$if(date)$
+    <date>$date$</date>
+$endif$
+  </articleinfo>
+$for(include-before)$
+  $include-before$
+$endfor$
+  $body$
+$for(include-after)$
+  $include-after$
+$endfor$
+</article>
+DOCBOOK4;
     }
 
     private function defaultJatsArchivingTemplate(): string

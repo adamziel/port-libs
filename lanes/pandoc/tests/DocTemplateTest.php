@@ -2663,6 +2663,66 @@ HTML,
         ], null, 'docbook'));
     },
 
+    'renders bounded pandoc default docbook4 template resource and mathml branch' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $docbook4 = $renderer->renderResource('templates/default', [], [
+            'title' => 'DocBook 4 Review',
+            'author' => ['Migration bot', 'Content editor'],
+            'date' => '2026-06-08',
+            'include-before' => ['<section><title>Before DocBook 4 body</title></section>'],
+            'body' => '<para>DocBook 4 body.</para>',
+            'include-after' => ['<section><title>After DocBook 4 body</title></section>'],
+        ], null, 'docbook4');
+
+        foreach ([
+            '<?xml version="1.0" encoding="utf-8" ?>',
+            '<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"',
+            '"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">',
+            '<article>',
+            '<articleinfo>',
+            '<title>DocBook 4 Review</title>',
+            '<authorgroup>',
+            '<author>',
+            'Migration bot',
+            'Content editor',
+            '<date>2026-06-08</date>',
+            '<section><title>Before DocBook 4 body</title></section>',
+            '<para>DocBook 4 body.</para>',
+            '<section><title>After DocBook 4 body</title></section>',
+            '</article>',
+        ] as $needle) {
+            $t->contains($needle, $docbook4);
+        }
+        $t->same(false, str_contains($docbook4, 'xmlns="http://docbook.org/ns/docbook"'));
+        $t->same(false, str_contains($docbook4, '<info>'));
+
+        $mathml = $renderer->renderResource('templates/default.docbook4', [], [
+            'mathml' => true,
+            'title' => 'MathML DocBook 4 Review',
+            'body' => '<para><inlineequation><math/></inlineequation></para>',
+        ]);
+        $t->contains('<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook EBNF Module V1.1CR1//EN"', $mathml);
+        $t->contains('"http://www.oasis-open.org/docbook/xml/mathml/1.1CR1/dbmathml.dtd">', $mathml);
+        $t->contains('<title>MathML DocBook 4 Review</title>', $mathml);
+        $t->contains('<para><inlineequation><math/></inlineequation></para>', $mathml);
+
+        $t->same('custom docbook4', $renderer->renderResource('templates/default', [
+            'templates/default.docbook4' => 'custom $body$',
+        ], [
+            'body' => 'docbook4',
+        ], null, 'docbook4'));
+
+        $docbook5 = $renderer->renderResource('templates/default', [], [
+            'article' => true,
+            'title' => 'DocBook 5 Still Separate',
+            'body' => '<section><title>DocBook 5 body</title></section>',
+        ], null, 'docbook');
+        $t->contains('xmlns="http://docbook.org/ns/docbook"', $docbook5);
+        $t->contains('<section><title>DocBook 5 body</title></section>', $docbook5);
+        $t->same(false, str_contains($docbook5, 'docbookx.dtd'));
+    },
+
     'renders bounded pandoc default jats template resources and aliases' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
