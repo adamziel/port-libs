@@ -71,6 +71,23 @@ return [
         $t->contains('intent="row(gamma,plus,x,precedes_or_equal,y,plus,therefore,z)"', $accessibleMathml);
         $t->true(!str_contains($combinedMathml, '<mi>\\Gamma</mi>') && !str_contains($combinedMathml, '<mi>\\limsup</mi>') && !str_contains($combinedMathml, '<mi>\\preceq</mi>') && !str_contains($combinedMathml, '<mi>\\therefore</mi>'));
     },
+    'converts bounded texmath dot relation and named symbol aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $dotAndNamedMathml = $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp', true);
+        $relationMathml = $converter->texToMathMl('a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\nabla f \\cong g + \\angle x');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $dotAndNamedMathml);
+        $t->contains('<mo>…</mo><mo>+</mo><mo>⋯</mo><mo>+</mo><mo>⋱</mo><mo>+</mo><mi>ℵ</mi><mo>+</mo><mi>ℓ</mi><mo>+</mo><mi>ℜ</mi><mo>+</mo><mi>ℑ</mi><mo>+</mo><mi>℘</mi>', $dotAndNamedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp</annotation>', $dotAndNamedMathml);
+        $t->contains('<mi>a</mi><mo>≅</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>≃</mo><mi>d</mi><mo>+</mo><mi>x</mi><mo>∝</mo><mi>y</mi><mo>+</mo><mi>u</mi><mo>∥</mo><mi>v</mi><mo>+</mo><mi>r</mi><mo>⊥</mo><mi>s</mi><mo>+</mo><mo>∠</mo><mi>x</mi><mo>+</mo><mo>∇</mo><mi>f</mi><mo>+</mo><mo>⊤</mo><mo>+</mo><mo>⊥</mo>', $relationMathml);
+        $t->contains('<annotation encoding="application/x-tex">a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot</annotation>', $relationMathml);
+        $t->contains('alttext="nabla f congruent to g plus angle x"', $accessibleMathml);
+        $t->contains('intent="row(nabla,f,congruent_to,g,plus,angle,x)"', $accessibleMathml);
+        $t->true(!str_contains($dotAndNamedMathml . $relationMathml, '<mi>\\ldots</mi>'));
+        $t->true(!str_contains($dotAndNamedMathml . $relationMathml, '<mi>\\cong</mi>'));
+        $t->true(!str_contains($dotAndNamedMathml . $relationMathml, '<mi>\\nabla</mi>'));
+    },
     'unwraps bounded tex hyperref wrappers for mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $mathml = $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}', true);
