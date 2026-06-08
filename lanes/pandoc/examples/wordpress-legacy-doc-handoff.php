@@ -1418,6 +1418,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('auto-hyphenation', $documentPolicyFlags, true) || !in_array('include-subdocuments-in-statistics', $documentPolicyFlags, true) || !in_array('gutter-at-top', $documentPolicyFlags, true)) {
         throw new RuntimeException('Legacy DOC handoff self-test missing DOP policy flags');
     }
+    $documentCompatibilityOptionFlags = is_array($documentProperties['compatibilityOptionFlags'] ?? null) ? $documentProperties['compatibilityOptionFlags'] : [];
+    if (!in_array('no-tab-hanging-indent', $documentCompatibilityOptionFlags, true) || !in_array('no-space-raise-lower', $documentCompatibilityOptionFlags, true)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP compatibility option flags');
+    }
+    if (($summary['metadata']['documentCompatibilityOptionFlags'] ?? []) !== $documentCompatibilityOptionFlags) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DOP compatibility option metadata copy');
+    }
     if (($documentProperties['defaultTabStopTwips'] ?? null) !== 720 || ($documentProperties['htmlCodePage'] ?? null) !== 65001) {
         throw new RuntimeException('Legacy DOC handoff self-test missing DOP tab/codepage metadata');
     }
@@ -1430,7 +1437,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($documentProperties['view']['kind'] ?? '') !== 'web' || ($documentProperties['view']['zoomPercent'] ?? null) !== 125 || ($documentProperties['view']['zoomKind'] ?? '') !== 'best-fit') {
         throw new RuntimeException('Legacy DOC handoff self-test missing DOP saved view metadata');
     }
-    if (str_contains($summary['wordpressBlocks'], 'auto-hyphenation') || str_contains($summary['wordpressBlocks'], '0a0b0c0d')) {
+    if (str_contains($summary['wordpressBlocks'], 'auto-hyphenation') || str_contains($summary['wordpressBlocks'], 'no-tab-hanging-indent') || str_contains($summary['wordpressBlocks'], '0a0b0c0d')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered DOP policy metadata into blocks');
     }
     if (($summary['metadata']['pageCount'] ?? null) !== 2 || ($summary['metadata']['wordCount'] ?? null) !== 12) {

@@ -2106,6 +2106,11 @@ return [
         $t->same('section', $documentProperties['footnoteNumberingRestart']);
         $t->same(5, $documentProperties['footnoteStartingNumber']);
         $t->same(0x0003, $documentProperties['compatibilityOptions']);
+        $t->same([
+            'no-tab-hanging-indent',
+            'no-space-raise-lower',
+        ], $documentProperties['compatibilityOptionFlags']);
+        $t->same($documentProperties['compatibilityOptionFlags'], $metadata['documentCompatibilityOptionFlags']);
         $t->same(720, $documentProperties['defaultTabStopTwips']);
         $t->same(65001, $documentProperties['htmlCodePage']);
         $t->same(360, $documentProperties['hyphenationZoneTwips']);
@@ -2139,7 +2144,48 @@ return [
         ], $documentProperties['view']);
         $t->contains('<p>DOP metadata review packet</p>', $blocks);
         $t->true(!str_contains($blocks, 'auto-hyphenation'));
+        $t->true(!str_contains($blocks, 'no-tab-hanging-indent'));
         $t->true(!str_contains($blocks, '0a0b0c0d'));
+    },
+    'decodes legacy DOC DOP Copts60 compatibility options for review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $dopBase, $u16, $u32): void {
+        $dop = substr_replace($dopBase(), $u16(0xffff), 8, 2);
+        $wordDocument = $buildSimpleWordDocument("DOP Copts60 review packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x0192, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($dop)), 0x0196, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $dop,
+        ]));
+        $documentProperties = $result['documentProperties'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+
+        $expectedCompatibilityOptions = [
+            'no-tab-hanging-indent',
+            'no-space-raise-lower',
+            'suppress-space-before-after-page-break',
+            'wrap-trailing-spaces',
+            'print-color-as-black',
+            'no-column-balance',
+            'convert-mail-merge-escapes',
+            'suppress-top-spacing',
+            'single-border-for-contiguous-cells',
+            'show-breaks-in-frames',
+            'swap-borders-facing-pages',
+            'leave-backslash-alone',
+            'expand-shift-return',
+            'underline-trailing-spaces',
+            'balance-single-byte-double-byte-width',
+        ];
+
+        $t->same(0xffff, $documentProperties['compatibilityOptions']);
+        $t->same($expectedCompatibilityOptions, $documentProperties['compatibilityOptionFlags']);
+        $t->same($expectedCompatibilityOptions, $metadata['documentCompatibilityOptionFlags']);
+        $t->same($documentProperties, $result['document']->attr('documentProperties'));
+        $t->same($documentProperties, $result['document']->attr('meta')['documentProperties']);
+        $t->contains('<p>DOP Copts60 review packet</p>', $blocks);
+        $t->true(!str_contains($blocks, 'single-border-for-contiguous-cells'));
     },
     'rejects malformed legacy DOC DOP document properties before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $dopBase, $u16, $u32): void {
         $buildDocBytes = static function (string $dop) use ($buildCfb, $buildSimpleWordDocument, $u32): string {

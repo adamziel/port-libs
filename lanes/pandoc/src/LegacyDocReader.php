@@ -186,6 +186,9 @@ final class LegacyDocReader
         if ($documentProperties !== []) {
             $metadata['documentPropertyByteCount'] = $documentProperties['byteCount'];
             $metadata['documentPolicyFlags'] = $documentProperties['policyFlags'];
+            if (($documentProperties['compatibilityOptionFlags'] ?? []) !== []) {
+                $metadata['documentCompatibilityOptionFlags'] = $documentProperties['compatibilityOptionFlags'];
+            }
             $metadata['documentProperties'] = $documentProperties;
         }
         $documentVariables = $this->documentVariableReport($wordDocument, $tableStream);
@@ -3180,6 +3183,7 @@ final class LegacyDocReader
             'footnoteNumberingRestart' => $this->dopNumberingRestart(($flags1 >> 16) & 0x03),
             'footnoteStartingNumber' => ($flags1 >> 18) & 0x3fff,
             'compatibilityOptions' => self::u16($bytes, 8),
+            'compatibilityOptionFlags' => $this->dopCompatibilityOptionFlagNames(self::u16($bytes, 8)),
             'defaultTabStopTwips' => self::u16($bytes, 10),
             'htmlCodePage' => self::u16($bytes, 12),
             'hyphenationZoneTwips' => self::u16($bytes, 14),
@@ -3206,6 +3210,37 @@ final class LegacyDocReader
         }
 
         return $properties;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function dopCompatibilityOptionFlagNames(int $flags): array
+    {
+        $names = [];
+        foreach ([
+            0 => 'no-tab-hanging-indent',
+            1 => 'no-space-raise-lower',
+            2 => 'suppress-space-before-after-page-break',
+            3 => 'wrap-trailing-spaces',
+            4 => 'print-color-as-black',
+            5 => 'no-column-balance',
+            6 => 'convert-mail-merge-escapes',
+            7 => 'suppress-top-spacing',
+            8 => 'single-border-for-contiguous-cells',
+            10 => 'show-breaks-in-frames',
+            11 => 'swap-borders-facing-pages',
+            12 => 'leave-backslash-alone',
+            13 => 'expand-shift-return',
+            14 => 'underline-trailing-spaces',
+            15 => 'balance-single-byte-double-byte-width',
+        ] as $bit => $name) {
+            if (($flags & (1 << $bit)) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**
