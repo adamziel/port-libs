@@ -2206,6 +2206,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB DIFAT start sector without DIFAT count' => substr_replace($docBytes, $u32(0), 72, 4),
         'unterminated CFB DIFAT overflow chain' => substr_replace($docBytes, $u32(0), 512 + ($difatSector * $sectorSize) + ($sectorSize - 4), 4),
         'surplus CFB DIFAT FAT-sector listing' => substr_replace($docBytes, $u32(1), 512 + ($difatSector * $sectorSize) + 4, 4),
+        'CFB FAT entry beyond physical file' => substr_replace($docBytes, $u32($end), 512 + (127 * 4), 4),
         'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB stream storage CLSID metadata' => substr_replace($docBytes, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 80), 1),

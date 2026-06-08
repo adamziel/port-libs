@@ -189,6 +189,11 @@ final class CompoundFileBinary
                 $fat[] = self::u32($sectorBytes, $offset);
             }
         }
+        for ($sectorId = $sectorCount, $fatEntryCount = count($fat); $sectorId < $fatEntryCount; $sectorId++) {
+            if ($fat[$sectorId] !== self::FREESECT) {
+                throw new \RuntimeException('CFB FAT entries beyond the physical file must be marked FREESECT');
+            }
+        }
         foreach ($fatSectorIds as $fatSectorId) {
             if (($fat[$fatSectorId] ?? null) !== self::FATSECT) {
                 throw new \RuntimeException('CFB FAT sector is not marked as FATSECT');

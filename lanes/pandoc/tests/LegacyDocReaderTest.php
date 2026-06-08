@@ -1762,6 +1762,16 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects CFB FAT entries beyond the physical file before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("FAT EOF guard packet\r"),
+        ]);
+        $fatEntryPastEof = 127;
+        $fatEntryOffset = 512 + ($fatEntryPastEof * 4);
+        $corruptDocBytes = substr_replace($bytes, $u32(0xfffffffe), $fatEntryOffset, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
+    },
     'rejects inconsistent CFB MiniFAT and DIFAT header chains before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',
