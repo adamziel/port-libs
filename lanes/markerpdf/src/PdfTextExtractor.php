@@ -15461,9 +15461,83 @@ final class PdfTextExtractor
                     }
                 }
             }
+
+            foreach ($this->malformedEmbeddedFilePayloadObjectNumbersFromBody($body, $objects) as $objectNumber) {
+                $payloadObjectNumbers[$objectNumber] = true;
+            }
         }
 
         return $payloadObjectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function malformedEmbeddedFilePayloadObjectNumbersFromBody(string $body, array $objects): array
+    {
+        $payloadObjectNumbers = [];
+        $offset = 0;
+        while (preg_match('/\/(?:EF|RF)\b/s', $body, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $valueOffset = $this->skipPdfWhitespace($body, $match[0][1] + strlen($match[0][0]));
+            $value = $this->pdfValueAtOffset($body, $valueOffset);
+            $dictionary = $value === null ? null : $this->pdfDictionaryFromValue($value, $objects);
+            if ($value !== null && ($dictionary === null || !$this->embeddedFileDictionaryHasPayloadKeys($dictionary))) {
+                foreach ($this->malformedEmbeddedFileOperandObjectNumbers($body, $valueOffset, $objects) as $objectNumber) {
+                    $payloadObjectNumbers[$objectNumber] = true;
+                }
+            }
+
+            $offset = max($valueOffset + 1, $match[0][1] + strlen($match[0][0]));
+        }
+
+        return array_keys($payloadObjectNumbers);
+    }
+
+    private function embeddedFileDictionaryHasPayloadKeys(string $dictionary): bool
+    {
+        foreach (['F', 'UF', 'DOS', 'Unix', 'Mac'] as $key) {
+            if ($this->topLevelNameValueOffset($dictionary, $key) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function malformedEmbeddedFileOperandObjectNumbers(string $body, int $offset, array $objects): array
+    {
+        $objectNumbers = [];
+        $cursor = $offset;
+        for ($guard = 0; $guard < 16; $guard++) {
+            $cursor = $this->skipPdfWhitespace($body, $cursor);
+            if ($cursor >= strlen($body) || ($body[$cursor] ?? '') === '/') {
+                break;
+            }
+
+            $value = $this->pdfValueAtOffset($body, $cursor);
+            if ($value === null || $value === '') {
+                break;
+            }
+
+            foreach ($this->objectReferences($value) as $objectNumber) {
+                if (!isset($objects[$objectNumber])) {
+                    continue;
+                }
+
+                if ($this->streamDictionaryAndPayload($objects[$objectNumber], $objects) !== null) {
+                    $objectNumbers[$objectNumber] = true;
+                }
+            }
+
+            $cursor += strlen($value);
+        }
+
+        return array_keys($objectNumbers);
     }
 
     /**

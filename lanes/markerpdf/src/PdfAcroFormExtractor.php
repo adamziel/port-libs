@@ -16,6 +16,11 @@ final class PdfAcroFormExtractor
      */
     private array $syntheticDirectFieldParents = [];
 
+    /**
+     * @var array<int, true>|null
+     */
+    private ?array $reachableAcroFormFieldObjects = null;
+
     private const COMMON_FIELD_FLAGS = [
         1 => 'read_only',
         2 => 'required',
@@ -181,6 +186,7 @@ final class PdfAcroFormExtractor
     public function extractForm(string $pdfBytes): array
     {
         $this->syntheticDirectFieldParents = [];
+        $this->reachableAcroFormFieldObjects = null;
         $objects = $this->pdfObjects($pdfBytes);
         $objects = $this->withDirectObjectStreamMembers($objects);
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
@@ -215,6 +221,7 @@ final class PdfAcroFormExtractor
         $fields = [];
         $fieldRefs = $this->fieldReferencesFromAcroForm($acroForm, $objects);
         $fieldRefs = $this->fieldReferencesWithPageWidgetBoundaries($fieldRefs, $objects, $pageWidgets);
+        $this->reachableAcroFormFieldObjects = $this->looseFieldTreeObjectNumbers($fieldRefs, $objects);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
         $fieldNamesByObject = $this->fieldNamesWithPageWidgetParents($fieldNamesByObject, $objects, $pageWidgets);
         $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $objects, $fieldNamesByObject);
@@ -9985,6 +9992,7 @@ final class PdfAcroFormExtractor
     private function fieldReferencesWithPageWidgetBoundaries(array $fieldRefs, array $objects, array $pageWidgets): array
     {
         $refs = $this->rootFieldReferencesFromAcroFormReferences($fieldRefs, $objects);
+        $this->reachableAcroFormFieldObjects = $this->looseFieldTreeObjectNumbers($refs, $objects);
         $reachable = $this->fieldTreeObjectNumbers($refs, $objects);
 
         foreach (array_keys($pageWidgets) as $widgetObject) {
@@ -10034,6 +10042,7 @@ final class PdfAcroFormExtractor
             }
 
             $refs[] = $candidate;
+            $this->reachableAcroFormFieldObjects = $this->looseFieldTreeObjectNumbers($refs, $objects);
             foreach ($this->fieldTreeObjectNumbers([$candidate], $objects) as $objectNumber => $_) {
                 $reachable[$objectNumber] = true;
             }
@@ -10079,6 +10088,65 @@ final class PdfAcroFormExtractor
         }
 
         return $refs;
+    }
+
+    /**
+     * Parentless field children are resolved against the reachable AcroForm tree,
+     * not against every detached field-like dictionary in the PDF object graph.
+     *
+     * @param list<int> $roots
+     * @param array<int, string> $objects
+     * @return array<int, true>
+     */
+    private function looseFieldTreeObjectNumbers(array $roots, array $objects): array
+    {
+        $seen = [];
+        foreach ($roots as $root) {
+            $this->collectLooseFieldTreeObjectNumbers($root, $objects, $seen);
+        }
+
+        return $seen;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function collectLooseFieldTreeObjectNumbers(int $objectNumber, array $objects, array &$seen): void
+    {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return;
+        }
+
+        $body = $this->completeAcroFormDictionaryObjectBody($objectNumber, $objects);
+        if ($body === null || !$this->isFieldDictionaryCandidate($body, $objects)) {
+            return;
+        }
+
+        $seen[$objectNumber] = true;
+        foreach ($this->kidReferences($body, $objects) as $kidObject) {
+            if (isset($seen[$kidObject]) || !isset($objects[$kidObject])) {
+                continue;
+            }
+
+            $kidBody = $this->completeAcroFormDictionaryObjectBody($kidObject, $objects);
+            if ($kidBody === null || !$this->isFieldDictionaryCandidate($kidBody, $objects)) {
+                continue;
+            }
+
+            $parentValue = $this->lastTopLevelValueAfterName($kidBody, 'Parent');
+            if ($parentValue !== null) {
+                $resolvedParent = $this->validObjectReferenceFromValue($parentValue, $objects);
+                $syntheticParent = $this->isWidget($kidBody, $objects)
+                    && isset($this->syntheticDirectFieldParents[$objectNumber])
+                    && $resolvedParent === $this->syntheticDirectFieldParents[$objectNumber];
+                if ($resolvedParent !== $objectNumber && !$syntheticParent) {
+                    continue;
+                }
+            }
+
+            $this->collectLooseFieldTreeObjectNumbers($kidObject, $objects, $seen);
+        }
     }
 
     /**
@@ -10203,6 +10271,10 @@ final class PdfAcroFormExtractor
 
             $candidateBody = $this->completeAcroFormDictionaryObjectBody($candidateObject, $objects);
             if ($candidateBody === null || !$this->isFieldDictionaryCandidate($candidateBody, $objects)) {
+                continue;
+            }
+
+            if ($this->reachableAcroFormFieldObjects !== null && !isset($this->reachableAcroFormFieldObjects[$candidateObject])) {
                 continue;
             }
 

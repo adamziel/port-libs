@@ -11539,6 +11539,7 @@ final class PdfMetadataExtractor
             $valueForReview = $this->firstPdfValueToken($resolvedValue);
             $operandShape = $this->standardPermissionWordOperandShape($valueForReview);
             $rawOperandShape = $this->standardPermissionWordOperandShape($value);
+            $streamContainer = $resolved !== null && $this->streamObjectHasStreamKeyword($resolvedValue);
             $singleValue = ($valueReview['single_value'] ?? true) === true
                 && $this->pdfValueIsSingleToken($resolvedValue, $valueForReview);
             $entry = [
@@ -11551,6 +11552,7 @@ final class PdfMetadataExtractor
                 'raw_operand_shape' => $rawOperandShape,
                 'integer' => false,
                 'single_value' => $singleValue,
+                'stream_container' => $streamContainer,
                 'review_only' => true,
             ];
             if ($reference !== null) {
@@ -11560,6 +11562,14 @@ final class PdfMetadataExtractor
                     $entry['resolved_object_number'] = $reference['objectNumber'];
                     $entry['resolved_generation'] = $reference['generation'];
                 }
+            }
+
+            if ($streamContainer) {
+                $entries[] = array_merge($entry, [
+                    'single_value' => false,
+                    'status' => 'permission_word_stream_operand_review',
+                ]);
+                continue;
             }
 
             if (($valueReview['single_value'] ?? true) !== true) {
@@ -11681,6 +11691,7 @@ final class PdfMetadataExtractor
             'selected_entry_single_value' => array_key_exists('single_value', $selectedEntry)
                 ? (bool) $selectedEntry['single_value']
                 : null,
+            'selected_entry_stream_container' => (bool) ($selectedEntry['stream_container'] ?? false),
             'selected_entry_trailing_operand' => (bool) ($selectedEntry['trailing_operand'] ?? false),
             'selected_entry_trailing_operand_shape' => is_string($selectedEntry['trailing_operand_shape'] ?? null)
                 ? $selectedEntry['trailing_operand_shape']
