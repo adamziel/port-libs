@@ -4317,6 +4317,88 @@ return [
         ));
     },
 
+    'maps split lz4 dictionary package frame byte ranges for review packets' => static function (TestRunner $t) use ($lz4DictionaryUncompressedFrame): void {
+        $tarArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"lz4-dictionary-split","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Split LZ4 dictionary package\n\nReady for WordPress archive review.\n",
+                'modifiedAt' => 1780479094,
+            ],
+        ]);
+        $tarBytes = $tarArchive->bytes();
+        $splitOffset = 1536;
+        $firstPayload = substr($tarBytes, 0, $splitOffset);
+        $secondPayload = substr($tarBytes, $splitOffset);
+        $firstDictionaryId = 0x10111213;
+        $secondDictionaryId = 0x20212223;
+        $firstDictionary = 'packet/content.md:first-split-lz4-dictionary';
+        $secondDictionary = 'packet/content.md:second-split-lz4-dictionary';
+        $skippable = Lz4Frame::skippableFrame('split-lz4-dictionary-tar:2', 14);
+        $firstFrame = $lz4DictionaryUncompressedFrame($firstDictionaryId, $firstPayload);
+        $secondFrame = $lz4DictionaryUncompressedFrame($secondDictionaryId, $secondPayload);
+        $stream = $skippable . $firstFrame . $secondFrame;
+
+        $inspection = ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [
+                $firstDictionaryId => $firstDictionary,
+                $secondDictionaryId => $secondDictionary,
+            ],
+            strlen($tarBytes)
+        );
+        $directFrames = Lz4Frame::framesWithDictionaries($stream, [
+            $firstDictionaryId => $firstDictionary,
+            $secondDictionaryId => $secondDictionary,
+        ]);
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $inspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $inspection['format']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $inspection['entryNames']);
+        $t->same("# Split LZ4 dictionary package\n\nReady for WordPress archive review.\n", $inspection['archive']->read('/packet/content.md'));
+        $t->same(1780479094, $inspection['entryLayouts'][1]['modifiedAt']);
+        $t->same('lz4', $inspection['stream']['type']);
+        $t->same(3, $inspection['stream']['frameCount']);
+        $t->same(2, $inspection['stream']['dataFrameCount']);
+        $t->same(1, $inspection['stream']['skippableFrameCount']);
+        $t->same(2, $inspection['stream']['dictionaryFrameCount']);
+        $t->same(2, $inspection['stream']['blockCount']);
+        $t->same(strlen($stream), $inspection['stream']['compressedSize']);
+        $t->same(strlen($tarBytes), $inspection['stream']['uncompressedSize']);
+        $t->same(0, $inspection['stream']['frames'][0]['frameOffset'] ?? null);
+        $t->same(strlen($skippable), $inspection['stream']['frames'][0]['nextFrameOffset'] ?? null);
+        $t->same('split-lz4-dictionary-tar:2', $inspection['stream']['frames'][0]['data']);
+        $t->same(strlen($skippable), $inspection['stream']['frames'][1]['frameOffset'] ?? null);
+        $t->same(strlen($skippable) + strlen($firstFrame), $inspection['stream']['frames'][1]['nextFrameOffset'] ?? null);
+        $t->same(0, $inspection['stream']['frames'][1]['decodedDataOffset'] ?? null);
+        $t->same($splitOffset, $inspection['stream']['frames'][1]['decodedDataEndOffset'] ?? null);
+        $t->same($splitOffset, $inspection['stream']['frames'][1]['decodedDataSize']);
+        $t->same($firstDictionaryId, $inspection['stream']['frames'][1]['dictionaryId']);
+        $t->same(strlen($firstDictionary), $inspection['stream']['frames'][1]['dictionarySize']);
+        $t->same(['uncompressed'], $inspection['stream']['frames'][1]['blockTypes']);
+        $t->same(strlen($skippable) + strlen($firstFrame), $inspection['stream']['frames'][2]['frameOffset'] ?? null);
+        $t->same(strlen($stream), $inspection['stream']['frames'][2]['nextFrameOffset'] ?? null);
+        $t->same($splitOffset, $inspection['stream']['frames'][2]['decodedDataOffset'] ?? null);
+        $t->same(strlen($tarBytes), $inspection['stream']['frames'][2]['decodedDataEndOffset'] ?? null);
+        $t->same(strlen($secondPayload), $inspection['stream']['frames'][2]['decodedDataSize']);
+        $t->same($secondDictionaryId, $inspection['stream']['frames'][2]['dictionaryId']);
+        $t->same(strlen($secondDictionary), $inspection['stream']['frames'][2]['dictionarySize']);
+        $t->same(0, $directFrames[1]['decodedDataOffset'] ?? null);
+        $t->same($splitOffset, $directFrames[1]['decodedDataEndOffset'] ?? null);
+        $t->same($splitOffset, $directFrames[2]['decodedDataOffset'] ?? null);
+        $t->same(strlen($tarBytes), $directFrames[2]['decodedDataEndOffset'] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            [$firstDictionaryId => $firstDictionary],
+            strlen($tarBytes)
+        ));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

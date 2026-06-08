@@ -1836,6 +1836,7 @@ final class ArchiveCompressionStream
      *     skippableFrameCount:int,
      *     blockCount:int,
      *     compressedSize:int,
+     *     uncompressedSize:int,
      *     frames:list<array<string, mixed>>
      * }
      */
@@ -1845,6 +1846,7 @@ final class ArchiveCompressionStream
         $dataFrameCount = 0;
         $skippableFrameCount = 0;
         $blockCount = 0;
+        $uncompressedSize = 0;
 
         foreach (Lz4Frame::frames($bytes, $maxUncompressedBytes) as $frame) {
             if ($frame['type'] === 'skippable') {
@@ -1854,12 +1856,16 @@ final class ArchiveCompressionStream
                     'id' => $frame['id'],
                     'data' => $frame['data'],
                     'frameSize' => $frame['frameSize'],
+                    'frameOffset' => $frame['frameOffset'],
+                    'nextFrameOffset' => $frame['nextFrameOffset'],
                 ];
                 continue;
             }
 
+            $dataSize = strlen($frame['data']);
             $dataFrameCount++;
             $blockCount += $frame['blockCount'];
+            $uncompressedSize += $dataSize;
             $frames[] = [
                 'type' => 'frame',
                 'contentSize' => $frame['contentSize'],
@@ -1870,7 +1876,12 @@ final class ArchiveCompressionStream
                 'blockCount' => $frame['blockCount'],
                 'blockTypes' => $frame['blockTypes'],
                 'compressedSize' => $frame['compressedSize'],
+                'decodedDataSize' => $dataSize,
+                'decodedDataOffset' => $frame['decodedDataOffset'],
+                'decodedDataEndOffset' => $frame['decodedDataEndOffset'],
                 'frameSize' => $frame['frameSize'],
+                'frameOffset' => $frame['frameOffset'],
+                'nextFrameOffset' => $frame['nextFrameOffset'],
             ];
         }
 
@@ -1881,6 +1892,7 @@ final class ArchiveCompressionStream
             'skippableFrameCount' => $skippableFrameCount,
             'blockCount' => $blockCount,
             'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $uncompressedSize,
             'frames' => $frames,
         ];
     }
@@ -1907,6 +1919,8 @@ final class ArchiveCompressionStream
                     'id' => $frame['id'],
                     'data' => $frame['data'],
                     'frameSize' => $frame['frameSize'],
+                    'frameOffset' => $frame['frameOffset'],
+                    'nextFrameOffset' => $frame['nextFrameOffset'],
                 ];
                 continue;
             }
@@ -1923,9 +1937,11 @@ final class ArchiveCompressionStream
             }
 
             $dataSize = strlen($frame['data']);
+            $decodedDataOffset = $uncompressedSize;
+            $decodedDataEndOffset = $decodedDataOffset + $dataSize;
             $dataFrameCount++;
             $blockCount += $frame['blockCount'];
-            $uncompressedSize += $dataSize;
+            $uncompressedSize = $decodedDataEndOffset;
             $summaryFrames[] = [
                 'type' => 'frame',
                 'contentSize' => $frame['contentSize'],
@@ -1940,7 +1956,11 @@ final class ArchiveCompressionStream
                 'blockTypes' => $frame['blockTypes'],
                 'compressedSize' => $frame['compressedSize'],
                 'decodedDataSize' => $dataSize,
+                'decodedDataOffset' => $decodedDataOffset,
+                'decodedDataEndOffset' => $decodedDataEndOffset,
                 'frameSize' => $frame['frameSize'],
+                'frameOffset' => $frame['frameOffset'],
+                'nextFrameOffset' => $frame['nextFrameOffset'],
             ];
         }
 

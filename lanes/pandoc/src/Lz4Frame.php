@@ -394,13 +394,16 @@ final class Lz4Frame
                 $skippableSize = self::readUInt32($bytes, $cursor);
                 $cursor += 4;
                 self::assertRange($bytes, $cursor, $skippableSize, 'skippable frame payload');
+                $nextFrameOffset = $cursor + $skippableSize;
                 $frames[] = [
                     'type' => 'skippable',
                     'id' => $magic - self::SKIPPABLE_MAGIC_MIN,
                     'data' => substr($bytes, $cursor, $skippableSize),
                     'frameSize' => 8 + $skippableSize,
+                    'frameOffset' => $frameStart,
+                    'nextFrameOffset' => $nextFrameOffset,
                 ];
-                $cursor += $skippableSize;
+                $cursor = $nextFrameOffset;
                 continue;
             }
 
@@ -475,6 +478,7 @@ final class Lz4Frame
             $compressedSize = 0;
             $blockChecksum = ($flags & self::FLAG_BLOCK_CHECKSUM) !== 0;
             $blockHistory = $dictionaryBytes;
+            $decodedDataOffset = $totalUncompressedBytes;
 
             while (true) {
                 self::assertRange($bytes, $cursor, 4, 'block size');
@@ -527,6 +531,7 @@ final class Lz4Frame
                     throw new \RuntimeException('LZ4 frame stream exceeds the configured uncompressed byte limit');
                 }
             }
+            $decodedDataEndOffset = $totalUncompressedBytes;
 
             if ($contentSize !== null && strlen($data) !== $contentSize) {
                 throw new \RuntimeException('LZ4 content size does not match decoded payload length');
@@ -547,6 +552,10 @@ final class Lz4Frame
                 'type' => 'frame',
                 'data' => $data,
                 'frameSize' => $cursor - $frameStart,
+                'frameOffset' => $frameStart,
+                'nextFrameOffset' => $cursor,
+                'decodedDataOffset' => $decodedDataOffset,
+                'decodedDataEndOffset' => $decodedDataEndOffset,
                 'contentSize' => $contentSize,
                 'dictionaryId' => $dictionaryId,
                 'blockMaxSize' => $blockMaxSize,

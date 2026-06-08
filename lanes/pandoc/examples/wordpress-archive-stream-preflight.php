@@ -187,6 +187,8 @@ $zlibDictionaryManifestBytes = '{"source":"zlib-dictionary-inspection","target":
 $zlibDictionaryContentBytes = "# ZLIB dictionary inspection\n\nReady for WordPress archive review.\n";
 $lz4PackageManifestBytes = '{"source":"lz4-dictionary-inspection","target":"wordpress"}';
 $lz4PackageContentBytes = "# LZ4 dictionary inspection\n\nReady for WordPress archive review.\n";
+$lz4SplitPackageManifestBytes = '{"source":"lz4-dictionary-split","target":"wordpress"}';
+$lz4SplitPackageContentBytes = "# Split LZ4 dictionary package\n\nReady for WordPress archive review.\n";
 $nestedSourceBytes = "# Nested archive source\n\nReady for WordPress nested archive review.\n";
 $nestedWordXml = '<w:document><w:body><w:p>Nested DOCX review packet</w:p></w:body></w:document>';
 $archiveBombContentBytes = str_repeat('A', 4096);
@@ -604,6 +606,49 @@ try {
 } catch (RuntimeException) {
     $lz4PackageMissingDictionaryBlocked = true;
 }
+$lz4SplitPackageArchiveBytes = TarArchive::fromEntries([
+    [
+        'name' => 'packet/manifest.json',
+        'data' => $lz4SplitPackageManifestBytes,
+    ],
+    [
+        'name' => 'packet/content.md',
+        'data' => $lz4SplitPackageContentBytes,
+        'modifiedAt' => 1780479094,
+    ],
+])->bytes();
+$lz4SplitOffset = 1536;
+$lz4SplitFirstPayload = substr($lz4SplitPackageArchiveBytes, 0, $lz4SplitOffset);
+$lz4SplitSecondPayload = substr($lz4SplitPackageArchiveBytes, $lz4SplitOffset);
+$lz4SplitFirstDictionaryId = 0x10111213;
+$lz4SplitSecondDictionaryId = 0x20212223;
+$lz4SplitFirstDictionary = 'packet/content.md:first-split-lz4-dictionary';
+$lz4SplitSecondDictionary = 'packet/content.md:second-split-lz4-dictionary';
+$lz4SplitSkippable = Lz4Frame::skippableFrame('split-lz4-dictionary-tar:2', 14);
+$lz4SplitFirstFrame = $lz4DictionaryUncompressedFrame($lz4SplitFirstDictionaryId, $lz4SplitFirstPayload);
+$lz4SplitSecondFrame = $lz4DictionaryUncompressedFrame($lz4SplitSecondDictionaryId, $lz4SplitSecondPayload);
+$lz4SplitPackageStream = $lz4SplitSkippable . $lz4SplitFirstFrame . $lz4SplitSecondFrame;
+$lz4SplitPackageInspection = ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+    $lz4SplitPackageStream,
+    ArchiveCompressionStream::FORMAT_LZ4_TAR,
+    [
+        $lz4SplitFirstDictionaryId => $lz4SplitFirstDictionary,
+        $lz4SplitSecondDictionaryId => $lz4SplitSecondDictionary,
+    ],
+    strlen($lz4SplitPackageArchiveBytes),
+    strlen($lz4SplitPackageManifestBytes) + strlen($lz4SplitPackageContentBytes)
+);
+$lz4SplitPackageMissingDictionaryBlocked = false;
+try {
+    ArchiveCompressionStream::inspectPackageStreamWithLz4Dictionaries(
+        $lz4SplitPackageStream,
+        ArchiveCompressionStream::FORMAT_LZ4_TAR,
+        [$lz4SplitFirstDictionaryId => $lz4SplitFirstDictionary],
+        strlen($lz4SplitPackageArchiveBytes)
+    );
+} catch (RuntimeException) {
+    $lz4SplitPackageMissingDictionaryBlocked = true;
+}
 $nestedZipPackage = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -779,6 +824,16 @@ if (in_array('--self-test', $argv, true)) {
         'lz4PackageDictionaryId' => $lz4PackageDictionaryId,
         'lz4PackageDictionarySize' => strlen($lz4PackageDictionary),
         'lz4PackageContent' => $lz4PackageContentBytes,
+        'lz4SplitPackageKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
+        'lz4SplitPackageFormat' => ArchiveCompressionStream::FORMAT_LZ4_TAR,
+        'lz4SplitPackageEntryCount' => 2,
+        'lz4SplitPackageFrameCount' => 3,
+        'lz4SplitPackageDataFrameCount' => 2,
+        'lz4SplitPackageDictionaryFrameCount' => 2,
+        'lz4SplitPackageFirstDictionaryId' => $lz4SplitFirstDictionaryId,
+        'lz4SplitPackageSecondDictionaryId' => $lz4SplitSecondDictionaryId,
+        'lz4SplitPackageSplitOffset' => $lz4SplitOffset,
+        'lz4SplitPackageContent' => $lz4SplitPackageContentBytes,
         'nestedRootKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'nestedRootFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'nestedCandidateCount' => 4,
@@ -953,6 +1008,26 @@ if (in_array('--self-test', $argv, true)) {
         || $lz4PackageInspection['archive']->read('/packet/content.md') !== $expected['lz4PackageContent']
         || ($lz4PackageInspection['entryLayouts'][1]['modifiedAt'] ?? null) !== 1780479093
         || !$lz4PackageMissingDictionaryBlocked
+        || $lz4SplitPackageInspection['kind'] !== $expected['lz4SplitPackageKind']
+        || $lz4SplitPackageInspection['format'] !== $expected['lz4SplitPackageFormat']
+        || $lz4SplitPackageInspection['entryCount'] !== $expected['lz4SplitPackageEntryCount']
+        || ($lz4SplitPackageInspection['stream']['frameCount'] ?? null) !== $expected['lz4SplitPackageFrameCount']
+        || ($lz4SplitPackageInspection['stream']['dataFrameCount'] ?? null) !== $expected['lz4SplitPackageDataFrameCount']
+        || ($lz4SplitPackageInspection['stream']['dictionaryFrameCount'] ?? null) !== $expected['lz4SplitPackageDictionaryFrameCount']
+        || ($lz4SplitPackageInspection['stream']['frames'][0]['frameOffset'] ?? null) !== 0
+        || ($lz4SplitPackageInspection['stream']['frames'][0]['nextFrameOffset'] ?? null) !== strlen($lz4SplitSkippable)
+        || ($lz4SplitPackageInspection['stream']['frames'][1]['dictionaryId'] ?? null) !== $expected['lz4SplitPackageFirstDictionaryId']
+        || ($lz4SplitPackageInspection['stream']['frames'][1]['decodedDataOffset'] ?? null) !== 0
+        || ($lz4SplitPackageInspection['stream']['frames'][1]['decodedDataEndOffset'] ?? null) !== $expected['lz4SplitPackageSplitOffset']
+        || ($lz4SplitPackageInspection['stream']['frames'][1]['frameOffset'] ?? null) !== strlen($lz4SplitSkippable)
+        || ($lz4SplitPackageInspection['stream']['frames'][1]['nextFrameOffset'] ?? null) !== strlen($lz4SplitSkippable) + strlen($lz4SplitFirstFrame)
+        || ($lz4SplitPackageInspection['stream']['frames'][2]['dictionaryId'] ?? null) !== $expected['lz4SplitPackageSecondDictionaryId']
+        || ($lz4SplitPackageInspection['stream']['frames'][2]['decodedDataOffset'] ?? null) !== $expected['lz4SplitPackageSplitOffset']
+        || ($lz4SplitPackageInspection['stream']['frames'][2]['decodedDataEndOffset'] ?? null) !== strlen($lz4SplitPackageArchiveBytes)
+        || ($lz4SplitPackageInspection['stream']['frames'][2]['nextFrameOffset'] ?? null) !== strlen($lz4SplitPackageStream)
+        || $lz4SplitPackageInspection['archive']->read('/packet/content.md') !== $expected['lz4SplitPackageContent']
+        || ($lz4SplitPackageInspection['entryLayouts'][1]['modifiedAt'] ?? null) !== 1780479094
+        || !$lz4SplitPackageMissingDictionaryBlocked
         || $nestedInspection['rootKind'] !== $expected['nestedRootKind']
         || $nestedInspection['rootFormat'] !== $expected['nestedRootFormat']
         || $nestedInspection['candidateCount'] !== $expected['nestedCandidateCount']
@@ -1075,6 +1150,13 @@ echo 'lz4Package.dictionaryId=' . $lz4PackageInspection['stream']['frames'][1]['
 echo 'lz4Package.dictionarySize=' . $lz4PackageInspection['stream']['frames'][1]['dictionarySize'] . "\n";
 echo 'lz4Package.content.md=' . $lz4PackageInspection['archive']->read('/packet/content.md') . "\n";
 echo 'lz4Package.missingBlocked=' . ($lz4PackageMissingDictionaryBlocked ? 'yes' : 'no') . "\n";
+echo 'lz4SplitPackage.kind=' . $lz4SplitPackageInspection['kind'] . "\n";
+echo 'lz4SplitPackage.format=' . $lz4SplitPackageInspection['format'] . "\n";
+echo 'lz4SplitPackage.frameCount=' . $lz4SplitPackageInspection['stream']['frameCount'] . "\n";
+echo 'lz4SplitPackage.firstRange=' . $lz4SplitPackageInspection['stream']['frames'][1]['decodedDataOffset'] . ':' . $lz4SplitPackageInspection['stream']['frames'][1]['decodedDataEndOffset'] . "\n";
+echo 'lz4SplitPackage.secondRange=' . $lz4SplitPackageInspection['stream']['frames'][2]['decodedDataOffset'] . ':' . $lz4SplitPackageInspection['stream']['frames'][2]['decodedDataEndOffset'] . "\n";
+echo 'lz4SplitPackage.content.md=' . $lz4SplitPackageInspection['archive']->read('/packet/content.md') . "\n";
+echo 'lz4SplitPackage.missingBlocked=' . ($lz4SplitPackageMissingDictionaryBlocked ? 'yes' : 'no') . "\n";
 echo 'nested.rootKind=' . $nestedInspection['rootKind'] . "\n";
 echo 'nested.rootFormat=' . $nestedInspection['rootFormat'] . "\n";
 echo 'nested.candidateCount=' . $nestedInspection['candidateCount'] . "\n";
