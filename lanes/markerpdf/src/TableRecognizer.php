@@ -554,6 +554,15 @@ final class TableRecognizer
                 'col_axis' => $axisMetadata['col_axis'],
             ];
 
+            $sourceOrders = $this->reviewSourceOrders($cellGroup['cells']);
+            if ($sourceOrders !== []) {
+                $entry['source_orders'] = $sourceOrders;
+            }
+            $anchorOrder = $this->reviewCellOrder($cellGroup['cells'][0]);
+            if ($anchorOrder !== null) {
+                $entry['anchor_cell_order'] = $anchorOrder;
+            }
+
             if (count($cellGroup['cells']) > 1) {
                 $entry['source_cell_count'] = count($cellGroup['cells']);
                 $entry['text_parts'] = $this->reviewTextParts($cellGroup['cells']);
@@ -627,7 +636,7 @@ final class TableRecognizer
                         'rowspan' => $renderCell['rowspan'],
                         'colspan' => $renderCell['colspan'],
                     ];
-                    foreach (['header_id', 'headers', 'column_header_ids', 'row_header_ids', 'header_texts', 'header_text', 'column_header_physical_axis', 'row_header_physical_axis'] as $field) {
+                    foreach (['header_id', 'headers', 'column_header_ids', 'row_header_ids', 'header_texts', 'header_text', 'column_header_physical_axis', 'row_header_physical_axis', 'source_orders', 'anchor_cell_order'] as $field) {
                         if (array_key_exists($field, $renderCell)) {
                             $cell[$field] = $renderCell[$field];
                         }
@@ -947,6 +956,8 @@ final class TableRecognizer
             'column_header_physical_axis',
             'row_header_physical_axis',
             'covered_by',
+            'source_orders',
+            'anchor_cell_order',
             'source_cell_bbox',
             'source_cell_bboxes',
             'source_page_image_bbox',
@@ -1013,6 +1024,8 @@ final class TableRecognizer
             'colspan',
             'source_cell_count',
             'text_parts',
+            'source_orders',
+            'anchor_cell_order',
             'anchor_cell_bbox',
             'continuation_count',
             'continuation_cells',
@@ -6290,8 +6303,37 @@ final class TableRecognizer
     }
 
     /**
+     * @param array{order?: int|string} $cell
+     */
+    private function reviewCellOrder(array $cell): ?int
+    {
+        if (!array_key_exists('order', $cell)) {
+            return null;
+        }
+
+        return $this->nullableInteger($cell['order']);
+    }
+
+    /**
      * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
-     * @return list<array{text: string, row_ids: list<int>, col_ids: list<int>, bbox: list<float>}>
+     * @return list<int>
+     */
+    private function reviewSourceOrders(array $cells): array
+    {
+        $orders = [];
+        foreach ($cells as $cell) {
+            $order = $this->reviewCellOrder($cell);
+            if ($order !== null) {
+                $orders[] = $order;
+            }
+        }
+
+        return $orders;
+    }
+
+    /**
+     * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
+     * @return list<array{text: string, row_ids: list<int>, col_ids: list<int>, bbox: list<float>, order?: int}>
      */
     private function reviewContinuationCells(array $cells, array $rowOrder = [], array $colOrder = []): array
     {
@@ -6303,6 +6345,10 @@ final class TableRecognizer
                 'col_ids' => $this->nonNullOrderedIds($cell['col_ids'], $colOrder),
                 'bbox' => $cell['bbox'],
             ];
+            $order = $this->reviewCellOrder($cell);
+            if ($order !== null) {
+                $entry['order'] = $order;
+            }
             foreach ([
                 'cell_boundary_status',
                 'cell_boundary_active',

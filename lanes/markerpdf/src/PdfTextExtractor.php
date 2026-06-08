@@ -40260,8 +40260,7 @@ final class PdfTextExtractor
 
         $glyphWidths = $this->glyphWidthsForTextOperand($operand, $toUnicodeMap);
         $sourceSpaceCount = $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap);
-        $endX = $this->advanceTextEndX(
-            $startX,
+        $advance = $this->horizontalTextAdvanceDeltaInfo(
             $decoded,
             $fontSize,
             $characterSpacing,
@@ -40270,8 +40269,16 @@ final class PdfTextExtractor
             $glyphWidths,
             $sourceSpaceCount
         );
-        if ($endX === null) {
+        if ($advance === null) {
             return null;
+        }
+        $endX = $startX + $advance['delta'];
+        if ($advance['fallback']) {
+            return [
+                'endX' => $endX,
+                'minX' => min($startX, $endX),
+                'maxX' => max($startX, $endX),
+            ];
         }
 
         $fontSize ??= 12.0;
@@ -45699,6 +45706,61 @@ final class PdfTextExtractor
         $pendingPositionWordGap = false;
     }
 
+    /**
+     * @param list<float>|null $glyphWidths
+     * @return array{delta: float, fallback: bool}|null
+     */
+    private function horizontalTextAdvanceDeltaInfo(
+        string $decoded,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale,
+        ?array $glyphWidths = null,
+        ?int $sourceSpaceCount = null,
+        bool $includeTerminalCharacterSpacing = false
+    ): ?array {
+        if ($decoded === '') {
+            return ['delta' => 0.0, 'fallback' => false];
+        }
+
+        $fontSize ??= 12.0;
+        $characters = $glyphWidths !== null && $glyphWidths !== [] ? count($glyphWidths) : $this->length($decoded);
+        $baseAdvance = $glyphWidths !== null && $glyphWidths !== []
+            ? (array_sum($glyphWidths) / 1000.0) * $fontSize
+            : $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
+        $spaceCount = $sourceSpaceCount ?? substr_count($decoded, ' ');
+        $characterSpacingCount = $includeTerminalCharacterSpacing
+            ? max(0, $characters)
+            : max(0, $characters - 1);
+        $spacingAdvance = ($characterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
+        $scale = $horizontalScale / 100.0;
+        $delta = ($baseAdvance + $spacingAdvance) * $scale;
+        if ($this->textAdvanceDeltaIsBounded($delta)) {
+            return ['delta' => $delta, 'fallback' => false];
+        }
+
+        if ($glyphWidths !== null && $glyphWidths !== []) {
+            $fallbackCharacters = $this->length($decoded);
+            $fallbackCharacterSpacingCount = $includeTerminalCharacterSpacing
+                ? max(0, $fallbackCharacters)
+                : max(0, $fallbackCharacters - 1);
+            $fallbackBaseAdvance = $fallbackCharacters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
+            $fallbackSpacingAdvance = ($fallbackCharacterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
+            $fallbackDelta = ($fallbackBaseAdvance + $fallbackSpacingAdvance) * $scale;
+            if ($this->textAdvanceDeltaIsBounded($fallbackDelta)) {
+                return ['delta' => $fallbackDelta, 'fallback' => true];
+            }
+        }
+
+        return ['delta' => 0.0, 'fallback' => true];
+    }
+
+    private function textAdvanceDeltaIsBounded(float $delta): bool
+    {
+        return is_finite($delta) && abs($delta) <= self::MAX_FONT_ADVANCE_METRIC;
+    }
+
     private function advanceTextEndX(
         ?float $currentTextEndX,
         string $decoded,
@@ -45714,19 +45776,21 @@ final class PdfTextExtractor
             return $currentTextEndX;
         }
 
-        $fontSize ??= 12.0;
-        $characters = $glyphWidths !== null && $glyphWidths !== [] ? count($glyphWidths) : $this->length($decoded);
-        $baseAdvance = $glyphWidths !== null && $glyphWidths !== []
-            ? (array_sum($glyphWidths) / 1000.0) * $fontSize
-            : $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
-        $spaceCount = $sourceSpaceCount ?? substr_count($decoded, ' ');
-        $characterSpacingCount = $includeTerminalCharacterSpacing
-            ? max(0, $characters)
-            : max(0, $characters - 1);
-        $spacingAdvance = ($characterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
-        $scale = $horizontalScale / 100.0;
+        $advance = $this->horizontalTextAdvanceDeltaInfo(
+            $decoded,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $horizontalScale,
+            $glyphWidths,
+            $sourceSpaceCount,
+            $includeTerminalCharacterSpacing
+        );
+        if ($advance === null) {
+            return $currentTextEndX;
+        }
 
-        return $currentTextEndX + (($baseAdvance + $spacingAdvance) * $scale);
+        return $currentTextEndX + $advance['delta'];
     }
 
     private function advanceTextEndXForOperand(

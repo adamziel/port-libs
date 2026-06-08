@@ -84,6 +84,7 @@ try {
 
 $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
 $assigned = $result['metadata']['table_assigned_cells'][0] ?? [];
+$renderCells = $gridReview['render_cells'] ?? [];
 
 if (!str_contains($result['text'], '| Header A Header B |') || !str_contains($result['text'], '| First Second      |')) {
     throw new RuntimeException('Expected WordPress Markdown table to use supplied same-anchor cell order.');
@@ -93,6 +94,9 @@ if (str_contains($result['text'], 'Stale geometry-order table text should be rep
 }
 if (array_column($assigned, 'text') !== ['Header A', 'Header B', 'First', 'Second']) {
     throw new RuntimeException('Expected assigned cell metadata to preserve supplied tabled display order.');
+}
+if (($renderCells[0]['source_orders'] ?? null) !== [0, 1] || ($renderCells[0]['continuation_cells'][0]['order'] ?? null) !== 1) {
+    throw new RuntimeException('Expected spanning-grid review metadata to expose supplied source orders.');
 }
 
 echo json_encode([
@@ -106,9 +110,18 @@ echo json_encode([
     'supplied_boundaries' => $result['metadata']['supplied_boundaries'] ?? [],
     'assigned_text_order' => array_column($assigned, 'text'),
     'assigned_order_values' => array_column($assigned, 'order'),
+    'render_source_orders' => array_map(
+        static fn (array $cell): array => isset($cell['source_orders']) && is_array($cell['source_orders']) ? $cell['source_orders'] : [],
+        $renderCells
+    ),
+    'render_anchor_cell_orders' => array_column($renderCells, 'anchor_cell_order'),
+    'continuation_order_values' => array_map(
+        static fn (array $cell): array => array_column($cell['continuation_cells'] ?? [], 'order'),
+        $renderCells
+    ),
     'render_text_parts' => array_map(
         static fn (array $cell): array => isset($cell['text_parts']) && is_array($cell['text_parts']) ? $cell['text_parts'] : [],
-        $gridReview['render_cells'] ?? []
+        $renderCells
     ),
     'excluded_stale_pdftext_table_line' => !str_contains($result['text'], 'Stale geometry-order table text should be replaced.'),
     'executes_python_or_models' => false,

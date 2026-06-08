@@ -6559,9 +6559,9 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * Outline item /Metadata streams are bookmark-local review metadata. Keep
-     * their bytes hashed and typed without promoting their XML or stream
-     * payload to root document metadata or visible WordPress paragraphs.
+     * Outline item /Metadata streams are bookmark-local review metadata. Their
+     * stream dictionary operands cross the same single-value trust boundary as
+     * catalog XMP streams before any bytes are decoded, hashed, or summarized.
      *
      * @param array<int, string> $objects
      * @return array<string, mixed>
@@ -6644,6 +6644,19 @@ final class PdfMetadataExtractor
             }
 
             return $review;
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objectBody);
+        if ($dictionary !== null) {
+            $boundaryReview = $this->documentOutlineMetadataStreamDictionaryBoundaryReview(
+                $dictionary,
+                $objects,
+                $base,
+                $referenceReview
+            );
+            if ($boundaryReview !== []) {
+                return $boundaryReview;
+            }
         }
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
@@ -6789,6 +6802,54 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $referenceReview
+     * @return array<string, mixed>
+     */
+    private function documentOutlineMetadataStreamDictionaryBoundaryReview(
+        string $dictionary,
+        array $objects,
+        array $base,
+        array $referenceReview
+    ): array {
+        foreach ([
+            $this->metadataStreamFilterOperandBoundaryReview($dictionary, $objects),
+            $this->metadataStreamDecodeParmsOperandBoundaryReview($dictionary, $objects),
+            $this->metadataStreamCcittFaxFilterBoundaryReview($dictionary, $objects),
+            $this->metadataStreamLengthOperandBoundaryReview($dictionary, $objects),
+        ] as $boundaryReview) {
+            if ($boundaryReview === []) {
+                continue;
+            }
+
+            $review = $base + $referenceReview + $boundaryReview + [
+                'metadata_reference_resolved' => true,
+                'has_stream' => true,
+                'native_metadata_decode' => false,
+            ];
+
+            foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                $review[$key] = $metadataValue;
+            }
+
+            $filters = $this->streamFilters($dictionary, $objects);
+            if ($filters !== []) {
+                $review['filters'] = $filters;
+            }
+
+            $declaredLength = $this->streamLength($dictionary, $objects);
+            if ($declaredLength !== null) {
+                $review['declared_length'] = $declaredLength;
+            }
+
+            return $review;
+        }
+
+        return [];
     }
 
     /**

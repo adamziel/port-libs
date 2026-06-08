@@ -289,6 +289,41 @@ final class PdfAttachmentExtractor
             $attachments[] = $attachment;
         }
 
+        foreach ($this->structureAssociatedFileEntries($objects, $catalogObjectIds) as $entry) {
+            $context = [
+                'associated_file' => true,
+                'structure_associated_file' => true,
+                'structure_associated_file_source' => 'structure_element_af',
+                'structure_associated_file_index' => $entry['associatedFileIndex'],
+                'structure_object_id' => $entry['structureObjectId'],
+            ];
+            foreach (['structure_role', 'structure_title'] as $structureReviewKey) {
+                if (array_key_exists($structureReviewKey, $entry)) {
+                    $context[$structureReviewKey] = $entry[$structureReviewKey];
+                }
+            }
+
+            $attachment = $this->attachmentFromFileSpecValue(
+                $entry['fileSpec'],
+                $objects,
+                'structure-associated-file',
+                $context,
+                $encryptionPolicy,
+                isset($entry['fileSpecRaw']) && is_string($entry['fileSpecRaw']) ? $entry['fileSpecRaw'] : null
+            );
+            if ($attachment === null) {
+                continue;
+            }
+
+            $duplicateIndex = $this->documentAttachmentIndex($attachments, $attachment);
+            if ($duplicateIndex !== null) {
+                $this->applyStructureAssociatedFileMirrorMetadata($attachments[$duplicateIndex], $attachment);
+                continue;
+            }
+
+            $attachments[] = $attachment;
+        }
+
         foreach ($this->fileAttachmentAnnotationEntries($objects, $catalogObjectIds) as $entry) {
             $context = [
                 'page_number' => $entry['pageNumber'],
@@ -394,6 +429,30 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<string, mixed> $target
+     * @param array<string, mixed> $structureAttachment
+     */
+    private function applyStructureAssociatedFileMirrorMetadata(array &$target, array $structureAttachment): void
+    {
+        $target['associated_file'] = true;
+        $target['structure_associated_file'] = true;
+        $target['structure_associated_file_source'] = 'structure_element_af';
+
+        foreach ([
+            'structure_associated_file_index',
+            'structure_object_id',
+            'structure_role',
+            'structure_title',
+        ] as $key) {
+            if (array_key_exists($key, $structureAttachment)) {
+                $target[$key] = $structureAttachment[$key];
+            }
+        }
+
+        $this->applyAssociatedFileRelationshipMirrorMetadata($target, $structureAttachment);
+    }
+
+    /**
+     * @param array<string, mixed> $target
      * @param array<string, mixed> $candidate
      */
     private function applyAssociatedFileRelationshipMirrorMetadata(array &$target, array $candidate): void
@@ -483,6 +542,7 @@ final class PdfAttachmentExtractor
                 'catalog-associated-file',
                 'page-associated-file',
                 'annotation-associated-file',
+                'structure-associated-file',
                 'file-attachment-annotation',
             ], true);
         }
@@ -1300,6 +1360,144 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<int>|null $catalogObjectIds
+     * @return list<array{structureObjectId: int|null, associatedFileIndex: int, fileSpec: mixed, fileSpecRaw?: string, structure_role?: string, structure_title?: string}>
+     */
+    private function structureAssociatedFileEntries(array $objects, ?array $catalogObjectIds = null): array
+    {
+        $entries = [];
+        foreach ($objects as $objectId => $object) {
+            if ($catalogObjectIds !== null && !in_array($objectId, $catalogObjectIds, true)) {
+                continue;
+            }
+
+            $dict = $this->dict($object['value']);
+            if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'Catalog') {
+                continue;
+            }
+
+            $this->collectStructureAssociatedFileEntriesFromValue(
+                $dict['StructTreeRoot'] ?? null,
+                $objects,
+                $entries
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param list<array{structureObjectId: int|null, associatedFileIndex: int, fileSpec: mixed, fileSpecRaw?: string, structure_role?: string, structure_title?: string}> $entries
+     * @param array<string, true> $seen
+     */
+    private function collectStructureAssociatedFileEntriesFromValue(
+        mixed $value,
+        array $objects,
+        array &$entries,
+        array $seen = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 50 || $value === null) {
+            return;
+        }
+
+        $reference = $this->refObjectReference($value);
+        $object = null;
+        $objectKey = null;
+        $dictionaryBody = null;
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$objectKey])) {
+                return;
+            }
+
+            $object = $this->objectForReference($value, $objects);
+            if ($object === null) {
+                return;
+            }
+            $seen[$objectKey] = true;
+            $value = $object['value'];
+            $dictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
+        } else {
+            $value = $this->resolveValue($value, $objects);
+        }
+
+        $array = $this->arrayValue($value);
+        if ($array !== null) {
+            foreach ($array as $item) {
+                $this->collectStructureAssociatedFileEntriesFromValue($item, $objects, $entries, $seen, $depth + 1);
+            }
+
+            return;
+        }
+
+        $dict = $this->dict($value);
+        if ($dict === null) {
+            return;
+        }
+
+        $type = $this->nameValue($this->resolveValue($dict['Type'] ?? null, $objects));
+        $role = $this->nameValue($this->resolveValue($dict['S'] ?? null, $objects));
+        $title = $this->stringValue($this->resolveValue($dict['T'] ?? null, $objects));
+        $structureObjectId = $reference['objectNumber'] ?? null;
+        $isStructElem = $type === 'StructElem';
+
+        if ($isStructElem && !$this->structureAssociatedFileArrayIsMalformed($dictionaryBody)) {
+            $rawAssociatedFiles = [];
+            $rawAssociatedFilesMalformed = false;
+            if ($dictionaryBody !== null) {
+                $rawAssociatedFilesValue = $this->rawDictionaryEntryValue($dictionaryBody, 'AF');
+                if ($rawAssociatedFilesValue !== null) {
+                    $rawAssociatedFiles = $this->rawAssociatedFileArrayItemsFromValue($rawAssociatedFilesValue, $objects);
+                    if ($rawAssociatedFiles === null) {
+                        $rawAssociatedFiles = [];
+                        $rawAssociatedFilesMalformed = true;
+                    }
+                }
+            }
+
+            $associatedFiles = $rawAssociatedFilesMalformed
+                ? null
+                : $this->arrayValue($this->resolveValue($dict['AF'] ?? null, $objects));
+            if ($associatedFiles !== null) {
+                foreach ($associatedFiles as $index => $fileSpec) {
+                    $entry = [
+                        'structureObjectId' => $structureObjectId,
+                        'associatedFileIndex' => $index,
+                        'fileSpec' => $fileSpec,
+                    ];
+                    if ($role !== null && $role !== '') {
+                        $entry['structure_role'] = $role;
+                    }
+                    if ($title !== null && $title !== '') {
+                        $entry['structure_title'] = $title;
+                    }
+                    if (isset($rawAssociatedFiles[$index]) && is_string($rawAssociatedFiles[$index])) {
+                        $entry['fileSpecRaw'] = $rawAssociatedFiles[$index];
+                    }
+
+                    $entries[] = $entry;
+                }
+            }
+        }
+
+        foreach ($this->arrayValue($this->resolveValue($dict['K'] ?? null, $objects)) ?? [$dict['K'] ?? null] as $kid) {
+            $this->collectStructureAssociatedFileEntriesFromValue($kid, $objects, $entries, $seen, $depth + 1);
+        }
+    }
+
+    private function structureAssociatedFileArrayIsMalformed(?string $dictionaryBody): bool
+    {
+        return $dictionaryBody !== null
+            && (
+                $this->dictionaryHasDuplicateKeys($dictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+                || $this->dictionaryHasTrailingOperandsAfterKeys($dictionaryBody, self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+            );
     }
 
     /**

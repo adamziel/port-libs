@@ -139,6 +139,7 @@ final class PdfEmbeddedFileExtractor
         }
         $this->collectPageAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files, $encryptionPolicy);
         $this->collectAnnotationAssociatedFiles($this->dictionaryRawValue($catalog, 'Pages'), $objects, $files, $encryptionPolicy);
+        $this->collectStructureAssociatedFiles($this->dictionaryRawValue($catalog, 'StructTreeRoot'), $objects, $files, $encryptionPolicy);
 
         return $this->dedupeEmbeddedFiles($files);
     }
@@ -704,6 +705,124 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Structure-element associated files connect attachment provenance to a
+     * tagged content region. Keep them in the full embedded-file inventory so
+     * WordPress review can see the attachment without promoting payload bytes
+     * into visible text paths.
+     *
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $files
+     * @param array<string, mixed>|null $encryptionPolicy
+     */
+    private function collectStructureAssociatedFiles(
+        ?string $structTreeRootValue,
+        array $objects,
+        array &$files,
+        ?array $encryptionPolicy = null
+    ): void {
+        if ($structTreeRootValue === null) {
+            return;
+        }
+
+        $this->collectStructureAssociatedFilesFromValue($structTreeRootValue, $objects, $files, $encryptionPolicy);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<array<string, mixed>> $files
+     * @param array<string, mixed>|null $encryptionPolicy
+     * @param array<string, true> $seen
+     */
+    private function collectStructureAssociatedFilesFromValue(
+        string $value,
+        array $objects,
+        array &$files,
+        ?array $encryptionPolicy = null,
+        array $seen = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 50) {
+            return;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$objectKey])) {
+                return;
+            }
+            $seen[$objectKey] = true;
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            foreach ($this->arrayItemsFromValue($value, $objects) as $item) {
+                $this->collectStructureAssociatedFilesFromValue($item, $objects, $files, $encryptionPolicy, $seen, $depth + 1);
+            }
+
+            return;
+        }
+
+        $type = $this->dictionaryNameValue($dictionary['body'], 'Type', $objects);
+        $role = $this->dictionaryNameValue($dictionary['body'], 'S', $objects);
+        $title = $this->dictionaryStringValue($dictionary['body'], 'T', $objects);
+        if (
+            $type === 'StructElem'
+            && !$this->dictionaryHasDuplicateKeys($dictionary['body'], self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+            && !$this->dictionaryHasTrailingOperandsAfterKeys($dictionary['body'], self::ASSOCIATED_FILE_ARRAY_BOUNDARY_KEYS)
+        ) {
+            $associatedFilesValue = $this->dictionaryRawValue($dictionary['body'], 'AF');
+            if ($associatedFilesValue !== null) {
+                foreach ($this->associatedFileArrayItemsFromValue($associatedFilesValue, $objects) as $associatedFileIndex => $fileSpecValue) {
+                    $file = $this->embeddedFileFromFileSpecValue(
+                        $fileSpecValue,
+                        null,
+                        $objects,
+                        'structure_element_associated_files',
+                        [],
+                        [],
+                        $encryptionPolicy
+                    );
+                    if ($file === null) {
+                        continue;
+                    }
+
+                    $file['associated_file'] = true;
+                    $file['structure_associated_file'] = true;
+                    $file['structure_associated_file_source'] = 'structure_element_af';
+                    $file['structure_associated_file_index'] = $associatedFileIndex;
+                    if ($dictionary['object'] !== null) {
+                        $file['structure_object_id'] = $dictionary['object'];
+                    }
+                    if ($role !== null && $role !== '') {
+                        $file['structure_role'] = $role;
+                    }
+                    if ($title !== null && $title !== '') {
+                        $file['structure_title'] = $title;
+                    }
+
+                    $files[] = $file;
+                }
+            }
+        }
+
+        $kidsValue = $this->dictionaryRawValue($dictionary['body'], 'K');
+        if ($kidsValue === null) {
+            return;
+        }
+
+        $kidItems = $this->arrayItemsFromValue($kidsValue, $objects);
+        if ($kidItems === []) {
+            $this->collectStructureAssociatedFilesFromValue($kidsValue, $objects, $files, $encryptionPolicy, $seen, $depth + 1);
+            return;
+        }
+
+        foreach ($kidItems as $kidValue) {
+            $this->collectStructureAssociatedFilesFromValue($kidValue, $objects, $files, $encryptionPolicy, $seen, $depth + 1);
+        }
     }
 
     /**
@@ -3429,6 +3548,25 @@ final class PdfEmbeddedFileExtractor
                 'annotation_subtype',
                 'annotation_contents',
                 'annotation_rect',
+            ] as $key) {
+                if (array_key_exists($key, $candidate)) {
+                    $target[$key] = $candidate[$key];
+                }
+            }
+        }
+
+        if (
+            ($candidate['structure_associated_file'] ?? false) === true
+            || $candidateSource === 'structure_element_associated_files'
+        ) {
+            $target['associated_file'] = true;
+            $target['structure_associated_file'] = true;
+            $target['structure_associated_file_source'] = 'structure_element_af';
+            foreach ([
+                'structure_associated_file_index',
+                'structure_object_id',
+                'structure_role',
+                'structure_title',
             ] as $key) {
                 if (array_key_exists($key, $candidate)) {
                     $target[$key] = $candidate[$key];
