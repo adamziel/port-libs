@@ -2296,6 +2296,7 @@ $packageLocalHeaderPreflight = $package->localHeaderPreflight();
 $packageLocalHeaderOrderPreflight = $package->localHeaderOrderPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
 $packageModificationTimePreflight = $package->modificationTimePreflight();
+$packagePlatformMetadataPreflight = $package->platformMetadataPreflight();
 $localHeaderOrderReviewPackage = ZipPackage::fromString($buildLocalHeaderOrderReviewBackedPackage());
 $localHeaderOrderReviewPreflight = $localHeaderOrderReviewPackage->localHeaderOrderPreflight();
 $localHeaderOrderReviewStrictPreflight = $localHeaderOrderReviewPackage->strictImportPreflight(4096, 100.0, 4096);
@@ -2535,6 +2536,49 @@ try {
     $nameHygieneReviewPackage->assertStrictImportable(4096, 100.0, 4096);
 } catch (RuntimeException $exception) {
     $nameHygieneStrictRejected = str_contains($exception->getMessage(), 'name-hygiene-review-entries');
+}
+$platformMetadataPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Platform metadata review</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => 'word/media/review.png',
+        'data' => "Visible reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => '__MACOSX/',
+    ],
+    [
+        'name' => '__MACOSX/word/media/._review.png',
+        'data' => "AppleDouble resource fork placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/._review.png',
+        'data' => "Resource fork beside visible media\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/.DS_Store',
+        'data' => "Finder metadata should not import as document media\n",
+        'compressionMethod' => 0,
+    ],
+]);
+$platformMetadataPreflight = $platformMetadataPackage->platformMetadataPreflight();
+$platformMetadataStrictPreflight = $platformMetadataPackage->strictImportPreflight(4096, 100.0, 4096);
+$platformMetadataRejected = false;
+try {
+    $platformMetadataPackage->assertNoPlatformMetadataEntries();
+} catch (RuntimeException $exception) {
+    $platformMetadataRejected = str_contains($exception->getMessage(), 'platform metadata sidecar entries');
+}
+$platformMetadataStrictRejected = false;
+try {
+    $platformMetadataPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $platformMetadataStrictRejected = str_contains($exception->getMessage(), 'platform-metadata-entries');
 }
 $caseInsensitiveNameCollisionPackage = ZipPackage::fromParts([
     [
@@ -3684,6 +3728,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($strictImportPreflight['dosAttributes']['hiddenSystemOrVolumeLabelEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['modificationTimes']['invalidDosTimestampEntryCount'] ?? null) !== 0
         || ($strictImportPreflight['nameHygiene']['reviewEntryCount'] ?? null) !== 0
+        || ($strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] ?? null) !== 0
     ) {
         throw new RuntimeException('Expected strict ZIP import preflight to accept the clean WordPress package');
     }
@@ -3950,6 +3995,23 @@ if (in_array('--self-test', $argv, true)) {
         || ($nameHygieneStrictPreflight['diagnostics'] ?? null) !== ['name-hygiene-review-entries']
     ) {
         throw new RuntimeException('Expected ZIP entry name hygiene issues to stay blocked for strict media import');
+    }
+
+    if (
+        !$platformMetadataRejected
+        || !$platformMetadataStrictRejected
+        || ($platformMetadataPreflight['platformMetadataEntryCount'] ?? null) !== 4
+        || ($platformMetadataPreflight['macosSidecarEntryCount'] ?? null) !== 2
+        || ($platformMetadataPreflight['appleDoubleEntryCount'] ?? null) !== 2
+        || ($platformMetadataPreflight['finderMetadataEntryCount'] ?? null) !== 1
+        || ($platformMetadataPreflight['entries'][1]['platform'] ?? null) !== null
+        || ($platformMetadataPreflight['platformMetadataEntries'][0]['name'] ?? null) !== '__MACOSX/'
+        || ($platformMetadataPreflight['platformMetadataEntries'][1]['issues'] ?? null) !== ['macos-sidecar-entry', 'appledouble-resource-entry']
+        || ($platformMetadataStrictPreflight['diagnostics'] ?? null) !== ['platform-metadata-entries']
+        || ($platformMetadataStrictPreflight['platformMetadata']['platformMetadataEntryCount'] ?? null) !== 4
+        || $platformMetadataPackage->read('/word/media/review.png') !== "Visible reviewer attachment placeholder\n"
+    ) {
+        throw new RuntimeException('Expected macOS ZIP platform metadata sidecars to stay blocked for strict media import');
     }
 
     if (
@@ -4902,6 +4964,7 @@ echo 'packageModificationTimes.invalidDosTimestampEntryCount=' . $packageModific
 echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
+echo 'zipStrictImportPlatformMetadataEntries=' . $strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipInvalidDosTimestampPolicy=' . ($invalidDosTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
@@ -4925,6 +4988,11 @@ echo 'packagePathHierarchy.collisionEntryCount=' . $packagePathHierarchyPrefligh
 echo 'zipNameHygieneReviewPolicy=' . ($nameHygieneRejected && $nameHygieneStrictRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipNameHygieneReviewEntries=' . $nameHygienePreflight['reviewEntryCount'] . "\n";
 echo 'zipNameHygieneReviewIssues=' . implode(',', $nameHygienePreflight['reviewEntries'][0]['issues'] ?? []) . "\n";
+echo 'packagePlatformMetadata.entryCount=' . $packagePlatformMetadataPreflight['platformMetadataEntryCount'] . "\n";
+echo 'zipPlatformMetadataPolicy=' . ($platformMetadataRejected && $platformMetadataStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipPlatformMetadataEntries=' . $platformMetadataPreflight['platformMetadataEntryCount'] . "\n";
+echo 'zipPlatformMetadataIssues=' . implode(',', $platformMetadataPreflight['platformMetadataEntries'][1]['issues'] ?? []) . "\n";
+echo 'zipPlatformMetadataDiagnostics=' . implode(',', $platformMetadataStrictPreflight['diagnostics']) . "\n";
 echo 'packageCaseInsensitiveNames.collisionEntryCount=' . $packageCaseInsensitiveNamePreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";

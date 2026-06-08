@@ -2080,6 +2080,135 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * Classify platform metadata entries that should not be imported as
+     * document content or package assets.
+     *
+     * macOS archive tools commonly add __MACOSX directories, AppleDouble
+     * resource fork entries, and .DS_Store files. These entries are valid ZIP
+     * members, so raw ZIP reading remains permissive, but office/package
+     * readers should review or reject them before mapping media/content.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     platformMetadataEntryCount:int,
+     *     macosSidecarEntryCount:int,
+     *     appleDoubleEntryCount:int,
+     *     finderMetadataEntryCount:int,
+     *     platformMetadataEntries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>,
+     *     entries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>
+     * }
+     */
+    public function platformMetadataPreflight(): array
+    {
+        $entries = [];
+        $platformMetadataEntries = [];
+        $macosSidecarEntryCount = 0;
+        $appleDoubleEntryCount = 0;
+        $finderMetadataEntryCount = 0;
+
+        foreach ($this->entries as $entry) {
+            $path = rtrim($entry->name, '/');
+            $segments = $path === '' ? [] : explode('/', $path);
+            $isMacosSidecar = false;
+            $isAppleDouble = false;
+            $isFinderMetadata = false;
+
+            foreach ($segments as $index => $segment) {
+                $lowerSegment = strtolower($segment);
+
+                if ($index === 0 && $lowerSegment === '__macosx') {
+                    $isMacosSidecar = true;
+                }
+
+                if (str_starts_with($segment, '._') && strlen($segment) > 2) {
+                    $isAppleDouble = true;
+                }
+
+                if ($lowerSegment === '.ds_store') {
+                    $isFinderMetadata = true;
+                }
+            }
+
+            $issues = [];
+
+            if ($isMacosSidecar) {
+                $issues[] = 'macos-sidecar-entry';
+                ++$macosSidecarEntryCount;
+            }
+
+            if ($isAppleDouble) {
+                $issues[] = 'appledouble-resource-entry';
+                ++$appleDoubleEntryCount;
+            }
+
+            if ($isFinderMetadata) {
+                $issues[] = 'finder-metadata-entry';
+                ++$finderMetadataEntryCount;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'path' => $path,
+                'isDirectory' => $entry->isDirectory(),
+                'segments' => $segments,
+                'platform' => $issues === [] ? null : 'macos',
+                'isMacosSidecar' => $isMacosSidecar,
+                'isAppleDouble' => $isAppleDouble,
+                'isFinderMetadata' => $isFinderMetadata,
+                'issues' => $issues,
+            ];
+
+            $entries[] = $summary;
+
+            if ($issues !== []) {
+                $platformMetadataEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'platformMetadataEntryCount' => count($platformMetadataEntries),
+            'macosSidecarEntryCount' => $macosSidecarEntryCount,
+            'appleDoubleEntryCount' => $appleDoubleEntryCount,
+            'finderMetadataEntryCount' => $finderMetadataEntryCount,
+            'platformMetadataEntries' => $platformMetadataEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     platformMetadataEntryCount:int,
+     *     macosSidecarEntryCount:int,
+     *     appleDoubleEntryCount:int,
+     *     finderMetadataEntryCount:int,
+     *     platformMetadataEntries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>,
+     *     entries:list<array{name:string,path:string,isDirectory:bool,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,issues:list<string>}>
+     * }
+     */
+    public function assertNoPlatformMetadataEntries(): array
+    {
+        $summary = $this->platformMetadataPreflight();
+        if ($summary['platformMetadataEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' (' . implode('/', $entry['issues']) . ')',
+                    $summary['platformMetadataEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains platform metadata sidecar entries that require explicit import review: '
+                . $entries
+            );
+        }
+
+        return $summary;
+    }
+
     public function has(string $partName): bool
     {
         return isset($this->entriesByName[$this->normalizeLookupPartName($partName)]);
@@ -4027,6 +4156,7 @@ final class ZipPackage
      *     caseInsensitiveNames:array<string, mixed>,
      *     rawNames:array<string, mixed>,
      *     nameHygiene:array<string, mixed>,
+     *     platformMetadata:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
      *     internalAttributes:array<string, mixed>,
@@ -4064,6 +4194,7 @@ final class ZipPackage
         $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
         $rawNames = $this->rawNamePreflight();
         $nameHygiene = $this->nameHygienePreflight();
+        $platformMetadata = $this->platformMetadataPreflight();
         $permissions = $this->permissionPreflight();
         $dosAttributes = $this->dosAttributePreflight();
         $internalAttributes = $this->internalAttributePreflight();
@@ -4135,6 +4266,10 @@ final class ZipPackage
             $diagnostics[] = 'name-hygiene-review-entries';
         }
 
+        if ($platformMetadata['platformMetadataEntryCount'] > 0) {
+            $diagnostics[] = 'platform-metadata-entries';
+        }
+
         if ($permissions['executableFileCount'] > 0) {
             $diagnostics[] = 'executable-file-entries';
         }
@@ -4198,6 +4333,7 @@ final class ZipPackage
             'caseInsensitiveNames' => $caseInsensitiveNames,
             'rawNames' => $rawNames,
             'nameHygiene' => $nameHygiene,
+            'platformMetadata' => $platformMetadata,
             'permissions' => $permissions,
             'dosAttributes' => $dosAttributes,
             'internalAttributes' => $internalAttributes,
@@ -4229,6 +4365,7 @@ final class ZipPackage
      *     caseInsensitiveNames:array<string, mixed>,
      *     rawNames:array<string, mixed>,
      *     nameHygiene:array<string, mixed>,
+     *     platformMetadata:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     dosAttributes:array<string, mixed>,
      *     internalAttributes:array<string, mixed>,

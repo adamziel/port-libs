@@ -2381,6 +2381,110 @@ return [
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
+    'preflights zip platform metadata sidecars before office package media handoff' => static function (TestRunner $t): void {
+        $reviewPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>platform metadata preflight</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "visible reviewer image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => '__MACOSX/',
+                'data' => '',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => '__MACOSX/word/media/._review.png',
+                'data' => "appledouble resource fork placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/._review.png',
+                'data' => "resource fork beside visible image\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/.DS_Store',
+                'data' => "finder metadata should not import as document media\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $reviewPackage->platformMetadataPreflight();
+
+        $t->same(6, $summary['entryCount']);
+        $t->same(4, $summary['platformMetadataEntryCount']);
+        $t->same(2, $summary['macosSidecarEntryCount']);
+        $t->same(2, $summary['appleDoubleEntryCount']);
+        $t->same(1, $summary['finderMetadataEntryCount']);
+        $t->same('word/media/review.png', $summary['entries'][1]['name']);
+        $t->same(null, $summary['entries'][1]['platform']);
+        $t->same(false, $summary['entries'][1]['isMacosSidecar']);
+        $t->same(false, $summary['entries'][1]['isAppleDouble']);
+        $t->same(false, $summary['entries'][1]['isFinderMetadata']);
+        $t->same([], $summary['entries'][1]['issues']);
+        $t->same('__MACOSX/', $summary['platformMetadataEntries'][0]['name']);
+        $t->same('__MACOSX', $summary['platformMetadataEntries'][0]['path']);
+        $t->same(true, $summary['platformMetadataEntries'][0]['isDirectory']);
+        $t->same('macos', $summary['platformMetadataEntries'][0]['platform']);
+        $t->same(['macos-sidecar-entry'], $summary['platformMetadataEntries'][0]['issues']);
+        $t->same('__MACOSX/word/media/._review.png', $summary['platformMetadataEntries'][1]['name']);
+        $t->same(true, $summary['platformMetadataEntries'][1]['isMacosSidecar']);
+        $t->same(true, $summary['platformMetadataEntries'][1]['isAppleDouble']);
+        $t->same(false, $summary['platformMetadataEntries'][1]['isFinderMetadata']);
+        $t->same(['macos-sidecar-entry', 'appledouble-resource-entry'], $summary['platformMetadataEntries'][1]['issues']);
+        $t->same('word/media/._review.png', $summary['platformMetadataEntries'][2]['name']);
+        $t->same(false, $summary['platformMetadataEntries'][2]['isMacosSidecar']);
+        $t->same(true, $summary['platformMetadataEntries'][2]['isAppleDouble']);
+        $t->same(['appledouble-resource-entry'], $summary['platformMetadataEntries'][2]['issues']);
+        $t->same('word/media/.DS_Store', $summary['platformMetadataEntries'][3]['name']);
+        $t->same(false, $summary['platformMetadataEntries'][3]['isAppleDouble']);
+        $t->same(true, $summary['platformMetadataEntries'][3]['isFinderMetadata']);
+        $t->same(['finder-metadata-entry'], $summary['platformMetadataEntries'][3]['issues']);
+        $t->same("visible reviewer image placeholder\n", $reviewPackage->read('/word/media/review.png'));
+        $t->same("resource fork beside visible image\n", $reviewPackage->read('/word/media/._review.png'));
+
+        $strictSummary = $reviewPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['platform-metadata-entries'], $strictSummary['diagnostics']);
+        $t->same(4, $strictSummary['platformMetadata']['platformMetadataEntryCount']);
+        $t->same(2, $strictSummary['platformMetadata']['macosSidecarEntryCount']);
+        $t->same(2, $strictSummary['platformMetadata']['appleDoubleEntryCount']);
+        $t->same(1, $strictSummary['platformMetadata']['finderMetadataEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoPlatformMetadataEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe platform metadata</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "visible reviewer image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/source-diagram.svg',
+                'data' => "<svg />\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoPlatformMetadataEntries();
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['platformMetadataEntryCount']);
+        $t->same(0, $safeSummary['macosSidecarEntryCount']);
+        $t->same(0, $safeSummary['appleDoubleEntryCount']);
+        $t->same(0, $safeSummary['finderMetadataEntryCount']);
+        $t->same([], $safeSummary['platformMetadataEntries']);
+        $strictClean = $safePackage->assertStrictImportable(4096, 100.0, 4096);
+        $t->same(true, $strictClean['isValid']);
+        $t->same(0, $strictClean['platformMetadata']['platformMetadataEntryCount']);
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
