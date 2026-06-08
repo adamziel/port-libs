@@ -1218,6 +1218,9 @@ final class PdfTextExtractor
             $cMapName = $parserBoundedDecoded === null
                 ? $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects)
                 : $this->cMapName($parserBoundedDecoded);
+            $declaredLength = $this->cMapStreamHasUnselectedIndirectLengthOperand($dict, $objects)
+                ? null
+                : $this->streamLength($dict, $objects);
             $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
             $generation = $owner['generation']
                 ?? ($xrefEntries[$objectNumber]['generation'] ?? null);
@@ -1266,7 +1269,7 @@ final class PdfTextExtractor
                 'generation' => is_int($generation) ? $generation : null,
                 'reference_usages' => $usages,
                 'cmap_name' => $cMapName,
-                'declared_length' => $this->streamLength($dict, $objects),
+                'declared_length' => $declaredLength,
                 'filters' => $filters ?? [],
                 'filter_resolution_failed' => $filters === null,
                 'decodeparms_resolution_failed' => $decodeParms === null,
@@ -37517,6 +37520,9 @@ final class PdfTextExtractor
         if ($this->cMapStreamHasUnselectedIndirectFilterOperand($dict, $objects)) {
             return null;
         }
+        if ($this->cMapStreamHasUnselectedIndirectLengthOperand($dict, $objects)) {
+            return null;
+        }
 
         return $this->decodeStream($dict, $stream, $objects, true, true, true);
     }
@@ -37581,6 +37587,51 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cMapStreamHasUnselectedIndirectLengthOperand(string $dict, array $objects): bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'Length');
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->streamLengthValueHasUnselectedIndirectOperand($dict, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function streamLengthValueHasUnselectedIndirectOperand(
+        string $value,
+        int $offset,
+        array $objects,
+        array $seen = []
+    ): bool {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || $generation < 0 || isset($seen[$objectKey])) {
+            return true;
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return true;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->streamLengthValueHasUnselectedIndirectOperand(trim($body), 0, $objects, $seen);
     }
 
     /**
