@@ -444,6 +444,7 @@ final class PdfTextExtractor
      *     strict_dependency_rejection_count: int,
      *     stream_member_rejection_count: int,
      *     indirect_member_wrapper_rejection_count: int,
+     *     malformed_object_stream_member_tail_count: int,
      *     duplicate_header_object_number_rejection_count: int,
      *     duplicate_member_offset_rejection_count: int,
      *     out_of_range_member_index_rejection_count: int,
@@ -484,6 +485,7 @@ final class PdfTextExtractor
             'strict_dependency_rejection_count' => 0,
             'stream_member_rejection_count' => 0,
             'indirect_member_wrapper_rejection_count' => 0,
+            'malformed_object_stream_member_tail_count' => 0,
             'duplicate_header_object_number_rejection_count' => 0,
             'duplicate_member_offset_rejection_count' => 0,
             'out_of_range_member_index_rejection_count' => 0,
@@ -679,6 +681,26 @@ final class PdfTextExtractor
             if ($streamMemberRejected) {
                 $review['stream_member_rejection_count']++;
             }
+            $selectedMemberHasSingleTopLevelValue = (
+                $selectedMemberBody !== null
+                && !$selectedMemberIsIndirectWrapper
+                && !$selectedMemberIsStream
+            )
+                ? $this->objectStreamMemberHasSingleTopLevelValue($selectedMemberBody)
+                : null;
+            $selectedMemberMalformedTailRecovered = $selectedMemberHasSingleTopLevelValue === false
+                && $memberTable !== null
+                && $selectedMember !== null
+                && $this->objectStreamMemberTailCanBeRecoveredFromInvalidLaterOffset(
+                    $memberTable,
+                    $selectedMember,
+                    $selectedMemberBody
+                );
+            $selectedMemberMalformedTail = $selectedMemberHasSingleTopLevelValue === false
+                && !$selectedMemberMalformedTailRecovered;
+            if ($selectedMemberMalformedTail) {
+                $review['malformed_object_stream_member_tail_count']++;
+            }
 
             $referencedGenerations = array_map('intval', array_keys($nonzeroGenerationReferences[$objectNumber] ?? []));
             sort($referencedGenerations, SORT_NUMERIC);
@@ -737,6 +759,9 @@ final class PdfTextExtractor
                 'stream_member_rejected' => $streamMemberRejected,
                 'indirect_object_wrapper_member' => $selectedMemberIsIndirectWrapper,
                 'indirect_object_wrapper_rejected' => $selectedMemberIsIndirectWrapper,
+                'object_stream_member_has_single_value' => $selectedMemberHasSingleTopLevelValue,
+                'malformed_member_tail_recovered_by_invalid_later_offset' => $selectedMemberMalformedTailRecovered,
+                'malformed_member_tail_rejected' => $selectedMemberMalformedTail,
                 'duplicate_header_object_number_rejected' => $duplicateHeaderObjectNumber,
                 'duplicate_member_offset_rejected' => $selectedMemberDuplicateOffset,
                 'out_of_range_member_index_rejected' => $memberIndexOutOfRange,
@@ -31556,11 +31581,19 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if (
-                    $this->objectStreamMemberIsTopLevelStreamObject($memberBody)
-                    && !isset($referencedPageContentObjectNumbers[$objectNumber])
-                ) {
-                    continue;
+                if ($this->objectStreamMemberIsTopLevelStreamObject($memberBody)) {
+                    if (!isset($referencedPageContentObjectNumbers[$objectNumber])) {
+                        continue;
+                    }
+                } elseif (!$this->objectStreamMemberHasSingleTopLevelValue($memberBody)) {
+                    if (!$this->objectStreamMemberTailCanBeRecoveredFromInvalidLaterOffset($memberTable, $pair, $memberBody)) {
+                        continue;
+                    }
+
+                    $memberBody = $this->objectStreamMemberFirstTopLevelValueBody($memberBody);
+                    if ($memberBody === null || $memberBody === '') {
+                        continue;
+                    }
                 }
 
                 $expanded[$objectNumber] = $memberBody;
@@ -31799,6 +31832,97 @@ final class PdfTextExtractor
         $tailOffset = $this->skipPdfWhitespace($memberBody, $valueEndOffset);
         return $this->pdfKeywordAt($memberBody, $tailOffset, 'endobj')
             && $this->skipPdfWhitespace($memberBody, $tailOffset + strlen('endobj')) === strlen($memberBody);
+    }
+
+    private function objectStreamMemberHasSingleTopLevelValue(string $memberBody): bool
+    {
+        $valueEndOffset = $this->objectStreamMemberTopLevelValueEndOffset($memberBody);
+        if ($valueEndOffset === null) {
+            return false;
+        }
+
+        return $this->skipPdfWhitespace($memberBody, $valueEndOffset) === strlen($memberBody);
+    }
+
+    private function objectStreamMemberFirstTopLevelValueBody(string $memberBody): ?string
+    {
+        $valueEndOffset = $this->objectStreamMemberTopLevelValueEndOffset($memberBody);
+        if ($valueEndOffset === null) {
+            return null;
+        }
+
+        return trim(substr($memberBody, 0, $valueEndOffset));
+    }
+
+    private function objectStreamMemberTopLevelValueEndOffset(string $memberBody): ?int
+    {
+        $offset = $this->skipPdfWhitespace($memberBody, 0);
+        if ($offset >= strlen($memberBody)) {
+            return null;
+        }
+
+        $valueEndOffset = $this->skipPdfValueAt($memberBody, $offset);
+        return $valueEndOffset > $offset ? $valueEndOffset : null;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberTailCanBeRecoveredFromInvalidLaterOffset(
+        array $memberTable,
+        array $member,
+        string $memberBody
+    ): bool
+    {
+        if (!$this->objectStreamMemberHasInvalidLaterOffsetAfter($memberTable, $member)) {
+            return false;
+        }
+
+        $valueEndOffset = $this->objectStreamMemberTopLevelValueEndOffset($memberBody);
+        if ($valueEndOffset === null) {
+            return false;
+        }
+
+        $tailOffset = $this->skipPdfWhitespace($memberBody, $valueEndOffset);
+        if ($tailOffset >= strlen($memberBody)) {
+            return false;
+        }
+
+        if ($this->objectStreamMemberTailStartsWithObjectBoundaryKeyword($memberBody, $tailOffset)) {
+            return false;
+        }
+
+        return $this->skipPdfValueAt($memberBody, $tailOffset) > $tailOffset;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberHasInvalidLaterOffsetAfter(array $memberTable, array $member): bool
+    {
+        foreach ($memberTable['members'] as $candidate) {
+            if (
+                $candidate['offset'] > $member['offset']
+                && !$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $candidate)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function objectStreamMemberTailStartsWithObjectBoundaryKeyword(string $memberBody, int $tailOffset): bool
+    {
+        foreach (['obj', 'endobj', 'stream', 'endstream', 'xref', 'trailer', 'startxref'] as $keyword) {
+            if ($this->pdfKeywordAt($memberBody, $tailOffset, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
