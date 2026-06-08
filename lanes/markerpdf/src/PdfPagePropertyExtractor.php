@@ -1701,12 +1701,16 @@ final class PdfPagePropertyExtractor
     private function procSetNames(string $resourceDictionary, array $objects): array
     {
         $value = $this->dictionaryRawValue($resourceDictionary, 'ProcSet');
-        if ($value === null || $this->resourceCategoryValueResolvesToStreamObject($value, $objects)) {
+        if (
+            $value === null
+            || $this->topLevelDirectDictionaryValueHasTrailingNonName($resourceDictionary, 'ProcSet')
+            || $this->resourceCategoryValueResolvesToStreamObject($value, $objects)
+        ) {
             return [];
         }
 
         $names = [];
-        foreach ($this->arrayItemsFromValue($value, $objects) as $item) {
+        foreach ($this->arrayItemsFromStrictValue($value, $objects) as $item) {
             $resolved = trim($this->resolveRawValue($item, $objects) ?? $item);
             if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $resolved, $match) !== 1) {
                 continue;
@@ -4259,8 +4263,36 @@ final class PdfPagePropertyExtractor
             return [];
         }
 
+        return $this->arrayItemsFromRawArray($array['raw']);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function arrayItemsFromStrictValue(string $value, array $objects): array
+    {
+        $resolved = $this->resolveRawValue($value, $objects);
+        if ($resolved === null) {
+            return [];
+        }
+
+        $trimmed = trim($resolved);
+        $array = $this->readPdfArrayAt($trimmed, 0);
+        if ($array === null || $this->skipWhitespace($trimmed, $array['end']) < strlen($trimmed)) {
+            return [];
+        }
+
+        return $this->arrayItemsFromRawArray($array['raw']);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function arrayItemsFromRawArray(string $arrayRaw): array
+    {
         $items = [];
-        $body = substr($array['raw'], 1, -1);
+        $body = substr($arrayRaw, 1, -1);
         for ($offset = 0, $length = strlen($body); $offset < $length;) {
             $offset = $this->skipWhitespace($body, $offset);
             if ($offset >= $length) {

@@ -39987,7 +39987,7 @@ final class PdfTextExtractor
         $cmap = $this->boundedCMapProgram($cmap);
         foreach ($this->cMapOperatorBlocks($cmap, 'begincodespacerange', 'endcodespacerange') as $blockMatch) {
             if ($blockMatch['declaredCount'] === null) {
-                continue;
+                return true;
             }
 
             if ($blockMatch['declaredCount'] < 0) {
