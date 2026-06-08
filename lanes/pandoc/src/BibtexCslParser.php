@@ -633,6 +633,7 @@ final class BibtexCslParser
             'part' => self::firstField($fields, ['part']),
             'genre' => self::firstField($fields, ['type', 'entrysubtype']),
             'entry-subtype' => self::firstField($fields, ['entrysubtype', 'entry-subtype']),
+            'gender' => self::firstField($fields, ['gender']),
             'authority' => self::firstField($fields, ['authority', 'court', 'institution', 'organization']),
             'jurisdiction' => self::firstField($fields, ['jurisdiction', 'location', 'address']),
             'status' => self::firstField($fields, ['status', 'pubstate']),

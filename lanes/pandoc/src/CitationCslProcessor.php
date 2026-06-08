@@ -731,6 +731,7 @@ final class CitationCslProcessor
             'event-date' => $eventDate,
         ]);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
+        $biblatexGender = self::firstStringField($item, ['biblatexGender', 'biblatex-gender', 'gender']);
         $biblatexCustomFields = self::biblatexCustomFields($item, $id);
         $biblatexCustomLists = self::biblatexCustomLists($item, $id);
         $biblatexCustomNames = self::biblatexCustomNames($item, $id);
@@ -790,6 +791,9 @@ final class CitationCslProcessor
             'part' => self::stringField($item, 'part'),
             'genre' => self::stringField($item, 'genre'),
             'entrySubtype' => self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']),
+            'gender' => $biblatexGender,
+            'biblatexGender' => $biblatexGender,
+            'biblatexGenderSummary' => $biblatexGender,
             'authority' => self::stringField($item, 'authority'),
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
             'status' => self::stringField($item, 'status'),
@@ -5024,6 +5028,7 @@ final class CitationCslProcessor
             ['bookPagination', 'Book pagination'],
             ['articleNumber', 'Article number'],
             ['entrySubtype', 'Entry subtype'],
+            ['biblatexGender', 'BibLaTeX gender'],
             ['status', 'Status'],
             ['annotation', 'Annotation'],
             ['note', 'Note'],
@@ -6561,6 +6566,8 @@ final class CitationCslProcessor
             'part' => (string) $item['part'],
             'genre' => (string) $item['genre'],
             'entry-subtype', 'entrysubtype' => (string) $item['entrySubtype'],
+            'gender', 'biblatex-gender', 'biblatexgender' => (string) ($item['biblatexGender'] ?? $item['gender'] ?? ''),
+            'biblatex-gender-summary', 'biblatexgendersummary' => (string) ($item['biblatexGenderSummary'] ?? ''),
             'authority' => (string) $item['authority'],
             'jurisdiction' => (string) $item['jurisdiction'],
             'status' => (string) $item['status'],

@@ -3651,6 +3651,87 @@ XML);
         $t->contains('<p>Annotated source Roe (2026) keeps private reviewer notes distinct from public abstracts.</p>', $blocks);
         $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.</dd>', $blocks);
     },
+    'maps bounded biblatex gender metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{gendered-manual,
+  author    = {Smith, Ada},
+  title     = {Gendered Driver Manual},
+  date      = {2026},
+  publisher = {Review Press},
+  gender    = {feminine}
+}
+
+@online{gendered-packet,
+  author = {{Review Desk}},
+  title  = {Neutral Packet},
+  date   = {2025},
+  gender = {neuter},
+  url    = {https://example.test/gendered-packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('feminine', $items[0]['gender'] ?? null);
+        $t->same('neuter', $items[1]['gender'] ?? null);
+        $t->same('feminine', $items[0]['rawBibtex']['fields']['gender'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('gendered-manual');
+        $packet = $processor->item('gendered-packet');
+        $t->same('feminine', $manual['gender'] ?? null);
+        $t->same('feminine', $manual['biblatexGender'] ?? null);
+        $t->same('feminine', $manual['biblatexGenderSummary'] ?? null);
+        $t->same('neuter', $packet['biblatexGender'] ?? null);
+        $t->same('(Smith 2026; Review Desk 2025)', $processor->renderCitationCluster([
+            $citation('gendered-manual', '[@gendered-manual]'),
+            $citation('gendered-packet', '[@gendered-packet]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Gendered Driver Manual. Review Press, 2026. BibLaTeX gender: feminine.',
+            $processor->renderBibliographyEntry('gendered-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="gender"/>
+        <text variable="biblatex-gender-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-gender"/>
+      <text variable="biblatex-gender-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | feminine | feminine; Review Desk | neuter | neuter]', $styled->renderCitationCluster([
+            $citation('gendered-manual', '[@gendered-manual]'),
+            $citation('gendered-packet', '[@gendered-packet]'),
+        ]));
+        $t->same('Gendered Driver Manual :: feminine :: feminine', $styled->renderBibliographyEntry('gendered-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-gender',
+            'title' => 'Manual Gender Source',
+            'biblatex-gender' => 'masculine',
+        ]])->item('manual-gender');
+        $t->same('masculine', $direct['gender'] ?? null);
+        $t->same('masculine', $direct['biblatexGender'] ?? null);
+
+        $document = (new MarkdownReader())->read('Gendered source @gendered-manual and packet [@gendered-packet] keep driver grammar metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Gendered source Smith (2026) and packet (Review Desk 2025) keep driver grammar metadata.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Gendered Driver Manual. Review Press, 2026. BibLaTeX gender: feminine.</dd>', $blocks);
+    },
     'maps bounded biblatex entry subtype review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @report{review-subtype,
