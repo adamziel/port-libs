@@ -954,6 +954,15 @@ try {
 } catch (RuntimeException) {
     $lz4DictionaryExtractionBlocked = true;
 }
+$lz4SkippableSmallPayload = 'review-index:legacy';
+$lz4SkippableLargePayload = str_repeat('review-metadata-', 8);
+$lz4SkippableStream = Lz4Frame::skippableFrame($lz4SkippableSmallPayload, 2)
+    . Lz4Frame::build('packet/word/document.xml:skippable-review', [
+        'contentChecksum' => true,
+        'contentSize' => true,
+    ])
+    . Lz4Frame::skippableFrame($lz4SkippableLargePayload, 15);
+$lz4SkippableInspection = ArchiveCompressionStream::inspectLz4SkippableFramePolicy($lz4SkippableStream, 32);
 $lz4SuppliedDictionary = 'packet/word/document.xml:';
 $lz4SuppliedDecodedPayload = $lz4SuppliedDictionary . 'wp' . $lz4SuppliedDictionary . 'ok';
 $lz4SuppliedDictionaryStream = Lz4Frame::skippableFrame('dictionary-id:0x1a2b3c4d', 12)
@@ -1554,6 +1563,15 @@ if (in_array('--self-test', $argv, true)) {
         'lz4DictionaryId' => $lz4DictionaryId,
         'lz4DictionaryBlockCount' => 1,
         'lz4DictionaryPayloadSize' => strlen($lz4DictionaryPayload),
+        'lz4SkippablePolicyType' => 'lz4-skippable-frame-policy',
+        'lz4SkippableHandoffPolicy' => 'review-before-conversion',
+        'lz4SkippableExtractionPolicy' => 'lz4-skippable-frame-review',
+        'lz4SkippableFrameCount' => 3,
+        'lz4SkippablePayloadBytes' => strlen($lz4SkippableSmallPayload) + strlen($lz4SkippableLargePayload),
+        'lz4SkippableOverLimitCount' => 1,
+        'lz4SkippableFirstPayloadSha' => hash('sha256', $lz4SkippableSmallPayload),
+        'lz4SkippableFirstPreview' => $lz4SkippableSmallPayload,
+        'lz4SkippableLargePolicy' => 'review-before-conversion',
         'lz4SuppliedDecodedPayload' => $lz4SuppliedDecodedPayload,
         'lz4SuppliedFrameCount' => 2,
         'lz4SuppliedBlockCount' => 2,
@@ -2009,6 +2027,18 @@ if (in_array('--self-test', $argv, true)) {
         || ($lz4DictionaryInspection['stream']['frames'][1]['contentSize'] ?? null) !== $expected['lz4DictionaryPayloadSize']
         || ($lz4DictionaryInspection['stream']['frames'][1]['policy'] ?? null) !== 'blocked'
         || ($lz4DictionaryInspection['stream']['frames'][1]['diagnostics'] ?? []) !== ['lz4-dictionary-frame-not-decoded', 'lz4-external-dictionary-required']
+        || $lz4SkippableInspection['type'] !== $expected['lz4SkippablePolicyType']
+        || $lz4SkippableInspection['handoffPolicy'] !== $expected['lz4SkippableHandoffPolicy']
+        || $lz4SkippableInspection['extractionPolicy'] !== $expected['lz4SkippableExtractionPolicy']
+        || $lz4SkippableInspection['frameCount'] !== $expected['lz4SkippableFrameCount']
+        || $lz4SkippableInspection['skippablePayloadBytes'] !== $expected['lz4SkippablePayloadBytes']
+        || $lz4SkippableInspection['overLimitSkippableFrameCount'] !== $expected['lz4SkippableOverLimitCount']
+        || ($lz4SkippableInspection['stream']['frames'][0]['payloadSha256'] ?? null) !== $expected['lz4SkippableFirstPayloadSha']
+        || ($lz4SkippableInspection['stream']['frames'][0]['payloadPreview'] ?? null) !== $expected['lz4SkippableFirstPreview']
+        || ($lz4SkippableInspection['stream']['frames'][2]['policy'] ?? null) !== $expected['lz4SkippableLargePolicy']
+        || ($lz4SkippableInspection['stream']['frames'][2]['diagnostics'] ?? []) !== ['lz4-skippable-frame-byte-limit-over-limit']
+        || isset($lz4SkippableInspection['stream']['frames'][0]['data'])
+        || isset($lz4SkippableInspection['stream']['frames'][2]['data'])
         || $lz4SuppliedDecodedPayloadActual !== $expected['lz4SuppliedDecodedPayload']
         || count($lz4SuppliedFrames) !== $expected['lz4SuppliedFrameCount']
         || !$lz4SuppliedMissingDictionaryBlocked
@@ -2369,6 +2399,10 @@ echo 'lz4Dictionary.dictionaryId=' . $lz4DictionaryInspection['stream']['frames'
 echo 'lz4Dictionary.payloadSize=' . $lz4DictionaryInspection['stream']['frames'][1]['contentSize'] . "\n";
 echo 'lz4Dictionary.extractionBlocked=' . ($lz4DictionaryExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'lz4Dictionary.emptySuppliedBlocked=' . ($lz4SuppliedEmptyDictionaryBlocked ? 'yes' : 'no') . "\n";
+echo 'lz4Skippable.handoffPolicy=' . $lz4SkippableInspection['handoffPolicy'] . "\n";
+echo 'lz4Skippable.overLimitCount=' . $lz4SkippableInspection['overLimitSkippableFrameCount'] . "\n";
+echo 'lz4Skippable.payloadSha256=' . $lz4SkippableInspection['stream']['frames'][0]['payloadSha256'] . "\n";
+echo 'lz4Skippable.largePolicy=' . $lz4SkippableInspection['stream']['frames'][2]['policy'] . "\n";
 echo 'zlibDictionary.kind=' . $zlibDictionaryInspection['kind'] . "\n";
 echo 'zlibDictionary.format=' . $zlibDictionaryInspection['format'] . "\n";
 echo 'zlibDictionary.dictionaryId=' . $zlibDictionaryInspection['stream']['presetDictionaryId'] . "\n";

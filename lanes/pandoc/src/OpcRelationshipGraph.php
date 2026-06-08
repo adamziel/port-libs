@@ -2644,7 +2644,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -2790,6 +2790,11 @@ final class OpcRelationshipGraph
                     'sourceTypes' => $selector['sourceTypes'],
                     'invalidSourceTypes' => $invalidSourceTypes,
                     'sourceTypeIssues' => $sourceTypeIssues,
+                    'selectorChildCount' => $selector['selectorChildCount'],
+                    'selectorRelationshipReferenceCount' => $selector['selectorRelationshipReferenceCount'],
+                    'selectorRelationshipGroupReferenceCount' => $selector['selectorRelationshipGroupReferenceCount'],
+                    'selectorUnsupportedChildCount' => $selector['selectorUnsupportedChildCount'],
+                    'selectorUnsupportedContentCount' => $selector['selectorUnsupportedContentCount'],
                     'followingCanonicalizationAlgorithm' => $followingCanonicalizationAlgorithm,
                     'followingCanonicalization' => $followingCanonicalization,
                     'followedByCanonicalization' => $followedByCanonicalization,
@@ -3618,13 +3623,18 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, issues:list<string>}
+     * @return array{sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, issues:list<string>}
      */
     private static function relationshipTransformSelectors(\DOMElement $transform): array
     {
         $sourceIds = [];
         $sourceTypes = [];
         $sourceTypeIssues = [];
+        $selectorChildCount = 0;
+        $selectorRelationshipReferenceCount = 0;
+        $selectorRelationshipGroupReferenceCount = 0;
+        $selectorUnsupportedChildCount = 0;
+        $selectorUnsupportedContentCount = 0;
         $issues = [];
 
         foreach ($transform->childNodes as $child) {
@@ -3632,19 +3642,24 @@ final class OpcRelationshipGraph
                 continue;
             }
 
+            $selectorChildCount++;
+
             if (!$child instanceof \DOMElement) {
                 if (($child->nodeValue ?? '') !== '') {
+                    $selectorUnsupportedContentCount++;
                     $issues[] = 'unsupported-relationship-transform-content';
                 }
                 continue;
             }
 
             if ($child->namespaceURI !== self::DIGITAL_SIGNATURE_NAMESPACE_URI) {
+                $selectorUnsupportedChildCount++;
                 $issues[] = 'unsupported-relationship-transform-child';
                 continue;
             }
 
             if ($child->localName === 'RelationshipReference') {
+                $selectorRelationshipReferenceCount++;
                 $issues = array_merge($issues, self::relationshipTransformSelectorShapeIssues($child, ['SourceId']));
                 $sourceId = $child->getAttribute('SourceId');
                 if ($sourceId === '') {
@@ -3658,7 +3673,8 @@ final class OpcRelationshipGraph
                 continue;
             }
 
-            if ($child->localName === 'RelationshipGroupReference' || $child->localName === 'RelationshipsGroupReference') {
+            if ($child->localName === 'RelationshipGroupReference') {
+                $selectorRelationshipGroupReferenceCount++;
                 $issues = array_merge($issues, self::relationshipTransformSelectorShapeIssues($child, ['SourceType']));
                 $sourceType = $child->getAttribute('SourceType');
                 if ($sourceType === '') {
@@ -3677,6 +3693,7 @@ final class OpcRelationshipGraph
                 continue;
             }
 
+            $selectorUnsupportedChildCount++;
             $issues[] = 'unsupported-relationship-transform-child';
         }
 
@@ -3689,6 +3706,11 @@ final class OpcRelationshipGraph
             'sourceTypes' => $sourceTypes,
             'invalidSourceTypes' => array_keys($sourceTypeIssues),
             'sourceTypeIssues' => $sourceTypeIssues,
+            'selectorChildCount' => $selectorChildCount,
+            'selectorRelationshipReferenceCount' => $selectorRelationshipReferenceCount,
+            'selectorRelationshipGroupReferenceCount' => $selectorRelationshipGroupReferenceCount,
+            'selectorUnsupportedChildCount' => $selectorUnsupportedChildCount,
+            'selectorUnsupportedContentCount' => $selectorUnsupportedContentCount,
             'issues' => array_values(array_unique($issues)),
         ];
     }

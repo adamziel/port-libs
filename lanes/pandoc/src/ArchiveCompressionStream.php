@@ -1303,6 +1303,129 @@ final class ArchiveCompressionStream
      *     format:string,
      *     type:string,
      *     compressedSize:int,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     skippablePayloadBytes:int,
+     *     maxSkippablePayloadBytes:int,
+     *     overLimitSkippableFrameCount:int,
+     *     firstOverLimitSkippableFrameIndex:?int,
+     *     largestSkippablePayloadSize:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectLz4SkippableFramePolicy(string $bytes, int $maxSkippablePayloadBytes): array
+    {
+        if ($maxSkippablePayloadBytes <= 0) {
+            throw new \RuntimeException('LZ4 skippable frame payload byte limit must be positive');
+        }
+
+        $policy = Lz4Frame::dictionaryPolicyPreflight($bytes);
+        $frames = [];
+        $skippableFrameIndex = 0;
+        $dataFrameIndex = 0;
+        $skippablePayloadBytes = 0;
+        $overLimitSkippableFrameCount = 0;
+        $firstOverLimitSkippableFrameIndex = null;
+        $largestSkippablePayloadSize = 0;
+
+        foreach ($policy['frames'] as $frameIndex => $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $payload = (string) ($frame['data'] ?? '');
+                $payloadSize = strlen($payload);
+                $diagnostics = [];
+                $framePolicy = 'metadata-only-no-extraction';
+                if ($payloadSize > $maxSkippablePayloadBytes) {
+                    $diagnostics[] = 'lz4-skippable-frame-byte-limit-over-limit';
+                    $framePolicy = 'review-before-conversion';
+                    if ($firstOverLimitSkippableFrameIndex === null) {
+                        $firstOverLimitSkippableFrameIndex = $skippableFrameIndex;
+                    }
+                    $overLimitSkippableFrameCount++;
+                }
+
+                $skippablePayloadBytes += $payloadSize;
+                $largestSkippablePayloadSize = max($largestSkippablePayloadSize, $payloadSize);
+                $frames[] = [
+                    'type' => 'skippable',
+                    'frameIndex' => $frameIndex,
+                    'skippableFrameIndex' => $skippableFrameIndex,
+                    'id' => (int) $frame['id'],
+                    'payloadSize' => $payloadSize,
+                    'payloadSha256' => hash('sha256', $payload),
+                    'payloadPreview' => self::boundedPrintablePreview($payload, 64),
+                    'frameOffset' => (int) $frame['frameOffset'],
+                    'frameSize' => (int) $frame['frameSize'],
+                    'policy' => $framePolicy,
+                    'diagnostics' => $diagnostics,
+                ];
+                $skippableFrameIndex++;
+                continue;
+            }
+
+            $frames[] = [
+                'type' => 'frame',
+                'frameIndex' => $frameIndex,
+                'dataFrameIndex' => $dataFrameIndex,
+                'dictionaryId' => $frame['dictionaryId'],
+                'contentSize' => $frame['contentSize'],
+                'blockMaxSize' => (int) $frame['blockMaxSize'],
+                'blockIndependent' => (bool) $frame['blockIndependent'],
+                'blockChecksum' => (bool) $frame['blockChecksum'],
+                'contentChecksum' => (bool) $frame['contentChecksum'],
+                'blockCount' => (int) $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => (int) $frame['compressedSize'],
+                'frameOffset' => (int) $frame['frameOffset'],
+                'frameSize' => (int) $frame['frameSize'],
+                'policy' => (string) $frame['policy'],
+                'diagnostics' => $frame['diagnostics'],
+            ];
+            $dataFrameIndex++;
+        }
+
+        $diagnostics = [];
+        if ($overLimitSkippableFrameCount > 0) {
+            $diagnostics[] = 'lz4-skippable-frame-byte-limit-exceeds-threshold';
+        }
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'format' => 'lz4',
+            'type' => 'lz4-skippable-frame-policy',
+            'compressedSize' => strlen($bytes),
+            'frameCount' => $policy['frameCount'],
+            'dataFrameCount' => $policy['dataFrameCount'],
+            'skippableFrameCount' => $policy['skippableFrameCount'],
+            'skippablePayloadBytes' => $skippablePayloadBytes,
+            'maxSkippablePayloadBytes' => $maxSkippablePayloadBytes,
+            'overLimitSkippableFrameCount' => $overLimitSkippableFrameCount,
+            'firstOverLimitSkippableFrameIndex' => $firstOverLimitSkippableFrameIndex,
+            'largestSkippablePayloadSize' => $largestSkippablePayloadSize,
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'lz4-skippable-frame-review',
+            'diagnostics' => $diagnostics,
+            'stream' => [
+                'frameCount' => $policy['frameCount'],
+                'dataFrameCount' => $policy['dataFrameCount'],
+                'skippableFrameCount' => $policy['skippableFrameCount'],
+                'dictionaryFrameCount' => $policy['dictionaryFrameCount'],
+                'extractionPolicy' => 'metadata-only-no-extraction',
+                'frames' => $frames,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     type:string,
+     *     compressedSize:int,
      *     dictionaryStreamCount:int,
      *     extractionPolicy:string,
      *     stream:array<string, mixed>
@@ -4615,6 +4738,24 @@ final class ArchiveCompressionStream
         }
 
         return null;
+    }
+
+    private static function boundedPrintablePreview(string $bytes, int $maxBytes): string
+    {
+        if ($maxBytes <= 0) {
+            throw new \RuntimeException('Printable preview byte limit must be positive');
+        }
+
+        $preview = substr($bytes, 0, $maxBytes);
+        $printable = '';
+        for ($index = 0, $length = strlen($preview); $index < $length; $index++) {
+            $value = ord($preview[$index]);
+            $printable .= $value >= 0x20 && $value <= 0x7e
+                ? chr($value)
+                : sprintf('\\x%02x', $value);
+        }
+
+        return $printable;
     }
 
     /**

@@ -8324,6 +8324,91 @@ MARKDOWN);
         $t->same($result['pdfPermissionFlags'], $sequence['finalPdfPermissionFlags']);
     },
 
+    'fake runner extracts bounded pdf crypt filter encryption metadata without decrypting output' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/crypt-filters.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Filter /Standard /V 4 /R 4 /Length 128 /P -44 /EncryptMetadata true /StmF /StdCF /StrF /Identity /EFF /EmbeddedCF /CF << /StdCF << /CFM /AESV3 /Length 32 /AuthEvent /DocOpen /Recipients [<001122> <AABBCC>] >> /EmbeddedCF << /Type /CryptFilter /CFM /AESV2 /Length 16 /AuthEvent /EFOpen >> /Identity << /CFM /None >> >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Encrypt 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/crypt-filters.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/crypt-filters.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedFilters = [
+            'stream' => 'StdCF',
+            'string' => 'Identity',
+            'embeddedFile' => 'EmbeddedCF',
+        ];
+        $expectedCryptFilters = [
+            [
+                'name' => 'EmbeddedCF',
+                'object' => null,
+                'cryptFilterMethod' => 'AESV2',
+                'length' => 16,
+                'authEvent' => 'EFOpen',
+                'recipients' => 0,
+                'rawKeys' => ['AuthEvent', 'CFM', 'Length', 'Type'],
+            ],
+            [
+                'name' => 'Identity',
+                'object' => null,
+                'cryptFilterMethod' => 'None',
+                'length' => null,
+                'authEvent' => null,
+                'recipients' => 0,
+                'rawKeys' => ['CFM'],
+            ],
+            [
+                'name' => 'StdCF',
+                'object' => null,
+                'cryptFilterMethod' => 'AESV3',
+                'length' => 32,
+                'authEvent' => 'DocOpen',
+                'recipients' => 2,
+                'rawKeys' => ['AuthEvent', 'CFM', 'Length', 'Recipients'],
+            ],
+        ];
+
+        $t->same(false, $result['ok']);
+        $t->same('pdf-output-encrypted', $result['reason']);
+        $t->same($expectedFilters, $result['pdfEncryptionDefaultFilters']);
+        $t->same($expectedCryptFilters, $result['pdfEncryptionCryptFilters']);
+        $t->contains('pdf-encryption-default-filters:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-encryption-default-filter:stream:StdCF', implode(',', $result['diagnostics']));
+        $t->contains('pdf-encryption-crypt-filters:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-encryption-crypt-filter-method:AESV3:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-encryption-crypt-filter-auth-event:EFOpen:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-encryption-crypt-filter-recipients:2', implode(',', $result['diagnostics']));
+        $t->same($expectedFilters, $sequence['finalPdfEncryptionDefaultFilters']);
+        $t->same($expectedCryptFilters, $sequence['finalPdfEncryptionCryptFilters']);
+    },
+
     'fake runner rejects truncated stale or mismatched pdf output artifacts' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);

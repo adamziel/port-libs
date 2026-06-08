@@ -647,6 +647,29 @@ return [
         $t->contains('<h1 id="dos-865">DOS 865</h1>', $blocks);
         $t->contains('<p>Dansk: København, smørrebrød, blåbær; Norsk: ÆØÅ; Islandsk: Ðð Þþ; ¤.</p>', $blocks);
     },
+    'decodes ibm775 dos baltic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 775\n\nBaltic \xA0\x83 \xED\x89 \xA1\x8C \xE2\x93; Latvian \x95\x85 \xE8\xE9 \xEA\xEB \xEE\xEC; Lithuanian \xB5\xD0 \xB6\xD1 \xB7\xD2 \xB8\xD3 \xBD\xD4 \xBE\xD5 \xC6\xD6 \xC7\xD7 \xCF\xD8; quotes \xF2avots\xA6 \xF7zems\xA6; box \xC9\xCD\xBB; soft\xF0hyphen\xFFtail.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp775');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm775');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x83\x85\x8A\x8B\x8C\x95\xA0\xA1\xA3\xA4\xA5\xAD\xB5\xB6\xB7\xB8\xBD\xBE\xC6\xC7\xCF\xD0\xD1\xD2\xD3\xD4\xD5\xD6\xD7\xD8\xE0\xE2\xE3\xE7\xE8\xE9\xEA\xEB\xEC\xED\xEE\xEF\xF0\xF2\xF7\xFF", 'ibm775');
+        $ibm850Comparison = UnicodeText::decodeBytes("\x80\x8A\x8B\xA0\xB5\xCF\xD0\xEF\xF7\xFF", 'ibm850');
+
+        $t->same('ibm775', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 775\n\nBaltic Āā Ēē Īī Ōō; Latvian Ģģ Ķķ Ļļ Ņņ; Lithuanian Ąą Čč Ęę Ėė Įį Šš Ųų Ūū Žž; quotes “avots” „zems”; box ╔═╗; soft\u{00AD}hyphen\u{00A0}tail.", $decoded['text']);
+        $t->same("ĆāģŖŗīĢĀĪŻżźŁĄČĘĖĮŠŲŪŽąčęėįšųūžÓŌŃńĶķĻļņĒŅ’\u{00AD}“„\u{00A0}", $specials['text']);
+        $t->same('ÇèïáÁ¤ð´¸ ', $ibm850Comparison['text']);
+        $t->same(0, UnicodeText::displayWidth("\u{00AD}"));
+        $t->same(1, UnicodeText::displayWidth("\u{00A0}"));
+        $t->same(['encoding' => 'ibm775', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 775', $document->children[0]->attr('text'));
+        $t->same("Baltic Āā Ēē Īī Ōō; Latvian Ģģ Ķķ Ļļ Ņņ; Lithuanian Ąą Čč Ęę Ėė Įį Šš Ųų Ūū Žž; quotes “avots” „zems”; box ╔═╗; soft\u{00AD}hyphen\u{00A0}tail.", $document->children[1]->attr('text'));
+        $t->same(128, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(139, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-775">DOS 775</h1>', $blocks);
+        $t->contains("<p>Baltic Āā Ēē Īī Ōō; Latvian Ģģ Ķķ Ļļ Ņņ; Lithuanian Ąą Čč Ęę Ėė Įį Šš Ųų Ūū Žž; quotes “avots” „zems”; box ╔═╗; soft\u{00AD}hyphen\u{00A0}tail.</p>", $blocks);
+    },
     'decodes ibm863 dos canadian french source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 863\n\nQu\x82bec H\x93tel; co\x96t; \x90t\x82; fractions \xAB\xAC\xAD; monnaie \x9B\x9C\x98; box \xC9\xCD\xBB; \x8D.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp863');

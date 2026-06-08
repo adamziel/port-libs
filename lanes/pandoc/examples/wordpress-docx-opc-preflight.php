@@ -1600,6 +1600,11 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'source' => $transform['source'],
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
+        'selectorChildCount' => $transform['selectorChildCount'],
+        'selectorRelationshipReferenceCount' => $transform['selectorRelationshipReferenceCount'],
+        'selectorRelationshipGroupReferenceCount' => $transform['selectorRelationshipGroupReferenceCount'],
+        'selectorUnsupportedChildCount' => $transform['selectorUnsupportedChildCount'],
+        'selectorUnsupportedContentCount' => $transform['selectorUnsupportedContentCount'],
         'followingCanonicalizationAlgorithm' => $transform['followingCanonicalizationAlgorithm'],
         'followingCanonicalization' => $transform['followingCanonicalization'],
         'followedByCanonicalization' => $transform['followedByCanonicalization'],
@@ -1625,6 +1630,11 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-s
         'source' => $transform['source'],
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
+        'selectorChildCount' => $transform['selectorChildCount'],
+        'selectorRelationshipReferenceCount' => $transform['selectorRelationshipReferenceCount'],
+        'selectorRelationshipGroupReferenceCount' => $transform['selectorRelationshipGroupReferenceCount'],
+        'selectorUnsupportedChildCount' => $transform['selectorUnsupportedChildCount'],
+        'selectorUnsupportedContentCount' => $transform['selectorUnsupportedContentCount'],
         'relationshipIds' => $transform['relationshipIds'],
         'relationshipCount' => $transform['relationshipCount'],
         'valid' => $transform['valid'],
@@ -3080,6 +3090,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransforms'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['signatureRelationshipTransforms'][0]['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer']
         || ($summary['signatureRelationshipTransforms'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransforms'][0]['selectorChildCount'] ?? null) !== 3
+        || ($summary['signatureRelationshipTransforms'][0]['selectorRelationshipReferenceCount'] ?? null) !== 2
+        || ($summary['signatureRelationshipTransforms'][0]['selectorRelationshipGroupReferenceCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransforms'][0]['selectorUnsupportedChildCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransforms'][0]['selectorUnsupportedContentCount'] ?? null) !== 0
         || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalizationAlgorithm'] ?? null) !== 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
         || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalization']['profile'] ?? null) !== 'inclusive-c14n-1.0'
         || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalization']['exclusive'] ?? null) !== false
@@ -3103,6 +3118,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransformGuards'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
         || ($summary['signatureRelationshipTransformGuards'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorChildCount'] ?? null) !== 2
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorRelationshipReferenceCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorRelationshipGroupReferenceCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorUnsupportedChildCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransformGuards'][0]['selectorUnsupportedContentCount'] ?? null) !== 0
         || ($summary['signatureRelationshipTransformGuards'][0]['relationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero']
         || ($summary['signatureRelationshipTransformGuards'][0]['relationshipCount'] ?? null) !== 2
         || ($summary['signatureRelationshipTransformGuards'][0]['valid'] ?? null) !== false

@@ -369,6 +369,8 @@ final class PdfEngineHandoff
      *     pdfPermissionInteger: int|null,
      *     pdfPermissionFlags: array<string, bool>,
      *     pdfEncryptMetadata: bool|null,
+     *     pdfEncryptionDefaultFilters: array{stream:string|null, string:string|null, embeddedFile:string|null}|array{},
+     *     pdfEncryptionCryptFilters: list<array{name:string, object:string|null, cryptFilterMethod:string|null, length:int|null, authEvent:string|null, recipients:int, rawKeys:list<string>}>,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -823,6 +825,8 @@ final class PdfEngineHandoff
         $pdfPermissionInteger = null;
         $pdfPermissionFlags = [];
         $pdfEncryptMetadata = null;
+        $pdfEncryptionDefaultFilters = [];
+        $pdfEncryptionCryptFilters = [];
         if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')) {
             if (strlen($pdfBytes) > self::MAX_PDF_OUTPUT_INSPECTION_BYTES) {
                 $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
@@ -936,6 +940,8 @@ final class PdfEngineHandoff
                 $pdfPermissionInteger = $pdfEncryption['permissions'];
                 $pdfPermissionFlags = $pdfEncryption['permissionFlags'];
                 $pdfEncryptMetadata = $pdfEncryption['encryptMetadata'];
+                $pdfEncryptionDefaultFilters = $pdfEncryption['defaultFilters'];
+                $pdfEncryptionCryptFilters = $pdfEncryption['cryptFilters'];
                 if ($pdfHeaderVersion !== null) {
                     $diagnostics[] = 'pdf-byte-header-version:' . $pdfHeaderVersion;
                 }
@@ -2660,6 +2666,54 @@ final class PdfEngineHandoff
                     if ($pdfPermissionFlags !== []) {
                         $diagnostics[] = 'pdf-permission-flags:' . count($pdfPermissionFlags);
                     }
+                    if ($pdfEncryptionDefaultFilters !== []) {
+                        $defaultFilterCount = count(array_filter(
+                            $pdfEncryptionDefaultFilters,
+                            static fn (?string $filter): bool => $filter !== null && $filter !== ''
+                        ));
+                        if ($defaultFilterCount > 0) {
+                            $diagnostics[] = 'pdf-encryption-default-filters:' . $defaultFilterCount;
+                        }
+                        foreach ($pdfEncryptionDefaultFilters as $filterTarget => $filterName) {
+                            if (is_string($filterName) && $filterName !== '') {
+                                $diagnostics[] = 'pdf-encryption-default-filter:' . $filterTarget . ':' . $filterName;
+                            }
+                        }
+                    }
+                    if ($pdfEncryptionCryptFilters !== []) {
+                        $diagnostics[] = 'pdf-encryption-crypt-filters:' . count($pdfEncryptionCryptFilters);
+                        $cryptFilterMethods = [];
+                        $cryptFilterAuthEvents = [];
+                        $cryptFilterRecipients = 0;
+                        foreach ($pdfEncryptionCryptFilters as $cryptFilter) {
+                            $method = is_string($cryptFilter['cryptFilterMethod'] ?? null) && $cryptFilter['cryptFilterMethod'] !== ''
+                                ? $cryptFilter['cryptFilterMethod']
+                                : null;
+                            if ($method !== null) {
+                                $cryptFilterMethods[$method] = ($cryptFilterMethods[$method] ?? 0) + 1;
+                            }
+
+                            $authEvent = is_string($cryptFilter['authEvent'] ?? null) && $cryptFilter['authEvent'] !== ''
+                                ? $cryptFilter['authEvent']
+                                : null;
+                            if ($authEvent !== null) {
+                                $cryptFilterAuthEvents[$authEvent] = ($cryptFilterAuthEvents[$authEvent] ?? 0) + 1;
+                            }
+
+                            $cryptFilterRecipients += is_int($cryptFilter['recipients'] ?? null) ? $cryptFilter['recipients'] : 0;
+                        }
+                        ksort($cryptFilterMethods);
+                        foreach ($cryptFilterMethods as $method => $methodCount) {
+                            $diagnostics[] = 'pdf-encryption-crypt-filter-method:' . $method . ':' . $methodCount;
+                        }
+                        ksort($cryptFilterAuthEvents);
+                        foreach ($cryptFilterAuthEvents as $authEvent => $authEventCount) {
+                            $diagnostics[] = 'pdf-encryption-crypt-filter-auth-event:' . $authEvent . ':' . $authEventCount;
+                        }
+                        if ($cryptFilterRecipients > 0) {
+                            $diagnostics[] = 'pdf-encryption-crypt-filter-recipients:' . $cryptFilterRecipients;
+                        }
+                    }
                 }
             }
         }
@@ -2897,6 +2951,8 @@ final class PdfEngineHandoff
             'pdfPermissionInteger' => $pdfPermissionInteger,
             'pdfPermissionFlags' => $pdfPermissionFlags,
             'pdfEncryptMetadata' => $pdfEncryptMetadata,
+            'pdfEncryptionDefaultFilters' => $pdfEncryptionDefaultFilters,
+            'pdfEncryptionCryptFilters' => $pdfEncryptionCryptFilters,
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -3030,6 +3086,8 @@ final class PdfEngineHandoff
      *     finalPdfPermissionInteger: int|null,
      *     finalPdfPermissionFlags: array<string, bool>,
      *     finalPdfEncryptMetadata: bool|null,
+     *     finalPdfEncryptionDefaultFilters: array{stream:string|null, string:string|null, embeddedFile:string|null}|array{},
+     *     finalPdfEncryptionCryptFilters: list<array{name:string, object:string|null, cryptFilterMethod:string|null, length:int|null, authEvent:string|null, recipients:int, rawKeys:list<string>}>,
      *     sourceSha256: string|null,
      *     finalResourceArtifactsSha256: array<string, string>,
      *     finalEngineDependencyArtifactsSha256: array<string, string>,
@@ -3277,6 +3335,8 @@ final class PdfEngineHandoff
             'finalPdfPermissionInteger' => is_array($finalRun) && is_int($finalRun['pdfPermissionInteger'] ?? null) ? $finalRun['pdfPermissionInteger'] : null,
             'finalPdfPermissionFlags' => is_array($finalRun) && is_array($finalRun['pdfPermissionFlags'] ?? null) ? $finalRun['pdfPermissionFlags'] : [],
             'finalPdfEncryptMetadata' => is_array($finalRun) && is_bool($finalRun['pdfEncryptMetadata'] ?? null) ? $finalRun['pdfEncryptMetadata'] : null,
+            'finalPdfEncryptionDefaultFilters' => is_array($finalRun) && is_array($finalRun['pdfEncryptionDefaultFilters'] ?? null) ? $finalRun['pdfEncryptionDefaultFilters'] : [],
+            'finalPdfEncryptionCryptFilters' => is_array($finalRun) && is_array($finalRun['pdfEncryptionCryptFilters'] ?? null) ? $finalRun['pdfEncryptionCryptFilters'] : [],
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
@@ -12725,7 +12785,9 @@ final class PdfEngineHandoff
      *     length:int|null,
      *     permissions:int|null,
      *     permissionFlags:array<string, bool>,
-     *     encryptMetadata:bool|null
+     *     encryptMetadata:bool|null,
+     *     defaultFilters:array{stream:string|null, string:string|null, embeddedFile:string|null}|array{},
+     *     cryptFilters:list<array{name:string, object:string|null, cryptFilterMethod:string|null, length:int|null, authEvent:string|null, recipients:int, rawKeys:list<string>}>
      * }
      */
     private function extractPdfEncryptionInfo(string $pdfBytes): array
@@ -12739,6 +12801,8 @@ final class PdfEngineHandoff
             'permissions' => null,
             'permissionFlags' => [],
             'encryptMetadata' => null,
+            'defaultFilters' => [],
+            'cryptFilters' => [],
         ];
 
         if (preg_match('/\/Encrypt\b/s', $pdfBytes) !== 1) {
@@ -12746,6 +12810,7 @@ final class PdfEngineHandoff
         }
 
         $info['encrypted'] = true;
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
         $dictionary = $this->extractPdfEncryptDictionary($pdfBytes);
         if ($dictionary === null) {
             return $info;
@@ -12757,11 +12822,90 @@ final class PdfEngineHandoff
         $info['length'] = $this->extractPdfIntegerToken($dictionary, 'Length');
         $info['permissions'] = $this->extractPdfIntegerToken($dictionary, 'P');
         $info['encryptMetadata'] = $this->extractPdfBooleanToken($dictionary, 'EncryptMetadata');
+        $info['defaultFilters'] = $this->extractPdfEncryptionDefaultFilters($dictionary);
+        $info['cryptFilters'] = $this->extractPdfEncryptionCryptFilters($dictionary, $objects);
         if ($info['permissions'] !== null) {
             $info['permissionFlags'] = $this->decodePdfPermissionFlags($info['permissions']);
         }
 
         return $info;
+    }
+
+    /**
+     * @return array{stream:string|null, string:string|null, embeddedFile:string|null}|array{}
+     */
+    private function extractPdfEncryptionDefaultFilters(string $dictionary): array
+    {
+        $filters = [
+            'stream' => $this->extractPdfNameToken($dictionary, 'StmF'),
+            'string' => $this->extractPdfNameToken($dictionary, 'StrF'),
+            'embeddedFile' => $this->extractPdfNameToken($dictionary, 'EFF'),
+        ];
+
+        return array_filter(
+            $filters,
+            static fn (?string $filter): bool => $filter !== null && $filter !== ''
+        ) === [] ? [] : $filters;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{name:string, object:string|null, cryptFilterMethod:string|null, length:int|null, authEvent:string|null, recipients:int, rawKeys:list<string>}>
+     */
+    private function extractPdfEncryptionCryptFilters(string $dictionary, array $objects): array
+    {
+        $cryptFilterDictionary = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'CF', $objects);
+        if ($cryptFilterDictionary === null) {
+            return [];
+        }
+
+        $filters = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($cryptFilterDictionary) as $entry) {
+            if ($entry['key'] === '' || $entry['key'] === 'Type') {
+                continue;
+            }
+
+            $filterDictionary = null;
+            $filterObject = null;
+            if ($entry['value']['kind'] === 'dictionary') {
+                $filterDictionary = $entry['value']['value'];
+            } elseif ($entry['value']['kind'] === 'reference') {
+                $filterObject = $entry['value']['value'];
+                $filterDictionary = $objects[$this->pdfReferenceKey($filterObject)] ?? null;
+            }
+            if ($filterDictionary === null) {
+                continue;
+            }
+
+            $recipients = 0;
+            $recipientsArray = $this->extractPdfArrayOrReferenceValue($filterDictionary, 'Recipients', $objects);
+            if ($recipientsArray !== null) {
+                $recipients = count($this->pdfTopLevelArrayValues($recipientsArray));
+            }
+
+            $filters[] = [
+                'name' => $entry['key'],
+                'object' => $filterObject,
+                'cryptFilterMethod' => $this->extractPdfNameToken($filterDictionary, 'CFM'),
+                'length' => $this->extractPdfIntegerToken($filterDictionary, 'Length'),
+                'authEvent' => $this->extractPdfNameToken($filterDictionary, 'AuthEvent'),
+                'recipients' => $recipients,
+                'rawKeys' => $this->pdfDictionaryKeys($filterDictionary),
+            ];
+        }
+
+        usort(
+            $filters,
+            static fn (array $a, array $b): int => [
+                $a['name'],
+                $a['object'] ?? '',
+            ] <=> [
+                $b['name'],
+                $b['object'] ?? '',
+            ]
+        );
+
+        return $filters;
     }
 
     private function extractPdfEncryptDictionary(string $pdfBytes): ?string

@@ -6375,6 +6375,79 @@ return [
         $t->same($packet, Lz4Frame::decode($stream));
     },
 
+    'preflights lz4 skippable frame metadata without exposing payload bytes' => static function (TestRunner $t): void {
+        $packet = 'packet/word/document.xml:skippable-review';
+        $smallPayload = 'review-index:legacy';
+        $largePayload = str_repeat('review-metadata-', 8);
+        $stream = Lz4Frame::skippableFrame($smallPayload, 2)
+            . Lz4Frame::build($packet, [
+                'contentChecksum' => true,
+                'contentSize' => true,
+            ])
+            . Lz4Frame::skippableFrame($largePayload, 15);
+
+        $inspection = ArchiveCompressionStream::inspectLz4SkippableFramePolicy($stream, 32);
+        $cleanInspection = ArchiveCompressionStream::inspectLz4SkippableFramePolicy($stream, strlen($largePayload));
+
+        $t->same('lz4', $inspection['format']);
+        $t->same('lz4-skippable-frame-policy', $inspection['type']);
+        $t->same(strlen($stream), $inspection['compressedSize']);
+        $t->same(3, $inspection['frameCount']);
+        $t->same(1, $inspection['dataFrameCount']);
+        $t->same(2, $inspection['skippableFrameCount']);
+        $t->same(strlen($smallPayload) + strlen($largePayload), $inspection['skippablePayloadBytes']);
+        $t->same(32, $inspection['maxSkippablePayloadBytes']);
+        $t->same(1, $inspection['overLimitSkippableFrameCount']);
+        $t->same(1, $inspection['firstOverLimitSkippableFrameIndex']);
+        $t->same(strlen($largePayload), $inspection['largestSkippablePayloadSize']);
+        $t->same('review-before-conversion', $inspection['handoffPolicy']);
+        $t->same('lz4-skippable-frame-review', $inspection['extractionPolicy']);
+        $t->same(['lz4-skippable-frame-byte-limit-exceeds-threshold'], $inspection['diagnostics']);
+        $t->same(3, $inspection['stream']['frameCount']);
+        $t->same(1, $inspection['stream']['dataFrameCount']);
+        $t->same(2, $inspection['stream']['skippableFrameCount']);
+        $t->same(0, $inspection['stream']['dictionaryFrameCount']);
+        $t->same('metadata-only-no-extraction', $inspection['stream']['extractionPolicy']);
+
+        $t->same('skippable', $inspection['stream']['frames'][0]['type']);
+        $t->same(2, $inspection['stream']['frames'][0]['id']);
+        $t->same(0, $inspection['stream']['frames'][0]['frameIndex']);
+        $t->same(0, $inspection['stream']['frames'][0]['skippableFrameIndex']);
+        $t->same(strlen($smallPayload), $inspection['stream']['frames'][0]['payloadSize']);
+        $t->same(hash('sha256', $smallPayload), $inspection['stream']['frames'][0]['payloadSha256']);
+        $t->same($smallPayload, $inspection['stream']['frames'][0]['payloadPreview']);
+        $t->same('metadata-only-no-extraction', $inspection['stream']['frames'][0]['policy']);
+        $t->same([], $inspection['stream']['frames'][0]['diagnostics']);
+        $t->same(false, array_key_exists('data', $inspection['stream']['frames'][0]));
+
+        $t->same('frame', $inspection['stream']['frames'][1]['type']);
+        $t->same(1, $inspection['stream']['frames'][1]['frameIndex']);
+        $t->same(0, $inspection['stream']['frames'][1]['dataFrameIndex']);
+        $t->same(null, $inspection['stream']['frames'][1]['dictionaryId']);
+        $t->same(strlen($packet), $inspection['stream']['frames'][1]['contentSize']);
+        $t->same('decodable-without-dictionary', $inspection['stream']['frames'][1]['policy']);
+        $t->same([], $inspection['stream']['frames'][1]['diagnostics']);
+        $t->same(false, array_key_exists('data', $inspection['stream']['frames'][1]));
+
+        $t->same('skippable', $inspection['stream']['frames'][2]['type']);
+        $t->same(15, $inspection['stream']['frames'][2]['id']);
+        $t->same(2, $inspection['stream']['frames'][2]['frameIndex']);
+        $t->same(1, $inspection['stream']['frames'][2]['skippableFrameIndex']);
+        $t->same(strlen($largePayload), $inspection['stream']['frames'][2]['payloadSize']);
+        $t->same(hash('sha256', $largePayload), $inspection['stream']['frames'][2]['payloadSha256']);
+        $t->same(substr($largePayload, 0, 64), $inspection['stream']['frames'][2]['payloadPreview']);
+        $t->same('review-before-conversion', $inspection['stream']['frames'][2]['policy']);
+        $t->same(['lz4-skippable-frame-byte-limit-over-limit'], $inspection['stream']['frames'][2]['diagnostics']);
+        $t->same(false, array_key_exists('data', $inspection['stream']['frames'][2]));
+
+        $t->same('within-thresholds', $cleanInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanInspection['extractionPolicy']);
+        $t->same(0, $cleanInspection['overLimitSkippableFrameCount']);
+        $t->same([], $cleanInspection['diagnostics']);
+        $t->same($packet, Lz4Frame::decode($stream));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4SkippableFramePolicy($stream, 0));
+    },
+
     'decodes dependent lz4 frame blocks using previous package fixture bytes' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $dictionaryBlock = 'packet/word/document.xml:';
         $matchLength = strlen($dictionaryBlock);
