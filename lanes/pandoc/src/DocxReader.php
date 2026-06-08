@@ -134,6 +134,10 @@ final class DocxReader
         );
         $glossary = $this->readGlossaryDocument($package, $graph, $documentPart, $referencedNotes, $styles, $numbering);
         $metadata = $this->readCoreProperties($package, $graph);
+        $documentBackground = $document->attr('docxBackground', []);
+        if (is_array($documentBackground) && $documentBackground !== []) {
+            $metadata['docxBackground'] = $documentBackground;
+        }
         $extendedProperties = $this->readExtendedProperties($package, $graph);
         $customProperties = $this->readCustomProperties($package, $graph);
         $docProperties = [];
@@ -243,6 +247,7 @@ final class DocxReader
             'settings' => $settings,
             'theme' => $theme,
             'glossary' => $glossary,
+            'background' => $document->attr('docxBackground', []),
             'sections' => [
                 'count' => count($document->attr('sectionProperties', [])),
                 'items' => $document->attr('sectionProperties', []),
@@ -842,6 +847,10 @@ final class DocxReader
                 'sourceFormat' => 'docx',
                 'documentPart' => $documentPart,
             ];
+            $background = $this->documentBackgroundAttrs($root, $package, $relationships);
+            if ($background !== []) {
+                $attrs['docxBackground'] = $background;
+            }
             $documentNoteReferenceState = $this->noteReferenceState;
             $sectionProperties = $this->sectionProperties($body, $package, $relationships, $referencedNotes, $styles, $numbering);
             $this->noteReferenceState = $documentNoteReferenceState;
@@ -853,6 +862,171 @@ final class DocxReader
         } finally {
             $this->currentStyles = $previousStyles;
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentBackgroundAttrs(\DOMElement $document, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        $background = $this->firstChildElement($document, self::WORDPROCESSINGML_NS, 'background');
+        if (!$background instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach ([
+            'color' => 'color',
+            'themeColor' => 'themeColor',
+            'themeTint' => 'themeTint',
+            'themeShade' => 'themeShade',
+        ] as $source => $target) {
+            $value = trim((string) ($this->wordAttr($background, $source) ?? ''));
+            if ($value !== '') {
+                $attrs[$target] = $value;
+            }
+        }
+
+        if (isset($attrs['color']) && preg_match('/^[0-9A-Fa-f]{6}$/D', (string) $attrs['color']) === 1) {
+            $attrs['cssBackgroundColor'] = '#' . strtoupper((string) $attrs['color']);
+        }
+
+        $vmlBackground = $this->firstChildElement($background, self::VML_NS, 'background');
+        $fillContainer = $vmlBackground instanceof \DOMElement ? $vmlBackground : $background;
+        if ($vmlBackground instanceof \DOMElement) {
+            foreach ([
+                'id' => 'vmlId',
+                'style' => 'vmlStyle',
+            ] as $source => $target) {
+                $value = trim($vmlBackground->getAttribute($source));
+                if ($value !== '') {
+                    $attrs[$target] = $value;
+                }
+            }
+        }
+
+        $fill = $this->firstDescendantElement($fillContainer, self::VML_NS, 'fill');
+        if ($fill instanceof \DOMElement) {
+            $fillAttrs = $this->documentBackgroundFillAttrs($fill);
+            if ($fillAttrs !== []) {
+                $attrs['fill'] = $fillAttrs;
+            }
+
+            $imageAttrs = $this->documentBackgroundImageAttrs($fill, $package, $relationships);
+            if ($imageAttrs !== []) {
+                $attrs['image'] = $imageAttrs;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function documentBackgroundFillAttrs(\DOMElement $fill): array
+    {
+        $attrs = [];
+        $relationshipId = trim((string) ($this->relationshipAttr($fill, 'id') ?? ''));
+        if ($relationshipId !== '') {
+            $attrs['relationshipId'] = $relationshipId;
+        }
+
+        $title = trim((string) ($this->namespacedAttr($fill, self::OFFICE_VML_NS, 'title') ?? ''));
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        foreach (['type', 'color2', 'recolor', 'opacity'] as $name) {
+            $value = trim($fill->getAttribute($name));
+            if ($value !== '') {
+                $attrs[$name] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentBackgroundImageAttrs(
+        \DOMElement $fill,
+        ZipPackage $package,
+        ?OpcRelationships $relationships
+    ): array {
+        $relationshipId = trim((string) ($this->relationshipAttr($fill, 'id') ?? ''));
+        if ($relationshipId === '') {
+            return [];
+        }
+
+        $attrs = [
+            'relationshipId' => $relationshipId,
+            'relationshipType' => null,
+            'target' => null,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => null,
+            'exists' => null,
+            'bytes' => null,
+            'issues' => [],
+        ];
+        if (!$relationships instanceof OpcRelationships) {
+            $attrs['issues'][] = 'missing-relationships';
+
+            return $attrs;
+        }
+
+        $relationship = $relationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $attrs['issues'][] = 'unknown-relationship';
+
+            return $attrs;
+        }
+
+        $attrs['relationshipType'] = $relationship->type;
+        if ($relationship->type !== self::REL_TYPE_IMAGE) {
+            $attrs['issues'][] = 'unexpected-relationship-type';
+
+            return $attrs;
+        }
+
+        try {
+            $target = $relationships->resolveTarget($relationship);
+        } catch (\InvalidArgumentException $e) {
+            $attrs['issues'][] = 'invalid-target';
+
+            return $attrs;
+        }
+
+        $attrs['target'] = $target;
+        if ($relationship->isExternal()) {
+            $externalTarget = $relationship->externalTargetPreflight();
+            $attrs['external'] = true;
+            $attrs['externalTargetKind'] = $externalTarget['kind'];
+            $attrs['externalTargetScheme'] = $externalTarget['scheme'];
+            $attrs['externalTargetAllowed'] = $externalTarget['allowed'];
+            $attrs['issues'] = $externalTarget['issues'];
+
+            return $attrs;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $attrs['targetPart'] = $targetPart;
+        $attrs['external'] = false;
+        $attrs['exists'] = $package->has($targetPart);
+        if ($attrs['exists'] === true) {
+            $attrs['bytes'] = strlen($package->read($targetPart));
+        } else {
+            $attrs['issues'][] = 'missing-package-part';
+        }
+
+        $contentType = $this->contentTypeForPackagePart($package, $targetPart);
+        if ($contentType !== null) {
+            $attrs['contentType'] = $contentType;
+        }
+
+        return $attrs;
     }
 
     /**

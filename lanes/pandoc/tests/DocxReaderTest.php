@@ -191,6 +191,37 @@ $vmlImageDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$backgroundContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$backgroundDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdBackground" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/page-bg.png"/>
+</Relationships>
+XML;
+
+$backgroundDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:background w:color="DDEEFF" w:themeColor="accent1" w:themeTint="33">
+    <v:background id="_x0000_s4096" style="mso-background-themecolor:accent1">
+      <v:fill r:id="rIdBackground" o:title="Watermark texture" type="frame" color2="FFFFFF" recolor="t"/>
+    </v:background>
+  </w:background>
+  <w:body>
+    <w:p><w:r><w:t>Background packet body.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
 $drawingPlaceholderContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2540,6 +2571,16 @@ $buildVmlImagePackage = static function () use ($vmlImageContentTypesXml, $packa
     ]);
 };
 
+$buildBackgroundPackage = static function () use ($backgroundContentTypesXml, $packageRelationshipsXml, $backgroundDocumentRelationshipsXml, $backgroundDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $backgroundContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $backgroundDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $backgroundDocumentRelationshipsXml],
+        ['name' => 'word/media/page-bg.png', 'data' => 'BGPAYLOAD'],
+    ]);
+};
+
 $buildDrawingPlaceholderPackage = static function () use (
     $drawingPlaceholderContentTypesXml,
     $packageRelationshipsXml,
@@ -3440,6 +3481,43 @@ return [
         $t->same(true, $media['items'][2]['external']);
         $t->same(0, $media['items'][2]['usedCount']);
         $t->same(['external-target-unsafe-scheme'], $media['items'][2]['issues']);
+    },
+    'preserves DOCX document background color and image relationship metadata for review handoff' => static function (TestRunner $t) use ($buildBackgroundPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildBackgroundPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $background = $document->attr('docxBackground');
+        $t->same('DDEEFF', $background['color']);
+        $t->same('accent1', $background['themeColor']);
+        $t->same('33', $background['themeTint']);
+        $t->same('#DDEEFF', $background['cssBackgroundColor']);
+        $t->same('_x0000_s4096', $background['vmlId']);
+        $t->same('mso-background-themecolor:accent1', $background['vmlStyle']);
+        $t->same('rIdBackground', $background['fill']['relationshipId']);
+        $t->same('Watermark texture', $background['fill']['title']);
+        $t->same('frame', $background['fill']['type']);
+        $t->same('FFFFFF', $background['fill']['color2']);
+        $t->same('t', $background['fill']['recolor']);
+
+        $image = $background['image'];
+        $t->same('rIdBackground', $image['relationshipId']);
+        $t->same(DocxReader::REL_TYPE_IMAGE, $image['relationshipType']);
+        $t->same('/word/media/page-bg.png', $image['target']);
+        $t->same('/word/media/page-bg.png', $image['targetPart']);
+        $t->same(false, $image['external']);
+        $t->same(true, $image['exists']);
+        $t->same('image/png', $image['contentType']);
+        $t->same(9, $image['bytes']);
+        $t->same([], $image['issues']);
+        $t->same($background, $result['metadata']['docxBackground']);
+        $t->same($background, $result['importReport']['background']);
+
+        $t->contains('Background packet body.', $markdown);
+        $t->contains('<p>Background packet body.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'Watermark texture'), 'Background metadata should remain a handoff packet, not visible block content');
     },
     'preserves DOCX chart and diagram drawing references as review placeholders' => static function (TestRunner $t) use ($buildDrawingPlaceholderPackage): void {
         $reader = new DocxReader();
